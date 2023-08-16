@@ -1,0 +1,158 @@
+TEMP:
+  name: WATER_TEMPERATURE
+  units: C
+  pcode_type: parameter
+SCSP:
+  name: SURFACE_CURRENT_SPEED
+  units: m s-1
+  pcode_type: parameter
+PSAL:
+  name: SALINITY
+  units: 0.001
+  pcode_type: parameter
+HCSP:
+  name: CURRENT_SPEED
+  units: m s-1
+  pcode_type: parameter
+HCDM:
+  name: CURRENT_DIRECTION
+  units: degrees
+  pcode_type: parameter
+  metadata:
+    DEGREES_REFERENCE: magnetic_north
+HCDT:
+  name: CURRENT_DIRECTION
+  units: degrees
+  pcode_type: parameter
+TRAN:
+  name: TRANSMISSIVITY
+  units: "% m-1"
+  pcode_type: parameter
+EWCM:
+  name: CURRENT_SPEED_EAST
+  units: m s-1
+  pcode_type: parameter
+  metadata:
+    DEGREES_REFERENCE: magnetic_north
+NSCM:
+  name: CURRENT_SPEED_NORTH
+  units: m s-1
+  pcode_type: parameter
+  metadata:
+    DEGREES_REFERENCE: magnetic_north
+EWCT:
+  name: CURRENT_SPEED_EAST
+  units: m s-1
+  pcode_type: parameter
+NSCT:
+  name: CURRENT_SPEED_NORTH
+  units: m s-1
+  pcode_type: parameter
+WDIR:
+  name: WIND_DIRECTION
+  units: degrees
+  pcode_type: parameter
+WSPD:
+  name: WIND_SPEED
+  units: m s-1
+  pcode_type: parameter
+DRYT:
+  name: DRY_BULB_TEMPERATURE
+  units: C
+  pcode_type: parameter
+SCDT:
+  name: SURFACE_CURRENT_DIRECTION
+  units: m s-1
+  pcode_type: parameter
+SCDP:
+  name: SURFACE_CURRENT_SPEED
+  units: m s-1
+  pcode_type: parameter
+VCSP:
+  name: VERTICAL_CURRENT_SPEED
+  units: m s-1
+  pcode_type: parameter
+BATH:
+  name: SEA_FLOOR_DEPTH
+  units: m
+  pcode_type: parameter
+RELH:
+  name: RELATIVE_HUMIDITY
+  units: "0.01"
+  pcode_type: parameter
+SSTP:
+  name: SURFACE_WATER_TEMPERATURE
+  units: "C"
+  pcode_type: parameter
+ATMS:
+  name: ATMOSPHERIC_PRESSURE_MSL
+  units: hPa
+  pcode_type: parameter
+BQA$:
+  name: WMO_BUOY_QUALITY_INDICATOR
+  type: metadata
+  pcode_type: code
+BQZ$:
+  name: WMO_DEPTH_QUALITY_INDICATOR
+  type: metadata
+  pcode_type: code
+BTP$:
+  name: WMO_BUOY_TYPE
+  type: metadata
+  pcode_type: code
+ANT$:
+  name: WMO_ANEMOMETER_TYPE
+  type: metadata
+  pcode_type: code
+GGST:
+  name: WMO_BUOY_SAT_TRANS_QUALITY
+  type: metadata
+  pcode_type: parameter
+GG1$:
+  name: WMO_BUOY_QCI_1
+  type: metadata
+  pcode_type: code
+GG2$:
+  name: WMO_BUOY_QCI_2
+  type: metadata
+  pcode_type: code
+GG3$:
+  name: WMO_BUOY_QCI_3
+  type: metadata
+  pcode_type: code
+GGC$:
+  name: WMO_TESAC_SUBSURFACE_DATA_GRP
+  type: metadata
+  pcode_type: code
+GGI$:
+  name: WMO_PROFILE_DATA_GRP
+  type: metadata
+  pcode_type: code
+WCF$:
+  name: WMO_CODE_FORM
+  type: metadata
+  pcode_type: code
+CRC$:
+  name: CRC_CHECK
+  type: metadata
+  pcode_type: code
+QCP$:
+  name: MEDS_QC_TESTS_PERFORMED
+  type: metadata
+  pcode_type: code
+QCF$:
+  name: MEDS_QC_TESTS_FAILED
+  type: metadata
+  pcode_type: code
+CCLL:
+  name: PLATFORM_CALLSIGN
+  type: metadata
+  pcode_type: parameter
+BCI$:
+  name: CURRENT_METHOD
+  type: metadata
+  pcode_type: code
+ANH$:
+  name: ANEMOMETER_HEIGHT
+  type: metadata
+  pcode_type: code

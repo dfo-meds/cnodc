@@ -1,0 +1,101 @@
+Table,Short Name,Description
+organizations,CA_MEDS,Marine Environmental Data Section
+organizations,CA_IOS,Institute Of Ocean Sciences
+organizations,CA_SABS,St. Andrews Biological Station
+organizations,CA_BIO,Beford Institute of Oceanography
+organizations,CA_DAL,Dalhousie University
+organizations,CA_IML,Maurice Lamontange Institute
+organizations,CA_FWI,Freshwater Institute
+organizations,CA_MUN,Memorial University
+organizations,CA_QC,Quebec Ocean
+organizations,CA_NAFC,Northwest Atlantic Fisheries Centre
+organizations,CA_UBC,University of British Columbia
+organizations,CA_DNDMO,National Defence Meteorology and Oceanography
+organizations,CA_GFC,Gulf Fisheries Centre
+organizations,CA_UQR,University of Quebec at Rimouski
+organizations,CA_ARCN,ArcticNet: University of Laval
+organizations,CA_ABS,Arctic Biological Station
+organizations,CA_AINA,Arctic Institute of North America: University of Calgary
+organizations,CA_DRDCA,Defence Research and Development Canada: Atlantic
+organizations,CA_DRDCP,Defence Research and Development Canada: Pacific
+organizations,CA_MSB,Marine Science Branch
+organizations,CA_PAPA,Ocean Weather Station P (Papa)
+organizations,CA_HMSC,Huntsman Marine Sciences Centre (McGill)
+organizations,INT_ICES,International Council for the Exploration of the Sea
+organizations,INT_WOCE_SVP,World Ocean Circulation Experiment - Surface Velocity Programme
+organizations,INT_WOCE_UOT,World Ocean Circulation Experiment - Upper Ocean Thermal
+organizations,INT_SVP_DRIBU,Surface Velocity Programme Drifting Buoys
+organizations,US_IIP,International Ice Patrol
+organizations,US_NOAA,National Oceanic and Atmospheric Administration
+organizations,US_NWS,National Weather Service
+organizations,US_SIO,Scripps Institute of Oceanography
+organizations,US_RTEOS,Estuary and Ocean Science Center: Romberg Tiburon (SF State)
+organizations,US_DOT,Department of Transport
+organizations,US_WHOI,Woods Hole Oceanographic Institute
+organizations,US_NCEI,National Centers for Environmental Information
+organizations,US_OLDM,Old Dominion University
+organizations,JP_FISH,Japanese Fisheries Agency
+organizations,JP_METE,Japanese Meteorological Agency
+organizations,DE_BSH,Federal Maritime and Hydrographic Agency of Germany
+organizations,DE_IFMH,Institute of Oceanography: University of Hamburg
+organizations,DE_IFM,Institute of Marine Sciences: Kiel
+organizations,FR_IFREMER,French Research Institute for Exploitation of the Sea
+organizations,FR_IRD,French Research Institute for Development (formerly OSTROM)
+organizations,RU_PINRO,Nikolai M. Knipovich Polar Research Institute of Marine Fisheries and Oceanography
+organizations,RU_FERHRI,Far Eastern Regional Hydrometeorological Research Institute
+organizations,UK_NOCS,National Oceanography Centre Southampton
+organizations,ES_IEO,Spanish Institute of Oceanography
+organizations,IN_ESSO,Indian National Centre for Ocean Information Services
+organizations,IN_NIO,CSIR - National Institute of Oceanography
+coordinates,DEPTH,
+coordinates,LAT,
+coordinates,LON,
+coordinates,OBS_TIME,
+coordinates,PRESSURE,
+metadata,FLOAT_CYCLE_NUMBER,
+metadata,IMO_NUMBER,
+metadata,INST_SERIAL_NO_TSP,
+metadata,LOCATION_QUALITY,
+metadata,PLATFORM_DIR,
+metadata,PLATFORM_MODEL,
+metadata,PLATFORM_SERIAL_NO,
+metadata,PLATFORM_SPD,
+metadata,PROFILE_DIRECTION,
+metadata,PROFILE_ID,
+metadata,QUALITY,
+metadata,SENSOR_HEIGHT_LOCAL,
+metadata,SENSOR_HEIGHT_WATER,
+metadata,SHIP_LINE_NO,
+metadata,SHIP_TRANSECT_NO,
+metadata,SOFTWARE_ID,
+metadata,STATION_ID,
+metadata,STATION_NAME,
+metadata,WMO_AGENCY_CODE,
+metadata,WMO_BUOY_TYPE,
+metadata,WMO_DATA_BUOY_TYPE,
+metadata,WMO_DATA_SYSTEM,
+metadata,WMO_DIGITIND,
+metadata,WMO_ITYPE_TPREC,
+metadata,WMO_ITYPE_TSP,
+metadata,WMO_ITYPE_WIND,
+metadata,WMO_ITYPE_XBT_CODE,
+metadata,WMO_METHOD_CURRENT,
+metadata,WMO_METHOD_CURRENT_DUR,
+metadata,WMO_METHOD_TS,
+metadata,WMO_PLATFORM_ID,
+metadata,XBT_HEIGHT,
+variables,AIR_TEMP,
+variables,DEW_TEMP,
+variables,S_CURRENT_DIR,
+variables,S_CURRENT_SPD,
+variables,SALINITY,
+variables,SEA_TEMP,
+variables,WATER_DEPTH,
+variables,WAVE_DIR,
+variables,WAVE_HEIGHT,
+variables,WAVE_PERIOD,
+variables,WIND_DIR,
+variables,WIND_SPD,
+metadata,GTS_HEADER,
+metadata,RECEIVED_TIME,
+subrecords,PROFILE,

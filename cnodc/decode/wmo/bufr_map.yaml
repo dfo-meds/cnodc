@@ -1,0 +1,386 @@
+1001: "metadata:WMO_BLOCK_NO"
+1002: "metadata:WMO_STATION_NO"
+1003: "metadata:WMO_REGION_NO"
+1005: "metadata:WMO_PLATFORM_NO"
+1007: "metadata:WMO_SATELLITE_NO"
+1011: "metadata:STATION_ID"
+1012: "metadata:PLATFORM_DIR"
+1013: "metadata:PLATFORM_SPD"
+1014: "metadata:PLATFORM_SPD"
+1015: "metadata:STATION_NAME"
+1019: "metadata:STATION_NAME"
+1020: "metadata:WMO_SUBREGION_NO"
+1023: "metadata:SEQUENCE_NO"
+1036: "metadata:WMO_AGENCY_CODE"
+1051: "metadata:TRANSMITTER_ID"
+1079: "metadata:PROFILE_ID"
+1080: "metadata:SHIP_LINE_NO"
+1085: "metadata:PLATFORM_MODEL"
+1086: "metadata:PLATFORM_SERIAL_NO"
+1087: "metadata:WMO_PLATFORM_ID"
+1103: "metadata:IMO_NUMBER"
+1115: "metadata:CRUISE_ID"
+1125: "metadata:WIGOS_SERIES"
+1126: "metadata:WIGOS_ISSUER"
+1127: "metadata:WIGOS_ISSUE"
+1128: "metadata:WIGOS_LOCAL"
+
+2001: "metadata:WMO_STATION_TYPE"
+2002:
+  type: metadata
+  name: WMO_ITYPE_WIND
+  apply_to: following
+  filter:
+    - WIND_DIR
+    - WIND_SPD
+    - MAX_WIND_GUST_SPD
+    - MAX_WIND_GUST_DIR
+2005:
+  type: metadata
+  name: PRECISION
+  apply_to: following
+  filter:
+    - SEA_TEMP
+2030:
+  type: metadata
+  name: WMO_METHOD_CURRENT
+  apply_to: following
+  filter:
+    - CURRENT_DIR
+    - CURRENT_SPD
+    - S_CURRENT_DIR
+    - S_CURRENT_SPD
+2031:
+  type: metadata
+  name: WMO_METHOD_CURRENT_DUR
+  apply_to: following
+  filter:
+    - CURRENT_DIR
+    - CURRENT_SPD
+    - S_CURRENT_DIR
+    - S_CURRENT_SPD
+2032: "next_recs:metadata:WMO_DIGITIND"
+2033:
+  type: metadata
+  name: WMO_METHOD_SD
+  apply_to: following
+  filter:
+    - SALINITY
+    - DEPTH
+2034: "metadata:WMO_DROGUE_TYPE"
+2036: "metadata:WMO_BUOY_TYPE"
+2038:
+  type: metadata
+  name: WMO_METHOD_TS
+  apply_to: following
+  filter:
+    - SEA_TEMP
+    - SALINITY
+2039:
+  type: metadata
+  name: WMO_METHOD_WET_TEMP
+  apply_to: following
+  filter:
+    - WET_TEMP
+2040:
+  type: metadata
+  name: WMO_METHOD_CURRENT_PR
+  apply_to: following
+  filter:
+    - CURRENT_DIR
+    - CURRENT_SPD
+    - S_CURRENT_DIR
+    - S_CURRENT_SPD
+2044:
+  type: metadata
+  name: WMO_METHOD_SPEC_WAVE
+  apply_to: target
+2045:
+  type: metadata
+  name: WMO_PLATFORM_TYPE
+  apply_to: target
+2046:
+  type: coordinates
+  name: WAVE_SENSOR
+  apply_to: target
+  subrecord_type: "SENSORS"
+2148: "metadata:WMO_DATA_SYSTEM"
+2149: "metadata:WMO_DATA_BUOY_TYPE"
+2169:
+  type: metadata
+  name: WMO_ITYPE_WIND
+  apply_to: following
+  filter:
+    - WIND_DIR
+    - WIND_SPD
+    - MAX_WIND_GUST_SPD
+    - MAX_WIND_GUST_DIR
+2171:
+  type: metadata
+  name: INST_SERIAL_NO_TP
+  apply_to: following
+  filter:
+    - SEA_TEMP
+2190: "metadata:SUBMERGENCE_TIME"
+
+3010:
+  type: metadata
+  name: WMO_METHOD_CURRENT_S
+  apply_to: following
+  filter:
+    - CURRENT_DIR
+    - CURRENT_SPD
+    - S_CURRENT_DIR
+    - S_CURRENT_SPD
+3011:
+  type: metadata
+  name: WMO_METHOD_DEPTH
+  apply_to: following
+  filter:
+    - DEPTH
+3012:
+  type: metadata
+  name: WMO_ITYPE_DO
+  apply_to: following
+  filter:
+    - DO
+
+5001: "coordinates:LAT"
+5002: "coordinates:LAT"
+5036: "metadata:SHIP_TRANSECT_NO"
+
+6001: "coordinates:LON"
+6002: "coordinates:LON"
+
+7004: noop
+7030: "metadata:STATION_HEIGHT"
+7031: "metadata:BAROMETER_HEIGHT"
+7032: "next_vars:metadata:SENSOR_HEIGHT_LOCAL"
+7033: "next_vars:metadata:SENSOR_HEIGHT_WATER"
+7062:
+  type: "coordinates"
+  name: "DEPTH"
+  apply_to: "target"
+  subrecord_type: "PROFILE"
+  directional_subrecord: yes
+7063:
+  type: "coordinates"
+  name: "DEPTH"
+  apply_to: "target"
+  subrecord_type: "PROFILE"
+  directional_subrecord: yes
+  context:
+    306038: "next_vars:metadata:SENSOR_DEPTH"
+    302056: "next_vars:metadata:SENSOR_DEPTH"
+    302090: "next_vars:metadata:SENSOR_DEPTH"
+7065:
+  type: "coordinates"
+  name: "PRESSURE"
+  apply_to: "target"
+  subrecord_type: "PROFILE"
+  directional_subrecord: yes
+7070: "metadata:DROGUE_DEPTH"
+
+8021:
+  apply_to: raise
+  context:
+    306038:
+      type: noop
+      name: noop
+      apply_to: noop
+8029: "metadata:WMO_SURFACE_TYPE"
+8034:
+  apply_to: following
+  name: WMO_QUALIFIER_TS
+  type: metadata
+  filter:
+    - SEA_TEMP
+    - SALINITY
+
+10004: "variables:ATMO_PRESSURE"
+10009: noop
+10051: "variables:ATMO_PRESSURE_MSL"
+10061: "variables:ATMO_PRESSURE_D3H"
+10062: noop
+10063: "variables:WMO_ATMO_PRESSURE_CCODE"
+
+11001: "variables:WIND_DIR"
+11002: "variables:WIND_SPD"
+11041: "variables:MAX_WIND_GUST_SPD"
+11043: "variables:MAX_WIND_GUST_DIR"
+
+12101: "variables:AIR_TEMP"
+12102: "variables:WET_TEMP"
+12103: "variables:DEW_TEMP"
+
+13003: "variables:RH"
+13011: "variables:TOTAL_PRECIP"
+13023: "variables:TOTAL_PRECIP_24H"
+13115: "variables:ICE_THICKNESS"
+
+14002: "variables:RAD_L"
+14004: "variables:RAD_S"
+14016: "variables:RAD_N"
+14028: "variables:SOLAR_RAD_GLB"
+14029: "variables:SOLAR_RAD_DIF"
+14030: "variables:SOLAR_RAD_DRT"
+
+20001: "variables:HORZ_VISIBILITY"
+20031: noop
+20032: noop
+20033: noop
+20034: "variables:SEA_ICE_CONCENTRATION"
+20035: noop
+20036: noop
+20037: noop
+20038: noop
+20058: noop
+
+22001: "variables:WAVE_DIR"
+22004: "variables:CURRENT_DIR"
+22005: "variables:S_CURRENT_DIR"
+22011: "variables:WAVE_PERIOD"
+22021: "variables:WAVE_HEIGHT"
+22031: "variables:CURRENT_SPD"
+22032: "variables:S_CURRENT_SPD"
+22043: "variables:SEA_TEMP"
+22045: "variables:SEA_TEMP"
+22049: "variables:S_SEA_TEMP"
+22055: "metadata:FLOAT_CYCLE_NUMBER"
+22056:
+  type: metadata
+  name: PROFILE_DIRECTION
+  apply_to: subrecords
+  value_map:
+    0: UP
+    1: DOWN
+    2: HORIZONTAL
+  filter:
+    - DEPTH
+    - PRESSURE
+22060: "metadata:WMO_DROGUE_STATUS"
+22061: noop
+22062: "variables:SALINITY"
+22063: "variables:WATER_DEPTH"
+22064: "variables:SALINITY"
+22067:
+  type: metadata
+  name: WMO_ITYPE_TSP
+  apply_to: following
+  filter:
+    - SEA_TEMP
+    - SALINITY
+22068:
+  type: metadata
+  name: WMO_ITYPE_TPREC
+  apply_to: subrecords
+  filter:
+    - SEA_TEMP
+22069: "variables:SPEC_WAVE_DENSITY"
+22070: "variables:SIG_WAVE_HEIGHT"
+22071: "variables:SPEC_WAVE_PEAK_PERIOD"
+22073: "variables:MAX_WAVE_HEIGHT"
+22074: "variables:AVG_WAVE_PERIOD"
+22076: "variables:DOM_WAVE_DIR"
+22077: "variables:DOM_WAVE_SPREAD"
+22078: "next_vars:metadata:OBS_PERIOD"
+22080:
+  type: "coordinates"
+  name: "CENTRAL_FREQ"
+  apply_to: "target"
+  subrecord_type: "SPEC_WAVE"
+22082: "variables:SPEC_WAVE_MAX_NODIR_DENSITY"
+22084: "variables:SPEC_WAVE_MAX_BAND"
+22086: "variables:SPEC_WAVE_MEAN_DIR"
+22087: "variables:SPEC_WAVE_PRPL_DIR"
+22088: "variables:SPEC_WAVE_FOURIER_1"
+22089: "variables:SPEC_WAVE_FOURIER_2"
+22094: "variables:SPEC_WAVE_BAND_COUNT"
+22096: "variables:SPEC_WAVE_BAND_WIDTH"
+22102: "variables:SPEC_WAVE_MAX_NODIR_DENSITY"
+22104: "variables:SPEC_WAVE_NODIR_DENSITY"
+22106: "variables:SPEC_WAVE_DIR_DENSITY"
+22108: "variables:SPEC_WAVE_DENSITY_RATIO"
+22177: "metadata:XBT_HEIGHT"
+22178: "metadata:WMO_ITYPE_XBT_CODE"
+22186: "variables:WAVE_DIR"
+22187: "variables:WAVE_SPREAD"
+22188: "variables:DO"
+
+25026: "metadata:BATTERY_VOLTAGE"
+25043: "metadata:WAVE_SAMPLING_TIME"
+25061: "metadata:SOFTWARE_ID"
+
+33022: "metadata:WMO_SAT_TRANS_QUALITY"
+33023: "metadata:WMO_LOCATION_QUALITY"
+33027: "metadata:WMO_LOCATION_QUALITY_CLS"
+
+42011: "variables:FOURIER_A1"
+42012: "variables:FOURIER_B1"
+42013: "variables:FOURIER_A2"
+42014: "variables:FOURIER_B2"
+42015: "variables:FOURIER_K"
+
+302004: "noop"
+302005: "noop"
+302036: "noop"
+302037: "noop"
+302038: "noop"
+302039: "noop"
+302040: "noop"
+302041: "noop"
+302044: "noop"
+302046: "noop"
+302047: "noop"
+302048: "noop"
+
+315003:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: PFLOAT
+  iterate_after: yes
+315004:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: XBT
+  iterate_after: yes
+315007:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: SHIP
+  iterate_after: yes
+315008:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: MBUOY
+  iterate_after: yes
+315009:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: DBUOY
+  iterate_after: yes
+315011:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: ASV
+  iterate_after: yes
+308015:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: WAVEOB
+  iterate_after: yes
+307079:
+  apply_to: target
+  type: metadata_map
+  map:
+    OBS_PLATFORM_TYPE: CSTATION
+  iterate_after: yes
+
+
