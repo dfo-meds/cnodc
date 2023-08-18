@@ -1,4 +1,4 @@
-from cnodc.decode.common import BufferedBinaryReader, BaseCodec, TranscodingResult, ocproc2_from_dict
+from cnodc.decode.common import BufferedBinaryReader, BaseCodec, TranscodingResult, ocproc2_from_dict, DecodedMessage
 from cnodc.ocproc2 import RecordSet, DataRecord
 import yaml
 import typing as t
@@ -39,11 +39,17 @@ class OCProc2YamlCodec(BaseCodec):
                 yield yaml.safe_dump(record.to_mapping(compact=compact)).encode(self._encoding)
                 yield "\n...\n".encode(self._encoding)
 
-    def decode(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DataRecord]:
+    def decode_messages(self, data: t.Iterable[bytes], replace_logger_cls: t.Type = None, **kwargs) -> t.Iterable[DecodedMessage]:
         buffered_data = BufferedBinaryReader(data)
+        message_idx = 0
         while not buffered_data.is_at_end():
             stream = buffered_data.consume_until(self._document_break_checks, True)
             data = stream.decode('utf-8')
             doc = yaml.load(data, SafeLoader)
             if doc:
-                yield ocproc2_from_dict(doc)
+                if replace_logger_cls:
+                    self.logger = replace_logger_cls()
+                yield DecodedMessage(message_idx, stream, self.logger, ocproc2_from_dict(doc))
+
+
+

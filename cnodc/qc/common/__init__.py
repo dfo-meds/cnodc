@@ -1,4 +1,4 @@
-from cnodc.nodb import NODBObservation
+from cnodc.nodb import NODBWorkingObservation
 
 
 class QCSkip(Exception):
@@ -23,7 +23,7 @@ class QCDelay(Exception):
 def qc_test(short_name, long_name):
 
     def _decorator(x: callable):
-        def _inner_decorator(obs: NODBObservation, *args, **kwargs):
+        def _inner_decorator(obs: NODBWorkingObservation, *args, **kwargs):
             obs.metadata['QC_ERRORS'] = []
             # Don't rerun tests
             if obs.qc_test_complete(short_name):

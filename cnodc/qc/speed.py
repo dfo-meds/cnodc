@@ -1,12 +1,12 @@
 import math
 
-from cnodc.nodb import NODBObservation, NODBController
+from cnodc.nodb import NODBWorkingObservation, NODBPostgresController
 from .common import QCSkip, QCError, QCReview, QCDelay, qc_test
 import datetime
 
 
 @qc_test('SPDC', 'Speed Check')
-def speed_check(obs: NODBObservation, nodb: NODBController, search_range_hours: float = 24, max_search_results: int = 15, max_recheck_delay: int = 1, excess_speed_vote_threshold: int = 1):
+def speed_check(obs: NODBWorkingObservation, nodb: NODBPostgresController, search_range_hours: float = 24, max_search_results: int = 15, max_recheck_delay: int = 1, excess_speed_vote_threshold: int = 1):
 
     # Original observation must declare a latitude, longitude, station, and observation time to calculate speed
     if obs.latitude is None:
@@ -70,7 +70,7 @@ def speed_check(obs: NODBObservation, nodb: NODBController, search_range_hours: 
         raise QCReview(f"Platform maximum speed exceeded", "platform_too_fast")
 
 
-def _raise_for_recheck(obs: NODBObservation, max_recheck_delay: int):
+def _raise_for_recheck(obs: NODBWorkingObservation, max_recheck_delay: int):
     previous_rechecks = obs.get_metadata("SPDC_RECHECK_COUNT", 0)
     if max_recheck_delay > 0 and previous_rechecks < max_recheck_delay:
         obs.set_metadata("SPDC_RECHECK_COUNT", previous_rechecks + 1)

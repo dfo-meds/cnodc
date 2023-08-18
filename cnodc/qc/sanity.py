@@ -1,7 +1,7 @@
 import datetime
 
 from cnodc.ocproc2 import ReferenceTables, DataValue, DataValueMap
-from cnodc.nodb import NODBObservation
+from cnodc.nodb import NODBWorkingObservation
 from .common import QCSkip, QCError, QCReview, QCDelay, qc_test
 from autoinject import injector
 from shapely import Polygon, Point
@@ -63,7 +63,7 @@ class ValueRangeReferenceTable:
 
 
 @qc_test('CSC', 'Coordinate Sanity Check')
-def coordinate_sanity_check(obs: NODBObservation):
+def coordinate_sanity_check(obs: NODBWorkingObservation):
     record = obs.decode_data_record()
     if record:
         passed = validate_property(obs, 'LAT', record.coordinates, -90, 90, True)
@@ -85,7 +85,7 @@ def coordinate_sanity_check(obs: NODBObservation):
             obs.obs_time = None
 
 
-def validate_property(obs: NODBObservation, property_short_name, property_map: DataValueMap, min_value, max_value, required: bool = True, as_date_time: bool = False):
+def validate_property(obs: NODBWorkingObservation, property_short_name, property_map: DataValueMap, min_value, max_value, required: bool = True, as_date_time: bool = False):
     if property_short_name not in property_map:
         if required:
             property_map[property_short_name] = DataValue(None, None, {"NODB_QC": "R"})

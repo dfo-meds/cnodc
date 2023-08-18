@@ -1,0 +1,4 @@
+source_file_metadata:
+  decoder_class_name: full class path for decoder codec
+  target_dir: directory to upload files to
+

@@ -6,7 +6,7 @@ import psycopg2.extras
 import zirconium as zr
 from autoinject import injector
 
-from cnodc.nodb import NODBObservation, NODBStation, NODBSourceFile
+from cnodc.nodb import NODBWorkingObservation, NODBStation, NODBSourceFile
 from cnodc.nodb.structures import _NODBBaseObject
 
 
@@ -76,7 +76,7 @@ class WrappedCursor:
         self._cur.close()
 
 
-class NODBController:
+class NODBPostgresController:
 
     config: zr.ApplicationConfig = None
 
@@ -167,8 +167,8 @@ class NODBController:
         else:
             return self.update_nodb_object(obj, table_name, limit_fields, cur)
 
-    def find_observation(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBObservation]:
-        return self.find_nodb_object(NODBObservation, "nodb_observations", pkey, limit_fields, cur)
+    def find_observation(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBWorkingObservation]:
+        return self.find_nodb_object(NODBWorkingObservation, "nodb_observations", pkey, limit_fields, cur)
 
     def find_station(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBStation]:
         return self.find_nodb_object(NODBStation, "nodb_stations", pkey, limit_fields, cur)
@@ -176,7 +176,7 @@ class NODBController:
     def find_source_file(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBSourceFile]:
         return self.find_nodb_object(NODBSourceFile, "nodb_source_files", pkey, limit_fields, cur)
 
-    def save_observation(self, obs: NODBObservation, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
+    def save_observation(self, obs: NODBWorkingObservation, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
         return self.save_nodb_object(obs, 'nodb_observations', limit_fields, cur)
 
     def save_source_file(self, src_f: NODBSourceFile, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
@@ -185,5 +185,5 @@ class NODBController:
     def save_station(self, station: NODBStation, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
         return self.save_nodb_object(station, 'nodb_stations', limit_fields, cur)
 
-    def search_observations(self, search_criteria: list[tuple[str, str, t.Optional[t.Any]]], limit=None) -> t.Iterable[NODBObservation]:
+    def search_observations(self, search_criteria: list[tuple[str, str, t.Optional[t.Any]]], limit=None) -> t.Iterable[NODBWorkingObservation]:
         pass

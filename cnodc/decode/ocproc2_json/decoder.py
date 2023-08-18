@@ -1,4 +1,4 @@
-from cnodc.decode.common import BufferedBinaryReader, BaseCodec, TranscodingResult, ocproc2_from_dict
+from cnodc.decode.common import BufferedBinaryReader, BaseCodec, TranscodingResult, ocproc2_from_dict, DecodedMessage
 from cnodc.ocproc2 import RecordSet, DataRecord
 import json
 import typing as t
@@ -27,26 +27,40 @@ class OCProc2JsonCodec(BaseCodec):
                 yield json.dumps(record.to_mapping(compact=compact)).encode(self._encoding)
         yield ']'.encode(self._encoding)
 
-    def decode(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DataRecord]:
+    def decode_messages(self, data: t.Iterable[bytes], replace_logger_cls: t.Type = None, **kwargs) -> t.Iterable[DecodedMessage]:
         buffered_data = BufferedBinaryReader(data)
         buffered_data.lstrip(self._json_whitespace)
         if buffered_data[0] == 91:
             # [ character indicates we have a list of DataRecords, lets stream it
-            yield from self._decode_streaming_data_records(buffered_data)
+            yield from self._decode_streaming_data_records(buffered_data, replace_logger_cls)
         elif buffered_data[0] == 123:
             # { character means we likely have a single RecordSet or DataRecord, lets just parse it
-            yield self._decode_data_record(buffered_data.read_all())
+            data = buffered_data.read_all()
+            yield DecodedMessage(
+                0,
+                data,
+                self.logger,
+                self._decode_data_record(data)
+            )
         else:
             raise ValueError(f"Invalid start character: [{buffered_data[0]}]")
 
-    def _decode_streaming_data_records(self, buffered_data: BufferedBinaryReader) -> t.Iterable[DataRecord]:
+    def _decode_streaming_data_records(self, buffered_data: BufferedBinaryReader, replace_logger_cls) -> t.Iterable[DecodedMessage]:
         start_idx = 0
         depth = 0
+        message_idx = 0
         for idx, _byte in enumerate(buffered_data):
             if depth == 1 and _byte in (44, 93):
                 # start_idx will either be a [ or a , character, we don't need it
                 subset = buffered_data.subset(start_idx + 1, idx)
-                yield self._decode_data_record(subset.read_all())
+                if replace_logger_cls:
+                    self.logger = replace_logger_cls()
+                yield DecodedMessage(
+                    message_idx,
+                    subset,
+                    self.logger,
+                    self._decode_data_record(subset.read_all())
+                )
                 start_idx = idx
                 buffered_data.discard_buffer(idx)
             if _byte in (91, 123):

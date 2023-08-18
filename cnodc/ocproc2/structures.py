@@ -29,15 +29,79 @@ class NODBQCFlag(enum.Enum):
     FOR_REVIEW = 'R'
 
 
+class HistoryEntry:
+
+    def __init__(self,
+                 message: str,
+                 timestamp: t.Union[datetime.datetime, str],
+                 source_name: str,
+                 source_version: str,
+                 message_type: str):
+        self.message = message
+        self.timestamp = timestamp.isoformat() if isinstance(timestamp, datetime.datetime) else timestamp
+        self.source_name = source_name
+        self.source_version = source_version
+        self.message_type = message_type
+
+    def pretty(self, prefix):
+        return f"{prefix}{self.timestamp}  [{self.message_type}]  {self.message} [{self.source_name}:{self.source_version}]"
+
+    def to_mapping(self):
+        map_ = {
+            'm': self.message,
+            't': self.timestamp,
+            'n': self.source_name,
+            'v': self.source_version,
+        }
+        if self.message_type == 'INFO':
+            pass
+        elif self.message_type == 'ERROR':
+            map_['c'] = 'E'
+        elif self.message_type == 'WARNING':
+            map_['c'] = 'W'
+        else:
+            map_['c'] = self.message_type
+        return map_
+
+    @staticmethod
+    def from_mapping(d: dict):
+        mtype = 'INFO'
+        if 'c' in d:
+            mtype = 'ERROR' if d['c'] == 'E' else ('WARNING' if d['c'] == 'W' else d['c'])
+        return HistoryEntry(
+            d['m'],
+            d['t'],
+            d['n'],
+            d['v'],
+            mtype
+        )
+
+
 class DataValue:
 
     def __init__(self,
                  reported_value=None,
                  corrected_value=None,
                  metadata: dict = None):
-        self.reported_value = normalize_data_value(reported_value)
-        self.corrected_value = normalize_data_value(corrected_value)
+        self._reported_value = normalize_data_value(reported_value)
+        self._corrected_value = normalize_data_value(corrected_value)
         self.metadata = DataValueMap(metadata, ref_table="metadata")
+
+    @property
+    def reported_value(self):
+        return self._reported_value
+
+    @reported_value.setter
+    def reported_value(self, val):
+        self._reported_value = normalize_data_value(val)
+
+    @property
+    def corrected_value(self):
+        return self._corrected_value
+
+    @corrected_value.setter
+    def corrected_value(self, val):
+        self._corrected_value = normalize_data_value(val)
 
     def __str__(self):
         return str(self.value())
@@ -48,18 +112,6 @@ class DataValue:
                 all(x in other.metadata for x in self.metadata) and
                 all(x in self.metadata for x in other.metadata) and
                 all(self.metadata[x] == other.metadata[x] for x in self.metadata))
-
-    def nodb_flag(self):
-        if 'NODB_QC' in self.metadata:
-            return NODBQCFlag(self.metadata['NODB_QC'].value())
-        else:
-            return None
-
-    def set_nodb_flag(self, nodb_flag: NODBQCFlag):
-        self.metadata['NODB_QC'] = nodb_flag.value()
-
-    def qc_done(self):
-        return 'NODB_QC' in self.metadata and self.metadata['NODB_QC'].value() not in (0, 'R')
 
     def set(self, key, value):
         self.metadata[key] = value
@@ -226,13 +278,48 @@ class DataRecord:
         self.variables = DataValueMap(ref_table='parameters')
         self.metadata = DataValueMap(ref_table='metadata')
         self.subrecords = DataRecordMap()
+        self.history: list[HistoryEntry] = []
+
+        # These are NOT persisted by any codec, but are set by the codecs
+        # when reading and should be consistent when reading any particular file
+        # They just provide additional metadata.
+        self.record_id = None
+        self.message_id = None
+
+    def add_history_info(self, message, source_name, source_version):
+        self.history.append(HistoryEntry(
+            message,
+            datetime.datetime.utcnow(),
+            source_name,
+            source_version,
+            'INFO'
+        ))
+
+    def add_history_warning(self, message, source_name, source_version):
+        self.history.append(HistoryEntry(
+            message,
+            datetime.datetime.utcnow(),
+            source_name,
+            source_version,
+            'WARNING'
+        ))
+
+    def add_history_error(self, message, source_name, source_version):
+        self.history.append(HistoryEntry(
+            message,
+            datetime.datetime.utcnow(),
+            source_name,
+            source_version,
+            'ERROR'
+        ))
 
     def __str__(self):
         return str({
             'c': str(self.coordinates),
             'v': str(self.variables),
             'm': str(self.metadata),
-            's': str(self.subrecords)
+            's': str(self.subrecords),
+            'h': str(self.history)
         })
 
     def to_mapping(self, compact: bool = False) -> dict:
@@ -251,6 +338,8 @@ class DataRecord:
             map_['M'] = self.metadata.to_mapping()
         if not self.subrecords.empty():
             map_['S'] = self.subrecords.to_mapping(compact=compact)
+        if self.history:
+            map_['H'] = [h.to_mapping() for h in self.history]
         return map_
 
     def from_mapping(self, map_: dict):
@@ -262,6 +351,11 @@ class DataRecord:
             self.metadata.from_mapping(map_['M'])
         if 'S' in map_:
             self.subrecords.from_mapping(map_['S'])
+        if 'H' in map_:
+            self.history = [
+                HistoryEntry.from_mapping(x)
+                for x in map_['H']
+            ]
         return self
 
     def pretty(self, prefix='', nested='  '):
@@ -278,6 +372,9 @@ class DataRecord:
         if not self.subrecords.empty():
             s.append(f"{prefix}subrecords:")
             s.append(self.subrecords.pretty(prefix + '  ', nested))
+        if self.history:
+            s.append(f"{prefix}history:")
+            s.extend(h.pretty(prefix + '  ') for h in self.history)
         return "\n".join(s)
 
     def find_child_record(self, child_key: str, properties: dict):

@@ -44,7 +44,7 @@ class OCProc2BinaryCodec(BaseCodec):
         yield output
         yield from corrector.handle_outgoing(compressor.compress_stream(formatter.encode(records)))
 
-    def decode(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DataRecord]:
+    def decode_messages(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DataRecord]:
         reader = BufferedBinaryReader(data)
         format_version = int(reader.consume(1)[0])
         if format_version == 1:
@@ -57,7 +57,10 @@ class OCProc2BinaryCodec(BaseCodec):
             formatter = self.get_formatter(text_format)
             compressor = self.get_compressor(compression)
             corrector = self.get_error_correction(correction)
-            yield from formatter.decode(compressor.uncompress_stream(corrector.handle_incoming(reader.read_all_in_chunks())))
+            yield from formatter.decode_messages(
+                compressor.uncompress_stream(corrector.handle_incoming(reader.read_all_in_chunks())),
+                **kwargs
+            )
         else:
             raise ValueError(f"Unrecognized OCPROC2 file version")
 

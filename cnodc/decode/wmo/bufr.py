@@ -3,7 +3,7 @@ import math
 import yaml
 from pybufrkit.tables import TableGroupCacheManager
 from pybufrkit.renderer import NestedTextRenderer
-from cnodc.decode.common import BaseCodec, CodecLogger, TranscodingResult, BufferedBinaryReader
+from cnodc.decode.common import BaseCodec, CodecLogger, TranscodingResult, BufferedBinaryReader, DecodedMessage
 from cnodc.ocproc2 import DataRecord, DataValue, ReferenceTables
 import typing as t
 import pathlib
@@ -99,22 +99,22 @@ class GTSBufrStreamCodec(BaseCodec):
     def encode(self, records: TranscodingResult, **kwargs) -> t.Iterable[bytes]:
         raise NotImplementedError()
 
-    def decode(self, bytes_: t.Iterable[bytes], **kwargs) -> TranscodingResult:
-        for _, records, _, _ in self.parse_bufr_content(bytes_):
-            yield from records
-
-    def parse_bufr_content(self, bytes_: t.Iterable[bytes]) -> t.Iterable[tuple[str, t.Iterable[DataRecord], bytearray, t.Any]]:
+    def decode_messages(self, bytes_: t.Iterable[bytes], replace_logger_cls: t.Type = None, **kwargs) -> t.Iterable[DecodedMessage]:
         reader = BufferedBinaryReader(bytes_)
         reader.skip_bytes(self._message_whitespace)
         header = ""
+        message_idx = 0
         while not reader.is_at_end():
             if reader.peek(4) == b"BUFR":
-                yield self._decode_message(header, reader)
+                if replace_logger_cls:
+                    self.logger = replace_logger_cls()
+                yield self._decode_message(header, reader, message_idx)
+                message_idx += 1
             else:
                 header = reader.consume_until(self.header_end, False).decode('ascii')
             reader.skip_bytes(self._message_whitespace)
 
-    def _decode_message(self, header: str, reader: BufferedBinaryReader) -> tuple[str, t.Iterable[DataRecord], bytearray, t.Any]:
+    def _decode_message(self, header: str, reader: BufferedBinaryReader, message_idx: int) -> DecodedMessage:
         reader.consume(4)
         message_length = int.from_bytes(reader.consume(3), 'big')
         bufr_version = int(reader.consume(1)[0])
@@ -126,14 +126,16 @@ class GTSBufrStreamCodec(BaseCodec):
         if bufr_version == 4:
             if not content.endswith(b'7777'):
                 self.logger.error("Invalid BUFR termination sequence")
-                return header, [], content, None
+                return DecodedMessage(
+                    message_idx,
+                    content,
+                    self.logger)
             else:
                 decoder = Bufr4Decoder(header, content, self.logger)
-                return header, decoder.convert_to_records(), content, decoder
+                return DecodedMessage(message_idx, content, self.logger, decoder.convert_to_records())
         else:
             self.logger.error(f"Unknown BUFR version [{bufr_version}]")
-            return header, [], content, None
-
+            return DecodedMessage(message_idx, content, self.logger)
 
 
 class _Bufr4DecoderContext:
@@ -179,7 +181,8 @@ class Bufr4Decoder:
     cds_tables: ReferenceTables = None
 
     @injector.construct
-    def __init__(self, header, content: t.Union[bytearray, bytes], logger: CodecLogger):
+    def __init__(self, header, content: t.Union[bytearray, bytes], logger: CodecLogger, message_idx: int = None):
+        self.message_idx = message_idx
         self.header = header
         self.logger = logger
         decoder = Decoder()

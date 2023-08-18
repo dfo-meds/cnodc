@@ -6,6 +6,7 @@ import os
 import itertools
 import cnodc.ocproc2 as ocproc2
 
+
 TranscodingResult = t.Union[
     ocproc2.RecordSet,
     ocproc2.DataRecord,
@@ -294,6 +295,24 @@ class CodecLogger:
         self._log.log(level, message, *args, **kwargs)
 
 
+class DecodedMessage:
+
+    def __init__(self,
+                 message_idx: int,
+                 binary_content: t.Union[bytes, bytearray],
+                 logger: CodecLogger,
+                 records: TranscodingResult = None):
+        self.message_idx = message_idx
+        self.binary_content = binary_content
+        self.logger = logger
+        self.records = records
+
+    def iterate_records(self):
+        if self.records:
+            for idx, r in enumerate(self.records):
+                yield idx, r
+
+
 class CodecProtocol(t.Protocol):
 
     @abc.abstractmethod
@@ -347,8 +366,13 @@ class CodecProtocol(t.Protocol):
     def encode(self, records: TranscodingResult, **kwargs) -> t.Iterable[bytes]:
         raise NotImplementedError()
 
-    @abc.abstractmethod
     def decode(self, data: t.Iterable[bytes], **kwargs) -> TranscodingResult:
+        for dm in self.decode_messages(data, **kwargs):
+            if dm.records:
+                yield from dm.records
+
+    @abc.abstractmethod
+    def decode_messages(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DecodedMessage]:
         raise NotImplementedError()
 
     @abc.abstractmethod
