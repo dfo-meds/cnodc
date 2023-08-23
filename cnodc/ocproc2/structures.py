@@ -26,7 +26,9 @@ class NODBQCFlag(enum.Enum):
     BAD = 4
     CHANGED = 5
     MISSING = 9
-    FOR_REVIEW = 'R'
+    REVIEW_BAD = -4
+    REVIEW_INFERRED = -5
+    REVIEW_MISSING = -9
 
 
 class HistoryEntry:
@@ -36,11 +38,13 @@ class HistoryEntry:
                  timestamp: t.Union[datetime.datetime, str],
                  source_name: str,
                  source_version: str,
+                 source_instance: str,
                  message_type: str):
         self.message = message
         self.timestamp = timestamp.isoformat() if isinstance(timestamp, datetime.datetime) else timestamp
         self.source_name = source_name
         self.source_version = source_version
+        self.source_instance = source_instance
         self.message_type = message_type
 
     def pretty(self, prefix):
@@ -52,6 +56,7 @@ class HistoryEntry:
             't': self.timestamp,
             'n': self.source_name,
             'v': self.source_version,
+            'i': self.source_instance,
         }
         if self.message_type == 'INFO':
             pass
@@ -73,6 +78,7 @@ class HistoryEntry:
             d['t'],
             d['n'],
             d['v'],
+            d['i'],
             mtype
         )
 
@@ -171,6 +177,16 @@ class DataValue:
             return f"{self.reported_value} [{';'.join(extras)}]"
         else:
             return f"{self.reported_value}"
+
+    @property
+    def nodb_flag(self) -> NODBQCFlag:
+        if '_QC' in self.metadata:
+            return NODBQCFlag(self.metadata['_QC'])
+        return NODBQCFlag.NOT_DONE
+
+    @nodb_flag.setter
+    def nodb_flag(self, flag: NODBQCFlag):
+        self.metadata['_QC'] = flag.value()
 
     @staticmethod
     def wrap(val):
@@ -286,30 +302,33 @@ class DataRecord:
         self.record_id = None
         self.message_id = None
 
-    def add_history_info(self, message, source_name, source_version):
+    def add_history_info(self, message, source_name, source_version, source_instance):
         self.history.append(HistoryEntry(
             message,
             datetime.datetime.utcnow(),
             source_name,
             source_version,
+            source_instance,
             'INFO'
         ))
 
-    def add_history_warning(self, message, source_name, source_version):
+    def add_history_warning(self, message, source_name, source_version, source_instance):
         self.history.append(HistoryEntry(
             message,
             datetime.datetime.utcnow(),
             source_name,
             source_version,
+            source_instance,
             'WARNING'
         ))
 
-    def add_history_error(self, message, source_name, source_version):
+    def add_history_error(self, message, source_name, source_version, source_instance):
         self.history.append(HistoryEntry(
             message,
             datetime.datetime.utcnow(),
             source_name,
             source_version,
+            source_instance,
             'ERROR'
         ))
 

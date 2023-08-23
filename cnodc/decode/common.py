@@ -5,7 +5,7 @@ import pathlib
 import os
 import itertools
 import cnodc.ocproc2 as ocproc2
-
+from cnodc.ocproc2 import DataRecord
 
 TranscodingResult = t.Union[
     ocproc2.RecordSet,
@@ -269,30 +269,55 @@ class BufferedBinaryReader:
 
 class CodecLogger:
 
+    def exception(self, message):
+        self.log(logging.ERROR, message)
+
+    def critical(self, message):
+        self.log(logging.CRITICAL, message)
+
+    def error(self, message):
+        self.log(logging.ERROR, message)
+
+    def warning(self, message):
+        self.log(logging.WARNING, message)
+
+    def info(self, message):
+        self.log(logging.INFO, message)
+
+    def debug(self, message):
+        self.log(logging.DEBUG, message)
+
+    @abc.abstractmethod
+    def log(self, level, message):
+        raise NotImplementedError()
+
+
+class CodecBasicLogger(CodecLogger):
+
     def __init__(self):
-        self.success = None
         self._log = logging.getLogger("osdt.codec")
 
-    def exception(self, message, *args, **kwargs):
-        self.log(logging.ERROR, message, *args, **kwargs)
+    def log(self, level, message):
+        self._log.log(level, message)
 
-    def critical(self, message, *args, **kwargs):
-        self.log(logging.CRITICAL, message, *args, **kwargs)
 
-    def error(self, message, *args, **kwargs):
-        self.log(logging.ERROR, message, *args, **kwargs)
+class CodecStoreLogger(CodecLogger):
 
-    def warning(self, message, *args, **kwargs):
-        self.log(logging.WARNING, message, *args, **kwargs)
+    def __init__(self, min_level=logging.NOTSET):
+        self.log_store = {}
+        self.min_level = min_level
 
-    def info(self, message, *args, **kwargs):
-        self.log(logging.INFO, message, *args, **kwargs)
+    def log(self, level, message):
+        if level >= self.min_level:
+            if level not in self.log_store:
+                self.log_store[level] = []
+            self.log_store[level].append(message)
 
-    def debug(self, message, *args, **kwargs):
-        self.log(logging.DEBUG, message, *args, **kwargs)
-
-    def log(self, level, message, *args, **kwargs):
-        self._log.log(level, message, *args, **kwargs)
+    def to_list(self):
+        messages = []
+        for level in self.log_store:
+            level_name = logging.getLevelName(level)
+            messages.extend(f"[{level_name}] {msg}" for msg in self.log_store[level])
 
 
 class DecodedMessage:
@@ -307,7 +332,7 @@ class DecodedMessage:
         self.logger = logger
         self.records = records
 
-    def iterate_records(self):
+    def iterate_records(self) -> tuple[int, DataRecord]:
         if self.records:
             for idx, r in enumerate(self.records):
                 yield idx, r
@@ -361,6 +386,20 @@ class CodecProtocol(t.Protocol):
         while piece:
             yield piece
             piece = has_read.read(chunk_size)
+
+    def load_messages(
+             self,
+             input_file: t.Union[Readable, bytes, bytearray, str, os.PathLike, t.Iterable],
+             chunk_size: int = 16384,
+             **kwargs) -> t.Iterable[DecodedMessage]:
+        if isinstance(input_file, Readable):
+            return self.decode_messages(CodecProtocol.read_in_chunks(input_file, chunk_size), **kwargs)
+        elif isinstance(input_file, (bytes, bytearray)):
+            return self.decode_messages((input_file,), **kwargs)
+        elif isinstance(input_file, (str, os.PathLike)):
+            return self.decode_messages(CodecProtocol.read_from_file(input_file, chunk_size), **kwargs)
+        else:
+            return self.decode_messages(input_file, **kwargs)
 
     @abc.abstractmethod
     def encode(self, records: TranscodingResult, **kwargs) -> t.Iterable[bytes]:

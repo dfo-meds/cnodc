@@ -16,7 +16,7 @@ class SourceFileStatus(enum.Enum):
     QUEUED = 'QUEUED'
     IN_PROGRESS = 'IN_PROGRESS'
     ERROR = 'ERROR'
-    MANUAL_REVIEW = 'MANUAL_REVIEW'
+    QUEUE_ERROR = 'QUEUE_ERROR'
     COMPLETE = 'COMPLETE'
 
 
@@ -36,6 +36,7 @@ class QualityControlStatus(enum.Enum):
     MANUAL_REVIEW = 'MANUAL_REVIEW'
     ERROR = 'ERROR'
     PASSED = 'PASSED'
+    BATCH = 'BATCH'
 
 
 class ObservationWorkingStatus(enum.Enum):
@@ -44,11 +45,20 @@ class ObservationWorkingStatus(enum.Enum):
     IN_PROGRESS = 'IN_PROGRESS'
     DISCARDED = 'DISCARDED'
     BATCH = 'BATCH'
+    ERROR = 'ERROR'
+    QUEUE_ERROR = 'QUEUE_ERROR'
+
+
+class StationStatus(enum.Enum):
+
+    ACTIVE = 'ACTIVE'
+    INCOMPLETE = 'INCOMPLETE'
+    INACTIVE = 'INACTIVE'
 
 
 class _NODBBaseObject:
 
-    def __init__(self, pkey: t.Optional[str], **kwargs):
+    def __init__(self, pkey: t.Optional[str] = None, **kwargs):
         self.pkey = str(pkey) if pkey else None
         self._data = {}
         self.modified_values = set()
@@ -148,6 +158,17 @@ class _NODBWithMetadata:
             return default
         return self.metadata[key]
 
+    def add_to_metadata(self, key, value):
+        if self.metadata is None:
+            self.metadata = {key: [value]}
+            self.modified_values.add("metadata")
+        elif key not in self.metadata:
+            self.metadata[key] = [value]
+            self.modified_values.add("metadata")
+        elif value not in self.metadata[key]:
+            self.metadata[key].append(value)
+            self.modified_values.add("metadata")
+
 
 class _NODBWithQCMetdata(_NODBWithMetadata):
 
@@ -176,17 +197,43 @@ class _NODBWithQCMetdata(_NODBWithMetadata):
             return default
         return self.qc_metadata[key]
 
+    def add_to_qc_metadata(self, key, value):
+        if self.qc_metadata is None:
+            self.qc_metadata = {key: [value]}
+            self.modified_values.add("qc_metadata")
+        elif key not in self.qc_metadata:
+            self.qc_metadata[key] = [value]
+            self.modified_values.add("qc_metadata")
+        elif value not in self.qc_metadata[key]:
+            self.qc_metadata[key].append(value)
+            self.modified_values.add("qc_metadata")
+
+    def apply_qc_code(self, qc_message_code):
+        self.add_to_qc_metadata("qc_codes", qc_message_code)
+
+    def has_qc_code(self, qc_message_code):
+        return self.qc_metadata and 'qc_codes' in self.qc_metadata and qc_message_code in self.qc_metadata['qc_codes']
+
+    def has_any_qc_code(self):
+        return self.qc_metadata and 'qc_codes' in self.qc_metadata and self.qc_metadata['qc_codes']
+
+    def clear_qc_codes(self):
+        if self.qc_metadata and 'qc_codes' in self.qc_metadata:
+            del self.qc_metadata['qc_codes']
+
 
 class _NODBWithQCProperties(_NODBWithQCMetdata):
 
     qc_test_status: QualityControlStatus = _NODBBaseObject.make_enum_property("qc_test_status", QualityControlStatus)
     qc_process_name: str = _NODBBaseObject.make_property("qc_process_name", coerce=str)
     qc_current_step: int = _NODBBaseObject.make_property("qc_current_step", coerce=int)
+    working_status: ObservationWorkingStatus = _NODBBaseObject.make_enum_property("working_status", ObservationWorkingStatus)
 
 
 class _NODBWithDataRecord:
 
     data_record: bytes = _NODBBaseObject.make_property("data_record")
+    data_record_cache: DataRecord = None
 
     def extract_data_record(self) -> DataRecord:
         pass
@@ -201,10 +248,31 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
     persistent_path: str = _NODBBaseObject.make_property("persistent_path", coerce=str)
     file_name: str = _NODBBaseObject.make_property("file_name", coerce=str)
 
+    original_uuid: str = _NODBBaseObject.make_property("original_uuid", coerce=str)
+    original_idx: int = _NODBBaseObject.make_property("original_idx", coerce=int)
+
     status: SourceFileStatus = _NODBBaseObject.make_enum_property("status", SourceFileStatus)
 
-    def error(self, message, name, version):
-        pass
+    history: list = _NODBBaseObject.make_property("history")
+
+    def report_error(self, message, name, version, instance):
+        self.add_history(message, name, version, instance, 'ERROR')
+
+    def report_warning(self, message, name, version, instance):
+        self.add_history(message, name, version, instance, 'WARNING')
+
+    def add_history(self, message, name, version, instance, level='INFO'):
+        if self.history is None:
+            self.history = []
+        self.history.append({
+            'msg': message,
+            'src': name,
+            'ver': version,
+            'ins': instance,
+            'lvl': level,
+            'asc': datetime.datetime.utcnow().isoformat()
+        })
+        self.modified_values.add('history')
 
 
 class NODBStation(_NODBWithMetadata, _NODBBaseObject):
@@ -215,6 +283,7 @@ class NODBStation(_NODBWithMetadata, _NODBBaseObject):
     station_name: str = _NODBBaseObject.make_property("station_name", coerce=str)
     station_id: str = _NODBBaseObject.make_property("station_id", coerce=str)
     map_to_uuid: str = _NODBBaseObject.make_property("map_to_uuid", coerce=str)
+    status: StationStatus = _NODBBaseObject.make_enum_property("status", StationStatus)
 
 
 class NODBQCBatch(_NODBWithQCProperties, _NODBBaseObject):
@@ -233,9 +302,22 @@ class NODBQCProcess(_NODBBaseObject):
 class NODBWorkingObservation(_NODBWithDataRecord, _NODBWithQCProperties, _NODBBaseObject):
 
     qc_batch_id: str = _NODBBaseObject.make_property("qc_batch_id", coerce=str)
-    working_status: ObservationWorkingStatus = _NODBBaseObject.make_enum_property("working_status", ObservationWorkingStatus)
 
     station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
+
+    def mark_qc_test_complete(self, qc_test_name):
+        self.add_to_metadata("qc_tests", qc_test_name)
+
+    def qc_test_completed(self, qc_test_name):
+        return self.metadata and "qc_tests" in self.metadata and qc_test_name in self.metadata["qc_tests"]
+
+    @staticmethod
+    def create_from_primary(primary_obs):
+        working_obs = NODBWorkingObservation(primary_obs.pkey)
+        working_obs.data_record = primary_obs.data_record
+        working_obs.data_record_cache = primary_obs.data_record_cache
+        working_obs.station_uuid = primary_obs.station_uuid
+        return working_obs
 
 
 class NODBObservation(_NODBWithDataRecord, _NODBWithMetadata, _NODBBaseObject):

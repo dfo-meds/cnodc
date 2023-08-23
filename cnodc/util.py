@@ -19,6 +19,16 @@ def haversine_distance_km(lat1d, lat2d, long1d, long2d):
     return math.sqrt(a + (b * math.cos(lat1) * math.cos(lat2))) * 2 * EARTH_RADIUS_KM
 
 
+class HaltInterrupt(KeyboardInterrupt):
+    pass
+
+
+class HaltFlag(t.Protocol):
+
+    def check(self, raise_ex: bool = True) -> bool:
+        raise NotImplementedError()
+
+
 class DynamicClassLoadError(CNODCError):
     pass
 
