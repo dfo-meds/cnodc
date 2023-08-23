@@ -1,7 +1,9 @@
 import enum
 import typing as t
+from contextlib import contextmanager
+
 from .structures import NODBSourceFile, NODBObservation, NODBWorkingObservation, NODBStation, NODBQCBatch, \
-    ObservationWorkingStatus, QualityControlStatus
+    ObservationWorkingStatus, QualityControlStatus, NODBQCProcess
 from autoinject import injector
 
 
@@ -25,6 +27,17 @@ class NODBTransaction(t.Protocol):
     def close(self):
         raise NotImplementedError()
 
+    @contextmanager
+    def savepoint(self, name):
+        try:
+            self.create_savepoint(name)
+            yield self
+        except Exception as ex:
+            self.rollback_to_savepoint(name)
+            raise ex
+        finally:
+            self.release_savepoint(name)
+
 
 class LockMode(enum.Enum):
 
@@ -38,6 +51,7 @@ class LockMode(enum.Enum):
 @injector.injectable_global
 class NODBDatabaseProtocol(t.Protocol):
 
+    @contextmanager
     def start_transaction(self) -> NODBTransaction:
         raise NotImplementedError()
 
@@ -60,10 +74,10 @@ class NODBDatabaseProtocol(t.Protocol):
     def load_working_observations_for_batch(self, batch_uuid: str, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Iterable[NODBWorkingObservation]:
         raise NotImplementedError()
 
-    def load_observation(self, obs_uuid, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None):
+    def load_observation(self, obs_uuid, with_data: bool = True, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Optional[NODBObservation]:
         raise NotImplementedError()
 
-    def load_working_observation(self, primary_obs_uuid, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Optional[NODBWorkingObservation]:
+    def load_working_observation(self, primary_obs_uuid, with_data: bool = True, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Optional[NODBWorkingObservation]:
         raise NotImplementedError()
 
     def load_station(self, station_uuid: str, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Optional[NODBStation]:
@@ -72,10 +86,13 @@ class NODBDatabaseProtocol(t.Protocol):
     def load_source_file(self, source_file_uuid: str, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Optional[NODBSourceFile]:
         raise NotImplementedError()
 
+    def load_qc_for_station(self, station_uuid: str, tx: NODBTransaction = None) -> t.Optional[NODBQCProcess]:
+        raise NotImplementedError()
+
     def save_source_file(self, source_file: NODBSourceFile, tx: NODBTransaction = None):
         raise NotImplementedError()
 
-    def save_primary_observation(self, obs: NODBObservation, tx: NODBTransaction = None):
+    def save_observation(self, obs: NODBObservation, tx: NODBTransaction = None):
         raise NotImplementedError()
 
     def save_working_observation(self, obs: NODBWorkingObservation, tx: NODBTransaction = None):
@@ -85,18 +102,13 @@ class NODBDatabaseProtocol(t.Protocol):
         raise NotImplementedError()
 
     def save_batch_and_assign(self, batch: NODBQCBatch, obs_list: list[NODBWorkingObservation], tx: NODBTransaction):
-        tx.create_savepoint("qc_batch_assignment")
-        self.save_batch(batch, tx=tx)
-        try:
+        with tx.savepoint("qc_batch_assignment"):
+            self.save_batch(batch, tx=tx)
             for obs in obs_list:
                 obs.working_status = ObservationWorkingStatus.BATCH
                 obs.qc_batch_id = batch.pkey
-                obs.qc_test_status = None
                 obs.qc_current_step = None
                 self.save_working_observation(obs, tx)
-        except Exception as ex:
-            tx.rollback_to_savepoint("qc_batch_assignment")
-        tx.release_savepoint("qc_batch_assignment")
 
 
 @injector.injectable_global

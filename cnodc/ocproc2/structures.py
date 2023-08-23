@@ -109,6 +109,12 @@ class DataValue:
     def corrected_value(self, val):
         self._corrected_value = normalize_data_value(val)
 
+    def as_datetime(self):
+        val = self.value()
+        if val is None:
+            return val
+        return datetime.datetime.fromisoformat(val)
+
     def __str__(self):
         return str(self.value())
 
@@ -247,6 +253,15 @@ class DataValueMap:
 
     def __bool__(self):
         return bool(self._map)
+
+    def has_value(self, item):
+        return item in self._map and self._map[item].value() is not None
+
+    def get_value(self, item, default=None):
+        if item in self._map:
+            val = self._map[item].value()
+            return val if val is not None else default
+        return default
 
     def as_map(self):
         return self._map
@@ -542,6 +557,11 @@ class DataRecordMap:
 
     def __str__(self):
         return '{' + ','.join(f"{k}: {str(self._map[k])}" for k in self._map) + "}"
+
+    def record_types(self):
+        return list(set(
+            x[:x.rfind('_')] for x in self._map.keys()
+        ))
 
     def merge_check(self, key: str, is_prefixed: bool = True):
         prefix = key[:key.rfind('_')] if is_prefixed else key

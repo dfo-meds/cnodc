@@ -2,7 +2,7 @@ import datetime
 
 from cnodc.exc import CNODCError
 from cnodc.nodb import NODBWorkingObservation, NODBDatabaseProtocol
-from cnodc.nodb.proto import NODBTransaction
+from cnodc.nodb.proto import NODBTransaction, LockMode
 from cnodc.nodb.structures import QualityControlStatus, NODBStation, StationStatus
 from cnodc.ocproc2 import DataRecord
 from autoinject import injector
@@ -19,20 +19,11 @@ class BasicQualityController:
         self.name = "BQC"
         self.version = "1_0_0"
         self.instance = instance
+        self._station_cache = {}
 
-    def initial_basic_quality_control(self, working_record: NODBWorkingObservation, tx: NODBTransaction = None):
-        if working_record.qc_test_completed("basic_initial"):
-            return
-
-        result = self.followup_basic_qc(working_record, tx)
-
-        # Mark the initial pass completed
-        working_record.mark_qc_test_complete("basic_initial")
-        return result
-
-    def followup_basic_qc(self, obs: NODBWorkingObservation, tx: NODBTransaction = None):
+    def basic_qc_check(self, obs: NODBWorkingObservation, tx: NODBTransaction = None, first_time: bool = False) -> bool:
         if obs.qc_test_completed("basic"):
-            return
+            return True
 
         # Get record and clear QC codes
         record = obs.extract_data_record()
@@ -42,18 +33,20 @@ class BasicQualityController:
         self._check_coordinates(record, obs)
         self._detect_station_id(record, obs, tx)
 
+        # Check the results and add history info.
         if not obs.has_any_qc_code():
             record.add_history_info("BQC passed", self.name, self.version, self.instance)
             obs.store_data_record(record)
+            obs.qc_test_status = QualityControlStatus.PASSED
             obs.mark_qc_test_complete("basic")
             return True
         else:
             record.add_history_warning("BQC failed", self.name, self.version, self.instance)
+            obs.qc_test_status = QualityControlStatus.MANUAL_REVIEW
             obs.store_data_record(record)
             return False
 
     def _detect_station_id(self, record: DataRecord, working_record: NODBWorkingObservation, tx: NODBTransaction = None):
-
         # Don't reprocess where the station is known, but do check that the station info is complete
         if working_record.station_uuid is not None:
             station = self.database.load_station(
@@ -76,7 +69,7 @@ class BasicQualityController:
             return
 
         # Load the matches
-        station_uuids = self.database.find_stations(**identifiers, tx=tx)
+        station_uuids = self.database.find_stations(**identifiers, with_lock=LockMode.FOR_KEY_SHARE, tx=tx)
 
         if len(station_uuids) > 1:
             # Remove redundant stations (with a map_to_uuid) where the match is also an option

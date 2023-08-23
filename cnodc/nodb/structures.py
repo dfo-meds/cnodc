@@ -6,8 +6,7 @@ import typing as t
 
 from cnodc.decode.ocproc2_bin import OCProc2BinaryCodec
 from cnodc.ocproc2 import DataRecord
-
-from cnodc.util import haversine_distance_km
+from cnodc.ocproc2.structures import NODBQCFlag
 
 
 class SourceFileStatus(enum.Enum):
@@ -232,14 +231,26 @@ class _NODBWithQCProperties(_NODBWithQCMetdata):
 
 class _NODBWithDataRecord:
 
-    data_record: bytes = _NODBBaseObject.make_property("data_record")
-    data_record_cache: DataRecord = None
+    data_record: t.Union[bytes, bytearray] = _NODBBaseObject.make_property("data_record")
+    _data_record_cache: t.Optional[DataRecord] = None
 
     def extract_data_record(self) -> DataRecord:
-        pass
+        if self._data_record_cache is None:
+            if self.data_record is not None:
+                codec = OCProc2BinaryCodec()
+                self._data_record_cache = codec.decode([self.data_record])
+        return self._data_record_cache
 
-    def store_data_record(self, dr: DataRecord):
-        pass
+    def store_data_record(self, dr: DataRecord, **kwargs):
+        self._data_record_cache = dr
+        codec = OCProc2BinaryCodec()
+        new_data = bytearray()
+        for bytes_ in codec.encode(dr, **kwargs):
+            new_data.extend(bytes_)
+        self.data_record = new_data
+
+    def clear_data_record_cache(self):
+        self._data_record_cache = None
 
 
 class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
@@ -315,8 +326,9 @@ class NODBWorkingObservation(_NODBWithDataRecord, _NODBWithQCProperties, _NODBBa
     def create_from_primary(primary_obs):
         working_obs = NODBWorkingObservation(primary_obs.pkey)
         working_obs.data_record = primary_obs.data_record
-        working_obs.data_record_cache = primary_obs.data_record_cache
+        working_obs._data_record_cache = primary_obs._data_record_cache
         working_obs.station_uuid = primary_obs.station_uuid
+        working_obs.metadata = primary_obs.metadata
         return working_obs
 
 
@@ -337,3 +349,162 @@ class NODBObservation(_NODBWithDataRecord, _NODBWithMetadata, _NODBBaseObject):
     duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
 
     search_data: dict = _NODBBaseObject.make_property("search_data")
+
+    def update_from_working(self, working_record: NODBWorkingObservation):
+        self.station_uuid = working_record.station_uuid
+        self.metadata = working_record.metadata
+        self.data_record = working_record.data_record
+        self.data_record_cache = working_record._data_record_cache
+        self.update_from_data_record(working_record.extract_data_record())
+
+    def update_from_data_record(self, data_record: DataRecord):
+        search_data_agg = _SearchDataAggregator(data_record)
+        self.latitude = search_data_agg.statistics['_rpr_lat']
+        self.longitude = search_data_agg.statistics['_rpr_lon']
+        self.obs_time = search_data_agg.statistics['_rpr_time']
+        # Underscore attributes are for other purposes
+        self.search_data = {
+            x: search_data_agg.statistics[x]
+            for x in search_data_agg.statistics
+            if x[0] != '_'
+        }
+
+
+class _SearchDataAggregator:
+
+    def __init__(self, data_record: DataRecord):
+        self.statistics: dict[str, t.Union[str, set, list, float, int, None]] = {
+            'record_type': self._detect_geometry(data_record),
+            '_rpr_lat': None,
+            '_rpr_lon': None,
+            '_rpr_time': None
+        }
+        self._internals = {
+            'coordinates': [],
+            'time': []
+        }
+        self._consider_record(data_record)
+        if (data_record.coordinates.has_value('LAT')
+                and data_record.coordinates.has_value('LON')
+                and data_record.coordinates['LAT'].nodb_flag != NODBQCFlag.BAD
+                and data_record.coordinates['LON'].value != NODBQCFlag.BAD):
+            self.statistics['_rpr_lat'] = data_record.coordinates.get_value('LAT')
+            self.statistics['_rpr_lon'] = data_record.coordinates.get_value('LON')
+        if data_record.coordinates.has_value('TIME') and data_record.coordinates['TIME'].nodb_flag != NODBQCFlag.BAD:
+            self.statistics['_rpr_time'] = data_record.coordinates['TIME'].as_datetime()
+        if self.statistics['_rpr_lat'] is None or self.statistics['_rpr_lon'] is None or self.statistics['_rpr_time'] is None:
+            rlat, rlon, rtime = self._estimate_best_position()
+            if self.statistics['_rpr_lat'] is None:
+                self.statistics['_rpr_lat'] = rlat
+            if self.statistics['_rpr_lon'] is None:
+                self.statistics['_rpr_lon'] = rlon
+            if self.statistics['_rpr_time'] is None:
+                self.statistics['_rpr_time'] = rtime
+
+    def _estimate_best_position(self) -> tuple[t.Optional[float], t.Optional[float], t.Optional[float]]:
+        # No entries, no position
+        if not self._internals['coordinates']:
+            return None, None, self._estimate_best_time()
+        # One entry, one position
+        if len(self._internals['coordinates']) == 1:
+            return self._internals['coordinates'][0][0], self._internals['coordinates'][0][1], self._estimate_best_time()
+        # Use a geodetic mean of the coordinates. This is slow but coordinates is usually going to be small in size
+        mean = geodesy.mean_vector(self._internals['coordinates'])
+        return mean[0], mean[1], self._estimate_best_time()
+
+    def _estimate_best_time(self) -> t.Optional[float]:
+        # No entries, no time
+        if not self._internals['time']:
+            return None
+        # One entry, one time
+        if len(self._internals['time']) == 1:
+            return self._internals['time'][0]
+        # Find the first time
+        min_time = min(x for x in self._internals['time'])
+        # Calculate the average number of seconds since the earliest time for all records
+        total_diff = 0
+        entries = 0
+        for x in self._internals['time']:
+            total_diff += (x - min_time).total_seconds()
+            entries += 1
+        # Calculate an average
+        return min_time + datetime.timedelta(seconds=(total_diff / entries))
+
+    def _consider_record(self, record: DataRecord):
+        lat = self._add_coordinate_statistics(record, 'LAT')
+        lon = self._add_coordinate_statistics(record, 'LON')
+        if lat is not None and lon is not None:
+            self._internals['coordinates'].append((lon, lat))
+        self._add_coordinate_statistics(record, 'DEPTH')
+        self._add_coordinate_statistics(record, 'PRESSURE')
+        time = self._add_coordinate_statistics(record, 'TIME', coerce=datetime.datetime.fromisoformat)
+        if time is not None:
+            self._internals['time'].append(time)
+        if 'vars' not in self.statistics:
+            self.statistics['vars'] = set()
+        self.statistics['vars'].update(vname for vname in record.variables)
+        self.statistics['vars'].update(vname for vname in record.coordinates)
+        if record.subrecords:
+            if 'child_types' not in self.statistics:
+                self.statistics['child_types'] = set()
+            for srs_name in record.subrecords:
+                # Omit last component since it is the index
+                self.statistics['child_types'].add(srs_name[:srs_name.rfind("_")])
+                for sr in record.subrecords[srs_name]:
+                    self._consider_record(record)
+
+    def _detect_geometry(self, parent_record: DataRecord):
+
+        # Level 1
+        parent_coords = set(x for x in parent_record.coordinates if parent_record.coordinates[x].value() is not None)
+
+        # Level 2
+        subrecord_types = parent_record.subrecords.record_types()
+
+        # Level 3
+        subsubrecord_types = set()
+        for srt in parent_record.subrecords:
+            for record in parent_record.subrecords[srt]:
+                subsubrecord_types.update(record.subrecords.record_types())
+
+        # X, Y, T specified (point or profile)
+        if 'LAT' in parent_coords and 'LON' in parent_coords and 'TIME' in parent_coords:
+
+            # Profiles
+            if 'PROFILE' in subrecord_types:
+                return 'profile'
+
+            # At-depth observation
+            elif 'DEPTH' in parent_coords or 'PRESSURE' in parent_coords:
+                return 'at_depth'
+
+            # Surface observation
+            elif 'TSERIES' not in subrecord_types and 'TRAJ' not in subrecord_types:
+                return 'surface'
+
+        # No TIME specified, but has TIMESERIES means it is a time series at a fixed station
+        elif 'LAT' in parent_coords and 'LON' in parent_coords and 'TSERIES' in subrecord_types:
+            return 'time_series_profile' if 'PROFILE' in subsubrecord_types else 'time_series'
+
+        # No LAT, LON, or TIME means a trajectory
+        elif 'LAT' not in parent_coords and 'LON' not in parent_coords and 'TIME' not in parent_coords and 'TRAJ' in subrecord_types:
+            return 'trajectory_profile' if 'PROFILE' in subsubrecord_types else 'trajectory'
+
+        return 'other'
+
+    def _add_coordinate_statistics(self, record: DataRecord, coordinate_name: str, coerce: callable = None):
+        if record.coordinates.has_value(coordinate_name):
+            coord = record.coordinates[coordinate_name]
+            if coord.nodb_flag == NODBQCFlag.BAD:
+                return None
+            key = coordinate_name.lower()
+            val = coerce(coord.value())
+            if f"min_{key}" not in self.statistics or self.statistics[f"min_{key}"] > val:
+                self.statistics[f"min_{key}"] = val
+            if f"max_{key}" not in self.statistics or self.statistics[f"max_{key}"] < val:
+                self.statistics[f"max_{key}"] = val
+            return val
+        return None
+
+
+

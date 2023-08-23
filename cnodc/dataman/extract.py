@@ -351,12 +351,14 @@ class DataExtractionController:
         else:
             working_record.store_data_record(record)
 
-        # Apply the basic quality control technique to the new record
-        self.basic_qc.initial_basic_quality_control(working_record, tx=self.tx)
-        working_record.qc_test_status = QualityControlStatus.PASSED
-
-        # Persist the working record to not repeat QC next time
-        self.database.save_working_observation(working_record, tx=self.tx)
+        # Apply the basic quality control technique to the new record (only if state is still IN_PROGRESS)
+        if working_record.working_status == ObservationWorkingStatus.IN_PROGRESS:
+            # Apply basic QC
+            self.basic_qc.basic_qc_check(working_record, tx=self.tx, first_time=True)
+            # Persist the working record to not repeat QC next time
+            self.database.save_working_observation(working_record, tx=self.tx)
+            # Add to result set for further processing
+            self.results.add_working_obs(working_record)
 
     def _persist_primary_record(self, message: DecodedMessage, record_idx: int, record: DataRecord) -> NODBObservation:
         existing_obs = self.database.find_primary_observation_by_source(
@@ -375,16 +377,16 @@ class DataExtractionController:
         primary_obs.record_idx = record_idx
         primary_obs.status = ObservationStatus.UNVERIFIED
         primary_obs.store_data_record(record)
-        self.database.save_primary_observation(primary_obs, tx=self.tx)
+        self.database.save_observation(primary_obs, tx=self.tx)
         return primary_obs
 
     def _create_working_record(self, primary_record: NODBObservation):
         if primary_record.pkey is None:
             raise CNODCError("Primary record has no primary key yet", "EXTRACT", 1005)
         working_obs = NODBWorkingObservation.create_from_primary(primary_record)
-        working_obs.qc_process_name = '__basic_initial__'
+        working_obs.qc_process_name = '__basic__'
         working_obs.qc_current_step = 0
-        working_obs.qc_test_status = QualityControlStatus.QUEUED
+        working_obs.qc_test_status = QualityControlStatus.IN_PROGRESS
         working_obs.working_status = ObservationWorkingStatus.IN_PROGRESS
         return working_obs
 
