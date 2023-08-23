@@ -3,6 +3,7 @@ from cnodc.nodb import NODBDatabaseProtocol, NODBWorkingObservation, NODBQCBatch
 from autoinject import injector
 
 from cnodc.nodb.proto import NODBTransaction, LockMode
+from cnodc.nodb.structures import ObservationWorkingStatus
 
 
 class BaseController:
@@ -23,12 +24,16 @@ class BaseController:
         )
         if not batch:
             raise CNODCError(f"Batch [{batch_uuid}] not found", "NODB_BASE", 1000)
-        observations = [
-            x for x in self.database.load_working_observations_for_batch(
-                batch.pkey,
-                with_lock=LockMode.FOR_NO_KEY_UPDATE,
-                tx=tx
-            )
-        ]
+        if batch.working_status != ObservationWorkingStatus.QUEUED:
+            raise CNODCError(f"Batch [{batch_uuid}] is not in a QUEUED state", "NODB_BASE", 1001, True)
+        observations = []
+        for obs in self.database.load_working_observations_for_batch(
+            batch.pkey,
+            with_lock=LockMode.FOR_NO_KEY_UPDATE,
+            tx=tx
+        ):
+            if obs.working_status != ObservationWorkingStatus.BATCH:
+                raise CNODCError(f"Observation [{obs.pkey}] is not in a BATCH state", "NODB_BASE", 1002, True)
+            observations.append(obs)
+        batch.working_status = ObservationWorkingStatus.IN_PROGRESS
         return batch, observations
-

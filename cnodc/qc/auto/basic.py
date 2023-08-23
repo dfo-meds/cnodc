@@ -3,7 +3,7 @@ import datetime
 from cnodc.exc import CNODCError
 from cnodc.nodb import NODBWorkingObservation, NODBDatabaseProtocol
 from cnodc.nodb.proto import NODBTransaction, LockMode
-from cnodc.nodb.structures import QualityControlStatus, NODBStation, StationStatus
+from cnodc.nodb.structures import QualityControlStatus, NODBStation, StationStatus, ObservationWorkingStatus
 from cnodc.ocproc2 import DataRecord
 from autoinject import injector
 
@@ -23,28 +23,34 @@ class BasicQualityController:
 
     def basic_qc_check(self, obs: NODBWorkingObservation, tx: NODBTransaction = None, first_time: bool = False) -> bool:
         if obs.qc_test_completed("basic"):
-            return True
+            return
 
         # Get record and clear QC codes
         record = obs.extract_data_record()
         obs.clear_qc_codes()
 
-        # Apply coordinate and station check
-        self._check_coordinates(record, obs)
-        self._detect_station_id(record, obs, tx)
+        if record.nodb_flag == NODBQCFlag.DISCARD_RECORD:
+            obs.working_status = ObservationWorkingStatus.DISCARDED
+            obs.qc_test_status = QualityControlStatus.
 
-        # Check the results and add history info.
-        if not obs.has_any_qc_code():
-            record.add_history_info("BQC passed", self.name, self.version, self.instance)
-            obs.store_data_record(record)
-            obs.qc_test_status = QualityControlStatus.PASSED
-            obs.mark_qc_test_complete("basic")
-            return True
+        elif record.nodb_flag == NODBQCFlag.RAISE_ERROR:
+            obs.qc_test_status = ObservationWorkingStatus.ERROR
+
         else:
-            record.add_history_warning("BQC failed", self.name, self.version, self.instance)
-            obs.qc_test_status = QualityControlStatus.MANUAL_REVIEW
-            obs.store_data_record(record)
-            return False
+            # Apply coordinate and station check
+            self._check_coordinates(record, obs)
+            self._detect_station_id(record, obs, tx)
+
+            # Check the results and add history info.
+            if not obs.has_any_qc_code():
+                record.add_history_info("BQC passed", self.name, self.version, self.instance)
+                obs.store_data_record(record)
+                obs.qc_test_status = QualityControlStatus.PASSED
+                obs.mark_qc_test_complete("basic")
+            else:
+                record.add_history_warning("BQC failed", self.name, self.version, self.instance)
+                obs.qc_test_status = QualityControlStatus.MANUAL_REVIEW
+                obs.store_data_record(record)
 
     def _detect_station_id(self, record: DataRecord, working_record: NODBWorkingObservation, tx: NODBTransaction = None):
         # Don't reprocess where the station is known, but do check that the station info is complete

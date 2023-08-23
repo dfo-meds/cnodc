@@ -30,22 +30,24 @@ class ObservationStatus(enum.Enum):
 
 class QualityControlStatus(enum.Enum):
 
-    QUEUED = 'QUEUED'
-    IN_PROGRESS = 'IN_PROGRESS'
-    MANUAL_REVIEW = 'MANUAL_REVIEW'
+    UNCHECKED = 'UNCHECKED'
+    REVIEW = 'REVIEW'
     ERROR = 'ERROR'
-    PASSED = 'PASSED'
-    BATCH = 'BATCH'
+    COMPLETE = 'COMPLETE'
+    IN_PROGRESS = 'IN_PROGRESS'
+    DISCARD = 'DISCARD'
 
 
 class ObservationWorkingStatus(enum.Enum):
 
-    QUEUED = 'QUEUED'
-    IN_PROGRESS = 'IN_PROGRESS'
-    DISCARDED = 'DISCARDED'
-    BATCH = 'BATCH'
-    ERROR = 'ERROR'
+    NEW = 'NEW'
+    AUTO_QUEUED = 'AUTO_QUEUED'
+    AUTO_IN_PROGRESS = 'AUTO_IN_PROGRESS'
+    USER_QUEUED = 'USER_QUEUED'
+    USER_IN_PROGRESS = 'USER_IN_PROGRESS'
+    USER_CHECKED = 'USER_CHECKED'
     QUEUE_ERROR = 'QUEUE_ERROR'
+    ERROR = 'ERROR'
 
 
 class StationStatus(enum.Enum):
@@ -308,6 +310,9 @@ class NODBQCProcess(_NODBBaseObject):
     dm_qc_steps: list = _NODBBaseObject.make_property("dm_qc_steps")
     dm_qc_freq_days: int = _NODBBaseObject.make_property("dm_qc_freq_days", coerce=int)
     dm_qc_delay_days: int = _NODBBaseObject.make_property("dm_qc_delay_days", coerce=int)
+
+    def has_rt_qc(self) -> bool:
+        return bool(self.rt_qc_steps)
 
 
 class NODBWorkingObservation(_NODBWithDataRecord, _NODBWithQCProperties, _NODBBaseObject):

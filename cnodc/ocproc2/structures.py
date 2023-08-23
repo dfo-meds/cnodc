@@ -3,6 +3,8 @@ import typing as t
 import enum
 import datetime
 
+from cnodc.exc import CNODCError
+
 
 def normalize_data_value(dv: t.Any):
     if isinstance(dv, datetime.date):
@@ -29,6 +31,9 @@ class NODBQCFlag(enum.Enum):
     REVIEW_BAD = -4
     REVIEW_INFERRED = -5
     REVIEW_MISSING = -9
+
+    DISCARD_RECORD = 10
+    RAISE_ERROR = 11
 
 
 class HistoryEntry:
@@ -192,6 +197,8 @@ class DataValue:
 
     @nodb_flag.setter
     def nodb_flag(self, flag: NODBQCFlag):
+        if flag in (NODBQCFlag.RAISE_ERROR or NODBQCFlag.DISCARD_RECORD):
+            raise CNODCError(f"NODB QC flag RAISE_ERROR and DISCARD_RECORD cannot be used on data values, only data records", "OCPROC2", 1000)
         self.metadata['_QC'] = flag.value()
 
     @staticmethod
@@ -346,6 +353,16 @@ class DataRecord:
             source_instance,
             'ERROR'
         ))
+
+    @property
+    def nodb_flag(self) -> NODBQCFlag:
+        if '_QC' in self.metadata:
+            return NODBQCFlag(self.metadata['_QC'])
+        return NODBQCFlag.NOT_DONE
+
+    @nodb_flag.setter
+    def nodb_flag(self, flag: NODBQCFlag):
+        self.metadata['_QC'] = flag.value()
 
     def __str__(self):
         return str({

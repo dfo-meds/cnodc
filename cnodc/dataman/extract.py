@@ -386,7 +386,7 @@ class DataExtractionController:
         working_obs = NODBWorkingObservation.create_from_primary(primary_record)
         working_obs.qc_process_name = '__basic__'
         working_obs.qc_current_step = 0
-        working_obs.qc_test_status = QualityControlStatus.IN_PROGRESS
+        working_obs.qc_test_status = QualityControlStatus.UNCHECKED
         working_obs.working_status = ObservationWorkingStatus.IN_PROGRESS
         return working_obs
 
@@ -418,7 +418,7 @@ class DataExtractionController:
                 batch.qc_test_status = QualityControlStatus.PASSED
             else:
                 batch.qc_test_status = QualityControlStatus.MANUAL_REVIEW
-            batch.working_status = ObservationWorkingStatus.IN_PROGRESS
+            batch.working_status = ObservationWorkingStatus.NEW
             batch.qc_process_name = '__basic__'
             batch.qc_current_step = 0
             self.database.save_batch_and_assign(batch, working_obs_list, tx=self.tx)

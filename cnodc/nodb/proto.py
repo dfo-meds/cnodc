@@ -86,7 +86,7 @@ class NODBDatabaseProtocol(t.Protocol):
     def load_source_file(self, source_file_uuid: str, with_lock: LockMode = LockMode.NO_LOCK, no_wait: bool = False, tx: NODBTransaction = None) -> t.Optional[NODBSourceFile]:
         raise NotImplementedError()
 
-    def load_qc_for_station(self, station_uuid: str, tx: NODBTransaction = None) -> t.Optional[NODBQCProcess]:
+    def load_qc_for_station(self, station_uuid: str, with_lock: LockMode = LockMode.NO_LOCK, tx: NODBTransaction = None) -> t.Optional[NODBQCProcess]:
         raise NotImplementedError()
 
     def save_source_file(self, source_file: NODBSourceFile, tx: NODBTransaction = None):
@@ -124,6 +124,9 @@ class NODBQueueProtocol(t.Protocol):
         raise NotImplementedError()
 
     def queue_basic_qc_process(self, batch: NODBQCBatch):
+        raise NotImplementedError()
+
+    def queue_next_qc(self, batch: NODBQCBatch):
         raise NotImplementedError()
 
 

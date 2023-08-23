@@ -8,7 +8,7 @@ from cnodc.qc.auto.basic import BasicQualityController
 from .base import BaseController
 
 
-class QualityControlController(BaseController):
+class NODBEntryController(BaseController):
 
     database: NODBDatabaseProtocol = None
     queues: NODBQueueProtocol = None
@@ -18,29 +18,41 @@ class QualityControlController(BaseController):
         super().__init__("NODB_QCC", "1_0_0", instance)
         self.basic_qc = BasicQualityController(self.instance)
 
-    def start_qc(self, batch_uuid: str, from_basic: bool = True):
+    def start_qc(self, batch_uuid: str):
         tx = None
+        batch = None
         try:
             tx = self.database.start_transaction()
             batch, observations = self.load_batch_and_obs(batch_uuid, tx)
-            qc_passed = self._apply_followup_basic_qc(observations, tx)
-            if qc_passed:
-                self._start_qc_process(batch, observations, tx)
-            else:
-                self._queue_batch_for_review(batch, tx)
+            new_records = self._apply_followup_basic_qc(observations, tx)
+            if new_records:
+                if any(x.has_any_qc_code() for x in new_records):
+                    self._queue_batch_for_review(batch, tx)
+                else:
+                    self._start_qc_process(batch, new_records, tx)
         # TODO: handle exceptions
         finally:
+            if batch and tx:
+                self.database.save_batch(batch, tx=tx)
             if tx:
                 tx.commit()
                 tx.close()
                 tx = None
 
-    def _apply_followup_basic_qc(self, observations: list[NODBWorkingObservation], tx: NODBTransaction) -> bool:
-        result = True
+    def _apply_followup_basic_qc(self, observations: list[NODBWorkingObservation], tx: NODBTransaction) -> list[NODBWorkingObservation]:
+        keep = []
         for obs in observations:
-            self.basic_qc.basic_qc_check(obs, tx)
-            result = result and not obs.has_any_qc_code()
-        return result
+            if obs.qc_test_status == QualityControlStatus.UNCHECKED:
+                self.basic_qc.basic_qc_check(obs, tx)
+            if obs.working_status == ObservationWorkingStatus.ERROR:
+                raise CNODCError(f"User flagged a record in the batch as errored", is_recoverable=False)
+            elif obs.working_status == ObservationWorkingStatus.DISCARDED:
+                obs.qc_batch_id = None
+                self._update_primary_record(obs, tx)
+                self.database.save_working_observation(obs, tx)
+            else:
+                keep.append(obs)
+        return keep
 
     def _start_qc_process(self, batch: NODBQCBatch, observations: list[NODBWorkingObservation], tx: NODBTransaction):
         station_count = set()
@@ -76,7 +88,10 @@ class QualityControlController(BaseController):
         if primary.status == ObservationStatus.VERIFIED:
             return
         primary.update_from_working(obs)
-        primary.status = ObservationStatus.VERIFIED
+        if obs.working_status == ObservationWorkingStatus.DISCARDED:
+            primary.status = ObservationStatus.DISCARDED
+        else:
+            primary.status = ObservationStatus.VERIFIED
         self.database.save_observation(primary, tx)
 
     def _create_new_qc_batch(self, station_uuid: str, observations: list[NODBWorkingObservation], tx):
@@ -89,16 +104,35 @@ class QualityControlController(BaseController):
         return batch
 
     def _start_qc_for_batch(self, batch: NODBQCBatch, tx: NODBTransaction):
-        pass
+        if 'station_uuid' not in batch.qc_metadata:
+            raise CNODCError(f"Missing station ID for [{batch.pkey}]", "QC_START", 1003)
+        qc_process = self.database.load_qc_for_station(batch.get_qc_metadata("station_uuid"), with_lock=LockMode.FOR_KEY_SHARE,  tx=tx)
+        if qc_process and qc_process.has_rt_qc():
+            batch.qc_test_status = QualityControlStatus.UNCHECKED
+            batch.qc_process_name = qc_process.pkey
+            batch.qc_current_step = 0
+            batch.working_status = ObservationWorkingStatus.NEW
+            self.database.save_batch(batch)
+            try:
+                self.queues.queue_next_qc(batch)
+                batch.working_status = ObservationWorkingStatus.QUEUED
+            except Exception as ex:
+                batch.working_status = ObservationWorkingStatus.QUEUE_ERROR
+                raise ex
+            finally:
+                self.database.save_batch(batch)
 
     def _queue_batch_for_review(self, batch: NODBQCBatch, tx: NODBTransaction):
         batch.qc_test_status = QualityControlStatus.MANUAL_REVIEW
-        batch.working_status = ObservationWorkingStatus.QUEUED
+        batch.working_status = ObservationWorkingStatus.NEW
         self.database.save_batch(batch, tx)
         try:
             self.queues.queue_basic_qc_review(batch)
+            batch.working_status = ObservationWorkingStatus.QUEUED
         except Exception as ex:
             batch.working_status = ObservationWorkingStatus.QUEUE_ERROR
+            raise ex
+        finally:
             self.database.save_batch(batch, tx)
 
 
