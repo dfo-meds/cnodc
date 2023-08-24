@@ -3,7 +3,7 @@ import typing as t
 from contextlib import contextmanager
 
 from .structures import NODBSourceFile, NODBObservation, NODBWorkingObservation, NODBStation, NODBQCBatch, \
-    ObservationWorkingStatus, QualityControlStatus, NODBQCProcess
+    ObservationWorkingStatus, QualityControlStatus, NODBQCProcess, NODBUser, NODBSession
 from autoinject import injector
 
 
@@ -48,11 +48,29 @@ class LockMode(enum.Enum):
     FOR_KEY_SHARE = 4
 
 
-@injector.injectable_global
+@injector.injectable
 class NODBDatabaseProtocol(t.Protocol):
 
     @contextmanager
     def start_transaction(self) -> NODBTransaction:
+        raise NotImplementedError()
+
+    def start_bare_transaction(self) -> NODBTransaction:
+        raise NotImplementedError()
+
+    def save_user(self, user: NODBUser, tx: NODBTransaction = None):
+        raise NotImplementedError()
+
+    def load_user(self, username: str, with_lock: LockMode = LockMode.NO_LOCK, tx: NODBTransaction = None) -> t.Optional[NODBUser]:
+        raise NotImplementedError()
+
+    def load_session(self, session_id: str, with_lock: LockMode = LockMode.NO_LOCK, tx: NODBTransaction = None) -> t.Optional[NODBSession]:
+        raise NotImplementedError()
+
+    def record_login(self, username, ip_address, tx: NODBTransaction = None):
+        raise NotImplementedError()
+
+    def save_session(self, session: NODBSession, tx: NODBTransaction = None):
         raise NotImplementedError()
 
     def errored_source_file_exists(self, source_file_uuid: str, message_idx: int, tx: NODBTransaction = None) -> bool:
@@ -109,6 +127,9 @@ class NODBDatabaseProtocol(t.Protocol):
                 obs.qc_batch_id = batch.pkey
                 obs.qc_current_step = None
                 self.save_working_observation(obs, tx)
+
+    def close(self):
+        raise NotImplementedError()
 
 
 @injector.injectable_global

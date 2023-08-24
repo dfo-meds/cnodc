@@ -4,9 +4,16 @@ import functools
 import itertools
 import typing as t
 
+from cnodc import geodesy
 from cnodc.decode.ocproc2_bin import OCProc2BinaryCodec
 from cnodc.ocproc2 import DataRecord
 from cnodc.ocproc2.structures import NODBQCFlag
+
+
+class UserStatus(enum.Enum):
+
+    ACTIVE = 'ACTIVE'
+    INACTIVE = 'INACTIVE'
 
 
 class SourceFileStatus(enum.Enum):
@@ -253,6 +260,31 @@ class _NODBWithDataRecord:
 
     def clear_data_record_cache(self):
         self._data_record_cache = None
+
+
+class NODBUser(_NODBBaseObject):
+
+    username: str = _NODBBaseObject.make_property("username", coerce=str)
+    phash: bytes = _NODBBaseObject.make_property("phash")
+    salt: bytes = _NODBBaseObject.make_property("salt")
+    status: UserStatus = _NODBBaseObject.make_enum_property("status", UserStatus)
+
+
+class NODBSession(_NODBBaseObject):
+
+    session_id: str = _NODBBaseObject.make_property("session_id", coerce=str)
+    start_time: datetime = _NODBBaseObject.make_datetime_property("start_time")
+    expiry_time: datetime = _NODBBaseObject.make_datetime_property("expiry_time")
+    username: str = _NODBBaseObject.make_property("username", coerce=str)
+    session_data: dict = _NODBBaseObject.make_property("session_data")
+
+    def set_session_value(self, key, value):
+        if self.session_data is None:
+            self.session_data = {}
+        self.session_data[key] = value
+
+    def get_session_value(self, key, default=None):
+        return self.session_data[key] if self.session_data and key in self.session_data else default
 
 
 class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
