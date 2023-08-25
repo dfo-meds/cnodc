@@ -2,7 +2,7 @@ import flask
 from cnodc.nodb import NODBDatabaseProtocol
 from autoinject import injector
 
-from cnodc.nodb.proto import NODBTransaction
+from cnodc.nodb import NODBTransaction
 
 app = flask.Flask(__name__)
 

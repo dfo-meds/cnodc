@@ -7,8 +7,8 @@ import flask
 import itsdangerous
 from autoinject import injector
 from cnodc.nodb import NODBDatabaseProtocol
-from cnodc.nodb.proto import LockMode
-from cnodc.nodb.structures import NODBSession, NODBUser
+from cnodc.nodb import LockMode
+from cnodc.nodb import NODBSession, NODBUser
 
 
 @injector.inject
