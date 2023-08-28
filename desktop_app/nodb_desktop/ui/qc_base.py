@@ -99,6 +99,10 @@ class QCBatchController:
         if self._current_value_idx != value_key:
             self._property_metadata_frame.set_data_value(dv)
 
+    def clear_data_value(self):
+        self._current_value_idx = None
+        self._property_metadata_frame.clear()
+
     def _save_records(self):
         pass
 
@@ -428,6 +432,8 @@ class QCPropertyFrame(ScrollableTreeview):
             key = f"{map_name}__{map_key}"
             dv = getattr(self._current_record, map_name)[map_key]
             self.controller.show_data_value(key, dv)
+        else:
+            self.controller.clear_data_value()
 
     def on_right_click(self, iid, e):
         if iid in self._lookup:
