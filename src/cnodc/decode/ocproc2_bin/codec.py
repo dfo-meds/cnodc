@@ -1,12 +1,8 @@
-import sys
-
 from cnodc.decode.common import BufferedBinaryReader, BaseCodec, TranscodingResult
 from cnodc.ocproc2 import DataRecord
 import typing as t
 from cnodc.decode.ocproc2_json import OCProc2JsonCodec
 from cnodc.decode.ocproc2_yaml import OCProc2YamlCodec
-import lzma
-import reedsolo
 
 
 class OCProc2BinaryCodec(BaseCodec):
@@ -16,9 +12,9 @@ class OCProc2BinaryCodec(BaseCodec):
 
     def encode(self,
                records: TranscodingResult,
-               text_format: str = 'YAML',
-               compression: t.Optional[str] = 'LZMACRC4',
-               correction: t.Optional[str] = 'RS32',
+               text_format: str = 'JSON',
+               compression: t.Optional[str] = 'LZMA6',
+               correction: t.Optional[str] = None,
                **kwargs) -> t.Iterable[bytes]:
         if len(text_format) > 256:
             raise ValueError(f"Text format {text_format} is too long")
@@ -26,9 +22,9 @@ class OCProc2BinaryCodec(BaseCodec):
             raise ValueError(f"Compression format {compression} is too long")
         if correction is not None and len(correction) > 256:
             raise ValueError(f"Correction format {correction} is too long")
-        formatter = self.get_formatter(text_format)
-        compressor = self.get_compressor(compression)
-        corrector = self.get_error_correction(correction)
+        formatter = OCProc2BinaryCodec.load_formatter(text_format)
+        compressor = OCProc2BinaryCodec.load_compressor(compression)
+        corrector = OCProc2BinaryCodec.load_corrector(correction)
         output = bytearray([1, len(text_format)])
         output.extend(text_format.encode('ascii'))
         if compression:
@@ -54,9 +50,9 @@ class OCProc2BinaryCodec(BaseCodec):
             compression = reader.consume(compression_length).decode('ascii') if compression_length > 0 else None
             correction_length = int(reader.consume(1)[0])
             correction = reader.consume(correction_length).decode('ascii') if correction_length > 0 else None
-            formatter = self.get_formatter(text_format)
-            compressor = self.get_compressor(compression)
-            corrector = self.get_error_correction(correction)
+            formatter = OCProc2BinaryCodec.load_formatter(text_format)
+            compressor = OCProc2BinaryCodec.load_compressor(compression)
+            corrector = OCProc2BinaryCodec.load_corrector(correction)
             yield from formatter.decode_messages(
                 compressor.uncompress_stream(corrector.handle_incoming(reader.read_all_in_chunks())),
                 **kwargs
@@ -64,25 +60,43 @@ class OCProc2BinaryCodec(BaseCodec):
         else:
             raise ValueError(f"Unrecognized OCPROC2 file version")
 
-    def get_formatter(self, format_code: str):
+    @staticmethod
+    def load_formatter(format_code: str):
         if format_code == "JSON":
             return OCProc2JsonCodec()
         if format_code == "YAML":
             return OCProc2YamlCodec()
         raise ValueError(f"unknown text format {format_code}")
 
-    def get_compressor(self, format_code: t.Optional[str]):
-        if format_code== "LZMACRC4":
-            return _LZMACompressor(lzma.CHECK_CRC32)
-        if format_code == "LZMACRC8":
-            return _LZMACompressor(lzma.CHECK_CRC64)
-        if format_code == "LZMA":
-            return _LZMACompressor()
+    @staticmethod
+    def load_compressor(format_code: t.Optional[str]):
         if format_code == "" or format_code is None:
             return _NullCompressor()
+        if format_code.startswith("LZMA"):
+            import lzma
+            preset = 6
+            check = lzma.CHECK_NONE
+            if len(format_code) > 4 and not format_code[4] == 'C':
+                preset = int(format_code[4])
+            if format_code.endswith('CRC4'):
+                check = lzma.CHECK_CRC32
+            elif format_code.endswith('CRC8'):
+                check = lzma.CHECK_CRC64
+            return _LZMACompressor(check, preset)
+        if format_code.startswith('ZLIB'):
+            preset = -1
+            if len(format_code) == 5:
+                preset = int(format_code[4])
+            return _ZlibCompressor(preset)
+        if format_code.startswith('BZ2'):
+            preset = -1
+            if len(format_code) == 4:
+                preset = int(format_code[3])
+            return _Bz2Compressor(preset)
         raise ValueError(f"unknown compressor {format_code}")
 
-    def get_error_correction(self, format_code: t.Optional[str]):
+    @staticmethod
+    def load_corrector(format_code: t.Optional[str]):
         if format_code == "" or format_code is None:
             return _NullCorrector()
         if format_code == "RS32":
@@ -114,30 +128,69 @@ class _NullCompressor:
         yield from stream
 
 
-class _LZMACompressor:
+class _Bz2Compressor:
 
-    def __init__(self, crc_check=None):
-        self._crc_check = crc_check
+    def __init__(self, preset=None):
+        self._preset = preset
 
     def compress_stream(self, stream: t.Iterable[bytes]) -> t.Iterable[bytes]:
-        compressor = lzma.LZMACompressor(check=self._crc_check)
+        import bz2
+        compressor = bz2.BZ2Compressor(self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
     def uncompress_stream(self, stream: t.Iterable[bytes]) -> t.Iterable[bytes]:
-        iterator = iter(stream)
+        import bz2
+        decompressor = bz2.BZ2Decompressor()
+        for bytes_ in stream:
+            yield decompressor.decompress(bytes_)
+
+
+class _ZlibCompressor:
+
+    def __init__(self, preset=None):
+        self._preset = preset
+
+    def compress_stream(self, stream: t.Iterable[bytes]) -> t.Iterable[bytes]:
+        import zlib
+        compressor = zlib.compressobj(self._preset)
+        for bytes_ in stream:
+            yield compressor.compress(bytes_)
+        yield compressor.flush()
+
+    def uncompress_stream(self, stream: t.Iterable[bytes]) -> t.Iterable[bytes]:
+        import zlib
+        decompressor = zlib.decompressobj()
+        for bytes_ in stream:
+            yield decompressor.decompress(bytes_)
+        yield decompressor.flush()
+
+
+class _LZMACompressor:
+
+    def __init__(self, crc_check=None, preset=None):
+        self._crc_check = crc_check
+        self._preset = preset
+
+    def compress_stream(self, stream: t.Iterable[bytes]) -> t.Iterable[bytes]:
+        import lzma
+        compressor = lzma.LZMACompressor(check=self._crc_check, preset=self._preset)
+        for bytes_ in stream:
+            yield compressor.compress(bytes_)
+        yield compressor.flush()
+
+    def uncompress_stream(self, stream: t.Iterable[bytes]) -> t.Iterable[bytes]:
+        import lzma
         decompressor = lzma.LZMADecompressor()
-        while not decompressor.eof:
-            if decompressor.needs_input:
-                yield decompressor.decompress(iterator.__next__(), 1024 * 1024 * 8)
-            else:
-                yield decompressor.decompress(b'')
+        for bytes_ in stream:
+            yield decompressor.decompress(bytes_)
 
 
 class _ReedSoloCorrection:
 
     def __init__(self, nsym=10, nsize=255, batch_size=5):
+        import reedsolo
         self.rsc = reedsolo.RSCodec(nsym=nsym, nsize=nsize)
         self._out_chunk_size = batch_size * (nsize - nsym)
         self._in_chunk_size = batch_size * nsize

@@ -5,7 +5,7 @@ import zirconium as zr
 
 from cnodc.exc import CNODCError
 from cnodc.files import FileController
-from cnodc.nodb import NODBDatabaseProtocol, NODBQueueProtocol, NODBSourceFile
+from cnodc.nodb import NODBDatabaseProtocol, NODBSourceFile
 from cnodc.nodb.structures import SourceFileStatus
 from cnodc.util import HaltFlag
 
@@ -14,7 +14,6 @@ class DataSearchController:
 
     file_controller: FileController = None
     database: NODBDatabaseProtocol = None
-    queues: NODBQueueProtocol = None
 
     @injector.construct
     def __init__(self, instance: str, halt_flag: HaltFlag):
@@ -44,7 +43,7 @@ class DataSearchController:
             # Queue it
             try:
                 source_file.status = SourceFileStatus.QUEUED
-                self.queues.queue_source_file_download(source_file)
+                self.database.queue_source_file_download(source_file)
             except Exception as ex:
                 source_file.status = SourceFileStatus.QUEUE_ERROR
                 source_file.set_metadata("queue_error", f"{ex.__class__.__name__}: {str(ex)}")

@@ -35,9 +35,6 @@ class QCBatchController:
     def set_map_frame(self, frame):
         self._map_frame = frame
 
-    def set_list_frame(self, frame):
-        self._list_frame = frame
-
     def set_subrecord_frame(self, frame):
         self._subrecord_frame = frame
 
@@ -51,9 +48,9 @@ class QCBatchController:
         self._button_frame.set_batch_in_progress(True)
         self._load_records_for_batch()
         self._map_frame.show_batch(self._records)
-        self._list_frame.show_batch(self._records)
+        self._subrecord_frame.show_batch(self._records)
         self._property_frame.clear()
-        self._subrecord_frame.clear()
+        self._property_metadata_frame.clear()
         self._current_record_idx = None
         self._current_hierarchy_idx = None
 
@@ -171,16 +168,16 @@ class QualityControlFrame(ChildFrame):
 
         # Top frame
         self.top_frame = tk.Frame(self.contents)
-        self.top_frame.columnconfigure(0, weight=0)
-        self.top_frame.columnconfigure(1, weight=1)
-        self.top_frame.columnconfigure(2, weight=0)
+        self.top_frame.columnconfigure(0, weight=1)
+        self.top_frame.columnconfigure(1, weight=0)
+        self.top_frame.columnconfigure(2, weight=1)
         self.top_frame.rowconfigure(0, weight=1)
 
         self.record_frame = QCSubrecordFrame(self.top_frame, controller=self.controller)
         self.record_frame.grid(row=0, column=0, sticky="nsew")
 
-        self.inner_contents = tk.Frame(self.top_frame)
-        self.inner_contents.grid(row=0, column=1, sticky="nsew")
+        self.map_frame = QCMapFrame(self.top_frame, controller=self.controller)
+        self.map_frame.grid(row=0, column=1, sticky="nsew")
 
         self.combined_property = tk.Frame(self.top_frame)
         self.combined_property.grid(row=0, column=2, sticky="nsew")
@@ -195,20 +192,6 @@ class QualityControlFrame(ChildFrame):
         self.property_metadata_frame.grid(row=1, column=0, sticky="nsew")
 
         self.top_frame.grid(row=1, column=0, sticky="nsew")
-
-        # Bottom frame
-        self.bottom_frame = tk.Frame(self.contents)
-        self.bottom_frame.grid_columnconfigure(0, weight=0)
-        self.bottom_frame.grid_columnconfigure(1, weight=1)
-        self.bottom_frame.grid_rowconfigure(0, weight=1)
-
-        self.map_frame = QCMapFrame(self.bottom_frame, controller=self.controller)
-        self.map_frame.grid(row=0, column=0, sticky="nsew")
-
-        self.list_frame = QCListFrame(self.bottom_frame, controller=self.controller)
-        self.list_frame.grid(row=0, column=1, sticky="nsew")
-
-        self.bottom_frame.grid(row=2, column=0, sticky="ensw")
 
 
 class QCButtonFrame(tk.Frame):
@@ -262,53 +245,6 @@ class QCMapFrame(tk.Frame):
         pass
 
 
-class QCListFrame(ScrollableTreeview):
-
-    def __init__(self, *args, controller: QCBatchController, **kwargs):
-        super().__init__(*args, height=200, width=800, **kwargs)
-        self.controller = controller
-        self.controller.set_list_frame(self)
-        self.table.configure(
-            columns=('uuid', 'lat', 'lon', 'time', 'station_uuid'),
-            show='headings',
-            selectmode="browse"
-        )
-        self.table.heading('uuid', text=self.controller.app.get_text('label_uuid'))
-        self.table.column('uuid', minwidth=225, width=225)
-        self.table.heading('lat', text=self.controller.app.get_text('label_lat'))
-        self.table.column('lat', minwidth=70, width=70, stretch=tk.NO)
-        self.table.heading('lon', text=self.controller.app.get_text('label_lon'))
-        self.table.column('lon', minwidth=70, width=70, stretch=tk.NO)
-        self.table.heading('time', text=self.controller.app.get_text('label_time'))
-        self.table.column('time', minwidth=150, width=150, stretch=tk.NO)
-        self.table.heading('station_uuid', text=self.controller.app.get_text('label_station_uuid'))
-        self._lookup = {}
-
-    def clear(self):
-        self.table.delete(*self.table.get_children())
-        self._lookup = {}
-
-    def show_batch(self, batch: list[DataRecord]):
-        self.clear()
-        for idx, record in enumerate(batch):
-            key = self.table.insert('', tk.END, values=(
-                record.metadata.get('_NODB_UUID', ''),
-                record.coordinates.get('LAT', ''),
-                record.coordinates.get('LON', ''),
-                record.coordinates.get('TIME', ''),
-                record.metadata.get('_NODB_STATION_UUID', '')
-            ))
-            self._lookup[key] = idx
-
-    def select_record(self, idx, record):
-        # TODO
-        pass
-
-    def on_select(self, e):
-        if self.table.selection():
-            self.controller.show_record(self._lookup[self.table.selection()[0]], 'list')
-
-
 class QCSubrecordFrame(ScrollableTreeview):
 
     def __init__(self, *args, controller: QCBatchController, **kwargs):
@@ -321,24 +257,23 @@ class QCSubrecordFrame(ScrollableTreeview):
         )
         self.table.column("#0", width=50)
         self.table.heading('name', text=self.controller.app.get_text('label_item_name'))
+        self._records = []
         self._current_record = None
         self._lookup = {}
 
     def clear(self):
         self.table.delete(*self.table.get_children())
 
-    def show_record(self, idx: int, record: DataRecord):
+    def show_batch(self, records: list[DataRecord]):
         self.clear()
-        self._current_record = record
-        top_id = self.table.insert("", iid="top", index="end", values=(self.controller.app.get_text('top_item'),))
-        self._lookup[top_id] = [0]
-        self.add_subrecords("top", record, [0])
+        for idx, record in enumerate(records):
+            top_id = self.table.insert("", index="end", values=(self._record_label(record)))
+            self.add_subrecords(top_id, record, [top_id])
 
     def add_subrecords(self, parent, record: DataRecord, parent_hierarchy):
         if record.subrecords:
             for srt in record.subrecords:
                 srt_key = f"{parent}_{srt}"
-
                 row_id = self.table.insert(parent, iid=srt_key, index="end", values=(srt,))
                 self._lookup[row_id] = [*parent_hierarchy, srt]
                 for idx, sr in enumerate(record.subrecords[srt]):
@@ -355,9 +290,10 @@ class QCSubrecordFrame(ScrollableTreeview):
 
     def on_select(self, e):
         if self.table.selection():
-            hierarchy = self._lookup[self.table.selection()[0]][1:]
+            hierarchy = self._lookup[self.table.selection()[0]]
             key = "__".join(str(x) for x in hierarchy)
-            record = self._current_record
+            record = self._current_record[hierarchy[0]]
+            hierarchy = hierarchy[1:]
             while hierarchy:
                 x = hierarchy[0]
                 hierarchy = hierarchy[1:]

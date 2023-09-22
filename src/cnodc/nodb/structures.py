@@ -406,6 +406,14 @@ class NODBObservation(_NODBWithDataRecord, _NODBWithMetadata, _NODBBaseObject):
         }
 
 
+def searchable_time(t: str):
+    if t is None:
+        return None
+    # TODO: ensure UTC
+    dt = datetime.datetime.fromisoformat(t)
+    return int(dt.strftime("%Y%m%d%H%M%S"))
+
+
 class _SearchDataAggregator:
 
     def __init__(self, data_record: DataRecord):
@@ -436,6 +444,9 @@ class _SearchDataAggregator:
                 self.statistics['_rpr_lon'] = rlon
             if self.statistics['_rpr_time'] is None:
                 self.statistics['_rpr_time'] = rtime
+        for x in self.statistics:
+            if isinstance(self.statistics[x], set):
+                self.statistics[x] = list(self.statistics[x])
 
     def _estimate_best_position(self) -> tuple[t.Optional[float], t.Optional[float], t.Optional[float]]:
         # No entries, no position
@@ -473,9 +484,9 @@ class _SearchDataAggregator:
             self._internals['coordinates'].append((lon, lat))
         self._add_coordinate_statistics(record, 'DEPTH')
         self._add_coordinate_statistics(record, 'PRESSURE')
-        time = self._add_coordinate_statistics(record, 'TIME', coerce=datetime.datetime.fromisoformat)
+        time = self._add_coordinate_statistics(record, 'TIME', coerce=searchable_time)
         if time is not None:
-            self._internals['time'].append(time)
+            self._internals['time'].append(datetime.datetime.strptime(str(time), "%Y%m%d%H%M%S"))
         if 'vars' not in self.statistics:
             self.statistics['vars'] = set()
         self.statistics['vars'].update(vname for vname in record.variables)
@@ -487,7 +498,7 @@ class _SearchDataAggregator:
                 # Omit last component since it is the index
                 self.statistics['child_types'].add(srs_name[:srs_name.rfind("_")])
                 for sr in record.subrecords[srs_name]:
-                    self._consider_record(record)
+                    self._consider_record(sr)
 
     def _detect_geometry(self, parent_record: DataRecord):
 
@@ -534,7 +545,7 @@ class _SearchDataAggregator:
             if coord.nodb_flag == NODBQCFlag.BAD:
                 return None
             key = coordinate_name.lower()
-            val = coerce(coord.value())
+            val = coerce(coord.value()) if coerce is not None else coord.value()
             if f"min_{key}" not in self.statistics or self.statistics[f"min_{key}"] > val:
                 self.statistics[f"min_{key}"] = val
             if f"max_{key}" not in self.statistics or self.statistics[f"max_{key}"] < val:

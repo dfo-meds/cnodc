@@ -6,17 +6,29 @@ import datetime
 from cnodc.exc import CNODCError
 
 
+def check_equal(a, b):
+    if a is None and b is not None:
+        return False
+    if b is None and a is not None:
+        return False
+    return a == b
+
+
 def normalize_data_value(dv: t.Any):
-    if isinstance(dv, datetime.date):
+    cls_name = dv.__class__.__name__
+    if cls_name == 'str' or cls_name == 'float' or cls_name == 'int' or cls_name == 'bool' or cls_name == 'NoneType':
+        return dv
+    elif cls_name == 'datetime' or cls_name == 'date':
         return dv.isoformat()
-    elif isinstance(dv, (set, list, tuple)):
+    elif cls_name == 'list' or cls_name == 'set' or cls_name == 'tuple':
         return [normalize_data_value(x) for x in dv]
-    elif isinstance(dv, dict):
+    elif cls_name == 'dict':
         return {
             str(x): normalize_data_value(dv[x])
             for x in dv
         }
-    return dv
+    else:
+        raise ValueError(f'Invalid value [{cls_name}]')
 
 
 class NODBQCFlag(enum.Enum):
@@ -94,9 +106,9 @@ class DataValue:
                  reported_value=None,
                  corrected_value=None,
                  metadata: dict = None):
-        self._reported_value = normalize_data_value(reported_value)
-        self._corrected_value = normalize_data_value(corrected_value)
-        self.metadata = DataValueMap(metadata, ref_table="metadata")
+        self._reported_value = normalize_data_value(reported_value) if reported_value is not None else None
+        self._corrected_value = normalize_data_value(corrected_value) if corrected_value is not None else None
+        self.metadata = DataValueMap(metadata)
 
     @property
     def reported_value(self):
@@ -124,11 +136,18 @@ class DataValue:
         return str(self.value())
 
     def __eq__(self, other):
-        return (self.reported_value == other.reported_value and
-                self.corrected_value == other.corrected_value and
-                all(x in other.metadata for x in self.metadata) and
-                all(x in self.metadata for x in other.metadata) and
-                all(self.metadata[x] == other.metadata[x] for x in self.metadata))
+        if not check_equal(self.reported_value, other.reported_value):
+            return False
+        if not check_equal(self.corrected_value, other.corrected_value):
+            return False
+        for key in self.metadata:
+            if key not in other.metadata:
+                return False
+            if self.metadata[key] != other.metadata[key]:
+                return False
+        for key in other.metadata:
+            if key not in self.metadata:
+                return False
 
     def set(self, key, value):
         self.metadata[key] = value
@@ -137,11 +156,10 @@ class DataValue:
         return self.reported_value is None and self.corrected_value is None
 
     def to_mapping(self):
-        if self.metadata.empty():
-            if self.corrected_value is None and self.reported_value is None:
-                return None
-            elif self.corrected_value is None:
-                if not isinstance(self.corrected_value, (list, dict)):
+        metadata = self.metadata.to_mapping()
+        if not metadata:
+            if self.corrected_value is None:
+                if not isinstance(self.reported_value, (list, dict)):
                     return self.reported_value
                 else:
                     return [self.reported_value]
@@ -149,7 +167,7 @@ class DataValue:
                 return [self.reported_value, self.corrected_value]
         else:
             map_ = {
-                'M': self.metadata.to_mapping()
+                'M': metadata,
             }
             if self.reported_value is not None:
                 map_['R'] = self.reported_value
@@ -201,20 +219,12 @@ class DataValue:
             raise CNODCError(f"NODB QC flag RAISE_ERROR and DISCARD_RECORD cannot be used on data values, only data records", "OCPROC2", 1000)
         self.metadata['_QC'] = flag.value()
 
-    @staticmethod
-    def wrap(val):
-        if isinstance(val, DataValue):
-            return val
-        else:
-            return DataValue(val)
-
 
 class DataValueMap:
 
-    def __init__(self, map_: dict = None, ref_table: str = None):
-        self._ref_table = ref_table
+    def __init__(self, map_: dict = None):
         self._map: dict[str, DataValue] = {}
-        if map_:
+        if map_ is not None:
             self.update(map_)
 
     def __str__(self):
@@ -223,7 +233,7 @@ class DataValueMap:
     def update(self, existing):
         if isinstance(existing, DataValueMap):
             for k in existing._map:
-                self[k] = existing._map[k]
+                self._map[k] = existing._map[k]
         else:
             for k in existing:
                 self[k] = existing[k]
@@ -231,7 +241,7 @@ class DataValueMap:
     def to_mapping(self):
         return {
             k: self._map[k].to_mapping()
-            for k in self._map
+            for k in sorted(self._map.keys())
         }
 
     def from_mapping(self, map_: dict):
@@ -247,7 +257,10 @@ class DataValueMap:
         return item in self._map
 
     def __setitem__(self, key: str, value):
-        self._map[key] = DataValue.wrap(value)
+        if value.__class__.__name__ == 'DataValue':
+            self._map[key] = value
+        else:
+            self._map[key] = DataValue(value)
 
     def __getitem__(self, key: t.Union[str, enum.Enum]) -> DataValue:
         return self._map[key]
@@ -256,7 +269,7 @@ class DataValueMap:
         del self._map[key]
 
     def __iter__(self) -> t.Iterable[str]:
-        yield from sorted(self._map.keys())
+        yield from self._map.keys()
 
     def __bool__(self):
         return bool(self._map)
@@ -274,7 +287,7 @@ class DataValueMap:
         return self._map
 
     def empty(self):
-        return not bool(self._map)
+        return not bool(self)
 
     def get(self, item, default=None):
         if item in self._map:
@@ -312,17 +325,11 @@ class DataValueMap:
 class DataRecord:
 
     def __init__(self):
-        self.coordinates = DataValueMap(ref_table='coordinates')
-        self.variables = DataValueMap(ref_table='parameters')
-        self.metadata = DataValueMap(ref_table='metadata')
+        self.coordinates = DataValueMap()
+        self.variables = DataValueMap()
+        self.metadata = DataValueMap()
         self.subrecords = DataRecordMap()
         self.history: list[HistoryEntry] = []
-
-        # These are NOT persisted by any codec, but are set by the codecs
-        # when reading and should be consistent when reading any particular file
-        # They just provide additional metadata.
-        self.record_id = None
-        self.message_id = None
 
     def add_history_info(self, message, source_name, source_version, source_instance):
         self.history.append(HistoryEntry(
@@ -376,7 +383,7 @@ class DataRecord:
     def to_mapping(self, compact: bool = False) -> dict:
         if compact:
             keys = [k for k in self.subrecords]
-            keys.reverse()
+            keys.sort(reverse=True)
             for key in keys:
                 if key in self.subrecords:
                     self.subrecords.merge_check(key)
@@ -470,24 +477,32 @@ class RecordSet:
         if len(self.records) < 2:
             return {}
         map_ = {}
-        metadata_compacted = DataValueMap.compress_maps([r.metadata for r in self.records])
+        metadata_maps = []
+        coord_maps = {}
+        var_maps = {}
+        for r in self.records:
+            metadata_maps.append(r.metadata)
+            for x in r.coordinates:
+                if x not in coord_maps:
+                    coord_maps[x] = []
+                coord_maps[x].append(r.coordinates[x].metadata)
+            for x in r.variables:
+                if x not in var_maps:
+                    var_maps[x] = []
+                var_maps[x].append(r.variables[x].metadata)
+        metadata_compacted = DataValueMap.compress_maps(metadata_maps)
         if metadata_compacted:
             map_['N'] = metadata_compacted
-        coord_names = set()
-        var_names = set()
-        for r in self.records:
-            coord_names.update(x for x in r.coordinates)
-            var_names.update(x for x in r.variables)
         c_map = {}
-        for cn in coord_names:
-            compacted = DataValueMap.compress_maps([r.coordinates[cn].metadata for r in self.records if cn in r.coordinates])
+        for cn in coord_maps:
+            compacted = DataValueMap.compress_maps(coord_maps[cn])
             if compacted:
                 c_map[cn] = compacted
         if c_map:
             map_['D'] = c_map
         v_map = {}
-        for vn in var_names:
-            compacted = DataValueMap.compress_maps([r.variables[vn].metadata for r in self.records if vn in r.variables])
+        for vn in var_maps:
+            compacted = DataValueMap.compress_maps(var_maps[vn])
             if compacted:
                 v_map[vn] = compacted
         if v_map:
@@ -603,7 +618,7 @@ class DataRecordMap:
             if not (mn in rs_new.metadata and rs_new.metadata[mn] == rs_old.metadata[mn]):
                 return False
         for mn in rs_new.metadata:
-            if not (mn in rs_old.metadata and rs_new.metadata[mn] == rs_old.metadata[mn]):
+            if mn not in rs_old.metadata:
                 return False
         # check we have the same coordinates
         for x in range(0, len(rs_new)):
@@ -663,7 +678,7 @@ class DataRecordMap:
     def to_mapping(self, compact: bool = False):
         return {
             k: self._map[k].to_mapping(compact=compact)
-            for k in self._map
+            for k in sorted(self._map.keys())
         }
 
     def from_mapping(self, map_: dict):
@@ -681,7 +696,7 @@ class DataRecordMap:
         self._map[key] = item
 
     def __iter__(self) -> t.Iterable[str]:
-        yield from sorted(self._map.keys())
+        yield from self._map.keys()
 
     def append(self, key: str, record: DataRecord):
         if key not in self._map:

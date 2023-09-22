@@ -9,7 +9,7 @@ from cnodc.exc import CNODCError
 from cnodc.nodb.proto import NODBTransaction, LockMode
 from cnodc.qc.auto.basic import BasicQualityController
 from cnodc.files.files import DirFileHandle
-from cnodc.nodb import NODBSourceFile, NODBDatabaseProtocol, NODBQueueProtocol
+from cnodc.nodb import NODBSourceFile, NODBDatabaseProtocol
 import typing as t
 
 from cnodc.nodb.structures import SourceFileStatus, NODBWorkingObservation, NODBObservation, ObservationStatus, \
@@ -110,7 +110,6 @@ class DataExtractionController:
     config: zr.ApplicationConfig = None
     file_controller: FileController = None
     database: NODBDatabaseProtocol = None
-    queues: NODBQueueProtocol = None
 
     @injector.construct
     def __init__(self,
@@ -318,7 +317,7 @@ class DataExtractionController:
             # Persist it
             self.database.save_source_file(new_source_file, tx=self.tx)
             try:
-                self.queues.queue_source_file_decode_error(new_source_file)
+                self.database.queue_source_file_decode_error(new_source_file, tx=self.tx)
             except Exception as ex:
                 new_source_file.status = SourceFileStatus.QUEUE_ERROR
                 self.database.save_source_file(new_source_file, tx=self.tx)
@@ -329,7 +328,7 @@ class DataExtractionController:
         if hasattr(message.logger, 'to_list'):
             source_file.set_metadata('decode_errors', message.logger.to_list())
         try:
-            self.queues.queue_source_file_decode_error(source_file)
+            self.database.queue_source_file_decode_error(source_file, tx=self.tx)
         except Exception as ex:
             source_file.status = SourceFileStatus.QUEUE_ERROR
             raise from ex
@@ -409,7 +408,7 @@ class DataExtractionController:
         # they would have raised an exception. Some may have been released already if an error
         # was raised during this process though, but nothing should be behind. Only the ones
         # still to be released are in the results at this point.
-        for batch_type, _, working_obs_list in self.results.batch_results():
+        for batch_type, batch_key, working_obs_list in self.results.batch_results():
 
             self.halt_flag.check()
 
@@ -425,9 +424,9 @@ class DataExtractionController:
 
             try:
                 if batch_type == "good":
-                    self.queues.queue_basic_qc_process(batch)
+                    self.database.queue_basic_qc_process(batch, tx=self.tx)
                 else:
-                    self.queues.queue_basic_qc_review(batch)
+                    self.database.queue_basic_qc_review(batch, tx=self.tx)
                 batch.working_status = ObservationWorkingStatus.QUEUED
             except Exception as ex:
                 batch.working_status = ObservationWorkingStatus.QUEUE_ERROR

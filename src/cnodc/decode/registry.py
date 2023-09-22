@@ -29,8 +29,8 @@ class DecoderRegistry:
     def _discover_codecs(self, module_name: str):
         try:
             module = importlib.import_module(module_name)
-            if hasattr(module, "decode"):
-                mod_codecs = getattr(module, "decode")
+            if hasattr(module, "decoders"):
+                mod_codecs = getattr(module, "decoders")
                 for codec_name in mod_codecs:
                     self.register_codec(codec_name, mod_codecs[codec_name])
         except ModuleNotFoundError:

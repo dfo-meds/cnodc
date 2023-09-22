@@ -10,11 +10,18 @@ $$ language 'plpgsql';
 
 DO $$
 BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'obs_type') THEN
+        CREATE TYPE obs_type AS ENUM (
+            'SURFACE',
+            'AT_DEPTH',
+            'PROFILE',
+            'OTHER'
+        );
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'source_status') THEN
         CREATE TYPE source_status AS ENUM (
             'NEW',
             'QUEUED',
-            'QUEUE_ERROR',
             'IN_PROGRESS',
             'ERROR',
             'COMPLETE'
@@ -22,40 +29,29 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'qc_status') THEN
         CREATE TYPE qc_status AS ENUM (
-            'UNCHECKED'
-            'IN_PROGRESS',
-            'REVIEW'
-            'ERROR',
-            'COMPLETE',
-            'DISCARD'
-        );
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wobs_status') THEN
-        CREATE TYPE wobs_status AS ENUM (
             'NEW',
-            'AUTO_QUEUED',
-            'AUTO_IN_PROGRESS',
-            'USER_QUEUED',
-            'USER_IN_PROGRESS',
-            'USER_CHECKED',
-            'QUEUE_ERROR',
-            'ERROR'
+            'QUEUED',
+            'IN_PROGRESS',
+            'MANUAL_REVIEW',
+            'COMPLETE',
+            'ERRORED'
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'obs_status') THEN
         CREATE TYPE obs_status AS ENUM (
             'UNVERIFIED',
             'VERIFIED',
-            'RTQC_PASS'
-            'DMQC_PASS',
             'DISCARDED',
+            'DUPLICATE',
+            'ARCHIVED'
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'station_status') THEN
         CREATE TYPE station_status AS ENUM (
-            'INCOMPLETE',
             'ACTIVE',
-            'INACTIVE'
+            'HISTORICAL',
+            'REMOVED',
+            'REPLACED',
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
@@ -64,61 +60,90 @@ BEGIN
             'INACTIVE'
         );
     END IF;
-END$$
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'queue_status') THEN
+        CREATE TYPE queue_status AS ENUM (
+            'UNLOCKED',
+            'LOCKED',
+            'COMPLETE',
+            'ERROR'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'qc_level') THEN
+        CREATE TYPE qc_level AS ENUM (
+            'RAW',
+            'PROCESSED',
+            'REAL_TIME',
+            'DELAYED_MODE'
+        );
+    END IF;
+END$$;
 
 
 CREATE TABLE IF NOT EXISTS nodb_users (
-    username            VARCHAR(127)    NOT NULL    PRIMARY KEY,
+    username            VARCHAR(126)    NOT NULL    PRIMARY KEY,
     phash               BYTEA,
     salt                BYTEA,
-    status              user_status
+    status              user_status     NOT NULL    DEFAULT 'ACTIVE'
 );
 
 
 CREATE TABLE IF NOT EXISTS nodb_logins (
-    pkey                UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
-    username            VARCHAR(127)    NOT NULL    REFERENCES nodb_users(username),
+    username            VARCHAR(126)    NOT NULL    REFERENCES nodb_users(username),
     login_time          TIMESTAMPTZ     NOT NULL,
-    login_addr          VARCHAR(127)    NOT NULL
+    login_addr          VARCHAR(126)    NOT NULL,
+    instance_name       VARCHAR(126)    NOT NULL
 );
 
 
+CREATE INDEX IF NOT EXISTS ix_nodb_logins_login_time ON nodb_logins USING brin(login_time);
+
+
 CREATE TABLE IF NOT EXISTS nodb_sessions (
-    pkey                UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
-    session_id          VARCHAR(127)    NOT NULL    UNIQUE,
+    session_id          VARCHAR(126)    NOT NULL    PRIMARY KEY,
     start_time          TIMESTAMPTZ     NOT NULL,
     expiry_time         TIMESTAMPTZ     NOT NULL,
-    username            VARCHAR(127)    NOT NULL    REFERENCES nodb_users(username),
+    username            VARCHAR(126)    NOT NULL    REFERENCES nodb_users(username),
     session_data        JSON
 );
 
 
+CREATE INDEX IF NOT EXISTS ix_nodb_sessions_username ON nodb_sessions(username);
+
+
 -- Source Files Table
 CREATE TABLE IF NOT EXISTS nodb_source_files (
-    pkey                UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+    source_uuid         UUID            NOT NULL    DEFAULT gen_random_uuid(),
+    partition_key       DATE            NOT NULL,
+
     created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
-    source_path         TEXT            NOT NULL    UNIQUE,
-    persistent_path     TEXT                        UNIQUE,
+    source_path         TEXT,
+    persistent_path     TEXT,
     file_name           TEXT            NOT NULL,
 
     original_uuid       UUID,
     original_idx        INTEGER,
 
     metadata            JSON,
-
-    history             TEXT,
+    history             JSON,
 
     status              source_status   NOT NULL    DEFAULT 'NEW',
-);
+
+    qc_workflow_name    VARCHAR(126),
+
+    PRIMARY KEY(source_uuid, partition_key)
+) PARTITION BY RANGE(partition_key);
 
 
--- Unique index on station original info to ensure we don't duplicate
-CREATE UNIQUE INDEX ix_nodb_source_files_org
-    ON nodb_source_files(original_uuid, original_idx);
+-- Indexes
+CREATE INDEX IF NOT EXISTS ix_nodb_source_files_source_path ON nodb_source_files(source_path);
+CREATE INDEX IF NOT EXISTS ix_nodb_source_files_created_date ON nodb_source_files USING BRIN(created_date);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_source_files_original_data ON nodb_source_files(partition_key, original_uuid, original_idx) WHERE original_uuid IS NOT NULL;
 
-
+-- Partition tables for 2022 to 2024
+CREATE TABLE IF NOT EXISTS nodb_source_files_2022 PARTITION OF nodb_source_files FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_2023 PARTITION OF nodb_source_files FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
 
 
 -- Trigger for source files table modified date maintenance
@@ -127,58 +152,43 @@ CREATE TRIGGER update_source_file_modified_date
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
 
-
--- Table documenting the QC processes
-CREATE TABLE IF NOT EXISTS nodb_qc_process (
-    machine_name        VARCHAR(127)    NOT NULL    PRIMARY KEY,
-    version_no          INTEGER,
-    rt_qc_steps         JSON,
-    dm_qc_steps         JSON,
-    dm_qc_freq_days     INTEGER,
-    dm_qc_delay_days    INTEGER
-);
-
-
--- Table documenting the station types
-CREATE TABLE IF NOT EXISTS nodb_station_types (
-    machine_name        VARCHAR(127)    NOT NULL    PRIMARY KEY,
-    default_metadata    JSON,
-    qc_process_name     VARCHAR(127)                REFERENCES nodb_qc_process(machine_name)
-);
-
-
 -- Table for station records
 CREATE TABLE IF NOT EXISTS nodb_stations (
-    pkey                UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
-    station_type_name   VARCHAR(127)                REFERENCES nodb_station_types(machine_name),
-    wmo_id              VARCHAR(127),
-    wigos_id            VARCHAR(127),
-    station_name        VARCHAR(127),
-    station_id          VARCHAR(127),
-    map_to_uuid         UUID                        REFERENCES nodb_stations(pkey),
-    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    station_uuid        UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+    wmo_id              VARCHAR(126),
+    wigos_id            VARCHAR(126),
+    station_name        VARCHAR(126),
+    station_id          VARCHAR(126),
+    station_type        VARCHAR(126)    NOT NULL
+    service_start_date  TIMESTAMPTZ     NOT NULL,
+    service_end_date    TIMESTAMPTZ,
+    instrumentation     JSONB,
     metadata            JSON,
-    status              station_status  NOT NULL
+    map_to_uuid         UUID                        REFERENCES nodb_stations(station_uuid),
+    status              station_status  NOT NULL    DEFAULT 'ACTIVE',
+    embargo_data_days   INTEGER
 );
 
 
--- Trigger for stations table modified date maintenance
-CREATE TRIGGER update_station_modified_date
-    BEFORE UPDATE ON nodb_stations
-    FOR EACH ROW
-    EXECUTE PROCEDURE update_modified_date();
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_wmo_id ON nodb_stations(wmo_id) WHERE wmo_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_wigos_id ON nodb_stations(wigos_id) WHERE wigos_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_station_name ON nodb_stations(station_name) WHERE station_name IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_station_id ON nodb_stations(station_id) WHERE station_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_service_start_date ON nodb_stations(service_start_date);
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_service_end_date ON nodb_stations(service_end_date);
+CREATE INDEX IF NOT EXISTS idx_nodb_stations_instrumentation ON nodb_stations USING GIN(instrumentation);
 
 
 -- QC batch items (batches are processed as a single item)
 CREATE TABLE IF NOT EXISTS nodb_qc_batches (
-    pkey                UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+    batch_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    qc_process_name     VARCHAR(127),
+    qc_workflow_name    VARCHAR(126)    NOT NULL,
+    qc_process_name     VARCHAR(126),
     qc_current_step     INTEGER,
     qc_metadata         JSON,
-    working_status      wobs_status     NOT NULL
+    status      wobs_status     NOT NULL
 );
 
 
@@ -189,39 +199,53 @@ CREATE TRIGGER update_qc_batch_modified_date
     EXECUTE PROCEDURE update_modified_date();
 
 
+
 -- Table for observations
 CREATE TABLE IF NOT EXISTS nodb_obs (
-    pkey                UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+    obs_uuid            UUID            NOT NULL    DEFAULT gen_random_uuid(),
+    partition_key       DATE            NOT NULL,
+
     created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
-    source_file_uuid    UUID            NOT NULL    REFERENCES nodb_source_files(pkey),
-    message_idx         INTEGER         NOT NULL,
-    record_idx          INTEGER         NOT NULL,
-
-    station_uuid        UUID            NOT NULL    REFERENCES nodb_stations(pkey),
-    mission_name        TEXT,
-
-    obs_time            TIMESTAMPTZ,
-    latitude            REAL,
-    longitude           REAL,
+    station_uuid        UUID                        REFERENCES nodb_stations(pkey),
+    mission_name        VARCHAR(126),
+    source_name         VARCHAR(126)    NOT NULL,
+    platform_name       VARCHAR(126)    NOT NULL,
+    program_name        VARCHAR(126)    NOT NULL,
 
     status              obs_status      NOT NULL,
-    duplicate_uuid      UUID                        REFERENCES nodb_obs(pkey),
 
-    metadata            JSON,
-    search_data         JSONB,
-    data_record         BYTEA
-);
+    obs_time            TIMESTAMPTZ,
+    min_depth           REAL,
+    max_depth           REAL,
+    location            GEOGRAPHY(GEOMETRY, 4326),
+
+    observation_type    obs_type,
+
+    single_parameters   JSONB,
+    profile_parameters  JSONB,
+    qc_level            obs_qc_level    NOT NULL    DEFAULT 'RAW',
+    embargo_date        TIMESTAMPTZ
+
+    PRIMARY KEY (obs_uuid, partition_key)
+) PARTITION BY RANGE(partition_key);
 
 
--- Index the searchable metadata
-CREATE INDEX ix_nodb_search ON nodb_observations USING gin(search_data);
-
-
--- Unique index on observations source info to ensure we don't duplicate records from the same file.
-CREATE UNIQUE INDEX ix_nodb_observations_smr
-    ON nodb_obs(source_file_uuid, record_idx, message_idx);
+CREATE INDEX IF NOT EXISTS nodb_obs_station_uuid ON nodb_obs(station_uuid);
+CREATE INDEX IF NOT EXISTS nodb_obs_mission_name ON nodb_obs(mission_name);
+CREATE INDEX IF NOT EXISTS nodb_obs_source_name ON nodb_obs(source_name);
+CREATE INDEX IF NOT EXISTS nodb_obs_platform_name ON nodb_obs(platform_name);
+CREATE INDEX IF NOT EXISTS nodb_obs_program_name ON nodb_obs(program_name);
+CREATE INDEX IF NOT EXISTS nodb_obs_status ON nodb_obs(status) WHERE status != 'VERIFIED';
+CREATE INDEX IF NOT EXISTS nodb_obs_obs_time ON nodb_obs(obs_time) WHERE obs_time IS NOT NULL;
+CREATE INDEX IF NOT EXISTS nodb_obs_min_depth ON nodb_obs(min_depth) WHERE min_depth IS NOT NULL;
+CREATE INDEX IF NOT EXISTS nodb_obs_max_depth ON nodb_obs(max_depth) WHERE max_depth IS NOT NULL;
+CREATE INDEX IF NOT EXISTS nodb_obs_obs_type ON nodb_obs(observation_type) WHERE observation_type != 'PROFILE';
+CREATE INDEX IF NOT EXISTS nodb_obs_embargo_date ON nodb_obs(embargo_date) WHERE embargo_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS nodb_obs_location ON nodb_obs USING GIST(location);
+CREATE INDEX IF NOT EXISTS nodb_obs_single_params ON nodb_obs USING GIN(single_parameters);
+CREATE INDEX IF NOT EXISTS nodb_obs_profile_params ON nodb_obs USING GIN(profile_parameters);
 
 
 -- Trigger for QC batch table modified date maintenance
@@ -231,27 +255,247 @@ CREATE TRIGGER update_obs_modified_date
     EXECUTE PROCEDURE update_modified_date();
 
 
+-- Partition tables for 2022 to 2024
+CREATE TABLE IF NOT EXISTS nodb_obs_2022 PARTITION OF nodb_obs FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_2023 PARTITION OF nodb_obs FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
 
--- Table for extra QC data for observations
-CREATE TABLE IF NOT EXISTS nodb_working_obs (
-    pkey                UUID            NOT NULL    PRIMARY KEY REFERENCES nodb_obs(pkey),
-    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
-    qc_test_status      qc_status,
-    qc_batch_id         UUID                        REFERENCES nodb_qc_batches(pkey),
-    qc_metadata         JSON
+CREATE TABLE IF NOT EXISTS nodb_obs_data (
+    obs_uuid            UUID            NOT NULL,
+    partition_key       DATE            NOT NULL,
 
-    station_uuid        UUID                        REFERENCES nodb_stations(pkey),
+    source_file_uuid    UUID            NOT NULL,
+    message_idx         INTEGER         NOT NULL,
+    record_idx          INTEGER         NOT NULL,
 
-    metadata            JSONB,
-    data_record         BYTEA
+    data_record         BYTEA,
+
+    metadata            JSON,
+    qc_results          JSON,
+
+    duplicate_uuid      UUID,
+    duplicate_partition_key DATE,
+
+    PRIMARY KEY (obs_uuid, partition_key),
+    FOREIGN KEY (obs_uuid, partition_key) REFERENCES nodb_obs(obs_uuid, partition_key),
+    FOREIGN KEY (source_file_uuid, partition_key) REFERENCES nodb_source_files(source_uuid, partition_key),
+    FOREIGN KEY (duplicate_uuid, duplicate_partition_key) REFERENCES nodb_obs(obs_uuid, partition_key)
+) PARTITION BY RANGE(partition_key);
+
+
+-- Unique index on observations source info to ensure we don't duplicate records from the same file.
+CREATE UNIQUE INDEX ix_nodb_obs_data_source_info ON nodb_obs(partition_key, source_file_uuid, record_idx, message_idx);
+
+
+-- Partition tables for 2022 to 2024
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2022 PARTITION OF nodb_obs_data FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2023 PARTITION OF nodb_obs_data FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+
+
+-- Table for working data
+CREATE TABLE IF NOT EXISTS nodb_working (
+    working_uuid            UUID            NOT NULL    PRIMARY KEY,
+    created_date            TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    modified_date           TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+
+    qc_metadata             JSON,
+    qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
+    data_record             BYTEA,
+    station_uuid            UUID                        REFERENCES nodb_stations(station_uuid),
+    obs_time                TIMESTAMPTZ,
+    location                GEOGRAPHY(GEOMETRY, 4326),
+
+    record_uuid             UUID,
+    record_partition_key    DATE,
+
+    FOREIGN KEY (record_uuid, record_partition_key) REFERENCES nodb_obs (obs_uuid, partition_key)
 );
 
 
+CREATE INDEX IF NOT EXISTS idx_nodb_working_batch_id ON nodb_working(qc_batch_id);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_station_uuid ON nodb_working(station_uuid);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_obs_time ON nodb_working(obs_time);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_location ON nodb_working USING GIST(location);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, record_partition_key);
+
+
 -- Trigger for QC batch table modified date maintenance
-CREATE TRIGGER update_working_obs_modified_date
-    BEFORE UPDATE ON nodb_working_obs
+CREATE TRIGGER update_working_modified_date
+    BEFORE UPDATE ON nodb_working
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
 
+
+-- Table for managing the queue
+CREATE TABLE IF NOT EXISTS nodb_queues (
+    queue_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+
+    status              queue_status    NOT NULL    DEFAULT 'UNLOCKED',
+    locked_by           VARCHAR(126)                DEFAULT NULL,
+    locked_since        TIMESTAMPTZ                 DEFAULT NULL,
+
+    queue_name          VARCHAR(126)    NOT NULL,
+    unique_item_name    VARCHAR(126)                DEFAULT NULL,
+    priority            INTEGER         NOT NULL    DEFAULT 0,
+
+    data                TEXT
+
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_nodb_queues_status ON nodb_queues(status);
+CREATE INDEX IF NOT EXISTS idx_nodb_queues_locked_since ON nodb_queues(locked_since) WHERE locked_since IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_queues_queue_name ON nodb_queues(queue_name, unique_item_name);
+
+
+
+-- Trigger for queue table
+CREATE TRIGGER update_queues_modified_date
+    BEFORE UPDATE ON nodb_queues
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_modified_date();
+
+
+CREATE TABLE IF NOT EXISTS gts_messages (
+
+    received_time       TIMESTAMPTZ     NOT NULL,
+    message_time        TIMESTAMPTZ,
+    message_format      VARCHAR(126)    NOT NULL,
+    gts_header          VARCHAR(126)    NOT NULL,
+    message_source      VARCHAR(126)    NOT NULL,
+    subset_count        INTEGER         NOT NULL,
+    cruise_ids          JSONB           NOT NULL,
+    message_hash        BYTEA           NOT NULL
+
+) PARTITION BY RANGE(received_time);
+
+
+CREATE INDEX idx_gts_messages_received_time ON gts_messages USING BRIN(received_time);
+CREATE INDEX idx_gts_messages_gts_header ON gts_messages(gts_header);
+CREATE INDEX idx_gts_messages_message_source ON gts_messages(message_source);
+CREATE INDEX idx_gts_messages_cruise_ids ON gts_messages USING GIN(cruise_ids);
+
+
+-- Partition tables for 2022 to 2024
+CREATE TABLE IF NOT EXISTS gts_messages_2022 PARTITION OF gts_messages FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_2023 PARTITION OF gts_messages FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+
+
+CREATE TABLE IF NOT EXISTS gts_summary (
+
+    bulletin_origin         VARCHAR(126)    NOT NULL,
+    bulletin_data_type      VARCHAR(126)    NOT NULL,
+    bulletin_repeat_type    VARCHAR(126),
+    bulletin_count          BIGINT          NOT NULL        DEFAULT 0,
+    subset_count            BIGINT          NOT NULL        DEFAULT 0,
+    days_since_1960         BIGINT          NOT NULL,
+    PRIMARY KEY (days_since_1960, bulletin_origin, bulletin_data_type, bulletin_repeat_type)
+) PARTITION BY RANGE(days_since_1960);
+
+
+-- Partition tables for 2022 to 2024
+CREATE TABLE IF NOT EXISTS gts_summary_2022 PARTITION OF gts_summary FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
+CREATE TABLE IF NOT EXISTS gts_summary_2023 PARTITION OF gts_summary FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+
+
+-- Procedure to clean-up queue table and create partitions
+CREATE OR REPLACE PROCEDURE run_nodb_maintenance(
+    release_locks_older_than_seconds INTEGER DEFAULT 3600,
+    delete_completed_older_than_seconds INTEGER DEFAULT 86400,
+    delete_errors_older_than_seconds INTEGER DEFAULT 2592000
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- Unlock old locked ros
+    UPDATE nodb_queue
+    SET
+        status = 'UNLOCKED',
+        locked_by = NULL,
+        locked_since = NULL
+    WHERE
+        locked_by = 'LOCKED'
+        AND locked_since < (CURRENT_TIMESTAMP(0) - (release_locks_older_than_seconds * INTERVAL '1 SECOND'));
+
+    -- Remove completed items
+    DELETE FROM nodb_queue
+    WHERE
+        status = 'COMPLETE'
+        AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_completed_older_than_seconds * INTERVAL '1 second'));
+
+    -- Remove errored items
+    DELETE FROM nodb_queue
+    WHERE
+        status = 'ERROR'
+        AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_errors_older_than_seconds * INTERVAL '1 second'));
+
+    -- Create next years nodb_source_files partition if it doesn't exist
+    start_date := DATE_TRUNC('year', CURRENT_DATE + interval '1 year');
+    end_date := DATE_TRUNC('year', CURRENT_DATE + interval '2 year');
+    source_table_name := "nodb_source_files_" || DATE_PART('year', start_date)::text;
+    obs_table_name := "nodb_obs_" || DATE_PART('year', start_date)::text;
+    obs_data_table_name := "nodb_obs_data_" || DATE_PART('year', start_date)::text;
+    gts_messages_name := "gts_messages_" || DATE_PART('year', start_date)::text;
+    gts_summary_name := "gts_messages_" || DATE_PART('year', start_date)::text;
+
+    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = source_table_name) THEN
+        EXECUTE "CREATE TABLE IF NOT EXISTS " || source_table_name || " PARTITION OF nodb_source_files FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+    END IF;
+    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_table_name) THEN
+        EXECUTE "CREATE TABLE IF NOT EXISTS " || obs_table_name || " PARTITION OF nodb_obs FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+    END IF;
+    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_data_table_name) THEN
+        EXECUTE "CREATE TABLE IF NOT EXISTS " || obs_data_table_name || " PARTITION OF nodb_obs_data FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+    END IF;
+    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_messages_name) THEN
+        EXECUTE "CREATE TABLE IF NOT EXISTS " || gts_messages_name || " PARTITION OF gts_messages FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+    END IF;
+    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_summary_name) THEN
+        EXECUTE "CREATE TABLE IF NOT EXISTS " || gts_summary_name || " PARTITION OF gts_summary FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+    END IF;
+
+
+END; $$;
+
+
+-- Function to get the next queue item
+CREATE OR REPLACE FUNCTION next_queue_item(
+    qname VARCHAR(126),
+    app_id VARCHAR(126)
+)
+RETURNS UUID
+AS $next_item$
+DECLARE
+    item_key UUID;
+    selected_key UUID;
+BEGIN
+    SELECT q.pkey INTO item_key
+    FROM nodb_queue q
+    WHERE
+        q.queue_name = qname
+        AND q.status = 'UNLOCKED'
+        AND (
+            q.unique_key IS NULL
+            OR q.unique_key NOT IN (
+                SELECT q2.unique_key
+                FROM nodb_queue q2
+                WHERE
+                    q2.queue_name = qname
+                    AND q2.status = 'LOCKED'
+            )
+        )
+    FOR UPDATE;
+    UPDATE nodb_queue
+    SET
+        status = 'LOCKED',
+        locked_by = app_id,
+        locked_since = CURRENT_TIMESTAMP(0)
+    WHERE
+        pkey = item_key
+        AND status = 'UNLOCKED'
+    RETURNING pkey INTO selected_key;
+    RETURN selected_key;
+END; $next_item$ LANGUAGE plpgsql;

@@ -1,16 +1,22 @@
 import enum
+import json
+import tempfile
 from contextlib import contextmanager
 import typing as t
+from collections.abc import Sequence
 import psycopg2
 import psycopg2.extras
 import zirconium as zr
+import datetime
 from autoinject import injector
 
+
 from cnodc.nodb import NODBWorkingObservation, NODBStation, NODBSourceFile
-from cnodc.nodb.structures import _NODBBaseObject
+from cnodc.nodb.structures import _NODBBaseObject, NODBQCBatch
+from .proto import NODBDatabaseProtocol, NODBTransaction
 
 
-class WrappedCursor:
+class WrappedCursor(NODBTransaction):
 
     def __init__(self, cur):
         self._cur = cur
@@ -75,8 +81,20 @@ class WrappedCursor:
     def close(self):
         self._cur.close()
 
+    def create_savepoint(self, name):
+        pass
 
-class NODBPostgresController:
+    def rollback_to_savepoint(self, name):
+        pass
+
+    def release_savepoint(self, name):
+        pass
+
+    def copy_expert(self, *args, **kwargs):
+        return self._cur.copy_expert(*args, **kwargs)
+
+
+class NODBPostgresController(NODBDatabaseProtocol):
 
     config: zr.ApplicationConfig = None
 
@@ -90,13 +108,161 @@ class NODBPostgresController:
             self._connection = psycopg2.connect(**conn_args, cursor_factory=psycopg2.extras.DictCursor)
 
     @contextmanager
-    def cursor(self) -> WrappedCursor:
+    def start_transaction(self) -> WrappedCursor:
         self._connect()
         try:
             with self._connection.cursor() as cur:
                 yield WrappedCursor(cur)
         finally:
             pass
+
+    def start_bare_transaction(self) -> WrappedCursor:
+        self._connect()
+        return self._connection.cursor()
+
+    @staticmethod
+    def escape_copy_value(v):
+        if v is None:
+            return "\\N"
+        elif isinstance(v, str):
+            return (
+                v
+                .replace("\\", "\\\\")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+                .replace("\n", "\\n")
+                .replace("\b", "\\b")
+                .replace("\f", "\\f")
+                .replace("\v", "\\v")
+            )
+        elif isinstance(v, (bytes, bytearray)):
+            return "\\\\x" + (''.join(hex(x)[2:].zfill(2) for x in v))
+        elif isinstance(v, bool):
+            return 't' if v else 'f'
+        elif isinstance(v, datetime.date):
+            return v.strftime("%Y-%m-%d")
+        elif isinstance(v, datetime.datetime):
+            utc_v = v.astimezone(datetime.timezone(datetime.timedelta(seconds=0), "UTC"))
+            return utc_v.strftime('%Y-%m-%d %H:%M:%SZ')
+        elif isinstance(v, (list, tuple, dict)):
+            return NODBPostgresController.escape_copy_value(json.dumps(v))
+        else:
+            return str(v)
+
+    def spooled_copy(self,
+                     copy_query: str,
+                     values: t.Iterable[Sequence],
+                     mem_size: int = 80000,
+                     column_sep: str = "\t",
+                     row_sep: str = "\n",
+                     tx: t.Optional[WrappedCursor] = None):
+        if tx is None:
+            with self.start_transaction() as tx:
+                self.spooled_copy(copy_query, values, mem_size, column_sep, row_sep, tx)
+                tx.commit()
+        mem_file = tempfile.SpooledTemporaryFile(mem_size, mode="w+", encoding="utf-8")
+        for value_list in values:
+            s = column_sep.join(NODBPostgresController.escape_copy_value(v) for v in value_list) + row_sep
+            mem_file.write(s)
+        mem_file.seek(0, 0)
+        tx.copy_expert(copy_query, mem_file)
+
+    def create_queue_item(self,
+                          queue_name: str,
+                          data: dict,
+                          priority: int = 0,
+                          unique_key: str = None,
+                          tx: t.Optional[WrappedCursor] = None):
+        if tx is None:
+            with self.start_transaction() as tx:
+                self.create_queue_item(queue_name, data, priority, unique_key, tx)
+                tx.commit()
+        tx.execute("INSERT INTO nodb_queue (queue_name, priority, unique_key, data) VALUES (%s, %s, %s, %s)", (
+            queue_name,
+            priority,
+            unique_key,
+            json.dumps(data)
+        ))
+
+    def batch_create_queue_item(self,
+                                values: t.Iterable[Sequence[str, dict, t.Optional[int], t.Optional[str]]],
+                                tx: t.Optional[WrappedCursor] = None):
+        self.spooled_copy(
+            copy_query="COPY nodb_queue (queue_name, priority, unique_key, data) FROM STDIN",
+            values=(
+                (x[0], x[2] if len(x) > 2 else 0, x[3] if len(x) > 3 else None, x[1])
+                for x in values
+            ),
+            tx=tx
+        )
+
+    def next_queue_item(self,
+                        queue_name: str,
+                        app_id: str,
+                        retries: int = 5) -> t.Optional[str]:
+        while retries > 0:
+            item = self._attempt_fetch_queue_item(queue_name, app_id)
+            if item is not None:
+                return item
+            retries -= 1
+        return None
+
+    def _attempt_fetch_queue_item(self, queue_name: str, app_id: str) -> t.Optional[str]:
+        with self.start_transaction() as tx:
+            try:
+                tx.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
+                item = tx.fetchone()
+                tx.commit()
+                return item[0] if item else None
+            except (KeyboardInterrupt, SystemExit) as ex:
+                tx.rollback()
+                raise ex
+            except Exception as ex:
+                tx.rollback()
+                return None
+
+    def queue_source_file_download(self, source_file: NODBSourceFile, priority: int = 0, tx: t.Optional[WrappedCursor] = None):
+        self.create_queue_item(
+            queue_name="source_file_download",
+            data={"source_file_uuid": source_file.pkey},
+            priority=priority,
+            tx=tx
+        )
+
+    def queue_source_file_decode_error(self, source_file: NODBSourceFile, priority: int = 0, tx: t.Optional[WrappedCursor] = None):
+        self.create_queue_item(
+            queue_name="source_file_errors",
+            data={"source_file_uuid": source_file.pkey},
+            priority=priority,
+            tx=tx
+        )
+
+    def queue_basic_qc_review(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
+        self.create_queue_item(
+            queue_name="basic_qc_manual",
+            data={"batch_uuid": batch.pkey},
+            priority=priority,
+            tx=tx
+        )
+
+    def queue_basic_qc_process(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
+        self.create_queue_item(
+            queue_name="basic_qc_second",
+            data={"batch_uuid": batch.pkey},
+            priority=priority,
+            tx=tx
+        )
+
+    def queue_next_qc(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
+        self.create_queue_item(
+            queue_name="qc_orchestrator",
+            data={"batch_uuid": batch.pkey},
+            priority=priority,
+            tx=tx
+        )
+
+
+"""
 
     def find_nodb_object(self, nodb_cls: type, table_name: str, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None):
         if cur is None:
@@ -167,23 +333,4 @@ class NODBPostgresController:
         else:
             return self.update_nodb_object(obj, table_name, limit_fields, cur)
 
-    def find_observation(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBWorkingObservation]:
-        return self.find_nodb_object(NODBWorkingObservation, "nodb_observations", pkey, limit_fields, cur)
-
-    def find_station(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBStation]:
-        return self.find_nodb_object(NODBStation, "nodb_stations", pkey, limit_fields, cur)
-
-    def find_source_file(self, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> t.Optional[NODBSourceFile]:
-        return self.find_nodb_object(NODBSourceFile, "nodb_source_files", pkey, limit_fields, cur)
-
-    def save_observation(self, obs: NODBWorkingObservation, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
-        return self.save_nodb_object(obs, 'nodb_observations', limit_fields, cur)
-
-    def save_source_file(self, src_f: NODBSourceFile, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
-        return self.save_nodb_object(src_f, 'nodb_source_files', limit_fields, cur)
-
-    def save_station(self, station: NODBStation, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None) -> bool:
-        return self.save_nodb_object(station, 'nodb_stations', limit_fields, cur)
-
-    def search_observations(self, search_criteria: list[tuple[str, str, t.Optional[t.Any]]], limit=None) -> t.Iterable[NODBWorkingObservation]:
-        pass
+"""

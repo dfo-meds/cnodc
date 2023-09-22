@@ -131,23 +131,19 @@ class NODBDatabaseProtocol(t.Protocol):
     def close(self):
         raise NotImplementedError()
 
-
-@injector.injectable_global
-class NODBQueueProtocol(t.Protocol):
-
-    def queue_source_file_download(self, source_file: NODBSourceFile):
+    def queue_source_file_download(self, source_file: NODBSourceFile, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
         raise NotImplementedError()
 
-    def queue_source_file_decode_error(self, source_file: NODBSourceFile):
+    def queue_source_file_decode_error(self, source_file: NODBSourceFile, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
         raise NotImplementedError()
 
-    def queue_basic_qc_review(self, batch: NODBQCBatch):
+    def queue_basic_qc_review(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
         raise NotImplementedError()
 
-    def queue_basic_qc_process(self, batch: NODBQCBatch):
+    def queue_basic_qc_process(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
         raise NotImplementedError()
 
-    def queue_next_qc(self, batch: NODBQCBatch):
+    def queue_next_qc(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
         raise NotImplementedError()
 
 

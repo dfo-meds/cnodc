@@ -2,7 +2,7 @@ from autoinject import injector
 
 from cnodc.exc import CNODCError
 from cnodc.nodb import NODBWorkingObservation, NODBQCBatch
-from cnodc.nodb.proto import NODBDatabaseProtocol, NODBQueueProtocol, LockMode, NODBTransaction
+from cnodc.nodb.proto import NODBDatabaseProtocol, LockMode, NODBTransaction
 from cnodc.nodb.structures import QualityControlStatus, ObservationWorkingStatus, ObservationStatus
 from cnodc.qc.auto.basic import BasicQualityController
 from .base import BaseController
@@ -11,7 +11,6 @@ from .base import BaseController
 class NODBEntryController(BaseController):
 
     database: NODBDatabaseProtocol = None
-    queues: NODBQueueProtocol = None
 
     @injector.construct
     def __init__(self, instance: str):
@@ -114,7 +113,7 @@ class NODBEntryController(BaseController):
             batch.working_status = ObservationWorkingStatus.NEW
             self.database.save_batch(batch)
             try:
-                self.queues.queue_next_qc(batch)
+                self.database.queue_next_qc(batch, tx=tx)
                 batch.working_status = ObservationWorkingStatus.QUEUED
             except Exception as ex:
                 batch.working_status = ObservationWorkingStatus.QUEUE_ERROR
@@ -127,7 +126,7 @@ class NODBEntryController(BaseController):
         batch.working_status = ObservationWorkingStatus.NEW
         self.database.save_batch(batch, tx)
         try:
-            self.queues.queue_basic_qc_review(batch)
+            self.database.queue_basic_qc_review(batch, priority=1, tx=tx)
             batch.working_status = ObservationWorkingStatus.QUEUED
         except Exception as ex:
             batch.working_status = ObservationWorkingStatus.QUEUE_ERROR
