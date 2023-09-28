@@ -1,3 +1,5 @@
+CREATE EXTENSION postgis;
+
 -- Function that automatically sets the modified date on update
 CREATE OR REPLACE FUNCTION update_modified_date()
 RETURNS TRIGGER AS $$
@@ -51,7 +53,7 @@ BEGIN
             'ACTIVE',
             'HISTORICAL',
             'REMOVED',
-            'REPLACED',
+            'REPLACED'
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
@@ -74,6 +76,12 @@ BEGIN
             'PROCESSED',
             'REAL_TIME',
             'DELAYED_MODE'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
+        CREATE TYPE user_status AS ENUM (
+            'ACTIVE',
+            'INACTIVE'
         );
     END IF;
 END$$;
@@ -159,7 +167,7 @@ CREATE TABLE IF NOT EXISTS nodb_stations (
     wigos_id            VARCHAR(126),
     station_name        VARCHAR(126),
     station_id          VARCHAR(126),
-    station_type        VARCHAR(126)    NOT NULL
+    station_type        VARCHAR(126)    NOT NULL,
     service_start_date  TIMESTAMPTZ     NOT NULL,
     service_end_date    TIMESTAMPTZ,
     instrumentation     JSONB,
@@ -188,7 +196,7 @@ CREATE TABLE IF NOT EXISTS nodb_qc_batches (
     qc_process_name     VARCHAR(126),
     qc_current_step     INTEGER,
     qc_metadata         JSON,
-    status      wobs_status     NOT NULL
+    status              qc_status     NOT NULL
 );
 
 
@@ -208,7 +216,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
     created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
-    station_uuid        UUID                        REFERENCES nodb_stations(pkey),
+    station_uuid        UUID                        REFERENCES nodb_stations(station_uuid),
     mission_name        VARCHAR(126),
     source_name         VARCHAR(126)    NOT NULL,
     platform_name       VARCHAR(126)    NOT NULL,
@@ -225,8 +233,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 
     single_parameters   JSONB,
     profile_parameters  JSONB,
-    qc_level            obs_qc_level    NOT NULL    DEFAULT 'RAW',
-    embargo_date        TIMESTAMPTZ
+    obs_qc_level            qc_level    NOT NULL    DEFAULT 'RAW',
+    embargo_date        TIMESTAMPTZ,
 
     PRIMARY KEY (obs_uuid, partition_key)
 ) PARTITION BY RANGE(partition_key);
@@ -284,7 +292,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
 
 
 -- Unique index on observations source info to ensure we don't duplicate records from the same file.
-CREATE UNIQUE INDEX ix_nodb_obs_data_source_info ON nodb_obs(partition_key, source_file_uuid, record_idx, message_idx);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(partition_key, source_file_uuid, record_idx, message_idx);
 
 
 -- Partition tables for 2022 to 2024
@@ -372,10 +380,10 @@ CREATE TABLE IF NOT EXISTS gts_messages (
 ) PARTITION BY RANGE(received_time);
 
 
-CREATE INDEX idx_gts_messages_received_time ON gts_messages USING BRIN(received_time);
-CREATE INDEX idx_gts_messages_gts_header ON gts_messages(gts_header);
-CREATE INDEX idx_gts_messages_message_source ON gts_messages(message_source);
-CREATE INDEX idx_gts_messages_cruise_ids ON gts_messages USING GIN(cruise_ids);
+CREATE INDEX IF NOT EXISTS idx_gts_messages_received_time ON gts_messages USING BRIN(received_time);
+CREATE INDEX IF NOT EXISTS idx_gts_messages_gts_header ON gts_messages(gts_header);
+CREATE INDEX IF NOT EXISTS idx_gts_messages_message_source ON gts_messages(message_source);
+CREATE INDEX IF NOT EXISTS idx_gts_messages_cruise_ids ON gts_messages USING GIN(cruise_ids);
 
 
 -- Partition tables for 2022 to 2024
@@ -390,9 +398,9 @@ CREATE TABLE IF NOT EXISTS gts_summary (
     bulletin_repeat_type    VARCHAR(126),
     bulletin_count          BIGINT          NOT NULL        DEFAULT 0,
     subset_count            BIGINT          NOT NULL        DEFAULT 0,
-    days_since_1960         BIGINT          NOT NULL,
-    PRIMARY KEY (days_since_1960, bulletin_origin, bulletin_data_type, bulletin_repeat_type)
-) PARTITION BY RANGE(days_since_1960);
+    bulletin_date           DATE          NOT NULL,
+    PRIMARY KEY (bulletin_data_type, bulletin_origin, bulletin_repeat_type, bulletin_date)
+) PARTITION BY RANGE(bulletin_date);
 
 
 -- Partition tables for 2022 to 2024
@@ -408,10 +416,18 @@ CREATE OR REPLACE PROCEDURE run_nodb_maintenance(
 )
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    start_date  TIMESTAMPTZ;
+    end_date    TIMESTAMPTZ;
+    source_table_name  TEXT;
+    obs_table_name  TEXT;
+    obs_data_table_name  TEXT;
+    gts_messages_name  TEXT;
+    gts_summary_name  TEXT;
 BEGIN
 
-    -- Unlock old locked ros
-    UPDATE nodb_queue
+    -- Unlock old locked rows
+    UPDATE nodb_queues
     SET
         status = 'UNLOCKED',
         locked_by = NULL,
@@ -421,13 +437,13 @@ BEGIN
         AND locked_since < (CURRENT_TIMESTAMP(0) - (release_locks_older_than_seconds * INTERVAL '1 SECOND'));
 
     -- Remove completed items
-    DELETE FROM nodb_queue
+    DELETE FROM nodb_queues
     WHERE
         status = 'COMPLETE'
         AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_completed_older_than_seconds * INTERVAL '1 second'));
 
     -- Remove errored items
-    DELETE FROM nodb_queue
+    DELETE FROM nodb_queues
     WHERE
         status = 'ERROR'
         AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_errors_older_than_seconds * INTERVAL '1 second'));
@@ -435,26 +451,26 @@ BEGIN
     -- Create next years nodb_source_files partition if it doesn't exist
     start_date := DATE_TRUNC('year', CURRENT_DATE + interval '1 year');
     end_date := DATE_TRUNC('year', CURRENT_DATE + interval '2 year');
-    source_table_name := "nodb_source_files_" || DATE_PART('year', start_date)::text;
-    obs_table_name := "nodb_obs_" || DATE_PART('year', start_date)::text;
-    obs_data_table_name := "nodb_obs_data_" || DATE_PART('year', start_date)::text;
-    gts_messages_name := "gts_messages_" || DATE_PART('year', start_date)::text;
-    gts_summary_name := "gts_messages_" || DATE_PART('year', start_date)::text;
+    source_table_name := 'nodb_source_files_' || DATE_PART('year', start_date)::text;
+    obs_table_name := 'nodb_obs_' || DATE_PART('year', start_date)::text;
+    obs_data_table_name := 'nodb_obs_data_' || DATE_PART('year', start_date)::text;
+    gts_messages_name := 'gts_messages_' || DATE_PART('year', start_date)::text;
+    gts_summary_name := 'gts_summary_' || DATE_PART('year', start_date)::text;
 
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = source_table_name) THEN
-        EXECUTE "CREATE TABLE IF NOT EXISTS " || source_table_name || " PARTITION OF nodb_source_files FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || source_table_name || ' PARTITION OF nodb_source_files FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_table_name) THEN
-        EXECUTE "CREATE TABLE IF NOT EXISTS " || obs_table_name || " PARTITION OF nodb_obs FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_table_name || ' PARTITION OF nodb_obs FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_data_table_name) THEN
-        EXECUTE "CREATE TABLE IF NOT EXISTS " || obs_data_table_name || " PARTITION OF nodb_obs_data FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_data_table_name || ' PARTITION OF nodb_obs_data FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_messages_name) THEN
-        EXECUTE "CREATE TABLE IF NOT EXISTS " || gts_messages_name || " PARTITION OF gts_messages FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_messages_name || ' PARTITION OF gts_messages FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_summary_name) THEN
-        EXECUTE "CREATE TABLE IF NOT EXISTS " || gts_summary_name || " PARTITION OF gts_summary FOR VALUES (" || start_date::text || ") TO (" || end_date::text || ");";
+        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_summary_name || ' PARTITION OF gts_summary FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
 
 
