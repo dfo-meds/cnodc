@@ -16,6 +16,9 @@ class HaltFlag(t.Protocol):
     def check(self, raise_ex: bool = True) -> bool:
         raise NotImplementedError()
 
+    def sleep(self, time_seconds: float):
+        raise NotImplementedError()
+
 
 class DynamicClassLoadError(CNODCError):
     pass

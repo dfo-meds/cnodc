@@ -488,30 +488,30 @@ DECLARE
     item_key UUID;
     selected_key UUID;
 BEGIN
-    SELECT q.pkey INTO item_key
-    FROM nodb_queue q
+    SELECT q.queue_uuid INTO item_key
+    FROM nodb_queues q
     WHERE
         q.queue_name = qname
         AND q.status = 'UNLOCKED'
         AND (
-            q.unique_key IS NULL
-            OR q.unique_key NOT IN (
-                SELECT q2.unique_key
-                FROM nodb_queue q2
+            q.unique_item_name IS NULL
+            OR q.unique_item_name NOT IN (
+                SELECT q2.unique_item_name
+                FROM nodb_queues q2
                 WHERE
                     q2.queue_name = qname
                     AND q2.status = 'LOCKED'
             )
         )
     FOR UPDATE;
-    UPDATE nodb_queue
+    UPDATE nodb_queues
     SET
         status = 'LOCKED',
         locked_by = app_id,
         locked_since = CURRENT_TIMESTAMP(0)
     WHERE
-        pkey = item_key
+        queue_uuid = item_key
         AND status = 'UNLOCKED'
-    RETURNING pkey INTO selected_key;
+    RETURNING queue_uuid INTO selected_key;
     RETURN selected_key;
 END; $next_item$ LANGUAGE plpgsql;

@@ -1,15 +1,18 @@
 """Data extraction process"""
+import datetime
 import functools
 import logging
 import pathlib
 import tempfile
 
+from cnodc.dataman.base import BaseController
+from cnodc.nodb.postgres import LockType
 from cnodc.util import HaltFlag, HaltInterrupt
 from cnodc.exc import CNODCError
 from cnodc.nodb.proto import NODBTransaction, LockMode
 from cnodc.qc.auto.basic import BasicQualityController
-from cnodc.files.files import DirFileHandle
-from cnodc.nodb import NODBSourceFile, NODBDatabaseProtocol
+from cnodc.files.base import DirFileHandle
+from cnodc.nodb import NODBSourceFile, NODBController
 import typing as t
 
 from cnodc.nodb.structures import SourceFileStatus, NODBWorkingObservation, NODBObservation, ObservationStatus, \
@@ -105,96 +108,100 @@ class SourceFileObservationCache:
         return None
 
 
-class DataExtractionController:
+class DataExtractionController(BaseController):
 
     config: zr.ApplicationConfig = None
     file_controller: FileController = None
-    database: NODBDatabaseProtocol = None
+    database: NODBController = None
 
     @injector.construct
     def __init__(self,
                  instance_name: str,
-                 source_file_uuid: str,
                  halt_flag: HaltFlag):
-        self.name = "NODB_EXTRACT"
-        self.version = "1_0_0"
-        self.instance = instance_name
+        super().__init__("nodb_extract", "1_0_0", instance_name, halt_flag)
         self.basic_qc = BasicQualityController(self.instance)
+
+    def process_file(self, source_uuid: str, partition_key: datetime.date):
+        processor = _DataExtractionProcessor(source_uuid, partition_key, self)
+        processor.process_file()
+
+
+class _DataExtractionProcessor:
+
+    def __init__(self, source_file_uuid: str, partition_key: datetime.date, controller: DataExtractionController):
         self.source_file_uuid: str = source_file_uuid
+        self.partition_key: datetime.date = partition_key
+        self.controller: DataExtractionController = controller
         self.source_file: t.Optional[NODBSourceFile] = None
         self.local_file: t.Optional[pathlib.Path] = None
         self.source_handle: t.Optional[DirFileHandle] = None
         self.obs_cache: t.Optional[SourceFileObservationCache] = None
         self.results: t.Optional[DataExtractionResults] = None
-        self.tx: t.Optional[NODBTransaction] = None
         self.no_final_save: bool = False
-        self.halt_flag = halt_flag
 
     def process_file(self):
         """Download and extract all records. """
-        try:
-            # Start a DB transaction
-            self.tx = self.database.start_transaction()
+        with self.controller.database as db:
+            try:
+                # Locate the source file and lock it
+                self.source_file = db.load_source_file(
+                    self.source_file_uuid,
+                    self.partition_key,
+                    lock_type=LockType.FOR_NO_KEY_UPDATE
+                )
 
-            # Locate the source file and lock it
-            self.source_file = self.database.load_source_file(
-                self.source_file_uuid,
-                with_lock=LockMode.FOR_NO_KEY_UPDATE,
-                tx=self.tx
-            )
+                # Make sure the source file is real
+                if self.source_file:
 
-            # Make sure the source file is real
-            if self.source_file:
-
-                # Set the status to IN_PROGRESS and save that change at least
-                self.source_file.status = SourceFileStatus.IN_PROGRESS
-                self.database.save_source_file(self.source_file, tx=self.tx)
-
-                with tf.TemporaryDirectory() as tdir:
-
-                    # Temporary file to hold contents of the file
-                    tdir = pathlib.Path(tdir)
-                    self.local_file = tdir / self.source_file.file_name
-
-                    # Get the file, from persistent or not persistent storage
-                    self._download_source_file()
-
-                    # Create records
-                    self._create_records_from_source()
-
-                    # Mark the file as complete
-                    self._mark_source_complete()
-            else:
-                raise CNODCError(f"Source file UUID [{self.source_file_uuid}] not found", "EXTRACT", 1008)
-
-        # In case a halt was requested, we make a note of that fact
-        except (KeyboardInterrupt, SystemExit, HaltInterrupt) as ex:
-            if self.source_file:
-                self.source_file.report_error(f"System halt requested", self.name, self.version, self.instance)
-            raise ex
-
-        # Error handling for various cases (non-CNODC errors are treated as unrecoverable errors)
-        except CNODCError as ex:
-            if self.source_file:
-                self.source_file.report_error(ex.pretty(), self.name, self.version, self.instance)
-                if not ex.is_recoverable:
-                    self.source_file.status = SourceFileStatus.ERROR
-            raise from ex
-        except Exception as ex:
-            ex_str = f"{ex.__class__.__name__}: {str(ex)}"
-            if self.source_file:
-                self.source_file.report_error(ex_str, self.name, self.version, self.instance)
-                self.source_file.status = SourceFileStatus.ERROR
-            raise CNODCError(f"Unrecognized exception: {ex_str}", is_recoverable=False) from ex
-
-        # Save the source file and commit the transaction
-        finally:
-            if self.tx is not None:
-                if self.source_file is not None and not self.no_final_save:
+                    # Set the status to IN_PROGRESS and save that change at least
+                    self.source_file.status = SourceFileStatus.IN_PROGRESS
                     self.database.save_source_file(self.source_file, tx=self.tx)
-                self.tx.commit()
-                self.tx.close()
-                self.tx = None
+
+                    with tf.TemporaryDirectory() as tdir:
+
+                        # Temporary file to hold contents of the file
+                        tdir = pathlib.Path(tdir)
+                        self.local_file = tdir / self.source_file.file_name
+
+                        # Get the file, from persistent or not persistent storage
+                        self._download_source_file()
+
+                        # Create records
+                        self._create_records_from_source()
+
+                        # Mark the file as complete
+                        self._mark_source_complete()
+                else:
+                    raise CNODCError(f"Source file UUID [{self.source_file_uuid}] not found", "EXTRACT", 1008)
+
+            # In case a halt was requested, we make a note of that fact
+            except (KeyboardInterrupt, SystemExit, HaltInterrupt) as ex:
+                if self.source_file:
+                    self.source_file.report_error(f"System halt requested", self.name, self.version, self.instance)
+                raise ex
+
+            # Error handling for various cases (non-CNODC errors are treated as unrecoverable errors)
+            except CNODCError as ex:
+                if self.source_file:
+                    self.source_file.report_error(ex.pretty(), self.name, self.version, self.instance)
+                    if not ex.is_recoverable:
+                        self.source_file.status = SourceFileStatus.ERROR
+                raise from ex
+            except Exception as ex:
+                ex_str = f"{ex.__class__.__name__}: {str(ex)}"
+                if self.source_file:
+                    self.source_file.report_error(ex_str, self.name, self.version, self.instance)
+                    self.source_file.status = SourceFileStatus.ERROR
+                raise CNODCError(f"Unrecognized exception: {ex_str}", is_recoverable=False) from ex
+
+            # Save the source file and commit the transaction
+            finally:
+                if self.tx is not None:
+                    if self.source_file is not None and not self.no_final_save:
+                        self.database.save_source_file(self.source_file, tx=self.tx)
+                    self.tx.commit()
+                    self.tx.close()
+                    self.tx = None
 
     def _download_source_file(self):
         """Download and persist the source file."""

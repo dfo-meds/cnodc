@@ -1,39 +1,37 @@
+import zrlog
+from zrlog.logger import ImprovedLogger
+from cnodc.util import HaltFlag
 from cnodc.exc import CNODCError
-from cnodc.nodb import NODBDatabaseProtocol, NODBWorkingObservation, NODBQCBatch
-from autoinject import injector
-
-from cnodc.nodb.proto import NODBTransaction, LockMode
-from cnodc.nodb.structures import ObservationWorkingStatus
 
 
 class BaseController:
 
-    database: NODBDatabaseProtocol = None
+    def __init__(self, name: str, version: str, instance: str, instance_no: int, halt_flag: HaltFlag, run_delay: float = 1):
+        self.name: str = name
+        self.version: str = version
+        self.instance: str = instance
+        self.instance_no: int = instance_no
+        self.halt_flag: HaltFlag = halt_flag
+        self.run_delay: float = run_delay
+        self.log: ImprovedLogger = zrlog.get_logger(f"cnodc.controllers.{name}")
 
-    @injector.construct
-    def __init__(self, name, version, instance):
-        self.name = name
-        self.version = version
-        self.instance = instance
+    def run(self):
+        if not self.check_config():
+            raise CNODCError(f"Invalid configuration for [{self.name}]", "CTRL", 1000)
+        self.init()
+        while not self.halt_flag.check(False):
+            self._run()
+            self.halt_flag.sleep(self.run_delay)
+        self.cleanup()
 
-    def load_batch_and_obs(self, batch_uuid: str, tx: NODBTransaction) -> tuple[NODBQCBatch, list[NODBWorkingObservation]]:
-        batch = self.database.load_batch(
-            batch_uuid,
-            with_lock=LockMode.FOR_NO_KEY_UPDATE,
-            tx=tx
-        )
-        if not batch:
-            raise CNODCError(f"Batch [{batch_uuid}] not found", "NODB_BASE", 1000)
-        if batch.working_status != ObservationWorkingStatus.QUEUED:
-            raise CNODCError(f"Batch [{batch_uuid}] is not in a QUEUED state", "NODB_BASE", 1001, True)
-        observations = []
-        for obs in self.database.load_working_observations_for_batch(
-            batch.pkey,
-            with_lock=LockMode.FOR_NO_KEY_UPDATE,
-            tx=tx
-        ):
-            if obs.working_status != ObservationWorkingStatus.BATCH:
-                raise CNODCError(f"Observation [{obs.pkey}] is not in a BATCH state", "NODB_BASE", 1002, True)
-            observations.append(obs)
-        batch.working_status = ObservationWorkingStatus.IN_PROGRESS
-        return batch, observations
+    def check_config(self) -> bool:
+        return True
+
+    def init(self):
+        pass
+
+    def cleanup(self):
+        pass
+
+    def _run(self):
+        raise NotImplementedError()

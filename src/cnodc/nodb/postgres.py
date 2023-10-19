@@ -1,124 +1,115 @@
-import enum
+import datetime
 import json
 import tempfile
-from contextlib import contextmanager
-import typing as t
-from collections.abc import Sequence
-import psycopg2
-import psycopg2.extras
+import enum
+
+import psycopg2 as pg
+import psycopg2.extras as pge
 import zirconium as zr
-import datetime
 from autoinject import injector
+import typing as t
+import cnodc.nodb.structures as structures
 
 
-from cnodc.nodb import NODBWorkingObservation, NODBStation, NODBSourceFile
-from cnodc.nodb.structures import _NODBBaseObject, NODBQCBatch
-from .proto import NODBDatabaseProtocol, NODBTransaction
+class LockType(enum.Enum):
+
+    NONE = "1"
+    FOR_UPDATE = "2"
+    FOR_NO_KEY_UPDATE = "3"
+    FOR_SHARE = "4"
+    FOR_KEY_SHARE = "5"
 
 
-class WrappedCursor(NODBTransaction):
+class _NODBControllerInstance:
 
-    def __init__(self, cur):
-        self._cur = cur
-
-    def __getattr__(self, item):
-        return getattr(self._cur, item)
-
-    def __setattr__(self, item, value):
-        setattr(self._cur, item, value)
+    def __init__(self, pg_connection):
+        self._conn = pg_connection
+        self._cursor = self._conn.cursor()
+        self._is_closed = False
 
     def execute(self, query: str, args: t.Union[list, dict, tuple, None] = None):
-        self._cur.execute(query, args)
+        return self._cursor.execute(query, args)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
 
     def executemany(self, query: str, args_list: t.Iterable[t.Union[list, dict, tuple, None]] = None):
-        self._cur.executemany(query, args_list)
+        self._cursor.executemany(query, args_list)
 
     def callproc(self, procname: str, parameters: t.Union[list, tuple, None] = None):
-        return self._cur.callproc(procname, parameters)
+        return self._cursor.callproc(procname, parameters)
 
     def mogrify(self, query: str, args: t.Union[list, dict, tuple, None] = None) -> str:
-        return self._cur.mogrify(query, args)
+        return self._cursor.mogrify(query, args)
 
-    def fetchone(self) -> psycopg2.extras.DictRow:
-        return self._cur.fetchone()
+    def fetchone(self) -> pge.DictRow:
+        return self._cursor.fetchone()
 
-    def fetchmany(self, size=None) -> t.Iterable[psycopg2.extras.DictRow]:
+    def fetchmany(self, size=None) -> t.Iterable[pge.DictRow]:
         if size is None:
-            return self._cur.fetchmany()
+            return self._cursor.fetchmany()
         else:
-            return self._cur.fetchmany(size)
+            return self._cursor.fetchmany(size)
 
-    def fetchall(self) -> t.Iterable[psycopg2.extras.DictRow]:
-        return self._cur.fetchall()
+    def fetchall(self) -> t.Iterable[pge.DictRow]:
+        return self._cursor.fetchall()
 
-    def batch_fetchall(self, batch_size=None) -> t.Iterable[psycopg2.extras.DictRow]:
+    def batch_fetchall(self, batch_size=None) -> t.Iterable[pge.DictRow]:
         results = self.fetchmany(batch_size)
         while results:
             yield from results
             results = self.fetchmany(batch_size)
 
+    def close(self):
+        if not self._is_closed:
+            self._cursor.close()
+            self._conn.close()
+            self._is_closed = True
+            del self._cursor
+            del self._conn
+
     def scroll(self, value, mode='relative'):
-        return self._cur.scroll(value, mode)
+        return self._cursor.scroll(value, mode)
 
     @property
     def rowcount(self) -> t.Optional[int]:
-        return self._cur.rowcount
+        return self._cursor.rowcount
 
     @property
     def query(self) -> str:
-        return self._cur.query
+        return self._cursor.query
 
     @property
     def statusmessage(self) -> str:
-        return self._cur.statusmessage
-
-    def commit(self):
-        self._cur.connection.commit()
-
-    def rollback(self):
-        self._cur.connection.rollback()
-
-    def close(self):
-        self._cur.close()
+        return self._cursor.statusmessage
 
     def create_savepoint(self, name):
-        pass
+        self.execute("SAVEPOINT %s", [name])
 
     def rollback_to_savepoint(self, name):
-        pass
+        self.execute("ROLLBACK TO SAVEPOINT %s", [name])
 
     def release_savepoint(self, name):
-        pass
+        self.execute("RELEASE SAVEPOINT %s", [name])
 
     def copy_expert(self, *args, **kwargs):
-        return self._cur.copy_expert(*args, **kwargs)
+        return self._cursor.copy_expert(*args, **kwargs)
 
-
-class NODBPostgresController(NODBDatabaseProtocol):
-
-    config: zr.ApplicationConfig = None
-
-    @injector.construct
-    def __init__(self):
-        self._connection = None
-
-    def _connect(self):
-        if self._connection is None:
-            conn_args = self.config.as_dict(("cnodc", "database"), default={})
-            self._connection = psycopg2.connect(**conn_args, cursor_factory=psycopg2.extras.DictCursor)
-
-    @contextmanager
-    def start_transaction(self) -> WrappedCursor:
-        self._connect()
-        try:
-            with self._connection.cursor() as cur:
-                yield WrappedCursor(cur)
-        finally:
-            pass
-
-    def start_bare_transaction(self) -> WrappedCursor:
-        self._connect()
-        return self._connection.cursor()
+    def spooled_copy(self,
+                     copy_query: str,
+                     values: t.Iterable[t.Sequence],
+                     mem_size: int = 80000,
+                     column_sep: str = "\t",
+                     row_sep: str = "\n"):
+        mem_file = tempfile.SpooledTemporaryFile(mem_size, mode="w+", encoding="utf-8")
+        for value_list in values:
+            s = column_sep.join(_NODBControllerInstance.escape_copy_value(v) for v in value_list) + row_sep
+            mem_file.write(s)
+        mem_file.seek(0, 0)
+        self.copy_expert(copy_query, mem_file)
 
     @staticmethod
     def escape_copy_value(v):
@@ -145,192 +136,187 @@ class NODBPostgresController(NODBDatabaseProtocol):
             utc_v = v.astimezone(datetime.timezone(datetime.timedelta(seconds=0), "UTC"))
             return utc_v.strftime('%Y-%m-%d %H:%M:%SZ')
         elif isinstance(v, (list, tuple, dict)):
-            return NODBPostgresController.escape_copy_value(json.dumps(v))
+            return _NODBControllerInstance.escape_copy_value(json.dumps(v))
         else:
             return str(v)
-
-    def spooled_copy(self,
-                     copy_query: str,
-                     values: t.Iterable[Sequence],
-                     mem_size: int = 80000,
-                     column_sep: str = "\t",
-                     row_sep: str = "\n",
-                     tx: t.Optional[WrappedCursor] = None):
-        if tx is None:
-            with self.start_transaction() as tx:
-                self.spooled_copy(copy_query, values, mem_size, column_sep, row_sep, tx)
-                tx.commit()
-        mem_file = tempfile.SpooledTemporaryFile(mem_size, mode="w+", encoding="utf-8")
-        for value_list in values:
-            s = column_sep.join(NODBPostgresController.escape_copy_value(v) for v in value_list) + row_sep
-            mem_file.write(s)
-        mem_file.seek(0, 0)
-        tx.copy_expert(copy_query, mem_file)
 
     def create_queue_item(self,
                           queue_name: str,
                           data: dict,
-                          priority: int = 0,
-                          unique_key: str = None,
-                          tx: t.Optional[WrappedCursor] = None):
-        if tx is None:
-            with self.start_transaction() as tx:
-                self.create_queue_item(queue_name, data, priority, unique_key, tx)
-                tx.commit()
-        tx.execute("INSERT INTO nodb_queue (queue_name, priority, unique_key, data) VALUES (%s, %s, %s, %s)", (
+                          priority: t.Optional[int] = None,
+                          unique_item_key: t.Optional[str] = None):
+        self.execute("INSERT INTO nodb_queues (queue_name, priority, unique_item_name, data) VALUES (%s, %s, %s, %s)", [
             queue_name,
-            priority,
-            unique_key,
+            unique_item_key,
+            priority if priority is not None else 0,
             json.dumps(data)
-        ))
+        ])
 
-    def batch_create_queue_item(self,
-                                values: t.Iterable[Sequence[str, dict, t.Optional[int], t.Optional[str]]],
-                                tx: t.Optional[WrappedCursor] = None):
+    def batch_create_queue_item(self, values: t.Iterable[t.Sequence]):
         self.spooled_copy(
-            copy_query="COPY nodb_queue (queue_name, priority, unique_key, data) FROM STDIN",
+            copy_query="COPY nodb_queues (queue_name, priority, unique_item_name, data) FROM STDIN",
             values=(
                 (x[0], x[2] if len(x) > 2 else 0, x[3] if len(x) > 3 else None, x[1])
                 for x in values
-            ),
-            tx=tx
+            )
         )
 
-    def next_queue_item(self,
-                        queue_name: str,
-                        app_id: str,
-                        retries: int = 5) -> t.Optional[str]:
+    def _load_nodb_object_by_primary_key(self,
+                                         obs_cls: type,
+                                         table_name: str,
+                                         filters: dict[str, str],
+                                         limit_fields: t.Optional[list[str]] = None,
+                                         lock_type: LockType = LockType.NONE):
+        key_names = list(x for x in filters.keys())
+        if limit_fields:
+            limit_fields = set(limit_fields)
+            limit_fields.update(key_names)
+        else:
+            limit_fields = None
+        field_list = '*' if limit_fields else ', '.join(limit_fields)
+        query = f"SELECT {field_list} FROM {table_name} WHERE "
+        query += " AND ".join(f"{x} = %s" for x in key_names)
+        if lock_type == LockType.FOR_SHARE:
+            query += " FOR SHARE"
+        elif lock_type == LockType.FOR_UPDATE:
+            query += "FOR UPDATE"
+        elif lock_type == LockType.FOR_NO_KEY_UPDATE:
+            query += "FOR NO KEY UPDATE"
+        elif lock_type == LockType.FOR_KEY_SHARE:
+            query += " FOR KEY SHARE"
+        self.execute(query, [filters[x] for x in key_names])
+        first_row = self.fetchone()
+        if first_row:
+            return obs_cls(
+                is_new=False,
+                **{x: first_row[x] for x in first_row.keys()}
+            )
+        return None
+
+    def _upsert_nodb_object_by_primary_key(self,
+                                           obj: structures._NODBBaseObject,
+                                           table_name: str,
+                                           primary_keys: list[str]):
+        query = f"INSERT INTO {table_name}"
+        args = []
+        mod_values = list(obj.modified_values)
+        if mod_values:
+
+            query += " VALUES ("
+            query += ", ".join(f"{x} = %s" for x in mod_values)
+            query += ")"
+            args.extend([obj.get(x) for x in mod_values])
+        else:
+            query += " DEFAULT VALUES"
+        query += " ON CONFLICT (" + ",".join(primary_keys) + ") DO"
+        if mod_values:
+            query += " UPDATE SET "
+            query += ", ".join(f"{x} = %s" for x in mod_values if x not in primary_keys)
+            args.extend([obj.get(x) for x in mod_values if x not in primary_keys])
+        else:
+            query += " NOTHING"
+        query += " RETURNING " + ",".join(primary_keys)
+        self.execute(query, args)
+        row = self.fetchone()
+        if row[0] is not None:
+            for x in primary_keys:
+                obj.set(row[x], x)
+            obj.clear_modified()
+            return True
+        return False
+
+    def load_source_file(self,
+                         source_file_uuid: str,
+                         partition_key: datetime.date,
+                         limit_fields: t.Optional[list[str]] = None,
+                         lock_type: LockType = LockType.NONE):
+        return self._load_nodb_object_by_primary_key(
+            structures.NODBSourceFile,
+            "nodb_source_files",
+            {"source_uuid": source_file_uuid, "partition_key": partition_key},
+            limit_fields, lock_type
+        )
+
+    def save_source_file(self, source_file: structures.NODBSourceFile):
+        self._upsert_nodb_object_by_primary_key(source_file, "nodb_source_files", ["source_uuid", "partition_key"])
+
+    def load_queue_item(self, queue_uuid) -> t.Optional[structures.NODBQueueItem]:
+        return self._load_nodb_object_by_primary_key(
+            structures.NODBQueueItem,
+            "nodb_queues",
+            {"queue_uuid": queue_uuid}
+        )
+
+    def mark_queue_item_complete(self, queue_item: structures.NODBQueueItem):
+        self._update_queue_item(queue_item, "COMPLETE")
+
+    def mark_queue_item_failed(self, queue_item: structures.NODBQueueItem):
+        self._update_queue_item(queue_item, "ERROR")
+
+    def release_queue_item(self, queue_item: structures.NODBQueueItem):
+        self._update_queue_item(queue_item, "UNLOCKED")
+
+    def renew_queue_item_lock(self, queue_item: structures.NODBQueueItem):
+        self.execute("UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s", [
+            datetime.datetime.utcnow(),
+            queue_item.queue_uuid
+        ])
+
+    def _update_queue_item(self, queue_item: structures.NODBQueueItem, new_status_code: str):
+        self.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL WHERE queue_uuid = %s", [
+            new_status_code,
+            queue_item.queue_uuid
+        ])
+
+    def fetch_next_queue_item(self,
+                              queue_name: str,
+                              app_id: str,
+                              retries: int = 5) -> t.Optional[str]:
         while retries > 0:
-            item = self._attempt_fetch_queue_item(queue_name, app_id)
-            if item is not None:
-                return item
+            item_uuid = self._attempt_fetch_queue_item(queue_name, app_id)
+            if item_uuid is not None:
+                return self.load_queue_item(item_uuid)
             retries -= 1
         return None
 
     def _attempt_fetch_queue_item(self, queue_name: str, app_id: str) -> t.Optional[str]:
-        with self.start_transaction() as tx:
-            try:
-                tx.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
-                item = tx.fetchone()
-                tx.commit()
-                return item[0] if item else None
-            except (KeyboardInterrupt, SystemExit) as ex:
-                tx.rollback()
-                raise ex
-            except Exception as ex:
-                tx.rollback()
+        try:
+            self.create_savepoint("fetch_queue_item")
+            self.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
+            item = self.fetchone()
+            if item[0] is not None:
+                self.release_savepoint("fetch_queue_item")
+                return item[0]
+            else:
+                self.rollback_to_savepoint("fetch_queue_item")
                 return None
-
-    def queue_source_file_download(self, source_file: NODBSourceFile, priority: int = 0, tx: t.Optional[WrappedCursor] = None):
-        self.create_queue_item(
-            queue_name="source_file_download",
-            data={"source_file_uuid": source_file.pkey},
-            priority=priority,
-            tx=tx
-        )
-
-    def queue_source_file_decode_error(self, source_file: NODBSourceFile, priority: int = 0, tx: t.Optional[WrappedCursor] = None):
-        self.create_queue_item(
-            queue_name="source_file_errors",
-            data={"source_file_uuid": source_file.pkey},
-            priority=priority,
-            tx=tx
-        )
-
-    def queue_basic_qc_review(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
-        self.create_queue_item(
-            queue_name="basic_qc_manual",
-            data={"batch_uuid": batch.pkey},
-            priority=priority,
-            tx=tx
-        )
-
-    def queue_basic_qc_process(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
-        self.create_queue_item(
-            queue_name="basic_qc_second",
-            data={"batch_uuid": batch.pkey},
-            priority=priority,
-            tx=tx
-        )
-
-    def queue_next_qc(self, batch: NODBQCBatch, priority: int = 0, tx: t.Optional[NODBTransaction] = None):
-        self.create_queue_item(
-            queue_name="qc_orchestrator",
-            data={"batch_uuid": batch.pkey},
-            priority=priority,
-            tx=tx
-        )
+        except (KeyboardInterrupt, SystemExit) as ex:
+            self.rollback_to_savepoint("fetch_queue_item")
+            raise ex
+        except Exception as ex:
+            self.rollback_to_savepoint("fetch_queue_item")
+            return None
 
 
-"""
+@injector.injectable_global
+class NODBController:
 
-    def find_nodb_object(self, nodb_cls: type, table_name: str, pkey: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None):
-        if cur is None:
-            with self.cursor() as cur:
-                return self.find_nodb_object(nodb_cls, table_name, pkey, limit_fields, cur)
-        if limit_fields:
-            limit_fields = set(limit_fields)
-            if 'pkey' not in limit_fields:
-                limit_fields.add('pkey')
+    config: zr.ApplicationConfig = None
+
+    @injector.construct
+    def __init__(self):
+        self._instance = None
+        self._connect_args = self.config.as_dict(("nodb", "connection"), default={})
+        self._connect_args['cursor_factory'] = pge.DictCursor
+
+    def __enter__(self) -> _NODBControllerInstance:
+        self._instance = _NODBControllerInstance(pg.connect(**self._connect_args))
+        return self._instance
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self._instance.rollback()
         else:
-            limit_fields = None
-        fields = '*' if limit_fields is not None else ', '.join(limit_fields)
-        cur.execute(f'SELECT {fields} FROM {table_name} WHERE pkey = %s', (pkey,))
-        first = cur.fetchone()
-        if first:
-            return nodb_cls(**{
-                x: first[x]
-                for x in first.keys()
-            })
-        return None
-
-    def _cast(self, obj):
-        if isinstance(obj, enum.Enum):
-            return obj.value()
-        elif isinstance(obj, (dict, list, set, tuple)):
-            return psycopg2.extras.Json(obj)
-        return obj
-
-    def create_nodb_object(self, nodb_obj: _NODBBaseObject, table_name: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None):
-        if cur is None:
-            with self.cursor() as cur:
-                return self.create_nodb_object(nodb_obj, table_name, limit_fields, cur)
-        if nodb_obj.pkey:
-            raise ValueError("Cannot create object from an existing object, create a new one first")
-        fields = set(x for x in nodb_obj.modified_values if limit_fields is None or x in limit_fields)
-        if not fields:
-            raise ValueError("No fields to insert")
-        cur.execute(f"INSERT INTO {table_name} ({','.join(fields)}) VALUES ({','.join('%s' for _ in fields)}) RETURNING pkey", [
-            self._cast(nodb_obj.get(fn)) for fn in fields
-        ])
-        cur.commit()
-        first = cur.fetchone()
-        if first:
-            nodb_obj.pkey = first[0]
-            return True
-        return False
-
-    def update_nodb_object(self, nodb_obj: _NODBBaseObject, table_name: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None):
-        if cur is None:
-            with self.cursor() as cur:
-                return self.update_nodb_object(nodb_obj, table_name, limit_fields, cur)
-        if nodb_obj.pkey is None:
-            raise ValueError("Cannot update an object that doesn't already exist")
-        fields = set(x for x in nodb_obj.modified_values if limit_fields is None or x in limit_fields)
-        if not fields:
-            return True
-        set_clause = ', '.join(f'{fn} = %s' for fn in fields)
-        cur.execute(f"UPDATE {table_name} SET {set_clause} WHERE pkey = %s", [
-            *[self._cast(nodb_obj.get(fn)) for fn in fields],
-            nodb_obj.pkey
-        ])
-        cur.commit()
-        return True
-
-    def save_nodb_object(self, obj: _NODBBaseObject, table_name: str, limit_fields: t.Union[set[str], list[str], None] = None, cur: WrappedCursor = None):
-        if obj.pkey is None:
-            return self.create_nodb_object(obj, table_name, limit_fields, cur)
-        else:
-            return self.update_nodb_object(obj, table_name, limit_fields, cur)
-
-"""
+            self._instance.commit()
+        self._instance.close()
+        self._instance = None

@@ -9,6 +9,7 @@ from cnodc.ocproc2 import DataRecord
 from cnodc.ocproc2.structures import NODBQCFlag
 
 
+
 class UserStatus(enum.Enum):
 
     ACTIVE = 'ACTIVE'
@@ -21,7 +22,6 @@ class SourceFileStatus(enum.Enum):
     QUEUED = 'QUEUED'
     IN_PROGRESS = 'IN_PROGRESS'
     ERROR = 'ERROR'
-    QUEUE_ERROR = 'QUEUE_ERROR'
     COMPLETE = 'COMPLETE'
 
 
@@ -63,22 +63,31 @@ class StationStatus(enum.Enum):
     INACTIVE = 'INACTIVE'
 
 
+class QueueStatus(enum.Enum):
+
+    UNLOCKED = 'UNLOCKED'
+    LOCKED = 'LOCKED'
+    COMPLETE = 'COMPLETE'
+    ERROR = 'ERROR'
+
+
 class _NODBBaseObject:
 
-    def __init__(self, pkey: t.Optional[str] = None, **kwargs):
-        self.pkey = str(pkey) if pkey else None
+    def __init__(self, *, is_new: bool = True, **kwargs):
         self._data = {}
         self.modified_values = set()
+        self._allow_set_readonly = True
         for x in kwargs:
             if hasattr(self, x):
                 setattr(self, x, kwargs[x])
             else:
                 self._data[x] = kwargs[x]
         self.loaded_values = set(x for x in kwargs)
-        if self.pkey is not None:
+        if not is_new:
             # Reset modified values if we loaded an original object
             # so we don't update all the values all the time.
             self.modified_values = set()
+        self._allow_set_readonly = False
 
     def __getitem__(self, item):
         return self.get(item)
@@ -91,7 +100,9 @@ class _NODBBaseObject:
     def __setitem__(self, item, value):
         self.set(item, value)
 
-    def set(self, value, item, coerce=None):
+    def set(self, value, item, coerce=None, readonly: bool = False):
+        if readonly and not self._allow_set_readonly:
+            raise AttributeError(f"{item} is read-only")
         if coerce is not None and value is not None:
             value = coerce(value)
         if item not in self._data or self._data[item] != value:
@@ -101,25 +112,35 @@ class _NODBBaseObject:
     def mark_modified(self, item):
         self.modified_values.add(item)
 
+    def clear_modified(self):
+        self.modified_values.clear()
+
     @classmethod
-    def make_property(cls, item, coerce=None):
+    def make_property(cls, item, coerce=None, readonly: bool = False):
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
-            functools.partial(_NODBBaseObject.set, item=item, coerce=coerce)
+            functools.partial(_NODBBaseObject.set, item=item, coerce=coerce, readonly=readonly)
         )
 
     @classmethod
-    def make_datetime_property(cls, item):
+    def make_datetime_property(cls, item, readonly: bool = False):
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
-            functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_datetime)
+            functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_datetime, readonly=readonly)
         )
 
     @classmethod
-    def make_enum_property(cls, item, enum_cls: type):
+    def make_date_property(cls, item, readonly: bool = False):
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
-            functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_enum(enum_cls))
+            functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_date, readonly=readonly)
+        )
+
+    @classmethod
+    def make_enum_property(cls, item, enum_cls: type, readonly: bool = False):
+        return property(
+            functools.partial(_NODBBaseObject.get, item=item),
+            functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_enum(enum_cls), readonly=readonly)
         )
 
     @staticmethod
@@ -134,6 +155,13 @@ class _NODBBaseObject:
     def to_datetime(dt):
         if isinstance(dt, str):
             return datetime.datetime.fromisoformat(dt)
+        else:
+            return dt
+
+    @staticmethod
+    def to_date(dt):
+        if isinstance(dt, str):
+            return datetime.date.fromisoformat(dt)
         else:
             return dt
 
@@ -175,6 +203,82 @@ class _NODBWithMetadata:
         elif value not in self.metadata[key]:
             self.metadata[key].append(value)
             self.modified_values.add("metadata")
+
+
+class NODBQueueItem(_NODBBaseObject):
+
+    queue_uuid: str = _NODBBaseObject.make_property("queue_uuid", coerce=str)
+    created_date: datetime.datetime = _NODBBaseObject.make_datetime_property("created_date", readonly=True)
+    modified_date: datetime.datetime = _NODBBaseObject.make_datetime_property("modified_date", readonly=True)
+    status: QueueStatus = _NODBBaseObject.make_enum_property("status", QueueStatus, readonly=True)
+    locked_by: t.Optional[str] = _NODBBaseObject.make_property("locked_by", coerce=str, readonly=True)
+    locked_since: t.Optional[datetime.datetime] = _NODBBaseObject.make_datetime_property("locked_since", readonly=True)
+    queue_name: str = _NODBBaseObject.make_property("queue_name", readonly=True, coerce=str)
+    unique_item_name: t.Optional[str] = _NODBBaseObject.make_property("unique_item_name", readonly=True, coerce=str)
+    priority: t.Optional[int] = _NODBBaseObject.make_property("priority", readonly=True, coerce=int)
+    data: dict = _NODBBaseObject.make_property("data", readonly=True)
+
+
+class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
+
+    source_uuid: str = _NODBBaseObject.make_property("source_uuid", coerce=str)
+    partition_key: datetime.date = _NODBBaseObject.make_date_property("partition_key")
+
+    source_path: str = _NODBBaseObject.make_property("source_path", coerce=str)
+    persistent_path: str = _NODBBaseObject.make_property("persistent_path", coerce=str)
+    file_name: str = _NODBBaseObject.make_property("file_name", coerce=str)
+
+    original_uuid: str = _NODBBaseObject.make_property("original_uuid", coerce=str)
+    original_idx: int = _NODBBaseObject.make_property("original_idx", coerce=int)
+
+    status: SourceFileStatus = _NODBBaseObject.make_enum_property("status", SourceFileStatus)
+
+    history: list = _NODBBaseObject.make_property("history")
+
+    qc_workflow_name: str = _NODBBaseObject.make_property("qc_workflow_name", coerce=str)
+
+    def report_error(self, message, name, version, instance):
+        self.add_history(message, name, version, instance, 'ERROR')
+
+    def report_warning(self, message, name, version, instance):
+        self.add_history(message, name, version, instance, 'WARNING')
+
+    def add_history(self, message, name, version, instance, level='INFO'):
+        if self.history is None:
+            self.history = []
+        self.history.append({
+            'msg': message,
+            'src': name,
+            'ver': version,
+            'ins': instance,
+            'lvl': level,
+            'asc': datetime.datetime.utcnow().isoformat()
+        })
+        self.modified_values.add('history')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class _NODBWithQCMetdata(_NODBWithMetadata):
@@ -286,37 +390,7 @@ class NODBSession(_NODBBaseObject):
         return self.session_data[key] if self.session_data and key in self.session_data else default
 
 
-class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
-    source_path: str = _NODBBaseObject.make_property("source_path", coerce=str)
-    persistent_path: str = _NODBBaseObject.make_property("persistent_path", coerce=str)
-    file_name: str = _NODBBaseObject.make_property("file_name", coerce=str)
-
-    original_uuid: str = _NODBBaseObject.make_property("original_uuid", coerce=str)
-    original_idx: int = _NODBBaseObject.make_property("original_idx", coerce=int)
-
-    status: SourceFileStatus = _NODBBaseObject.make_enum_property("status", SourceFileStatus)
-
-    history: list = _NODBBaseObject.make_property("history")
-
-    def report_error(self, message, name, version, instance):
-        self.add_history(message, name, version, instance, 'ERROR')
-
-    def report_warning(self, message, name, version, instance):
-        self.add_history(message, name, version, instance, 'WARNING')
-
-    def add_history(self, message, name, version, instance, level='INFO'):
-        if self.history is None:
-            self.history = []
-        self.history.append({
-            'msg': message,
-            'src': name,
-            'ver': version,
-            'ins': instance,
-            'lvl': level,
-            'asc': datetime.datetime.utcnow().isoformat()
-        })
-        self.modified_values.add('history')
 
 
 class NODBStation(_NODBWithMetadata, _NODBBaseObject):

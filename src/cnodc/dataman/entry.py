@@ -1,8 +1,7 @@
 from autoinject import injector
 
 from cnodc.exc import CNODCError
-from cnodc.nodb import NODBWorkingObservation, NODBQCBatch
-from cnodc.nodb.proto import NODBDatabaseProtocol, LockMode, NODBTransaction
+from cnodc.nodb import NODBWorkingObservation, NODBQCBatch, NODBController, _NODBControllerInstance
 from cnodc.nodb.structures import QualityControlStatus, ObservationWorkingStatus, ObservationStatus
 from cnodc.qc.auto.basic import BasicQualityController
 from .base import BaseController
@@ -10,7 +9,7 @@ from .base import BaseController
 
 class NODBEntryController(BaseController):
 
-    database: NODBDatabaseProtocol = None
+    database: NODBController = None
 
     @injector.construct
     def __init__(self, instance: str):
@@ -18,11 +17,8 @@ class NODBEntryController(BaseController):
         self.basic_qc = BasicQualityController(self.instance)
 
     def start_qc(self, batch_uuid: str):
-        tx = None
-        batch = None
-        try:
-            tx = self.database.start_transaction()
-            batch, observations = self.load_batch_and_obs(batch_uuid, tx)
+        with self.database as db:
+            batch, observations = self.load_batch_and_obs(batch_uuid, db)
             new_records = self._apply_followup_basic_qc(observations, tx)
             if new_records:
                 if any(x.has_any_qc_code() for x in new_records):

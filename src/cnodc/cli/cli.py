@@ -1,11 +1,18 @@
 import click
 from cnodc.decode import DecoderRegistry
 from autoinject import injector
+import zirconium as zr
+import zrlog
+
+
+@zr.configure
+def register(config: zr.ApplicationConfig):
+    config.register_file("./cnodc.toml")
 
 
 @click.group
 def main():
-    pass
+    zrlog.init_logging()
 
 
 @main.command
@@ -30,6 +37,13 @@ def transcode(source_file, target_file, iformat, oformat, iargs, oargs, registry
     src_codec = registry.load_codec(source_file, iformat)
     trg_codec = registry.load_codec(target_file, oformat)
     trg_codec.dump(src_codec.load(source_file, **_parse_io_arg_str(iargs)), target_file, **_parse_io_arg_str(oargs))
+
+
+@main.command
+def daemon():
+    from cnodc.run.core import LaunchManager
+    lm = LaunchManager()
+    lm.launch()
 
 
 def _parse_io_arg_str(args):
