@@ -10,6 +10,9 @@ class CNODCError(Exception):
     def pretty(self) -> str:
         pass
 
+    def obfuscated_code(self):
+        return self.internal_code
+
 
 class ConfigError(CNODCError):
 
@@ -21,3 +24,9 @@ class CNODCHalt(CNODCError):
 
     def __init__(self):
         super().__init__("Application halt requested", "HALT", 1)
+
+
+class CNODCNotSupported(CNODCError):
+
+    def __init__(self, codec_name, operation):
+        super().__init__(f"Codec [{codec_name}] does not support [{operation}]", "TRANSCODER", 1000, False)

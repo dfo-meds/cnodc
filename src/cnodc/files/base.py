@@ -118,7 +118,7 @@ class DirFileHandle:
 
     def search(self, pattern: str, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
         for file in self.walk(recursive, files_only, halt_flag):
-            if fnmatch.fnmatch(file.name(), pattern):
+            if pattern is None or fnmatch.fnmatch(file.name(), pattern):
                 yield file
 
     def walk(self, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:

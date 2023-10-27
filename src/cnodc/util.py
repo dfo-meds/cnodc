@@ -2,6 +2,7 @@ import math
 import typing as t
 import importlib
 from .exc import CNODCError
+import abc
 
 
 JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
@@ -20,13 +21,29 @@ class HaltFlag(t.Protocol):
         raise NotImplementedError()
 
 
-class DynamicClassLoadError(CNODCError):
+class DynamicObjectLoadError(CNODCError):
     pass
 
 
-def dynamic_class(cls_name):
+@t.runtime_checkable
+class Readable(t.Protocol):
+
+    @abc.abstractmethod
+    def read(self, chunk_size: int) -> bytes:
+        pass
+
+
+@t.runtime_checkable
+class Writable(t.Protocol):
+
+    @abc.abstractmethod
+    def write(self, b: bytes):
+        pass
+
+
+def dynamic_object(cls_name):
     if "." not in cls_name:
-        raise DynamicClassLoadError(f"cls_name should be in format package.class [actual {cls_name}]", "DCL", 1000)
+        raise DynamicObjectLoadError(f"cls_name should be in format package.class [actual {cls_name}]", "DOBJ", 1000)
     package_dot_pos = cls_name.rfind(".")
     package = cls_name[0:package_dot_pos]
     specific_cls_name = cls_name[package_dot_pos + 1:]
@@ -34,6 +51,6 @@ def dynamic_class(cls_name):
         mod = importlib.import_module(package)
         return getattr(mod, specific_cls_name)
     except ModuleNotFoundError as ex:
-        raise DynamicClassLoadError(f"Package or module [{package}] not found", "DCL", 1001) from ex
+        raise DynamicObjectLoadError(f"Package or module [{package}] not found", "DOBJ", 1001) from ex
     except AttributeError as ex:
-        raise DynamicClassLoadError(f"Class [{specific_cls_name}] not found in [{package}]", "DCL", 1002) from ex
+        raise DynamicObjectLoadError(f"Class [{specific_cls_name}] not found in [{package}]", "DOBJ", 1002) from ex

@@ -91,7 +91,14 @@ CREATE TABLE IF NOT EXISTS nodb_users (
     username            VARCHAR(126)    NOT NULL    PRIMARY KEY,
     phash               BYTEA,
     salt                BYTEA,
-    status              user_status     NOT NULL    DEFAULT 'ACTIVE'
+    status              user_status     NOT NULL    DEFAULT 'ACTIVE',
+    roles               JSON
+);
+
+
+CREATE TABLE IF NOT EXISTS nodb_permissions (
+    role_name           VARCHAR(126)    NOT NULL,
+    permission          VARCHAR(126)    NOT NULL
 );
 
 
@@ -117,6 +124,11 @@ CREATE TABLE IF NOT EXISTS nodb_sessions (
 
 CREATE INDEX IF NOT EXISTS ix_nodb_sessions_username ON nodb_sessions(username);
 
+
+CREATE TABLE IF NOT EXISTS nodb_upload_workflows (
+    workflow_name       VARCHAR(126)    NOT NULL    PRIMARY KEY,
+    configuration       JSON
+);
 
 -- Source Files Table
 CREATE TABLE IF NOT EXISTS nodb_source_files (
@@ -155,7 +167,7 @@ CREATE TABLE IF NOT EXISTS nodb_source_files_2023 PARTITION OF nodb_source_files
 
 
 -- Trigger for source files table modified date maintenance
-CREATE TRIGGER update_source_file_modified_date
+CREATE OR REPLACE TRIGGER update_source_file_modified_date
     BEFORE UPDATE ON nodb_source_files
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
@@ -201,7 +213,7 @@ CREATE TABLE IF NOT EXISTS nodb_qc_batches (
 
 
 -- Trigger for QC batch table modified date maintenance
-CREATE TRIGGER update_qc_batch_modified_date
+CREATE OR REPLACE TRIGGER update_qc_batch_modified_date
     BEFORE UPDATE ON nodb_qc_batches
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
@@ -257,7 +269,7 @@ CREATE INDEX IF NOT EXISTS nodb_obs_profile_params ON nodb_obs USING GIN(profile
 
 
 -- Trigger for QC batch table modified date maintenance
-CREATE TRIGGER update_obs_modified_date
+CREATE OR REPLACE TRIGGER update_obs_modified_date
     BEFORE UPDATE ON nodb_obs
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
@@ -328,7 +340,7 @@ CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, 
 
 
 -- Trigger for QC batch table modified date maintenance
-CREATE TRIGGER update_working_modified_date
+CREATE OR REPLACE TRIGGER update_working_modified_date
     BEFORE UPDATE ON nodb_working
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
@@ -360,7 +372,7 @@ CREATE INDEX IF NOT EXISTS idx_nodb_queues_queue_name ON nodb_queues(queue_name,
 
 
 -- Trigger for queue table
-CREATE TRIGGER update_queues_modified_date
+CREATE OR REPLACE TRIGGER update_queues_modified_date
     BEFORE UPDATE ON nodb_queues
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();

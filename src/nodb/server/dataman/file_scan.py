@@ -1,8 +1,8 @@
 import time
+import uuid
 
 from autoinject import injector
 import datetime
-import pathlib
 import typing as t
 import zirconium as zr
 
@@ -11,10 +11,10 @@ from cnodc.files import FileController
 from cnodc.nodb import NODBController, NODBSourceFile
 from cnodc.nodb.structures import SourceFileStatus
 from cnodc.util import HaltFlag
-from cnodc.dataman.base import BaseController
+from nodb.server.dataman.base import BaseController
 
 
-class DataSearchController(BaseController):
+class FileScanController(BaseController):
 
     file_controller: FileController = None
     database: NODBController = None
@@ -66,7 +66,7 @@ class DataSearchController(BaseController):
 
     def search_dir(self,
                    source_key: str,
-                   search_dir: pathlib.Path,
+                   search_dir: str,
                    pattern: str = None,
                    recursive: bool = True,
                    remove_completed: bool = False,
@@ -93,7 +93,7 @@ class DataSearchController(BaseController):
         with self.database as db:
             self.log.info(
                 f"Searching [{pattern}][recursive={recursive}][qc_workflow={qc_workflow_name}][remove_completed={remove_completed}]")
-            for file_handle in handle.search(pattern, recursive, self.halt_flag):
+            for file_handle in handle.search(pattern, recursive, halt_flag=self.halt_flag):
 
                 # Check if the file already exists and continue if it does
                 db.execute("SELECT COUNT(*) FROM nodb_source_files WHERE source_path = %s", [file_handle.path()])
@@ -113,6 +113,7 @@ class DataSearchController(BaseController):
                     # Convert to UTC time
                     mod_date = mod_date.astimezone(datetime.timezone(datetime.timedelta(hours=0)))
                 source_file.partition_key = mod_date.date()
+                source_file.source_uuid = str(uuid.uuid4())
                 source_file.source_path = file_handle.path()
                 source_file.file_name = file_handle.name()
                 source_file.status = SourceFileStatus.QUEUED

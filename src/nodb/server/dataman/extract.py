@@ -5,7 +5,7 @@ import logging
 import pathlib
 import tempfile
 
-from cnodc.dataman.base import BaseController
+from nodb.server.dataman.base import BaseController
 from cnodc.nodb.postgres import LockType
 from cnodc.util import HaltFlag, HaltInterrupt
 from cnodc.exc import CNODCError
@@ -18,7 +18,7 @@ import typing as t
 from cnodc.nodb.structures import SourceFileStatus, NODBWorkingObservation, NODBObservation, ObservationStatus, \
     QualityControlStatus, NODBQCBatch, ObservationWorkingStatus
 from cnodc.ocproc2 import DataRecord
-from cnodc.util import dynamic_class
+from cnodc.util import dynamic_object
 from cnodc.decode.common import CodecProtocol, CodecStoreLogger, DecodedMessage
 from cnodc.files import FileController
 import tempfile as tf
@@ -402,7 +402,7 @@ class _DataExtractionProcessor:
             decoder_cls_name = self._auto_detect_decoder(source_file.file_name)
             if decoder_cls_name is None:
                 raise CNODCError("Missing decoder information and could not auto-detect", "EXTRACT", 1000)
-        return dynamic_class(decoder_cls_name)()
+        return dynamic_object(decoder_cls_name)()
 
     def _auto_detect_decoder(self, file_name: str) -> t.Optional[str]:
         file_name = file_name.lower()

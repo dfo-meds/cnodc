@@ -1,5 +1,5 @@
 from cnodc.exc import CNODCHalt
-from cnodc.util import dynamic_class, HaltFlag
+from cnodc.util import dynamic_object, HaltFlag
 import threading
 import zrlog
 
@@ -35,7 +35,7 @@ class ThreadRunner:
         try:
             for controller_cls in controller_classes:
                 copies = int(controller_classes[controller_cls])
-                cls = dynamic_class(controller_cls)
+                cls = dynamic_object(controller_cls)
                 if copies < 1:
                     self._log.warning(f"Controller class [{controller_cls}] set to [{copies}] copies, skipping")
                     continue

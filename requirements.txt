@@ -7,3 +7,4 @@ psycopg2
 zirconium
 shapely
 zrlog
+requests

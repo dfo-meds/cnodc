@@ -5,7 +5,9 @@ import pathlib
 import os
 import itertools
 import cnodc.ocproc2 as ocproc2
+from cnodc.exc import CNODCNotSupported
 from cnodc.ocproc2 import DataRecord
+from cnodc.util import Readable, Writable
 
 TranscodingResult = t.Union[
     ocproc2.RecordSet,
@@ -36,22 +38,6 @@ def ocproc2_from_dict(d: dict):
     elif isinstance(d, list):
         return ocproc2.RecordSet().from_mapping(d)
     raise ValueError(f"Input is not a type")
-
-
-@t.runtime_checkable
-class Readable(t.Protocol):
-
-    @abc.abstractmethod
-    def read(self, chunk_size: int) -> bytes:
-        pass
-
-
-@t.runtime_checkable
-class Writable(t.Protocol):
-
-    @abc.abstractmethod
-    def write(self, b: bytes):
-        pass
 
 
 class BufferedBinaryReader:
@@ -401,18 +387,16 @@ class CodecProtocol(t.Protocol):
         else:
             return self.decode_messages(input_file, **kwargs)
 
-    @abc.abstractmethod
     def encode(self, records: TranscodingResult, **kwargs) -> t.Iterable[bytes]:
-        raise NotImplementedError()
+        raise CNODCNotSupported(self.__class__.__name__, 'encode')
 
     def decode(self, data: t.Iterable[bytes], **kwargs) -> TranscodingResult:
         for dm in self.decode_messages(data, **kwargs):
             if dm.records:
                 yield from dm.records
 
-    @abc.abstractmethod
     def decode_messages(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DecodedMessage]:
-        raise NotImplementedError()
+        raise CNODCNotSupported(self.__class__.__name__, 'decode')
 
     @abc.abstractmethod
     def check_compatibility(self, file_path: pathlib.Path) -> bool:
@@ -435,3 +419,4 @@ class BaseCodec(CodecProtocol):
     def check_compatibility(self, file_path: pathlib.Path) -> bool:
         if self._ext is not None:
             return file_path.name.lower().endswith(self._ext.lower())
+        return False

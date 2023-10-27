@@ -1,7 +1,11 @@
 import datetime
 import enum
 import functools
+import hashlib
+import json
 import typing as t
+import secrets
+import psycopg2.extensions
 
 from cnodc import geodesy
 from cnodc.decode.ocproc2_bin import OCProc2BinaryCodec
@@ -92,10 +96,20 @@ class _NODBBaseObject:
     def __getitem__(self, item):
         return self.get(item)
 
-    def get(self, item):
+    def get(self, item, default=None):
         if item in self._data:
             return self._data[item]
-        raise KeyError(item)
+        return default
+
+    def get_for_db(self, item, default=None):
+        retval = default
+        if item in self._data:
+            retval = self._data[item]
+        if isinstance(retval, enum.Enum):
+            retval = retval.value
+        elif isinstance(retval, (list, tuple, set, dict)):
+            return json.dumps(retval)
+        return retval
 
     def __setitem__(self, item, value):
         self.set(item, value)
@@ -257,7 +271,55 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
         self.modified_values.add('history')
 
 
+class NODBUser(_NODBBaseObject):
 
+    username: str = _NODBBaseObject.make_property("username", coerce=str)
+    phash: bytes = _NODBBaseObject.make_property("phash")
+    salt: bytes = _NODBBaseObject.make_property("salt")
+    status: UserStatus = _NODBBaseObject.make_enum_property("status", UserStatus)
+    roles: list = _NODBBaseObject.make_property("roles")
+
+    def assign_role(self, role_name):
+        if self.roles is None:
+            self.roles = [role_name]
+            self.modified_values.add('roles')
+        elif role_name not in self.roles:
+            self.roles.append(role_name)
+            self.modified_values.add('roles')
+
+    def unassign_role(self, role_name):
+        if self.roles is not None and role_name in self.roles:
+            self.roles.remove(role_name)
+            self.modified_values.add('roles')
+
+    def set_password(self, new_password, salt_length: int = 16):
+        self.salt = secrets.token_bytes(salt_length)
+        self.phash = NODBUser.hash_password(new_password, self.salt)
+
+    def check_password(self, password):
+        check_hash = NODBUser.hash_password(password, self.salt)
+        return secrets.compare_digest(check_hash, self.phash)
+
+    @staticmethod
+    def hash_password(password: str, salt: bytes, iterations=752123) -> bytes:
+        return hashlib.pbkdf2_hmac('sha512', password.encode('utf-8', errors="replace"), salt, iterations)
+
+
+class NODBSession(_NODBBaseObject):
+
+    session_id: str = _NODBBaseObject.make_property("session_id", coerce=str)
+    start_time: datetime = _NODBBaseObject.make_datetime_property("start_time")
+    expiry_time: datetime = _NODBBaseObject.make_datetime_property("expiry_time")
+    username: str = _NODBBaseObject.make_property("username", coerce=str)
+    session_data: dict = _NODBBaseObject.make_property("session_data")
+
+    def set_session_value(self, key, value):
+        if self.session_data is None:
+            self.session_data = {}
+        self.session_data[key] = value
+
+    def get_session_value(self, key, default=None):
+        return self.session_data[key] if self.session_data and key in self.session_data else default
 
 
 
@@ -363,31 +425,6 @@ class _NODBWithDataRecord:
 
     def clear_data_record_cache(self):
         self._data_record_cache = None
-
-
-class NODBUser(_NODBBaseObject):
-
-    username: str = _NODBBaseObject.make_property("username", coerce=str)
-    phash: bytes = _NODBBaseObject.make_property("phash")
-    salt: bytes = _NODBBaseObject.make_property("salt")
-    status: UserStatus = _NODBBaseObject.make_enum_property("status", UserStatus)
-
-
-class NODBSession(_NODBBaseObject):
-
-    session_id: str = _NODBBaseObject.make_property("session_id", coerce=str)
-    start_time: datetime = _NODBBaseObject.make_datetime_property("start_time")
-    expiry_time: datetime = _NODBBaseObject.make_datetime_property("expiry_time")
-    username: str = _NODBBaseObject.make_property("username", coerce=str)
-    session_data: dict = _NODBBaseObject.make_property("session_data")
-
-    def set_session_value(self, key, value):
-        if self.session_data is None:
-            self.session_data = {}
-        self.session_data[key] = value
-
-    def get_session_value(self, key, default=None):
-        return self.session_data[key] if self.session_data and key in self.session_data else default
 
 
 

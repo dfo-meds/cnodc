@@ -4,7 +4,7 @@ import socket
 import signal
 
 from cnodc.exc import CNODCError
-from cnodc.util import dynamic_class
+from cnodc.util import dynamic_object
 import zrlog
 
 
@@ -28,7 +28,7 @@ class LaunchManager:
         if instance_name is None or instance_name == '':
             instance_name = socket.gethostname()
         runner_cls = self.config.as_str(("cnodc", "launch", "runner_class"), default="cnodc.run.threads.ThreadRunner")
-        self._runner = dynamic_class(runner_cls)(instance_name)
+        self._runner = dynamic_object(runner_cls)(instance_name)
         if not hasattr(self._runner, 'request_halt'):
             raise CNODCError("Runner class is missing request_halt method", "LAUNCH", 1000)
         if not hasattr(self._runner, 'launch_all'):
