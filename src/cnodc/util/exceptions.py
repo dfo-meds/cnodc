@@ -11,7 +11,9 @@ class CNODCError(Exception):
         self.wrapped = wrapped
 
     def pretty(self) -> str:
-        pass
+        if self.internal_code:
+            return f"{self.internal_code}: {str(self)}"
+        return str(self)
 
     def obfuscated_code(self):
         return self.internal_code
