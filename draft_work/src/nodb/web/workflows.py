@@ -1,4 +1,5 @@
 import datetime
+import enum
 import os
 import secrets
 import shutil
@@ -11,12 +12,14 @@ import flask
 import pathlib
 
 import yaml
+
+from cnodc.nodb.structures import NODBUploadWorkflow
 from nodb.web.auth import current_permissions
 
 from cnodc.exc import CNODCError
 from cnodc.files import FileController
 from cnodc.files.base import StorageTier
-from cnodc.nodb import NODBController
+from cnodc.nodb import NODBController, _NODBControllerInstance
 from cnodc.util import dynamic_object
 from urllib.parse import quote
 import inspect
@@ -38,66 +41,22 @@ RESERVED_FILENAMES = (
 )
 
 
-def update_workflow_config(workflow_name: str,
-                           metadata: dict[str, str] = None,
-                           validation_callable: str = None,
-                           allow_overwrite: str = None,
-                           upload_dir: str = None,
-                           upload_tier: str = None,
-                           archive_dir: str = None,
-                           archive_tier: str = None,
-                           queue_name: str = None
-                           ) -> dict:
-    if allow_overwrite is not None or allow_overwrite in ('always', 'never', 'user'):
-        return {'error': f'invalid value for [allow_overwrite]: {allow_overwrite}', 'code': 'SUBMIT-1011'}
-    if validation_callable is not None:
-        x = dynamic_object(validation_callable)
-        if not callable(x):
-            return {'error': f'non-callable value for [validation]: {validation_callable}', 'code': 'SUBMIT-1012'}
-        sig = inspect.signature(x)
-        if not len(sig.parameters) >= 2:
-            return {'error': f'wrong number of parameters for [validation]: {validation_callable}', 'code': 'SUBMIT-1013'}
-
-
 @injector.inject
-def check_access(workflow_name, nodb: NODBController = None):
+def update_workflow_config(workflow_name: str,
+                           config: dict[str, t.Any],
+                           nodb: NODBController = None
+                           ) -> dict:
+    workflow = NODBUploadWorkflow()
+    workflow.workflow_name = workflow_name
+    workflow.configuration = config
+    workflow.validate()
     with nodb as db:
-        config = db.get_workflow_config(workflow_name)
-        if config is None:
-            raise CNODCError(f"invalid workflow [{workflow_name}]", "SUBMIT", 1006)
-        if 'permission' in config and not config['permission'] in current_permissions():
-            raise CNODCError(f"no access to [{workflow_name}]", "SUBMIT", 1014)
-    return True
-
-
-def cancel_file_upload(workflow_name: str, request_id: str, token: str) -> dict:
-    if token is None:
-        return {'error': 'missing token for cancelling upload', 'code': 'SUBMIT-1004'}
-    request_dir = _get_upload_directory(workflow_name, request_id)
-    if not _check_token(request_dir, token):
-        return {'error': 'invalid token for cancelling upload', 'code': 'SUBMIT-1005'}
-    _cleanup_request(request_dir)
+        db.save_upload_workflow_config(workflow)
     return {'success': True}
 
 
-def handle_file_upload(workflow_name: str, headers: dict[str, str], data: bytes, request_id: str = None) -> dict:
-    response = {}
-    is_first_request = False
-    if request_id is None:
-        check_access(workflow_name)
-        request_id = str(uuid.uuid4())
-        is_first_request = True
-    request_dir = _get_upload_directory(workflow_name, request_id)
-    if not is_first_request:
-        if 'x-cnodc-token' not in headers:
-            return {'error': 'missing token for continuing upload', 'code': 'SUBMIT-1007'}
-        if not _check_token(request_dir, headers['x-cnodc-token']):
-            return {'error': 'invalid token for continuing upload', 'code': 'SUBMIT-1008'}
-    if 'x-cnodc-upload-md5' in headers:
-        md5_sent = headers['x-cnodc-upload-md5'].lower()
-        md5_calc = hashlib.md5(flask.request.data).hexdigest().lower()
-        if md5_sent != md5_calc:
-            return {'error': f'md5 mismatch [{md5_sent}] vs [{md5_calc}]', 'code': 'SUBMIT-1009'}
+
+
     _save_file_metadata(request_dir, workflow_name, request_id, headers)
     _save_file_part(request_dir, data)
     if 'x-cnodc-more-data' in headers and headers['x-cnodc-more-data'] == '1':
@@ -113,31 +72,118 @@ def handle_file_upload(workflow_name: str, headers: dict[str, str], data: bytes,
     return response
 
 
-def _get_upload_directory(workflow_name: str, request_id: str) -> pathlib.Path:
-    upload_dir = pathlib.Path(flask.current_app.config['UPLOAD_DIRECTORY']).resolve()
-    try:
-        workflow_dir = upload_dir / workflow_name / request_id
-        workflow_dir.mkdir(0o660, parents=True, exist_ok=True)
-        if not workflow_dir.is_dir():
-            raise CNODCError("Could not make a request directory, one of the paths is a file", "SUBMIT", 1000)
-        return workflow_dir
-    except OSError:
-        raise CNODCError("Could not make a request directory", "SUBMIT", 1001)
+
+class WorkflowResponse(enum.Enum):
+
+    CONTINUE = "c"
+    COMPLETE = "d"
 
 
-def _save_token(request_dir: pathlib.Path, token: str):
-    with open(request_dir / ".token", "wb") as h:
-        h.write(_hash_token(token))
+class WorkflowUploadRequest:
+
+    nodb: NODBController = None
+
+    @injector.construct
+    def __init__(self, workflow_name: str, request_id: t.Optional[str], token: t.Optional[str]):
+        self.workflow_name = workflow_name
+        self.request_id = request_id
+        self.token = token
+        self._request_dir = None
+
+    def _ensure_request_id(self):
+        if self.request_id is None:
+            self.request_id = str(uuid.uuid4())
+
+    def _request_directory(self) -> pathlib.Path:
+        if self._request_dir is None:
+            upload_dir = pathlib.Path(flask.current_app.config['UPLOAD_DIRECTORY']).resolve()
+            try:
+                self._request_dir = upload_dir / self.workflow_name / self.request_id
+                self._request_dir.mkdir(0o660, parents=True, exist_ok=True)
+                if not self._request_dir.is_dir():
+                    self._request_dir = None
+                    raise CNODCError("Could not make a request directory, one of the paths is a file", "SUBMIT", 1000)
+            except OSError as ex:
+                self._request_dir = None
+                raise CNODCError("Could not make a request directory", "SUBMIT", 1001, wrapped=ex)
+        return self._request_dir
+
+    def _check_token(self, allow_new: bool = False) -> bool:
+        if self.token is None:
+            if not allow_new:
+                raise CNODCError('No continuation token found in request', 'SUBMIT', 1002)
+        token_file = self._request_directory() / ".token"
+        if not token_file.exists():
+            raise CNODCError('No continuation token found on the server', 'SUBMIT', 1003)
+        with open(token_file, "rb") as h:
+            token_hash = h.read()
+            if not secrets.compare_digest(token_hash, WorkflowUploadRequest.hash_token(self.token)):
+                raise CNODCError('Invalid continuation token', 'SUBMIT', 1004)
+        return True
+
+    def _save_token(self):
+        with open(self._request_directory() / ".token", "wb") as h:
+            h.write(WorkflowUploadRequest.hash_token(self.token))
+
+    def _load_workflow(self, db: _NODBControllerInstance) -> NODBUploadWorkflow:
+        workflow = db.load_upload_workflow_config(self.workflow_name)
+        if workflow is None:
+            raise CNODCError(f"Workflow [{self.workflow_name}] not found", "SUBMIT", 1005)
+        if not workflow.check_access():
+            raise CNODCError(f"Access to [{self.workflow_name}] denied", "SUBMIT", 1006)
+        return workflow
+
+    def _check_data_integrity(self, data: bytes, headers: dict[str, str]):
+        if 'x-cnodc-upload-md5' in headers:
+            md5_sent = headers['x-cnodc-upload-md5'].lower()
+            md5_actual = hashlib.md5(data).hexdigest().lower()
+            if md5_sent != md5_actual:
+                raise CNODCError(f'MD5 mismatch [{md5_sent}] vs [{md5_actual}]', 'SUBMIT', 1007)
+
+    def _save_metadata(self, headers: dict[str, str]):
+        pass
+
+    def _save_data(self, data: bytes):
+        pass
+
+    def _complete_request(self):
+        pass
+
+    def _cleanup_request(self):
+        pass
+
+    def cancel_request(self):
+        self._check_token()
+        self._cleanup_request()
+
+    def upload_request(self, data: bytes, headers: dict[str, str]) -> WorkflowResponse:
+        is_first_request = self.request_id is None
+        self._check_token(is_first_request)
+        self._check_data_integrity(data, headers)
+        with self.nodb as db:
+            workflow = self._load_workflow(db)
+            self._save_metadata(headers)
+            self._save_data(data)
+            if 'x-cnodc-more-data' in headers and headers['x-cnodc-more-data'] == '1':
+                self.token = secrets.token_urlsafe(64)
+                self._save_token()
+                return WorkflowResponse.CONTINUE
+            else:
+                self._complete_request()
+                return WorkflowResponse.COMPLETE
+
+    @staticmethod
+    def hash_token(token: str) -> bytes:
+        return hashlib.pbkdf2_hmac('sha256', token, salt=flask.current_app.config['SECRET_KEY'], iterations=985123)
 
 
-def _hash_token(token: str) -> bytes:
-    return hashlib.pbkdf2_hmac('sha256', token, salt=flask.current_app.config['SECRET_KEY'], iterations=985123)
-
-
-def _check_token(request_dir: pathlib.Path, token: str):
-    with open(request_dir / ".token", "rb") as h:
-        token_hash = h.read()
-        return secrets.compare_digest(token_hash, _hash_token(token))
+def handle_file_upload(workflow_name: str, headers: dict[str, str], data: bytes, request_id: str = None) -> dict:
+    response = {}
+    is_first_request = False
+    if request_id is None:
+        check_access(workflow_name)
+        request_id = str(uuid.uuid4())
+        is_first_request = True
 
 
 def _save_file_metadata(request_dir: pathlib.Path, workflow_name: str, request_id: str, headers: dict[str, str]):
@@ -188,7 +234,7 @@ def _process_request(local_file: pathlib.Path, headers: dict[str, t.Any], workfl
         upload_handle = None
         archive_handle = None
         try:
-            config = db.get_workflow_config(workflow_name)
+            config = db.load_upload_workflow_config(workflow_name)
             if config is None:
                 raise CNODCError("No workflow found", "SUBMIT", 1003)
             filename = _sanitize_filename(headers['filename']) if 'filename' in headers else None

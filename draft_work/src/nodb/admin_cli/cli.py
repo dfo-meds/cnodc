@@ -1,4 +1,7 @@
+import pathlib
+
 import click
+import yaml
 import zirconium as zr
 import zrlog
 from autoinject import injector
@@ -42,3 +45,17 @@ def web_setup(nodb: NODBController = None):
         admin_user.assign_role("_admin")
         db.save_user(admin_user)
         db.commit()
+
+
+@main.command
+@click.argument("config_name")
+@click.argument("config_file")
+@injector.inject
+def update_upload_config(config_name: str, config_file: str):
+    from nodb.web.workflows import update_workflow_config
+    file = pathlib.Path(config_file).resolve()
+    if not file.exists():
+        raise ValueError(f"No such file: {config_file}")
+    with open(file, "r") as h:
+        config_data = yaml.safe_load(h.read())
+        update_workflow_config(config_name, config_data)

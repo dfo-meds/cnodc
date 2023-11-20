@@ -5,7 +5,13 @@ import hashlib
 import json
 import typing as t
 import secrets
-from cnodc.util import CNODCError
+
+from cnodc import geodesy
+from cnodc.decode.ocproc2_bin import OCProc2BinaryCodec
+from cnodc.exc import CNODCError
+from cnodc.ocproc2 import DataRecord
+from cnodc.ocproc2.structures import NODBQCFlag
+from nodb.web.auth import current_permissions
 
 
 class NODBValidationError(CNODCError):
@@ -346,10 +352,6 @@ class NODBUser(_NODBBaseObject):
     def hash_password(password: str, salt: bytes, iterations=752123) -> bytes:
         return hashlib.pbkdf2_hmac('sha512', password.encode('utf-8', errors="replace"), salt, iterations)
 
-    @classmethod
-    def find_by_username(cls, db, username: str, *args, **kwargs):
-        return db.load_object(cls, {"username": username}, *args, **kwargs)
-
 
 class NODBSession(_NODBBaseObject):
 
@@ -368,13 +370,6 @@ class NODBSession(_NODBBaseObject):
 
     def get_session_value(self, key, default=None):
         return self.session_data[key] if self.session_data and key in self.session_data else default
-
-    def is_expired(self) -> bool:
-        return self.expiry_time < datetime.datetime.now(datetime.timezone.utc)
-
-    @classmethod
-    def find_by_session_id(cls, db, session_id: str, *args, **kwargs):
-        return db.load_object(cls, {"session_id": session_id}, *args, **kwargs)
 
 
 class NODBUploadWorkflow(_NODBBaseObject):

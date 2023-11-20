@@ -1,10 +1,5 @@
 autoinject
-pyyaml
-toml
-pybufrkit
-click
-psycopg2
 zirconium
-shapely
-zrlog
-requests
+psycopg2
+flask
+click

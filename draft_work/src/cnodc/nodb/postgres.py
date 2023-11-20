@@ -1,5 +1,4 @@
 import datetime
-import itertools
 import json
 import tempfile
 import enum
@@ -162,179 +161,10 @@ class _NODBControllerInstance:
             )
         )
 
-    def _load_nodb_object_by_primary_key(self,
-                                         obj_cls: type,
-                                         table_name: str,
-                                         filters: dict[str, str],
-                                         limit_fields: t.Optional[list[str]] = None,
-                                         lock_type: LockType = LockType.NONE):
-        key_names = list(x for x in filters.keys())
-        if limit_fields:
-            limit_fields = set(limit_fields)
-            limit_fields.update(key_names)
-        else:
-            limit_fields = None
-        field_list = '*' if limit_fields is None else ', '.join(limit_fields)
-        query = f"SELECT {field_list} FROM {table_name} WHERE "
-        query += " AND ".join(f"{x} = %s" for x in key_names)
-        if lock_type == LockType.FOR_SHARE:
-            query += " FOR SHARE"
-        elif lock_type == LockType.FOR_UPDATE:
-            query += "FOR UPDATE"
-        elif lock_type == LockType.FOR_NO_KEY_UPDATE:
-            query += "FOR NO KEY UPDATE"
-        elif lock_type == LockType.FOR_KEY_SHARE:
-            query += " FOR KEY SHARE"
-        self.execute(query, [filters[x] for x in key_names])
-        first_row = self.fetchone()
-        if first_row:
-            return obj_cls(
-                is_new=False,
-                **{x: first_row[x] for x in first_row.keys()}
-            )
-        return None
-
-    def _upsert_nodb_object_by_primary_key(self,
-                                           obj: structures._NODBBaseObject,
-                                           table_name: str,
-                                           primary_keys: list[str]):
-        query = f"INSERT INTO {table_name}"
-        args = []
-        mod_values = list(obj.modified_values)
-        insert_values = list(obj.modified_values)
-        insert_values.extend(pk for pk in primary_keys if obj.get(pk, None) is not None and pk not in insert_values)
-        if mod_values:
-            query += " ("
-            query += ", ".join(f"{x}" for x in insert_values)
-            query += ")"
-            query += " VALUES ("
-            query += ", ".join("%s" for _ in insert_values)
-            query += ")"
-            args.extend([obj.get_for_db(x) for x in insert_values])
-        else:
-            query += " DEFAULT VALUES"
-        query += " ON CONFLICT (" + ",".join(primary_keys) + ") DO"
-        if mod_values:
-            query += " UPDATE SET "
-            query += ", ".join(f"{x} = %s" for x in mod_values if x not in primary_keys)
-            args.extend([obj.get_for_db(x) for x in mod_values if x not in primary_keys])
-        else:
-            query += " NOTHING"
-        query += " RETURNING " + ",".join(primary_keys)
-        self.execute(query, args)
-        row = self.fetchone()
-        if row[0] is not None:
-            for x in primary_keys:
-                obj.set(row[x], x)
-            obj.clear_modified()
-            return True
-        return False
-
-    def load_source_file(self,
-                         source_file_uuid: str,
-                         partition_key: datetime.date,
-                         limit_fields: t.Optional[list[str]] = None,
-                         lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBSourceFile]:
-        return self._load_nodb_object_by_primary_key(
-            structures.NODBSourceFile,
-            "nodb_source_files",
-            {"source_uuid": source_file_uuid, "partition_key": partition_key},
-            limit_fields, lock_type
-        )
-
-    def get_workflow_config(self, workflow_name: str):
-        self.execute("SELECT configuration FROM nodb_upload_workflows WHERE workflow_name = %s", [workflow_name])
-        first_row = self.fetchone()
-        return first_row[0] if first_row else None
-
-    def load_user(self,
-                  username: str,
-                  lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBUser]:
-        return self._load_nodb_object_by_primary_key(
-            obj_cls=structures.NODBUser,
-            table_name="nodb_users",
-            filters={"username": username},
-            lock_type=lock_type
-        )
-
-    def load_permissions(self,
-                         roles: t.Optional[list[str]]) -> set[str]:
-        if not roles:
-            return set()
-        permissions = set()
-        q = "SELECT permission FROM nodb_permissions WHERE role_name IN ("
-        q += ", ".join('%s' for _ in roles)
-        q += ")"
-        self.execute(q, roles)
-        for row in self.fetchall():
-            permissions.add(row[0])
-        return permissions
-
-    def save_user(self,
-                  user: structures.NODBUser):
-        self._upsert_nodb_object_by_primary_key(
-            user,
-            "nodb_users",
-            ["username"]
-        )
-
-    def grant_permission(self, role_name, permission_name):
-        self.execute("SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s", [
-            role_name,
-            permission_name
-        ])
-        row = self.fetchone()
-        if row is not None:
-            self.execute("INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)", [
-                role_name,
-                permission_name
-            ])
-
-    def remove_permission(self, role_name, permission_name):
-        self.execute("DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s", [
-            role_name,
-            permission_name
-        ])
-
-    def load_session(self,
-                     session_id: str,
-                     lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBSession]:
-        return self._load_nodb_object_by_primary_key(
-            obj_cls=structures.NODBSession,
-            table_name="nodb_sessions",
-            filters={"session_id": session_id},
-            lock_type=lock_type
-        )
-
-    def delete_session(self, session_id: str):
-        self.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
-
-    def save_session(self,
-                     session: structures.NODBSession):
-        self._upsert_nodb_object_by_primary_key(
-            session,
-            "nodb_sessions",
-            ["session_id"]
-        )
-
-    def record_login(self,
-                     username: str,
-                     ip_address: str,
-                     instance_name: str):
-        self.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP(), %s, %s)", [
-            username,
-            ip_address,
-            instance_name
-        ])
-
-    def save_source_file(self, source_file: structures.NODBSourceFile):
-        self._upsert_nodb_object_by_primary_key(source_file, "nodb_source_files", ["source_uuid", "partition_key"])
-
     def load_queue_item(self, queue_uuid) -> t.Optional[structures.NODBQueueItem]:
-        return self._load_nodb_object_by_primary_key(
-            structures.NODBQueueItem,
-            "nodb_queues",
-            {"queue_uuid": queue_uuid}
+        return self.load_object(
+            obj_cls=structures.NODBQueueItem,
+            filters={"queue_uuid": queue_uuid}
         )
 
     def mark_queue_item_complete(self, queue_item: structures.NODBQueueItem):
@@ -386,6 +216,157 @@ class _NODBControllerInstance:
         except Exception as ex:
             self.rollback_to_savepoint("fetch_queue_item")
             return None
+
+    def load_object(self,
+                    obj_cls: type,
+                    filters: dict[str, str],
+                    limit_fields: t.Optional[list[str]] = None,
+                    lock_type: LockType = LockType.NONE):
+        key_names = list(x for x in filters.keys())
+        if limit_fields:
+            limit_fields = set(limit_fields)
+            limit_fields.update(key_names)
+            limit_fields.update(obj_cls.get_primary_keys())
+        else:
+            limit_fields = None
+        field_list = '*' if limit_fields is None else ', '.join(limit_fields)
+        query = f"SELECT {field_list} FROM {obj_cls.get_table_name()} WHERE "
+        query += " AND ".join(f"{x} = %s" for x in key_names)
+        if lock_type == LockType.FOR_SHARE:
+            query += " FOR SHARE"
+        elif lock_type == LockType.FOR_UPDATE:
+            query += " FOR UPDATE"
+        elif lock_type == LockType.FOR_NO_KEY_UPDATE:
+            query += " FOR NO KEY UPDATE"
+        elif lock_type == LockType.FOR_KEY_SHARE:
+            query += " FOR KEY SHARE"
+        self.execute(query, [filters[x] for x in key_names])
+        first_row = self.fetchone()
+        if first_row:
+            return obj_cls(
+                is_new=False,
+                **{x: first_row[x] for x in first_row.keys()}
+            )
+        return None
+
+    def upsert_object(self, obj: structures._NODBBaseObject):
+        query = f"INSERT INTO {obj.get_table_name()}"
+        args = []
+        primary_keys = obj.get_primary_keys()
+        update_values = list(obj.modified_values)
+        insert_values = list(obj.modified_values)
+        for pk in primary_keys:
+            if pk in update_values:
+                update_values.remove(pk)
+            if pk not in insert_values and obj.get(pk, None) is not None:
+                insert_values.append(pk)
+        if insert_values:
+            query += " ("
+            query += ", ".join(f"{x}" for x in insert_values)
+            query += ")"
+            query += " VALUES ("
+            query += ", ".join("%s" for _ in insert_values)
+            query += ")"
+            args.extend([obj.get_for_db(x) for x in insert_values])
+        else:
+            query += " DEFAULT VALUES"
+        query += " ON CONFLICT (" + ",".join(primary_keys) + ") DO"
+        if update_values:
+            query += " UPDATE SET "
+            query += ", ".join(f"{x} = EXCLUDED.{x}" for x in update_values)
+        else:
+            query += " NOTHING"
+        query += " RETURNING " + ",".join(primary_keys)
+        self.execute(query, args)
+        row = self.fetchone()
+        if row[0] is not None:
+            for x in primary_keys:
+                obj.set(row[x], x)
+            obj.clear_modified()
+            return True
+        return False
+
+    def load_source_file(self,
+                         source_file_uuid: str,
+                         partition_key: datetime.date,
+                         limit_fields: t.Optional[list[str]] = None,
+                         lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBSourceFile]:
+        return self.load_object(
+            obj_cls=structures.NODBSourceFile,
+            filters={"source_uuid": source_file_uuid, "partition_key": partition_key},
+            limit_fields=limit_fields,
+            lock_type=lock_type
+        )
+
+    def load_upload_workflow_config(self, workflow_name: str, lock_type: LockType = LockType.NONE) -> t.Optional[
+        structures.NODBUploadWorkflow]:
+        return self.load_object(
+            obj_cls=structures.NODBUploadWorkflow,
+            filters={"workflow_name": workflow_name},
+            lock_type=lock_type
+        )
+
+    def load_user(self,
+                  username: str,
+                  lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBUser]:
+        return self.load_object(
+            obj_cls=structures.NODBUser,
+            filters={"username": username},
+            lock_type=lock_type
+        )
+
+    def load_permissions(self,
+                         roles: t.Optional[list[str]]) -> set[str]:
+        if not roles:
+            return set()
+        permissions = set()
+        q = "SELECT permission FROM nodb_permissions WHERE role_name IN ("
+        q += ", ".join('%s' for _ in roles)
+        q += ")"
+        self.execute(q, roles)
+        for row in self.fetchall():
+            permissions.add(row[0])
+        return permissions
+
+    def grant_permission(self, role_name, permission_name):
+        self.execute("SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s", [
+            role_name,
+            permission_name
+        ])
+        row = self.fetchone()
+        if row is not None:
+            self.execute("INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)", [
+                role_name,
+                permission_name
+            ])
+
+    def remove_permission(self, role_name, permission_name):
+        self.execute("DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s", [
+            role_name,
+            permission_name
+        ])
+
+    def load_session(self,
+                     session_id: str,
+                     lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBSession]:
+        return self.load_object(
+            obj_cls=structures.NODBSession,
+            filters={"session_id": session_id},
+            lock_type=lock_type
+        )
+
+    def delete_session(self, session_id: str):
+        self.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
+
+    def record_login(self,
+                     username: str,
+                     ip_address: str,
+                     instance_name: str):
+        self.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP(), %s, %s)", [
+            username,
+            ip_address,
+            instance_name
+        ])
 
 
 @injector.injectable_global

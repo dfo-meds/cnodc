@@ -159,18 +159,18 @@ def unassign_role(username: str, role_name: str, nodb: NODBController = None):
 
 
 def current_user() -> t.Optional[NODBUser]:
-    if verify_user_token():
+    if flask.has_request_context() and verify_user_token():
         return flask.g.user
     return None
 
 
 def current_permissions() -> set:
-    if verify_user_token() and 'permissions' in flask.g:
-        return flask.g.permissions
+    if flask.has_request_context() and verify_user_token() and 'permissions' in flask.g:
+            return flask.g.permissions
     return set()
 
 
 def current_session() -> t.Optional[NODBSession]:
-    if verify_user_token():
+    if flask.has_request_context() and verify_user_token():
         return flask.g.session
     return None
