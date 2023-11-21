@@ -24,6 +24,7 @@ def update_user(username: str):
     uc.update_user(
         username,
         flask.request.json['password'] if 'password' in flask.request.json else None,
+        flask.request.json['old_expiry_seconds'] if 'old_expiry_seconds' in flask.request.json else None,
         flask.request.json['is_active'] if 'is_active' in flask.request.json else None
     )
 

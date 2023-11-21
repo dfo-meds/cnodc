@@ -5,6 +5,8 @@ import hashlib
 import json
 import typing as t
 import secrets
+
+import zrlog
 from autoinject import injector
 
 from cnodc.storage import FileController
@@ -98,13 +100,13 @@ class _NODBBaseObject:
         return self.get(item)
 
     def get(self, item, default=None):
-        if item in self._data:
+        if item in self._data and self._data[item] is not None:
             return self._data[item]
         return default
 
     def get_for_db(self, item, default=None):
         retval = default
-        if item in self._data:
+        if item in self._data and self._data[item] is not None:
             retval = self._data[item]
         if isinstance(retval, enum.Enum):
             retval = retval.value
@@ -120,9 +122,23 @@ class _NODBBaseObject:
             raise AttributeError(f"{item} is read-only")
         if coerce is not None and value is not None:
             value = coerce(value)
-        if item not in self._data or self._data[item] != value:
+        if not self._value_equal(item, value):
             self._data[item] = value
             self.mark_modified(item)
+
+    def _value_equal(self, item, value) -> bool:
+        # No item means can't be equal
+        if item not in self._data:
+            return False
+        # Handle the none case for the current value
+        if self._data[item] is None:
+            return value is None
+        # avoid checking None == self._data[item] by handling this case
+        elif value is None:
+            return False  # self._data[item] is not None, so not equal
+        # Two non-none values
+        else:
+            return self._data[item] == value
 
     def mark_modified(self, item):
         self.modified_values.add(item)
@@ -321,6 +337,9 @@ class NODBUser(_NODBBaseObject):
     username: str = _NODBBaseObject.make_property("username", coerce=str, primary_key=True)
     phash: bytes = _NODBBaseObject.make_property("phash")
     salt: bytes = _NODBBaseObject.make_property("salt")
+    old_phash: bytes = _NODBBaseObject.make_property("old_phash")
+    old_salt: bytes = _NODBBaseObject.make_property("old_salt")
+    old_expiry: datetime = _NODBBaseObject.make_datetime_property("old_expiry")
     status: UserStatus = _NODBBaseObject.make_enum_property("status", UserStatus)
     roles: list = _NODBBaseObject.make_property("roles")
 
@@ -337,16 +356,42 @@ class NODBUser(_NODBBaseObject):
             self.roles.remove(role_name)
             self.modified_values.add('roles')
 
-    def set_password(self, new_password, salt_length: int = 16):
+    def set_password(self, new_password, salt_length: int = 16, old_expiry_seconds: int = 0):
+        if not isinstance(new_password, str):
+            raise CNODCError("Invalid type for new password", "USERCHECK", 1002)
+        if len(new_password) > 1024:
+            raise CNODCError("Password is too long", "USERCHECK", 1001)
+        if new_password == '':
+            raise CNODCError('No password provided', 'USERCHECK', 1003)
+        if old_expiry_seconds > 0:
+            self.old_salt = self.salt
+            self.old_phash = self.phash
+            self.old_expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=old_expiry_seconds)
         self.salt = secrets.token_bytes(salt_length)
         self.phash = NODBUser.hash_password(new_password, self.salt)
 
     def check_password(self, password):
         check_hash = NODBUser.hash_password(password, self.salt)
-        return secrets.compare_digest(check_hash, self.phash)
+        if secrets.compare_digest(check_hash, self.phash):
+            return True
+        if self.old_phash and self.old_salt and self.old_expiry:
+            if self.old_expiry > datetime.datetime.now(datetime.timezone.utc):
+                old_check_hash = NODBUser.hash_password(password, self.old_salt)
+                if secrets.compare_digest(old_check_hash, self.old_phash):
+                    zrlog.get_logger("cnodc").notice(f"Old password used for login by {self.username}")
+                    return True
+        return False
+
+    def cleanup(self):
+        if self.old_expiry <= datetime.datetime.now(datetime.timezone.utc):
+            self.old_phash = None
+            self.old_salt = None
+            self.old_expiry = None
 
     @staticmethod
     def hash_password(password: str, salt: bytes, iterations=752123) -> bytes:
+        if not isinstance(password, str):
+            raise CNODCError("Invalid password", "USERCHECK", 1000)
         return hashlib.pbkdf2_hmac('sha512', password.encode('utf-8', errors="replace"), salt, iterations)
 
     @classmethod
@@ -472,7 +517,7 @@ class NODBUploadWorkflow(_NODBBaseObject):
 
 
 
-
+"""
 
 
 
@@ -799,3 +844,4 @@ class _SearchDataAggregator:
 
 
 
+"""

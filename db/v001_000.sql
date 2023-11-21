@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS nodb_users (
     username            VARCHAR(126)    NOT NULL    PRIMARY KEY,
     phash               BYTEA,
     salt                BYTEA,
+    old_phash           BYTEA                       DEFAULT NULL,
+    old_salt            BYTEA                       DEFAULT NULL,
+    old_expiry          TIMESTAMPTZ                 DEFAULT NULL,
     status              user_status     NOT NULL    DEFAULT 'ACTIVE',
     roles               JSON
 );

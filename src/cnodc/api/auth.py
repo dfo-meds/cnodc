@@ -37,18 +37,20 @@ class LoginController:
             raise CNODCError("Already logged in", "LOGINCTRL", 1002)
         session_time = self._get_session_time()
         with self.nodb as db:
-            user: structures.NODBUser = structures.NODBUser.find_by_username(db, username)
+            user: structures.NODBUser = structures.NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             if not user:
                 self._logger.error(f"Login failed for user [{username}], invalid username")
                 raise CNODCError(f"Invalid username or password", "LOGINCTRL", 1003)
             if not user.check_password(password):
                 self._logger.error(f"Login failed for user [{username}], invalid password")
                 raise CNODCError(f"Invalid username or password", "LOGINCTRL", 1003)
+            user.cleanup()
             session = structures.NODBSession()
             session.username = user.username
             session.session_id = secrets.token_hex(32)
             session.start_time = datetime.datetime.now(datetime.timezone.utc)
             session.expiry_time = session.start_time + datetime.timedelta(seconds=session_time)
+            db.upsert_object(user)
             db.upsert_object(session)
             db.record_login(
                 username,
@@ -184,6 +186,8 @@ class UserController:
                 1000
             )
         with self.nodb as db:
+            # Regain lock for password update
+            user = structures.NODBUser.find_by_username(db, user.username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             user.set_password(password)
             db.upsert_object(user)
             db.commit()
@@ -204,7 +208,7 @@ class UserController:
             db.upsert_object(new_user)
             db.commit()
 
-    def update_user(self, username: str, password: str = None, is_active: bool = None):
+    def update_user(self, username: str, password: str = None, old_expiry_seconds: int = 0, is_active: bool = None):
         if is_active is None and password is None:
             raise CNODCError(
                 "No user properties to update",
@@ -220,7 +224,7 @@ class UserController:
                     1003
                 )
             if password is not None:
-                existing.set_password(password)
+                existing.set_password(password, old_expiry_seconds=old_expiry_seconds)
             if is_active is True:
                 existing.status = structures.UserStatus.ACTIVE
             elif is_active is False:
