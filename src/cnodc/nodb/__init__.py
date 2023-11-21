@@ -1,1 +1,1 @@
-from .controller import NODBController, LockType
+from .controller import NODBController, LockType, NODBControllerInstance

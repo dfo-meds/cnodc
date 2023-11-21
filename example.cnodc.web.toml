@@ -1,0 +1,8 @@
+[flask]
+MAX_CONTENT_LENGTH = 1000 # bytes
+UPLOAD_FOLDER = "" # path to upload
+SECRET_KEY = "" # secret key
+PERMANENT_SESSION_LIFETIME = 2678400
+
+[logging]
+# usual stuff

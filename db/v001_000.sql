@@ -127,7 +127,8 @@ CREATE INDEX IF NOT EXISTS ix_nodb_sessions_username ON nodb_sessions(username);
 
 CREATE TABLE IF NOT EXISTS nodb_upload_workflows (
     workflow_name       VARCHAR(126)    NOT NULL    PRIMARY KEY,
-    configuration       JSON
+    configuration       JSON,
+    is_active           BOOLEAN         NOT NULL    DEFAULT TRUE
 );
 
 -- Source Files Table

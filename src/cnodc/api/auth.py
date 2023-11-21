@@ -75,7 +75,7 @@ class LoginController:
             return session
 
     def _get_session_time(self) -> int:
-        session_time = flask.current_app.config.get('SESSION_EXPIRY_SECONDS') if 'SESSION_EXPIRY_SECONDS' in flask.current_app.config else 86400
+        session_time = flask.current_app.config.get('PERMANENT_SESSION_LIFETIME')
         if session_time < 1:
             self._logger.warning(f"Session time is configured to be less than 1")
             session_time = 86400
@@ -86,7 +86,7 @@ class LoginController:
         return serializer.dumps(session.session_id)
 
     def _get_serializer(self) -> itsdangerous.Serializer:
-        if 'SECRET_KEY' not in flask.current_app.config:
+        if not flask.current_app.config.get('SECRET_KEY'):
             self._logger.error("Secret key is not defined properly")
             raise CNODCError('Missing secret key', 'LOGINCTRL', 1005)
         if self._serializer is None:

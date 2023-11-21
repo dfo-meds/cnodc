@@ -2,7 +2,7 @@ import flask
 from autoinject import injector
 from .auth import LoginController, UserController
 from .util import require_login, require_inputs, require_permission, json_api
-
+from .uploads import UploadResult, UploadController
 
 cnodc = flask.Blueprint("cnodc", __name__)
 
@@ -42,37 +42,69 @@ def change_password():
     uc.change_password(flask.request.json["password"])
 
 
-@cnodc.route('/users/<username>/create', methods=["POST"])
-@require_inputs(['password'])
-@require_permission('manage_users')
-def create_user(username):
-    uc = UserController()
-    uc.create_user(username, flask.request.json['password'])
+@cnodc.route('/submit/<workflow_name>', methods=["POST"])
+@json_api
+@require_permission("submit_files")
+def submit_file(workflow_name: str):
+    uc = UploadController(workflow_name)
+    res = uc.upload_request(flask.request.data, {
+        x: flask.request.headers.get(x)
+        for x in flask.request.headers.keys(True)
+    })
+    if res == UploadResult.CONTINUE:
+        args = {
+            'workflow_name': workflow_name,
+            'request_id': uc.request_id
+        }
+        return {
+            'headers': {
+                'x-cnodc-token': uc.token
+            },
+            'next_uri': flask.url_for('cnodc.submit_next_file', **args, _external=True),
+            'cancel_uri': flask.url_for('cnodc.cancel_request', **args, _external=True)
+        }
+    return {'success': True}
 
 
-@cnodc.route('/users/<username>/update', methods=["POST"])
-@require_inputs([])
-@require_permission('manage_users')
-def update_user(username: str):
-    uc = UserController()
-    uc.update_user(
-        username,
-        flask.request.json['password'] if 'password' in flask.request.json else None,
-        flask.request.json['is_active'] if 'is_active' in flask.request.json else None
-    )
+@cnodc.route('/submit/<workflow_name>/<request_id>', methods=["POST"])
+@json_api
+@require_permission("submit_files")
+def submit_next_file(workflow_name: str, request_id: str):
+    uc = UploadController(workflow_name, request_id, flask.request.headers.get('x-cnodc-token', None))
+    res = uc.upload_request(flask.request.data, {
+        x: flask.request.headers.get(x)
+        for x in flask.request.headers.keys(True)
+    })
+    if res == UploadResult.CONTINUE:
+        args = {
+            'workflow_name': workflow_name,
+            'request_id': uc.request_id
+        }
+        return {
+            'headers': {
+                'x-cnodc-token': uc.token,
+            },
+            'next_uri': flask.url_for('cnodc.submit_next_file', **args, _external=True),
+            'cancel_uri': flask.url_for('cnodc.cancel_request', **args, _external=True)
+        }
+    return {'success': True}
 
 
-@cnodc.route('/users/<username>/assign-role', methods=["POST"])
-@require_inputs(['role_name'])
-@require_permission('manage_users')
-def assign_role(username: str):
-    uc = UserController()
-    uc.assign_role(username, flask.request.json['role_name'])
+@cnodc.route('/submit/<workflow_name>/<request_id>/cancel', methods=['POST'])
+@json_api
+@require_permission("submit_files")
+def cancel_request(workflow_name: str, request_id: str):
+    uc = UploadController(workflow_name, request_id, flask.request.headers.get('x-cnodc-token', None))
+    uc.cancel_request()
+    return {'success': True}
 
 
-@cnodc.route('/users/<username>/assign-role', methods=["POST"])
-@require_inputs(['role_name'])
-@require_permission('manage_users')
-def unassign_role(username: str):
-    uc = UserController()
-    uc.unassign_role(username, flask.request.json['role_name'])
+@cnodc.route('/submit/<workflow_name>', methods=['POST'])
+@json_api
+@require_permission("submit_files")
+def workflow_info(workflow_name):
+    uc = UploadController(workflow_name)
+    uc.check_access()
+    return {
+        'max_chunk_size': flask.current_app.config['MAX_CONTENT_LENGTH']
+    }

@@ -20,7 +20,7 @@ class LockType(enum.Enum):
     FOR_KEY_SHARE = "5"
 
 
-class _NODBControllerInstance:
+class NODBControllerInstance:
 
     def __init__(self, pg_connection):
         self._conn = pg_connection
@@ -106,7 +106,7 @@ class _NODBControllerInstance:
                      row_sep: str = "\n"):
         mem_file = tempfile.SpooledTemporaryFile(mem_size, mode="w+", encoding="utf-8")
         for value_list in values:
-            s = column_sep.join(_NODBControllerInstance.escape_copy_value(v) for v in value_list) + row_sep
+            s = column_sep.join(NODBControllerInstance.escape_copy_value(v) for v in value_list) + row_sep
             mem_file.write(s)
         mem_file.seek(0, 0)
         self.copy_expert(copy_query, mem_file)
@@ -136,7 +136,7 @@ class _NODBControllerInstance:
             utc_v = v.astimezone(datetime.timezone(datetime.timedelta(seconds=0), "UTC"))
             return utc_v.strftime('%Y-%m-%d %H:%M:%SZ')
         elif isinstance(v, (list, tuple, dict)):
-            return _NODBControllerInstance.escape_copy_value(json.dumps(v))
+            return NODBControllerInstance.escape_copy_value(json.dumps(v))
         else:
             return str(v)
 
@@ -396,8 +396,8 @@ class NODBController:
         self._connect_args = self.config.as_dict(("cnodc", "nodb_connection"), default={})
         self._connect_args['cursor_factory'] = pge.DictCursor
 
-    def __enter__(self) -> _NODBControllerInstance:
-        self._instance = _NODBControllerInstance(pg.connect(**self._connect_args))
+    def __enter__(self) -> NODBControllerInstance:
+        self._instance = NODBControllerInstance(pg.connect(**self._connect_args))
         return self._instance
 
     def __exit__(self, exc_type, exc_val, exc_tb):

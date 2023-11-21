@@ -5,7 +5,10 @@ import hashlib
 import json
 import typing as t
 import secrets
-from cnodc.util import CNODCError
+from autoinject import injector
+
+from cnodc.storage import FileController
+from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
 
 class NODBValidationError(CNODCError):
@@ -383,19 +386,72 @@ class NODBUploadWorkflow(_NODBBaseObject):
 
     workflow_name: str = _NODBBaseObject.make_property("workflow_name", coerce=str, primary_key=True)
     configuration: dict[str, t.Any] = _NODBBaseObject.make_property("configuration")
+    is_active: bool = _NODBBaseObject.make_property('is_active', coerce=bool)
 
-    def check_access(self):
-        permission_name = self.get_config('permission')
-        return permission_name in current_permissions()
-
-    def validate(self):
-        if self.get_config("allow_overwrite", "user") not in ("always", "never", "user"):
-            raise CNODCError('Invalid value for [allow_overwrite]: ', 'UPLOADCFG', 1000)
+    def permissions(self):
+        return self.get_config('permission', default=None)
 
     def get_config(self, config_key: str, default=None):
         if self.configuration and config_key in self.configuration:
             return self.configuration[config_key]
         return default
+
+    @injector.inject
+    def check_config(self, files: FileController = None):
+        allow_overwrite = self.get_config("allow_overwrite", "user")
+        if allow_overwrite not in ("always", "never", "user"):
+            raise CNODCError(f'Invalid value for [allow_overwrite]: {allow_overwrite}, must be one of (always|never|user)', 'WFCHECK', 1000)
+        if 'validation' in self.configuration and self.configuration['validation'] is not None:
+            try:
+                x = dynamic_object(self.configuration['validation'])
+                if not callable(x):
+                    raise CNODCError(
+                        f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python callable', 'WFCHECK', 1001)
+            except DynamicObjectLoadError:
+                raise CNODCError(f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python object', 'WFCHECK', 1002)
+        if 'metadata' in self.configuration and self.configuration['metadata']:
+            if not isinstance(self.configuration['metadata'], dict):
+                raise CNODCError("Invalid value for [metadata]: must be a dictionary", "WFCHECK", 1003)
+            for x in self.configuration['metadata'].keys():
+                if not isinstance(x, str):
+                    raise CNODCError(f"Invalid key for [metadata]: {x}, must be a string", "WFCHECK", 1004)
+                if not isinstance(self.configuration['metadata'][x], str):
+                    raise CNODCError(f'Invalid value for [metadata.{x}]: {self.configuration["metadata"][x]}, must be a string', 'WFCHECK', 1005)
+        has_upload = False
+        if 'upload' in self.configuration and self.configuration['upload']:
+            has_upload = True
+            try:
+                _ = files.get_handle(self.configuration['upload'])
+            except Exception as ex:
+                raise CNODCError(f"Invalid value for [upload]: {self.configuration['upload']}, {str(ex)}", "WFCHECK", 1006)
+        if 'archive' in self.configuration and self.configuration['archive']:
+            has_upload = True
+            try:
+                _ = files.get_handle(self.configuration['archive'])
+            except Exception as ex:
+                raise CNODCError(f"Invalid value for [archive]: {self.configuration['archive']}, {str(ex)}", "WFCHECK", 1007)
+        if not has_upload:
+            raise CNODCError(f"Workflow missing either upload or archive URL", "WFCHECK", 1008)
+        if 'upload_tier' in self.configuration and self.configuration['upload_tier']:
+            if not ('upload' in self.configuration and self.configuration['upload']):
+                raise CNODCError('Workflow specifies an [upload_tier] without an [upload]', 'WFCHECK', 1009)
+            if self.configuration['upload_tier'] not in ('frequent', 'infrequent', 'archival'):
+                raise CNODCError(f'Invalid value for [upload_tier]: {self.configuration["upload_tier"]}, expecting (frequent|infrequent|archival)', "WFCHECK", 1010)
+        if 'archive_tier' in self.configuration and self.configuration['archive_tier']:
+            if not ('archive' in self.configuration and self.configuration['archive']):
+                raise CNODCError('Workflow specifies an [archive_tier] without an [archive]', 'WFCHECK', 1011)
+            if self.configuration['archive_tier'] not in ('frequent', 'infrequent', 'archival'):
+                raise CNODCError(f'Invalid value for [archive_tier]: {self.configuration["archive_tier"]}, expecting (frequent|infrequent|archival)', "WFCHECK", 1012)
+        if 'queue' in self.configuration and self.configuration['queue']:
+            if not isinstance(self.configuration['queue'], str):
+                raise CNODCError(f'Invalid value for [queue]: {self.configuration["queue"]}, expecting string', 'WFCHECK', 1013)
+        if 'queue_priority' in self.configuration and self.configuration['queue_priority'] is not None:
+            if not isinstance(self.configuration['queue_priority'], int):
+                raise CNODCError(f'Invalid value for [queue_priority]: {self.configuration["queue_priority"]}, expecting int', 'WFCHECK', 1014)
+
+    @classmethod
+    def find_by_name(cls, db, workflow_name: str, *args, **kwargs):
+        return db.load_object(cls, {"workflow_name": workflow_name}, *args, **kwargs)
 
 
 
