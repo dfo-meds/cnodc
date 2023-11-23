@@ -48,7 +48,7 @@ def _make_json_api(cb: callable, args, kwargs, input_names: t.Optional[t.Iterabl
         res = cb(*args, **kwargs)
         return {'success': True} if res is None else res
     except CNODCError as ex:
-        zrlog.get_logger("cnodc").exception(ex)
+        zrlog.get_logger("cnodc").error(ex.pretty())
         return {"error": str(ex), "code": ex.obfuscated_code()}
     except Exception as ex:
         zrlog.get_logger("cnodc").exception(ex)
