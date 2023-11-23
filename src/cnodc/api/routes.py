@@ -48,7 +48,7 @@ def change_password():
 def submit_file(workflow_name: str):
     uc = UploadController(workflow_name)
     res = uc.upload_request(flask.request.data, {
-        x: flask.request.headers.get(x)
+        x.lower(): flask.request.headers.get(x)
         for x in flask.request.headers.keys(True)
     })
     if res == UploadResult.CONTINUE:
@@ -58,7 +58,7 @@ def submit_file(workflow_name: str):
         }
         return {
             'headers': {
-                'x-cnodc-token': uc.token
+                'X-CNODC-Token': uc.token
             },
             'next_uri': flask.url_for('cnodc.submit_next_file', **args, _external=True),
             'cancel_uri': flask.url_for('cnodc.cancel_request', **args, _external=True)
@@ -72,7 +72,7 @@ def submit_file(workflow_name: str):
 def submit_next_file(workflow_name: str, request_id: str):
     uc = UploadController(workflow_name, request_id, flask.request.headers.get('x-cnodc-token', None))
     res = uc.upload_request(flask.request.data, {
-        x: flask.request.headers.get(x)
+        x.lower(): flask.request.headers.get(x)
         for x in flask.request.headers.keys(True)
     })
     if res == UploadResult.CONTINUE:
@@ -82,10 +82,10 @@ def submit_next_file(workflow_name: str, request_id: str):
         }
         return {
             'headers': {
-                'x-cnodc-token': uc.token,
+                'X-CNODC-Token': uc.token,
             },
             'next_uri': flask.url_for('cnodc.submit_next_file', **args, _external=True),
-            'cancel_uri': flask.url_for('cnodc.cancel_request', **args, _external=True)
+            'cancel_uri': flask.url_for('cnodc.cancel_request', **args, _external=True),
         }
     return {'success': True}
 
@@ -105,6 +105,7 @@ def cancel_request(workflow_name: str, request_id: str):
 def workflow_info(workflow_name):
     uc = UploadController(workflow_name)
     uc.check_access()
+
     return {
         'max_chunk_size': flask.current_app.config['MAX_CONTENT_LENGTH']
     }

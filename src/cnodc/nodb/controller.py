@@ -294,7 +294,8 @@ class NODBControllerInstance:
             args.extend([obj.get_for_db(x) for x in insert_values])
         else:
             query += " DEFAULT VALUES"
-        query += " RETURNING " + ",".join(primary_keys)
+        if primary_keys:
+            query += " RETURNING " + ",".join(primary_keys)
         self.execute(query, args)
         row = self.fetchone()
         if row is not None and row[0] is not None:

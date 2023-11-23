@@ -27,7 +27,8 @@ class LocalHandle(DirFileHandle):
         DirFileHandle._local_write_chunks(self._path, chunks, halt_flag)
 
     def _complete_upload(self, local_path: pathlib.Path, halt_flag: HaltFlag = None):
-        shutil.copystat(local_path, self._path)
+        if isinstance(local_path, (str, pathlib.Path)):
+            shutil.copystat(local_path, self._path)
         self._stat_cache = None
 
     def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None):

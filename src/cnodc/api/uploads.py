@@ -72,8 +72,6 @@ class UploadController:
         self._request_dir = None
         if '/' in self.workflow_name or '\\' in self.workflow_name or '.' in self.workflow_name:
             raise CNODCError('Invalid character in workflow name', 'UPLOADCTRL', 1000)
-        if not flask.current_app.config.get('UPLOAD_FOLDER'):
-            raise CNODCError("No upload folder configured", "UPLOADCTRL", 1009)
 
     def update_workflow_config(self, config: t.Optional[dict], is_active: t.Optional[bool] = None):
         if config is None and is_active is None:
@@ -99,6 +97,8 @@ class UploadController:
 
     def _request_directory(self) -> pathlib.Path:
         if self._request_dir is None:
+            if not flask.current_app.config.get('UPLOAD_FOLDER'):
+                raise CNODCError("No upload folder configured", "UPLOADCTRL", 1009)
             upload_dir = pathlib.Path(flask.current_app.config['UPLOAD_FOLDER']).resolve()
             try:
                 self._ensure_request_id()
@@ -138,8 +138,9 @@ class UploadController:
             raise CNODCError(f"Workflow [{self.workflow_name}] is not active", "UPLOADCTRL", 1011)
         current_perms = self.login.current_permissions()
         required_perms = workflow.permissions()
-        if not any(p in current_perms for p in required_perms):
-            raise CNODCError(f"Access to [{self.workflow_name}] denied", "UPLOADCTRL", 1007)
+        if required_perms:
+            if not any(p in current_perms for p in required_perms):
+                raise CNODCError(f"Access to [{self.workflow_name}] denied", "UPLOADCTRL", 1007)
         return workflow
 
     def _check_data_integrity(self, data: bytes, headers: dict[str, str]):
@@ -168,6 +169,7 @@ class UploadController:
         if header_file.exists():
             with open(header_file, "r") as h:
                 return yaml.safe_load(h.read()) or {}
+        return {}
 
     def _save_data(self, data: bytes):
         idx = 0
@@ -193,7 +195,7 @@ class UploadController:
                 if not dynamic_object(validation_target)(self, headers):
                     raise CNODCError("Validation failed", "UPLOADCTRL", 1010)
             filename = self._get_filename(headers)
-            metadata = self._get_metadata(workflow.get_config('metadata'), {})
+            metadata = self._get_metadata(workflow.get_config('metadata', default={}), headers)
             allow_overwrite = headers['allow-overwrite'] == '1' if 'allow-overwrite' in headers else False
             workflow_allow_overwrite = workflow.get_config('allow_overwrite', None)
             if workflow_allow_overwrite == 'always':
@@ -209,7 +211,7 @@ class UploadController:
                 upload_dir = self.files.get_handle(primary_upload_uri)
                 primary_handle = upload_dir.child(filename)
                 primary_handle.upload(
-                    data=self._data_iterator(),
+                    self._data_iterator(),
                     allow_overwrite=allow_overwrite,
                     storage_tier=primary_upload_tier,
                     metadata=metadata
@@ -219,7 +221,7 @@ class UploadController:
                 archive_dir = self.files.get_handle(secondary_upload_uri)
                 secondary_handle = archive_dir.child(filename)
                 secondary_handle.upload(
-                    data=self._data_iterator(),
+                    self._data_iterator(),
                     allow_overwrite=allow_overwrite,
                     storage_tier=secondary_upload_tier,
                     metadata=metadata
@@ -238,6 +240,7 @@ class UploadController:
                     priority=workflow.get_config('queue_priority', None),
                     unique_item_key=headers['unique-key'] if 'unique-key' in headers else None
                 )
+            self._cleanup_request()
         except Exception as ex:
             if primary_handle:
                 primary_handle.remove()
@@ -289,16 +292,16 @@ class UploadController:
         self._check_data_integrity(data, headers)
         with self.nodb as db:
             workflow = self._load_workflow(db)
-            headers = self._save_metadata(headers)
+            working_headers = self._save_metadata(headers)
             self._save_data(data)
             if 'x-cnodc-more-data' in headers and headers['x-cnodc-more-data'] == '1':
                 self.token = secrets.token_urlsafe(64)
                 self._save_token()
                 return UploadResult.CONTINUE
             else:
-                self._complete_request(db, workflow, headers)
+                self._complete_request(db, workflow, working_headers)
                 return UploadResult.COMPLETE
 
     @staticmethod
     def hash_token(token: str) -> bytes:
-        return hashlib.pbkdf2_hmac('sha256', token, salt=flask.current_app.config['SECRET_KEY'], iterations=985123)
+        return hashlib.pbkdf2_hmac('sha256', token.encode('utf-8'), salt=flask.current_app.config['SECRET_KEY'], iterations=985123)

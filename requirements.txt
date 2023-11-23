@@ -8,3 +8,5 @@ zrlog
 flask_autoinject
 prometheus_flask_exporter
 requests
+pyyaml
+toml

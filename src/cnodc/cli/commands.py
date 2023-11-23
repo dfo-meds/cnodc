@@ -1,5 +1,9 @@
+import pathlib
+
 import click
 import secrets
+
+import yaml
 
 
 @click.group
@@ -55,3 +59,17 @@ def remove_permission(role_name, permission):
     uc = UserController()
     uc.remove_permission(role_name, permission)
     print(f"Role {role_name} ungranted {permission}")
+
+
+@main.command
+@click.argument("workflow_name")
+@click.argument("config_file")
+def update_workflow(workflow_name, config_file):
+    from cnodc.api.uploads import UploadController
+    uc = UploadController(workflow_name)
+    config_file = pathlib.Path(config_file)
+    if not config_file.exists():
+        print("config file doesn't exist")
+        exit(1)
+    with open(config_file, "r") as h:
+        uc.update_workflow_config(yaml.safe_load(h) or {})

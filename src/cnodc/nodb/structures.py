@@ -441,6 +441,7 @@ class NODBSession(_NODBBaseObject):
 class NODBUploadWorkflow(_NODBBaseObject):
 
     TABLE_NAME = "nodb_upload_workflows"
+    PRIMARY_KEYS = ("workflow_name",)
 
     workflow_name: str = _NODBBaseObject.make_property("workflow_name", coerce=str)
     configuration: dict[str, t.Any] = _NODBBaseObject.make_property("configuration")

@@ -62,11 +62,14 @@ class CNODCClient:
                     headers['X-CNODC-Upload-MD5'] = hashlib.md5(chunk_current).hexdigest().lower()
                 elif 'X-CNODC-Upload-MD5' in headers:
                     del headers['X-CNODC-Upload-MD5']
+                print(headers)
                 resp = self._make_request("POST", send_link, data=chunk_current, headers=headers)
-                headers.update(resp['headers'])
-                send_link = resp['next_uri']
-                chunk_current = chunk_next
                 if chunk_next != b'':
+                    if 'headers' not in resp or 'next_uri' not in resp:
+                        raise RequestError("Upstream did not provide a next link")
+                    headers.update(resp['headers'])
+                    send_link = resp['next_uri']
+                    chunk_current = chunk_next
                     chunk_next = h.read(self._chunk_sizes[workflow_name])
                 else:
                     break
