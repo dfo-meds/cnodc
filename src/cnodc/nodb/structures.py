@@ -84,6 +84,7 @@ class _NODBBaseObject:
         self._data = {}
         self.modified_values = set()
         self._allow_set_readonly = True
+        self.is_new = is_new
         for x in kwargs:
             if hasattr(self, x):
                 setattr(self, x, kwargs[x])
@@ -95,6 +96,14 @@ class _NODBBaseObject:
             # so we don't update all the values all the time.
             self.modified_values = set()
         self._allow_set_readonly = False
+
+    def __str__(self):
+        s = f"{self.__class__.__name__}: "
+        s += "; ".join(f"{x}={self._data[x]}" for x in self._data)
+        s += " [modified:"
+        s += ";".join(self.modified_values)
+        s += "]"
+        return s
 
     def __getitem__(self, item):
         return self.get(item)

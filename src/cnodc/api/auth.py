@@ -68,6 +68,7 @@ class LoginController:
         session_time = self._get_session_time()
         with self.nodb as db:
             session = self.current_session()
+            print(session)
             if session is None:
                 raise CNODCError("No session available", "LOGINCTRL", 1004)
             session.expiry_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=session_time)

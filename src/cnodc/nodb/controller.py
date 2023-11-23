@@ -253,18 +253,37 @@ class NODBControllerInstance:
         return None
 
     def upsert_object(self, obj: structures._NODBBaseObject, force_update: bool = False):
-        if not(force_update or obj.modified_values):
+        if not(force_update or obj.is_new or obj.modified_values):
             return True
-        query = f"INSERT INTO {obj.get_table_name()}"
-        args = []
+        return self.insert_object(obj) if obj.is_new else self.update_object(obj)
+
+    def update_object(self, obj: structures._NODBBaseObject):
+        if not obj.modified_values:
+            return True
         primary_keys = obj.get_primary_keys()
         update_values = list(obj.modified_values)
-        insert_values = list(obj.modified_values)
         for pk in primary_keys:
             if pk in update_values:
                 update_values.remove(pk)
+        args = []
+        query = f"UPDATE {obj.get_table_name()} SET "
+        query += ", ".join(f"{x} = %s" for x in update_values)
+        args.extend([obj.get_for_db(x) for x in update_values])
+        query += " WHERE "
+        query += " AND ".join(f"{x} = %s" for x in primary_keys)
+        args.extend([obj.get_for_db(x) for x in primary_keys])
+        self.execute(query, args)
+        obj.clear_modified()
+        return True
+
+    def insert_object(self, obj: structures._NODBBaseObject):
+        args = []
+        primary_keys = obj.get_primary_keys()
+        insert_values = list(obj.modified_values)
+        for pk in primary_keys:
             if pk not in insert_values and obj.get(pk, None) is not None:
                 insert_values.append(pk)
+        query = f"INSERT INTO {obj.get_table_name()}"
         if insert_values:
             query += " ("
             query += ", ".join(f"{x}" for x in insert_values)
@@ -275,21 +294,14 @@ class NODBControllerInstance:
             args.extend([obj.get_for_db(x) for x in insert_values])
         else:
             query += " DEFAULT VALUES"
-        query += " ON CONFLICT (" + ",".join(primary_keys) + ") DO"
-        if update_values:
-            query += " UPDATE SET "
-            query += ", ".join(f"{x} = EXCLUDED.{x}" for x in update_values)
-        else:
-            query += " NOTHING"
         query += " RETURNING " + ",".join(primary_keys)
         self.execute(query, args)
         row = self.fetchone()
         if row is not None and row[0] is not None:
             for x in primary_keys:
                 obj.set(row[x], x)
-            obj.clear_modified()
-            return True
-        return False
+        obj.clear_modified()
+        return True
 
     def load_source_file(self,
                          source_file_uuid: str,
