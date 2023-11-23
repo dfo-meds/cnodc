@@ -153,10 +153,10 @@ class _NODBBaseObject:
         return cls.__name__
 
     @classmethod
-    def get_primary_keys(cls):
-        if hasattr(cls, '_primary_keys'):
-            return list(getattr(cls, '_primary_keys'))
-        return []
+    def get_primary_keys(cls) -> t.Sequence:
+        if hasattr(cls, 'PRIMARY_KEYS'):
+            return cls.PRIMARY_KEYS
+        return tuple()
 
     @classmethod
     def make_property(cls, item: str, coerce=None, readonly: bool = False, primary_key: bool = False):
@@ -277,8 +277,9 @@ class _NODBWithMetadata:
 class NODBQueueItem(_NODBBaseObject):
 
     TABLE_NAME: str = "nodb_queues"
+    PRIMARY_KEYS: tuple[str] = ("queue_uuid",)
 
-    queue_uuid: str = _NODBBaseObject.make_property("queue_uuid", coerce=str, primary_key=True)
+    queue_uuid: str = _NODBBaseObject.make_property("queue_uuid", coerce=str)
     created_date: datetime.datetime = _NODBBaseObject.make_datetime_property("created_date", readonly=True)
     modified_date: datetime.datetime = _NODBBaseObject.make_datetime_property("modified_date", readonly=True)
     status: QueueStatus = _NODBBaseObject.make_enum_property("status", QueueStatus, readonly=True)
@@ -293,9 +294,10 @@ class NODBQueueItem(_NODBBaseObject):
 class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
     TABLE_NAME: str = "nodb_source_files"
+    PRIMARY_KEYS: tuple[str] = ("source_uuid", "partition_key",)
 
-    source_uuid: str = _NODBBaseObject.make_property("source_uuid", coerce=str, primary_key=True)
-    partition_key: datetime.date = _NODBBaseObject.make_date_property("partition_key", primary_key=True)
+    source_uuid: str = _NODBBaseObject.make_property("source_uuid", coerce=str)
+    partition_key: datetime.date = _NODBBaseObject.make_date_property("partition_key")
 
     source_path: str = _NODBBaseObject.make_property("source_path", coerce=str)
     persistent_path: str = _NODBBaseObject.make_property("persistent_path", coerce=str)
@@ -333,8 +335,9 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 class NODBUser(_NODBBaseObject):
 
     TABLE_NAME = "nodb_users"
+    PRIMARY_KEYS: tuple[str] = ("username",)
 
-    username: str = _NODBBaseObject.make_property("username", coerce=str, primary_key=True)
+    username: str = _NODBBaseObject.make_property("username", coerce=str)
     phash: bytes = _NODBBaseObject.make_property("phash")
     salt: bytes = _NODBBaseObject.make_property("salt")
     old_phash: bytes = _NODBBaseObject.make_property("old_phash")
@@ -383,7 +386,7 @@ class NODBUser(_NODBBaseObject):
         return False
 
     def cleanup(self):
-        if self.old_expiry <= datetime.datetime.now(datetime.timezone.utc):
+        if self.old_expiry is not None and self.old_expiry <= datetime.datetime.now(datetime.timezone.utc):
             self.old_phash = None
             self.old_salt = None
             self.old_expiry = None
@@ -402,8 +405,9 @@ class NODBUser(_NODBBaseObject):
 class NODBSession(_NODBBaseObject):
 
     TABLE_NAME: str = "nodb_sessions"
+    PRIMARY_KEYS: tuple[str] = ("session_id",)
 
-    session_id: str = _NODBBaseObject.make_property("session_id", coerce=str, primary_key=True)
+    session_id: str = _NODBBaseObject.make_property("session_id", coerce=str)
     start_time: datetime = _NODBBaseObject.make_datetime_property("start_time")
     expiry_time: datetime = _NODBBaseObject.make_datetime_property("expiry_time")
     username: str = _NODBBaseObject.make_property("username", coerce=str)
@@ -429,7 +433,7 @@ class NODBUploadWorkflow(_NODBBaseObject):
 
     TABLE_NAME = "nodb_upload_workflows"
 
-    workflow_name: str = _NODBBaseObject.make_property("workflow_name", coerce=str, primary_key=True)
+    workflow_name: str = _NODBBaseObject.make_property("workflow_name", coerce=str)
     configuration: dict[str, t.Any] = _NODBBaseObject.make_property("configuration")
     is_active: bool = _NODBBaseObject.make_property('is_active', coerce=bool)
 

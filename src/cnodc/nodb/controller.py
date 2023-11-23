@@ -2,6 +2,7 @@ import datetime
 import json
 import tempfile
 import enum
+import zrlog
 
 import psycopg2 as pg
 import psycopg2.extras as pge
@@ -26,8 +27,10 @@ class NODBControllerInstance:
         self._conn = pg_connection
         self._cursor = self._conn.cursor()
         self._is_closed = False
+        self._log = zrlog.get_logger("cnodc.db")
 
     def execute(self, query: str, args: t.Union[list, dict, tuple, None] = None):
+        self._log.debug(f"SQL Query: {query}")
         return self._cursor.execute(query, args)
 
     def commit(self):
@@ -249,7 +252,9 @@ class NODBControllerInstance:
             )
         return None
 
-    def upsert_object(self, obj: structures._NODBBaseObject):
+    def upsert_object(self, obj: structures._NODBBaseObject, force_update: bool = False):
+        if not(force_update or obj.modified_values):
+            return True
         query = f"INSERT INTO {obj.get_table_name()}"
         args = []
         primary_keys = obj.get_primary_keys()
@@ -279,7 +284,7 @@ class NODBControllerInstance:
         query += " RETURNING " + ",".join(primary_keys)
         self.execute(query, args)
         row = self.fetchone()
-        if row[0] is not None:
+        if row is not None and row[0] is not None:
             for x in primary_keys:
                 obj.set(row[x], x)
             obj.clear_modified()
@@ -378,7 +383,7 @@ class NODBControllerInstance:
                      username: str,
                      ip_address: str,
                      instance_name: str):
-        self.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP(), %s, %s)", [
+        self.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP, %s, %s)", [
             username,
             ip_address,
             instance_name

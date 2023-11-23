@@ -21,7 +21,7 @@ class LoginController:
     @injector.construct
     def __init__(self):
         self._serializer = None
-        self._serializer_lock = threading.Lock
+        self._serializer_lock = threading.Lock()
         self._logger = zrlog.get_logger("cnodc.loginctrl")
 
     def do_login(self, username: str, password: str) -> structures.NODBSession:
