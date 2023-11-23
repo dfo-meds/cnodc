@@ -62,7 +62,6 @@ class CNODCClient:
                     headers['X-CNODC-Upload-MD5'] = hashlib.md5(chunk_current).hexdigest().lower()
                 elif 'X-CNODC-Upload-MD5' in headers:
                     del headers['X-CNODC-Upload-MD5']
-                print(headers)
                 resp = self._make_request("POST", send_link, data=chunk_current, headers=headers)
                 if chunk_next != b'':
                     if 'headers' not in resp or 'next_uri' not in resp:

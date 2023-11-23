@@ -150,8 +150,8 @@ class NODBControllerInstance:
                           unique_item_key: t.Optional[str] = None):
         self.execute("INSERT INTO nodb_queues (queue_name, priority, unique_item_name, data) VALUES (%s, %s, %s, %s)", [
             queue_name,
-            unique_item_key,
             priority if priority is not None else 0,
+            unique_item_key,
             json.dumps(data)
         ])
 
