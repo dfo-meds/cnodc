@@ -1,4 +1,4 @@
-"""Data extraction process"""
+"""Data extraction processor"""
 import datetime
 import functools
 import logging
@@ -246,7 +246,7 @@ class _DataExtractionProcessor:
         # Loop through all messages in the file
         for message in decoder.load_messages(self.local_file, replace_logger_cls=logger_cls):
 
-            # Allow the process to halt in between messages
+            # Allow the processor to halt in between messages
             self.halt_flag.check()
 
             # Check if there were warnings or errors during decode
@@ -413,7 +413,7 @@ class _DataExtractionProcessor:
     def _handle_extraction_results(self):
         # By this point, each observation in the file has undergone basic QC. If any haven't,
         # they would have raised an exception. Some may have been released already if an error
-        # was raised during this process though, but nothing should be behind. Only the ones
+        # was raised during this processor though, but nothing should be behind. Only the ones
         # still to be released are in the results at this point.
         for batch_type, batch_key, working_obs_list in self.results.batch_results():
 

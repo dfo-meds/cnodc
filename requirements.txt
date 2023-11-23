@@ -3,3 +3,8 @@ zirconium
 psycopg2
 flask
 click
+prometheus_client
+zrlog
+flask_autoinject
+prometheus_flask_exporter
+requests

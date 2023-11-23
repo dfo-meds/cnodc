@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+
+# Note that 3.9 is required for greenlet to work (as of July 21/2022), 3.10 fails to compile
+FROM python:3.9.13-slim-bullseye
+
+# Get the required libraries to compile psycopg
+RUN apt-get update
+RUN apt-get install libpq-dev build-essential dumb-init -y
+
+WORKDIR /srv/cnodc
+
+VOLUME /cnodc-config
+VOLUME /cnodc-data
+
+ENV CNODC_CONFIG_SEARCH_PATHS=/srv/cnodc/app;/cnodc-config
+ENV PYTHONPATH=/srv/cnodc/app
+ENV MODULE_NAME=app
+ENV VARIABLE_NAME=app
+ENV GUNICORN_CONF=/srv/cnodc/gunicorn_conf.py
+
+RUN pip install --upgrade pip
+
+COPY requirements-docker.txt requirements-docker.txt
+
+RUN pip install -r requirements-docker.txt
+
+COPY ../requirements.txt requirements.txt
+
+RUN pip install -r requirements.txt
+
+COPY start.sh start.sh
+RUN chmod +x start.sh
+
+COPY gunicorn_conf.py gunicorn_conf.py
+
+COPY ../src app/src
+COPY ../app.py app/app.py
+COPY .cnodc.processor.defaults.toml app/.cnodc.processor.defaults.toml
+COPY .cnodc.web.defaults.toml app/.cnodc.web.defaults.toml
+COPY .cnodc.defaults.toml app/.cnodc.defaults.toml
+
+EXPOSE 80
+
+WORKDIR /srv/cnodc/app
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/srv/cnodc/start.sh"]
+
+CMD ["web"]
