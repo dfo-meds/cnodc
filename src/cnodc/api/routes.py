@@ -99,7 +99,7 @@ def cancel_request(workflow_name: str, request_id: str):
     return {'success': True}
 
 
-@cnodc.route('/submit/<workflow_name>', methods=['POST'])
+@cnodc.route('/submit/<workflow_name>', methods=['GET'])
 @json_api
 @require_permission("submit_files")
 def workflow_info(workflow_name):

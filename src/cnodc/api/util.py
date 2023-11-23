@@ -71,4 +71,5 @@ def _check_login_access(permissions: t.Optional[t.Iterable[str]], login: LoginCo
         raise CNODCError("Invalid token", "AUTH", 1000)
     current_perms = login.current_permissions()
     if permissions and '__admin__' not in current_perms and any(p not in current_perms for p in permissions):
+        zrlog.get_logger("cnodc.auth").debug(f"Access denied because none of [{';'.join(permissions)}] found in [{';'.join(current_perms)}]")
         raise CNODCError("Unauthorized request", "AUTH", 1001)

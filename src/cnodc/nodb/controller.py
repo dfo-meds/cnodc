@@ -344,8 +344,7 @@ class NODBControllerInstance:
             obj=user,
         )
 
-    def load_permissions(self,
-                         roles: t.Optional[list[str]]) -> set[str]:
+    def load_permissions(self, roles: t.Optional[list[str]]) -> set[str]:
         if not roles:
             return set()
         permissions = set()
@@ -353,8 +352,7 @@ class NODBControllerInstance:
         q += ", ".join('%s' for _ in roles)
         q += ")"
         self.execute(q, roles)
-        for row in self.fetchall():
-            permissions.add(row[0])
+        permissions.update(row[0] for row in self.fetchall())
         return permissions
 
     def grant_permission(self, role_name, permission_name):
@@ -363,7 +361,7 @@ class NODBControllerInstance:
             permission_name
         ])
         row = self.fetchone()
-        if row is not None:
+        if row is None:
             self.execute("INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)", [
                 role_name,
                 permission_name

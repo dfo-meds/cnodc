@@ -151,6 +151,7 @@ class LoginController:
                 db.commit()
                 return False
             flask.g.permissions = db.load_permissions(flask.g.user.roles)
+            self._logger.debug(f"User roles: [{';'.join(flask.g.user.roles)}]; permissions: [{';'.join(flask.g.permissions)}]")
             return True
 
     def current_session(self) -> t.Optional[structures.NODBSession]:
@@ -259,6 +260,15 @@ class UserController:
             db.upsert_object(existing)
             db.commit()
 
+    def grant_permission(self, role_name: str, permission_name: str):
+        with self.nodb as db:
+            db.grant_permission(role_name, permission_name)
+            db.commit()
+
+    def remove_permission(self, role_name: str, permission_name: str):
+        with self.nodb as db:
+            db.remove_permission(role_name, permission_name)
+            db.commit()
 
 
 

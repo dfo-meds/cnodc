@@ -39,7 +39,7 @@ class CNODCClient:
         self._token = renew_resp['token']
         self._expiry = datetime.datetime.fromisoformat(renew_resp['expiry'])
 
-    def upload_file(self, workflow_name: str, filename: str, file_path: t.Union[str, pathlib.Path], headers: dict = None):
+    def upload_file(self, workflow_name: str, file_path: t.Union[str, pathlib.Path], filename: str = None, headers: dict = None):
         if '/' in workflow_name or '.' in workflow_name or '\\' in workflow_name:
             raise RequestError(f"Invalid workflow name")
         if self._token is None:
@@ -52,7 +52,8 @@ class CNODCClient:
             chunk_next = h.read(self._chunk_sizes[workflow_name])
             send_link = f"submit/{workflow_name}"
             headers = headers or {}
-            headers['X-CNODC-Filename'] = filename
+            if filename is not None:
+                headers['X-CNODC-Filename'] = filename
             send_md5 = not self._base.startswith("https://")
             while chunk_current != b'':
                 self.check_renew()
