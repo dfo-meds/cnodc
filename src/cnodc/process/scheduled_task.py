@@ -1,3 +1,5 @@
+import pathlib
+
 from .base import BaseProcess
 import time
 import datetime
@@ -12,24 +14,67 @@ class ScheduledTask(BaseProcess):
         self._last_execution_start: t.Optional[datetime.datetime] = None
         self._last_execution_end: t.Optional[datetime.datetime] = None
         self._next_execution: t.Optional[datetime.datetime] = None
+        self._first_warning = False
 
     def _run(self):
+        self._load_execution_times()
         self.update_next_execution_time()
         while self.check_continue():
             try:
                 now = datetime.datetime.now(datetime.timezone.utc)
                 if self.check_execution(now):
+                    self.is_working.set()
                     self._last_execution_start = now
                     self.execute()
                     now = datetime.datetime.now(datetime.timezone.utc)
                     self._last_execution_end = now
+                    self._preserve_execution_times()
                     self.update_next_execution_time()
+                    self.is_working.clear()
                 time.sleep(self.sleep_time(now))
             except CNODCError as ex:
                 if ex.is_recoverable:
                     self._log.exception(f"Recoverable exception occurred during scheduled task processing")
                 else:
                     raise ex
+
+    def _preserve_execution_times(self):
+        if self._first_warning:
+            return
+        file = self.get_config("save_file", None)
+        if file is None:
+            self._log.warning(f"Save file is disabled")
+            self._first_warning = True
+            return
+        file_path = pathlib.Path(file).resolve()
+        if not file_path.parent.exists():
+            self._log.warning(f"Save file directory doesn't exist: [{file_path}]")
+            self._first_warning = True
+            return
+        try:
+            with open(file_path, "w") as h:
+                h.write(self._last_execution_start.isoformat())
+                h.write("\n")
+                h.write(self._last_execution_end.isoformat())
+        except Exception as ex:
+            self._log.exception(f"Error saving execution times")
+            self._first_warning = True
+
+    def _load_execution_times(self):
+        file = self.get_config("save_file", None)
+        if file is None:
+            self._log.warning(f"Save file is disabled")
+            self._first_warning = True
+            return
+        file_path = pathlib.Path(file).resolve()
+        if not file_path.exists():
+            return
+        try:
+            with open(file_path, "r") as h:
+                self._last_execution_start = datetime.datetime.fromisoformat(h.readline().strip("\r\n"))
+                self._last_execution_end = datetime.datetime.fromisoformat(h.readline().strip("\r\n"))
+        except Exception as ex:
+            self._log.exception(f"Error loading execution times")
 
     def update_next_execution_time(self):
         mode = self.get_config("schedule_mode", "cron")

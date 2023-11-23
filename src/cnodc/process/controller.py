@@ -166,6 +166,7 @@ class ProcessController:
 
     def _despawn_process(self, process_name, count: int):
         processes_to_check = []
+        # First, check if any processes are currently shutting down
         for p_name in list(self._process_info[process_name]['active'].keys()):
             process = self._process_info[process_name]['active'][p_name]
             if process.shutdown.is_set():
@@ -174,6 +175,7 @@ class ProcessController:
             processes_to_check.append(process)
         if count <= 0:
             return
+        # Next, shut down idle processes if possible
         for process in processes_to_check:
             if not process.is_working.is_set():
                 self._log.debug(f"Shutting down process {process_name}.{process.cnodc_id}")
@@ -181,6 +183,7 @@ class ProcessController:
                 count -= 1
                 if count <= 0:
                     return
+        # Finally, we will attempt to interrupt a running process
         for process in processes_to_check:
             self._log.debug(f"Shutting down process {process_name}.{process.cnodc_id}")
             process.shutdown.set()
