@@ -129,7 +129,7 @@ class WorkflowUploadRequest:
         workflow = db.load_upload_workflow_config(self.workflow_name)
         if workflow is None:
             raise CNODCError(f"Workflow [{self.workflow_name}] not found", "SUBMIT", 1005)
-        if not workflow.check_access():
+        if not workflow.properties():
             raise CNODCError(f"Access to [{self.workflow_name}] denied", "SUBMIT", 1006)
         return workflow
 

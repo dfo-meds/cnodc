@@ -198,7 +198,7 @@ def cancel_file_submission(workflow_name, request_id):
 @require_permission("submit_files")
 @return_json
 def submission_info(workflow_name):
-    workflows.check_access(workflow_name)
+    workflows.properties(workflow_name)
     return {
         'max_chunk_size': flask.current_app.config['MAX_CONTENT_LENGTH']
     }

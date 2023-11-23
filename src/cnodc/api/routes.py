@@ -104,8 +104,8 @@ def cancel_request(workflow_name: str, request_id: str):
 @require_permission("submit_files")
 def workflow_info(workflow_name):
     uc = UploadController(workflow_name)
-    uc.check_access()
-
-    return {
+    info = {
         'max_chunk_size': flask.current_app.config['MAX_CONTENT_LENGTH']
     }
+    info.update(uc.properties())
+    return info

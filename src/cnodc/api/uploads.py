@@ -75,7 +75,7 @@ class UploadController:
 
     def update_workflow_config(self, config: t.Optional[dict], is_active: t.Optional[bool] = None):
         if config is None and is_active is None:
-            raise CNODCError("No workflow changes provided", "UPLOADCTRL", 1010)
+            raise CNODCError("No workflow changes provided", "UPLOADCTRL", 1012)
         with self.nodb as db:
             workflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name, lock_type=LockType.FOR_NO_KEY_UPDATE)
             if workflow is None:
@@ -171,13 +171,18 @@ class UploadController:
                 return yaml.safe_load(h.read()) or {}
         return {}
 
-    def _save_data(self, data: bytes):
+    def _save_data(self, data: bytes, max_size: int = None):
         idx = 0
         request_dir = self._request_directory()
         bin_file = request_dir / f"part.{idx}.bin"
+        total_size = 0
         while bin_file.exists():
+            if max_size is not None:
+                total_size += bin_file.stat().st_size
             idx += 1
             bin_file = request_dir / f"part.{idx}.bin"
+        if max_size is not None and (total_size + len(data)) > max_size:
+            raise CNODCError(f"Maximum size of {max_size} exceeded", "UPLOADCTRL", 1013)
         with open(bin_file, "wb") as h:
             h.write(data)
         with open(request_dir / ".timestamp", "w") as h:
@@ -281,10 +286,12 @@ class UploadController:
         self._check_token()
         self._cleanup_request()
 
-    def check_access(self) -> bool:
+    def properties(self) -> dict:
         with self.nodb as db:
-            _ = self._load_workflow(db)
-            return True
+            workflow = self._load_workflow(db)
+            return {
+                'max_size': workflow.get_config('max_size', None)
+            }
 
     def upload_request(self, data: bytes, headers: dict[str, str]) -> UploadResult:
         self._check_token(self.request_id is None)
@@ -292,7 +299,7 @@ class UploadController:
         with self.nodb as db:
             workflow = self._load_workflow(db)
             working_headers = self._save_metadata(headers)
-            self._save_data(data)
+            self._save_data(data, workflow.get_config('max_size', None))
             if 'x-cnodc-more-data' in headers and headers['x-cnodc-more-data'] == '1':
                 self.token = secrets.token_urlsafe(64)
                 self._save_token()
