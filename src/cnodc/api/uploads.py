@@ -263,8 +263,7 @@ class UploadController:
 
     def _sanitize_filename(self, filename: str):
         filename = ''.join([x for x in filename if x in VALID_FILENAME_CHARACTERS])
-        with filename.endswith("."):
-            filename = filename[:-1]
+        filename = filename.rstrip(".")
         if len(filename) > 255:
             return None
         check = filename if "." not in filename else filename[:filename.find(".")]
