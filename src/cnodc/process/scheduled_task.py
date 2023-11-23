@@ -2,8 +2,7 @@ from .base import BaseProcess
 import time
 import datetime
 import typing as t
-
-from ..util import CNODCError
+from cnodc.util import CNODCError
 
 
 class ScheduledTask(BaseProcess):
@@ -53,6 +52,7 @@ class ScheduledTask(BaseProcess):
             else:
                 self._next_execution = self._last_execution_start + datetime.timedelta(seconds=int(self.get_config("delay_seconds")))
         elif mode == "cron":
+            # TODO: implement this
             raise CNODCError(f"Cron-based scheduling not yet available", "SCHEDTASK", 1001)
         else:
             raise CNODCError(f"Invalid schedule_mode: [{mode}]", "SCHEDTASK", 1000)
@@ -66,9 +66,9 @@ class ScheduledTask(BaseProcess):
         time_diff = (self._next_execution - now).total_seconds()
         if time_diff < 0.25:
             return 0.05
-        elif time_diff < 1:
+        elif time_diff < 1.05:
             return 0.25
-        elif time_diff < 5:
+        elif time_diff < 5.25:
             return 1
         else:
             return time_diff - 5
