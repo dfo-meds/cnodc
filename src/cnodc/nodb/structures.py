@@ -78,6 +78,13 @@ class QueueStatus(enum.Enum):
     ERROR = 'ERROR'
 
 
+class QueueItemResult(enum.Enum):
+
+    SUCCESS = 'SUCCESS'
+    FAILED = 'FAILED'
+    RETRY = 'RETRY'
+
+
 class _NODBBaseObject:
 
     def __init__(self, *, is_new: bool = True, **kwargs):

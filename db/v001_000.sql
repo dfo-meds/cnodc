@@ -66,6 +66,7 @@ BEGIN
         CREATE TYPE queue_status AS ENUM (
             'UNLOCKED',
             'LOCKED',
+            'DELAYED_RELEASE',
             'COMPLETE',
             'ERROR'
         );
@@ -359,6 +360,7 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     status              queue_status    NOT NULL    DEFAULT 'UNLOCKED',
     locked_by           VARCHAR(126)                DEFAULT NULL,
     locked_since        TIMESTAMPTZ                 DEFAULT NULL,
+    delay_release       TIMESTAMPTZ                 DEFAULT NULL,
 
     queue_name          VARCHAR(126)    NOT NULL,
     unique_item_name    VARCHAR(126)                DEFAULT NULL,
@@ -508,7 +510,13 @@ BEGIN
     FROM nodb_queues q
     WHERE
         q.queue_name = qname
-        AND q.status = 'UNLOCKED'
+        AND (
+            q.status = 'UNLOCKED'
+            OR (
+                q.status = 'DELAYED_RELEASE'
+                AND q.delay_release <= CURRENT_TIMESTAMP(0)
+            )
+        )
         AND (
             q.unique_item_name IS NULL
             OR q.unique_item_name NOT IN (

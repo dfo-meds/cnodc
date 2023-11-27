@@ -176,8 +176,15 @@ class NODBControllerInstance:
     def mark_queue_item_failed(self, queue_item: structures.NODBQueueItem):
         self._update_queue_item(queue_item, "ERROR")
 
-    def release_queue_item(self, queue_item: structures.NODBQueueItem):
-        self._update_queue_item(queue_item, "UNLOCKED")
+    def release_queue_item(self, queue_item: structures.NODBQueueItem, delay_time_seconds: t.Optional[int] = None):
+        if delay_time_seconds is not None and delay_time_seconds > 0:
+            self._update_queue_item(
+                queue_item,
+                "DELAYED_RELEASE",
+                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=delay_time_seconds)
+            )
+        else:
+            self._update_queue_item(queue_item, "UNLOCKED")
 
     def renew_queue_item_lock(self, queue_item: structures.NODBQueueItem):
         self.execute("UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s", [
@@ -185,16 +192,17 @@ class NODBControllerInstance:
             queue_item.queue_uuid
         ])
 
-    def _update_queue_item(self, queue_item: structures.NODBQueueItem, new_status_code: str):
-        self.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL WHERE queue_uuid = %s", [
+    def _update_queue_item(self, queue_item: structures.NODBQueueItem, new_status_code: str, delay_release: t.Optional[datetime.datetime] = None):
+        self.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s WHERE queue_uuid = %s", [
             new_status_code,
+            delay_release,
             queue_item.queue_uuid
         ])
 
     def fetch_next_queue_item(self,
                               queue_name: str,
                               app_id: str,
-                              retries: int = 5) -> t.Optional[str]:
+                              retries: int = 5) -> t.Optional[structures.NODBQueueItem]:
         while retries > 0:
             item_uuid = self._attempt_fetch_queue_item(queue_name, app_id)
             if item_uuid is not None:

@@ -1,3 +1,5 @@
+import math
+import statistics
 import uuid
 import multiprocessing as mp
 import time
@@ -7,11 +9,17 @@ import yaml
 import zrlog
 
 from cnodc.util import dynamic_object
+from .base import BaseProcess
 
 
 class ProcessController:
 
-    def __init__(self, config_file: pathlib.Path, flag_file: pathlib.Path):
+    def __init__(self,
+                 config_file: pathlib.Path,
+                 flag_file: pathlib.Path,
+                 check_frequency_seconds: int = 5,
+                 check_history_size: int = 30,
+                 throttle_threshold: int = None):
         self._config_file = config_file
         self._flag_file = flag_file
         self._loaded = False
@@ -33,8 +41,14 @@ class ProcessController:
         else:
             self._log.debug(f"Updating process {process_name}")
             self._process_info[process_name]["count"] = count
+            reset = self._process_info[process_name]['active'] and config != self._process_info[process_name]['config']
             self._process_info[process_name]['config'] = config or {}
             self._process_info[process_name]["is_active"] = True
+            # If the configuration changed and we had active processes, we will ask them all to shutdown so that
+            # they can reload their configuration
+            if reset:
+                for p_name in self._process_info[process_name]['active']:
+                    self._process_info[process_name]['active'][p_name].shutdown.set()
 
     def deregister_process(self, process_name: str):
         if process_name in self._process_info:
@@ -68,6 +82,11 @@ class ProcessController:
         finally:
             self.terminate_all()
             self.wait_for_all()
+
+    def _process_iterator(self) -> tuple[str, str, BaseProcess]:
+        for process_name in self._process_info:
+            for p_name in list(self._process_info[process_name]['active'].keys()):
+                yield process_name, p_name, self._process_info[process_name]['active'][p_name]
 
     def check_reload(self):
         if not self._loaded:
@@ -104,24 +123,21 @@ class ProcessController:
 
     def terminate_all(self):
         self._log.debug(f"Requesting all processes to halt")
-        for process_name in self._process_info:
-            for p_name in self._process_info[process_name]['active']:
-                self._process_info[process_name]['active'][p_name].shutdown.set()
+        for _, _, process in self._process_iterator():
+            process.shutdown.set()
 
     def wait_for_all(self):
         some_alive = True
         while some_alive:
             self._log.debug("Waiting for processes to halt...")
             some_alive = False
-            for process_name in self._process_info:
-                for p_name in list(self._process_info[process_name]['active'].keys()):
-                    process = self._process_info[process_name]['active'][p_name]
-                    if process.is_alive():
-                        process.join(1)
-                        if not process.is_alive():
-                            self._reap_worker(process_name, p_name)
-                        else:
-                            some_alive = True
+            for process_name, p_name, process in self._process_iterator():
+                if process.is_alive():
+                    process.join(1)
+                    if not process.is_alive():
+                        self._reap_worker(process_name, p_name)
+                    else:
+                        some_alive = True
             if some_alive:
                 time.sleep(0.5)
 
@@ -147,8 +163,6 @@ class ProcessController:
     def _reap_worker(self, process_name, p_name):
         self._log.debug(f"Reaping {process_name}.{p_name}")
         process = self._process_info[process_name]['active'][p_name]
-        while not process._print.empty():
-            print(process._print.get_nowait())
         del self._process_info[process_name]['active'][p_name]
 
     def _spawn_process(self, process_name, count: int):

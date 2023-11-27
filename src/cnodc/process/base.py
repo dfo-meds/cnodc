@@ -14,7 +14,6 @@ class BaseProcess(mp.Process):
         self.halt_flag: mp.Event = halt_flag
         self.is_working: mp.Event = mp.Event()
         self.shutdown: mp.Event = mp.Event()
-        self._print = mp.Queue()
         self.cnodc_id = None
 
     def get_config(self, key, default=None):

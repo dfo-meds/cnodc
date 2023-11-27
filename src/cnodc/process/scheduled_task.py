@@ -1,4 +1,5 @@
 import pathlib
+import random
 
 from .base import BaseProcess
 import time
@@ -80,22 +81,14 @@ class ScheduledTask(BaseProcess):
         mode = self.get_config("schedule_mode", "cron")
         if mode == "from_completion":
             if self._last_execution_end is None:
-                self._next_execution = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=(
-                    0
-                    if self.get_config("run_on_boot", False) else
-                    int(self.get_config("delay_seconds"))
-                ))
+                self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
             else:
-                self._next_execution = self._last_execution_end + datetime.timedelta(seconds=int(self.get_config("delay_seconds")))
+                self._next_execution = self._last_execution_end + self._execution_delay()
         elif mode == "from_start":
             if self._last_execution_start is None:
-                self._next_execution = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=(
-                    0
-                    if self.get_config("run_on_boot", False) else
-                    int(self.get_config("delay_seconds"))
-                ))
+                self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
             else:
-                self._next_execution = self._last_execution_start + datetime.timedelta(seconds=int(self.get_config("delay_seconds")))
+                self._next_execution = self._last_execution_start + self._execution_delay()
         elif mode == "cron":
             # TODO: implement this
             raise CNODCError(f"Cron-based scheduling not yet available", "SCHEDTASK", 1001)
@@ -103,6 +96,15 @@ class ScheduledTask(BaseProcess):
             raise CNODCError(f"Invalid schedule_mode: [{mode}]", "SCHEDTASK", 1000)
         self._next_execution = self._next_execution.replace(microsecond=0)
         self._log.debug(f"Next execution: {self._next_execution.isoformat()}")
+
+    def _execution_delay(self, first_run: bool = False) -> datetime.timedelta:
+        delay = int(self.get_config("delay_seconds"))
+        if first_run and self.get_config("run_on_boot", False):
+            delay = 0
+        fuzz = int(self.get_config("delay_fuzz_milliseconds", default=0))
+        if fuzz > 0:
+            delay += random.randint(0, fuzz) / 1000.0
+        return datetime.timedelta(seconds=delay)
 
     def check_execution(self, now: datetime.datetime) -> bool:
         return now >= self._next_execution
