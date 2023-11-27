@@ -10,16 +10,22 @@ class BaseProcess(mp.Process):
         super().__init__(daemon=True)
         self._log_name = log_name
         self._log: t.Optional[ImprovedLogger] = None
-        self.config = config or {}
+        self._config = config or {}
+        self._defaults = {}
         self.halt_flag: mp.Event = halt_flag
         self.is_working: mp.Event = mp.Event()
         self.shutdown: mp.Event = mp.Event()
         self.cnodc_id = None
 
-    def get_config(self, key, default=None):
-        if key in self.config and not self.config[key] is None:
-            return self.config[key]
+    def get_config(self, key, default = None):
+        if key in self._config and self._config[key] is not None:
+            return self._config[key]
+        elif key in self._defaults and self._defaults[key] is not None:
+            return self._defaults[key]
         return default
+
+    def set_defaults(self, values: dict):
+        self._defaults.update(values)
 
     def run(self) -> None:
         try:

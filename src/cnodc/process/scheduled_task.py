@@ -16,6 +16,13 @@ class ScheduledTask(BaseProcess):
         self._last_execution_end: t.Optional[datetime.datetime] = None
         self._next_execution: t.Optional[datetime.datetime] = None
         self._first_warning = False
+        self.set_defaults({
+            "save_file": None,
+            "delay_fuzz_milliseconds": 0,
+            "run_on_boot": False,
+            "delay_seconds": None,
+            "schedule_mode": "from_completion"
+        })
 
     def _run(self):
         self._load_execution_times()
@@ -42,7 +49,7 @@ class ScheduledTask(BaseProcess):
     def _preserve_execution_times(self):
         if self._first_warning:
             return
-        file = self.get_config("save_file", None)
+        file = self.get_config("save_file")
         if file is None:
             self._log.warning(f"Save file is disabled")
             self._first_warning = True
@@ -62,7 +69,7 @@ class ScheduledTask(BaseProcess):
             self._first_warning = True
 
     def _load_execution_times(self):
-        file = self.get_config("save_file", None)
+        file = self.get_config("save_file")
         if file is None:
             self._log.warning(f"Save file is disabled")
             self._first_warning = True
@@ -78,7 +85,7 @@ class ScheduledTask(BaseProcess):
             self._log.exception(f"Error loading execution times")
 
     def update_next_execution_time(self):
-        mode = self.get_config("schedule_mode", "cron")
+        mode = self.get_config("schedule_mode")
         if mode == "from_completion":
             if self._last_execution_end is None:
                 self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
@@ -99,9 +106,9 @@ class ScheduledTask(BaseProcess):
 
     def _execution_delay(self, first_run: bool = False) -> datetime.timedelta:
         delay = int(self.get_config("delay_seconds"))
-        if first_run and self.get_config("run_on_boot", False):
+        if first_run and self.get_config("run_on_boot"):
             delay = 0
-        fuzz = int(self.get_config("delay_fuzz_milliseconds", default=0))
+        fuzz = int(self.get_config("delay_fuzz_milliseconds"))
         if fuzz > 0:
             delay += random.randint(0, fuzz) / 1000.0
         return datetime.timedelta(seconds=delay)
