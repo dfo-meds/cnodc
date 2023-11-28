@@ -19,7 +19,7 @@ class BaseController:
         if not self.check_config():
             raise CNODCError(f"Invalid configuration for [{self.name}]", "CTRL", 1000)
         self.init()
-        while not self.halt_flag.check(False):
+        while not self.halt_flag.check_continue(False):
             self._run()
             self.halt_flag.sleep(self.run_delay)
         self.cleanup()

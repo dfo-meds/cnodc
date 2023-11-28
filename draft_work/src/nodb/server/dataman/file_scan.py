@@ -49,7 +49,7 @@ class FileScanController(BaseController):
     def _run(self):
         remove_keys = []
         for source_key in self.sources:
-            if self.halt_flag.check(False):
+            if self.halt_flag.check_continue(False):
                 break
             try:
                 self.search_dir(source_key, **self.sources[source_key])

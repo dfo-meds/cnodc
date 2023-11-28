@@ -1,3 +1,5 @@
+import shutil
+
 import flask
 import uuid
 import pathlib
@@ -14,7 +16,7 @@ import yaml
 
 import cnodc.nodb.structures as structures
 from .auth import LoginController
-from ..storage import FileController, DirFileHandle
+from ..storage import StorageController, DirFileHandle
 from ..storage.base import StorageTier
 
 NO_SAVE_HEADERS = [
@@ -62,7 +64,7 @@ class UploadController:
 
     nodb: NODBController = None
     login: LoginController = None
-    files: FileController = None
+    files: StorageController = None
 
     @injector.construct
     def __init__(self, workflow_name: str, request_id: t.Optional[str] = None, token: t.Optional[str] = None):
@@ -70,6 +72,7 @@ class UploadController:
         self.request_id = request_id
         self.token = token
         self._request_dir = None
+        self._assembled_file = None
         if '/' in self.workflow_name or '\\' in self.workflow_name or '.' in self.workflow_name:
             raise CNODCError('Invalid character in workflow name', 'UPLOADCTRL', 1000)
 
@@ -188,16 +191,36 @@ class UploadController:
         with open(request_dir / ".timestamp", "w") as h:
             h.write(datetime.datetime.now(datetime.timezone.utc).isoformat())
 
-    def _data_iterator(self) -> RequestDataIterator:
-        return RequestDataIterator(self._request_directory())
+    def assemble_file(self) -> pathlib.Path:
+        if self._assembled_file is None:
+            request_dir = self._request_directory()
+            files = []
+            idx = 0
+            bin_file = request_dir / f"part.{idx}.bin"
+            while bin_file.exists():
+                files.append(bin_file)
+                idx += 1
+                bin_file = request_dir / f"part.{idx}.bin"
+            if not files:
+                raise CNODCError(f"No files found in request directory", "UPLOADCTRL", 1014)
+            if len(files) == 1:
+                self._assembled_file = files[0]
+            else:
+                self._assembled_file = self._request_directory() / "assembled.bin"
+                with open(self._assembled_file, "wb") as dest:
+                    for file in files:
+                        with open(file, "rb") as src:
+                            shutil.copyfileobj(src, dest)
+        return self._assembled_file
 
     def _complete_request(self, db: NODBControllerInstance, workflow: structures.NODBUploadWorkflow, headers: dict):
         primary_handle = None
         secondary_handle = None
         try:
+            local_source_file = self.assemble_file()
             validation_target = workflow.get_config("validation", None)
             if validation_target is not None:
-                if not dynamic_object(validation_target)(self, headers):
+                if not dynamic_object(validation_target)(local_source_file, headers):
                     raise CNODCError("Validation failed", "UPLOADCTRL", 1010)
             filename = self._get_filename(headers)
             metadata = self._get_metadata(workflow.get_config('metadata', default={}), headers)
@@ -213,24 +236,26 @@ class UploadController:
             secondary_upload_tier_name = workflow.get_config('archive_tier', None)
             secondary_upload_tier = StorageTier(secondary_upload_tier_name) if secondary_upload_tier_name else StorageTier.ARCHIVAL
             if primary_upload_uri is not None:
-                upload_dir = self.files.get_handle(primary_upload_uri)
-                primary_handle = upload_dir.child(filename)
-                primary_handle.upload(
-                    self._data_iterator(),
-                    allow_overwrite=allow_overwrite,
-                    storage_tier=primary_upload_tier,
-                    metadata=metadata
-                )
+                with open(local_source_file, "rb") as h:
+                    upload_dir = self.files.get_handle(primary_upload_uri)
+                    primary_handle = upload_dir.child(filename)
+                    primary_handle.upload(
+                        h,
+                        allow_overwrite=allow_overwrite,
+                        storage_tier=primary_upload_tier,
+                        metadata=metadata
+                    )
             secondary_upload_uri = workflow.get_config('archive', None)
             if secondary_upload_uri is not None:
-                archive_dir = self.files.get_handle(secondary_upload_uri)
-                secondary_handle = archive_dir.child(filename)
-                secondary_handle.upload(
-                    self._data_iterator(),
-                    allow_overwrite=allow_overwrite,
-                    storage_tier=secondary_upload_tier,
-                    metadata=metadata
-                )
+                with open(local_source_file, "rb") as h:
+                    archive_dir = self.files.get_handle(secondary_upload_uri)
+                    secondary_handle = archive_dir.child(filename)
+                    secondary_handle.upload(
+                        h,
+                        allow_overwrite=allow_overwrite,
+                        storage_tier=secondary_upload_tier,
+                        metadata=metadata
+                    )
             queue_name = workflow.get_config('queue', None)
             if queue_name is not None:
                 db.create_queue_item(
@@ -241,6 +266,7 @@ class UploadController:
                         'filename': filename,
                         'headers': headers,
                         'workflow_name': self.workflow_name,
+                        'request_id': self.request_id
                     },
                     priority=workflow.get_config('queue_priority', None),
                     unique_item_key=headers['unique-key'] if 'unique-key' in headers else None

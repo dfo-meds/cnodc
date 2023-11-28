@@ -1,2 +1,2 @@
-from .core import FileController
+from .core import StorageController
 from .base import DirFileHandle

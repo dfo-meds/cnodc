@@ -10,3 +10,4 @@ prometheus_flask_exporter
 requests
 pyyaml
 toml
+netCDF4

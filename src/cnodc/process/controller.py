@@ -48,7 +48,7 @@ class ProcessController:
             # they can reload their configuration
             if reset:
                 for p_name in self._process_info[process_name]['active']:
-                    self._process_info[process_name]['active'][p_name].shutdown.set()
+                    self._process_info[process_name]['active'][p_name]._shutdown.set()
 
     def deregister_process(self, process_name: str):
         if process_name in self._process_info:
@@ -124,7 +124,7 @@ class ProcessController:
     def terminate_all(self):
         self._log.debug(f"Requesting all processes to halt")
         for _, _, process in self._process_iterator():
-            process.shutdown.set()
+            process._shutdown.set()
 
     def wait_for_all(self):
         some_alive = True
@@ -183,7 +183,7 @@ class ProcessController:
         # First, check if any processes are currently shutting down
         for p_name in list(self._process_info[process_name]['active'].keys()):
             process = self._process_info[process_name]['active'][p_name]
-            if process.shutdown.is_set():
+            if process._shutdown.is_set():
                 count -= 1
                 continue
             processes_to_check.append(process)
@@ -193,14 +193,14 @@ class ProcessController:
         for process in processes_to_check:
             if not process.is_working.is_set():
                 self._log.debug(f"Shutting down process {process_name}.{process.cnodc_id}")
-                process.shutdown.set()
+                process._shutdown.set()
                 count -= 1
                 if count <= 0:
                     return
         # Finally, we will attempt to interrupt a running process
         for process in processes_to_check:
             self._log.debug(f"Shutting down process {process_name}.{process.cnodc_id}")
-            process.shutdown.set()
+            process._shutdown.set()
             count -= 1
             if count <= 0:
                 return

@@ -65,7 +65,7 @@ class LocalHandle(DirFileHandle):
             d = work.pop()
             for file in d.iterdir():
                 if halt_flag:
-                    halt_flag.check(True)
+                    halt_flag.check_continue(True)
                 if file.is_dir():
                     work.append(file)
                 else:

@@ -66,17 +66,17 @@ class NODBUploader:
             if filename is not None:
                 headers['X-CNODC-Filename'] = filename
             try:
-                if halt_flag: halt_flag.check(True)
+                if halt_flag: halt_flag.check_continue(True)
                 old_chunk = None
                 for chunk in self._read_in_chunks(file, chunk_size):
                     if old_chunk is not None:
-                        if halt_flag: halt_flag.check(True)
+                        if halt_flag: halt_flag.check_continue(True)
                         results = self._send_chunk(sess, workflow_name, send_url, old_chunk, headers)
                         headers['X-CNODC-Token'] = results['x-cnodc-token']
                         send_url = results['more_data_endpoint']
                         cancel_url = results['cancel_endpoint']
                     old_chunk = chunk
-                if halt_flag: halt_flag.check(True)
+                if halt_flag: halt_flag.check_continue(True)
                 if old_chunk is not None:
                     del headers['X-CNODC-More-Data']
                     self._send_chunk(sess, workflow_name, send_url, old_chunk, headers)

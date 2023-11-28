@@ -39,7 +39,7 @@ class AzureBlobHandle(UrlBaseHandle):
     def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
         stream = self.client().download_blob()
         for chunk in stream.chunks():
-            halt_flag.check(True)
+            halt_flag.check_continue(True)
             yield chunk
 
     def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
@@ -86,7 +86,7 @@ class AzureBlobHandle(UrlBaseHandle):
         if full_name[-1] != '/':
             full_name += '/'
         for blob_properties in client.list_blobs(name_starts_with=full_name):
-            halt_flag.check(True)
+            halt_flag.check_continue(True)
             # TODO: recursive=False isn't handled
             # TODO: files_only=False isn't handled
             bc = client.get_blob_client(blob_properties.name)

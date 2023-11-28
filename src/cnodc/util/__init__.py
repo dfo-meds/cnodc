@@ -2,6 +2,7 @@ from .exceptions import CNODCError, ConfigError
 import typing as t
 import importlib
 import abc
+import time
 
 
 JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
@@ -13,11 +14,18 @@ class HaltInterrupt(KeyboardInterrupt):
 
 class HaltFlag(t.Protocol):
 
-    def check(self, raise_ex: bool = True) -> bool:
+    def check_continue(self, raise_ex: bool = True) -> bool:
+        if not self._should_continue():
+            if raise_ex:
+                raise HaltInterrupt()
+            return False
+        return True
+
+    def _should_continue(self) -> bool:
         raise NotImplementedError()
 
     def sleep(self, time_seconds: float):
-        raise NotImplementedError()
+        time.sleep(time_seconds)
 
     @staticmethod
     def iterate(iterable: t.Iterable, halt_flag=None, raise_ex: bool = True):
@@ -25,7 +33,7 @@ class HaltFlag(t.Protocol):
             yield from iterable
         else:
             for x in iterable:
-                if not halt_flag.check(raise_ex):
+                if not halt_flag.check_continue(raise_ex):
                     break
                 yield x
 

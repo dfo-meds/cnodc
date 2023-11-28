@@ -217,7 +217,7 @@ class _DataExtractionProcessor:
         # Download the file
         self.source_handle = self.file_controller.get_handle(self.source_file.source_path)
         self.source_handle.download(self.local_file, halt_flag=self.halt_flag)
-        self.halt_flag.check()
+        self.halt_flag.check_continue()
 
         # Persist the downloaded file
         target_dir = self.source_file.get_metadata("target_dir")
@@ -227,10 +227,10 @@ class _DataExtractionProcessor:
         if not target_dir_handle.is_dir():
             raise CNODCError(f"Target directory [{target_dir}] does not exist or is not a directory", "EXTRACT", 1002)
         persistent_handle = target_dir_handle.child(self.source_file.file_name)
-        self.halt_flag.check()
+        self.halt_flag.check_continue()
         persistent_handle.upload(self.local_file, halt_flag=self.halt_flag)
         self.source_file.persistent_path = str(persistent_handle)
-        self.halt_flag.check()
+        self.halt_flag.check_continue()
 
     def _create_records_from_source(self):
         """Create all records that don't already exist."""
@@ -247,7 +247,7 @@ class _DataExtractionProcessor:
         for message in decoder.load_messages(self.local_file, replace_logger_cls=logger_cls):
 
             # Allow the processor to halt in between messages
-            self.halt_flag.check()
+            self.halt_flag.check_continue()
 
             # Check if there were warnings or errors during decode
             if message.logger.log_store:
@@ -259,7 +259,7 @@ class _DataExtractionProcessor:
             else:
                 # Otherwise, persist the records but allow halting in between records
                 for record_idx, record in message.iterate_records():
-                    self.halt_flag.check()
+                    self.halt_flag.check_continue()
                     self._persist_data_record(message, record_idx, record)
 
         # Handle the extraction results
@@ -306,7 +306,7 @@ class _DataExtractionProcessor:
             file_name = f"{source_file.pkey}.error.{message.message_idx}{ext}"
 
             # Upload the file (and check if we should break before since this will be long)
-            self.halt_flag.check()
+            self.halt_flag.check_continue()
             error_file_handle = error_dir_handle.child(file_name)
             error_file_handle.upload(local_error_file)
 
@@ -417,7 +417,7 @@ class _DataExtractionProcessor:
         # still to be released are in the results at this point.
         for batch_type, batch_key, working_obs_list in self.results.batch_results():
 
-            self.halt_flag.check()
+            self.halt_flag.check_continue()
 
             batch = NODBQCBatch()
             if batch_type == "good":

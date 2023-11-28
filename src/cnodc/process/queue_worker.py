@@ -1,5 +1,5 @@
 from .base import BaseProcess
-from cnodc.util import CNODCError
+from cnodc.util import CNODCError, HaltInterrupt
 from autoinject import injector
 import uuid
 from cnodc.nodb import NODBController, NODBControllerInstance
@@ -20,8 +20,9 @@ class QueueWorker(BaseProcess):
             "delay_time_seconds": 0.25,
             "retry_delay_seconds": 0,
             "delay_factor": 2,
-            "max_delay_time_seconds": 128
+            "max_delay_time_seconds": 128,
         })
+        self._db: t.Optional[NODBControllerInstance] = None
 
     @injector.inject
     def _run(self, nodb: NODBController = None):
@@ -30,43 +31,51 @@ class QueueWorker(BaseProcess):
         self._current_delay_time = self.get_config("delay_time_seconds")
         self._app_id = str(uuid.uuid4())
         with nodb as db:
-            while self.check_continue():
-                queue_item = None
-                try:
-                    queue_item = db.fetch_next_queue_item(self.get_config("queue_name"), self._app_id)
-                    if queue_item is not None:
-                        self.is_working.set()
-                        self._process_result(db, queue_item, self._process_queue_item(db, queue_item))
-                        self.is_working.clear()
-                        self._current_delay_time = self.get_config("delay_time_seconds")
-                    else:
-                        time.sleep(self._delay_time())
-                except CNODCError as ex:
-                    if ex.is_recoverable:
-                        if queue_item:
-                            self._process_result(db, queue_item, structures.QueueItemResult.RETRY)
-                            self._log.exception(f"Recoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
+            try:
+                self._db = db
+                while self.halt_flag.check_continue(False):
+                    queue_item = None
+                    try:
+                        queue_item = db.fetch_next_queue_item(self.get_config("queue_name"), self._app_id)
+                        if queue_item is not None:
+                            self.is_working.set()
+                            self._process_result(queue_item, self.process_queue_item(queue_item))
+                            self.is_working.clear()
+                            self._current_delay_time = self.get_config("delay_time_seconds")
                         else:
-                            self._log.exception("Recoverable exception occurred during queue item processing")
-                    else:
+                            time.sleep(self._delay_time())
+                    except CNODCError as ex:
+                        if ex.is_recoverable:
+                            if queue_item:
+                                self._process_result(queue_item, structures.QueueItemResult.RETRY)
+                                self._log.exception(f"Recoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
+                            else:
+                                self._log.exception("Recoverable exception occurred during queue item processing")
+                        else:
+                            if queue_item:
+                                self._process_result(queue_item, structures.QueueItemResult.FAILED)
+                                self._log.exception(f"Unrecoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
+                            raise ex
+                    except (KeyboardInterrupt, HaltInterrupt) as ex:
+                        self._process_result(queue_item, structures.QueueItemResult.RETRY)
+                        self._log.exception(f"Processing halt reqeusted")
+                        break
+                    except Exception as ex:
                         if queue_item:
-                            self._process_result(db, queue_item, structures.QueueItemResult.FAILED)
+                            self._process_result(queue_item, structures.QueueItemResult.FAILED)
                             self._log.exception(f"Unrecoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
                         raise ex
-                except Exception as ex:
-                    if queue_item:
-                        self._process_result(db, queue_item, structures.QueueItemResult.FAILED)
-                        self._log.exception(f"Unrecoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
-                    raise ex
+            finally:
+                self._db = None
 
-    def _process_result(self, db: NODBControllerInstance, queue_item: structures.NODBQueueItem, result: t.Optional[structures.QueueItemResult]):
+    def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[structures.QueueItemResult]):
         if result is None or result == structures.QueueItemResult.SUCCESS:
-            db.mark_queue_item_complete(queue_item)
+            self._db.mark_queue_item_complete(queue_item)
         elif result == structures.QueueItemResult.FAILED:
-            db.mark_queue_item_failed(queue_item)
+            self._db.mark_queue_item_failed(queue_item)
         else:
-            db.release_queue_item(queue_item, self.get_config("retry_delay_seconds"))
-        db.commit()
+            self._db.release_queue_item(queue_item, self.get_config("retry_delay_seconds"))
+        self._db.commit()
 
     def _delay_time(self) -> float:
         curr_time = self._current_delay_time
@@ -76,5 +85,5 @@ class QueueWorker(BaseProcess):
             self._current_delay_time = _max_time
         return curr_time
 
-    def _process_queue_item(self, db: NODBControllerInstance, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
-        pass
+    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
+        raise NotImplementedError()

@@ -43,7 +43,7 @@ class DirFileHandle:
 
     def download(self, local_path: pathlib.Path, allow_overwrite: bool = False, halt_flag: HaltFlag = None, buffer_size: int = None):
         if (not allow_overwrite) and local_path.exists():
-            raise CNODCError(f"Path [{local_path}] already exists, cannot download from [{self}]", "FILE", 1000)
+            raise CNODCError(f"Path [{local_path}] already exists, cannot download from [{self}]", "FILE", 1000, is_recoverable=True)
         self._download(local_path, halt_flag, buffer_size)
 
     def _download(self, local_path: pathlib.Path, halt_flag: HaltFlag = None, buffer_size: int = None):
@@ -70,7 +70,7 @@ class DirFileHandle:
                storage_tier: t.Optional[StorageTier] = None,
                halt_flag: t.Optional[HaltFlag] = None):
         if (not allow_overwrite) and self.exists():
-            raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "FILE", 1001)
+            raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "FILE", 1001, is_recoverable=True)
         self._upload(local_path, buffer_size, metadata, storage_tier, halt_flag)
 
     def _upload(self,

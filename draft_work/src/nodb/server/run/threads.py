@@ -9,7 +9,7 @@ class ThreadHaltEvent(HaltFlag):
     def __init__(self, event: threading.Event):
         self._event: threading.Event = event
 
-    def check(self, raise_ex: bool = True) -> bool:
+    def check_continue(self, raise_ex: bool = True) -> bool:
         if self._event.is_set():
             if raise_ex:
                 raise CNODCHalt

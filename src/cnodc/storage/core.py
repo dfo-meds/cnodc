@@ -10,7 +10,7 @@ import pathlib
 
 
 @injector.injectable_global
-class FileController:
+class StorageController:
 
     def __init__(self):
         self.handle_classes = [

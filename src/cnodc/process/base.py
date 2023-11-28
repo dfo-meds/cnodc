@@ -2,6 +2,20 @@ import multiprocessing as mp
 import typing as t
 import zrlog
 from zrlog.logger import ImprovedLogger
+from autoinject import injector
+from cnodc.nodb import NODBController
+from cnodc.storage import StorageController
+from cnodc.util import HaltFlag
+
+
+class _SubprocessHaltFlag(HaltFlag):
+
+    def __init__(self, shutdown: mp.Event, halt: mp.Event):
+        self._shutdown = shutdown
+        self._halt = halt
+
+    def _should_continue(self, raise_ex: bool = True) -> bool:
+        return not (self._shutdown.is_set() or self._halt.is_set())
 
 
 class BaseProcess(mp.Process):
@@ -12,9 +26,10 @@ class BaseProcess(mp.Process):
         self._log: t.Optional[ImprovedLogger] = None
         self._config = config or {}
         self._defaults = {}
-        self.halt_flag: mp.Event = halt_flag
+        self._halt: mp.Event = halt_flag
         self.is_working: mp.Event = mp.Event()
-        self.shutdown: mp.Event = mp.Event()
+        self._shutdown: mp.Event = mp.Event()
+        self.halt_flag: HaltFlag = _SubprocessHaltFlag(self._shutdown, self._halt)
         self.cnodc_id = None
 
     def get_config(self, key, default = None):
@@ -37,9 +52,6 @@ class BaseProcess(mp.Process):
             self._log.exception(ex)
         finally:
             self.on_complete()
-
-    def check_continue(self):
-        return not (self.shutdown.is_set() or self.halt_flag.is_set())
 
     def on_start(self):
         pass

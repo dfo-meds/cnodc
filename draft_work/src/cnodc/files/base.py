@@ -102,7 +102,7 @@ class DirFileHandle:
     def _local_read_chunks(local_path: pathlib.Path, buffer_size: int, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
         with open(local_path, "rb") as src:
             if halt_flag:
-                halt_flag.check(True)
+                halt_flag.check_continue(True)
             x = src.read(buffer_size)
             while x != b'':
                 yield x
@@ -113,7 +113,7 @@ class DirFileHandle:
         with open(local_path, "wb") as dest:
             for chunk in chunks:
                 if halt_flag:
-                    halt_flag.check(True)
+                    halt_flag.check_continue(True)
                 dest.write(chunk)
 
     def search(self, pattern: str, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:

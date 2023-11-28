@@ -27,7 +27,7 @@ class ScheduledTask(BaseProcess):
     def _run(self):
         self._load_execution_times()
         self.update_next_execution_time()
-        while self.check_continue():
+        while self.halt_flag.check_continue(False):
             try:
                 now = datetime.datetime.now(datetime.timezone.utc)
                 if self.check_execution(now):

@@ -9,7 +9,7 @@ class ProcessHaltEvent(HaltFlag):
     def __init__(self, event: mp.Event):
         self._event: mp.Event = event
 
-    def check(self, raise_ex: bool = True) -> bool:
+    def check_continue(self, raise_ex: bool = True) -> bool:
         if self._event.is_set():
             if raise_ex:
                 raise CNODCHalt

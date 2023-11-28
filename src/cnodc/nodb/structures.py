@@ -9,7 +9,7 @@ import secrets
 import zrlog
 from autoinject import injector
 
-from cnodc.storage import FileController
+from cnodc.storage import StorageController
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
 
@@ -463,7 +463,7 @@ class NODBUploadWorkflow(_NODBBaseObject):
         return default
 
     @injector.inject
-    def check_config(self, files: FileController = None):
+    def check_config(self, files: StorageController = None):
         allow_overwrite = self.get_config("allow_overwrite", "user")
         if allow_overwrite not in ("always", "never", "user"):
             raise CNODCError(f'Invalid value for [allow_overwrite]: {allow_overwrite}, must be one of (always|never|user)', 'WFCHECK', 1000)
