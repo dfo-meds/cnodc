@@ -5,6 +5,7 @@ from zrlog.logger import ImprovedLogger
 from autoinject import injector
 from cnodc.nodb import NODBController
 from cnodc.storage import StorageController
+import requests
 from cnodc.util import HaltFlag
 
 

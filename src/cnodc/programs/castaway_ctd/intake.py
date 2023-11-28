@@ -2,7 +2,8 @@ from cnodc.nodb import NODBControllerInstance, structures
 from cnodc.process.queue_worker import QueueWorker
 import typing as t
 from autoinject import injector
-from cnodc.storage import StorageController
+from cnodc.storage import StorageController, DirFileHandle
+from cnodc.erddap import ErddapController
 from cnodc.util import CNODCError
 import tempfile
 import pathlib
@@ -70,11 +71,25 @@ class CastawayIntakeWorker(QueueWorker):
 
     def __init__(self, *args, **kwargs):
         super().__init__("cnodc.castaway.nc", *args, **kwargs)
+        self._erddap: t.Optional[ErddapController] = None
         self._storage: t.Optional[StorageController] = None
+        self._upload_target: t.Optional[DirFileHandle] = None
+        self._archive_target: t.Optional[DirFileHandle] = None
 
     @injector.inject
-    def on_start(self, storage: StorageController = None):
+    def on_start(self, storage: StorageController = None, erddap: ErddapController = None):
+        if self.get_config("erddap_directory") is None:
+            raise CNODCError("ERDDAP upload directory not specified", "CASTAWAY", 2003)
+        if self.get_config("archive_directory") is None:
+            raise CNODCError("Archive directory not specified", "CASTAWAY", 2004)
         self._storage = storage
+        self._erddap = erddap
+        self._upload_target = storage.get_handle(self.get_config("erddap_directory"))
+        if not self._upload_target.exists():
+            raise CNODCError(f"Upload directory [{self._upload_target}] does not exist", "CASTAWAY", 2005)
+        self._archive_target = storage.get_handle(self.get_config("archive_directory"))
+        if not self._archive_target.exists():
+            raise CNODCError(f"Archive directory [{self._archive_target}] does not exist", "CASTAWAY", 2006)
 
     def process_queue_item(self,
                             item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
@@ -92,6 +107,14 @@ class CastawayIntakeWorker(QueueWorker):
             self.halt_flag.check_continue(True)
             netcdf_file = temp_dir / "castaway.nc"
             ncf = None
+            file_name = self._make_castaway_file_name(castaway_ctd_data)
+            upload_file: DirFileHandle = self._upload_target.child(file_name)
+            archive_file: DirFileHandle = self._archive_target.child(file_name)
+            if upload_file.exists():
+                raise CNODCError(f"Upload file already exists for this profile [{upload_file}]", "CASTAWAY", 2007)
+            if archive_file.exists():
+                raise CNODCError(f"Archive file already exists for this profile [{archive_file}]", "CASTAWAY", 2008)
+            stage = 1
             try:
                 ncf = self._create_netcdf_file(netcdf_file, castaway_ctd_data['metadata']['% Cast data'] == 'Raw')
                 self.halt_flag.check_continue(True)
@@ -99,11 +122,27 @@ class CastawayIntakeWorker(QueueWorker):
                 ncf.close()
                 ncf = None
                 self.halt_flag.check_continue(True)
-
+                upload_file.upload(netcdf_file)
+                stage = 2
+                archive_file.upload(netcdf_file)
+                stage = 3
+                if self.get_config('erddap_dataset_id'):
+                    self._erddap.reload_dataset(self.get_config('erddap_dataset_id'))
+                # Later TODO: save profile to database and trigger processing
+                return structures.QueueItemResult.SUCCESS
+            except Exception as ex:
+                if stage >= 2:
+                    upload_file.remove()
+                if stage >= 3:
+                    archive_file.remove()
+                raise ex
             finally:
                 if ncf is not None:
                     ncf.close()
                     ncf = None
+
+    def _make_castaway_file_name(self, ctd_data: dict) -> str:
+        return f"{ctd_data['metadata']['% File name']}.nc"
 
     def _create_netcdf_file(self, netcdf_file: pathlib.Path, for_raw_data: bool) -> nc.Dataset:
         ncf = nc.Dataset(netcdf_file, "rb", format="NETCDF4")
@@ -209,6 +248,9 @@ class CastawayIntakeWorker(QueueWorker):
 
 def validate_castaway_ctd_file(data_file: pathlib.Path, headers: dict):
     data = parse_castaway_ctd_file(data_file)
+    if '% File name' not in data['metadata']:
+        raise CNODCError("Missing % File name parameter", "CASTAWAY", 1006)
+
     # TODO: verify all the columns are present? and appropriate columns for the % Cast data value?
     return True
 
