@@ -64,7 +64,7 @@ archive_metadata:
   CostUnit: "MARITIMES"
 # queue_priority: 0         # Set the priority in the queue, if desired
 # allow_overwrite: 'user'   # Set to 'never', 'user' or 'always' depending on if you want people to be able to overwrite the source file
-validation: "cnodc.programs.castaway_ctd.intake.validate_castaway_ctd_file
+validation: "cnodc.programs.castaway_ctd.intake.validate_castaway_ctd_file"
 ```
 
 
