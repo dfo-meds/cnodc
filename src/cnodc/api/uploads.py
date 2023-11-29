@@ -226,18 +226,22 @@ class UploadController:
                 if not dynamic_object(validation_target)(local_source_file, headers):
                     raise CNODCError("Validation failed", "UPLOADCTRL", 1010)
             filename = self._get_filename(headers, gzip_active)
-            metadata = self._get_metadata(workflow.get_config('metadata', default={}), headers)
             allow_overwrite = headers['allow-overwrite'] == '1' if 'allow-overwrite' in headers else False
             workflow_allow_overwrite = workflow.get_config('allow_overwrite', None)
             if workflow_allow_overwrite == 'always':
                 allow_overwrite = True
             elif workflow_allow_overwrite == 'never':
                 allow_overwrite = False
+            primary_metadata = self._get_metadata(workflow.get_config('upload_metadata', default={}), headers)
             primary_upload_uri = workflow.get_config('upload', None)
             primary_upload_tier_name = workflow.get_config('upload_tier', None)
             primary_upload_tier = StorageTier(primary_upload_tier_name) if primary_upload_tier_name else StorageTier.FREQUENT
+            secondary_metadata = self._get_metadata(workflow.get_config('upload_metadata', default={}), headers)
             secondary_upload_tier_name = workflow.get_config('archive_tier', None)
             secondary_upload_tier = StorageTier(secondary_upload_tier_name) if secondary_upload_tier_name else StorageTier.ARCHIVAL
+            if gzip_active:
+                primary_metadata['Gzip'] = 'Y'
+                secondary_metadata['Gzip'] = 'Y'
             if primary_upload_uri is not None:
                 with open(local_source_file, "rb") as h:
                     upload_dir = self.files.get_handle(primary_upload_uri)
@@ -246,7 +250,7 @@ class UploadController:
                         h,
                         allow_overwrite=allow_overwrite,
                         storage_tier=primary_upload_tier,
-                        metadata=metadata
+                        metadata=primary_metadata
                     )
             secondary_upload_uri = workflow.get_config('archive', None)
             if secondary_upload_uri is not None:
@@ -257,7 +261,7 @@ class UploadController:
                         h,
                         allow_overwrite=allow_overwrite,
                         storage_tier=secondary_upload_tier,
-                        metadata=metadata
+                        metadata=secondary_metadata
                     )
             queue_name = workflow.get_config('queue', None)
             if queue_name is not None:

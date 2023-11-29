@@ -7,6 +7,7 @@ import typing as t
 from autoinject import injector
 from cnodc.storage import StorageController, DirFileHandle
 from cnodc.erddap import ErddapController
+from cnodc.storage.base import StorageTier
 from cnodc.util import CNODCError, HaltFlag
 import tempfile
 import pathlib
@@ -135,7 +136,8 @@ class CastawayIntakeWorker(QueueWorker):
             castaway_data = CastawayData(local_file, item.data['gzip'] if 'gzip' in item.data else False)
 
             # Determine the file upload paths
-            upload_file_name = castaway_data.netcdf_file_name(bool(self.get_config('gzip', True)))
+            gzip_erddap = bool(self.get_config('gzip', True))
+            upload_file_name = castaway_data.netcdf_file_name(gzip_erddap)
             archive_file_name = castaway_data.netcdf_file_name(True)
             upload_file: t.Optional[DirFileHandle] = None
             archive_file: t.Optional[DirFileHandle] = None
@@ -169,10 +171,28 @@ class CastawayIntakeWorker(QueueWorker):
             # Do the upload and rollback if there is an issue
             stage = 0
             try:
-                upload_file.upload(netcdf_file)
+                upload_file.upload(
+                    netcdf_file if not gzip_erddap else gzip_netcdf_file,
+                    storage_tier=StorageTier.FREQUENT,
+                    metadata={
+                        'Program': 'CASTAWAY_CTD',
+                        'Dataset': 'RAW' if castaway_data.is_raw() else 'PROCESSED',
+                        'CostUnit': 'MARITIMES',
+                        'Gzip': 'Y' if gzip_erddap else 'N'
+                    }
+                )
                 self.halt_flag.check_continue(True)
                 stage = 1
-                archive_file.upload(netcdf_file)
+                archive_file.upload(
+                    gzip_netcdf_file,
+                    storage_tier=StorageTier.ARCHIVAL,
+                    metadata={
+                        'Program': 'CASTAWAY_CTD',
+                        'Dataset': 'RAW' if castaway_data.is_raw() else 'PROCESSED',
+                        'CostUnit': 'MARITIMES',
+                        'Gzip': 'Y'
+                    }
+                )
                 stage = 2
                 if self.get_config('erddap_dataset_id'):
                     self._erddap.reload_dataset(

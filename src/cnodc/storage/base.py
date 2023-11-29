@@ -71,7 +71,24 @@ class DirFileHandle:
                halt_flag: t.Optional[HaltFlag] = None):
         if (not allow_overwrite) and self.exists():
             raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "FILE", 1001, is_recoverable=True)
+        DirFileHandle.add_default_metadata(metadata, storage_tier)
         self._upload(local_path, buffer_size, metadata, storage_tier, halt_flag)
+
+    @staticmethod
+    def add_default_metadata(metadata: dict, storage_tier: t.Optional[StorageTier] = None):
+        if 'AccessLevel' not in metadata:
+            metadata['AccessLevel'] = 'GENERAL'
+        if 'SecurityLabel' not in metadata:
+            metadata['SecurityLabel'] = 'UNCLASSIFIED'
+        if storage_tier is not None:
+            if storage_tier == StorageTier.ARCHIVAL:
+                metadata['StoragePlan'] = 'ARCHIVAL'
+            elif storage_tier == StorageTier.FREQUENT:
+                metadata['StoragePlan'] = 'HOT'
+            elif storage_tier == StorageTier.INFREQUENT:
+                metadata['StoragePlan'] = 'COOL'
+        if 'PublicationPlan' not in metadata:
+            metadata['PublicationPlan'] = 'NONE'
 
     def _upload(self,
                local_path,

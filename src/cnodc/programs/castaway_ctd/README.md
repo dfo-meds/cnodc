@@ -41,6 +41,33 @@ castaway_ctd_processor:
         # erddap_dataset_id: ""             # Dataset ID to reload  
 ```
 
+### Upload Workflow
+```yaml
+queue: ""                   # Queue name to enqueue the uploads in
+upload: ""                  # Path to upload the files for processing
+# upload_tier: "hot"        # Can set to frequent, infrequent or archival
+upload_metadata:
+  # AccessLevel: "GENERAL"
+  # SecurityLabel: "UNCLASSIFIED"
+  # PublicationPlan: "NONE"
+  Program: "CASTAWAY_CTD"
+  Dataset: "SUBMISSIONS"
+  CostUnit: "MARITIMES"
+# archive: ""               # Path to upload the files for archival, if desired
+# archive_tier: "archive"   # Can set to frequent, infrequent or archival
+archive_metadata:
+  # AccessLevel: "GENERAL"
+  # SecurityLabel: "UNCLASSIFIED"
+  # PublicationPlan: "NONE"
+  Program: "CASTAWAY_CTD"
+  Dataset: "SUBMISSIONS"
+  CostUnit: "MARITIMES"
+# queue_priority: 0         # Set the priority in the queue, if desired
+# allow_overwrite: 'user'   # Set to 'never', 'user' or 'always' depending on if you want people to be able to overwrite the source file
+validation: "cnodc.programs.castaway_ctd.intake.validate_castaway_ctd_file
+```
+
+
 ## Input Format
 
 The program expects a CSV format which consists of the following:

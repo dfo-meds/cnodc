@@ -52,6 +52,7 @@ class AzureBlobHandle(UrlBaseHandle):
                metadata: t.Optional[dict[str, str]] = None,
                storage_tier: t.Optional[StorageTier] = None,
                halt_flag: t.Optional[HaltFlag] = None):
+        DirFileHandle.add_default_metadata(metadata, storage_tier)
         args = {
             'data': DirFileHandle._local_read_chunks(local_path, buffer_size, halt_flag),
         }
