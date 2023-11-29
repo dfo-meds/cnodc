@@ -35,6 +35,7 @@ COPY gunicorn_conf.py gunicorn_conf.py
 
 COPY ../src app/src
 COPY ../app.py app/app.py
+COPY ../process.py app/process.py
 COPY .cnodc.processor.defaults.toml app/.cnodc.processor.defaults.toml
 COPY .cnodc.web.defaults.toml app/.cnodc.web.defaults.toml
 COPY .cnodc.defaults.toml app/.cnodc.defaults.toml

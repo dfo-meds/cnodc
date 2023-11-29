@@ -9,8 +9,18 @@ cd /srv/cnodc/app || exit
 # Run the daemon
 if [ "$1" = "processor" ] ; then
 
-  echo "not supported"
-  exit 1
+  # Set the Prometheus directory
+  export PROMETHEUS_MULTIPROC_DIR=/srv/cnodc/_prometheus
+
+  # Handle prometheus directory
+  if [ -e "/srv/cnodc/_prometheus" ] ; then
+    rm -r /srv/cnodc/_prometheus/*
+  else
+    mkdir /srv/cnodc/_prometheus
+  fi
+
+  python process.py
+
 
 # Upgrade or install
 elif [ "$1" = "upgrade" ] ; then
