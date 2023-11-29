@@ -1,5 +1,5 @@
 import shutil
-
+import gzip
 import flask
 import uuid
 import pathlib
@@ -191,7 +191,7 @@ class UploadController:
         with open(request_dir / ".timestamp", "w") as h:
             h.write(datetime.datetime.now(datetime.timezone.utc).isoformat())
 
-    def assemble_file(self) -> pathlib.Path:
+    def assemble_file(self, gzip_result: bool = True) -> pathlib.Path:
         if self._assembled_file is None:
             request_dir = self._request_directory()
             files = []
@@ -207,7 +207,8 @@ class UploadController:
                 self._assembled_file = files[0]
             else:
                 self._assembled_file = self._request_directory() / "assembled.bin"
-                with open(self._assembled_file, "wb") as dest:
+                open_fn = gzip.open if gzip_result else open
+                with open_fn(self._assembled_file, "wb") as dest:
                     for file in files:
                         with open(file, "rb") as src:
                             shutil.copyfileobj(src, dest)
@@ -217,12 +218,14 @@ class UploadController:
         primary_handle = None
         secondary_handle = None
         try:
-            local_source_file = self.assemble_file()
+            gzip_active = bool(workflow.get_config("gzip", True))
+            headers['gzip'] = gzip_active
+            local_source_file = self.assemble_file(gzip_active)
             validation_target = workflow.get_config("validation", None)
             if validation_target is not None:
                 if not dynamic_object(validation_target)(local_source_file, headers):
                     raise CNODCError("Validation failed", "UPLOADCTRL", 1010)
-            filename = self._get_filename(headers)
+            filename = self._get_filename(headers, gzip_active)
             metadata = self._get_metadata(workflow.get_config('metadata', default={}), headers)
             allow_overwrite = headers['allow-overwrite'] == '1' if 'allow-overwrite' in headers else False
             workflow_allow_overwrite = workflow.get_config('allow_overwrite', None)
@@ -263,10 +266,15 @@ class UploadController:
                     {
                         'upload_file': primary_handle.path() if primary_handle else None,
                         'archive_file': secondary_handle.path() if secondary_handle else None,
+                        'gzip': gzip_active,
                         'filename': filename,
                         'headers': headers,
-                        'workflow_name': self.workflow_name,
-                        'request_id': self.request_id
+                        '_metadata': {
+                            'source': 'web_upload',
+                            'correlation_id': self.request_id,
+                            'workflow_name': self.workflow_name,
+                            'user': self.login.current_user().username
+                        }
                     },
                     priority=workflow.get_config('queue_priority', None),
                     unique_item_key=headers['unique-key'] if 'unique-key' in headers else None
@@ -288,9 +296,13 @@ class UploadController:
         v = v.replace('${now}', datetime.datetime.now(datetime.timezone.utc)).isoformat()
         return quote(v, safe=VALID_METADATA_CHARACTERS)
 
-    def _get_filename(self, headers: dict):
+    def _get_filename(self, headers: dict, is_gzipped: bool = False):
         filename = self._sanitize_filename(headers['filename']) if 'filename' in headers else None
-        return headers['request_id'] if filename is None else filename
+        if filename is None:
+            filename = headers['request_id']
+        if is_gzipped:
+            filename += ".gz"
+        return filename
 
     def _sanitize_filename(self, filename: str):
         filename = ''.join([x for x in filename if x in VALID_FILENAME_CHARACTERS])

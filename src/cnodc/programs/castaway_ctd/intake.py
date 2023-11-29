@@ -1,33 +1,37 @@
+import gzip
+import shutil
+
 from cnodc.nodb import NODBControllerInstance, structures
 from cnodc.process.queue_worker import QueueWorker
 import typing as t
 from autoinject import injector
 from cnodc.storage import StorageController, DirFileHandle
 from cnodc.erddap import ErddapController
-from cnodc.util import CNODCError
+from cnodc.util import CNODCError, HaltFlag
 import tempfile
 import pathlib
 import netCDF4 as nc
 import csv
 import numpy as np
+import math
 import datetime
 
 
-REF_TIME = datetime.datetime(1950, 1, 1, 0, 0, 0)
+REF_TIME = datetime.datetime(1950, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
 
 METADATA_KEYS = {
-    '% Device': ('device__appareil', 'string'),
-    '% File name': ('profile_id', 'string'),
-    '% Cast time (UTC)': ('time', 'datetime'),
+    '% Device': ('device__appareil', 'string', ''),
+    '% File name': ('profile_id', 'string', ''),
+    '% Cast time (UTC)': ('time', 'datetime', -1),
     '% Cast time (local)': ('', ''),
-    '% Sample type': ('sample_type__type_echantillon', 'string'),
-    '% Cast data': ('processing__traitement', 'string'),
-    '% Location source': ('location_source__source_emplacement', 'string'),
+    '% Sample type': ('sample_type__type_echantillon', 'string', ''),
+    '% Cast data': ('processing__traitement', 'string', ''),
+    '% Location source': ('location_source__source_emplacement', 'string', ''),
     '% Default latitude': ('', ''),
     '% Default altitude': ('', ''),
-    '% Start latitude': ('start_lat__lat_depart', 'float'),
-    '% Start longitude': ('start_lon__lon_depart', 'float'),
+    '% Start latitude': ('start_lat__lat_depart', 'float', -200),
+    '% Start longitude': ('start_lon__lon_depart', 'float', -200),
     '% Start altitude': ('start_altitude__altitude_depart', 'float'),
     '% Start GPS horizontal error(Meter)': ('start_horz_error__erreur_horz_depart', 'float'),
     '% Start GPS vertical error(Meter)': ('start_vert_error__erreur_vert_depart', 'float'),
@@ -40,10 +44,10 @@ METADATA_KEYS = {
     '% End GPS number of satellites': ('end_no_satellites__no_satellites_finale', 'int'),
     '% Cast duration (Seconds)': ('duration__duree', 'float'),
     '% Samples per second': ('sampling_freq__freq_echantillonnage', 'int'),
-    '% Electronics calibration date': ('calib_date_electronics__date_etal_electronique', 'date'),
-    '% Conductivity calibration date': ('calib_date_conductivity__date_etal_conductivite', 'date'),
-    '% Temperature calibration date': ('calib_date_temperature__date_etal_temperature', 'date'),
-    '% Pressure calibration date': ('calib_date_pressure__date_etal_pression', 'date')
+    '% Electronics calibration date': ('calib_date_electronics__date_etal_electronique', 'date', ''),
+    '% Conductivity calibration date': ('calib_date_conductivity__date_etal_conductivite', 'date', ''),
+    '% Temperature calibration date': ('calib_date_temperature__date_etal_temperature', 'date', ''),
+    '% Pressure calibration date': ('calib_date_pressure__date_etal_pression', 'date', '')
 }
 
 RAW_VARIABLES = {
@@ -73,23 +77,44 @@ class CastawayIntakeWorker(QueueWorker):
         super().__init__("cnodc.castaway.nc", *args, **kwargs)
         self._erddap: t.Optional[ErddapController] = None
         self._storage: t.Optional[StorageController] = None
-        self._upload_target: t.Optional[DirFileHandle] = None
-        self._archive_target: t.Optional[DirFileHandle] = None
+        self._upload_target_raw: t.Optional[DirFileHandle] = None
+        self._archive_target_raw: t.Optional[DirFileHandle] = None
+        self._upload_target_processed: t.Optional[DirFileHandle] = None
+        self._archive_target_processed: t.Optional[DirFileHandle] = None
+        self.set_defaults({
+            'erddap_directory_raw': '',
+            'erddap_directory_processed': '',
+            'archive_directory_raw': '',
+            'archive_directory_processed': '',
+            'erddap_dataset_id': None,
+            'gzip': True,
+            'erddap_cluster': None
+        })
 
     @injector.inject
     def on_start(self, storage: StorageController = None, erddap: ErddapController = None):
-        if self.get_config("erddap_directory") is None:
+        if self.get_config("erddap_directory_raw") is None:
             raise CNODCError("ERDDAP upload directory not specified", "CASTAWAY", 2003)
-        if self.get_config("archive_directory") is None:
+        if self.get_config("archive_directory_raw") is None:
             raise CNODCError("Archive directory not specified", "CASTAWAY", 2004)
+        if self.get_config("erddap_directory_processed") is None:
+            raise CNODCError("ERDDAP upload directory not specified", "CASTAWAY", 2009)
+        if self.get_config("archive_directory_processed") is None:
+            raise CNODCError("Archive directory not specified", "CASTAWAY", 2010)
         self._storage = storage
         self._erddap = erddap
-        self._upload_target = storage.get_handle(self.get_config("erddap_directory"))
-        if not self._upload_target.exists():
-            raise CNODCError(f"Upload directory [{self._upload_target}] does not exist", "CASTAWAY", 2005)
-        self._archive_target = storage.get_handle(self.get_config("archive_directory"))
-        if not self._archive_target.exists():
-            raise CNODCError(f"Archive directory [{self._archive_target}] does not exist", "CASTAWAY", 2006)
+        self._upload_target_raw = storage.get_handle(self.get_config("erddap_directory_raw"))
+        if not self._upload_target_raw.exists():
+            raise CNODCError(f"Upload directory [{self._upload_target_raw}] does not exist", "CASTAWAY", 2005)
+        self._archive_target_raw = storage.get_handle(self.get_config("archive_directory_raw"))
+        if not self._archive_target_raw.exists():
+            raise CNODCError(f"Archive directory [{self._archive_target_raw}] does not exist", "CASTAWAY", 2006)
+        self._upload_target_processed = storage.get_handle(self.get_config("erddap_directory_processed"))
+        if not self._upload_target_processed.exists():
+            raise CNODCError(f"Upload directory [{self._upload_target_processed}] does not exist", "CASTAWAY", 2011)
+        self._archive_target_processed = storage.get_handle(self.get_config("archive_directory_processed"))
+        if not self._archive_target_processed.exists():
+            raise CNODCError(f"Archive directory [{self._archive_target_processed}] does not exist", "CASTAWAY", 2012)
 
     def process_queue_item(self,
                             item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
@@ -99,201 +124,298 @@ class CastawayIntakeWorker(QueueWorker):
         if not file_handle.exists():
             raise CNODCError(f"Upload file [{item.data['upload_file']} no longer exists", "CASTAWAY", 2001)
         with tempfile.TemporaryDirectory() as temp_dir:
+
+            # Download the original file
             temp_dir = pathlib.Path(temp_dir)
             local_file = temp_dir / "castaway.csv"
             file_handle.download(local_file, halt_flag=self.halt_flag)
             self.halt_flag.check_continue(True)
-            castaway_ctd_data = parse_castaway_ctd_file(local_file)
-            self.halt_flag.check_continue(True)
-            netcdf_file = temp_dir / "castaway.nc"
-            ncf = None
-            file_name = self._make_castaway_file_name(castaway_ctd_data)
-            upload_file: DirFileHandle = self._upload_target.child(file_name)
-            archive_file: DirFileHandle = self._archive_target.child(file_name)
+
+            # Unpack the original file
+            castaway_data = CastawayData(local_file, item.data['gzip'] if 'gzip' in item.data else False)
+
+            # Determine the file upload paths
+            upload_file_name = castaway_data.netcdf_file_name(bool(self.get_config('gzip', True)))
+            archive_file_name = castaway_data.netcdf_file_name(True)
+            upload_file: t.Optional[DirFileHandle] = None
+            archive_file: t.Optional[DirFileHandle] = None
+            if castaway_data.is_raw():
+                upload_file = self._upload_target_raw.child(upload_file_name)
+                archive_file = self._archive_target_raw.child(archive_file_name)
+            else:
+                upload_file = self._upload_target_processed.child(upload_file_name)
+                archive_file = self._archive_target_processed.child(archive_file_name)
+
+            # Check if the file already exists (currently an error)
+            # TODO: Check overwrite flag?
             if upload_file.exists():
                 raise CNODCError(f"Upload file already exists for this profile [{upload_file}]", "CASTAWAY", 2007)
             if archive_file.exists():
                 raise CNODCError(f"Archive file already exists for this profile [{archive_file}]", "CASTAWAY", 2008)
-            stage = 1
+            self.halt_flag.check_continue(True)
+
+            # Build the NetCDF file
+            netcdf_file = temp_dir / "castaway.nc"
+            castaway_data.build_netcdf_file(netcdf_file, self.halt_flag)
+            self.halt_flag.check_continue(True)
+
+            # Gzip the NetCDF file
+            gzip_netcdf_file = temp_dir / "castaway.nc.gz"
+            with gzip.open(gzip_netcdf_file, "wb") as dest:
+                with open(netcdf_file, "rb") as src:
+                    shutil.copyfileobj(src, dest)
+            self.halt_flag.check_continue(True)
+
+            # Do the upload and rollback if there is an issue
+            stage = 0
             try:
-                ncf = self._create_netcdf_file(netcdf_file, castaway_ctd_data['metadata']['% Cast data'] == 'Raw')
-                self.halt_flag.check_continue(True)
-                self._load_castaway_data(castaway_ctd_data, ncf)
-                ncf.close()
-                ncf = None
-                self.halt_flag.check_continue(True)
                 upload_file.upload(netcdf_file)
-                stage = 2
+                self.halt_flag.check_continue(True)
+                stage = 1
                 archive_file.upload(netcdf_file)
-                stage = 3
+                stage = 2
                 if self.get_config('erddap_dataset_id'):
-                    self._erddap.reload_dataset(self.get_config('erddap_dataset_id'))
-                # Later TODO: save profile to database and trigger processing
-                return structures.QueueItemResult.SUCCESS
+                    self._erddap.reload_dataset(
+                        self.get_config('erddap_dataset_id'),
+                        cluster_name=self.get_config('erddap_cluster', None)
+                    )
+                # TODO LATER: save profile to database and trigger processing
+                self._db.mark_queue_item_complete(item)
+                return None
             except Exception as ex:
-                if stage >= 2:
+                if stage >= 1:
                     upload_file.remove()
-                if stage >= 3:
+                if stage >= 2:
                     archive_file.remove()
                 raise ex
-            finally:
-                if ncf is not None:
-                    ncf.close()
-                    ncf = None
 
-    def _make_castaway_file_name(self, ctd_data: dict) -> str:
-        return f"{ctd_data['metadata']['% File name']}.nc"
 
-    def _create_netcdf_file(self, netcdf_file: pathlib.Path, for_raw_data: bool) -> nc.Dataset:
+class CastawayData:
+
+    def __init__(self, source_file: pathlib.Path, is_gzip: bool = False):
+        self._source_file = source_file
+        self._is_gzip = is_gzip
+        self._data_load_flag: bool = False
+        self._metadata: dict[str, str] = {}
+        self._headers: list[str] = []
+        self._data: list[list[str]] = []
+
+    def _load_data(self):
+        if not self._data_load_flag:
+            header_count = None
+            check_against = []
+            open_fn = gzip.open if self._is_gzip else open
+            with open_fn(self._source_file, "r", encoding="utf-8") as h:
+                reader = csv.reader(h)
+                for line_no, line in enumerate(reader):
+                    if state == "metadata":
+                        if line[0].strip() == "%":
+                            state = "header"
+                            if '% Cast data' not in self._metadata:
+                                raise CNODCError("Missing % Cast data parameter", "CASTAWAY", 1005)
+                            check_against = RAW_VARIABLES if self._metadata['% Cast data'] == 'Raw' else PROCESSED_VARIABLES
+                        elif line[0].strip() not in METADATA_KEYS:
+                            raise CNODCError(f"Invalid metadata parameter name [{line[0]}] on line [{line_no}]", "CASTAWAY", 1000)
+                        else:
+                            self._metadata[line[0].strip()] = line[1].strip()
+                    elif state == "header":
+                        self._headers = line
+                        for x in self._headers:
+                            if x not in check_against:
+                                raise CNODCError(f"Invalid variable name [{x}] on line [{line_no}]", "CASTAWAY", 1001)
+                        state = "data"
+                        header_count = len(self._headers)
+                    elif state == "data":
+                        if len(line) == 0:
+                            state = "eof"
+                        elif len(line) != header_count:
+                            raise CNODCError(f"Missing data columns on line [{line_no}], expected [{header_count}] found [{len(line)}]", "CASTAWAY", 1002)
+                        else:
+                            self._data.append(line)
+                    elif state == "eof":
+                        if len(line) > 0:
+                            raise CNODCError(f"Non-blank line on line [{line_no}] after data", "CASTAWAY", 1003)
+                if state not in ("data", "eof"):
+                    raise CNODCError(f"Missing headers", "CASTAWAY", 1004)
+
+    def validate_file(self) -> bool:
+        self._load_data()
+        if '% File name' not in self._metadata:
+            raise CNODCError("Missing % File name parameter", "CASTAWAY", 1006)
+        if '% Cast time (UTC)' not in self._metadata:
+            raise CNODCError("Missing % Cast time (UTC) parameter", "CASTAWAY", 1008)
+        try:
+            _ = datetime.datetime.strptime(self._metadata['% Cast time (UTC)'], '%m/%d/%Y %H:%M')
+        except ValueError:
+            raise CNODCError("Invalid date/time for cast time", "CASTAWAY", 1009)
+        for x in ('% Electronics calibration date', '% Conductivity calibration date', '% Temperature calibration date', '% Pressure calibration date'):
+            if x not in self._metadata:
+                continue
+            if self._metadata[x] == '':
+                continue
+            if self._metadata[x].count('-') == 2:
+                try:
+                    _ = datetime.datetime.strptime(self._metadata[x], '%Y-%m-%d')
+                except ValueError:
+                    raise CNODCError(f"Invalid date/time for [{x}], should be %Y-%m-%d", "CASTAWAY", 1010)
+            elif self._metadata[x].count('/') == 2:
+                try:
+                    _ = datetime.datetime.strptime(self._metadata[x], '%m/%d/%Y')
+                except ValueError:
+                    raise CNODCError(f"Invalid date/time for [{x}], should be %m/%d/%Y", "CASTAWAY", 1011)
+            else:
+                raise CNODCError(f"Date field [{x}] does not have a recognizable %m/%d/%Y or %Y-%m-%d format", "CASTAWAY", 1007)
+        return True
+
+    def netcdf_file_name(self, gzipped: bool = False) -> str:
+        self._load_data()
+        suffix = "_raw" if self.is_raw() else '_processed'
+        extension = '.nc' if not gzipped else '.nc.gz'
+        return f"{self._metadata['% File name']}{suffix}{extension}"
+
+    def is_raw(self) -> bool:
+        self._load_data()
+        return self._metadata['% Cast data'] == 'Raw'
+
+    def build_netcdf_file(self, netcdf_file: pathlib.Path, halt_flag: HaltFlag = None):
+        ncf = None
+        try:
+            self._load_data()
+            if halt_flag: halt_flag.check_continue(True)
+            ncf = self._create_netcdf_file(netcdf_file)
+            if halt_flag: halt_flag.check_continue(True)
+            self._load_castaway_data(ncf, halt_flag)
+        finally:
+            if ncf is not None:
+                ncf.close()
+
+    def _create_netcdf_file(self, netcdf_file: pathlib.Path) -> nc.Dataset:
         ncf = nc.Dataset(netcdf_file, "rb", format="NETCDF4")
-        ncf.createDimension("profile", 1)
-        ncf.createDimension("obs", None)
-        self._create_variable(ncf, "profile_id", str, ("profile",), {
-            'cf_role': 'profile_id',
-        })
-        self._create_variable(ncf, "device__appareil", str, ("profile",), {})
-        self._create_variable(ncf, "time", "i4", ("profile",), {
-            "axis": "T",
-            "calendar": "gregorian"
-        })
-        self._create_variable(ncf, "sample_type__type_echantillon", str, ("profile",), {})
-        self._create_variable(ncf, "processing__traitement", str, ("profile",), {})
-        self._create_variable(ncf, "location_source__source_emplacement", str, ("profile",), {})
-        self._create_variable(ncf, "start_lat__lat_depart", "f8", ("profile",), {})
-        self._create_variable(ncf, "start_lon__lon_depart", "f8", ("profile",), {})
-        self._create_variable(ncf, "start_altitude__altitude_depart", "f8", ("profile",), {})
-        self._create_variable(ncf, "start_horz_error__erreur_horz_depart", "f8", ("profile",), {})
-        self._create_variable(ncf, "start_vert_error__erreur_vert_depart", "f8", ("profile",), {})
-        self._create_variable(ncf, "start_no_satellites__no_satellites_depart", "i4", ("profile",), {})
-        self._create_variable(ncf, "end_lat__lat_finale", "f8", ("profile",), {})
-        self._create_variable(ncf, "end_lon__lon_finale", "f8", ("profile",), {})
-        self._create_variable(ncf, "end_altitude__altitude_finale", "f8", ("profile",), {})
-        self._create_variable(ncf, "end_horz_error__erreur_horz_finale", "f8", ("profile",), {})
-        self._create_variable(ncf, "end_vert_error__erreur_vert_finale", "f8", ("profile",), {})
-        self._create_variable(ncf, "end_no_satellites__no_satellites_finale", "i4", ("profile",), {})
-        self._create_variable(ncf, "duration__duree", "f8", ("profile", ), {})
-        self._create_variable(ncf, "sampling_freq__freq_echantillonnage", "i4", ("profile",), {})
-        self._create_variable(ncf, "calib_date_electronics__date_etal_electronique", str, ("profile",), {})
-        self._create_variable(ncf, "calib_date_conductivity__date_etal_conductivite", str, ("profile",), {})
-        self._create_variable(ncf, "calib_date_temperature__date_etal_temperature", str, ("profile",), {})
-        self._create_variable(ncf, "calib_date_pressure__date_etal_pression", str, ("profile",), {})
-        self._create_variable(ncf, "latitude", "f8", ("profile",), {})
-        self._create_variable(ncf, "longitude", "f8", ("profile",), {})
-        self._create_variable(ncf, "row_size", "i4", ("profile",), {
-            'sample_dimension': 'obs',
-        })
-        self._create_variable(ncf, 'pressure__pression', 'f8', ('obs',), {
-            'units': 'Pa',
-        })
-        self._create_variable(ncf, "temperature", "f8", ("obs",), {})
-        self._create_variable(ncf, "conductivity_conductivite", "f8", ("obs", ), {})
-        if for_raw_data:
-            self._create_variable(ncf, 'seconds__secondes', 'f8', ('obs',), {
-                'units': 's'
+        try:
+            ncf.createDimension("profile", 1)
+            ncf.createDimension("obs", None)
+            self._create_variable(ncf, "profile_id", str, ("profile",), {
+                'cf_role': 'profile_id',
             })
-        else:
-            self._create_variable(ncf, "depth", "f8", ("obs",), {
-                'axis': 'Z',
-                'positive': 'down',
-                'units': 'm'
+            self._create_variable(ncf, "device__appareil", str, ("profile",), {})
+            self._create_variable(ncf, "time", "i8", ("profile",), {
+                "axis": "T",
+                "calendar": "gregorian",
+                "units": "minutes since 1950-01-01 00:00",
+                "_FillValue": -1,
+                "valid_min": 0,
             })
-            self._create_variable(ncf, "specific_conductance__conductance_specifique", "f8", ("obs", ), {})
-            self._create_variable(ncf, "salinity__salinite", "f8", ("obs", ), {})
-            self._create_variable(ncf, "sound_velocity__vitesse_son", "f8", ("obs",), {})
-            self._create_variable(ncf, "density__densite", "f8", ("obs",), {})
+            self._create_variable(ncf, "sample_type__type_echantillon", str, ("profile",), {})
+            self._create_variable(ncf, "processing__traitement", str, ("profile",), {})
+            self._create_variable(ncf, "location_source__source_emplacement", str, ("profile",), {})
+            self._create_variable(ncf, "start_lat__lat_depart", "f8", ("profile",), {
+                '_FillValue': float('nan'),
+            })
+            self._create_variable(ncf, "start_lon__lon_depart", "f8", ("profile",), {})
+            self._create_variable(ncf, "start_altitude__altitude_depart", "f8", ("profile",), {})
+            self._create_variable(ncf, "start_horz_error__erreur_horz_depart", "f8", ("profile",), {})
+            self._create_variable(ncf, "start_vert_error__erreur_vert_depart", "f8", ("profile",), {})
+            self._create_variable(ncf, "start_no_satellites__no_satellites_depart", "i4", ("profile",), {})
+            self._create_variable(ncf, "end_lat__lat_finale", "f8", ("profile",), {})
+            self._create_variable(ncf, "end_lon__lon_finale", "f8", ("profile",), {})
+            self._create_variable(ncf, "end_altitude__altitude_finale", "f8", ("profile",), {})
+            self._create_variable(ncf, "end_horz_error__erreur_horz_finale", "f8", ("profile",), {})
+            self._create_variable(ncf, "end_vert_error__erreur_vert_finale", "f8", ("profile",), {})
+            self._create_variable(ncf, "end_no_satellites__no_satellites_finale", "i4", ("profile",), {})
+            self._create_variable(ncf, "duration__duree", "f8", ("profile", ), {})
+            self._create_variable(ncf, "sampling_freq__freq_echantillonnage", "i4", ("profile",), {})
+            self._create_variable(ncf, "calib_date_electronics__date_etal_electronique", str, ("profile",), {})
+            self._create_variable(ncf, "calib_date_conductivity__date_etal_conductivite", str, ("profile",), {})
+            self._create_variable(ncf, "calib_date_temperature__date_etal_temperature", str, ("profile",), {})
+            self._create_variable(ncf, "calib_date_pressure__date_etal_pression", str, ("profile",), {})
+            self._create_variable(ncf, "latitude", "f8", ("profile",), {})
+            self._create_variable(ncf, "longitude", "f8", ("profile",), {})
+            self._create_variable(ncf, "row_size", "i4", ("profile",), {
+                'sample_dimension': 'obs',
+            })
+            self._create_variable(ncf, 'pressure__pression', 'f8', ('obs',), {
+                'units': 'Pa',
+            })
+            self._create_variable(ncf, "temperature", "f8", ("obs",), {})
+            self._create_variable(ncf, "conductivity_conductivite", "f8", ("obs", ), {})
+            if self.is_raw():
+                self._create_variable(ncf, 'seconds__secondes', 'f8', ('obs',), {
+                    'units': 's'
+                })
+            else:
+                self._create_variable(ncf, "depth", "f8", ("obs",), {
+                    'axis': 'Z',
+                    'positive': 'down',
+                    'units': 'm'
+                })
+                self._create_variable(ncf, "specific_conductance__conductance_specifique", "f8", ("obs", ), {})
+                self._create_variable(ncf, "salinity__salinite", "f8", ("obs", ), {})
+                self._create_variable(ncf, "sound_velocity__vitesse_son", "f8", ("obs",), {})
+                self._create_variable(ncf, "density__densite", "f8", ("obs",), {})
+        except Exception as ex:
+            ncf.close()
+            raise ex
         return ncf
 
     def _create_variable(self, ncf: nc.Dataset, var_name: str, data_type, dimensions: tuple, attributes: dict = None):
-        var = ncf.createVariable(var_name, data_type, dimensions)
+        if '_FillValue' in attributes:
+            attributes['missing_value'] = attributes['_FillValue']
+            var = ncf.createVariable(var_name, data_type, dimensions, fill_value=attributes.pop('_FillValue'))
+        else:
+            if 'missing_value' not in attributes and var_name in nc.default_fillvals:
+                attributes['missing_value'] = nc.default_fillvals[var_name]
+            var = ncf.createVariable(var_name, data_type, dimensions)
         var.setncattrs(attributes)
         return var
 
-    def _load_castaway_data(self, ctd_data: dict, ncf: nc.Dataset):
-        ncf.variables['row_size'][:] = [len(ctd_data['data'])]
-        for key in ctd_data['metadata']:
+    def _load_castaway_data(self, ncf: nc.Dataset, halt_flag: HaltFlag = None):
+        ncf.variables['row_size'][:] = [len(self._data)]
+        for key in self._metadata:
             metadata_info = METADATA_KEYS[key]
-            ncf.variables[metadata_info[0]][:] = self._convert_data([ctd_data['metadata'][key]], *metadata_info[1:])
-        raw_data = {k: [] for k in ctd_data['headers']}
-        for datum in ctd_data['data']:
-            for idx, k in enumerate(ctd_data['headers']):
+            ncf.variables[metadata_info[0]][:] = self._convert_data([self._metadata[key]], *metadata_info[1:])
+            if halt_flag: halt_flag.check_continue(True)
+        raw_data = {k: [] for k in self._headers}
+        for datum in self._data:
+            for idx, k in enumerate(self._headers):
                 raw_data[k].append(datum[idx])
-        lookup = RAW_VARIABLES if ctd_data['metadata']['% Cast data'] == 'Raw' else PROCESSED_VARIABLES
+                if halt_flag: halt_flag.check_continue(True)
+        lookup = RAW_VARIABLES if self.is_raw() else PROCESSED_VARIABLES
         for key in raw_data:
             variable_info = lookup[key]
             ncf.variables[variable_info[0]][:] = self._convert_data(raw_data[key], *variable_info[1:])
+            if halt_flag: halt_flag.check_continue(True)
 
-    def _convert_data(self, raw_data, data_type, *args):
+    def _convert_data(self, raw_data, data_type, fill_value=None, *args):
         if data_type == 'string':
-            return np.array(raw_data, dtype='object')
+            return np.array([x if x is not None and x != '' else fill_value for x in raw_data], dtype='object')
         elif data_type == 'float':
-            return [float(x) if x is not None and x != '' else None for x in raw_data]
+            return [float(x) if x is not None and x != '' else fill_value for x in raw_data]
         elif data_type == 'int':
-            return [int(x) if x is not None and x != '' else None for x in raw_data]
+            return [int(x) if x is not None and x != '' else fill_value for x in raw_data]
         elif data_type == 'datetime':
-            return [self._datetime_str_to_int(x) for x in raw_data]
+            return [self._datetime_str_to_int(x, fill_value) for x in raw_data]
         elif data_type == 'date':
-            return [self._date_to_str(x) for x in raw_data]
+            return [self._date_to_str(x, fill_value) for x in raw_data]
         raise CNODCError(f"Data type [{data_type}] not supported", "CASTAWAY", 2002)
 
-    def _datetime_str_to_int(self, val):
-        raise NotImplementedError()
-        # TODO: typically mm/dd/yyyy HH:MM
-        # makes an int (minutes since REF_TIME)
+    def _datetime_str_to_int(self, val: t.Optional[str], fill_value=None):
+        if val is None or val == '':
+            return fill_value
+        dt = datetime.datetime.strptime(val, '%m/%d/%Y %H:%M')
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+        # Minutes since REF_TIME (reduce towards 0 if seconds present)
+        return int(math.floor((dt - REF_TIME).total_seconds() / 60.0))
 
-    def _date_to_str(self, val):
-        raise NotImplementedError()
-        # TODO: typically YYYY-MM-DD or mm/dd/yyyy (watch for YYYY in far past as null)
-        # makes a string
+    def _date_to_str(self, val: t.Optional[str], fill_value=None):
+        if val is None or val == '':
+            return fill_value
+        dt = datetime.datetime.strptime(val, '%Y-%m-%d' if '-' in val else '%m/%d/%Y')
+        if dt.year > 1600:
+            return dt.strftime('%Y-%m-%d')
+        else:
+            return fill_value
 
 
 def validate_castaway_ctd_file(data_file: pathlib.Path, headers: dict):
-    data = parse_castaway_ctd_file(data_file)
-    if '% File name' not in data['metadata']:
-        raise CNODCError("Missing % File name parameter", "CASTAWAY", 1006)
-
-    # TODO: verify all the columns are present? and appropriate columns for the % Cast data value?
-    return True
-
-
-def parse_castaway_ctd_file(data_file: pathlib.Path) -> dict:
-    state = "metadata"
-    ctd_file = {
-        'metadata': {},
-        'headers': [],
-        'data': []
-    }
-    header_count = None
-    check_against = []
-    with open(data_file, "r", encoding="utf-8") as h:
-        reader = csv.reader(h)
-        for line_no, line in enumerate(reader):
-            if state == "metadata":
-                if line[0].strip() == "%":
-                    state = "header"
-                    if '% Cast data' not in ctd_file['metadata']:
-                        raise CNODCError("Missing % Cast data parameter", "CASTAWAY", 1005)
-                    check_against = RAW_VARIABLES if ctd_file['metadata']['% Cast data'] == 'Raw' else PROCESSED_VARIABLES
-                elif line[0].strip() not in METADATA_KEYS:
-                    raise CNODCError(f"Invalid metadata parameter name [{line[0]}] on line [{line_no}]", "CASTAWAY", 1000)
-                else:
-                    ctd_file['metadata'][line[0].strip()] = line[1].strip()
-            elif state == "header":
-                ctd_file['headers'] = line
-                for x in ctd_file['headers']:
-                    if x not in check_against:
-                        raise CNODCError(f"Invalid variable name [{x}] on line [{line_no}]", "CASTAWAY", 1001)
-                state = "data"
-                header_count = len(ctd_file['headers'])
-            elif state == "data":
-                if len(line) == 0:
-                    state = "eof"
-                elif len(line) != header_count:
-                    raise CNODCError(f"Missing data columns on line [{line_no}], expected [{header_count}] found [{len(line)}]", "CASTAWAY", 1002)
-                else:
-                    ctd_file['data'].append(line)
-            elif state == "eof":
-                if len(line) > 0:
-                    raise CNODCError(f"Non-blank line on line [{line_no}] after data", "CASTAWAY", 1003)
-    if state not in ("data", "eof"):
-        raise CNODCError(f"Missing headers", "CASTAWAY", 1004)
-    return ctd_file
+    file = CastawayData(data_file, headers['gzip'] if 'gzip' in headers else False)
+    return file.validate_file()

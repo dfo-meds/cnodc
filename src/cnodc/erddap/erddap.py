@@ -3,6 +3,9 @@ import zirconium as zr
 import zrlog
 from autoinject import injector
 import enum
+import typing as t
+
+from cnodc.util import CNODCError
 
 
 class ReloadFlag(enum.Enum):
@@ -19,49 +22,57 @@ class ErddapController:
 
     @injector.construct
     def __init__(self):
-        self._username = self.app_config.as_str(("erddaputil", "username"))
-        self._password = self.app_config.as_str(("erddaputil", "password"))
-        self._base_url = self.app_config.as_str(("erddaputil", "base_url"))
-        self._broadcast_mode = self.app_config.as_str(('erddaputil', 'broadcast'), default='no')
-        self._broadcast_flag = 0
-        self._config_good = None
+        self._erddap_configs = self.app_config.as_dict(("erddaputil",))
+        self._valid_configs = {}
         self._log = zrlog.get_logger("cnodc.erddap")
-        self._check_credentials()
 
-    def _check_credentials(self):
-        if self._config_good is None:
-            self._config_good = True
-            if self._username is None or self._username == '':
-                self._config_good = False
-                self._log.error(f"Missing value for erddaputil.username")
-            if self._password is None or self._password == '':
-                self._config_good = False
-                self._log.error(f"Missing value for erddaputil.password")
-            if self._base_url is None or self._base_url == '':
-                self._config_good = False
-                self._log.error(f"Missing value for erddaputil.base_url")
-            elif not (self._base_url.startswith("http://") or self._base_url.startswith("https://")):
-                self._config_good = False
-                self._log.error(f"Invalid value for erddaputil.base_url")
-            else:
-                self._base_url = self._base_url.rstrip("/")
-            if self._broadcast_mode == 'cluster':
-                self._broadcast_flag = 1
-            elif self._broadcast_flag == 'global':
-                self._broadcast_flag = 2
-            elif self._broadcast_flag != 'no':
-                self._log.warning(f"Unrecognized value [{self._broadcast_mode}] for erddaputil.broadcast_mode, defaulting to [no]")
-        return self._config_good
+    def _get_config(self, cluster_name: t.Optional[str] = None):
+        cluster_name = cluster_name or "__default"
+        if cluster_name not in self._valid_configs:
+            self._valid_configs[cluster_name] = None
+            if cluster_name == '__default' or cluster_name in self._erddap_configs:
+                config = self._erddap_configs if cluster_name == '__default' else self._erddap_configs[cluster_name]
+                good_config = True
+                if 'username' not in config or not config['username']:
+                    self._log.error(f"Missing username for ERDDAP cluster {cluster_name}")
+                    good_config = False
+                if 'password' not in config or not config['password']:
+                    self._log.error(f"Missing password for ERDDAP cluster {cluster_name}")
+                    good_config = False
+                if 'base_url' not in config or not config['base_url']:
+                    self._log.error(f"Missing base_url for ERDDAP cluster {cluster_name}")
+                    good_config = False
+                elif not isinstance(config['base_url'], str):
+                    self._log.error(f"base_url is not a string for ERDDAP cluster {cluster_name}")
+                    good_config = False
+                elif not (config['base_url'].startswith("http://") or config['base_url'].startswith("https://")):
+                    self._log.error(f"Invalid base_url for ERDDAP cluster {cluster_name}")
+                    good_config = False
+                else:
+                    config['base_url'] = config['base_url'].rstrip('/')
+                if 'broadcast_mode' not in config:
+                    config['broadcast_mode'] = 'no'
+                elif config['broadcast_mode'] not in ('cluster', 'global', 'no'):
+                    self._log.warning(f"Invalid broadcast_mode for ERDDAP cluster {cluster_name}, defaulting to [no]")
+                    config['broadcast_mode'] = 'no'
+                if good_config:
+                    self._valid_configs[cluster_name] = config
+        return self._valid_configs[cluster_name]
 
     def reload_dataset(self,
                        dataset_id: str,
-                       flag: ReloadFlag = ReloadFlag.SOFT) -> bool:
+                       flag: ReloadFlag = ReloadFlag.SOFT,
+                       cluster_name: str = None) -> bool:
         try:
-            resp = self._make_authenticated_request("datasets/reload", "POST", {
-                'dataset_id': dataset_id,
-                'flag': flag.value,
-                '_broadcast': self._broadcast_flag
-            })
+            resp = self._make_authenticated_request(
+                endpoint="datasets/reload",
+                method="POST",
+                json_data={
+                    'dataset_id': dataset_id,
+                    'flag': flag.value
+                },
+                cluster_name=cluster_name
+            )
             if not resp['success']:
                 self._log.error(f"Remote error while requesting ERDDAP dataset reload: {resp['message'] if 'message' in resp else 'unknown'}")
                 return False
@@ -70,11 +81,18 @@ class ErddapController:
             self._log.exception(f"Exception while requesting ERDDAP dataset reload")
             return False
 
-    def _make_authenticated_request(self, endpoint: str, method: str, json_data: dict):
-        auth_key = f'{self._username}:{self._password}'.encode('utf-8')
+    def _make_authenticated_request(self, endpoint: str, method: str, json_data: dict, cluster_name: str = None):
+        config = self._get_config(cluster_name)
+        if config is None:
+            raise CNODCError(f"Invalid ERDDAP configuration, see logs for more details", "ERDDAPUTIL", 1000)
+        if config['broadcast_mode'] == 'cluster':
+            json_data['_broadcast'] = 1
+        elif config['broadcast_mode'] == 'global':
+            json_data['_broadcast'] = 2
+        auth_key = f'{config["username"]}:{config["password"]}'.encode('utf-8')
         headers = {
             'Authorization': f'Basic {auth_key}'
         }
-        resp = requests.request(method, f"{self._base_url}/{endpoint}", json=json_data, headers=headers)
+        resp = requests.request(method, f"{config['base_url']}/{endpoint}", json=json_data, headers=headers)
         resp.raise_for_status()
         return resp.json()
