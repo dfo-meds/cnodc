@@ -65,11 +65,35 @@ def remove_permission(role_name, permission):
 @click.argument("workflow_name")
 @click.argument("config_file")
 def update_workflow(workflow_name, config_file):
+    _update_from_config_dir_file(workflow_name, pathlib.Path(config_file))
+
+
+@main.command
+@click.argument("config_directory")
+def update_all_workflows(config_directory: str):
+    p = pathlib.Path(config_directory)
+    if not p.exists():
+        print("config directory doesn't exist")
+        exit(1)
+    if not p.is_dir():
+        print("config directory isn't a directory")
+        exit(2)
+    for f in p.iterdir():
+        if f.name.endswith(".yaml"):
+            _update_from_config_dir_file(f.name[:-5], f)
+        elif f.name.endswith(".yml"):
+            _update_from_config_dir_file(f.name[:-4], f)
+
+
+def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path):
     from cnodc.api.uploads import UploadController
     uc = UploadController(workflow_name)
-    config_file = pathlib.Path(config_file)
     if not config_file.exists():
         print("config file doesn't exist")
         exit(1)
-    with open(config_file, "r") as h:
-        uc.update_workflow_config(yaml.safe_load(h) or {})
+    try:
+        with open(config_file, "r") as h:
+            uc.update_workflow_config(yaml.safe_load(h) or {})
+    except Exception as ex:
+        print(f"An exception occurred while processing {config_file}")
+        print(f"{ex.__class__.__name__}: {str(ex)}")

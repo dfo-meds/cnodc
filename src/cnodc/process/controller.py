@@ -16,10 +16,7 @@ class ProcessController:
 
     def __init__(self,
                  config_file: pathlib.Path,
-                 flag_file: pathlib.Path,
-                 check_frequency_seconds: int = 5,
-                 check_history_size: int = 30,
-                 throttle_threshold: int = None):
+                 flag_file: pathlib.Path):
         self._config_file = config_file
         self._flag_file = flag_file
         self._loaded = False

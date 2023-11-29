@@ -1,1 +1,24 @@
+[flask]
+MAX_CONTENT_LENGTH = 10485760  # 10 MiB
+UPLOAD_FOLDER = "/cnodc-data/uploads"
+PERMANENT_SESSION_LIFETIME = 604800  # 1 week
+
+[cnodc]
+process_definition_file = "/cnodc-config/processes.yaml"
+flag_file = "/cnodc-config/reload_flag"
+
 [logging]
+version = 1
+
+[logging.root]
+level = "NOTICE"
+handlers = ["console"]
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "debug"
+level = "NOTICE"
+stream = "ext://sys.stdout"
+
+[logging.formatters.debug]
+format = "%(levelname)s [%(name)s] %(message)s"
