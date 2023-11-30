@@ -20,25 +20,25 @@ ENV GUNICORN_CONF=/srv/cnodc/gunicorn_conf.py
 
 RUN pip install --upgrade pip
 
-COPY requirements-docker.txt requirements-docker.txt
+COPY docker/requirements-docker.txt requirements-docker.txt
 
 RUN pip install -r requirements-docker.txt
 
-COPY ../requirements.txt requirements.txt
+COPY requirements.txt requirements.txt
 
 RUN pip install -r requirements.txt
 
-COPY start.sh start.sh
+COPY docker/start.sh start.sh
 RUN chmod +x start.sh
 
-COPY gunicorn_conf.py gunicorn_conf.py
+COPY docker/gunicorn_conf.py gunicorn_conf.py
 
-COPY ../src app/src
-COPY ../app.py app/app.py
-COPY ../process.py app/process.py
-COPY .cnodc.processor.defaults.toml app/.cnodc.processor.defaults.toml
-COPY .cnodc.web.defaults.toml app/.cnodc.web.defaults.toml
-COPY .cnodc.defaults.toml app/.cnodc.defaults.toml
+COPY src app/src
+COPY app.py app/app.py
+COPY process.py app/process.py
+COPY docker/.cnodc.processor.defaults.toml app/.cnodc.processor.defaults.toml
+COPY docker/.cnodc.web.defaults.toml app/.cnodc.web.defaults.toml
+COPY docker/.cnodc.defaults.toml app/.cnodc.defaults.toml
 
 EXPOSE 80
 
