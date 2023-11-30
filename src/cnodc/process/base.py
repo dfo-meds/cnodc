@@ -11,12 +11,11 @@ from cnodc.util import HaltFlag
 
 class _SubprocessHaltFlag(HaltFlag):
 
-    def __init__(self, shutdown: mp.Event, halt: mp.Event):
-        self._shutdown = shutdown
+    def __init__(self, halt: mp.Event):
         self._halt = halt
 
-    def _should_continue(self, raise_ex: bool = True) -> bool:
-        return not (self._shutdown.is_set() or self._halt.is_set())
+    def _should_continue(self) -> bool:
+        return not self._halt.is_set()
 
 
 class BaseProcess(mp.Process):
@@ -30,8 +29,11 @@ class BaseProcess(mp.Process):
         self._halt: mp.Event = halt_flag
         self.is_working: mp.Event = mp.Event()
         self._shutdown: mp.Event = mp.Event()
-        self.halt_flag: HaltFlag = _SubprocessHaltFlag(self._shutdown, self._halt)
+        self.halt_flag: HaltFlag = _SubprocessHaltFlag(self._halt)
         self.cnodc_id = None
+
+    def continue_loop(self):
+        return not(self._shutdown.is_set() or self._halt.is_set())
 
     def get_config(self, key, default = None):
         if key in self._config and self._config[key] is not None:

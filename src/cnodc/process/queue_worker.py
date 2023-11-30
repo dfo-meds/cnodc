@@ -33,7 +33,7 @@ class QueueWorker(BaseProcess):
         with nodb as db:
             try:
                 self._db = db
-                while self.halt_flag.check_continue(False):
+                while self.continue_loop():
                     queue_item = None
                     try:
                         queue_item = db.fetch_next_queue_item(self.get_config("queue_name"), self._app_id)

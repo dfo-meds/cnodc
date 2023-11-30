@@ -130,7 +130,7 @@ class CastawayIntakeWorker(QueueWorker):
             temp_dir = pathlib.Path(temp_dir)
             local_file = temp_dir / "castaway.csv"
             file_handle.download(local_file, halt_flag=self.halt_flag)
-            self.halt_flag.check_continue(True)
+            self.halt_flag.breakpoint()
 
             # Unpack the original file
             castaway_data = CastawayData(local_file, item.data['gzip'] if 'gzip' in item.data else False)
@@ -154,19 +154,19 @@ class CastawayIntakeWorker(QueueWorker):
                 raise CNODCError(f"Upload file already exists for this profile [{upload_file}]", "CASTAWAY", 2007)
             if archive_file.exists():
                 raise CNODCError(f"Archive file already exists for this profile [{archive_file}]", "CASTAWAY", 2008)
-            self.halt_flag.check_continue(True)
+            self.halt_flag.breakpoint()
 
             # Build the NetCDF file
             netcdf_file = temp_dir / "castaway.nc"
             castaway_data.build_netcdf_file(netcdf_file, self.halt_flag)
-            self.halt_flag.check_continue(True)
+            self.halt_flag.breakpoint()
 
             # Gzip the NetCDF file
             gzip_netcdf_file = temp_dir / "castaway.nc.gz"
             with gzip.open(gzip_netcdf_file, "wb") as dest:
                 with open(netcdf_file, "rb") as src:
                     shutil.copyfileobj(src, dest)
-            self.halt_flag.check_continue(True)
+            self.halt_flag.breakpoint()
 
             # Do the upload and rollback if there is an issue
             stage = 0
@@ -181,7 +181,8 @@ class CastawayIntakeWorker(QueueWorker):
                         'Gzip': 'Y' if gzip_erddap else 'N'
                     }
                 )
-                self.halt_flag.check_continue(True)
+                self.halt_flag.breakpoint()
+                # TODO LATER: save profile to database and trigger processing
                 stage = 1
                 archive_file.upload(
                     gzip_netcdf_file,
@@ -193,13 +194,13 @@ class CastawayIntakeWorker(QueueWorker):
                         'Gzip': 'Y'
                     }
                 )
+                self.halt_flag.breakpoint()
                 stage = 2
                 if self.get_config('erddap_dataset_id'):
                     self._erddap.reload_dataset(
                         self.get_config('erddap_dataset_id'),
                         cluster_name=self.get_config('erddap_cluster', None)
                     )
-                # TODO LATER: save profile to database and trigger processing
                 self._db.mark_queue_item_complete(item)
                 return None
             except Exception as ex:

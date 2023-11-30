@@ -14,6 +14,9 @@ class HaltInterrupt(KeyboardInterrupt):
 
 class HaltFlag(t.Protocol):
 
+    def breakpoint(self):
+        self.check_continue(True)
+
     def check_continue(self, raise_ex: bool = True) -> bool:
         if not self._should_continue():
             if raise_ex:
