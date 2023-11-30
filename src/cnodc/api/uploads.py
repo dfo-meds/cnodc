@@ -48,7 +48,7 @@ class UploadController(WorkflowController):
     def _request_directory(self) -> pathlib.Path:
         if self._request_dir is None:
             if not flask.current_app.config.get('UPLOAD_FOLDER'):
-                raise CNODCError("No upload folder configured", "UPLOADCTRL", 1009)
+                raise CNODCError("No upload folder configured", "UPLOADCTRL", 1000)
             upload_dir = pathlib.Path(flask.current_app.config['UPLOAD_FOLDER']).resolve()
             try:
                 self._ensure_request_id()
@@ -85,7 +85,7 @@ class UploadController(WorkflowController):
             md5_sent = headers['x-cnodc-upload-md5'].lower()
             md5_actual = hashlib.md5(data).hexdigest().lower()
             if md5_sent != md5_actual:
-                raise CNODCError(f'MD5 mismatch [{md5_sent}] vs [{md5_actual}]', 'UPLOADCTRL', 1008)
+                raise CNODCError(f'MD5 mismatch [{md5_sent}] vs [{md5_actual}]', 'UPLOADCTRL', 1006)
 
     def _save_metadata(self, headers: dict[str, str]) -> dict:
         header_file = self._request_directory() / ".headers.yaml"
@@ -119,7 +119,7 @@ class UploadController(WorkflowController):
             idx += 1
             bin_file = request_dir / f"part.{idx}.bin"
         if max_size is not None and (total_size + len(data)) > max_size:
-            raise CNODCError(f"Maximum size of {max_size} exceeded", "UPLOADCTRL", 1013)
+            raise CNODCError(f"Maximum size of {max_size} exceeded", "UPLOADCTRL", 1007)
         with open(bin_file, "wb") as h:
             h.write(data)
         with open(request_dir / ".timestamp", "w") as h:
@@ -136,7 +136,7 @@ class UploadController(WorkflowController):
                 idx += 1
                 bin_file = request_dir / f"part.{idx}.bin"
             if not files:
-                raise CNODCError(f"No files found in request directory", "UPLOADCTRL", 1014)
+                raise CNODCError(f"No files found in request directory", "UPLOADCTRL", 1008)
             if len(files) == 1:
                 self._assembled_file = files[0]
             else:
