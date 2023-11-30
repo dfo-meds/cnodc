@@ -52,7 +52,7 @@ class UploadController(WorkflowController):
             upload_dir = pathlib.Path(flask.current_app.config['UPLOAD_FOLDER']).resolve()
             try:
                 self._ensure_request_id()
-                self._request_dir = upload_dir / self.workflow_name / self.request_id
+                self._request_dir = upload_dir / 'requests' / self.workflow_name / self.request_id
                 self._request_dir.mkdir(0o660, parents=True, exist_ok=True)
                 if not self._request_dir.is_dir():
                     self._request_dir = None
