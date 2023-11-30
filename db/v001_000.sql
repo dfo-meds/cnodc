@@ -169,6 +169,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_source_files_original_data ON nodb_sou
 -- Partition tables for 2022 to 2024
 CREATE TABLE IF NOT EXISTS nodb_source_files_2022 PARTITION OF nodb_source_files FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
 CREATE TABLE IF NOT EXISTS nodb_source_files_2023 PARTITION OF nodb_source_files FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_2024 PARTITION OF nodb_source_files FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
 
 
 -- Trigger for source files table modified date maintenance
@@ -250,7 +251,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 
     single_parameters   JSONB,
     profile_parameters  JSONB,
-    obs_qc_level            qc_level    NOT NULL    DEFAULT 'RAW',
+    obs_qc_level        qc_level        NOT NULL    DEFAULT 'RAW',
     embargo_date        TIMESTAMPTZ,
 
     PRIMARY KEY (obs_uuid, partition_key)
@@ -283,6 +284,7 @@ CREATE OR REPLACE TRIGGER update_obs_modified_date
 -- Partition tables for 2022 to 2024
 CREATE TABLE IF NOT EXISTS nodb_obs_2022 PARTITION OF nodb_obs FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
 CREATE TABLE IF NOT EXISTS nodb_obs_2023 PARTITION OF nodb_obs FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_2024 PARTITION OF nodb_obs FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
 
 
 CREATE TABLE IF NOT EXISTS nodb_obs_data (
@@ -315,6 +317,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(
 -- Partition tables for 2022 to 2024
 CREATE TABLE IF NOT EXISTS nodb_obs_data_2022 PARTITION OF nodb_obs_data FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
 CREATE TABLE IF NOT EXISTS nodb_obs_data_2023 PARTITION OF nodb_obs_data FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2024 PARTITION OF nodb_obs_data FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
 
 
 -- Table for working data
@@ -407,6 +410,7 @@ CREATE INDEX IF NOT EXISTS idx_gts_messages_cruise_ids ON gts_messages USING GIN
 -- Partition tables for 2022 to 2024
 CREATE TABLE IF NOT EXISTS gts_messages_2022 PARTITION OF gts_messages FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
 CREATE TABLE IF NOT EXISTS gts_messages_2023 PARTITION OF gts_messages FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_2024 PARTITION OF gts_messages FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
 
 
 CREATE TABLE IF NOT EXISTS gts_summary (
@@ -424,6 +428,7 @@ CREATE TABLE IF NOT EXISTS gts_summary (
 -- Partition tables for 2022 to 2024
 CREATE TABLE IF NOT EXISTS gts_summary_2022 PARTITION OF gts_summary FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
 CREATE TABLE IF NOT EXISTS gts_summary_2023 PARTITION OF gts_summary FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
+CREATE TABLE IF NOT EXISTS gts_summary_2023 PARTITION OF gts_summary FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
 
 
 -- Procedure to clean-up queue table and create partitions
