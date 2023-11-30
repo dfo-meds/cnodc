@@ -18,7 +18,7 @@ class ScheduledTask(BaseProcess):
         self._first_warning = False
         self.set_defaults({
             "save_file": None,
-            "delay_fuzz_milliseconds": 0,
+            "delay_fuzz_milliseconds": 1000,
             "run_on_boot": False,
             "delay_seconds": None,
             "schedule_mode": "from_completion"
