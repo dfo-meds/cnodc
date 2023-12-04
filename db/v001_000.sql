@@ -74,7 +74,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'qc_level') THEN
         CREATE TYPE qc_level AS ENUM (
             'RAW',
-            'PROCESSED',
+            'ADJUSTED',
             'REAL_TIME',
             'DELAYED_MODE'
         );
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS nodb_upload_workflows (
 -- Source Files Table
 CREATE TABLE IF NOT EXISTS nodb_source_files (
     source_uuid         UUID            NOT NULL    DEFAULT gen_random_uuid(),
-    partition_key       DATE            NOT NULL,
+    received_date       DATE            NOT NULL,
 
     created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
@@ -157,19 +157,22 @@ CREATE TABLE IF NOT EXISTS nodb_source_files (
 
     qc_workflow_name    VARCHAR(126),
 
-    PRIMARY KEY(source_uuid, partition_key)
-) PARTITION BY RANGE(partition_key);
+    PRIMARY KEY(source_uuid, received_date)
+) PARTITION BY RANGE(received_date);
 
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS ix_nodb_source_files_source_path ON nodb_source_files(source_path);
 CREATE INDEX IF NOT EXISTS ix_nodb_source_files_created_date ON nodb_source_files USING BRIN(created_date);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_source_files_original_data ON nodb_source_files(partition_key, original_uuid, original_idx) WHERE original_uuid IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_source_files_original_data ON nodb_source_files(received_date, original_uuid, original_idx) WHERE original_uuid IS NOT NULL;
 
--- Partition tables for 2022 to 2024
-CREATE TABLE IF NOT EXISTS nodb_source_files_2022 PARTITION OF nodb_source_files FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
-CREATE TABLE IF NOT EXISTS nodb_source_files_2023 PARTITION OF nodb_source_files FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
-CREATE TABLE IF NOT EXISTS nodb_source_files_2024 PARTITION OF nodb_source_files FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
+-- Partition tables for 1800 to 2040
+CREATE TABLE IF NOT EXISTS nodb_source_files_1980 PARTITION OF nodb_source_files FOR VALUES FROM ('1800-01-01') to ('1990-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_1990 PARTITION OF nodb_source_files FOR VALUES FROM ('1990-01-01') to ('2000-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_2000 PARTITION OF nodb_source_files FOR VALUES FROM ('2000-01-01') to ('2010-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_2010 PARTITION OF nodb_source_files FOR VALUES FROM ('2010-01-01') to ('2020-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_2020 PARTITION OF nodb_source_files FOR VALUES FROM ('2020-01-01') to ('2030-01-01');
+CREATE TABLE IF NOT EXISTS nodb_source_files_2030 PARTITION OF nodb_source_files FOR VALUES FROM ('2030-01-01') to ('2040-01-01');
 
 
 -- Trigger for source files table modified date maintenance
@@ -229,7 +232,7 @@ CREATE OR REPLACE TRIGGER update_qc_batch_modified_date
 -- Table for observations
 CREATE TABLE IF NOT EXISTS nodb_obs (
     obs_uuid            UUID            NOT NULL    DEFAULT gen_random_uuid(),
-    partition_key       DATE            NOT NULL,
+    received_date       DATE            NOT NULL,
 
     created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
@@ -237,7 +240,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
     station_uuid        UUID                        REFERENCES nodb_stations(station_uuid),
     mission_name        VARCHAR(126),
     source_name         VARCHAR(126)    NOT NULL,
-    platform_name       VARCHAR(126)    NOT NULL,
+    instrument_type     VARCHAR(126)    NOT NULL,
     program_name        VARCHAR(126)    NOT NULL,
 
     status              obs_status      NOT NULL,
@@ -249,19 +252,19 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 
     observation_type    obs_type,
 
-    single_parameters   JSONB,
+    surface_parameters  JSONB,
     profile_parameters  JSONB,
-    obs_qc_level        qc_level        NOT NULL    DEFAULT 'RAW',
+    qc_level            qc_level        NOT NULL    DEFAULT 'RAW',
     embargo_date        TIMESTAMPTZ,
 
-    PRIMARY KEY (obs_uuid, partition_key)
-) PARTITION BY RANGE(partition_key);
+    PRIMARY KEY (obs_uuid, received_date)
+) PARTITION BY RANGE(received_date);
 
 
 CREATE INDEX IF NOT EXISTS nodb_obs_station_uuid ON nodb_obs(station_uuid);
 CREATE INDEX IF NOT EXISTS nodb_obs_mission_name ON nodb_obs(mission_name);
 CREATE INDEX IF NOT EXISTS nodb_obs_source_name ON nodb_obs(source_name);
-CREATE INDEX IF NOT EXISTS nodb_obs_platform_name ON nodb_obs(platform_name);
+CREATE INDEX IF NOT EXISTS nodb_obs_platform_name ON nodb_obs(instrument_type);
 CREATE INDEX IF NOT EXISTS nodb_obs_program_name ON nodb_obs(program_name);
 CREATE INDEX IF NOT EXISTS nodb_obs_status ON nodb_obs(status) WHERE status != 'VERIFIED';
 CREATE INDEX IF NOT EXISTS nodb_obs_obs_time ON nodb_obs(obs_time) WHERE obs_time IS NOT NULL;
@@ -270,7 +273,7 @@ CREATE INDEX IF NOT EXISTS nodb_obs_max_depth ON nodb_obs(max_depth) WHERE max_d
 CREATE INDEX IF NOT EXISTS nodb_obs_obs_type ON nodb_obs(observation_type) WHERE observation_type != 'PROFILE';
 CREATE INDEX IF NOT EXISTS nodb_obs_embargo_date ON nodb_obs(embargo_date) WHERE embargo_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS nodb_obs_location ON nodb_obs USING GIST(location);
-CREATE INDEX IF NOT EXISTS nodb_obs_single_params ON nodb_obs USING GIN(single_parameters);
+CREATE INDEX IF NOT EXISTS nodb_obs_single_params ON nodb_obs USING GIN(surface_parameters);
 CREATE INDEX IF NOT EXISTS nodb_obs_profile_params ON nodb_obs USING GIN(profile_parameters);
 
 
@@ -281,15 +284,18 @@ CREATE OR REPLACE TRIGGER update_obs_modified_date
     EXECUTE PROCEDURE update_modified_date();
 
 
--- Partition tables for 2022 to 2024
-CREATE TABLE IF NOT EXISTS nodb_obs_2022 PARTITION OF nodb_obs FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_2023 PARTITION OF nodb_obs FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_2024 PARTITION OF nodb_obs FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
+-- Partition tables for 1800 to 2040
+CREATE TABLE IF NOT EXISTS nodb_obs_1980 PARTITION OF nodb_obs FOR VALUES FROM ('1800-01-01') to ('1990-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_1990 PARTITION OF nodb_obs FOR VALUES FROM ('1990-01-01') to ('2000-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_2000 PARTITION OF nodb_obs FOR VALUES FROM ('2000-01-01') to ('2010-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_2010 PARTITION OF nodb_obs FOR VALUES FROM ('2010-01-01') to ('2020-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_2020 PARTITION OF nodb_obs FOR VALUES FROM ('2020-01-01') to ('2030-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_2030 PARTITION OF nodb_obs FOR VALUES FROM ('2030-01-01') to ('2040-01-01');
 
 
 CREATE TABLE IF NOT EXISTS nodb_obs_data (
     obs_uuid            UUID            NOT NULL,
-    partition_key       DATE            NOT NULL,
+    received_date       DATE            NOT NULL,
 
     source_file_uuid    UUID            NOT NULL,
     message_idx         INTEGER         NOT NULL,
@@ -297,28 +303,30 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
 
     data_record         BYTEA,
 
-    metadata            JSON,
-    qc_results          JSON,
+    process_metadata    JSON,
+    qc_tests            JSON,
 
     duplicate_uuid      UUID,
-    duplicate_partition_key DATE,
+    duplicate_received_date DATE,
 
-    PRIMARY KEY (obs_uuid, partition_key),
-    FOREIGN KEY (obs_uuid, partition_key) REFERENCES nodb_obs(obs_uuid, partition_key),
-    FOREIGN KEY (source_file_uuid, partition_key) REFERENCES nodb_source_files(source_uuid, partition_key),
-    FOREIGN KEY (duplicate_uuid, duplicate_partition_key) REFERENCES nodb_obs(obs_uuid, partition_key)
-) PARTITION BY RANGE(partition_key);
+    PRIMARY KEY (obs_uuid, received_date),
+    FOREIGN KEY (obs_uuid, received_date) REFERENCES nodb_obs(obs_uuid, received_date),
+    FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files(source_uuid, received_date),
+    FOREIGN KEY (duplicate_uuid, duplicate_received_date) REFERENCES nodb_obs(obs_uuid, received_date)
+) PARTITION BY RANGE(received_date);
 
 
 -- Unique index on observations source info to ensure we don't duplicate records from the same file.
-CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(partition_key, source_file_uuid, record_idx, message_idx);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(received_date, source_file_uuid, record_idx, message_idx);
 
 
--- Partition tables for 2022 to 2024
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2022 PARTITION OF nodb_obs_data FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2023 PARTITION OF nodb_obs_data FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2024 PARTITION OF nodb_obs_data FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
-
+-- Partition tables for 1980 to 2040
+CREATE TABLE IF NOT EXISTS nodb_obs_data_1980 PARTITION OF nodb_obs_data FOR VALUES FROM ('1800-01-01') to ('1990-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_1990 PARTITION OF nodb_obs_data FOR VALUES FROM ('1990-01-01') to ('2000-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2000 PARTITION OF nodb_obs_data FOR VALUES FROM ('2000-01-01') to ('2010-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2010 PARTITION OF nodb_obs_data FOR VALUES FROM ('2010-01-01') to ('2020-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2020 PARTITION OF nodb_obs_data FOR VALUES FROM ('2020-01-01') to ('2030-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2030 PARTITION OF nodb_obs_data FOR VALUES FROM ('2030-01-01') to ('2040-01-01');
 
 -- Table for working data
 CREATE TABLE IF NOT EXISTS nodb_working (
@@ -334,9 +342,9 @@ CREATE TABLE IF NOT EXISTS nodb_working (
     location                GEOGRAPHY(GEOMETRY, 4326),
 
     record_uuid             UUID,
-    record_partition_key    DATE,
+    record_received_date    DATE,
 
-    FOREIGN KEY (record_uuid, record_partition_key) REFERENCES nodb_obs (obs_uuid, partition_key)
+    FOREIGN KEY (record_uuid, record_received_date) REFERENCES nodb_obs (obs_uuid, received_date)
 );
 
 
@@ -344,7 +352,7 @@ CREATE INDEX IF NOT EXISTS idx_nodb_working_batch_id ON nodb_working(qc_batch_id
 CREATE INDEX IF NOT EXISTS idx_nodb_working_station_uuid ON nodb_working(station_uuid);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_obs_time ON nodb_working(obs_time);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_location ON nodb_working USING GIST(location);
-CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, record_partition_key);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, record_received_date);
 
 
 -- Trigger for QC batch table modified date maintenance
@@ -407,10 +415,13 @@ CREATE INDEX IF NOT EXISTS idx_gts_messages_message_source ON gts_messages(messa
 CREATE INDEX IF NOT EXISTS idx_gts_messages_cruise_ids ON gts_messages USING GIN(cruise_ids);
 
 
--- Partition tables for 2022 to 2024
-CREATE TABLE IF NOT EXISTS gts_messages_2022 PARTITION OF gts_messages FOR VALUES FROM ('2022-01-01') to ('2023-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2023 PARTITION OF gts_messages FOR VALUES FROM ('2023-01-01') to ('2024-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2024 PARTITION OF gts_messages FOR VALUES FROM ('2024-01-01') to ('2025-01-01');
+-- Partition tables for 1980 to 2040
+CREATE TABLE IF NOT EXISTS gts_messages_1980 PARTITION OF gts_messages FOR VALUES FROM ('1800-01-01') to ('1990-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_1990 PARTITION OF gts_messages FOR VALUES FROM ('1990-01-01') to ('2000-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_2000 PARTITION OF gts_messages FOR VALUES FROM ('2000-01-01') to ('2010-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_2010 PARTITION OF gts_messages FOR VALUES FROM ('2010-01-01') to ('2020-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_2020 PARTITION OF gts_messages FOR VALUES FROM ('2020-01-01') to ('2030-01-01');
+CREATE TABLE IF NOT EXISTS gts_messages_2030 PARTITION OF gts_messages FOR VALUES FROM ('2030-01-01') to ('2040-01-01');
 
 
 CREATE TABLE IF NOT EXISTS gts_summary (
@@ -480,18 +491,20 @@ BEGIN
     gts_messages_name := 'gts_messages_' || DATE_PART('year', start_date)::text;
     gts_summary_name := 'gts_summary_' || DATE_PART('year', start_date)::text;
 
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = source_table_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || source_table_name || ' PARTITION OF nodb_source_files FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_table_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_table_name || ' PARTITION OF nodb_obs FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_data_table_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_data_table_name || ' PARTITION OF nodb_obs_data FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_messages_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_messages_name || ' PARTITION OF gts_messages FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
+    -- Todo: tables are every 10 years now (might have to be manual for now)
+
+    -- IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = source_table_name) THEN
+    --     EXECUTE 'CREATE TABLE IF NOT EXISTS ' || source_table_name || ' PARTITION OF nodb_source_files FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
+    -- END IF;
+    -- IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_table_name) THEN
+    --     EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_table_name || ' PARTITION OF nodb_obs FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
+    -- END IF;
+    -- IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_data_table_name) THEN
+    --     EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_data_table_name || ' PARTITION OF nodb_obs_data FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
+    -- END IF;
+    -- IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_messages_name) THEN
+    --     EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_messages_name || ' PARTITION OF gts_messages FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
+    -- END IF;
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_summary_name) THEN
         EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_summary_name || ' PARTITION OF gts_summary FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
