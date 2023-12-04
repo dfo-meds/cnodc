@@ -19,6 +19,22 @@ class ByteSequenceReader:
         self._offset = 0
         self._complete = False
 
+    def iterate_rest(self) -> t.Iterable[t.Union[bytearray, bytes]]:
+        if self._buffer:
+            yield self._buffer
+            self._offset += self._buffer_length
+            self._buffer = bytearray()
+            self._buffer_length = 0
+        if not self._complete:
+            if self._iterator is None:
+                self._iterator = iter(self._raw_data)
+            next_item = next(self._iterator, None)
+            while next_item is not None:
+                self._offset += len(next_item)
+                yield next_item
+                next_item = next(self._iterator, None)
+            self._complete = True
+
     def check_continue(self):
         if self._halt_flag:
             self._halt_flag.check_continue(True)
@@ -217,9 +233,9 @@ class EncodeResult(t.Protocol):
 
 class BaseCodec:
 
-    def __init__(self, halt_flag: HaltFlag = None):
-        self.is_encoder = False
-        self.is_decoder = False
+    def __init__(self, is_encoder: bool = False, is_decoder: bool = False, halt_flag: HaltFlag = None):
+        self.is_encoder = is_encoder
+        self.is_decoder = is_decoder
         self._halt_flag = halt_flag
 
     def dump(self,

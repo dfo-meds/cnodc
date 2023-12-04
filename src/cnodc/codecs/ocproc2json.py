@@ -11,6 +11,9 @@ class OCProc2JsonCodec(BaseCodec):
 
     JSON_WHITESPACE = b" \r\n\t"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, is_encoder=True, is_decoder=True, **kwargs)
+
     def encode_start(self, **kwargs) -> ByteIterable:
         yield b'['
 
