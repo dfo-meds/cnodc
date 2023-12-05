@@ -39,7 +39,8 @@ def init_cnodc(app_type: str):
             app_config.register_default_file(path / f".cnodc.{app_type}.defaults.toml")
             app_config.register_file(path / ".cnodc.toml")
             app_config.register_file(path / f".cnodc.{app_type}.toml")
-
+    zrlog.set_default_extra("process_uuid", "")
+    zrlog.set_default_extra("process_name", "")
     zrlog.set_default_extra("sys_username", "")
     zrlog.set_default_extra("sys_emulated", "")
     zrlog.set_default_extra("sys_logon", "")

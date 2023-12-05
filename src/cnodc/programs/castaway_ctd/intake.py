@@ -75,7 +75,7 @@ class CastawayIntakeWorker(QueueWorker):
     storage: StorageController = None
 
     def __init__(self, *args, **kwargs):
-        super().__init__("cnodc.castaway.nc", *args, **kwargs)
+        super().__init__(*args, log_name="cnodc.castaway.intake", **kwargs)
         self._erddap: t.Optional[ErddapController] = None
         self._storage: t.Optional[StorageController] = None
         self._upload_target_raw: t.Optional[DirFileHandle] = None

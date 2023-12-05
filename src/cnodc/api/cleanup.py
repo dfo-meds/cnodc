@@ -10,7 +10,7 @@ class RequestCleanupTask(ScheduledTask):
     app_config: zr.ApplicationConfig = None
 
     def __init__(self, *args, **kwargs):
-        super().__init__("cnodc.cleanup", *args, **kwargs)
+        super().__init__(*args, log_name="cnodc.cleanup", **kwargs)
         self._requests_dir = None
         self._request_dir_failed = False
         self.set_defaults({

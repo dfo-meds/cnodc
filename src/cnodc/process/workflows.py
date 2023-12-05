@@ -2,7 +2,7 @@ import pathlib
 import datetime
 import typing as t
 from urllib.parse import quote
-from cnodc.util import CNODCError, dynamic_object
+from cnodc.util import CNODCError, dynamic_object, HaltFlag
 from autoinject import injector
 from cnodc.nodb import NODBController, NODBControllerInstance, LockType
 
@@ -27,8 +27,9 @@ class WorkflowController:
     files: StorageController = None
 
     @injector.construct
-    def __init__(self, workflow_name: str):
+    def __init__(self, workflow_name: str, halt_flag: HaltFlag = None):
         self.workflow_name = workflow_name
+        self._halt_flag = halt_flag
         if '/' in self.workflow_name or '\\' in self.workflow_name or '.' in self.workflow_name:
             raise CNODCError('Invalid character in workflow name', 'WORKFLOWCTRL', 1000)
 
@@ -51,7 +52,7 @@ class WorkflowController:
             db.commit()
 
     def _current_permissions(self) -> set:
-        return ('_admin', )
+        return {'_admin', }
 
     def _load_workflow(self, db: NODBControllerInstance) -> structures.NODBUploadWorkflow:
         workflow: structures.NODBUploadWorkflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
@@ -109,7 +110,8 @@ class WorkflowController:
                         h,
                         allow_overwrite=allow_overwrite,
                         storage_tier=primary_upload_tier,
-                        metadata=primary_metadata
+                        metadata=primary_metadata,
+                        halt_flag=self._halt_flag
                     )
             secondary_upload_uri = workflow.get_config('archive', None)
             if secondary_upload_uri is not None:
@@ -120,7 +122,8 @@ class WorkflowController:
                         h,
                         allow_overwrite=allow_overwrite,
                         storage_tier=secondary_upload_tier,
-                        metadata=secondary_metadata
+                        metadata=secondary_metadata,
+                        halt_flag=self._halt_flag
                     )
             queue_name = workflow.get_config('queue', None)
             if queue_name is not None:

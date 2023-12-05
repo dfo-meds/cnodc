@@ -156,7 +156,8 @@ class UploadController(WorkflowController):
             'source': 'web_upload',
             'correlation_id': self.request_id,
             'workflow_name': self.workflow_name,
-            'user': self.login.current_user().username
+            'user': self.login.current_user().username,
+            'upload_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
 
     def _cleanup_request(self):

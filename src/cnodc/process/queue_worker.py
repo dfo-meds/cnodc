@@ -69,13 +69,39 @@ class QueueWorker(BaseProcess):
                 self._db = None
 
     def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[structures.QueueItemResult]):
+
         if result is None or result == structures.QueueItemResult.SUCCESS:
             self._db.mark_queue_item_complete(queue_item)
+            self.on_success(queue_item)
+            after = self.after_success
         elif result == structures.QueueItemResult.FAILED:
             self._db.mark_queue_item_failed(queue_item)
+            self.on_failure(queue_item)
+            after = self.after_failure
         else:
             self._db.release_queue_item(queue_item, self.get_config("retry_delay_seconds"))
+            self.on_retry(queue_item)
+            after = self.after_retry
         self._db.commit()
+        after(queue_item)
+
+    def on_retry(self, queue_item: structures.NODBQueueItem):
+        pass
+
+    def on_failure(self, queue_item: structures.NODBQueueItem):
+        pass
+
+    def on_success(self, queue_item: structures.NODBQueueItem):
+        pass
+
+    def after_retry(self, queue_item: structures.NODBQueueItem):
+        pass
+
+    def after_failure(self, queue_item: structures.NODBQueueItem):
+        pass
+
+    def after_success(self, queue_item: structures.NODBQueueItem):
+        pass
 
     def _delay_time(self) -> float:
         curr_time = self._current_delay_time

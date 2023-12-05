@@ -1,28 +1,105 @@
-import pathlib
+import functools
 import datetime
+import requests
+import urllib3.exceptions
 from .base import UrlBaseHandle, StorageTier, DirFileHandle
 from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobProperties
-from cnodc.util import HaltFlag
+from azure.identity import DefaultAzureCredential
+from cnodc.util import HaltFlag, CNODCError
 import typing as t
 from urllib.parse import urlparse
+import azure.core.exceptions as ace
+import zirconium as zr
+from autoinject import injector
+
+
+def wrap_azure_errors(cb):
+
+    @functools.wraps(cb)
+    def _inner(*args, **kwargs):
+        try:
+            return cb(*args, **kwargs)
+        except ace.AzureError as ex:
+            if ex.inner_exception is not None:
+                if isinstance(ex.inner_exception, urllib3.exceptions.ConnectTimeoutError):
+                    raise CNODCError(f"Connection timeout error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1001, is_recoverable=True) from ex
+                elif isinstance(ex.inner_exception, requests.ConnectionError):
+                    raise CNODCError(f"Connection error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1002, is_recoverable=True) from ex
+                elif isinstance(ex, ace.ClientAuthenticationError):
+                    raise CNODCError(f"Client authentication error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1003, is_recoverable=True) from ex
+                elif isinstance(ex, ace.ResourceNotFoundError):
+                    raise CNODCError(f"Resource not found error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1004, is_recoverable=True) from ex
+                elif isinstance(ex, ace.ResourceExistsError):
+                    raise CNODCError(f"Resource already exists error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1005, is_recoverable=True) from ex
+
+            raise CNODCError(f"Azure error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1000) from ex
+
+    return _inner
 
 
 class AzureBlobHandle(UrlBaseHandle):
 
+    config: zr.ApplicationConfig = None
+
+    @injector.construct
     def __init__(self, url, properties=None):
         super().__init__(url)
         self._cached_properties['properties'] = properties
 
+    def get_connection_details(self) -> dict:
+        return self._with_cache("connection_details", self._get_connection_details)
+
+    def _get_connection_details(self) -> dict:
+        url_parts = self.parse_url()
+        domain = url_parts.hostname
+        if not domain.endswith(".blob.core.windows.net"):
+            raise CNODCError(f"Invalid hostname", "AZBLOB", 1001)
+        path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
+        if len(path_parts) < 1 or path_parts[0] == "":
+            raise CNODCError(f"Missing container name", "AZBLOB", 1002)
+        kwargs = {
+            "storage_account": domain[:-22],
+            "storage_url": domain,
+            "container_name": path_parts[0],
+            "connection_string": self.config.as_str(("azure", "storage", domain[:-22], "connection_string"), default=None),
+            "blob_name": "/".join(path_parts[1:]) if len(path_parts) > 1 else ""
+        }
+        return kwargs
+
     def client(self) -> BlobClient:
-        # TODO: doesn't actually work, use from_connection_string and load credentials
-        # from config
-        return BlobClient.from_blob_url(self._url)
+        try:
+            connection_info = self.get_connection_details()
+            if connection_info["connection_string"]:
+                return BlobClient.from_connection_string(
+                    conn_str=connection_info["connection_string"],
+                    container_name=connection_info["container_name"],
+                    blob_name=connection_info["blob_name"]
+                )
+            else:
+                return BlobClient.from_blob_url(self._url, credential=DefaultAzureCredential())
+        except ValueError as ex:
+            raise CNODCError(f"Could not create blob client", "AZBLOB", 1000) from ex
 
     def container_client(self) -> ContainerClient:
-        # TODO
-        pass
+        try:
+            connection_info = self.get_connection_details()
+            if connection_info["connection_string"]:
+                return ContainerClient.from_connection_string(
+                    conn_str=connection_info["connection_string"],
+                    container_name=connection_info["container_name"]
+                )
+            else:
+                return ContainerClient.from_container_url(
+                    container_url=f"https://{connection_info['storage_url']}/{connection_info['container_name']}",
+                    credential=DefaultAzureCredential()
+                )
+        except ValueError as ex:
+            raise CNODCError(f"Could not create container client", "AZBLOB", 1001) from ex
 
+    @wrap_azure_errors
     def _exists(self) -> bool:
+        if self._is_dir():
+            return True
         return self.client().exists()
 
     def _is_dir(self) -> bool:
@@ -36,6 +113,7 @@ class AzureBlobHandle(UrlBaseHandle):
         last_slash = part1.rfind('/')
         return part1[last_slash+1:]
 
+    @wrap_azure_errors
     def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
         stream = self.client().download_blob()
         for chunk in stream.chunks():
@@ -45,6 +123,7 @@ class AzureBlobHandle(UrlBaseHandle):
     def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
         pass
 
+    @wrap_azure_errors
     def upload(self,
                local_path,
                allow_overwrite: bool = False,
@@ -52,7 +131,7 @@ class AzureBlobHandle(UrlBaseHandle):
                metadata: t.Optional[dict[str, str]] = None,
                storage_tier: t.Optional[StorageTier] = None,
                halt_flag: t.Optional[HaltFlag] = None):
-        DirFileHandle.add_default_metadata(metadata, storage_tier)
+        self.add_default_metadata(metadata, storage_tier)
         args = {
             'data': DirFileHandle._local_read_chunks(local_path, buffer_size, halt_flag),
         }
@@ -68,10 +147,15 @@ class AzureBlobHandle(UrlBaseHandle):
         client_.upload_blob(**args)
         self.clear_cache()
 
+    @wrap_azure_errors
     def remove(self):
-        self.client().delete_blob()
-        self.clear_cache()
+        if not self._is_dir():
+            self.client().delete_blob()
+            self.clear_cache()
+        else:
+            raise NotImplementedError(f"Deleting a blob directory isn't supported")
 
+    @wrap_azure_errors
     def full_name(self):
         return self.client().blob_name
 
@@ -81,11 +165,16 @@ class AzureBlobHandle(UrlBaseHandle):
     def supports_tiering(self) -> bool:
         return True
 
+    @wrap_azure_errors
     def walk(self, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
         client = self.container_client()
         full_name = self.full_name()
         if full_name[-1] != '/':
             full_name += '/'
+        if not recursive:
+            raise NotImplementedError(f"Non-recursive iteration on blobs not implemented")
+        if not files_only:
+            raise NotImplementedError(f"Returning directories while iterating on blobs not implemented")
         for blob_properties in client.list_blobs(name_starts_with=full_name):
             halt_flag.check_continue(True)
             # TODO: recursive=False isn't handled
@@ -96,6 +185,7 @@ class AzureBlobHandle(UrlBaseHandle):
     def properties(self, clear_cache: bool = False) -> BlobProperties:
         return self._with_cache('properties', self._properties, clear_cache=clear_cache)
 
+    @wrap_azure_errors
     def _properties(self):
         return self.client().get_blob_properties()
 
@@ -105,6 +195,7 @@ class AzureBlobHandle(UrlBaseHandle):
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
         return self.properties(clear_cache).last_modified
 
+    @wrap_azure_errors
     def set_metadata(self, metadata: dict[str, str]):
         self.client().set_blob_metadata(metadata)
         self.clear_cache()
@@ -122,6 +213,7 @@ class AzureBlobHandle(UrlBaseHandle):
             return StorageTier.ARCHIVAL
         return None
 
+    @wrap_azure_errors
     def set_tier(self, tier: StorageTier):
         current_tier = self.get_tier()
         if current_tier != tier:

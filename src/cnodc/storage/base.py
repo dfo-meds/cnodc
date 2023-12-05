@@ -1,7 +1,8 @@
+import functools
 import os
 import pathlib
 import shutil
-from urllib.parse import urlparse
+from urllib.parse import urlparse, ParseResult
 
 from autoinject import injector
 
@@ -17,6 +18,27 @@ class StorageTier(enum.Enum):
     FREQUENT = "frequent"
     INFREQUENT = "infrequent"
     ARCHIVAL = "archival"
+    NA = 'na'
+
+
+def local_file_error_wrap(cb):
+
+    @functools.wraps(cb)
+    def _inner(*args, **kwargs):
+        try:
+            return cb(*args, **kwargs)
+        except FileNotFoundError as ex:
+            raise CNODCError(f"Local file not found", "STORAGE", 1002) from ex
+        except PermissionError as ex:
+            raise CNODCError(f"Access to local file denied", "STORAGE", 1003, is_recoverable=True) from ex
+        except IsADirectoryError as ex:
+            raise CNODCError(f"Local file is a directory", "STORAGE", 1004) from ex
+        except NotADirectoryError as ex:
+            raise CNODCError(f"Local directory is not a directory", "STORAGE", 1005) from ex
+        except Exception as ex:
+            raise CNODCError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", "STORAGE", 1005) from ex
+
+    return _inner
 
 
 class DirFileHandle:
@@ -43,7 +65,7 @@ class DirFileHandle:
 
     def download(self, local_path: pathlib.Path, allow_overwrite: bool = False, halt_flag: HaltFlag = None, buffer_size: int = None):
         if (not allow_overwrite) and local_path.exists():
-            raise CNODCError(f"Path [{local_path}] already exists, cannot download from [{self}]", "FILE", 1000, is_recoverable=True)
+            raise CNODCError(f"Path [{local_path}] already exists, cannot download from [{self}]", "STORAGE", 1000, is_recoverable=True)
         self._download(local_path, halt_flag, buffer_size)
 
     def _download(self, local_path: pathlib.Path, halt_flag: HaltFlag = None, buffer_size: int = None):
@@ -70,17 +92,16 @@ class DirFileHandle:
                storage_tier: t.Optional[StorageTier] = None,
                halt_flag: t.Optional[HaltFlag] = None):
         if (not allow_overwrite) and self.exists():
-            raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "FILE", 1001, is_recoverable=True)
-        DirFileHandle.add_default_metadata(metadata, storage_tier)
+            raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "STORAGE", 1001, is_recoverable=True)
+        self.add_default_metadata(metadata, storage_tier)
         self._upload(local_path, buffer_size, metadata, storage_tier, halt_flag)
 
-    @staticmethod
-    def add_default_metadata(metadata: dict, storage_tier: t.Optional[StorageTier] = None):
+    def add_default_metadata(self, metadata: dict, storage_tier: t.Optional[StorageTier] = None):
         if 'AccessLevel' not in metadata:
             metadata['AccessLevel'] = 'GENERAL'
         if 'SecurityLabel' not in metadata:
             metadata['SecurityLabel'] = 'UNCLASSIFIED'
-        if storage_tier is not None:
+        if storage_tier is not None and self.supports_tiering():
             if storage_tier == StorageTier.ARCHIVAL:
                 metadata['StoragePlan'] = 'ARCHIVAL'
             elif storage_tier == StorageTier.FREQUENT:
@@ -116,6 +137,7 @@ class DirFileHandle:
         self.clear_cache()
 
     @staticmethod
+    @local_file_error_wrap
     def _local_read_chunks(local_path, buffer_size: int, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
         if isinstance(local_path, (str, pathlib.Path)):
             with open(local_path, "rb") as src:
@@ -126,6 +148,7 @@ class DirFileHandle:
             yield from HaltFlag.iterate(local_path, halt_flag, True)
 
     @staticmethod
+    @local_file_error_wrap
     def _read_in_chunks(readable, buffer_size: int):
         x = readable.read(buffer_size)
         while x != b'':
@@ -133,6 +156,7 @@ class DirFileHandle:
             x = readable.read(buffer_size)
 
     @staticmethod
+    @local_file_error_wrap
     def _local_write_chunks(local_path: pathlib.Path, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
         with open(local_path, "wb") as dest:
             for chunk in HaltFlag.iterate(chunks, halt_flag, True):
@@ -158,8 +182,11 @@ class DirFileHandle:
     def _is_dir(self) -> bool:
         raise NotImplementedError()
 
-    def child(self, sub_path: str):
+    def child(self, sub_path: str, as_dir: bool = False):
         raise NotImplementedError()
+
+    def subdir(self, sub_path: str):
+        return self.child(sub_path, True)
 
     def remove(self):
         raise NotImplementedError()
@@ -221,11 +248,14 @@ class UrlBaseHandle(DirFileHandle):
         super().__init__()
         self._url = url
 
-    def child(self, sub_path: str):
+    def child(self, sub_path: str, as_dir: bool = False):
         part1, part2 = self._split_url()
         if not part1.endswith('/'):
             part1 += '/'
-        return self.__class__(f"{part1}{sub_path}{part2}")
+        return self.__class__(f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}")
+
+    def parse_url(self) -> ParseResult:
+        return self._with_cache('_parse_url', urlparse)
 
     def _split_url(self):
         return self._with_cache('_split_url', self._split_url_actual)

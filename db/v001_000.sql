@@ -135,6 +135,14 @@ CREATE TABLE IF NOT EXISTS nodb_upload_workflows (
     is_active           BOOLEAN         NOT NULL    DEFAULT TRUE
 );
 
+
+CREATE TABLE IF NOT EXISTS nodb_scanned_files (
+    file_path           TEXT            NOT NULL    PRIMARY KEY,
+    scanned_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    was_processed       BOOLEAN         DEFAULT FALSE
+);
+
+
 -- Source Files Table
 CREATE TABLE IF NOT EXISTS nodb_source_files (
     source_uuid         UUID            NOT NULL    DEFAULT gen_random_uuid(),

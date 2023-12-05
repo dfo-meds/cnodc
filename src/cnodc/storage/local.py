@@ -1,6 +1,6 @@
 import pathlib
 import datetime
-from .base import UrlBaseHandle, StorageTier, DirFileHandle
+from .base import DirFileHandle, local_file_error_wrap
 
 from cnodc.util import HaltFlag
 import typing as t
@@ -14,6 +14,7 @@ class LocalHandle(DirFileHandle):
         super().__init__()
         self._path = path.resolve()
 
+    @local_file_error_wrap
     def stat(self, clear_cache: bool = False):
         return self._with_cache('stat', self._path.stat, clear_cache=clear_cache)
 
@@ -26,6 +27,7 @@ class LocalHandle(DirFileHandle):
     def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
         DirFileHandle._local_write_chunks(self._path, chunks, halt_flag)
 
+    @local_file_error_wrap
     def _complete_upload(self, local_path: pathlib.Path, halt_flag: HaltFlag = None):
         if isinstance(local_path, (str, pathlib.Path)):
             shutil.copystat(local_path, self._path)
@@ -34,6 +36,7 @@ class LocalHandle(DirFileHandle):
     def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None):
         return DirFileHandle._local_read_chunks(self._path, buffer_size, halt_flag)
 
+    @local_file_error_wrap
     def _complete_download(self, local_path: pathlib.Path, halt_flag: HaltFlag = None):
         shutil.copystat(self._path, local_path)
 
@@ -56,9 +59,10 @@ class LocalHandle(DirFileHandle):
             )
         return None
 
-    def child(self, sub_path: str):
+    def child(self, sub_path: str, as_dir: bool = False):
         return LocalHandle(self._path / sub_path)
 
+    @local_file_error_wrap
     def walk(self, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
         work = [self._path]
         while work:

@@ -1,7 +1,10 @@
 import datetime
+import functools
 import json
 import tempfile
 import enum
+
+import psycopg2
 import zrlog
 
 import psycopg2 as pg
@@ -10,6 +13,20 @@ import zirconium as zr
 from autoinject import injector
 import typing as t
 import cnodc.nodb.structures as structures
+from cnodc.util import CNODCError
+
+
+RECOVERABLE_ERRORS: list[str] = [
+    '08***',  # Connection errors
+    '25***',  # transaction states
+    '28***',  # Authorization errors
+    '40***',  # Transaction isolation errors
+    '53***',  # Insufficient resource errors
+    '58***',  # Non-postgresql errors
+    '57***',  # Operator intervention
+    '55***',  # Invalid prerequisite state
+    '42501',  # Insufficient privileges
+]
 
 
 class LockType(enum.Enum):
@@ -21,6 +38,32 @@ class LockType(enum.Enum):
     FOR_KEY_SHARE = "5"
 
 
+class RecoverableNODBError(CNODCError):
+
+    def __init__(self, msg, code):
+        super().__init__(msg, "NODB", code, is_recoverable=True)
+
+
+class UnrecoverableNODBError(CNODCError):
+
+    def __init__(self, msg, code):
+        super().__init__(msg, "NODB", code, is_recoverable=False)
+
+
+def with_nodb_execptions(cb: callable):
+
+    @functools.wraps(cb)
+    def _inner(*args, **kwargs):
+        try:
+            cb(*args, **kwargs)
+        except psycopg2.Error as ex:
+            if ex.pgcode in RECOVERABLE_ERRORS or f'{ex.pgcode[0:2]}***' in RECOVERABLE_ERRORS:
+                raise RecoverableNODBError(f"{ex.__class__.__name__}: {str(ex)} [{ex.pgcode}]", 1001) from ex
+            else:
+                raise UnrecoverableNODBError(f"{ex.__class__.__name__}: {str(ex)}", 1000) from ex
+    return _inner
+
+
 class NODBControllerInstance:
 
     def __init__(self, pg_connection):
@@ -29,34 +72,43 @@ class NODBControllerInstance:
         self._is_closed = False
         self._log = zrlog.get_logger("cnodc.db")
 
+    @with_nodb_execptions
     def execute(self, query: str, args: t.Union[list, dict, tuple, None] = None):
         self._log.debug(f"SQL Query: {query}")
         return self._cursor.execute(query, args)
 
+    @with_nodb_execptions
     def commit(self):
         self._conn.commit()
 
+    @with_nodb_execptions
     def rollback(self):
         self._conn.rollback()
 
+    @with_nodb_execptions
     def executemany(self, query: str, args_list: t.Iterable[t.Union[list, dict, tuple, None]] = None):
         self._cursor.executemany(query, args_list)
 
+    @with_nodb_execptions
     def callproc(self, procname: str, parameters: t.Union[list, tuple, None] = None):
         return self._cursor.callproc(procname, parameters)
 
+    @with_nodb_execptions
     def mogrify(self, query: str, args: t.Union[list, dict, tuple, None] = None) -> str:
         return self._cursor.mogrify(query, args)
 
+    @with_nodb_execptions
     def fetchone(self) -> pge.DictRow:
         return self._cursor.fetchone()
 
+    @with_nodb_execptions
     def fetchmany(self, size=None) -> t.Iterable[pge.DictRow]:
         if size is None:
             return self._cursor.fetchmany()
         else:
             return self._cursor.fetchmany(size)
 
+    @with_nodb_execptions
     def fetchall(self) -> t.Iterable[pge.DictRow]:
         return self._cursor.fetchall()
 
@@ -74,6 +126,7 @@ class NODBControllerInstance:
             del self._cursor
             del self._conn
 
+    @with_nodb_execptions
     def scroll(self, value, mode='relative'):
         return self._cursor.scroll(value, mode)
 
@@ -98,6 +151,7 @@ class NODBControllerInstance:
     def release_savepoint(self, name):
         self.execute("RELEASE SAVEPOINT %s", [name])
 
+    @with_nodb_execptions
     def copy_expert(self, *args, **kwargs):
         return self._cursor.copy_expert(*args, **kwargs)
 
@@ -113,6 +167,7 @@ class NODBControllerInstance:
             mem_file.write(s)
         mem_file.seek(0, 0)
         self.copy_expert(copy_query, mem_file)
+        mem_file.close()
 
     @staticmethod
     def escape_copy_value(v):
@@ -142,6 +197,20 @@ class NODBControllerInstance:
             return NODBControllerInstance.escape_copy_value(json.dumps(v))
         else:
             return str(v)
+
+    def scanned_file_exists(self, file_path: str) -> bool:
+        self.execute("SELECT 1 FROM nodb_scanned_files WHERE file_path = %s", [file_path])
+        row = self.fetchone()
+        return row is not None
+
+    def note_scanned_file(self, file_path):
+        self.execute("INSERT INTO nodb_scanned_files (file_path) VALUES (%s)", [file_path])
+
+    def mark_scanned_item_success(self, file_path):
+        self.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s", [file_path])
+
+    def mark_scanned_item_failed(self, file_path):
+        self.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
 
     def create_queue_item(self,
                           queue_name: str,

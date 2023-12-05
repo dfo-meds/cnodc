@@ -159,7 +159,6 @@ class ProcessController:
 
     def _reap_worker(self, process_name, p_name):
         self._log.debug(f"Reaping {process_name}.{p_name}")
-        process = self._process_info[process_name]['active'][p_name]
         del self._process_info[process_name]['active'][p_name]
 
     def _spawn_process(self, process_name, count: int):
@@ -169,10 +168,11 @@ class ProcessController:
                 key = str(uuid.uuid4())
             self._log.debug(f"Booting process {process_name}.{key}")
             self._process_info[process_name]['active'][key] = self._process_info[process_name]['process_cls'](
+                process_name=process_name,
+                process_uuid=key,
                 halt_flag=self._halt_flag,
                 config=self._process_info[process_name]['config'] if 'config' in self._process_info[process_name] else {}
             )
-            self._process_info[process_name]['active'][key].cnodc_id = key
             self._process_info[process_name]['active'][key].start()
 
     def _despawn_process(self, process_name, count: int):
@@ -189,14 +189,14 @@ class ProcessController:
         # Next, shut down idle processes if possible
         for process in processes_to_check:
             if not process.is_working.is_set():
-                self._log.debug(f"Shutting down process {process_name}.{process.cnodc_id}")
+                self._log.debug(f"Shutting down process {process_name}.{process.process_uuid}")
                 process._shutdown.set()
                 count -= 1
                 if count <= 0:
                     return
         # Finally, we will attempt to interrupt a running process
         for process in processes_to_check:
-            self._log.debug(f"Shutting down process {process_name}.{process.cnodc_id}")
+            self._log.debug(f"Shutting down process {process_name}.{process.process_uuid}")
             process._shutdown.set()
             count -= 1
             if count <= 0:
