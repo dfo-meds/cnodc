@@ -5,7 +5,7 @@ import os
 from cnodc.util import CNODCError
 from cnodc.util import HaltFlag, HaltInterrupt
 
-ByteIterable: t.Iterable[t.Union[bytes, bytearray]]
+ByteIterable = t.Iterable[t.Union[bytes, bytearray]]
 
 
 class ByteSequenceReader:
@@ -80,14 +80,15 @@ class ByteSequenceReader:
                 break
         return self._buffer_length == 0
 
-    def _read_at_least(self, actual_index: int, halt_flag: HaltFlag = None) -> bool:
+    def _read_at_least(self, actual_index: int) -> bool:
         while not(self.at_eof() or actual_index < self._buffer_length):
             self.check_continue()
-            self._read_next()
+            if not self._read_next():
+                break
         return actual_index < self._buffer_length
 
-    def discard_leading(self, length: int):
-        if length < self._buffer_length:
+    def _discard_leading(self, length: int):
+        if length >= self._buffer_length:
             self._offset += self._buffer_length
             self._buffer_length = 0
             self._buffer = bytearray()
@@ -99,14 +100,17 @@ class ByteSequenceReader:
     def consume_lines(self, exclude_line_endings: bool = True) -> t.Iterable[bytearray]:
         while not self.at_eof():
             self.check_continue()
-            res = self.consume_until([b"\n", b"\r"])
+            res = self.consume_until([b"\n", b"\r"], include_target=True)
             yield res.rstrip(b"\r\n") if exclude_line_endings else res
-            self.lstrip(b"\n", 1)
+            # Account for the windows \n after \r only
+            if res[-1] == 13 and self[0] == b"\n":
+                self._discard_leading(1)
 
     def consume_all(self) -> bytearray:
         self._read_rest()
         res = self._buffer
         self._buffer = bytearray()
+        self._offset += self._buffer_length
         self._buffer_length = 0
         return res
 
@@ -120,7 +124,7 @@ class ByteSequenceReader:
     def consume(self, length: int) -> bytearray:
         self._read_at_least(length)
         res = self._buffer[0:length]
-        self.discard_leading(length)
+        self._discard_leading(length)
         return res
 
     def lstrip(self, bytes_: bytes, max_strip: int = None):
@@ -134,7 +138,7 @@ class ByteSequenceReader:
             if max_strip is not None:
                 max_strip -= 1
         if idx > 0:
-            self.discard_leading(idx)
+            self._discard_leading(idx)
 
     def find_first_match(self, matches: list[bytes]) -> tuple[t.Optional[bytes], t.Optional[int]]:
         options = set()
@@ -142,22 +146,33 @@ class ByteSequenceReader:
         max_length = None
         for o in matches:
             o_len = len(o)
-            if min_length is None or o_len < min_length:
-                min_length = o_len
-            if max_length is None or o_len > max_length:
-                max_length = o_len
-            options.add((o, o_len))
+            if o_len > 0:
+                if min_length is None or o_len < min_length:
+                    min_length = o_len
+                if max_length is None or o_len > max_length:
+                    max_length = o_len
+                options.add((o, o_len))
+        if not options:
+            return None, None
         curr_idx = 0
+        checker = self._check_any_at
+        if max_length == 1:
+            checker = self._fast_check_any_at
+            options = [x[0] for x, l in options]
         while True:
             self.check_continue()
             if not self._read_at_least(curr_idx + min_length):
                 return None, None
-            opt = self._check_any_at(options, curr_idx, max_length)
+            opt = checker(options, curr_idx, max_length)
             if opt is not None:
                 return opt, curr_idx
             curr_idx += 1
 
-    def _check_any_at(self, options: set[tuple[bytes, int]], start_idx: int, max_length: int):
+    def _fast_check_any_at(self, options: list[int], start_idx: int, max_length: int) -> t.Optional[bytes]:
+        first = self._buffer[start_idx]
+        return first.to_bytes(1, 'little') if first in options else None
+
+    def _check_any_at(self, options: set[tuple[bytes, int]], start_idx: int, max_length: int) -> t.Optional[bytes]:
         self._read_at_least(start_idx + max_length)
         for opt, opt_len in options:
             if start_idx + opt_len >= self._buffer_length:
@@ -166,13 +181,13 @@ class ByteSequenceReader:
                 return opt
         return None
 
-    def __getitem__(self, user_index: t.Union[slice, int]) -> t.Union[t.Iterator[int], int]:
+    def __getitem__(self, user_index: t.Union[slice, int]) -> t.Union[t.Iterator[bytes], bytes]:
         if isinstance(user_index, slice):
             raise NotImplementedError()
         else:
             if not self._read_at_least(user_index):
                 raise KeyError(user_index)
-            return self._buffer[user_index]
+            return self._buffer[user_index].to_bytes(1, 'little')
 
 
 class Readable(t.Protocol):
