@@ -41,10 +41,82 @@ def local_file_error_wrap(cb):
     return _inner
 
 
-class DirFileHandle:
+class StorageFileHandle(t.Protocol):
 
-    def __init__(self, *args, **kwargs):
+    def clear_cache(self):
+        raise NotImplementedError
+
+    def path(self) -> str:
+        raise NotImplementedError
+
+    def download(self, local_path: pathlib.Path, allow_overwrite: bool = False, buffer_size: int = None):
+        raise NotImplementedError
+
+    def upload(self,
+               local_path,
+               allow_overwrite: bool = False,
+               buffer_size: t.Optional[int] = None,
+               metadata: t.Optional[dict[str, str]] = None,
+               storage_tier: t.Optional[StorageTier] = None):
+        raise NotImplementedError
+
+    def exists(self, clear_cache: bool = False) -> bool:
+        raise NotImplementedError
+
+    def is_dir(self, clear_cache: bool = False) -> bool:
+        raise NotImplementedError
+
+    def child(self, sub_path: str, as_dir: bool = False):
+        raise NotImplementedError
+
+    def subdir(self, sub_path: str):
+        raise NotImplementedError
+
+    def remove(self):
+        raise NotImplementedError
+
+    def name(self) -> str:
+        raise NotImplementedError
+
+    def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
+        raise NotImplementedError
+
+    def supports_metadata(self) -> bool:
+        raise NotImplementedError
+
+    def set_metadata(self, metadata: dict[str, str]):
+        raise NotImplementedError
+
+    def get_metadata(self, clear_cache: bool = False) -> dict[str, str]:
+        raise NotImplementedError
+
+    def supports_tiering(self) -> bool:
+        raise NotImplementedError
+
+    def set_tier(self, tier: StorageTier):
+        raise NotImplementedError
+
+    def get_tier(self, clear_cache: bool = False) -> t.Optional[StorageTier]:
+        raise NotImplementedError
+
+    def size(self, clear_cache: bool = False) -> int:
+        raise NotImplementedError
+
+
+class StorageDirectoryHandle(StorageFileHandle):
+
+    def search(self, pattern: str, recursive: bool = True, files_only: bool = True) -> t.Iterable[StorageFileHandle]:
+        raise NotImplementedError
+
+    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable[StorageFileHandle]:
+        raise NotImplementedError
+
+
+class BaseStorageHandle:
+
+    def __init__(self, *args, halt_flag: HaltFlag = None, **kwargs):
         self._cached_properties = {}
+        self._halt_flag = halt_flag
 
     def clear_cache(self):
         self._cached_properties = {}
@@ -63,25 +135,25 @@ class DirFileHandle:
     def _default_buffer_size(self):
         return 8 * 1024
 
-    def download(self, local_path: pathlib.Path, allow_overwrite: bool = False, halt_flag: HaltFlag = None, buffer_size: int = None):
+    def download(self, local_path: pathlib.Path, allow_overwrite: bool = False, buffer_size: int = None):
         if (not allow_overwrite) and local_path.exists():
             raise CNODCError(f"Path [{local_path}] already exists, cannot download from [{self}]", "STORAGE", 1000, is_recoverable=True)
-        self._download(local_path, halt_flag, buffer_size)
+        self._download(local_path, buffer_size)
 
-    def _download(self, local_path: pathlib.Path, halt_flag: HaltFlag = None, buffer_size: int = None):
+    def _download(self, local_path: pathlib.Path, buffer_size: int = None):
         if buffer_size is None:
             buffer_size = self._default_buffer_size()
         try:
-            DirFileHandle._local_write_chunks(local_path, self._read_chunks(buffer_size, halt_flag), halt_flag)
-            self._complete_download(local_path, halt_flag)
+            self._local_write_chunks(local_path, self._read_chunks(buffer_size))
+            self._complete_download(local_path)
         except Exception as ex:
             local_path.unlink(True)
             raise ex
 
-    def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
+    def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         raise NotImplementedError()
 
-    def _complete_download(self, local_path: pathlib.Path, halt_flag: HaltFlag = None):
+    def _complete_download(self, local_path: pathlib.Path):
         pass
 
     def upload(self,
@@ -89,14 +161,13 @@ class DirFileHandle:
                allow_overwrite: bool = False,
                buffer_size: t.Optional[int] = None,
                metadata: t.Optional[dict[str, str]] = None,
-               storage_tier: t.Optional[StorageTier] = None,
-               halt_flag: t.Optional[HaltFlag] = None):
+               storage_tier: t.Optional[StorageTier] = None):
         if (not allow_overwrite) and self.exists():
             raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "STORAGE", 1001, is_recoverable=True)
-        self.add_default_metadata(metadata, storage_tier)
-        self._upload(local_path, buffer_size, metadata, storage_tier, halt_flag)
+        self._add_default_metadata(metadata, storage_tier)
+        self._upload(local_path, buffer_size, metadata, storage_tier)
 
-    def add_default_metadata(self, metadata: dict, storage_tier: t.Optional[StorageTier] = None):
+    def _add_default_metadata(self, metadata: dict, storage_tier: t.Optional[StorageTier] = None):
         if 'AccessLevel' not in metadata:
             metadata['AccessLevel'] = 'GENERAL'
         if 'SecurityLabel' not in metadata:
@@ -115,13 +186,12 @@ class DirFileHandle:
                local_path,
                buffer_size: t.Optional[int] = None,
                metadata: t.Optional[dict[str, str]] = None,
-               storage_tier: t.Optional[StorageTier] = None,
-               halt_flag: t.Optional[HaltFlag] = None):
+               storage_tier: t.Optional[StorageTier] = None):
         if buffer_size is None:
             buffer_size = self._default_buffer_size()
         try:
-            self._write_chunks(DirFileHandle._local_read_chunks(local_path, buffer_size, halt_flag), halt_flag)
-            self._complete_upload(local_path, halt_flag)
+            self._write_chunks(self._local_read_chunks(local_path, buffer_size))
+            self._complete_upload(local_path)
             if self.supports_metadata() and metadata is not None:
                 self.set_metadata(metadata)
             if self.supports_tiering() and storage_tier is not None:
@@ -130,44 +200,45 @@ class DirFileHandle:
             self.remove()
             raise ex
 
-    def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
+    def _write_chunks(self, chunks: t.Iterable[bytes]):
         raise NotImplementedError()
 
-    def _complete_upload(self, local_path: pathlib.Path, halt_flag: HaltFlag = None):
+    def _complete_upload(self, local_path: pathlib.Path):
         self.clear_cache()
 
-    @staticmethod
     @local_file_error_wrap
-    def _local_read_chunks(local_path, buffer_size: int, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
+    def _local_read_chunks(self, local_path, buffer_size: int) -> t.Iterable[bytes]:
         if isinstance(local_path, (str, pathlib.Path)):
             with open(local_path, "rb") as src:
-                yield from HaltFlag.iterate(DirFileHandle._read_in_chunks(src, buffer_size), halt_flag, True)
+                yield from self._read_in_chunks(src, buffer_size)
         elif hasattr(local_path, 'read'):
-            yield from HaltFlag.iterate(DirFileHandle._read_in_chunks(local_path, buffer_size), halt_flag, True)
+            yield from self._read_in_chunks(local_path, buffer_size)
         elif hasattr(local_path, '__iter__'):
-            yield from HaltFlag.iterate(local_path, halt_flag, True)
+            yield from HaltFlag.iterate(local_path, self._halt_flag, True)
 
-    @staticmethod
     @local_file_error_wrap
-    def _read_in_chunks(readable, buffer_size: int):
+    def _read_in_chunks(self, readable, buffer_size: int):
+        if self._halt_flag:
+            self._halt_flag.check_continue(True)
         x = readable.read(buffer_size)
         while x != b'':
             yield x
+            if self._halt_flag:
+                self._halt_flag.check_continue(True)
             x = readable.read(buffer_size)
 
-    @staticmethod
     @local_file_error_wrap
-    def _local_write_chunks(local_path: pathlib.Path, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
+    def _local_write_chunks(self, local_path: pathlib.Path, chunks: t.Iterable[bytes]):
         with open(local_path, "wb") as dest:
-            for chunk in HaltFlag.iterate(chunks, halt_flag, True):
+            for chunk in HaltFlag.iterate(chunks, self._halt_flag, True):
                 dest.write(chunk)
 
-    def search(self, pattern: str, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
-        for file in HaltFlag.iterate(self.walk(recursive, files_only, halt_flag), halt_flag, True):
+    def search(self, pattern: str, recursive: bool = True, files_only: bool = True) -> t.Iterable[StorageDirectoryHandle]:
+        for file in self.walk(recursive, files_only):
             if pattern is None or fnmatch.fnmatch(file.name(), pattern):
                 yield file
 
-    def walk(self, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
+    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable[StorageDirectoryHandle]:
         raise NotImplementedError()
 
     def exists(self, clear_cache: bool = False) -> bool:
@@ -238,21 +309,24 @@ class DirFileHandle:
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, file_path: str):
-        return cls(file_path)
+    def build(cls, file_path: str, halt_flag: HaltFlag = None):
+        return cls(file_path, halt_flag=halt_flag)
 
 
-class UrlBaseHandle(DirFileHandle):
+class UrlBaseHandle(BaseStorageHandle):
 
-    def __init__(self, url: str):
-        super().__init__()
+    def __init__(self, url: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._url = url
 
     def child(self, sub_path: str, as_dir: bool = False):
         part1, part2 = self._split_url()
         if not part1.endswith('/'):
             part1 += '/'
-        return self.__class__(f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}")
+        return self.__class__(
+            f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}",
+            halt_flag=self._halt_flag
+        )
 
     def parse_url(self) -> ParseResult:
         return self._with_cache('_parse_url', urlparse)

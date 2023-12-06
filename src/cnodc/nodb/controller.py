@@ -3,6 +3,7 @@ import functools
 import json
 import tempfile
 import enum
+import uuid
 
 import psycopg2
 import zrlog
@@ -38,16 +39,38 @@ class LockType(enum.Enum):
     FOR_KEY_SHARE = "5"
 
 
-class RecoverableNODBError(CNODCError):
+class SqlState(enum.Enum):
 
-    def __init__(self, msg, code):
-        super().__init__(msg, "NODB", code, is_recoverable=True)
+    UNIQUE_VIOLATION = '23505'
+    FOREIGN_KEY_VIOLATION = '23503'
+    NOT_NULL_VIOLATION = '23502'
+
+    SERIALIZATION_FAILURE = '40001'
+    DEADLOCK_DETECTED = '40P01'
 
 
-class UnrecoverableNODBError(CNODCError):
+class NODBError(CNODCError):
 
-    def __init__(self, msg, code):
-        super().__init__(msg, "NODB", code, is_recoverable=False)
+    def __init__(self, msg, code, pgcode: str):
+        super().__init__(
+            msg,
+            "NODB",
+            code,
+            pgcode in RECOVERABLE_ERRORS or f"{pgcode[0:2]}***" in RECOVERABLE_ERRORS
+        )
+        self.pgcode = pgcode
+
+    def is_serialization_error(self):
+        return self.pgcode in (
+            SqlState.SERIALIZATION_FAILURE.value,
+            SqlState.DEADLOCK_DETECTED.value
+        )
+
+    def sql_state(self) -> t.Optional[SqlState]:
+        try:
+            return SqlState(self.pgcode)
+        except ValueError:
+            return None
 
 
 def with_nodb_execptions(cb: callable):
@@ -57,10 +80,7 @@ def with_nodb_execptions(cb: callable):
         try:
             cb(*args, **kwargs)
         except psycopg2.Error as ex:
-            if ex.pgcode in RECOVERABLE_ERRORS or f'{ex.pgcode[0:2]}***' in RECOVERABLE_ERRORS:
-                raise RecoverableNODBError(f"{ex.__class__.__name__}: {str(ex)} [{ex.pgcode}]", 1001) from ex
-            else:
-                raise UnrecoverableNODBError(f"{ex.__class__.__name__}: {str(ex)}", 1000) from ex
+            raise NODBError(f"{ex.__class__.__name__}: {str(ex)} [{ex.pgcode}]", 1001, ex.pgcode) from ex
     return _inner
 
 
@@ -283,6 +303,7 @@ class NODBControllerInstance:
         try:
             self.create_savepoint("fetch_queue_item")
             self.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
+
             item = self.fetchone()
             if item[0] is not None:
                 self.release_savepoint("fetch_queue_item")
@@ -290,12 +311,16 @@ class NODBControllerInstance:
             else:
                 self.rollback_to_savepoint("fetch_queue_item")
                 return None
-        except (KeyboardInterrupt, SystemExit) as ex:
+        except NODBError as ex:
             self.rollback_to_savepoint("fetch_queue_item")
-            raise ex
+            # Retry deadlock and serialization errors
+            if ex.is_serialization_error():
+                return None
+            else:
+                raise ex
         except Exception as ex:
             self.rollback_to_savepoint("fetch_queue_item")
-            return None
+            raise ex
 
     def load_object(self,
                     obj_cls: type,

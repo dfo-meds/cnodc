@@ -553,7 +553,7 @@ BEGIN
                     AND q2.status = 'LOCKED'
             )
         )
-    FOR UPDATE;
+    FOR NO KEY UPDATE;
     UPDATE nodb_queues
     SET
         status = 'LOCKED',
@@ -561,7 +561,7 @@ BEGIN
         locked_since = CURRENT_TIMESTAMP(0)
     WHERE
         queue_uuid = item_key
-        AND status = 'UNLOCKED'
+        AND status IN ('UNLOCKED', 'DELAYED_RELEASE')
     RETURNING queue_uuid INTO selected_key;
     RETURN selected_key;
 END; $next_item$ LANGUAGE plpgsql;

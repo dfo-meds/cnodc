@@ -1,5 +1,5 @@
 import datetime
-from .base import UrlBaseHandle, StorageTier, DirFileHandle
+from .base import UrlBaseHandle, StorageTier, BaseStorageHandle
 from azure.storage.fileshare import ShareFileClient, ShareDirectoryClient, FileProperties, DirectoryProperties
 from azure.identity import DefaultAzureCredential
 from azure.core.exceptions import ResourceNotFoundError
@@ -16,8 +16,8 @@ class AzureFileHandle(UrlBaseHandle):
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, url, properties=None):
-        super().__init__(url)
+    def __init__(self, url, properties=None, *args, **kwargs):
+        super().__init__(url, *args, **kwargs)
         self._cached_properties['properties'] = properties
 
     def get_connection_details(self) -> dict:
@@ -98,13 +98,12 @@ class AzureFileHandle(UrlBaseHandle):
         return part1
 
     @wrap_azure_errors
-    def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
+    def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         stream = self.file_client().download_file()
-        for chunk in stream.chunks():
-            halt_flag.check_continue(True)
+        for chunk in HaltFlag.iterate(stream.chunks(), self._halt_flag, True):
             yield chunk
 
-    def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
+    def _write_chunks(self, chunks: t.Iterable[bytes]):
         pass
 
     @wrap_azure_errors
@@ -113,12 +112,11 @@ class AzureFileHandle(UrlBaseHandle):
                allow_overwrite: bool = False,
                buffer_size: t.Optional[int] = None,
                metadata: t.Optional[dict[str, str]] = None,
-               storage_tier: t.Optional[StorageTier] = None,
-               halt_flag: t.Optional[HaltFlag] = None):
+               storage_tier: t.Optional[StorageTier] = None):
         storage_tier = None
-        self.add_default_metadata(metadata, storage_tier)
+        self._add_default_metadata(metadata, storage_tier)
         args = {
-            'data': DirFileHandle._local_read_chunks(local_path, buffer_size, halt_flag),
+            'data': self._local_read_chunks(local_path, buffer_size),
         }
         client_ = self.file_client()
         client_.upload_file(**args)
@@ -148,12 +146,10 @@ class AzureFileHandle(UrlBaseHandle):
         return False
 
     @wrap_azure_errors
-    def walk(self, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
+    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable:
         client = self.directory_client()
         more_work: list[AzureFileHandle] = []
-        for file in client.list_directories_and_files():
-            if halt_flag:
-                halt_flag.check_continue(True)
+        for file in HaltFlag.iterate(client.list_directories_and_files(), self._halt_flag, True):
             if isinstance(file, FileProperties):
                 yield self.child(file.name, False)
             elif isinstance(file, DirectoryProperties):
@@ -166,7 +162,7 @@ class AzureFileHandle(UrlBaseHandle):
             else:
                 raise CNODCError(f"Unknown type of file listing results [{file.__class__.__name__}]", "AZFILE", 1005)
         for sub_dir in more_work:
-            yield from sub_dir.walk(recursive, files_only, halt_flag)
+            yield from sub_dir.walk(recursive, files_only)
 
     def file_properties(self, clear_cache: bool = False) -> FileProperties:
         return self._with_cache('file_properties', self._file_properties, clear_cache=clear_cache)

@@ -6,6 +6,7 @@ import tempfile
 import uuid
 import typing as t
 from cnodc.nodb import NODBController
+from cnodc.nodb.controller import NODBError, SqlState
 from cnodc.process.scheduled_task import ScheduledTask
 from cnodc.process.queue_worker import QueueWorker
 from cnodc.process.workflows import WorkflowController
@@ -24,7 +25,9 @@ class FileScanTask(ScheduledTask):
         self.set_defaults({
             'scan_target': None,
             'pattern': '*',
-            'recursive': False
+            'recursive': False,
+            'remove_scanned_files': False,
+            'remove_threshold_seconds': 86400,
         })
 
     @injector.inject
@@ -42,35 +45,59 @@ class FileScanTask(ScheduledTask):
         queue_name = self.get_config('queue_name')
         if queue_name is None:
             raise CNODCError(f'Queue name is not configured', 'FILE_SCAN', 1003)
-        handle = self._storage.get_handle(scan_target)
+        handle = self._storage.get_handle(scan_target, halt_flag=self.halt_flag)
         if handle is None:
             raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILE_SCAN', 1001)
         batch_id = str(uuid.uuid4())
+        remove_scanned_files = bool(self.get_config('remove_scanned_files'))
+        remove_age_seconds = self.get_config('remove_threshold_seconds')
         with self._nodb as db:
             for file in handle.search(
                     self.get_config('pattern'),
-                    self.get_config('recursive'),
-                    halt_flag=self.halt_flag):
-                full_path = file.path()
-                if db.scanned_file_exists(full_path):
-                    continue
-                db.note_scanned_file(full_path)
-                db.create_queue_item(
-                    queue_name,
-                    {
-                        'target_file': full_path,
-                        'workflow_name': workflow_name,
-                        'headers': {},
-                        '_metadata': {
-                            'process_uuid': self.process_uuid,
-                            'process_name': self.process_name,
-                            'scan_target': scan_target,
-                            'correlation_id': batch_id,
-                            'scanned_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    self.get_config('recursive')):
+                try:
+                    full_path = file.path()
+                    if db.scanned_file_exists(full_path):
+                        continue
+                    db.note_scanned_file(full_path)
+                    db.create_queue_item(
+                        queue_name,
+                        {
+                            'target_file': full_path,
+                            'workflow_name': workflow_name,
+                            'headers': {},
+                            '_metadata': {
+                                'process_uuid': self.process_uuid,
+                                'process_name': self.process_name,
+                                'scan_target': scan_target,
+                                'correlation_id': batch_id,
+                                'scanned_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                            }
                         }
-                    }
-                )
-                db.commit()
+                    )
+                    db.commit()
+                    if remove_scanned_files:
+                        dt = file
+                except NODBError as ex:
+
+                    # In all cases, we want to rollback
+                    db.rollback()
+
+                    # Serialization or unique key failure means we have one of two issues:
+                    # - The file path was inserted between our own checking and inserting
+                    # - The queue UUID was duplicated (unlikely)
+                    # In either case, we can ignore it for now as long as we rollback.
+                    # If the file doesn't get properly recorded, it will be checked on the next pass
+                    if ex.sql_state() in (
+                        SqlState.SERIALIZATION_FAILURE,
+                        SqlState.DEADLOCK_DETECTED,
+                        SqlState.UNIQUE_VIOLATION
+                    ):
+                        self._log.exception(f"Exception while creating database entry for scanned file")
+
+                    # Other errors indicate a bigger issue, we want to raise those
+                    else:
+                        raise ex
 
 
 class FileScanWorker(QueueWorker):

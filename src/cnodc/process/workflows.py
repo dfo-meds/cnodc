@@ -104,7 +104,7 @@ class WorkflowController:
                 secondary_metadata['Gzip'] = 'Y'
             if primary_upload_uri is not None:
                 with open(local_source_file, "rb") as h:
-                    upload_dir = self.files.get_handle(primary_upload_uri)
+                    upload_dir = self.files.get_handle(primary_upload_uri, halt_flag=self._halt_flag)
                     primary_handle = upload_dir.child(filename)
                     primary_handle.upload(
                         h,
@@ -116,7 +116,7 @@ class WorkflowController:
             secondary_upload_uri = workflow.get_config('archive', None)
             if secondary_upload_uri is not None:
                 with open(local_source_file, "rb") as h:
-                    archive_dir = self.files.get_handle(secondary_upload_uri)
+                    archive_dir = self.files.get_handle(secondary_upload_uri, halt_flag=self._halt_flag)
                     secondary_handle = archive_dir.child(filename)
                     secondary_handle.upload(
                         h,

@@ -1,4 +1,4 @@
-from .base import UrlBaseHandle, StorageTier, DirFileHandle
+from .base import UrlBaseHandle, StorageTier, BaseStorageHandle
 
 
 class SFTPHandle(UrlBaseHandle):

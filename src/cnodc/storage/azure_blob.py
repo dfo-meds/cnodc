@@ -2,7 +2,7 @@ import functools
 import datetime
 import requests
 import urllib3.exceptions
-from .base import UrlBaseHandle, StorageTier, DirFileHandle
+from .base import UrlBaseHandle, StorageTier, BaseStorageHandle
 from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobProperties
 from azure.identity import DefaultAzureCredential
 from cnodc.util import HaltFlag, CNODCError
@@ -42,8 +42,8 @@ class AzureBlobHandle(UrlBaseHandle):
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, url, properties=None):
-        super().__init__(url)
+    def __init__(self, url, properties=None, *args, **kwargs):
+        super().__init__(url, *args, **kwargs)
         self._cached_properties['properties'] = properties
 
     def get_connection_details(self) -> dict:
@@ -114,10 +114,9 @@ class AzureBlobHandle(UrlBaseHandle):
         return part1[last_slash+1:]
 
     @wrap_azure_errors
-    def _read_chunks(self, buffer_size: int = None, halt_flag: HaltFlag = None) -> t.Iterable[bytes]:
+    def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         stream = self.client().download_blob()
-        for chunk in stream.chunks():
-            halt_flag.check_continue(True)
+        for chunk in HaltFlag.iterate(stream.chunks(), self._halt_flag, True):
             yield chunk
 
     def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
@@ -131,9 +130,9 @@ class AzureBlobHandle(UrlBaseHandle):
                metadata: t.Optional[dict[str, str]] = None,
                storage_tier: t.Optional[StorageTier] = None,
                halt_flag: t.Optional[HaltFlag] = None):
-        self.add_default_metadata(metadata, storage_tier)
+        self._add_default_metadata(metadata, storage_tier)
         args = {
-            'data': DirFileHandle._local_read_chunks(local_path, buffer_size, halt_flag),
+            'data': self._local_read_chunks(local_path, buffer_size),
         }
         if metadata:
             args['metadata'] = metadata
@@ -166,7 +165,7 @@ class AzureBlobHandle(UrlBaseHandle):
         return True
 
     @wrap_azure_errors
-    def walk(self, recursive: bool = True, files_only: bool = True, halt_flag: HaltFlag = None) -> t.Iterable:
+    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable:
         client = self.container_client()
         full_name = self.full_name()
         if full_name[-1] != '/':
@@ -175,12 +174,11 @@ class AzureBlobHandle(UrlBaseHandle):
             raise NotImplementedError(f"Non-recursive iteration on blobs not implemented")
         if not files_only:
             raise NotImplementedError(f"Returning directories while iterating on blobs not implemented")
-        for blob_properties in client.list_blobs(name_starts_with=full_name):
-            halt_flag.check_continue(True)
+        for blob_properties in HaltFlag.iterate(client.list_blobs(name_starts_with=full_name), self._halt_flag, True):
             # TODO: recursive=False isn't handled
             # TODO: files_only=False isn't handled
             bc = client.get_blob_client(blob_properties.name)
-            yield AzureBlobHandle(bc.url, blob_properties)
+            yield AzureBlobHandle(bc.url, blob_properties, halt_flag=self._halt_flag)
 
     def properties(self, clear_cache: bool = False) -> BlobProperties:
         return self._with_cache('properties', self._properties, clear_cache=clear_cache)

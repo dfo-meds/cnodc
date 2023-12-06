@@ -5,7 +5,7 @@ from cnodc.nodb import NODBControllerInstance, structures
 from cnodc.process.queue_worker import QueueWorker
 import typing as t
 from autoinject import injector
-from cnodc.storage import StorageController, DirFileHandle
+from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.erddap import ErddapController
 from cnodc.storage.base import StorageTier
 from cnodc.util import CNODCError, HaltFlag
@@ -78,10 +78,10 @@ class CastawayIntakeWorker(QueueWorker):
         super().__init__(*args, log_name="cnodc.castaway.intake", **kwargs)
         self._erddap: t.Optional[ErddapController] = None
         self._storage: t.Optional[StorageController] = None
-        self._upload_target_raw: t.Optional[DirFileHandle] = None
-        self._archive_target_raw: t.Optional[DirFileHandle] = None
-        self._upload_target_processed: t.Optional[DirFileHandle] = None
-        self._archive_target_processed: t.Optional[DirFileHandle] = None
+        self._upload_target_raw: t.Optional[BaseStorageHandle] = None
+        self._archive_target_raw: t.Optional[BaseStorageHandle] = None
+        self._upload_target_processed: t.Optional[BaseStorageHandle] = None
+        self._archive_target_processed: t.Optional[BaseStorageHandle] = None
         self.set_defaults({
             'erddap_directory_raw': '',
             'erddap_directory_processed': '',
@@ -104,16 +104,16 @@ class CastawayIntakeWorker(QueueWorker):
             raise CNODCError("Archive directory not specified", "CASTAWAY", 2010)
         self._storage = storage
         self._erddap = erddap
-        self._upload_target_raw = storage.get_handle(self.get_config("erddap_directory_raw"))
+        self._upload_target_raw = storage.get_handle(self.get_config("erddap_directory_raw"), halt_flag=self.halt_flag)
         if not self._upload_target_raw.exists():
             raise CNODCError(f"Upload directory [{self._upload_target_raw}] does not exist", "CASTAWAY", 2005)
-        self._archive_target_raw = storage.get_handle(self.get_config("archive_directory_raw"))
+        self._archive_target_raw = storage.get_handle(self.get_config("archive_directory_raw"), halt_flag=self.halt_flag)
         if not self._archive_target_raw.exists():
             raise CNODCError(f"Archive directory [{self._archive_target_raw}] does not exist", "CASTAWAY", 2006)
-        self._upload_target_processed = storage.get_handle(self.get_config("erddap_directory_processed"))
+        self._upload_target_processed = storage.get_handle(self.get_config("erddap_directory_processed"), halt_flag=self.halt_flag)
         if not self._upload_target_processed.exists():
             raise CNODCError(f"Upload directory [{self._upload_target_processed}] does not exist", "CASTAWAY", 2011)
-        self._archive_target_processed = storage.get_handle(self.get_config("archive_directory_processed"))
+        self._archive_target_processed = storage.get_handle(self.get_config("archive_directory_processed"), halt_flag=self.halt_flag)
         if not self._archive_target_processed.exists():
             raise CNODCError(f"Archive directory [{self._archive_target_processed}] does not exist", "CASTAWAY", 2012)
 
@@ -129,7 +129,7 @@ class CastawayIntakeWorker(QueueWorker):
             # Download the original file
             temp_dir = pathlib.Path(temp_dir)
             local_file = temp_dir / "castaway.csv"
-            file_handle.download(local_file, halt_flag=self.halt_flag)
+            file_handle.download(local_file)
             self.halt_flag.breakpoint()
 
             # Unpack the original file
@@ -139,8 +139,8 @@ class CastawayIntakeWorker(QueueWorker):
             gzip_erddap = bool(self.get_config('gzip', True))
             upload_file_name = castaway_data.netcdf_file_name(gzip_erddap)
             archive_file_name = castaway_data.netcdf_file_name(True)
-            upload_file: t.Optional[DirFileHandle] = None
-            archive_file: t.Optional[DirFileHandle] = None
+            upload_file: t.Optional[BaseStorageHandle] = None
+            archive_file: t.Optional[BaseStorageHandle] = None
             if castaway_data.is_raw():
                 upload_file = self._upload_target_raw.child(upload_file_name)
                 archive_file = self._archive_target_raw.child(archive_file_name)
