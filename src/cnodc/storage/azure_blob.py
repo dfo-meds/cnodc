@@ -2,7 +2,7 @@ import functools
 import datetime
 import requests
 import urllib3.exceptions
-from .base import UrlBaseHandle, StorageTier, BaseStorageHandle
+from .base import UrlBaseHandle, StorageTier, BaseStorageHandle, StorageError
 from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobProperties
 from azure.identity import DefaultAzureCredential
 from cnodc.util import HaltFlag, CNODCError
@@ -22,17 +22,17 @@ def wrap_azure_errors(cb):
         except ace.AzureError as ex:
             if ex.inner_exception is not None:
                 if isinstance(ex.inner_exception, urllib3.exceptions.ConnectTimeoutError):
-                    raise CNODCError(f"Connection timeout error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1001, is_recoverable=True) from ex
+                    raise StorageError(f"Azure: Connection timeout error: {ex.__class__.__name__}: {str(ex)}", 2001, True) from ex
                 elif isinstance(ex.inner_exception, requests.ConnectionError):
-                    raise CNODCError(f"Connection error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1002, is_recoverable=True) from ex
+                    raise StorageError(f"Azure: Connection error: {ex.__class__.__name__}: {str(ex)}", 2002, True) from ex
                 elif isinstance(ex, ace.ClientAuthenticationError):
-                    raise CNODCError(f"Client authentication error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1003, is_recoverable=True) from ex
+                    raise StorageError(f"Azure: lient authentication error: {ex.__class__.__name__}: {str(ex)}", 2003, True) from ex
                 elif isinstance(ex, ace.ResourceNotFoundError):
-                    raise CNODCError(f"Resource not found error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1004, is_recoverable=True) from ex
+                    raise StorageError(f"Azure: Resource not found error: {ex.__class__.__name__}: {str(ex)}", 2004, True) from ex
                 elif isinstance(ex, ace.ResourceExistsError):
-                    raise CNODCError(f"Resource already exists error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1005, is_recoverable=True) from ex
+                    raise StorageError(f"Azure: Resource already exists error: {ex.__class__.__name__}: {str(ex)}", 2005, True) from ex
 
-            raise CNODCError(f"Azure error: {ex.__class__.__name__}: {str(ex)}", "AZURE", 1000) from ex
+            raise StorageError(f"Azure: {ex.__class__.__name__}: {str(ex)}", 2000) from ex
 
     return _inner
 

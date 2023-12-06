@@ -2,6 +2,9 @@ import pathlib
 import datetime
 import typing as t
 from urllib.parse import quote
+
+import zrlog
+
 from cnodc.util import CNODCError, dynamic_object, HaltFlag
 from autoinject import injector
 from cnodc.nodb import NODBController, NODBControllerInstance, LockType
@@ -30,6 +33,7 @@ class WorkflowController:
     def __init__(self, workflow_name: str, halt_flag: HaltFlag = None):
         self.workflow_name = workflow_name
         self._halt_flag = halt_flag
+        self._log = zrlog.get_logger("cnodc.workflow")
         if '/' in self.workflow_name or '\\' in self.workflow_name or '.' in self.workflow_name:
             raise CNODCError('Invalid character in workflow name', 'WORKFLOWCTRL', 1000)
 
@@ -140,12 +144,17 @@ class WorkflowController:
                     priority=workflow.get_config('queue_priority', None),
                     unique_item_key=headers['unique-key'] if 'unique-key' in headers else None
                 )
+            self.on_complete(db)
+            db.commit()
         except Exception as ex:
             if primary_handle:
                 primary_handle.remove()
             if secondary_handle:
                 secondary_handle.remove()
             raise ex
+
+    def on_complete(self, db: NODBControllerInstance):
+        pass
 
     def _get_metadata(self, metadata, headers):
         return {x: self._substitute_headers(metadata[x], headers) for x in metadata}

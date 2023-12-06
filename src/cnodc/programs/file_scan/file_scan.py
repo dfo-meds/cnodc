@@ -6,28 +6,29 @@ import tempfile
 import uuid
 import typing as t
 from cnodc.nodb import NODBController
-from cnodc.nodb.controller import NODBError, SqlState
+from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus, NODBControllerInstance
 from cnodc.process.scheduled_task import ScheduledTask
 from cnodc.process.queue_worker import QueueWorker
 from cnodc.process.workflows import WorkflowController
 from cnodc.storage import StorageController
 import cnodc.nodb.structures as structures
-from cnodc.util import CNODCError, HaltFlag
+from cnodc.util import CNODCError
 from autoinject import injector
 
 
 class FileScanTask(ScheduledTask):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, log_name="cnodc.file_scan", **kwargs)
+        super().__init__(*args, log_name="cnodc.file_scanner", **kwargs)
         self._storage: t.Optional[StorageController] = None
         self._nodb: t.Optional[NODBController] = None
         self.set_defaults({
             'scan_target': None,
+            'workflow_name': None,
             'pattern': '*',
             'recursive': False,
-            'remove_scanned_files': False,
-            'remove_threshold_seconds': 86400,
+            'remove_downloaded_files': False,
+            'headers': None
         })
 
     @injector.inject
@@ -49,35 +50,34 @@ class FileScanTask(ScheduledTask):
         if handle is None:
             raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILE_SCAN', 1001)
         batch_id = str(uuid.uuid4())
-        remove_scanned_files = bool(self.get_config('remove_scanned_files'))
-        remove_age_seconds = self.get_config('remove_threshold_seconds')
+        remove_when_complete = bool(self.get_config("remove_scanned_files"))
+        headers = self.get_config("headers", {})
         with self._nodb as db:
             for file in handle.search(
                     self.get_config('pattern'),
                     self.get_config('recursive')):
                 try:
                     full_path = file.path()
-                    if db.scanned_file_exists(full_path):
-                        continue
-                    db.note_scanned_file(full_path)
-                    db.create_queue_item(
-                        queue_name,
-                        {
-                            'target_file': full_path,
-                            'workflow_name': workflow_name,
-                            'headers': {},
-                            '_metadata': {
-                                'process_uuid': self.process_uuid,
-                                'process_name': self.process_name,
-                                'scan_target': scan_target,
-                                'correlation_id': batch_id,
-                                'scanned_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    status = db.scanned_file_status(full_path)
+                    if  status == ScannedFileStatus.NOT_PRESENT:
+                        db.note_scanned_file(full_path)
+                        db.create_queue_item(
+                            queue_name,
+                            {
+                                'target_file': full_path,
+                                'workflow_name': workflow_name,
+                                'remove_on_completion': remove_when_complete,
+                                'headers': headers,
+                                '_metadata': {
+                                    'process_uuid': self.process_uuid,
+                                    'process_name': self.process_name,
+                                    'scan_target': scan_target,
+                                    'correlation_id': batch_id,
+                                    'scanned_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                                }
                             }
-                        }
-                    )
-                    db.commit()
-                    if remove_scanned_files:
-                        dt = file
+                        )
+                        db.commit()
                 except NODBError as ex:
 
                     # In all cases, we want to rollback
@@ -102,6 +102,9 @@ class FileScanTask(ScheduledTask):
 
 class FileScanWorker(QueueWorker):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, log_name="cnodc.file_downloader", **kwargs)
+
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
         if 'target_file' not in item.data or not item.data['target_file']:
             raise CNODCError(f'Queue item [{item.queue_uuid}] missing [target_file]', 'FILEFLOW', 1000)
@@ -111,7 +114,8 @@ class FileScanWorker(QueueWorker):
         wc.handle_queued_file(
             item.data['target_file'],
             item.data['headers'] if 'headers' in item.data else {},
-            item.data['_metadata'] if '_metadata' in item.data else {}
+            item.data['_metadata'] if '_metadata' in item.data else {},
+            bool(item.data['remove_on_completion']) if 'remove_on_completion' in item.data else False
         )
         return structures.QueueItemResult.SUCCESS
 
@@ -134,6 +138,7 @@ class FileScanWorkflowController(WorkflowController):
         self._working_file = None
         self._gzip_file = None
         self._target_file = None
+        self._remote_handle = None
         self._metadata = {}
         self._temp_dir = None
 
@@ -142,8 +147,7 @@ class FileScanWorkflowController(WorkflowController):
             self._temp_dir = tempfile.TemporaryDirectory()
         if self._working_file is None:
             self._working_file = pathlib.Path(self._temp_dir.name) / "file"
-        handle = self.storage.get_handle(self._target_file)
-        handle.download(self._working_file, halt_flag=self._halt_flag)
+        self._remote_handle.download(self._working_file)
         if gzip_working_file:
             if self._gzip_file is None:
                 self._gzip_file = pathlib.Path(self._temp_dir.name) / "file.gzip"
@@ -156,21 +160,39 @@ class FileScanWorkflowController(WorkflowController):
     def get_queue_metadata(self) -> dict:
         return {
             'source': 'file_scan',
+            'source_metadata': self._metadata,
             'correlation_id': self._metadata['correlation_id'] if 'correlation_id' in self._metadata else '',
             'workflow_name': self.workflow_name,
             'user': '',
             'upload_time': self._metadata['scanned_time'] if 'scanned_time' in self._metadata else datetime.datetime.now(datetime.timezone.utc)
         }
 
-    def handle_queued_file(self, file_path: str, headers: dict, metadata: dict):
+    def handle_queued_file(self, file_path: str, headers: dict, metadata: dict, remove_when_finished: bool = False):
         try:
             with self.nodb as db:
-                workflow = self._load_workflow(db)
                 self._target_file = file_path
-                self._metadata = metadata
-                self._complete_request(db, workflow, headers or {})
+                self._remote_handle = self.storage.get_handle(self._target_file, halt_flag=self._halt_flag)
+                current_status = db.scanned_file_status(self._target_file)
+                if current_status == ScannedFileStatus.UNPROCESSED:
+                    workflow = self._load_workflow(db)
+                    self._metadata = metadata
+                    self._complete_request(db, workflow, headers or {})
+                    if remove_when_finished:
+                        self._try_remove_file()
+                        self._remote_handle.remove()
+                elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished and self._remote_handle.exists():
+                    self._try_remove_file()
         finally:
             self._cleanup_request()
+
+    def _try_remove_file(self):
+        try:
+            self._remote_handle.remove()
+        except Exception:
+            self._log.exception(f"Error while removing file")
+
+    def on_complete(self, db: NODBControllerInstance):
+        db.mark_scanned_item_success(self._target_file)
 
     def _cleanup_request(self):
         if self._temp_dir is not None:

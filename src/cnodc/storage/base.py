@@ -21,6 +21,12 @@ class StorageTier(enum.Enum):
     NA = 'na'
 
 
+class StorageError(CNODCError):
+
+    def __init__(self, msg, code, is_recoverable: bool = False):
+        super().__init__(msg, "STORAGE", code, is_recoverable=is_recoverable)
+
+
 def local_file_error_wrap(cb):
 
     @functools.wraps(cb)
@@ -28,15 +34,15 @@ def local_file_error_wrap(cb):
         try:
             return cb(*args, **kwargs)
         except FileNotFoundError as ex:
-            raise CNODCError(f"Local file not found", "STORAGE", 1002) from ex
+            raise StorageError(f"Local file not found", 1002) from ex
         except PermissionError as ex:
-            raise CNODCError(f"Access to local file denied", "STORAGE", 1003, is_recoverable=True) from ex
+            raise StorageError(f"Access to local file denied", 1003, True) from ex
         except IsADirectoryError as ex:
-            raise CNODCError(f"Local file is a directory", "STORAGE", 1004) from ex
+            raise StorageError(f"Local file is a directory", 1004) from ex
         except NotADirectoryError as ex:
-            raise CNODCError(f"Local directory is not a directory", "STORAGE", 1005) from ex
+            raise StorageError(f"Local directory is not a directory", 1005) from ex
         except Exception as ex:
-            raise CNODCError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", "STORAGE", 1005) from ex
+            raise StorageError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", 1005) from ex
 
     return _inner
 

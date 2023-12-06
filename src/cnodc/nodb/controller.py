@@ -30,6 +30,12 @@ RECOVERABLE_ERRORS: list[str] = [
 ]
 
 
+class ScannedFileStatus(enum.Enum):
+
+    NOT_PRESENT = "0"
+    UNPROCESSED = "1"
+    PROCESSED = "2"
+
 class LockType(enum.Enum):
 
     NONE = "1"
@@ -218,10 +224,15 @@ class NODBControllerInstance:
         else:
             return str(v)
 
-    def scanned_file_exists(self, file_path: str) -> bool:
-        self.execute("SELECT 1 FROM nodb_scanned_files WHERE file_path = %s", [file_path])
+    def scanned_file_status(self, file_path: str) -> ScannedFileStatus:
+        self.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path])
         row = self.fetchone()
-        return row is not None
+        if row is None:
+            return ScannedFileStatus.NOT_PRESENT
+        elif bool(row[0]):
+            return ScannedFileStatus.PROCESSED
+        else:
+            return ScannedFileStatus.UNPROCESSED
 
     def note_scanned_file(self, file_path):
         self.execute("INSERT INTO nodb_scanned_files (file_path) VALUES (%s)", [file_path])
