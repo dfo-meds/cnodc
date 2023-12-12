@@ -367,7 +367,7 @@ try:
                 print(f"Record {(message_idx - 1) * 100}, elapsed = {round(time.perf_counter() - st, 1)} s")
             dr = _315003_record(station_idx, dt) if station_idx % 2 else _315007_record(station_idx, dt)
             bin_data = bytearray()
-            for byte_ in codec.encode(dr, text_format="JSON", compression="LZMA0", correction=None):
+            for byte_ in codec._encode(dr, text_format="JSON", compression="LZMA0", correction=None):
                 bin_data.extend(byte_)
             aggr = _SearchDataAggregator(dr)
             search_data = {}

@@ -111,7 +111,7 @@ class GTSBufrStreamCodec(BaseCodec):
                 yield self._decode_message(header, reader, message_idx)
                 message_idx += 1
             else:
-                header = reader.consume_until(self.header_end, False).decode('ascii')
+                header = reader.consume_until(self.header_end, False)._decode('ascii')
             reader.skip_bytes(self._message_whitespace)
 
     def _decode_message(self, header: str, reader: BufferedBinaryReader, message_idx: int) -> DecodedMessage:

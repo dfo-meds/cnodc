@@ -281,7 +281,7 @@ for opt in options:
     for i in range(0, iterations):
         st = time.perf_counter()
         ba = bytearray()
-        for x in codec.encode(record, **opt):
+        for x in codec._encode(record, **opt):
             ba.extend(x)
         time_values.append(time.perf_counter() - st)
         size_values.append(len(ba))

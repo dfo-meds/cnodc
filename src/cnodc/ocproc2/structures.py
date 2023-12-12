@@ -76,6 +76,40 @@ class HistoryEntry:
         )
 
 
+class QCTestResult:
+
+    def __init__(self,
+                 test_name: str,
+                 test_version: str,
+                 test_date: t.Union[datetime.datetime, str],
+                 result: str,
+                 notes: str = None):
+        self.test_name = test_name
+        self.test_version = test_version
+        self.test_date = test_date.isoformat() if isinstance(test_date, datetime.datetime) else test_date
+        self.result = result
+        self.notes = notes
+
+    def to_mapping(self):
+        return {
+            '_name': self.test_name,
+            '_version': self.test_version,
+            '_date': self.test_date,
+            '_result': self.result,
+            '_notes': self.notes
+        }
+
+    @staticmethod
+    def from_mapping(map_: dict):
+        return QCTestResult(
+            map_['_name'],
+            map_['_version'],
+            map_['_date'],
+            map_['_result'],
+            map_['_notes']
+        )
+
+
 class AbstractValue:
 
     def __init__(self, metadata: t.Optional[dict] = None):
@@ -83,10 +117,14 @@ class AbstractValue:
         self._value = None
 
     def to_mapping(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def from_mapping(self, map_: t.Any):
-        raise NotImplementedError()
+        raise NotImplementedError
+
+    @property
+    def value(self):
+        raise NotImplementedError
 
     @staticmethod
     def value_from_mapping(map_: t.Any):
@@ -120,11 +158,11 @@ class Value(AbstractValue):
         return str(self._value)
 
     @property
-    def value(self):
+    def value(self) -> SupportedValue:
         return self._value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: SupportedValue):
         self._value = normalize_data_value(value)
 
     def to_mapping(self):
@@ -171,6 +209,10 @@ class MultiValue(AbstractValue):
             return False
 
     def values(self):
+        return self._value
+
+    @property
+    def value(self):
         return self._value
 
     def append(self, value: AbstractValue):
@@ -230,6 +272,9 @@ class ValueMap:
     def __getitem__(self, item: str):
         return self._map[item]
 
+    def keys(self):
+        return self._map.keys()
+
     def get(self, parameter_code: str) -> t.Optional[AbstractValue]:
         if parameter_code in self._map:
             return self._map[parameter_code]
@@ -280,6 +325,7 @@ class DataRecord:
         self.coordinates = ValueMap()
         self.subrecords = RecordMap()
         self.history: list[HistoryEntry] = []
+        self.qc_tests: list[QCTestResult] = []
 
     def to_mapping(self):
         map_ = {}
@@ -297,6 +343,8 @@ class DataRecord:
             map_['_subrecords'] = sm
         if self.history:
             map_['_history'] = [h.to_mapping() for h in self.history]
+        if self.qc_tests:
+            map_['_qc_tests'] = [qc.to_mapping() for qc in self.qc_tests]
 
     def from_mapping(self, map_: dict):
         if '_metadata' in map_:
@@ -309,8 +357,42 @@ class DataRecord:
             self.subrecords.from_mapping(map_['_subrecords'])
         if '_history' in map_:
             self.history = [
-                HistoryEntry.from_mapping(x) for x in map_['history']
+                HistoryEntry.from_mapping(x) for x in map_['_history']
             ]
+        if '_qc_tests' in map_:
+            self.qc_tests = [
+                QCTestResult.from_mapping(x) for x in map_['_qc_tests']
+            ]
+
+    def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable:
+        for record_type in self.subrecords:
+            if subrecord_type is None or subrecord_type == record_type:
+                for record_set_key in self.subrecords[record_type]:
+                    yield from self.subrecords[record_type][record_set_key].records
+
+    def record_qc_test_passed(self,
+                              test_name: str,
+                              test_version: str,
+                              notes: str = None):
+        self.qc_tests.append(QCTestResult(
+            test_name,
+            test_version,
+            datetime.datetime.now(datetime.timezone.utc),
+            'PASS',
+            notes
+        ))
+
+    def record_qc_test_failed(self,
+                              test_name: str,
+                              test_version: str,
+                              notes: str = None):
+        self.qc_tests.append(QCTestResult(
+            test_name,
+            test_version,
+            datetime.datetime.now(datetime.timezone.utc),
+            'FAIL',
+            notes
+        ))
 
     def add_history_entry(self,
                           message: str,
@@ -355,9 +437,6 @@ class RecordSet:
         self.metadata = ValueMap()
         self.records: list[DataRecord] = []
 
-    def _generate_compact_map(self):
-        pass
-
     def to_mapping(self):
         md = self.metadata.to_mapping()
         if md:
@@ -383,6 +462,12 @@ class RecordMap:
 
     def __init__(self):
         self.record_sets: dict[str, dict[int, RecordSet]] = {}
+
+    def __getitem__(self, item):
+        return self.record_sets[item]
+
+    def __contains__(self, key):
+        return key in self.record_sets
 
     def to_mapping(self):
         return {

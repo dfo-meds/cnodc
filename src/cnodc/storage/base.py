@@ -214,6 +214,8 @@ class BaseStorageHandle:
 
     @local_file_error_wrap
     def _local_read_chunks(self, local_path, buffer_size: int) -> t.Iterable[bytes]:
+        if isinstance(local_path, (bytes, bytearray)):
+            yield local_path
         if isinstance(local_path, (str, pathlib.Path)):
             with open(local_path, "rb") as src:
                 yield from self._read_in_chunks(src, buffer_size)
@@ -259,7 +261,7 @@ class BaseStorageHandle:
     def _is_dir(self) -> bool:
         raise NotImplementedError()
 
-    def child(self, sub_path: str, as_dir: bool = False):
+    def child(self, sub_path: str, as_dir: bool = False) -> StorageFileHandle:
         raise NotImplementedError()
 
     def subdir(self, sub_path: str):

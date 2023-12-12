@@ -30,13 +30,13 @@ class OCProc2YamlCodec(BaseCodec):
         yield '%YAML 1.1\n'.encode(self._encoding)
         if isinstance(records, (RecordSet, DataRecord)):
             yield "---\n".encode(self._encoding)
-            yield yaml.safe_dump(records.to_mapping(compact=compact)).encode(self._encoding)
+            yield yaml.safe_dump(records.to_mapping(compact=compact))._encode(self._encoding)
             yield "\n...\n".encode(self._encoding)
         # Multiple record sets or data records
         else:
             for record in records:
                 yield "---\n".encode(self._encoding)
-                yield yaml.safe_dump(record.to_mapping(compact=compact)).encode(self._encoding)
+                yield yaml.safe_dump(record.to_mapping(compact=compact))._encode(self._encoding)
                 yield "\n...\n".encode(self._encoding)
 
     def decode_messages(self, data: t.Iterable[bytes], replace_logger_cls: t.Type = None, **kwargs) -> t.Iterable[DecodedMessage]:
@@ -44,7 +44,7 @@ class OCProc2YamlCodec(BaseCodec):
         message_idx = 0
         while not buffered_data.is_at_end():
             stream = buffered_data.consume_until(self._document_break_checks, True)
-            data = stream.decode('utf-8')
+            data = stream._decode('utf-8')
             doc = yaml.load(data, SafeLoader)
             if doc:
                 if replace_logger_cls:

@@ -38,18 +38,18 @@ class OCProc2BinaryCodec(BaseCodec):
         else:
             output.append(0)
         yield output
-        yield from corrector.handle_outgoing(compressor.compress_stream(formatter.encode(records)))
+        yield from corrector.handle_outgoing(compressor.compress_stream(formatter._encode(records)))
 
     def decode_messages(self, data: t.Iterable[bytes], **kwargs) -> t.Iterable[DataRecord]:
         reader = BufferedBinaryReader(data)
         format_version = int(reader.consume(1)[0])
         if format_version == 1:
             text_format_length = int(reader.consume(1)[0])
-            text_format = reader.consume(text_format_length).decode('ascii')
+            text_format = reader.consume(text_format_length)._decode('ascii')
             compression_length = int(reader.consume(1)[0])
-            compression = reader.consume(compression_length).decode('ascii') if compression_length > 0 else None
+            compression = reader.consume(compression_length)._decode('ascii') if compression_length > 0 else None
             correction_length = int(reader.consume(1)[0])
-            correction = reader.consume(correction_length).decode('ascii') if correction_length > 0 else None
+            correction = reader.consume(correction_length)._decode('ascii') if correction_length > 0 else None
             formatter = OCProc2BinaryCodec.load_formatter(text_format)
             compressor = OCProc2BinaryCodec.load_compressor(compression)
             corrector = OCProc2BinaryCodec.load_corrector(correction)

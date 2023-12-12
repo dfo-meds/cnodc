@@ -45,7 +45,7 @@ class CastawayCtdCodec(BaseCodec):
         dr = DataRecord()
         csv_data = []
         for line in reader.consume_by_lines():
-            line = line.decode('utf-8').strip()
+            line = line._decode('utf-8').strip()
             if line[0] == '%':
                 self._decode_metadata_line(line, dr)
             else:

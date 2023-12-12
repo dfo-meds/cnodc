@@ -12,6 +12,7 @@ from cnodc.process.queue_worker import QueueWorker
 from cnodc.process.workflows import WorkflowController
 from cnodc.storage import StorageController
 import cnodc.nodb.structures as structures
+from cnodc.storage.base import StorageFileHandle
 from cnodc.util import CNODCError
 from autoinject import injector
 
@@ -138,7 +139,7 @@ class FileScanWorkflowController(WorkflowController):
         self._working_file = None
         self._gzip_file = None
         self._target_file = None
-        self._remote_handle = None
+        self._remote_handle: t.Optional[StorageFileHandle] = None
         self._metadata = {}
         self._temp_dir = None
 
@@ -167,16 +168,26 @@ class FileScanWorkflowController(WorkflowController):
             'upload_time': self._metadata['scanned_time'] if 'scanned_time' in self._metadata else datetime.datetime.now(datetime.timezone.utc)
         }
 
+    def file_best_modified_time(self) -> datetime.datetime:
+        mod_time = None
+        if self._remote_handle:
+            mod_time = self._remote_handle.modified_datetime()
+        return datetime.datetime.now(datetime.timezone.utc) if mod_time is None else mod_time
+
     def handle_queued_file(self, file_path: str, headers: dict, metadata: dict, remove_when_finished: bool = False):
         try:
             with self.nodb as db:
                 self._target_file = file_path
                 self._remote_handle = self.storage.get_handle(self._target_file, halt_flag=self._halt_flag)
+                if headers is None:
+                    headers = {}
+                if 'filename' not in headers:
+                    headers['filename'] = self._sanitize_filename(self._remote_handle.name())
                 current_status = db.scanned_file_status(self._target_file)
                 if current_status == ScannedFileStatus.UNPROCESSED:
                     workflow = self._load_workflow(db)
                     self._metadata = metadata
-                    self._complete_request(db, workflow, headers or {})
+                    self._complete_request(db, workflow, headers)
                     if remove_when_finished:
                         self._try_remove_file()
                         self._remote_handle.remove()

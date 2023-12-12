@@ -186,6 +186,9 @@ class UploadController(WorkflowController):
                 self._cleanup_request()
                 return UploadResult.COMPLETE
 
+    def _default_filename(self, headers) -> str:
+        return self.request_id
+
     @staticmethod
     def hash_token(token: str) -> bytes:
         return hashlib.pbkdf2_hmac('sha256', token.encode('utf-8'), salt=flask.current_app.config['SECRET_KEY'], iterations=985123)

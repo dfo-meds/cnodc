@@ -40,7 +40,7 @@ class GTSAsciiStreamCodec(BaseCodec):
         header = None
         content = []
         for line in reader.consume_by_lines():
-            line = line.strip(self._message_whitespace).decode('ascii')
+            line = line.strip(self._message_whitespace)._decode('ascii')
             if line == "":
                 continue
             if self._is_gts_header(line):

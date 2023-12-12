@@ -36,9 +36,17 @@ class ObservationStatus(enum.Enum):
 
     UNVERIFIED = 'UNVERIFIED'
     VERIFIED = 'VERIFIED'
-    RTQC_PASS = 'RTQC_PASS'
-    DMQC_PASS = 'DMQC_PASS'
     DISCARDED = 'DISCARDED'
+    DUPLICATE = 'DUPLICATE'
+    ARCHIVED = 'ARCHIVED'
+
+
+class ObservationType(enum.Enum):
+
+    SURFACE = 'SURFACE'
+    AT_DEPTH = 'AT_DEPTH'
+    PROFILE = 'PROFILE'
+    OTHER = 'OTHER'
 
 
 class QualityControlStatus(enum.Enum):
@@ -83,6 +91,14 @@ class QueueItemResult(enum.Enum):
     SUCCESS = 'SUCCESS'
     FAILED = 'FAILED'
     RETRY = 'RETRY'
+
+
+class ProcessingLevel(enum.Enum):
+
+    RAW = 'RAW'
+    ADJUSTED = 'ADJUSTED'
+    REAL_TIME = 'REAL_TIME'
+    DELAYED_MODE = 'DELAYED_MODE'
 
 
 class _NODBBaseObject:
@@ -211,6 +227,14 @@ class _NODBBaseObject:
         )
 
     @classmethod
+    def make_wkt_property(cls, item: str, readonly: bool = False):
+        # TODO: currently a string but could add better validation
+        return property(
+            functools.partial(_NODBBaseObject.get, item=item),
+            functools.partial(_NODBBaseObject.set, item=item, coerce=str, readonly=readonly)
+        )
+
+    @classmethod
     def register_primary_key(cls, item_name: str):
         if not hasattr(cls, '_primary_keys'):
             setattr(cls, '_primary_keys', set())
@@ -313,10 +337,9 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
     PRIMARY_KEYS: tuple[str] = ("source_uuid", "partition_key",)
 
     source_uuid: str = _NODBBaseObject.make_property("source_uuid", coerce=str)
-    partition_key: datetime.date = _NODBBaseObject.make_date_property("partition_key")
+    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
 
     source_path: str = _NODBBaseObject.make_property("source_path", coerce=str)
-    persistent_path: str = _NODBBaseObject.make_property("persistent_path", coerce=str)
     file_name: str = _NODBBaseObject.make_property("file_name", coerce=str)
 
     original_uuid: str = _NODBBaseObject.make_property("original_uuid", coerce=str)
@@ -325,8 +348,6 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
     status: SourceFileStatus = _NODBBaseObject.make_enum_property("status", SourceFileStatus)
 
     history: list = _NODBBaseObject.make_property("history")
-
-    qc_workflow_name: str = _NODBBaseObject.make_property("qc_workflow_name", coerce=str)
 
     def report_error(self, message, name, version, instance):
         self.add_history(message, name, version, instance, 'ERROR')
@@ -346,6 +367,20 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
             'asc': datetime.datetime.utcnow().isoformat()
         })
         self.modified_values.add('history')
+
+    @classmethod
+    def find_by_source_path(cls, db, source_path: str, *args, **kwargs):
+        return db.load_object(cls, {
+            'source_path': source_path
+        }, *args, **kwargs)
+
+    @classmethod
+    def find_by_original_info(cls, db, original_uuid: str, received_date: datetime.date, message_idx: int, *args, **kwargs):
+        return db.load_object(cls, {
+            'original_idx': message_idx,
+            'received_date': received_date,
+            'original_uuid': original_uuid
+        }, *args, **kwargs)
 
 
 class NODBUser(_NODBBaseObject):
@@ -520,8 +555,68 @@ class NODBUploadWorkflow(_NODBBaseObject):
         return db.load_object(cls, {"workflow_name": workflow_name}, *args, **kwargs)
 
 
+class NODBObservation(_NODBBaseObject):
+
+    TABLE_NAME = "nodb_obs"
+    PRIMARY_KEYS = ("obs_uuid", "received_date")
+
+    obs_uuid: str = _NODBBaseObject.make_property("obs_uuid", coerce=str)
+    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
+
+    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
+    mission_name: str = _NODBBaseObject.make_property("mission_name", coerce=str)
+    source_name: str = _NODBBaseObject.make_property("source_name", coerce=str)
+    instrument_type: str = _NODBBaseObject.make_property("instrument_type", coerce=str)
+    program_name: str = _NODBBaseObject.make_property("program_name", coerce=str)
+    status: ObservationStatus = _NODBBaseObject.make_enum_property("status", ObservationStatus)
+    obs_time: datetime.datetime = _NODBBaseObject.make_datetime_property("obs_time")
+    min_depth: float = _NODBBaseObject.make_property("min_depth", coerce=float)
+    max_depth: float = _NODBBaseObject.make_property("max_depth", coerce=float)
+    location: str = _NODBBaseObject.make_wkt_property("location")
+    observation_type: ObservationType = _NODBBaseObject.make_enum_property("observation_type", ObservationType)
+    surface_parameters: list = _NODBBaseObject.make_property("surface_parameters")
+    profile_parameters: list = _NODBBaseObject.make_property("profile_parameters")
+    processing_level: ProcessingLevel = _NODBBaseObject.make_enum_property("processing_level", ProcessingLevel)
+    embargo_date: datetime.datetime = _NODBBaseObject.make_datetime_property("embargo_date")
+
+    @classmethod
+    def find_by_uuid(cls, db, obs_uuid: str, received_date: datetime.date, *args, **kwargs):
+        return db.load_object(cls, {
+            "obs_uuid": obs_uuid,
+            "received_date": received_date
+        }, *args, **kwargs)
 
 
+class NODBObservationData(_NODBBaseObject):
+
+    TABLE_NAME = "nodb_obs_data"
+    PRIMARY_KEYS = ("obs_uuid", "received_date")
+
+    obs_uuid: str = _NODBBaseObject.make_property("obs_uuid", coerce=str)
+    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
+    source_file_uuid: str = _NODBBaseObject.make_property("source_file_uuid", coerce=str)
+    message_idx: int = _NODBBaseObject.make_property("message_idx", coerce=int)
+    record_idx: int = _NODBBaseObject.make_property("record_idx", coerce=int)
+    data_record: bytes = _NODBBaseObject.make_property("data_record")
+    process_metadata: dict = _NODBBaseObject.make_property("process_metadata")
+    qc_tests: dict = _NODBBaseObject.make_property("qc_tests")
+    duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
+    duplicate_received_date: datetime.date = _NODBBaseObject.make_date_property("duplicate_received_date")
+
+    @classmethod
+    def find_by_source_info(cls,
+                            db,
+                            source_file_uuid: str,
+                            source_received_date: datetime.date,
+                            message_idx: int,
+                            record_idx: int,
+                            *args, **kwargs):
+        return db.load_object(cls, {
+                "received_date": source_received_date,
+                "source_file_uuid": source_file_uuid,
+                "message_idx": message_idx,
+                "record_idx": record_idx
+            }, *args, **kwargs)
 
 
 

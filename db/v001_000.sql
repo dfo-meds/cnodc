@@ -4,7 +4,7 @@ CREATE EXTENSION postgis;
 CREATE OR REPLACE FUNCTION update_modified_date()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.modified_date = now();
+    NEW.db_modified_date = now();
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -71,7 +71,7 @@ BEGIN
             'ERROR'
         );
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'qc_level') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_level') THEN
         CREATE TYPE qc_level AS ENUM (
             'RAW',
             'ADJUSTED',
@@ -148,11 +148,10 @@ CREATE TABLE IF NOT EXISTS nodb_source_files (
     source_uuid         UUID            NOT NULL    DEFAULT gen_random_uuid(),
     received_date       DATE            NOT NULL,
 
-    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
     source_path         TEXT,
-    persistent_path     TEXT,
     file_name           TEXT            NOT NULL,
 
     original_uuid       UUID,
@@ -162,8 +161,6 @@ CREATE TABLE IF NOT EXISTS nodb_source_files (
     history             JSON,
 
     status              source_status   NOT NULL    DEFAULT 'NEW',
-
-    qc_workflow_name    VARCHAR(126),
 
     PRIMARY KEY(source_uuid, received_date)
 ) PARTITION BY RANGE(received_date);
@@ -219,8 +216,8 @@ CREATE INDEX IF NOT EXISTS idx_nodb_stations_instrumentation ON nodb_stations US
 -- QC batch items (batches are processed as a single item)
 CREATE TABLE IF NOT EXISTS nodb_qc_batches (
     batch_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
-    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     qc_workflow_name    VARCHAR(126)    NOT NULL,
     qc_process_name     VARCHAR(126),
     qc_current_step     INTEGER,
@@ -242,8 +239,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
     obs_uuid            UUID            NOT NULL    DEFAULT gen_random_uuid(),
     received_date       DATE            NOT NULL,
 
-    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
     station_uuid        UUID                        REFERENCES nodb_stations(station_uuid),
     mission_name        VARCHAR(126),
@@ -262,7 +259,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 
     surface_parameters  JSONB,
     profile_parameters  JSONB,
-    qc_level            qc_level        NOT NULL    DEFAULT 'RAW',
+    processing_level    processing_level        NOT NULL    DEFAULT 'RAW',
     embargo_date        TIMESTAMPTZ,
 
     PRIMARY KEY (obs_uuid, received_date)
@@ -325,7 +322,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
 
 
 -- Unique index on observations source info to ensure we don't duplicate records from the same file.
-CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(received_date, source_file_uuid, record_idx, message_idx);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(received_date, source_file_uuid, message_idx, record_idx);
 
 
 -- Partition tables for 1980 to 2040
@@ -339,8 +336,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data_2030 PARTITION OF nodb_obs_data FOR VAL
 -- Table for working data
 CREATE TABLE IF NOT EXISTS nodb_working (
     working_uuid            UUID            NOT NULL    PRIMARY KEY,
-    created_date            TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date           TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_created_date         TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_modified_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
     qc_metadata             JSON,
     qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
@@ -373,8 +370,8 @@ CREATE OR REPLACE TRIGGER update_working_modified_date
 -- Table for managing the queue
 CREATE TABLE IF NOT EXISTS nodb_queues (
     queue_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
-    created_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    modified_date       TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
     status              queue_status    NOT NULL    DEFAULT 'UNLOCKED',
     locked_by           VARCHAR(126)                DEFAULT NULL,

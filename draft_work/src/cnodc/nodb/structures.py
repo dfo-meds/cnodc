@@ -484,14 +484,14 @@ class _NODBWithDataRecord:
         if self._data_record_cache is None:
             if self.data_record is not None:
                 codec = OCProc2BinaryCodec()
-                self._data_record_cache = codec.decode([self.data_record])
+                self._data_record_cache = codec._decode([self.data_record])
         return self._data_record_cache
 
     def store_data_record(self, dr: DataRecord, **kwargs):
         self._data_record_cache = dr
         codec = OCProc2BinaryCodec()
         new_data = bytearray()
-        for bytes_ in codec.encode(dr, **kwargs):
+        for bytes_ in codec._encode(dr, **kwargs):
             new_data.extend(bytes_)
         self.data_record = new_data
 

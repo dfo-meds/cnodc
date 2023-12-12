@@ -331,7 +331,7 @@ class ProfileInfoGroup(_MedsEncodable):
     def encode_all_profile_records(self, fmt: MedsEncoding):
         mx = ProfileInfoGroup.OCPROC_MAX if fmt == MedsEncoding.OCPROC else ProfileInfoGroup.MEDSASC_MAX
         for prof in _MedsEncodable.sort_and_cap(self.profiles, mx[1], 'profile_records', self.profile_type):
-            yield from prof.encode(fmt)
+            yield from prof._encode(fmt)
 
     @property
     def _no_seg(self) -> int:
@@ -877,14 +877,14 @@ class StationRecord(_MedsEncodable):
         yield from super().encode(fmt)
         report_profiles = []
         for pg in _MedsEncodable.sort_and_cap(self.profile_info_groups, max_sizes[0], "profile_info", self._mkey):
-            yield from pg.encode(fmt)
+            yield from pg._encode(fmt)
             report_profiles.append(pg)
         for spg in _MedsEncodable.sort_and_cap(self.surface_parameter_groups, max_sizes[1], "surface_params", self._mkey):
-            yield from spg.encode(fmt)
+            yield from spg._encode(fmt)
         for scg in _MedsEncodable.sort_and_cap(self.surface_code_groups, max_sizes[2], "surface_codes", self._mkey):
-            yield from scg.encode(fmt)
+            yield from scg._encode(fmt)
         for hg in _MedsEncodable.sort_and_cap(self.history_groups, max_sizes[3], "history_groups", self._mkey):
-            yield from hg.encode(fmt)
+            yield from hg._encode(fmt)
         if fmt == MedsEncoding.MEDS_ASCII:
             yield "\n".encode("ascii")
         for pg in report_profiles:

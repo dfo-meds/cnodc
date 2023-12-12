@@ -1,6 +1,7 @@
 import pathlib
 import datetime
 import typing as t
+import uuid
 from urllib.parse import quote
 
 import zrlog
@@ -78,6 +79,9 @@ class WorkflowController:
     def get_queue_metadata(self) -> dict:
         raise NotImplementedError()
 
+    def file_best_modified_time(self) -> datetime.datetime:
+        return datetime.datetime.now(datetime.timezone.utc)
+
     def _complete_request(self, db: NODBControllerInstance, workflow: structures.NODBUploadWorkflow, headers: dict):
         primary_handle = None
         secondary_handle = None
@@ -114,8 +118,7 @@ class WorkflowController:
                         h,
                         allow_overwrite=allow_overwrite,
                         storage_tier=primary_upload_tier,
-                        metadata=primary_metadata,
-                        halt_flag=self._halt_flag
+                        metadata=primary_metadata
                     )
             secondary_upload_uri = workflow.get_config('archive', None)
             if secondary_upload_uri is not None:
@@ -126,8 +129,7 @@ class WorkflowController:
                         h,
                         allow_overwrite=allow_overwrite,
                         storage_tier=secondary_upload_tier,
-                        metadata=secondary_metadata,
-                        halt_flag=self._halt_flag
+                        metadata=secondary_metadata
                     )
             queue_name = workflow.get_config('queue', None)
             if queue_name is not None:
@@ -138,6 +140,7 @@ class WorkflowController:
                         'archive_file': secondary_handle.path() if secondary_handle else None,
                         'gzip': gzip_active,
                         'filename': filename,
+                        'last_modified': self.file_best_modified_time(),
                         'headers': headers,
                         '_metadata': self.get_queue_metadata()
                     },
@@ -167,11 +170,14 @@ class WorkflowController:
 
     def _get_filename(self, headers: dict, is_gzipped: bool = False):
         filename = self._sanitize_filename(headers['filename']) if 'filename' in headers else None
-        if filename is None:
-            filename = headers['request_id']
+        if not filename:
+            filename = self._default_filename(headers)
         if is_gzipped:
             filename += ".gz"
         return filename
+
+    def _default_filename(self, headers) -> str:
+        return str(uuid.uuid4())
 
     def _sanitize_filename(self, filename: str):
         filename = ''.join([x for x in filename if x in VALID_FILENAME_CHARACTERS])

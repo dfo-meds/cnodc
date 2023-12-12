@@ -1,4 +1,7 @@
 import typing as t
+
+import zrlog
+
 from cnodc.ocproc2 import DataRecord
 import os
 
@@ -97,14 +100,47 @@ class ByteSequenceReader:
             self._buffer = self._buffer[length:]
             self._buffer_length = len(self._buffer)
 
+    def peek(self, length: int) -> bytes:
+        self._read_at_least(length)
+        return self._buffer[0:length]
+
+    def peek_line(self, exclude_line_endings: bool = True) -> bytes:
+        while not (b"\n" in self._buffer or b"\r" in self._buffer):
+            self.check_continue()
+            if not self._read_next():
+                break
+        next_n = self._buffer.find(b"\n")
+        next_r = self._buffer.find(b"\r")
+        index = None
+        if next_n is not None and next_r is not None:
+            index = min(next_n, next_r)
+        elif next_n is not None:
+            index = next_n
+        elif next_r is not None:
+            index = next_r
+        if index is None:
+            return self._buffer
+        if not exclude_line_endings:
+            index += 1
+        return self._buffer[:index]
+
+    def consume_line(self, exclude_line_endings: bool = True) -> bytes:
+        res = self.consume_until([b"\n", b"\r"], include_target=True)
+        if res[-1] == 13 and self[0] == b"\n":
+            self._discard_leading(1)
+            if not exclude_line_endings:
+                res += b"\n"
+        return res.rstrip(b"\r\n") if exclude_line_endings else res
+
     def consume_lines(self, exclude_line_endings: bool = True) -> t.Iterable[bytearray]:
         while not self.at_eof():
             self.check_continue()
             res = self.consume_until([b"\n", b"\r"], include_target=True)
-            yield res.rstrip(b"\r\n") if exclude_line_endings else res
-            # Account for the windows \n after \r only
             if res[-1] == 13 and self[0] == b"\n":
                 self._discard_leading(1)
+                if not exclude_line_endings:
+                    res += b"\n"
+            yield res.rstrip(b"\r\n") if exclude_line_endings else res
 
     def consume_all(self) -> bytearray:
         self._read_rest()
@@ -204,54 +240,37 @@ class Writable(t.Protocol):
 
 class DecodeResult:
 
-    def __init__(self):
-        self.records: t.Optional[list[DataRecord]] = None
-        self.success: bool = False
-        self.from_exception: t.Optional[Exception] = None
-
-    @staticmethod
-    def from_exception(ex: Exception):
-        dr = DecodeResult()
-        dr.from_exception = ex
-        dr.success = False
-        return dr
-
-    @staticmethod
-    def from_record_list(records: list[DataRecord]):
-        dr = DecodeResult()
-        dr.success = True
-        dr.records = records
-        return dr
+    def __init__(self,
+                 records: t.Optional[list[DataRecord]] = None,
+                 exc: t.Optional[Exception] = None,
+                 message_idx: int = 0,
+                 original: t.Union[bytes, bytearray, None] = None):
+        self.records: t.Optional[list[DataRecord]] = records
+        self.success = exc is None and records is not None
+        self.from_exception: t.Optional[Exception] = exc
+        self.message_idx: int = message_idx
+        self.original: t.Union[bytes, bytearray, None] = original
 
 
 class EncodeResult(t.Protocol):
 
-    def __init__(self):
-        self.data_stream: t.Union[bytearray, bytes, None] = None
-        self.success: bool = False
-        self.from_exception: t.Optional[Exception] = None
-
-    @staticmethod
-    def from_exception(ex: Exception):
-        er = EncodeResult()
-        er.from_exception = ex
-        er.success = False
-        return er
-
-    @staticmethod
-    def from_bytes(bytes_: t.Union[bytes, bytearray]):
-        er = EncodeResult()
-        er.data_stream = bytes_
-        er.success = True
-        return er
+    def __init__(self,
+                 data_stream: t.Optional[ByteIterable] = None,
+                 exc: t.Optional[Exception] = None,
+                 original: t.Optional[DataRecord] = None):
+        self.data_stream: t.Optional[ByteIterable] = data_stream
+        self.from_exception: t.Optional[Exception] = exc
+        self.original: t.Optional[DataRecord] = original
+        self.success: bool = self.from_exception is None and self.data_stream is not None
 
 
 class BaseCodec:
 
-    def __init__(self, is_encoder: bool = False, is_decoder: bool = False, halt_flag: HaltFlag = None):
+    def __init__(self, log_name: str, is_encoder: bool = False, is_decoder: bool = False, halt_flag: HaltFlag = None):
         self.is_encoder = is_encoder
         self.is_decoder = is_decoder
         self._halt_flag = halt_flag
+        self.log = zrlog.get_logger(log_name)
 
     def dump(self,
              output_file: t.Union[Writable, str, os.PathLike],
@@ -283,18 +302,18 @@ class BaseCodec:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
         on_first = True
         yield from self.encode_start(**kwargs)
-        for record in HaltFlag.iterate(data, self._halt_flag, True):
-            result = self.encode(record)
+        for record_idx, record in enumerate(HaltFlag.iterate(data, self._halt_flag, True)):
+            result = self._encode(record)
             if result.success:
                 if not on_first:
                     yield from self.encode_separator(**kwargs)
-                yield self.encode(record).data_stream
+                yield self._encode(record).data_stream
                 on_first = False
             elif fail_on_error:
                 if result.from_exception:
-                    raise CNODCError(f"Error encoding data from file", "CODECS", 1000) from result.from_exception
+                    raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1000) from result.from_exception
                 else:
-                    raise CNODCError(f"Error encoding data from file", "CODECS", 1001)
+                    raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1001)
         yield from self.encode_end(**kwargs)
 
     def encode_start(self, **kwargs) -> ByteIterable:
@@ -303,6 +322,17 @@ class BaseCodec:
     def encode(self,
                record: DataRecord,
                **kwargs) -> EncodeResult:
+        try:
+            return self._encode(record, **kwargs)
+        except Exception as ex:
+            return EncodeResult(
+                original=record,
+                exc=ex
+            )
+
+    def _encode(self,
+                record: DataRecord,
+                **kwargs) -> EncodeResult:
         raise NotImplementedError()
 
     def encode_separator(self, **kwargs) -> ByteIterable:
@@ -318,7 +348,7 @@ class BaseCodec:
                         data: ByteIterable,
                         **kwargs) -> t.Iterable[DataRecord]:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
-        for result in HaltFlag.iterate(self.decode(data), self._halt_flag, True):
+        for result in HaltFlag.iterate(self.decode(data, **kwargs), self._halt_flag, True):
             if result.success:
                 yield from result.records
             elif fail_on_error:
@@ -326,10 +356,22 @@ class BaseCodec:
                     raise CNODCError(f"Error decoding data from file", "CODECS", 1002) from result.from_exception
                 else:
                     raise CNODCError(f"Error decoding data from file", "CODECS", 1003)
+            else:
+                if result.from_exception:
+                    self.log.error(f"Error decoding data from file: {result.from_exception.__class__.__name__}: {str(result.from_exception)}", "CODECS", 1004)
+                else:
+                    self.log.error(f"Unknown error decoding data from file", "CODECS", 1005)
 
-    def decode(self,
-               data: ByteIterable,
-               **kwargs) -> t.Iterable[DecodeResult]:
+    def decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
+        idx = 0
+        for result in self._decode(data, **kwargs):
+            result.message_idx = idx
+            idx += 1
+            yield result
+
+    def _decode(self,
+                data: ByteIterable,
+                **kwargs) -> t.Iterable[DecodeResult]:
         raise NotImplementedError()
 
     def write_in_chunks(self, file_handle: Writable, output: ByteIterable):
