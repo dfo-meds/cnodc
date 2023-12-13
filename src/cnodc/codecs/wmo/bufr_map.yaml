@@ -112,7 +112,7 @@
 
 3010:
   type: metadata
-  name: WMOCurrentMethod
+  name: WMOCurrentMeasurementMethod2
   apply_to: following
   filter:
     - CurrentDirection
