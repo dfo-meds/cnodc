@@ -1,5 +1,6 @@
 from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader
 import typing as t
+from cnodc.codecs.wmo.bufr import Bufr4Decoder
 
 
 class GtsSubDecoder:
@@ -61,7 +62,10 @@ class GtsCodec(BaseCodec):
         content.extend(bufr_version.to_bytes(1, 'big'))
         content.extend(reader.consume(message_length - 8))
         if bufr_version == 4:
-            return self._sub_codecs['BUFR4'].decode_message(header, content)
+            try:
+                return self._sub_codecs['BUFR4'].decode_message(header, content)
+            except Exception as ex:
+                return DecodeResult(exc=ex, original=header.encode('ascii') + b'\n' + content)
         else:
             return DecodeResult(
                 exc=Exception(f'Invalid BUFR version [{bufr_version}]'),
@@ -70,7 +74,10 @@ class GtsCodec(BaseCodec):
 
     def _decode_basic_ascii(self, message_type: str, reader: ByteSequenceReader, header: str) -> DecodeResult:
         body = reader.consume_until(b'=')
-        return self._sub_codecs[message_type].decode_message(header, body)
+        try:
+            return self._sub_codecs[message_type].decode_message(header, body)
+        except Exception as ex:
+            return DecodeResult(exc=ex, original=header.encode('ascii') + b"\n" + body)
 
     def _is_gts_header(self, s: str) -> bool:
         s = s.strip(GtsCodec.WHITESPACE.decode('ascii'))
@@ -100,16 +107,6 @@ class GtsCodec(BaseCodec):
             if not s[19:].isupper():
                 return False
         return True
-
-
-class Bufr4Decoder(GtsSubDecoder):
-
-    def __init__(self):
-        pass
-
-    def decode_message(self, header: str, bufr_message: bytearray) -> DecodeResult:
-        original = header.encode('ascii') + b"\n" + bufr_message
-        return DecodeResult(exc=Exception("not supported yet"), original=original)
 
 
 class DriftingBuoyZZYY(GtsSubDecoder):

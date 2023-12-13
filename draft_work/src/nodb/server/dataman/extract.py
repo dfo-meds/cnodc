@@ -250,7 +250,7 @@ class _DataExtractionProcessor:
             self.halt_flag.check_continue()
 
             # Check if there were warnings or errors during decode
-            if message.logger.log_store:
+            if message.log.log_store:
 
                 # If so, we will bail on the extraction for this message and send it to the
                 # error queue
@@ -318,8 +318,8 @@ class _DataExtractionProcessor:
             new_source_file.original_idx = message.message_idx
             new_source_file.original_uuid = source_file.pkey
             new_source_file.status = SourceFileStatus.ERROR
-            if hasattr(message.logger, 'to_list'):
-                new_source_file.set_metadata('decode_errors', message.logger.to_list())
+            if hasattr(message.log, 'to_list'):
+                new_source_file.set_metadata('decode_errors', message.log.to_list())
 
             # Persist it
             self.database.save_source_file(new_source_file, tx=self.tx)
@@ -332,8 +332,8 @@ class _DataExtractionProcessor:
 
     def _queue_source_file_decode_error(self, message: DecodedMessage, source_file: NODBSourceFile):
         source_file.status = SourceFileStatus.ERROR
-        if hasattr(message.logger, 'to_list'):
-            source_file.set_metadata('decode_errors', message.logger.to_list())
+        if hasattr(message.log, 'to_list'):
+            source_file.set_metadata('decode_errors', message.log.to_list())
         try:
             self.database.queue_source_file_decode_error(source_file, tx=self.tx)
         except Exception as ex:

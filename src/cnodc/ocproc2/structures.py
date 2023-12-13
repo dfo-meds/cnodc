@@ -469,6 +469,15 @@ class RecordMap:
     def __contains__(self, key):
         return key in self.record_sets
 
+    def new_recordset(self, record_type: str):
+        if record_type not in self.record_sets:
+            self.record_sets[record_type] = {}
+        idx = 0
+        while idx in self.record_sets[record_type]:
+            idx += 1
+        self.record_sets[record_type][idx] = RecordSet()
+        return self.record_sets[record_type][idx]
+
     def to_mapping(self):
         return {
             x: {

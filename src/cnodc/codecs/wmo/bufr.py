@@ -1,72 +1,108 @@
-import datetime
+import typing as t
+
+import zrlog
+
+from cnodc.codecs.gts import GtsSubDecoder
+from cnodc.codecs.base import DecodeResult
 import math
 import yaml
 from pybufrkit.tables import TableGroupCacheManager
 from pybufrkit.renderer import NestedTextRenderer
-from cnodc.decode.common import BaseCodec, CodecLogger, TranscodingResult, BufferedBinaryReader, DecodedMessage
-from cnodc.ocproc2 import DataRecord, DataValue, ReferenceTables
-import typing as t
+from cnodc.ocproc2 import DataRecord, RecordSet
 import pathlib
 from pybufrkit.decoder import Decoder
 from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
     ValueDataNode, NoValueDataNode
 from autoinject import injector
 
+from cnodc.ocproc2.structures import AbstractValue, Value
+from cnodc.util import CNODCError
 
-UTC = datetime.timezone(datetime.timedelta(hours=0), 'UTC')
 
-
-
-class GTSBufrStreamCodec(BaseCodec):
+@injector.injectable_global
+class BufrCDSTables:
 
     def __init__(self):
-        super().__init__("GTS Message Stream (BUFR)", ".bufr")
-        self._message_whitespace = bytes([13, 10, 32, 3, 4, 0])
-        self.message_end = b"7777"
-        self.header_end = [b"\n", b"\r", bytes([3]), bytes([4])]
-        self.current_message_header = None
-        self.current_message_body = None
+        root = pathlib.Path(__file__).absolute().parent
+        with open(root / "bufr_map.yaml", "r") as h:
+            raw = yaml.safe_load(h.read()) or {}
+            self._bufr_map = {
+                str(x): self.standardize_instruction(raw[x])
+                for x in raw
+            }
+        with open(root / "unit_map.yaml", "r") as h:
+            self._unit_map = yaml.safe_load(h.read()) or {}
 
-    def encode(self, records: TranscodingResult, **kwargs) -> t.Iterable[bytes]:
-        raise NotImplementedError()
+    def lookup(self, descriptor_id):
+        key = str(int(descriptor_id))
+        if key in self._bufr_map:
+            return self._bufr_map[key]
+        return None
 
-    def decode_messages(self, bytes_: t.Iterable[bytes], replace_logger_cls: t.Type = None, **kwargs) -> t.Iterable[DecodedMessage]:
-        reader = BufferedBinaryReader(bytes_)
-        reader.skip_bytes(self._message_whitespace)
-        header = ""
-        message_idx = 0
-        while not reader.is_at_end():
-            if reader.peek(4) == b"BUFR":
-                if replace_logger_cls:
-                    self.logger = replace_logger_cls()
-                yield self._decode_message(header, reader, message_idx)
-                message_idx += 1
+    def standardize_units(self, unit):
+        if unit in ('Numeric', 'CCITT IA5', 'CODE TABLE'):
+            return None
+        if unit in self._unit_map:
+            return self._unit_map[unit]
+        return unit
+
+    def standardize_instruction(self, instruction):
+        if isinstance(instruction, str):
+            pieces = instruction.split(":")
+            if pieces[0] == "noop":
+                return {
+                    "apply_to": "noop",
+                    "type": "noop",
+                    "name": "noop"
+                }
+            if pieces[0] in ("metadata", "coordinates", "variables"):
+                return {
+                    "type": pieces[0],
+                    "name": pieces[1],
+                    "apply_to": "target"
+                }
+            elif pieces[0] == 'next_recs':
+                return {
+                    "type": pieces[1],
+                    "name": pieces[2],
+                    "apply_to": "subrecords"
+                }
+            elif pieces[0] == "next_vars":
+                return {
+                    "type": pieces[1],
+                    "name": pieces[2],
+                    "apply_to": "following"
+                }
             else:
-                header = reader.consume_until(self.header_end, False)._decode('ascii')
-            reader.skip_bytes(self._message_whitespace)
+                return None
+        elif not isinstance(instruction, dict):
+            return None
+        base = {
+            "apply_to": "target",
+            "type": "metadata",
+            "name": "noop"
+        }
+        base.update(instruction)
+        if 'context' in base and base['context']:
+            for x in base['context']:
+                base['context'][x] = self.standardize_instruction(base['context'][x])
+        return base
 
-    def _decode_message(self, header: str, reader: BufferedBinaryReader, message_idx: int) -> DecodedMessage:
-        reader.consume(4)
-        message_length = int.from_bytes(reader.consume(3), 'big')
-        bufr_version = int(reader.consume(1)[0])
-        content = bytearray()
-        content.extend(b'BUFR')
-        content.extend(message_length.to_bytes(3, 'big'))
-        content.extend(bufr_version.to_bytes(1, 'big'))
-        content.extend(reader.consume(message_length - 8))
-        if bufr_version == 4:
-            if not content.endswith(b'7777'):
-                self.logger.error("Invalid BUFR termination sequence")
-                return DecodedMessage(
-                    message_idx,
-                    content,
-                    self.logger)
-            else:
-                decoder = Bufr4Decoder(header, content, self.logger)
-                return DecodedMessage(message_idx, content, self.logger, decoder.convert_to_records())
-        else:
-            self.logger.error(f"Unknown BUFR version [{bufr_version}]")
-            return DecodedMessage(message_idx, content, self.logger)
+
+class Bufr4Decoder(GtsSubDecoder):
+
+    bufr_tables: BufrCDSTables = None
+
+    @injector.construct
+    def __init__(self):
+        pass
+
+    def decode_message(self, header: str, bufr_message: bytearray) -> DecodeResult:
+        instance = _Bufr4Decoder(header, bufr_message, self.bufr_tables)
+        return DecodeResult(
+            records=[x for x in instance.convert_to_records()],
+            original=header.encode('ascii') + b'\n' + bufr_message
+        )
 
 
 class _Bufr4DecoderContext:
@@ -74,7 +110,7 @@ class _Bufr4DecoderContext:
     def __init__(self, subset_no=None):
         self.subset = subset_no
         self.hierarchy = []
-        self.target = None
+        self.target: t.Optional[DataRecord] = None
         self.parent_target = None
         self.var_metadata = {}
         self.record_metadata = {}
@@ -83,7 +119,7 @@ class _Bufr4DecoderContext:
         self.skip = None
         self.child_record_type = None
         self.scale_factor = None
-        self.target_subset_name = None
+        self.target_subset: t.Optional[RecordSet] = None
 
     def copy(self):
         new = _Bufr4DecoderContext(self.subset)
@@ -106,16 +142,12 @@ class _Bufr4DecoderContext:
         return None
 
 
-class Bufr4Decoder:
+class _Bufr4Decoder:
 
-    bufr_tables: BufrCDSTables = None
-    cds_tables: ReferenceTables = None
-
-    @injector.construct
-    def __init__(self, header, content: t.Union[bytearray, bytes], logger: CodecLogger, message_idx: int = None):
-        self.message_idx = message_idx
+    def __init__(self, header, content: t.Union[bytearray, bytes], bufr_tables: BufrCDSTables):
+        self.bufr_tables = bufr_tables
         self.header = header
-        self.logger = logger
+        self.log = zrlog.get_logger("cnodc.bufr_decoder")
         decoder = Decoder()
         self.raw_content = content
         self.message = decoder.process(self.raw_content)
@@ -126,34 +158,34 @@ class Bufr4Decoder:
         return NestedTextRenderer().render(self.message)
 
     def error(self, message, ctx: t.Optional[_Bufr4DecoderContext]):
-        self.logger.error("{txt} [{hierarchy}] [{header}]".format(
+        self.log.error("{txt} [{hierarchy}] [{header}]".format(
                             txt=message,
                             header=self.header,
                             hierarchy='>'.join(str(x) for x in ctx.hierarchy) if ctx else ''
         ))
+        ctx.target.report_error(message, 'bufr_decode', '1_0', '')
 
     def warn(self, message, ctx: _Bufr4DecoderContext = None):
-        self.logger.warning("{txt} [{hierarchy}] [{header}]".format(
+        self.log.warning("{txt} [{hierarchy}] [{header}]".format(
                             txt=message,
                             header=self.header,
                             hierarchy='>'.join(str(x) for x in ctx.hierarchy) if ctx else ''
         ))
+        ctx.target.report_warning(message, 'bufr_decode', '1_0', '')
 
     def convert_to_records(self) -> t.Iterable[DataRecord]:
         pieces = self.header.split(' ')
         if len(pieces) > 3 and pieces[3][0] in ('C', 'A', 'P'):
-            self.error(f"BUFR decoder not configured to handle CCx, AAx or Pxx messages", None)
-            return []
+            raise CNODCError("BUFR decoder not configured to properly handle CCx AAx or Pxx messages", "BUFR_DECODE", 1000)
         for n in range(0, self.message.n_subsets.value):
-            yield self._convert_subset_to_records(n)
+            yield self._convert_subset_to_record(n)
 
-    def _convert_subset_to_records(self, subset_number):
+    def _convert_subset_to_record(self, subset_number) -> DataRecord:
         ctx = _Bufr4DecoderContext(subset_number)
         ctx.target = DataRecord()
-        ctx.target.dump_raw = self.get_text_representation
-        ctx.target.metadata['GTS_HEADER'] = self.header
+        ctx.target.metadata['GTSHeader'] = self.header
         descriptors = self.message.unexpanded_descriptors.value
-        ctx.target.metadata['BUFR_DESCRIPTORS'] = list(descriptors)
+        ctx.target.metadata['BUFRDescriptors'] = list(descriptors)
         ctx.hierarchy = []
         ctx.hierarchy = [f'M#{subset_number}']
         self._iterate_on_nodes(self.raw_data.decoded_nodes_all_subsets[subset_number], ctx)
@@ -212,7 +244,6 @@ class Bufr4Decoder:
             if n.descriptor.id not in descriptors:
                 descriptors.add(n.descriptor.id)
         map_to = None
-        add_map_dir = False
         coord_name = None
         for x in descriptors:
             mapping = self.bufr_tables.lookup(x)
@@ -220,14 +251,12 @@ class Bufr4Decoder:
                 if map_to is not None and mapping['subrecord_type'] != map_to:
                     self.warn(f"Overwriting mapping type [{map_to}] with {mapping['subrecord_type']}", ctx)
                 map_to = mapping['subrecord_type']
-                add_map_dir = 'directional_subrecord' in mapping and mapping['directional_subrecord']
                 coord_name = (x,)
         if map_to is None and n_repeats > 1 and any(x in descriptors for x in (4024, 4025)):
             map_to = "TSERIES"
-            add_map_dir = True
             coord_name = (4024, 4025)
         if map_to is not None:
-            self._iterate_into_children(node, ctx, map_to, coord_name, add_map_dir)
+            self._iterate_into_children(node, ctx, map_to, coord_name)
         else:
             if n_repeats > 1:
                 self.warn(f"Multiple repetitions without a subrecord key found: [{descriptors}]", ctx)
@@ -250,44 +279,16 @@ class Bufr4Decoder:
         if inc < dec:
             return 'D'
 
-    def _iterate_into_children(self, node, ctx: _Bufr4DecoderContext, child_record_type: str, coord_names: tuple, add_map_dir: bool = False):
+    def _iterate_into_children(self, node, ctx: _Bufr4DecoderContext, child_record_type: str, coord_names: tuple):
         n_total, n_elements, n_repeats = self._parse_repetition_info(node, ctx)
-        if add_map_dir:
-            ordered_results = []
-            last_result = None
-            for i in range(0, n_repeats):
-                coord_value = None
-                for j in range(0, n_elements):
-                    idx = (i * n_elements) + j
-                    if node.members[idx].descriptor.id in coord_names:
-                        coord_value = self._get_node_value(node.members[idx], ctx, True)
-                        if coord_value is not None:
-                            break
-                if coord_value is not None:
-                    if last_result is not None:
-                        if coord_value > last_result:
-                            ordered_results.append(1)
-                        elif coord_value < last_result:
-                            ordered_results.append(-1)
-                    last_result = coord_value
-            # ordered_results is now a mix of 1 and -1 results
-            l_results = len(ordered_results)
-            if l_results > 0:
-                size = min(4, l_results)
-                start_order = self._most_frequent(ordered_results[0:size])
-                end_order = self._most_frequent(ordered_results[-1 * size:])
-                if start_order == end_order:
-                    child_record_type += f"_{start_order}"
-                else:
-                    child_record_type += f"_{start_order}{end_order}"
-        subset_name = ctx.target.new_subrecord_set(child_record_type)
+        record_set = ctx.target.subrecords.new_recordset(child_record_type)
         for i in range(0, n_repeats):
             ctx2 = ctx.copy()
             ctx2.parent_target = ctx.target
             ctx2.hierarchy.append(f"REPEAT{i}")
             ctx2.target = None
             ctx2.child_record_type = child_record_type
-            ctx2.target_subset_name = subset_name
+            ctx2.target_subset = record_set
             self._start_new_record(ctx2)
             self._iterate_on_nodes(node.members[(i*n_elements):((i+1)*n_elements)], ctx2)
             self._close_subrecord(ctx2)
@@ -301,11 +302,11 @@ class Bufr4Decoder:
         if ctx.record_metadata:
             for x in ctx.record_metadata:
                 if ctx.record_metadata[x][1] is None or any(
-                        x in ctx.parent_target.variables or x in ctx.parent_target.coordinates
+                        x in ctx.parent_target.parameters or x in ctx.parent_target.coordinates
                         for x in ctx.record_metadata[x][1]
                 ):
                     ctx.target.metadata[x] = ctx.record_metadata[x][0]
-        ctx.parent_target.merge_subrecord(ctx.target_subset_name, ctx.target)
+        ctx.target_subset.records.append(ctx.target)
 
     def _parse_value_node(self, node: ValueDataNode, ctx: _Bufr4DecoderContext):
         instruction = self.bufr_tables.lookup(node.descriptor.id)
@@ -334,14 +335,16 @@ class Bufr4Decoder:
     def _apply_instruction(self, instruction, value, ctx, node=None):
         if 'value' in instruction:
             value = instruction['value']
-        if not isinstance(value, DataValue):
-            value = DataValue(value)
+        if not isinstance(value, Value):
+            value = Value(value)
         instruction = self._clean_instruction(instruction, ctx)
         if instruction is None:
             return
         if 'value_map' in instruction:
-            if value.reported_value in instruction['value_map']:
-                value.reported_value = instruction['value_map'][value.reported_value]
+            if value.value in instruction['value_map']:
+                value.value = instruction['value_map'][value.value]
+            elif value.value is not None:
+                self.warn(f"Instruction provides a value_map but [{value.value}] is not in it", ctx)
         if 'apply_to' not in instruction:
             self.error(f"Instruction is missing 'apply_to'", ctx)
         elif instruction['apply_to'] == 'target':
@@ -377,9 +380,9 @@ class Bufr4Decoder:
                 self._iterate_on_nodes(node.members, ctx)
 
     def _set_record_property(self, property_type, property_map, property_name, value, ctx, instruction, set_var_metadata: bool = False):
-        if not isinstance(value, DataValue):
-            value = DataValue(value)
-        if value.value() is None:
+        if not isinstance(value, Value):
+            value = Value(value)
+        if value.value is None:
             return
         if set_var_metadata and ctx.var_metadata:
             for x in ctx.var_metadata:
@@ -387,8 +390,8 @@ class Bufr4Decoder:
                     value.metadata[x] = ctx.var_metadata[x][0]
         if property_name in property_map:
             val = property_map[property_name].value()
-            if val is not None and val != value.value():
-                self.warn(f"Overwriting {property_type} [{property_name}], replacing [{val}] with [{value.value()}]", ctx)
+            if val is not None and val != value.value:
+                self.warn(f"Overwriting {property_type} [{property_name}], replacing [{val}] with [{value.value}]", ctx)
         property_map[property_name] = value
 
     def _add_record_metadata(self, property_name, value, ctx, instruction):
@@ -398,20 +401,20 @@ class Bufr4Decoder:
         self._set_record_property("coordinate", ctx.target.coordinates, property_name, value, ctx, instruction, True)
 
     def _add_record_variable(self, property_name, value, ctx, instruction):
-        self._set_record_property("variable", ctx.target.variables, property_name, value, ctx, instruction, True)
+        self._set_record_property("variable", ctx.target.parameters, property_name, value, ctx, instruction, True)
 
     def _add_future_variable_metadata(self, property_name, value, ctx, instruction):
-        if not isinstance(value, DataValue):
-            value = DataValue(value)
-        if value.value() is not None:
+        if not isinstance(value, Value):
+            value = Value(value)
+        if value.value is not None:
             ctx.var_metadata[property_name] = (value, instruction['filter'] if 'filter' in instruction else None)
         elif property_name in ctx.var_metadata:
             del ctx.var_metadata[property_name]
 
     def _add_future_subrecord_metadata(self, property_name, value, ctx, instruction):
-        if not isinstance(value, DataValue):
-            value = DataValue(value)
-        if value.value() is not None:
+        if not isinstance(value, Value):
+            value = Value(value)
+        if value.value is not None:
             ctx.record_metadata[property_name] = (value, instruction['filter'] if 'filter' in instruction else None)
         elif property_name in ctx.record_metadata:
             del ctx.record_metadata[property_name]
@@ -431,15 +434,15 @@ class Bufr4Decoder:
         if hasattr(node.descriptor, 'unit'):
             units = self.bufr_tables.standardize_units(node.descriptor.unit)
             if units is not None:
-                metadata['UNITS'] = units
+                metadata['Units'] = units
         if hasattr(node.descriptor, 'scale') and units is not None:
-            metadata['MAXP'] = math.pow(10, (-1 * node.descriptor.scale))
-        return DataValue(value, metadata=metadata)
+            metadata['Uncertainty'] = math.pow(10, (-1 * node.descriptor.scale))
+        return Value(value, metadata=metadata)
 
     def _parse_node_301011(self, node, ctx: _Bufr4DecoderContext):
         self._apply_instruction({
             'type': 'coordinates',
-            'name': 'OBS_TIME',
+            'name': 'Time',
             'apply_to': 'target'
         }, self._parse_dt_sequence(ctx, 0), ctx)
 
@@ -474,7 +477,7 @@ class Bufr4Decoder:
         if all(v is None for v in node_vals):
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'WIGOS_ID',
+                'name': 'WIGOSID',
                 'apply_to': 'target'
             }, None, ctx)
             ctx.skip = 3
@@ -483,7 +486,7 @@ class Bufr4Decoder:
         else:
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'WIGOS_ID',
+                'name': 'WIGOSID',
                 'apply_to': 'target'
             }, '-'.join(str(x) for x in node_vals), ctx)
 
@@ -495,7 +498,7 @@ class Bufr4Decoder:
                 val = f"{val[0:2]}{val[2:].zfill(5)}"
         self._apply_instruction({
             'type': 'metadata',
-            'name': 'WMO_ID',
+            'name': 'WMOID',
             'apply_to': 'target'
         }, val, ctx)
 
@@ -511,7 +514,7 @@ class Bufr4Decoder:
         if all(x is None for x in elements):
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'WMO_ID',
+                'name': 'WMOID',
                 'apply_to': 'target'
             }, None, ctx)
             ctx.skip = 1
@@ -520,7 +523,7 @@ class Bufr4Decoder:
         else:
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'WMO_ID',
+                'name': 'WMOID',
                 'apply_to': 'target'
             }, f'{elements[0]}{str(elements[1]).zfill(5)}', ctx)
             ctx.skip = 1
@@ -540,7 +543,7 @@ class Bufr4Decoder:
         if all(x is None for x in elements):
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'WMO_ID',
+                'name': 'WMOID',
                 'apply_to': 'target'
             }, None, ctx)
             ctx.skip = 2
@@ -549,7 +552,7 @@ class Bufr4Decoder:
         else:
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'WMO_ID',
+                'name': 'WMOID',
                 'apply_to': 'target'
             }, f'{elements[0]}{elements[1]}{str(elements[2]).zfill(5)}', ctx)
             ctx.skip = 2
@@ -564,24 +567,24 @@ class Bufr4Decoder:
             if flag_value is not None:
                 flag_value = str(flag_value)
         if applies_to == 20:
-            self._add_coordinate_quality_flag(ctx, 'LAT', flag_value)
-            self._add_coordinate_quality_flag(ctx, 'LON', flag_value)
+            self._add_coordinate_quality_flag(ctx, 'Latitude', flag_value)
+            self._add_coordinate_quality_flag(ctx, 'Longitude', flag_value)
         elif applies_to == 4:
-            self._add_parameter_quality_flag(ctx, 'WATER_DEPTH', flag_value)
+            self._add_parameter_quality_flag(ctx, 'SeaDepth', flag_value)
         elif applies_to == 10:
-            self._add_coordinate_quality_flag(ctx, 'PRESSURE', flag_value)
+            self._add_coordinate_quality_flag(ctx, 'Pressure', flag_value)
         elif applies_to == 11:
-            self._add_parameter_quality_flag(ctx, 'SEA_TEMP', flag_value)
+            self._add_parameter_quality_flag(ctx, 'Temperature', flag_value)
         elif applies_to == 12:
-            self._add_parameter_quality_flag(ctx, 'SALINITY', flag_value)
+            self._add_parameter_quality_flag(ctx, 'Salinity', flag_value)
         elif applies_to == 13:
-            self._add_coordinate_quality_flag(ctx, 'DEPTH', flag_value)
+            self._add_coordinate_quality_flag(ctx, 'Depth', flag_value)
         elif applies_to == 14:
-            self._add_parameter_quality_flag(ctx, 'CURRENT_SPD', flag_value)
+            self._add_parameter_quality_flag(ctx, 'CurrentSpeed', flag_value)
         elif applies_to == 15:
-            self._add_parameter_quality_flag(ctx, 'CURRENT_DIR', flag_value)
+            self._add_parameter_quality_flag(ctx, 'CurrentDirection', flag_value)
         elif applies_to == 16:
-            self._add_parameter_quality_flag(ctx, 'DO', flag_value)
+            self._add_parameter_quality_flag(ctx, 'DissolvedOxygen', flag_value)
         elif applies_to is None:
             if flag_value is not None:
                 self.warn(f"GTSPP quality flag applies to was none, but flag value was not none", ctx)
@@ -589,16 +592,16 @@ class Bufr4Decoder:
             self.warn(f"unhandled GTSPP quality flag [{applies_to}]", ctx)
 
     def _add_parameter_quality_flag(self, ctx, parameter, quality):
-        param = ctx.target.variables.get(parameter)
+        param = ctx.target.parameters.get(parameter)
         if param:
-            param.metadata['QUALITY'] = quality
+            param.metadata['Quality'] = quality
         elif quality is not None and quality != "0":
             self.warn(f"cannot find parameter {parameter}", ctx)
 
     def _add_coordinate_quality_flag(self, ctx, parameter, quality):
         param = ctx.target.coordinates.get(parameter)
         if param:
-            param.metadata['QUALITY'] = quality
+            param.metadata['Quality'] = quality
         elif quality is not None and quality != "0":
             self.warn(f"cannot find coordinate {parameter}", ctx)
 
@@ -607,7 +610,7 @@ class Bufr4Decoder:
         if value == 13:
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'INSTR_MAN_DATE',
+                'name': 'InstrumentManufacturingDate',
                 'apply_to': 'target'
             }, self._parse_dt_sequence(ctx, 1), ctx)
         elif value is None:
@@ -620,25 +623,25 @@ class Bufr4Decoder:
         if value == 2:
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'AGR_METHOD',
+                'name': 'AggregationMethod',
                 'apply_to': 'following'
             }, 'AVERAGE', ctx)
         elif value is None:
             self._apply_instruction({
                 'type': 'metadata',
-                'name': 'AGR_METHOD',
+                'name': 'AggregationMethod',
                 'apply_to': 'following'
             }, None, ctx)
         elif value == 25:
             self._apply_instruction({
                 "type": "coordinates",
-                "name": "OBS_TIME",
+                "name": "Time",
                 "apply_to": "target"
             }, self._parse_dt_sequence(ctx, 1), ctx)
         elif value == 26:
             self._apply_instruction({
                 "type": "metadata",
-                "name": "POSITION_LAST_TIME",
+                "name": "LastKnownPositionTime",
                 "apply_to": "target"
             }, self._parse_dt_sequence(ctx, 1), ctx)
         else:
@@ -730,25 +733,25 @@ class Bufr4Decoder:
         if nxt and nxt.descriptor.id == node.descriptor.id:
             val = [val, self._get_timedelta_value(nxt, ctx)]
             ctx.skip += 1
-        val = DataValue(val)
-        if ctx.child_record_type == "TSERIES" and "OBS_TIME" not in ctx.target.coordinates:
-            if "TIME_OFFSET" in ctx.target.coordinates and val.reported_value != ctx.target.coordinates["TIME_OFFSET"].reported_value:
+        val = Value(val)
+        if ctx.child_record_type == "TSERIES" and "Time" not in ctx.target.coordinates:
+            if "TimeOffset" in ctx.target.coordinates and val.value != ctx.target.coordinates["TimeOffset"].value:
                 self._start_new_record(ctx)
             self._apply_instruction({
                 "type": "coordinates",
-                "name": "TIME_OFFSET",
+                "name": "TimeOffset",
                 "apply_to": "target"
             }, val, ctx)
         else:
             self._apply_instruction({
                 "table": "metadata",
-                "value": "OBS_PERIOD",
+                "value": "ObservationPeriod",
                 "apply_to": "apply_following"
             }, val, ctx)
 
     def _parse_node_4001(self, node, ctx: _Bufr4DecoderContext):
         self._apply_instruction({
             'type': 'coordinates',
-            'name': 'OBS_TIME',
+            'name': 'Time',
             'apply_to': 'target'
         }, self._parse_dt_sequence(ctx, 0), ctx)
