@@ -320,14 +320,6 @@ cnodc:CurrentDirection rdf:type skos:Concept ;
   skos:inScheme cnodc:parameters .
 
 
-cnodc:DissolvedOxygen rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved Oxygen"@en ;
-  skos:documentation ""@en ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:parameterGroup "parameter" ;
-  skos:inScheme cnodc:parameters .
-
-
 cnodc:InstrumentManufacturingDate rdf:type skos:Concept ;
   skos:prefLabel "Instrument Manufacturing Date" ;
   skos:documentation ""@en ;
@@ -1262,100 +1254,208 @@ cnodc:SpectralWaveFourier2 rdf:type skos:Concept ;
 
 
 cnodc:SpectralWaveBandCount rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:integer ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B22:094 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:SpectralWaveBandWidth rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "s-1" ;
+  skos:exactMatch bufr4B22:096 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:SpectralWaveDensityByFrequency rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "m2 s" ;
+  skos:exactMatch bufr4B22:104 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:SpectralWaveDirDensityByFrequency rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "m2 s rad-1" ;
+  skos:exactMatch bufr4B22:106 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:SpectralWaveDensityRatio rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "0.01" ;
+  skos:exactMatch bufr4B22:108 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:XBTHeight rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "m" ;
+  skos:exactMatch bufr4B22:177 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WMOXBTType rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:string ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B22:178 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WaveDirection rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "degree" ;
+  skos:exactMatch bufr4B22:186 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WaveSpread rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "degree" ;
+  skos:exactMatch bufr4B22:187 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:DissolvedOxygen rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  cnodc:preferredUnits "umol kg-1" ;
+  skos:exactMatch bufr4B22:188 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:BatteryVoltage rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "metadata" ;
+  cnodc:preferredUnits "V" ;
+  skos:exactMatch bufr4B25:025 ;
+  skos:exactMatch bufr4B25:026 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WaveSamplingTime rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "metadata" ;
+  cnodc:preferredUnits "s" ;
+  skos:exactMatch bufr4B25:043 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:SoftwareID rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:string ;
+  cnodc:parameterGroup "metadata" ;
+  skos:exactMatch bufr4B25:061 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WMOQualitySatellite rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:string ;
+  cnodc:parameterGroup "metadata" ;
+  skos:exactMatch bufr4B33:022 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WMOQualityLocation rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:string ;
+  cnodc:parameterGroup "metadata" ;
+  skos:exactMatch bufr4B33:023 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:WMOQualityLocationClass rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:string ;
+  cnodc:parameterGroup "metadata" ;
+  skos:exactMatch bufr4B33:027 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:FourierA1 rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B42:011 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:FourierB1 rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B42:012 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:FourierA2 rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B42:013 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:FourierB2 rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B42:014 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:FourierK rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:parameterGroup "parameters" ;
+  skos:exactMatch bufr4B42:015 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:AbsoluteSalinity rdf:type skos:Concept ;
-  skos:inScheme cnodc:parameters .
-
-
-
-
-
-
   skos:prefLabel ""@en ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:decimal ;
-  cnodc:parameterGroup "parameter" ;
+  cnodc:parameterGroup "parameters" ;
   skos:inScheme cnodc:parameters .
-

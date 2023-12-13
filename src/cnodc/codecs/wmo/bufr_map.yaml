@@ -291,6 +291,7 @@
 22187: "variables:WaveSpread"
 22188: "variables:DissolvedOxygen"
 
+25025: "metadata:BatteryVoltage"
 25026: "metadata:BatteryVoltage"
 25043: "metadata:WaveSamplingTime"
 25061: "metadata:SoftwareID"
