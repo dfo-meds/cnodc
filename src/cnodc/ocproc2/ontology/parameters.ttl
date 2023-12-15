@@ -6,12 +6,23 @@
 @prefix p09: <http://vocab.nerc.ac.uk/collection/P09/current/> .
 @prefix p07: <http://vocab.nerc.ac.uk/collection/P07/current/> .
 @prefix bufr4B01: <https://codes.wmo.int/bufr4/b/01/> .
+@prefix bufr4B02: <https://codes.wmo.int/bufr4/b/02/> .
+@prefix bufr4B03: <https://codes.wmo.int/bufr4/b/03/> .
 @prefix bufr4B04: <https://codes.wmo.int/bufr4/b/04/> .
 @prefix bufr4B05: <https://codes.wmo.int/bufr4/b/05/> .
 @prefix bufr4B06: <https://codes.wmo.int/bufr4/b/06/> .
 @prefix bufr4B07: <https://codes.wmo.int/bufr4/b/07/> .
 @prefix bufr4B08: <https://codes.wmo.int/bufr4/b/08/> .
+@prefix bufr4B10: <https://codes.wmo.int/bufr4/b/10/> .
+@prefix bufr4B11: <https://codes.wmo.int/bufr4/b/11/> .
+@prefix bufr4B12: <https://codes.wmo.int/bufr4/b/12/> .
+@prefix bufr4B13: <https://codes.wmo.int/bufr4/b/13/> .
+@prefix bufr4B14: <https://codes.wmo.int/bufr4/b/14/> .
+@prefix bufr4B20: <https://codes.wmo.int/bufr4/b/20/> .
 @prefix bufr4B22: <https://codes.wmo.int/bufr4/b/22/> .
+@prefix bufr4B25: <https://codes.wmo.int/bufr4/b/25/> .
+@prefix bufr4B33: <https://codes.wmo.int/bufr4/b/33/> .
+@prefix bufr4B42: <https://codes.wmo.int/bufr4/b/42/> .
 @prefix pcode: <https://www.isdm.gc.ca/isdm-gdsi/diction/code_search-eng.asp?code=> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
@@ -34,15 +45,19 @@ cnodc:wmoCodeGroup rdf:type rdf:Property ;
   rdfs:domain skos:Concept ;
   rdfs:range skos:Literal .
 
+cnodc:standardName rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
 
+cnodc:variableName rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
 
 cnodc:List rdf:type skos:Concept ;
   skos:prefLabel "List"@en ;
   skos:documentation "List of values" .
 
-
 cnodc:recordSetTypes rdf:type skos:ConceptScheme .
-
 
 cnodc:TSERIES rdf:type skos:Concept ;
   skos:inScheme cnodc:recordSetTypes .
@@ -72,8 +87,11 @@ cnodc:Latitude rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM62-VIII: Qc La La La La" ;
   cnodc:wmoCodeGroup "FM63-XI: Qc La La La La" ;
   cnodc:wmoCodeGroup "FM64-X: Qc La La La La La" ;
+  cnodc:variableName "latitude" ;
+  cnodc:standardName "latitude" ;
   skos:narrowerMatch bufr4B05:001 ;
   skos:narrowerMatch bufr4B05:002 ;
+  skos:exactMatch p07:CFSN0600 ;
   skos:inScheme cnodc:parameters .
 
 
@@ -87,8 +105,11 @@ cnodc:Longitude rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM62-VIII: Qc + Lo Lo Lo Lo Lo" ;
   cnodc:wmoCodeGroup "FM63-XI: Qc + Lo Lo Lo Lo Lo" ;
   cnodc:wmoCodeGroup "FM64-X: Qc + Lo Lo Lo Lo Lo Lo" ;
+  cnodc:variableName "longitude" ;
+  cnodc:standardName "longitude" ;
   skos:narrowerMatch bufr4B06:001 ;
   skos:narrowerMatch bufr4B06:002 ;
+  skos:exactMatch p07:CFSN0554 ;
   skos:inScheme cnodc:parameters .
 
 
@@ -101,6 +122,8 @@ cnodc:Depth rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM18-XII: zn zn zn zn" ;
   cnodc:wmoCodeGroup "FM63-XI: zn zn" ;
   cnodc:wmoCodeGroup "FM64-X: zn zn zn zn" ;
+  cnodc:variableName "depth" ;
+  cnodc:standardName "depth" ;
   skos:exactMatch bufr4B07:062 ;
   skos:match bufr4B07:063 ;
   skos:inScheme cnodc:parameters .
@@ -112,6 +135,12 @@ cnodc:Pressure rdf:type skos:Concept ;
   cnodc:preferredUnit "Pa" ;
   cnodc:dataType xsd:decimal ;
   cnodc:parameterGroup "coordinates" ;
+  cnodc:variableName "" ;
+  cnodc:standardName "sea_water_pressure" ;
+  skos:exactMatch p07:CFSN0330 ;
+  skos:narrowerMatch p07:CF12N583 ;
+  skos:narrowerMatch p07:CF12N584 ;
+  skos:narrowerMatch p07:CIEIIDJF ;
   skos:exactMatch bufr4B07:065 ;
   skos:inScheme cnodc:parameters .
 
@@ -125,6 +154,9 @@ cnodc:Time rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM62-VIII: Y Y M M J + G G g g" ;
   cnodc:wmoCodeGroup "FM63-XI: Y Y M M J + G G g g" ;
   cnodc:wmoCodeGroup "FM64-X: Y Y M M J + G G g g" ;
+  cnodc:standardName "time" ;
+  cnodc:variableName "time" ;
+  skos:exactMatch p07:CFSN0115 ;
   skos:narrowerMatch bufr4B04:001 ;
   skos:narrowerMatch bufr4B04:002 ;
   skos:narrowerMatch bufr4B04:003 ;
@@ -333,10 +365,15 @@ cnodc:PracticalSalinity rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM18-XII: Sn Sn Sn Sn" ;
   cnodc:wmoCodeGroup "FM62-VIII: S0 S0 S0 S0" ;
   cnodc:wmoCodeGroup "FM64-X: Sn Sn Sn Sn" ;
+  cnodc:standardName "sea_water_practical_salinity" ;
   skos:exactMatch bufr4B22:062 ;
   skos:exactMatch bufr4B22:064 ;
   skos:exactMatch pcode:SSPS ;
   skos:exactMatch pcode:PSAL ;
+  skos:exactMatch p07:IADIHDIJ ;
+  skos:broaderMatch p07:KFHXV8N9 ;
+  skos:broaderMatch p07:CFSN0331 ;
+  skos:narrowerMatch p07:Z13QZFM ;
   skos:inScheme cnodc:parameters .
 
 
@@ -350,16 +387,18 @@ cnodc:CurrentSpeed rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM62-VIII: c0 c0" ;
   cnodc:wmoCodeGroup "FM63-XI: Vc Vc" ;
   cnodc:wmoCodeGroup "FM64-X: cn cn cn" ;
+  cnodc:standardName "sea_water_speed" ;
   skos:exactMatch bufr4B22:031 ;
   skos:exactMatch bufr4B22:032 ;
   skos:exactMatch pcode:SCSP ;
   skos:exactMatch pcode:HCSP ;
+  skos:exactMatch p07:CFSN0334 ;
   skos:inScheme cnodc:parameters .
 
 
 cnodc:CurrentDirection rdf:type skos:Concept ;
-  skos:prefLabel "Current Direction"@en ;
-  skos:documentation "Direction of sea water current"@en ;
+  skos:prefLabel "Current Direction (To)"@en ;
+  skos:documentation "Direction to which sea water current is moving"@en ;
   cnodc:dataType xsd:decimal ;
   cnodc:parameterGroup "parameter" ;
   cnodc:preferredUnits "degrees" ;
@@ -367,8 +406,10 @@ cnodc:CurrentDirection rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM62-VIII: d0 d0" ;
   cnodc:wmoCodeGroup "FM63-XI: Dc Dc" ;
   cnodc:wmoCodeGroup "FM64-X: dn dn" ;
+  cnodc:standardName "sea_water_velocity_to_direction" ;
   skos:exactMatch bufr4B22:004 ;
   skos:exactMatch bufr4B22:005 ;
+  skos:exactMatch p07:5D4D7YMF ;
   skos:exactMatch pcode:SCDT ;
   skos:exactMatch pcode:HCDT ;
   skos:inScheme cnodc:parameters .
