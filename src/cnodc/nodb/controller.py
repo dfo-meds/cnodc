@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import functools
 import json
@@ -13,6 +14,9 @@ import psycopg2.extras as pge
 import zirconium as zr
 from autoinject import injector
 import typing as t
+
+from psycopg2._psycopg import cursor as PGCursor
+
 import cnodc.nodb.structures as structures
 from cnodc.util import CNODCError
 
@@ -90,13 +94,12 @@ def with_nodb_execptions(cb: callable):
     return _inner
 
 
-class NODBControllerInstance:
+class _PGCursor:
 
-    def __init__(self, pg_connection):
-        self._conn = pg_connection
-        self._cursor = self._conn.cursor()
-        self._is_closed = False
-        self._log = zrlog.get_logger("cnodc.db")
+    def __init__(self, cursor, pg_conn):
+        self._cursor = cursor
+        self._conn = pg_conn
+        self._log = zrlog.get_logger("cnodc.nodb")
 
     @with_nodb_execptions
     def execute(self, query: str, args: t.Union[list, dict, tuple, None] = None):
@@ -113,73 +116,85 @@ class NODBControllerInstance:
 
     @with_nodb_execptions
     def executemany(self, query: str, args_list: t.Iterable[t.Union[list, dict, tuple, None]] = None):
-        self._cursor.executemany(query, args_list)
+        return self._cursor.executemany(query, args_list)
 
     @with_nodb_execptions
     def callproc(self, procname: str, parameters: t.Union[list, tuple, None] = None):
         return self._cursor.callproc(procname, parameters)
 
     @with_nodb_execptions
-    def mogrify(self, query: str, args: t.Union[list, dict, tuple, None] = None) -> str:
-        return self._cursor.mogrify(query, args)
+    def copy_expert(self, *args, **kwargs):
+        self._cursor.copy_expert(*args, **kwargs)
 
     @with_nodb_execptions
-    def fetchone(self) -> pge.DictRow:
+    def fetchone(self):
         return self._cursor.fetchone()
 
     @with_nodb_execptions
-    def fetchmany(self, size=None) -> t.Iterable[pge.DictRow]:
-        if size is None:
-            return self._cursor.fetchmany()
-        else:
-            return self._cursor.fetchmany(size)
-
-    @with_nodb_execptions
-    def fetchall(self) -> t.Iterable[pge.DictRow]:
+    def fetchall(self):
         return self._cursor.fetchall()
 
-    def batch_fetchall(self, batch_size=None) -> t.Iterable[pge.DictRow]:
-        results = self.fetchmany(batch_size)
-        while results:
-            yield from results
-            results = self.fetchmany(batch_size)
+    @with_nodb_execptions
+    def fetchmany(self, size=PGCursor.arraysize):
+        return self._cursor.fetchmany(size)
+
+    @with_nodb_execptions
+    def fetch_stream(self, size=PGCursor.arraysize):
+        res = self.fetchmany(size)
+        while res:
+            yield from res
+            res = self.fetchmany(size)
+
+    def create_savepoint(self, name):
+        self._cursor.execute("SAVEPOINT %s", [name])
+
+    def rollback_to_savepoint(self, name):
+        self._cursor.execute("ROLLBACK TO SAVEPOINT %s", [name])
+
+    def release_savepoint(self, name):
+        self._cursor.execute("RELEASE SAVEPOINT %s", [name])
+
+
+class NODBControllerInstance:
+
+    def __init__(self, pg_connection):
+        self._conn = pg_connection
+        self._is_closed = False
+        self._log = zrlog.get_logger("cnodc.db")
+
+    @contextlib.contextmanager
+    def cursor(self) -> _PGCursor:
+        try:
+            with self._conn.cursor() as cur:
+                yield _PGCursor(cur, self._conn)
+        finally:
+            pass
+
+    @with_nodb_execptions
+    def commit(self):
+        self._conn.commit()
+
+    @with_nodb_execptions
+    def rollback(self):
+        self._conn.rollback()
 
     def close(self):
         if not self._is_closed:
-            self._cursor.close()
             self._conn.close()
             self._is_closed = True
-            del self._cursor
             del self._conn
 
-    @with_nodb_execptions
-    def scroll(self, value, mode='relative'):
-        return self._cursor.scroll(value, mode)
-
-    @property
-    def rowcount(self) -> t.Optional[int]:
-        return self._cursor.rowcount
-
-    @property
-    def query(self) -> str:
-        return self._cursor.query
-
-    @property
-    def statusmessage(self) -> str:
-        return self._cursor.statusmessage
-
     def create_savepoint(self, name):
-        self.execute("SAVEPOINT %s", [name])
+        with self.cursor() as cur:
+            cur.create_savepoint(name)
 
     def rollback_to_savepoint(self, name):
-        self.execute("ROLLBACK TO SAVEPOINT %s", [name])
+        with self.cursor() as cur:
+            cur.rollback_to_savepoint(name)
 
     def release_savepoint(self, name):
-        self.execute("RELEASE SAVEPOINT %s", [name])
-
-    @with_nodb_execptions
-    def copy_expert(self, *args, **kwargs):
-        return self._cursor.copy_expert(*args, **kwargs)
+        with self.cursor() as cur:
+            cur.release_savepoint(name)
 
     def spooled_copy(self,
                      copy_query: str,
@@ -192,7 +207,8 @@ class NODBControllerInstance:
             s = column_sep.join(NODBControllerInstance.escape_copy_value(v) for v in value_list) + row_sep
             mem_file.write(s)
         mem_file.seek(0, 0)
-        self.copy_expert(copy_query, mem_file)
+        with self.cursor() as cur:
+            cur.copy_expert(copy_query, mem_file)
         mem_file.close()
 
     @staticmethod
@@ -225,44 +241,50 @@ class NODBControllerInstance:
             return str(v)
 
     def scanned_file_status(self, file_path: str) -> ScannedFileStatus:
-        self.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path])
-        row = self.fetchone()
-        if row is None:
-            return ScannedFileStatus.NOT_PRESENT
-        elif bool(row[0]):
-            return ScannedFileStatus.PROCESSED
-        else:
-            return ScannedFileStatus.UNPROCESSED
+        with self.cursor() as cur:
+            cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path], cur)
+            row = cur.fetchone()
+            if row is None:
+                return ScannedFileStatus.NOT_PRESENT
+            elif bool(row[0]):
+                return ScannedFileStatus.PROCESSED
+            else:
+                return ScannedFileStatus.UNPROCESSED
 
     def note_scanned_file(self, file_path):
-        self.execute("INSERT INTO nodb_scanned_files (file_path) VALUES (%s)", [file_path])
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_scanned_files (file_path) VALUES (%s)", [file_path])
 
     def mark_scanned_item_success(self, file_path):
-        self.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s", [file_path])
+        with self.cursor() as cur:
+            cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s", [file_path])
 
     def mark_scanned_item_failed(self, file_path):
-        self.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
 
     def create_queue_item(self,
                           queue_name: str,
                           data: dict,
                           priority: t.Optional[int] = None,
                           unique_item_key: t.Optional[str] = None):
-        self.execute("INSERT INTO nodb_queues (queue_name, priority, unique_item_name, data) VALUES (%s, %s, %s, %s)", [
-            queue_name,
-            priority if priority is not None else 0,
-            unique_item_key,
-            json.dumps(data)
-        ])
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_queues (queue_name, priority, unique_item_name, data) VALUES (%s, %s, %s, %s)", [
+                queue_name,
+                priority if priority is not None else 0,
+                unique_item_key,
+                json.dumps(data)
+            ])
 
     def batch_create_queue_item(self, values: t.Iterable[t.Sequence]):
-        self.spooled_copy(
-            copy_query="COPY nodb_queues (queue_name, priority, unique_item_name, data) FROM STDIN",
-            values=(
-                (x[0], x[2] if len(x) > 2 else 0, x[3] if len(x) > 3 else None, x[1])
-                for x in values
+        with self.cursor() as cur:
+            cur.spooled_copy(
+                copy_query="COPY nodb_queues (queue_name, priority, unique_item_name, data) FROM STDIN",
+                values=(
+                    (x[0], x[2] if len(x) > 2 else 0, x[3] if len(x) > 3 else None, x[1])
+                    for x in values
+                )
             )
-        )
 
     def load_queue_item(self, queue_uuid) -> t.Optional[structures.NODBQueueItem]:
         return self.load_object(
@@ -287,50 +309,53 @@ class NODBControllerInstance:
             self._update_queue_item(queue_item, "UNLOCKED")
 
     def renew_queue_item_lock(self, queue_item: structures.NODBQueueItem):
-        self.execute("UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s", [
-            datetime.datetime.utcnow(),
-            queue_item.queue_uuid
-        ])
+        with self.cursor() as cur:
+            cur.execute("UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s", [
+                datetime.datetime.utcnow(),
+                queue_item.queue_uuid
+            ])
 
     def _update_queue_item(self, queue_item: structures.NODBQueueItem, new_status_code: str, delay_release: t.Optional[datetime.datetime] = None):
-        self.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s WHERE queue_uuid = %s", [
-            new_status_code,
-            delay_release,
-            queue_item.queue_uuid
-        ])
+        with self.cursor() as cur:
+            cur.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s WHERE queue_uuid = %s", [
+                new_status_code,
+                delay_release,
+                queue_item.queue_uuid
+            ])
 
     def fetch_next_queue_item(self,
                               queue_name: str,
                               app_id: str,
                               retries: int = 5) -> t.Optional[structures.NODBQueueItem]:
-        while retries > 0:
-            item_uuid = self._attempt_fetch_queue_item(queue_name, app_id)
-            if item_uuid is not None:
-                return self.load_queue_item(item_uuid)
-            retries -= 1
-        return None
+        with self.cursor() as cur:
+            while retries > 0:
+                item_uuid = self._attempt_fetch_queue_item(queue_name, app_id, cur)
+                if item_uuid is not None:
+                    return self.load_queue_item(item_uuid)
+                retries -= 1
+            return None
 
-    def _attempt_fetch_queue_item(self, queue_name: str, app_id: str) -> t.Optional[str]:
+    def _attempt_fetch_queue_item(self, queue_name: str, app_id: str, cur: _PGCursor) -> t.Optional[str]:
         try:
-            self.create_savepoint("fetch_queue_item")
-            self.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
+            cur.create_savepoint("fetch_queue_item")
+            cur.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
 
-            item = self.fetchone()
+            item = cur.fetchone()
             if item[0] is not None:
-                self.release_savepoint("fetch_queue_item")
+                cur.release_savepoint("fetch_queue_item")
                 return item[0]
             else:
-                self.rollback_to_savepoint("fetch_queue_item")
+                cur.rollback_to_savepoint("fetch_queue_item")
                 return None
         except NODBError as ex:
-            self.rollback_to_savepoint("fetch_queue_item")
+            cur.rollback_to_savepoint("fetch_queue_item")
             # Retry deadlock and serialization errors
             if ex.is_serialization_error():
                 return None
             else:
                 raise ex
         except Exception as ex:
-            self.rollback_to_savepoint("fetch_queue_item")
+            cur.rollback_to_savepoint("fetch_queue_item")
             raise ex
 
     def load_object(self,
@@ -356,13 +381,14 @@ class NODBControllerInstance:
             query += " FOR NO KEY UPDATE"
         elif lock_type == LockType.FOR_KEY_SHARE:
             query += " FOR KEY SHARE"
-        self.execute(query, [filters[x] for x in key_names])
-        first_row = self.fetchone()
-        if first_row:
-            return obj_cls(
-                is_new=False,
-                **{x: first_row[x] for x in first_row.keys()}
-            )
+        with self.cursor() as cur:
+            cur.execute(query, [filters[x] for x in key_names])
+            first_row = cur.fetchone()
+            if first_row:
+                return obj_cls(
+                    is_new=False,
+                    **{x: first_row[x] for x in first_row.keys()}
+                )
         return None
 
     def upsert_object(self, obj: structures._NODBBaseObject, force_update: bool = False):
@@ -385,7 +411,8 @@ class NODBControllerInstance:
         query += " WHERE "
         query += " AND ".join(f"{x} = %s" for x in primary_keys)
         args.extend([obj.get_for_db(x) for x in primary_keys])
-        self.execute(query, args)
+        with self.cursor() as cur:
+            cur.execute(query, args)
         obj.clear_modified()
         return True
 
@@ -409,11 +436,12 @@ class NODBControllerInstance:
             query += " DEFAULT VALUES"
         if primary_keys:
             query += " RETURNING " + ",".join(primary_keys)
-        self.execute(query, args)
-        row = self.fetchone()
-        if row is not None and row[0] is not None:
-            for x in primary_keys:
-                obj.set(row[x], x)
+        with self.cursor() as cur:
+            cur.execute(query, args)
+            row = cur.fetchone()
+            if row is not None and row[0] is not None:
+                for x in primary_keys:
+                    obj.set(row[x], x)
         obj.clear_modified()
         return True
 
@@ -465,27 +493,30 @@ class NODBControllerInstance:
         q = "SELECT permission FROM nodb_permissions WHERE role_name IN ("
         q += ", ".join('%s' for _ in roles)
         q += ")"
-        self.execute(q, roles)
-        permissions.update(row[0] for row in self.fetchall())
-        return permissions
+        with self.cursor() as cur:
+            cur.execute(q, roles)
+            permissions.update(row[0] for row in cur.fetch_stream())
+            return permissions
 
     def grant_permission(self, role_name, permission_name):
-        self.execute("SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s", [
-            role_name,
-            permission_name
-        ])
-        row = self.fetchone()
-        if row is None:
-            self.execute("INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)", [
+        with self.cursor() as cur:
+            cur.execute("SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s", [
                 role_name,
                 permission_name
             ])
+            row = cur.fetchone()
+            if row is None:
+                cur.execute("INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)", [
+                    role_name,
+                    permission_name
+                ])
 
     def remove_permission(self, role_name, permission_name):
-        self.execute("DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s", [
-            role_name,
-            permission_name
-        ])
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s", [
+                role_name,
+                permission_name
+            ])
 
     def load_session(self,
                      session_id: str,
@@ -497,7 +528,8 @@ class NODBControllerInstance:
         )
 
     def delete_session(self, session_id: str):
-        self.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
 
     def save_session(self,
                      session: structures.NODBSession):
@@ -507,11 +539,12 @@ class NODBControllerInstance:
                      username: str,
                      ip_address: str,
                      instance_name: str):
-        self.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP, %s, %s)", [
-            username,
-            ip_address,
-            instance_name
-        ])
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP, %s, %s)", [
+                username,
+                ip_address,
+                instance_name
+            ])
 
 
 @injector.injectable_global
@@ -530,7 +563,7 @@ class NODBController:
         return self._instance
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
+        if exc_type is not None:
             self._instance.rollback()
         else:
             self._instance.commit()
