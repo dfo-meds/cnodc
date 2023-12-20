@@ -1,50 +1,41 @@
-import datetime
-
 from cnodc.process.queue_worker import QueueWorker
 import cnodc.nodb.structures as structures
 import typing as t
 
-from cnodc.nodb import NODBController, LockType
+from cnodc.nodb import NODBController
 from autoinject import injector
 
-from cnodc.util import CNODCError
+from cnodc.workflow.processor import PayloadProcessor
+from cnodc.workflow.workflow import SourceFilePayload
 
 
 class NODBVerificationWorker(QueueWorker):
 
-    NAME = "nodb_verify"
-    VERSION = "1.0"
-
     def __init__(self, **kwargs):
-        super().__init__(log_name=NODBVerificationWorker.NAME, **kwargs)
-        self._verifier = None
+        super().__init__(log_name="cnodc.nodb_verify", **kwargs)
+        self._verifier: t.Optional[NODBVerifier] = None
 
     def on_start(self):
-        self._verifier = NODBVerifier()
+        self._verifier = NODBVerifier(
+            processor_uuid=self.process_uuid
+        )
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
-        if 'item_uuid' not in item.data:
-            raise CNODCError(f'Missing item_uuid in queue item [{item.queue_uuid}]', 'NODBVERIFY', 1000)
-        if 'item_received' not in item.data:
-            raise CNODCError(f'Missing item_received in queue item [{item.queue_uuid}]', 'NODBVERIFY', 1001)
-        return structures.QueueItemResult.SUCCESS
+    def process_queue_item(self, item: structures.NODBQueueItem):
+        self._verifier.process_queue_item(item)
 
 
-class NODBVerifier:
+class NODBVerifier(PayloadProcessor):
 
     nodb: NODBController = None
 
     @injector.construct
-    def __init__(self):
-        pass
+    def __init__(self, **kwargs):
+        super().__init__(
+            processor_version="1.0",
+            processor_name="nodb_verify",
+            require_type=SourceFilePayload,
+            **kwargs
+        )
 
-    def verify_obs(self, obs_uuid: str, received_date: str, post_processing_queues: t.Optional[list[str]]):
-        with self.nodb as db:
-            obs_data = structures.NODBObservationData.find_by_uuid(
-                 db,
-                 obs_uuid,
-                 received_date,
-                 lock_type=LockType.FOR_NO_KEY_UPDATE
-            )
-            if not obs_data:
-                raise CNODCError(f"No such observation record [{received_date}/{obs_uuid}]", "NODBVERIFY", 1002)
+    def _process(self):
+        pass

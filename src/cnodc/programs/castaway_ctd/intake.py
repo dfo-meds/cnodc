@@ -201,7 +201,7 @@ class CastawayIntakeWorker(QueueWorker):
                         self.get_config('erddap_dataset_id'),
                         cluster_name=self.get_config('erddap_cluster', None)
                     )
-                self._db.mark_queue_item_complete(item)
+                item.mark_complete(self._db)
                 return None
             except Exception as ex:
                 if stage >= 1:

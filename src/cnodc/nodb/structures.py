@@ -1,3 +1,4 @@
+from __future__ import annotations
 import datetime
 import enum
 import functools
@@ -13,6 +14,9 @@ from cnodc.codecs.ocproc2bin import OCProc2BinCodec
 from cnodc.ocproc2 import DataRecord
 from cnodc.storage import StorageController
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
+
+if t.TYPE_CHECKING:
+    from cnodc.nodb import NODBControllerInstance, LockType
 
 
 def parse_received_date(rdate: t.Union[str, datetime.date]) -> datetime.date:
@@ -95,6 +99,7 @@ class QueueStatus(enum.Enum):
     UNLOCKED = 'UNLOCKED'
     LOCKED = 'LOCKED'
     COMPLETE = 'COMPLETE'
+    DELAYED_RELEASE = 'DELAYED_RELEASE'
     ERROR = 'ERROR'
 
 
@@ -131,6 +136,16 @@ class _NODBBaseObject:
             # so we don't update all the values all the time.
             self.modified_values = set()
         self._allow_set_readonly = False
+        self._cache = {}
+
+    def in_cache(self, key):
+        return key in self._cache
+
+    def get_cached(self, key):
+        return self._cache[key]
+
+    def set_cached(self, key, value):
+        self._cache[key] = value
 
     def __str__(self):
         s = f"{self.__class__.__name__}: "
@@ -342,6 +357,63 @@ class NODBQueueItem(_NODBBaseObject):
     priority: t.Optional[int] = _NODBBaseObject.make_property("priority", readonly=True, coerce=int)
     data: dict = _NODBBaseObject.make_property("data", readonly=True)
 
+    def mark_complete(self, db: NODBControllerInstance):
+        self.set_queue_status(db, QueueStatus.COMPLETE)
+
+    def mark_failed(self, db: NODBControllerInstance):
+        self.set_queue_status(db, QueueStatus.ERROR)
+
+    def release(self, db: NODBControllerInstance, release_in_seconds: t.Optional[int] = None):
+        if release_in_seconds is None or release_in_seconds <= 0:
+            self.set_queue_status(db, QueueStatus.UNLOCKED)
+        else:
+            self.set_queue_status(
+                db,
+                QueueStatus.DELAYED_RELEASE,
+                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds)
+            )
+
+    def renew(self, db: NODBControllerInstance):
+        if self.status == QueueStatus.LOCKED:
+            with db.cursor() as cur:
+                cur.execute(f"""
+                    UPDATE {self.TABLE_NAME}
+                    SET
+                        locked_since = %s
+                    WHERE
+                        queue_uuid = %s
+                        AND status = 'LOCKED'
+                """, [
+                    datetime.datetime.now(datetime.timezone.utc),
+                    self.queue_uuid
+                ])
+
+    def set_queue_status(self, db: NODBControllerInstance, new_status: QueueStatus, release_at: t.Optional[datetime.datetime] = None):
+        if self.status == QueueStatus.LOCKED:
+            with db.cursor() as cur:
+                cur.execute(f"""
+                    UPDATE {self.TABLE_NAME}
+                    SET
+                        status = %s,
+                        locked_by = NULL,
+                        locked_since = NULL,
+                        delay_release = %s
+                    WHERE 
+                        queue_uuid = %s
+                        AND status = 'LOCKED'
+                """, [
+                    new_status.value,
+                    release_at,
+                    self.queue_uuid
+                ])
+                # TODO: check if the row was actually updated?
+                self.status = new_status
+
+
+
+
+
+
 
 class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
@@ -380,14 +452,31 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
         })
         self.modified_values.add('history')
 
+    def load_all_observation_data(self, db: NODBControllerInstance, lock_type: LockType = None):
+        with db.cursor() as cur:
+            query = f"""
+                SELECT * 
+                FROM {NODBObservationData.TABLE_NAME} 
+                WHERE 
+                    received_date = %s
+                    AND source_file_uuid = %s
+            """
+            query += db.build_lock_type_clause(lock_type)
+            cur.execute(query, [self.received_date, self.source_uuid])
+            for row in cur.fetch_stream():
+                yield NODBObservationData(
+                    is_new=False,
+                    **{x: row[x] for x in row.keys()}
+                )
+
     @classmethod
-    def find_by_source_path(cls, db, source_path: str, *args, **kwargs):
+    def find_by_source_path(cls, db: NODBControllerInstance, source_path: str, *args, **kwargs):
         return db.load_object(cls, {
             'source_path': source_path
         }, *args, **kwargs)
 
     @classmethod
-    def find_by_original_info(cls, db, original_uuid: str, received_date: datetime.date, message_idx: int, *args, **kwargs):
+    def find_by_original_info(cls, db: NODBControllerInstance, original_uuid: str, received_date: datetime.date, message_idx: int, *args, **kwargs):
         return db.load_object(cls, {
             'original_idx': message_idx,
             'received_date': received_date,
@@ -453,6 +542,20 @@ class NODBUser(_NODBBaseObject):
             self.old_phash = None
             self.old_salt = None
             self.old_expiry = None
+
+    def permissions(self, db: NODBControllerInstance) -> set:
+        if not self.in_cache('permissions'):
+            permissions = set()
+            if self.roles:
+                with db.cursor() as cur:
+                    role_placeholders = ', '.join('%s' for _ in self.roles)
+                    cur.execute(f"""
+                        SELECT permission FROM 
+                        nodb_permissions WHERE role_name IN ({role_placeholders})
+                    """, [self.roles])
+                    permissions.update(row[0] for row in cur.fetch_stream())
+            self.set_cached('permissions', permissions)
+        return self.get_cached('permissions')
 
     @staticmethod
     def hash_password(password: str, salt: bytes, iterations=752123) -> bytes:
@@ -615,10 +718,6 @@ class NODBObservationData(_NODBBaseObject):
     duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
     duplicate_received_date: datetime.date = _NODBBaseObject.make_date_property("duplicate_received_date")
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._cached_record = None
-
     @classmethod
     def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
         return db.load_object(cls, {
@@ -646,16 +745,18 @@ class NODBObservationData(_NODBBaseObject):
     def record(self) -> t.Optional[DataRecord]:
         if self.data_record is None:
             return None
-        if self._cached_record is None:
+        if not self.in_cache('loaded_record') is None:
             decoder = OCProc2BinCodec()
             records = [x for x in decoder.load_all(self.data_record)]
             if records:
-                self._cached_record = records[0]
-        return self._cached_record
+                self.set_cached('loaded_record', records[0])
+            else:
+                self.set_cached('loaded_record', None)
+        return self.get_cached('loaded_record')
 
     @record.setter
     def record(self, data_record: DataRecord):
-        self._cached_record = data_record
+        self.set_cached('loaded_record', data_record)
         if data_record is None:
             self.data_record = None
             self.mark_modified('data_record')

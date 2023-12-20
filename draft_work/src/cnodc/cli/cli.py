@@ -36,7 +36,7 @@ def list(registry: DecoderRegistry = None):
 def transcode(source_file, target_file, iformat, oformat, iargs, oargs, registry: DecoderRegistry = None):
     src_codec = registry.load_codec(source_file, iformat)
     trg_codec = registry.load_codec(target_file, oformat)
-    trg_codec.dump(src_codec.load(source_file, **_parse_io_arg_str(iargs)), target_file, **_parse_io_arg_str(oargs))
+    trg_codec.dump(src_codec.load_all(source_file, **_parse_io_arg_str(iargs)), target_file, **_parse_io_arg_str(oargs))
 
 @main.command
 @click.argument("base_url")

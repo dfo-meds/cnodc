@@ -292,37 +292,6 @@ class NODBControllerInstance:
             filters={"queue_uuid": queue_uuid}
         )
 
-    def mark_queue_item_complete(self, queue_item: structures.NODBQueueItem):
-        self._update_queue_item(queue_item, "COMPLETE")
-
-    def mark_queue_item_failed(self, queue_item: structures.NODBQueueItem):
-        self._update_queue_item(queue_item, "ERROR")
-
-    def release_queue_item(self, queue_item: structures.NODBQueueItem, delay_time_seconds: t.Optional[int] = None):
-        if delay_time_seconds is not None and delay_time_seconds > 0:
-            self._update_queue_item(
-                queue_item,
-                "DELAYED_RELEASE",
-                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=delay_time_seconds)
-            )
-        else:
-            self._update_queue_item(queue_item, "UNLOCKED")
-
-    def renew_queue_item_lock(self, queue_item: structures.NODBQueueItem):
-        with self.cursor() as cur:
-            cur.execute("UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s", [
-                datetime.datetime.utcnow(),
-                queue_item.queue_uuid
-            ])
-
-    def _update_queue_item(self, queue_item: structures.NODBQueueItem, new_status_code: str, delay_release: t.Optional[datetime.datetime] = None):
-        with self.cursor() as cur:
-            cur.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s WHERE queue_uuid = %s", [
-                new_status_code,
-                delay_release,
-                queue_item.queue_uuid
-            ])
-
     def fetch_next_queue_item(self,
                               queue_name: str,
                               app_id: str,
@@ -377,14 +346,7 @@ class NODBControllerInstance:
         field_list = '*' if limit_fields is None else ', '.join(limit_fields)
         query = f"SELECT {field_list} FROM {obj_cls.get_table_name()} WHERE "
         query += " AND ".join(f"{x} = %s" for x in key_names)
-        if lock_type == LockType.FOR_SHARE:
-            query += " FOR SHARE"
-        elif lock_type == LockType.FOR_UPDATE:
-            query += " FOR UPDATE"
-        elif lock_type == LockType.FOR_NO_KEY_UPDATE:
-            query += " FOR NO KEY UPDATE"
-        elif lock_type == LockType.FOR_KEY_SHARE:
-            query += " FOR KEY SHARE"
+        query += self.build_lock_type_clause(lock_type)
         with self.cursor() as cur:
             cur.execute(query, [filters[x] for x in key_names])
             first_row = cur.fetchone()
@@ -394,6 +356,17 @@ class NODBControllerInstance:
                     **{x: first_row[x] for x in first_row.keys()}
                 )
         return None
+
+    def build_lock_type_clause(self, lock_type: t.Optional[LockType] = None):
+        if lock_type == LockType.FOR_SHARE:
+            return " FOR SHARE"
+        elif lock_type == LockType.FOR_UPDATE:
+            return " FOR UPDATE"
+        elif lock_type == LockType.FOR_NO_KEY_UPDATE:
+            return " FOR NO KEY UPDATE"
+        elif lock_type == LockType.FOR_KEY_SHARE:
+            return " FOR KEY SHARE"
+        return ""
 
     def upsert_object(self, obj: structures._NODBBaseObject, force_update: bool = False):
         if not(force_update or obj.is_new or obj.modified_values):
@@ -449,21 +422,6 @@ class NODBControllerInstance:
         obj.clear_modified()
         return True
 
-    def load_source_file(self,
-                         source_file_uuid: str,
-                         partition_key: datetime.date,
-                         limit_fields: t.Optional[list[str]] = None,
-                         lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBSourceFile]:
-        return self.load_object(
-            obj_cls=structures.NODBSourceFile,
-            filters={"source_uuid": source_file_uuid, "partition_key": partition_key},
-            limit_fields=limit_fields,
-            lock_type=lock_type
-        )
-
-    def save_source_file(self, source_file: structures.NODBSourceFile):
-        self.upsert_object(obj=source_file)
-
     def load_upload_workflow_config(self, workflow_name: str, lock_type: LockType = LockType.NONE) -> t.Optional[
         structures.NODBUploadWorkflow]:
         return self.load_object(
@@ -474,33 +432,6 @@ class NODBControllerInstance:
 
     def save_upload_workflow_config(self, config: structures.NODBUploadWorkflow):
         self.upsert_object(obj=config)
-
-    def load_user(self,
-                  username: str,
-                  lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBUser]:
-        return self.load_object(
-            obj_cls=structures.NODBUser,
-            filters={"username": username},
-            lock_type=lock_type
-        )
-
-    def save_user(self,
-                  user: structures.NODBUser):
-        self.upsert_object(
-            obj=user,
-        )
-
-    def load_permissions(self, roles: t.Optional[list[str]]) -> set[str]:
-        if not roles:
-            return set()
-        permissions = set()
-        q = "SELECT permission FROM nodb_permissions WHERE role_name IN ("
-        q += ", ".join('%s' for _ in roles)
-        q += ")"
-        with self.cursor() as cur:
-            cur.execute(q, roles)
-            permissions.update(row[0] for row in cur.fetch_stream())
-            return permissions
 
     def grant_permission(self, role_name, permission_name):
         with self.cursor() as cur:
@@ -522,22 +453,9 @@ class NODBControllerInstance:
                 permission_name
             ])
 
-    def load_session(self,
-                     session_id: str,
-                     lock_type: LockType = LockType.NONE) -> t.Optional[structures.NODBSession]:
-        return self.load_object(
-            obj_cls=structures.NODBSession,
-            filters={"session_id": session_id},
-            lock_type=lock_type
-        )
-
     def delete_session(self, session_id: str):
         with self.cursor() as cur:
             cur.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
-
-    def save_session(self,
-                     session: structures.NODBSession):
-        self.upsert_object(obj=session)
 
     def record_login(self,
                      username: str,

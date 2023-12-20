@@ -544,7 +544,7 @@ class NODBWorkingObservation(_NODBWithDataRecord, _NODBWithQCProperties, _NODBBa
     @staticmethod
     def create_from_primary(primary_obs):
         working_obs = NODBWorkingObservation(primary_obs.pkey)
-        working_obs.data_record = primary_obs.data_record
+        working_obs.data_record = primary_obs._data_record
         working_obs._data_record_cache = primary_obs._data_record_cache
         working_obs.station_uuid = primary_obs.station_uuid
         working_obs.metadata = primary_obs.metadata

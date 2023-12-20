@@ -71,15 +71,15 @@ class QueueWorker(BaseProcess):
     def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[structures.QueueItemResult]):
 
         if result is None or result == structures.QueueItemResult.SUCCESS:
-            self._db.mark_queue_item_complete(queue_item)
+            queue_item.mark_complete(self._db)
             self.on_success(queue_item)
             after = self.after_success
         elif result == structures.QueueItemResult.FAILED:
-            self._db.mark_queue_item_failed(queue_item)
+            queue_item.mark_failed(self._db)
             self.on_failure(queue_item)
             after = self.after_failure
         else:
-            self._db.release_queue_item(queue_item, self.get_config("retry_delay_seconds"))
+            queue_item.release(self._db, self.get_config("retry_delay_seconds"))
             self.on_retry(queue_item)
             after = self.after_retry
         self._db.commit()

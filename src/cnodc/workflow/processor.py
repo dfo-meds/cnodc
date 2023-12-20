@@ -44,7 +44,7 @@ class PayloadProcessor:
             with self.nodb as self._db:
                 self._current_payload = payload
                 self._process()
-                self._db.mark_queue_item_complete(item)
+                item.mark_complete(self._db)
                 self._current_payload = None
                 self._db.commit()
         finally:

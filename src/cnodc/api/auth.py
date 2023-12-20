@@ -68,11 +68,10 @@ class LoginController:
         session_time = self._get_session_time()
         with self.nodb as db:
             session = self.current_session()
-            print(session)
             if session is None:
                 raise CNODCError("No session available", "LOGINCTRL", 1004)
             session.expiry_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=session_time)
-            db.save_session(session)
+            db.update_object(session)
             db.commit()
             self._logger.notice(f"User session renewed")
             return session
@@ -150,7 +149,7 @@ class LoginController:
                 db.delete_session(session_id)
                 db.commit()
                 return False
-            flask.g.permissions = db.load_permissions(flask.g.user.roles)
+            flask.g.permissions = flask.g.user.permissions(db)
             self._logger.debug(f"User roles: [{';'.join(flask.g.user.roles)}]; permissions: [{';'.join(flask.g.permissions)}]")
             return True
 
