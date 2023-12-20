@@ -9,8 +9,20 @@ import secrets
 import zrlog
 from autoinject import injector
 
+from cnodc.codecs.ocproc2bin import OCProc2BinCodec
+from cnodc.ocproc2 import DataRecord
 from cnodc.storage import StorageController
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
+
+
+def parse_received_date(rdate: t.Union[str, datetime.date]) -> datetime.date:
+    if isinstance(rdate, str):
+        try:
+            return datetime.date.fromisoformat(rdate)
+        except ValueError as ex:
+            raise CNODCError(f"Invalid received date [{rdate}]", "NODB", 1000)
+    else:
+        return rdate
 
 
 class NODBValidationError(CNODCError):
@@ -580,10 +592,10 @@ class NODBObservation(_NODBBaseObject):
     embargo_date: datetime.datetime = _NODBBaseObject.make_datetime_property("embargo_date")
 
     @classmethod
-    def find_by_uuid(cls, db, obs_uuid: str, received_date: datetime.date, *args, **kwargs):
+    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
-            "received_date": received_date
+            "received_date": parse_received_date(received_date)
         }, *args, **kwargs)
 
 
@@ -597,26 +609,67 @@ class NODBObservationData(_NODBBaseObject):
     source_file_uuid: str = _NODBBaseObject.make_property("source_file_uuid", coerce=str)
     message_idx: int = _NODBBaseObject.make_property("message_idx", coerce=int)
     record_idx: int = _NODBBaseObject.make_property("record_idx", coerce=int)
-    data_record: bytes = _NODBBaseObject.make_property("data_record")
+    data_record: t.Optional[bytes] = _NODBBaseObject.make_property("data_record")
     process_metadata: dict = _NODBBaseObject.make_property("process_metadata")
     qc_tests: dict = _NODBBaseObject.make_property("qc_tests")
     duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
     duplicate_received_date: datetime.date = _NODBBaseObject.make_date_property("duplicate_received_date")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._cached_record = None
+
+    @classmethod
+    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
+        return db.load_object(cls, {
+            "obs_uuid": obs_uuid,
+            "received_date": parse_received_date(received_date)
+        }, *args, **kwargs)
+
     @classmethod
     def find_by_source_info(cls,
                             db,
                             source_file_uuid: str,
-                            source_received_date: datetime.date,
+                            source_received_date: t.Union[str, datetime.date],
                             message_idx: int,
                             record_idx: int,
                             *args, **kwargs):
+
         return db.load_object(cls, {
-                "received_date": source_received_date,
+                "received_date": parse_received_date(source_received_date),
                 "source_file_uuid": source_file_uuid,
                 "message_idx": message_idx,
                 "record_idx": record_idx
             }, *args, **kwargs)
+
+    @property
+    def record(self) -> t.Optional[DataRecord]:
+        if self.data_record is None:
+            return None
+        if self._cached_record is None:
+            decoder = OCProc2BinCodec()
+            records = [x for x in decoder.load_all(self.data_record)]
+            if records:
+                self._cached_record = records[0]
+        return self._cached_record
+
+    @record.setter
+    def record(self, data_record: DataRecord):
+        self._cached_record = data_record
+        if data_record is None:
+            self.data_record = None
+            self.mark_modified('data_record')
+        else:
+            decoder = OCProc2BinCodec()
+            ba = bytearray()
+            for byte_ in decoder.encode_messages(
+                    [data_record],
+                    codec='JSON',
+                    compression='LZMA6CRC4',
+                    correction=None):
+                ba.extend(byte_)
+            self.data_record = ba
+            self.mark_modified('data_record')
 
 
 

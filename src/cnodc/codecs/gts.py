@@ -28,31 +28,37 @@ class GtsCodec(BaseCodec):
         reader = ByteSequenceReader(data)
         header = ''
         reader.lstrip(GtsCodec.WHITESPACE)
+        current_idx = 0
+        skip_to = kwargs.get('skip_to_message_idx') if 'skip_to_message_idx' in kwargs else None
         while not reader.at_eof():
             test_line = reader.peek_line(True).decode('ascii')
             if self._is_gts_header(test_line):
                 header = reader.consume_line(True).decode('ascii')
             reader.lstrip(GtsCodec.WHITESPACE)
-            yield self._attempt_decode_next_gts_message(reader, header)
+            if skip_to is not None:
+                yield self._attempt_decode_next_gts_message(reader, header, skip_to > current_idx)
+                current_idx += 1
+            else:
+                yield self._attempt_decode_next_gts_message(reader, header)
             reader.lstrip(GtsCodec.WHITESPACE)
 
-    def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str) -> DecodeResult:
+    def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
         message_type = reader.peek(5)
         if message_type.startswith(b'BUFR'):
-            return self._decode_bufr(reader, header)
+            return self._decode_bufr(reader, header, skip_decode)
         elif message_type == b'KKYY ':
-            return self._decode_basic_ascii('KKYY', reader, header)
+            return self._decode_basic_ascii('KKYY', reader, header, skip_decode)
         elif message_type == b'JJVV ':
-            return self._decode_basic_ascii('JJVV', reader, header)
+            return self._decode_basic_ascii('JJVV', reader, header, skip_decode)
         elif message_type == b'NNXX ':
-            return self._decode_basic_ascii('NNXX', reader, header)
+            return self._decode_basic_ascii('NNXX', reader, header, skip_decode)
         elif message_type == b'ZZYY ':
-            return self._decode_basic_ascii('ZZYY', reader, header)
+            return self._decode_basic_ascii('ZZYY', reader, header, skip_decode)
         else:
             discard_line = reader.consume_line(True)
             self.log.debug(f"Discarding line {discard_line.decode('ascii', 'replace')}, unrecognized start sequence")
 
-    def _decode_bufr(self, reader: ByteSequenceReader, header: str) -> DecodeResult:
+    def _decode_bufr(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
         reader.consume(4)
         message_length = int.from_bytes(reader.consume(3), 'big')
         bufr_version = int(reader.consume(1)[0])
@@ -61,6 +67,8 @@ class GtsCodec(BaseCodec):
         content.extend(message_length.to_bytes(3, 'big'))
         content.extend(bufr_version.to_bytes(1, 'big'))
         content.extend(reader.consume(message_length - 8))
+        if skip_decode:
+            return DecodeResult(skipped=True)
         if bufr_version == 4:
             try:
                 return self._sub_codecs['BUFR4'].decode_message(header, content)
@@ -72,8 +80,10 @@ class GtsCodec(BaseCodec):
                 original=content
             )
 
-    def _decode_basic_ascii(self, message_type: str, reader: ByteSequenceReader, header: str) -> DecodeResult:
+    def _decode_basic_ascii(self, message_type: str, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
         body = reader.consume_until(b'=')
+        if skip_decode:
+            return DecodeResult(skipped=True)
         try:
             return self._sub_codecs[message_type].decode_message(header, body)
         except Exception as ex:

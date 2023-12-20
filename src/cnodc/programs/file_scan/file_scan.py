@@ -1,19 +1,20 @@
 import datetime
-import gzip
 import pathlib
-import shutil
 import tempfile
 import uuid
 import typing as t
+
+import zrlog
+
 from cnodc.nodb import NODBController
 from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus, NODBControllerInstance
 from cnodc.process.scheduled_task import ScheduledTask
 from cnodc.process.queue_worker import QueueWorker
-from cnodc.process.workflows import WorkflowController
+from cnodc.workflow import WorkflowController
 from cnodc.storage import StorageController
 import cnodc.nodb.structures as structures
 from cnodc.storage.base import StorageFileHandle
-from cnodc.util import CNODCError
+from cnodc.util import CNODCError, HaltFlag
 from autoinject import injector
 
 
@@ -60,7 +61,7 @@ class FileScanTask(ScheduledTask):
                 try:
                     full_path = file.path()
                     status = db.scanned_file_status(full_path)
-                    if  status == ScannedFileStatus.NOT_PRESENT:
+                    if status == ScannedFileStatus.NOT_PRESENT:
                         db.note_scanned_file(full_path)
                         db.create_queue_item(
                             queue_name,
@@ -129,68 +130,63 @@ class FileScanWorker(QueueWorker):
         self._db.mark_scanned_item_success(item.data['target_file'])
 
 
-class FileScanWorkflowController(WorkflowController):
+class FileScanWorkflowController:
 
     storage: StorageController = None
+    nodb: NODBController = None
 
     @injector.construct
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, workflow_name: str, halt_flag: HaltFlag = None):
+        self.halt_flag = halt_flag
+        self.workflow_name = workflow_name
         self._working_file = None
-        self._gzip_file = None
         self._target_file = None
+        self._remote_path = None
         self._remote_handle: t.Optional[StorageFileHandle] = None
         self._metadata = {}
         self._temp_dir = None
+        self._log = zrlog.get_logger("cnodc.file_scan_intake")
 
-    def get_working_file(self, gzip_working_file: bool = True) -> pathlib.Path:
+    def get_working_file(self) -> pathlib.Path:
         if self._temp_dir is None:
             self._temp_dir = tempfile.TemporaryDirectory()
         if self._working_file is None:
             self._working_file = pathlib.Path(self._temp_dir.name) / "file"
         self._remote_handle.download(self._working_file)
-        if gzip_working_file:
-            if self._gzip_file is None:
-                self._gzip_file = pathlib.Path(self._temp_dir.name) / "file.gzip"
-                with gzip.open(self._gzip_file, "wb") as dest:
-                    with open(self._working_file, "rb") as src:
-                        shutil.copyfileobj(src, dest)
-            return self._gzip_file
         return self._working_file
-
-    def get_queue_metadata(self) -> dict:
-        return {
-            'source': 'file_scan',
-            'source_metadata': self._metadata,
-            'correlation_id': self._metadata['correlation_id'] if 'correlation_id' in self._metadata else '',
-            'workflow_name': self.workflow_name,
-            'user': '',
-            'upload_time': self._metadata['scanned_time'] if 'scanned_time' in self._metadata else datetime.datetime.now(datetime.timezone.utc)
-        }
-
-    def file_best_modified_time(self) -> datetime.datetime:
-        mod_time = None
-        if self._remote_handle:
-            mod_time = self._remote_handle.modified_datetime()
-        return datetime.datetime.now(datetime.timezone.utc) if mod_time is None else mod_time
 
     def handle_queued_file(self, file_path: str, headers: dict, metadata: dict, remove_when_finished: bool = False):
         try:
             with self.nodb as db:
-                self._target_file = file_path
-                self._remote_handle = self.storage.get_handle(self._target_file, halt_flag=self._halt_flag)
-                if headers is None:
-                    headers = {}
-                if 'filename' not in headers:
-                    headers['filename'] = self._sanitize_filename(self._remote_handle.name())
-                current_status = db.scanned_file_status(self._target_file)
+                self._remote_path = file_path
+                self._remote_handle = self.storage.get_handle(self._remote_path, halt_flag=self.halt_flag)
+                current_status = db.scanned_file_status(self._remote_path)
                 if current_status == ScannedFileStatus.UNPROCESSED:
-                    workflow = self._load_workflow(db)
-                    self._metadata = metadata
-                    self._complete_request(db, workflow, headers)
+                    if headers is None:
+                        headers = {}
+                        headers['default-filename'] = self._remote_handle.name()
+                        headers['last-modified-date'] = self._remote_handle.modified_datetime()
+                        if headers['last-modified-date'] is None and 'scanned_time' in metadata:
+                            headers['last-modified-date'] = metadata['scanned-time']
+                        headers['request-id'] = (
+                            metadata['correlation_id']
+                            if 'correlation_id' in metadata else
+                            str(uuid.uuid4())
+                        )
+                    workflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
+                    wf_controller = WorkflowController(self.workflow_name, workflow.configuration, {
+                        'source': 'file_scan',
+                        'correlation_id': headers['request-id'],
+                        'upload_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    }, self.halt_flag)
+                    wf_controller.handle_incoming_file(
+                        local_path=self.get_working_file(),
+                        metadata=headers,
+                        post_hook=self.on_complete,
+                        db=db
+                    )
                     if remove_when_finished:
                         self._try_remove_file()
-                        self._remote_handle.remove()
                 elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished and self._remote_handle.exists():
                     self._try_remove_file()
         finally:
@@ -202,12 +198,12 @@ class FileScanWorkflowController(WorkflowController):
         except Exception:
             self._log.exception(f"Error while removing file")
 
-    def on_complete(self, db: NODBControllerInstance):
-        db.mark_scanned_item_success(self._target_file)
-
     def _cleanup_request(self):
         if self._temp_dir is not None:
             self._temp_dir.cleanup()
             self._temp_dir = None
             self._working_file = None
             self._gzip_file = None
+
+    def on_complete(self, db: NODBControllerInstance):
+        db.mark_scanned_item_success(self._target_file)

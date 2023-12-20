@@ -11,27 +11,28 @@ class GtsLoaderWorker(QueueWorker):
     VERSION = "1.0"
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._loader = None
+        super().__init__(log_name=GtsLoaderWorker.NAME, *args, **kwargs)
+        self._loader: t.Optional[NODBLoader] = None
         self.set_defaults({
             'error_directory': None,
         })
 
     def on_start(self):
         self._loader = NODBLoader(
-            process_name=GtsLoaderWorker.NAME,
-            process_uuid=self.process_uuid,
-            process_version=GtsLoaderWorker.VERSION,
+            log_name="cnodc.gts_loader",
+            processor_name=GtsLoaderWorker.NAME,
+            processor_uuid=self.process_uuid,
+            processor_version=GtsLoaderWorker.VERSION,
             error_directory=self.get_config('error_directory'),
             decoder=GtsCodec(halt_flag=self.halt_flag),
-            default_values={
-                'source_name': 'gts',
-                'program_name': 'gtspp',
-                'status': structures.ObservationStatus.UNVERIFIED,
-                'processing_level': structures.ProcessingLevel.ADJUSTED,
+            default_metadata={
+                'CNODCSource': 'gts',
+                'CNODCProgram': 'gtspp',
+                'CNODCStatus': 'UNVERIFIED',
+                'CNODCLevel': 'ADJUSTED',
             },
             halt_flag=self.halt_flag
         )
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
-        return self._loader.load_file_from_queue(item)
+        return self._loader.process_queue_item(item)

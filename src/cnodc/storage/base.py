@@ -13,6 +13,9 @@ import fnmatch
 import enum
 
 
+DEFAULT_CHUNK_SIZE = 4194304
+
+
 class StorageTier(enum.Enum):
 
     FREQUENT = "frequent"
@@ -213,7 +216,9 @@ class BaseStorageHandle:
         self.clear_cache()
 
     @local_file_error_wrap
-    def _local_read_chunks(self, local_path, buffer_size: int) -> t.Iterable[bytes]:
+    def _local_read_chunks(self, local_path, buffer_size: t.Optional[int] = None) -> t.Iterable[bytes]:
+        if buffer_size is None:
+            buffer_size = DEFAULT_CHUNK_SIZE
         if isinstance(local_path, (bytes, bytearray)):
             yield local_path
         if isinstance(local_path, (str, pathlib.Path)):

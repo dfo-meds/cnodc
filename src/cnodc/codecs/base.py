@@ -244,12 +244,14 @@ class DecodeResult:
                  records: t.Optional[list[DataRecord]] = None,
                  exc: t.Optional[Exception] = None,
                  message_idx: int = 0,
-                 original: t.Union[bytes, bytearray, None] = None):
+                 original: t.Union[bytes, bytearray, None] = None,
+                 skipped: bool = False):
         self.records: t.Optional[list[DataRecord]] = records
         self.success = exc is None and records is not None
         self.from_exception: t.Optional[Exception] = exc
         self.message_idx: int = message_idx
         self.original: t.Union[bytes, bytearray, None] = original
+        self.skipped = skipped
 
 
 class EncodeResult(t.Protocol):
@@ -282,19 +284,23 @@ class BaseCodec:
             with open(output_file, "wb") as h:
                 self.write_in_chunks(h, self.encode_messages(record_set, **kwargs))
 
-    def load(self,
-             file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
-             chunk_size: int = 16384,
-             **kwargs):
+    def load_all(self,
+                 file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
+                 chunk_size: int = 16384,
+                 **kwargs) -> t.Iterable[DataRecord]:
         if hasattr(file, 'read'):
             return self.decode_messages(self.read_in_chunks(file, chunk_size), **kwargs)
         elif isinstance(file, (bytes, bytearray)):
-            return self.decode_messages((file,), **kwargs)
+            return self.decode_messages(BaseCodec.yield_bytes(file), **kwargs)
         elif isinstance(file, (str, os.PathLike)):
             with open(file, "rb") as h:
                 return self.decode_messages(self.read_in_chunks(h, chunk_size), **kwargs)
         else:
             return self.decode_messages(file, **kwargs)
+
+    @staticmethod
+    def yield_bytes(b: t.Union[bytes, bytearray]):
+        yield b
 
     def encode_messages(self,
                         data: t.Iterable[DataRecord],
@@ -362,12 +368,13 @@ class BaseCodec:
                 else:
                     self.log.error(f"Unknown error decoding data from file", "CODECS", 1005)
 
-    def decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
+    def decode(self, data: ByteIterable, include_skipped: bool = True, **kwargs) -> t.Iterable[DecodeResult]:
         idx = 0
         for result in self._decode(data, **kwargs):
             result.message_idx = idx
             idx += 1
-            yield result
+            if include_skipped or not result.skipped:
+                yield result
 
     def _decode(self,
                 data: ByteIterable,
@@ -378,7 +385,7 @@ class BaseCodec:
         for bytes_ in HaltFlag.iterate(output, self._halt_flag, True):
             file_handle.write(bytes_)
 
-    def read_in_chunks(self, file_handle: Readable, chunk_size: int) -> ByteIterable:
+    def read_in_chunks(self, file_handle: Readable, chunk_size: int = 16384) -> ByteIterable:
         chunk = file_handle.read(chunk_size)
         while chunk != b'':
             if self._halt_flag:

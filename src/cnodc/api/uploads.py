@@ -8,13 +8,17 @@ import hashlib
 import datetime
 import enum
 import typing as t
+
+import zrlog
+
 from cnodc.util import CNODCError
 from autoinject import injector
 import yaml
 
 from .auth import LoginController
-from cnodc.process.workflows import WorkflowController
+from cnodc.workflow import WorkflowController
 
+from cnodc.nodb import NODBControllerInstance, structures, NODBController
 
 NO_SAVE_HEADERS = [
     'x-cnodc-token',
@@ -29,17 +33,19 @@ class UploadResult(enum.Enum):
     COMPLETE = 2
 
 
-class UploadController(WorkflowController):
+class UploadController:
 
     login: LoginController = None
+    nodb: NODBController = None
 
     @injector.construct
     def __init__(self, workflow_name: str, request_id: t.Optional[str] = None, token: t.Optional[str] = None):
-        super().__init__(workflow_name)
+        self.workflow_name = workflow_name
         self.request_id = request_id
         self.token = token
         self._request_dir = None
         self._assembled_file = None
+        self._log = zrlog.get_logger("cnodc.web_uploader")
 
     def _ensure_request_id(self):
         if self.request_id is None:
@@ -90,8 +96,8 @@ class UploadController(WorkflowController):
     def _save_metadata(self, headers: dict[str, str]) -> dict:
         header_file = self._request_directory() / ".headers.yaml"
         relevant_headers = {
-            'workflow_name': self.workflow_name,
-            'request_id': self.request_id
+            'workflow-name': self.workflow_name,
+            'request-id': self.request_id
         }
         relevant_headers.update(self._load_metadata())
         for header_name in headers:
@@ -125,7 +131,7 @@ class UploadController(WorkflowController):
         with open(request_dir / ".timestamp", "w") as h:
             h.write(datetime.datetime.now(datetime.timezone.utc).isoformat())
 
-    def get_working_file(self, gzip_working_file: bool = True) -> pathlib.Path:
+    def get_working_file(self) -> pathlib.Path:
         if self._assembled_file is None:
             request_dir = self._request_directory()
             files = []
@@ -141,34 +147,34 @@ class UploadController(WorkflowController):
                 self._assembled_file = files[0]
             else:
                 self._assembled_file = self._request_directory() / "assembled.bin"
-                open_fn = gzip.open if gzip_working_file else open
-                with open_fn(self._assembled_file, "wb") as dest:
+                with open(self._assembled_file, "wb") as dest:
                     for file in files:
                         with open(file, "rb") as src:
                             shutil.copyfileobj(src, dest)
         return self._assembled_file
 
-    def _current_permissions(self) -> set:
-        return self.login.current_permissions()
-
-    def get_queue_metadata(self) -> dict:
-        return {
-            'source': 'web_upload',
-            'correlation_id': self.request_id,
-            'workflow_name': self.workflow_name,
-            'user': self.login.current_user().username,
-            'upload_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
-        }
-
     def _cleanup_request(self):
         request_dir = self._request_directory()
         for f in request_dir.iterdir():
-            f.unlink(True)
-        request_dir.rmdir()
+            try:
+                f.unlink(True)
+            except Exception as ex:
+                self._log.exception(f"Error while cleaning up request")
+        try:
+            request_dir.rmdir()
+        except Exception as ex:
+            self._log.exception(f"Error while cleaning up request")
 
     def cancel_request(self):
         self._check_token()
         self._cleanup_request()
+
+    def _load_workflow(self, db: NODBControllerInstance):
+        workflow: structures.NODBUploadWorkflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
+        permissions = self.login.current_permissions()
+        if '_admin' not in permissions and not any(x in permissions for x in workflow.permissions()):
+            raise CNODCError('Access denied', 'UPLOADCTRL', 1020)
+        return workflow
 
     def upload_request(self, data: bytes, headers: dict[str, str]) -> UploadResult:
         self._check_token(self.request_id is None)
@@ -182,12 +188,23 @@ class UploadController(WorkflowController):
                 self._save_token()
                 return UploadResult.CONTINUE
             else:
-                self._complete_request(db, workflow, working_headers)
+                controller = WorkflowController(
+                    workflow.workflow_name,
+                    workflow.configuration,
+                    {
+                        'source': 'web_uploader',
+                        'correlation_id': self.request_id,
+                        'user': self.login.current_user(),
+                    }
+                )
+                working_headers['default-filename'] = self.request_id
+                controller.handle_incoming_file(
+                    local_path=self.get_working_file(),
+                    metadata=working_headers,
+                    db=db
+                )
                 self._cleanup_request()
                 return UploadResult.COMPLETE
-
-    def _default_filename(self, headers) -> str:
-        return self.request_id
 
     @staticmethod
     def hash_token(token: str) -> bytes:
