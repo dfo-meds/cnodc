@@ -362,11 +362,15 @@ class NODBControllerInstance:
                     obj_cls: type,
                     filters: dict[str, str],
                     limit_fields: t.Optional[list[str]] = None,
-                    lock_type: LockType = LockType.NONE):
+                    lock_type: LockType = LockType.NONE,
+                    key_only: bool = False):
         key_names = list(x for x in filters.keys())
         if limit_fields:
             limit_fields = set(limit_fields)
             limit_fields.update(key_names)
+            limit_fields.update(obj_cls.get_primary_keys())
+        elif key_only:
+            limit_fields = set(key_names)
             limit_fields.update(obj_cls.get_primary_keys())
         else:
             limit_fields = None
