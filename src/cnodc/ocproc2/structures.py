@@ -69,10 +69,36 @@ class HistoryEntry:
     @staticmethod
     def from_mapping(map_: dict):
         return HistoryEntry(
-            map_['message'],
+            map_['_message'],
             map_['_timestamp'],
             *map_['_source'],
             map_['_message_type']
+        )
+
+
+class QCMessage:
+
+    def __init__(self,
+                 code: str,
+                 record_path: list[str],
+                 ref_value: SupportedValue = None):
+        self.code = code
+        self.record_path = record_path
+        self.ref_value = ref_value
+
+    def to_mapping(self):
+        return {
+            '_code': self.code,
+            '_path': self.record_path or [],
+            '_ref': self.ref_value
+        }
+
+    @staticmethod
+    def from_mapping(map_: dict):
+        return QCMessage(
+            map_['_code'],
+            map_['_path'],
+            map_['_ref'] if '_ref' in map_ else None
         )
 
 
@@ -83,18 +109,24 @@ class QCTestResult:
                  test_version: str,
                  test_date: t.Union[datetime.datetime, str],
                  result: str,
+                 messages: list[QCMessage] = None,
                  notes: str = None):
         self.test_name = test_name
         self.test_version = test_version
         self.test_date = test_date.isoformat() if isinstance(test_date, datetime.datetime) else test_date
         self.result = result
+        self.messages = messages or []
         self.notes = notes
+
+    def passed(self):
+        return self.result == 'PASS'
 
     def to_mapping(self):
         return {
             '_name': self.test_name,
             '_version': self.test_version,
             '_date': self.test_date,
+            '_messages': [m.to_mapping() for m in self.messages],
             '_result': self.result,
             '_notes': self.notes
         }
@@ -106,20 +138,46 @@ class QCTestResult:
             map_['_version'],
             map_['_date'],
             map_['_result'],
+            [QCMessage.from_mapping(x) for x in map_['_messages']],
             map_['_notes']
         )
 
 
 class AbstractValue:
 
-    def __init__(self, metadata: t.Optional[dict] = None):
+    def __init__(self, metadata: t.Optional[dict] = None, **kwargs):
         self.metadata: ValueMap = ValueMap(metadata)
+        if kwargs:
+            self.metadata.update(kwargs)
         self._value = None
 
-    def to_mapping(self):
+    def __repr__(self):
+        s = f'{self.__class__.__name__}({str(self)})'
+        if self.metadata:
+            s += "("
+            s += ';'.join(f"{x}={repr(self.metadata[x])}" for x in self.metadata)
+            s += ")"
+        return s
+
+    def is_empty(self) -> bool:
+        raise NotImplementedError
+
+    def is_numeric(self) -> bool:
+        raise NotImplementedError
+
+    def in_range(self, min_value: t.Optional[float] = None, max_value: t.Optional[float] = None) -> bool:
+        raise NotImplementedError
+
+    def to_mapping(self) -> dict:
         raise NotImplementedError
 
     def from_mapping(self, map_: t.Any):
+        raise NotImplementedError
+
+    def best_value(self) -> t.Any:
+        raise NotImplementedError
+
+    def is_iso_datetime(self) -> bool:
         raise NotImplementedError
 
     @property
@@ -140,13 +198,19 @@ class AbstractValue:
 
 class Value(AbstractValue):
 
-    def __init__(self, value: SupportedValue = None, metadata: t.Optional[dict] = None):
-        super().__init__(metadata)
+    def __init__(self,
+                 value: SupportedValue = None,
+                 metadata: t.Optional[dict] = None,
+                 **kwargs):
+        super().__init__(metadata, **kwargs)
         self._value = normalize_data_value(value)
+
+    def __contains__(self, item):
+        return False
 
     def __eq__(self, other):
         if isinstance(other, Value):
-            return self._value == other and self.metadata == other.metadata
+            return self._value == other._value and self.metadata == other.metadata
         elif isinstance(other, MultiValue):
             if len(other) == 1:
                 return self.__eq__(other[0])
@@ -156,6 +220,31 @@ class Value(AbstractValue):
 
     def __str__(self):
         return str(self._value)
+
+    def best_value(self) -> t.Any:
+        return self._value
+
+    def is_empty(self) -> bool:
+        return self._value is None or self._value == ''
+
+    def is_iso_datetime(self) -> bool:
+        try:
+            _ = datetime.datetime.fromisoformat(self._value)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def is_numeric(self) -> bool:
+        if isinstance(self._value, bool):
+            return False
+        return isinstance(self._value, (int, float))
+
+    def in_range(self, min_value: t.Optional[float] = None, max_value: t.Optional[float] = None) -> bool:
+        if min_value is not None and self._value < min_value:
+            return False
+        if max_value is not None and self._value > max_value:
+            return False
+        return True
 
     @property
     def value(self) -> SupportedValue:
@@ -186,16 +275,26 @@ class Value(AbstractValue):
             self._value = map_
 
 
+OCProcValue = t.Union[SupportedValue, AbstractValue]
+DefaultValueDict = dict[str, OCProcValue]
+
+
 class MultiValue(AbstractValue):
 
-    def __init__(self, values: t.Sequence[AbstractValue] = None, metadata: t.Optional[dict] = None):
-        super().__init__(metadata)
-        self._value = list(values) if values else []
+    def __init__(self,
+                 values: t.Sequence[OCProcValue] = None,
+                 metadata: t.Optional[dict] = None,
+                 **kwargs):
+        super().__init__(metadata, **kwargs)
+        self._value = [v if isinstance(v, AbstractValue) else Value(v) for v in values] if values else []
 
-    def __len__(self):
-        return self._value
+    def __str__(self):
+        return '\n'.join(str(x) for x in self._value)
 
-    def __getitem__(self, item):
+    def __len__(self) -> int:
+        return len(self._value)
+
+    def __getitem__(self, item) -> AbstractValue:
         return self._value[item]
 
     def __eq__(self, other):
@@ -207,6 +306,35 @@ class MultiValue(AbstractValue):
             return len(other) == len(self) and all(other[x] == self[x] for x in range(0, len(self)))
         else:
             return False
+
+    def best_value(self) -> t.Any:
+        for x in self._value:
+            bv = x.best_value()
+            if bv is not None and bv != '':
+                return bv
+        return None
+
+    def is_empty(self) -> bool:
+        return all(x.is_empty() for x in self._value)
+
+    def _broadcast_is_check(self, fn_name, *args, **kwargs):
+        result = None
+        for x in self._value:
+            if x.is_empty():
+                continue
+            if not getattr(x, fn_name)(*args, **kwargs):
+                return False
+            result = True
+        return result if result is not None else False
+
+    def is_numeric(self) -> bool:
+        return self._broadcast_is_check('is_numeric')
+
+    def in_range(self, min_value: t.Optional[float] = None, max_value: t.Optional[float] = None) -> bool:
+        return self._broadcast_is_check('in_range', min_value, max_value)
+
+    def is_iso_datetime(self) -> bool:
+        return self._broadcast_is_check('is_iso_datetime')
 
     def values(self):
         return self._value
@@ -235,10 +363,6 @@ class MultiValue(AbstractValue):
             self._value = [AbstractValue.value_from_mapping(v) for v in map_['values']]
         else:
             self._value = [AbstractValue.value_from_mapping(v) for v in map_]
-
-
-OCProcValue = t.Union[SupportedValue, AbstractValue]
-DefaultValueDict = dict[str, OCProcValue]
 
 
 class ValueMap:
@@ -275,6 +399,14 @@ class ValueMap:
     def keys(self):
         return self._map.keys()
 
+    def best_value(self, item, default=None):
+        if item not in self._map:
+            return default
+        return self._map[item].best_value()
+
+    def has_value(self, item):
+        return item in self._map and not self._map[item].is_empty()
+
     def get(self, parameter_code: str) -> t.Optional[AbstractValue]:
         if parameter_code in self._map:
             return self._map[parameter_code]
@@ -293,16 +425,22 @@ class ValueMap:
     def set_multiple(self,
                      parameter_code: str,
                      values: t.Sequence[OCProcValue],
-                     values_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None,
+                     common_metadata: t.Optional[DefaultValueDict] = None,
+                     specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None,
                      metadata: t.Optional[DefaultValueDict] = None
                      ):
         actual_values = []
         for i in range(0, len(values)):
-            actual_values.append(
-                values[i]
-                if isinstance(values[i], AbstractValue) else
-                Value(values[i], values_metadata[i] if values_metadata else None)
-            )
+            value_metadata = {}
+            if common_metadata:
+                value_metadata.update(common_metadata)
+            if specific_metadata:
+                value_metadata.update(specific_metadata[i])
+            if isinstance(values[i], AbstractValue):
+                values[i].metadata.update(value_metadata)
+                actual_values.append(values[i])
+            else:
+                actual_values.append(Value(values[i], value_metadata))
         self._map[parameter_code] = MultiValue(actual_values, metadata)
 
     def update(self, d: t.Optional[DefaultValueDict]):
@@ -345,6 +483,7 @@ class DataRecord:
             map_['_history'] = [h.to_mapping() for h in self.history]
         if self.qc_tests:
             map_['_qc_tests'] = [qc.to_mapping() for qc in self.qc_tests]
+        return map_
 
     def from_mapping(self, map_: dict):
         if '_metadata' in map_:
@@ -370,6 +509,18 @@ class DataRecord:
                 for record_set_key in self.subrecords[record_type]:
                     yield from self.subrecords[record_type][record_set_key].records
 
+    def test_already_run(self, test_name: str) -> bool:
+        return any(x.test_name == test_name for x in self.qc_tests)
+
+    def latest_test_result(self, test_name: str) -> t.Optional[QCTestResult]:
+        best = None
+        for qcr in self.qc_tests:
+            if qcr.test_name != test_name:
+                continue
+            if best is None or qcr.test_date > best.test_date:
+                best = qcr
+        return best
+
     def record_qc_test_passed(self,
                               test_name: str,
                               test_version: str,
@@ -379,18 +530,21 @@ class DataRecord:
             test_version,
             datetime.datetime.now(datetime.timezone.utc),
             'PASS',
+            None,
             notes
         ))
 
     def record_qc_test_failed(self,
                               test_name: str,
                               test_version: str,
+                              messages: list[QCMessage],
                               notes: str = None):
         self.qc_tests.append(QCTestResult(
             test_name,
             test_version,
             datetime.datetime.now(datetime.timezone.utc),
             'FAIL',
+            messages,
             notes
         ))
 
