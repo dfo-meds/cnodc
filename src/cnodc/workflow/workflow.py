@@ -267,14 +267,14 @@ class WorkflowController:
         self.name: str = workflow_name
         self.config = config
         self.halt_flag = halt_flag
-        self._log = zrlog.get_logger("cnodc.intake")
+        self._log = zrlog.get_logger("cnodc.workflow")
 
-    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable] = None, db: NODBControllerInstance = None):
+    def handle_incoming_file(self, local_path: pathlib.Path, headers: dict, post_hook: t.Optional[callable] = None, db: NODBControllerInstance = None):
         if db is not None:
-            return self._handle_incoming_file(local_path, metadata, post_hook, db)
+            return self._handle_incoming_file(local_path, headers, post_hook, db)
         else:
             with self.nodb as db:
-                self._handle_incoming_file(local_path, metadata, post_hook, db)
+                self._handle_incoming_file(local_path, headers, post_hook, db)
                 db.commit()
 
     def queue_step(self,
@@ -296,14 +296,18 @@ class WorkflowController:
             return False
         return True
 
-    def _handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance):
+    def _handle_incoming_file(self, local_path: pathlib.Path, headers: dict, post_hook: t.Optional[callable], db: NODBControllerInstance):
         file_handles = []
         working_file = None
         try:
+            if 'default_headers' in self.config:
+                for x in self.config['default_headers']:
+                    if x not in headers:
+                        headers[x] = self.config['default_headers'][x]
             if 'validation' in self.config:
-                self._validate_file_upload(local_path, metadata, self.config['validation'])
+                self._validate_file_upload(local_path, headers, self.config['validation'])
             with_gzip = False
-            filename = self._determine_filename(metadata)
+            filename = self._determine_filename(headers)
             gzip_filename = filename + ".gz"
             with tempfile.TemporaryDirectory as td:
                 td = pathlib.Path(td)
@@ -314,9 +318,9 @@ class WorkflowController:
                     if with_gzip:
                         self._gzip_local_file(local_path, gzip_file)
                         gzip_made = True
-                        working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, metadata, self.config['working_target'])
+                        working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, headers, self.config['working_target'])
                     else:
-                        working_file, target_tier = self._handle_file_upload(local_path, filename, metadata, self.config['working_target'])
+                        working_file, target_tier = self._handle_file_upload(local_path, filename, headers, self.config['working_target'])
                     file_handles.append((working_file, target_tier))
                 if 'additional_targets' in self.config:
                     for target in self.config['additional_targets']:
@@ -324,9 +328,9 @@ class WorkflowController:
                             if not gzip_made:
                                 self._gzip_local_file(local_path, gzip_file)
                                 gzip_made = True
-                            file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, metadata, target))
+                            file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, headers, target))
                         else:
-                            file_handles.append(self._handle_file_upload(local_path, filename, metadata, target))
+                            file_handles.append(self._handle_file_upload(local_path, filename, headers, target))
             if working_file is not None:
                 if self.has_more_steps(-1):
                     file_info = FileInfo(
@@ -334,13 +338,13 @@ class WorkflowController:
                         gzip_filename if with_gzip else filename,
                         with_gzip,
                         (
-                            metadata['last-modified-time']
-                            if 'last-modified-time' in metadata and metadata['last-modified-time'] else
+                            headers['last-modified-time']
+                            if 'last-modified-time' in headers and headers['last-modified-time'] else
                             datetime.datetime.now(datetime.timezone.utc)
                         )
                     )
                     self._queue_step(
-                        FilePayload(file_info, current_step=0, headers=metadata, workflow_name=self.name),
+                        FilePayload(file_info, current_step=0, headers=headers, workflow_name=self.name),
                         priority=None,
                         unique_key=hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest(),
                         db=db

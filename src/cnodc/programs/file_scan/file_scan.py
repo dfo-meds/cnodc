@@ -181,7 +181,7 @@ class FileScanWorkflowController:
                     }, self.halt_flag)
                     wf_controller.handle_incoming_file(
                         local_path=self.get_working_file(),
-                        metadata=headers,
+                        headers=headers,
                         post_hook=self.on_complete,
                         db=db
                     )

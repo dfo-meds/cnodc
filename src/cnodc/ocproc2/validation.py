@@ -43,17 +43,41 @@ class OCProc2Ontology:
                             parameter_name = key[key.rfind('#')+1:]
                             self._parameters[parameter_name] = {
                                 'preferred_unit': None,
-                                'data_type': None
+                                'data_type': None,
+                                'scopes': set(),
+                                'domain': None,
+                                'allow_multi': True
                             }
                             if 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#preferredUnit' in graph_dict[key]:
                                 self._parameters[parameter_name]['preferred_unit'] = graph_dict[key]['http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#preferredUnit']
                             if 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#dataType' in graph_dict[key]:
                                 data_type = graph_dict[key]['http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#dataType']
                                 self._parameters[parameter_name]['data_type'] = data_type[data_type.rfind('#')+1:]
+                            if 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#parameterDomain' in graph_dict[key]:
+                                self._parameters[parameter_name]['domain'] = graph_dict[key]['http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#parameterDomain']
+                            if 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#parameterScope' in graph_dict[key]:
+                                self._parameters[parameter_name]['scopes'] = set(x for x in graph_dict[key]['http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#parameterScope'])
+                            if 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#allowMulti' in graph_dict[key]:
+                                self._parameters[parameter_name]['allow_multi'] = graph_dict[key]['http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#allowMulti'] != 'false'
+
+    def allow_multiple_values(self, parameter_name: str) -> bool:
+        if parameter_name in self._parameters:
+            return self._parameters[parameter_name]['allow_multi']
+        return True
 
     def preferred_unit(self, parameter_name: str) -> t.Optional[str]:
         if parameter_name in self._parameters:
             return self._parameters[parameter_name]['preferred_unit']
+        return None
+
+    def parameter_domain(self, parameter_name: str) -> t.Optional[str]:
+        if parameter_name in self._parameters:
+            return self._parameters[parameter_name]['domain']
+        return None
+
+    def parameter_scopes(self, parameter_name: str) -> t.Optional[set]:
+        if parameter_name in self._parameters:
+            return self._parameters[parameter_name]['scopes'] or None
         return None
 
     def data_type(self, parameter_name: str) -> t.Optional[str]:

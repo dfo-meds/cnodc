@@ -161,6 +161,7 @@ class NODBControllerInstance:
         self._conn = pg_connection
         self._is_closed = False
         self._log = zrlog.get_logger("cnodc.db")
+        self._max_in_size = 32767
 
     @contextlib.contextmanager
     def cursor(self) -> _PGCursor:
@@ -267,10 +268,14 @@ class NODBControllerInstance:
                           queue_name: str,
                           data: dict,
                           priority: t.Optional[int] = None,
-                          unique_item_key: t.Optional[str] = None):
+                          unique_item_key: t.Optional[str] = None,
+                          subqueue_name: t.Optional[str] = None):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_queues (queue_name, priority, unique_item_name, data) VALUES (%s, %s, %s, %s)", [
+            cur.execute("""
+                INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) 
+                    VALUES (%s, %s, %s, %s, %s)""", [
                 queue_name,
+                subqueue_name or None,
                 priority if priority is not None else 0,
                 unique_item_key,
                 json.dumps(data)
@@ -279,12 +284,26 @@ class NODBControllerInstance:
     def batch_create_queue_item(self, values: t.Iterable[t.Sequence]):
         with self.cursor() as cur:
             cur.spooled_copy(
-                copy_query="COPY nodb_queues (queue_name, priority, unique_item_name, data) FROM STDIN",
+                copy_query="COPY nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) FROM STDIN",
                 values=(
-                    (x[0], x[2] if len(x) > 2 else 0, x[3] if len(x) > 3 else None, x[1])
+                    (x[0],
+                     (x[4] or None) if len(x) > 4 else None,
+                     (x[2] or 0) if len(x) > 2 else 0,
+                     (x[3] or None) if len(x) > 3 else None,
+                     x[1])
                     for x in values
                 )
             )
+
+    def chunk_for_in(self, values: list) -> t.Iterable[list]:
+        x = 0
+        l_values = len(values)
+        if l_values == 0:
+            yield []
+        else:
+            while x < l_values:
+                yield values[x:x+self._max_in_size]
+                x += self._max_in_size
 
     def load_queue_item(self, queue_uuid) -> t.Optional[structures.NODBQueueItem]:
         return self.load_object(
@@ -295,20 +314,23 @@ class NODBControllerInstance:
     def fetch_next_queue_item(self,
                               queue_name: str,
                               app_id: str,
+                              subqueue_name: t.Optional[str] = None,
                               retries: int = 5) -> t.Optional[structures.NODBQueueItem]:
         with self.cursor() as cur:
             while retries > 0:
-                item_uuid = self._attempt_fetch_queue_item(queue_name, app_id, cur)
+                item_uuid = self._attempt_fetch_queue_item(queue_name, subqueue_name, app_id, cur)
                 if item_uuid is not None:
                     return self.load_queue_item(item_uuid)
                 retries -= 1
             return None
 
-    def _attempt_fetch_queue_item(self, queue_name: str, app_id: str, cur: _PGCursor) -> t.Optional[str]:
+    def _attempt_fetch_queue_item(self, queue_name: str, subqueue_name: t.Optional[str], app_id: str, cur: _PGCursor) -> t.Optional[str]:
         try:
             cur.create_savepoint("fetch_queue_item")
-            cur.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
-
+            if subqueue_name:
+                cur.execute("SELECT next_queue_item(%s, %s, %s)", (queue_name, app_id, subqueue_name))
+            else:
+                cur.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
             item = cur.fetchone()
             if item[0] is not None:
                 cur.release_savepoint("fetch_queue_item")
@@ -326,6 +348,17 @@ class NODBControllerInstance:
         except Exception as ex:
             cur.rollback_to_savepoint("fetch_queue_item")
             raise ex
+
+    def delete_object(self,
+                      obj: structures._NODBBaseObject):
+        query = f'DELETE FROM {obj.get_table_name()} WHERE '
+        key_names = obj.get_primary_keys()
+        query += ' AND '.join(f'{x} = %s' for x in key_names)
+        args = [obj.get_for_db(x) for x in key_names]
+        if not args:
+            raise CNODCError('Probably an error')
+        with self.cursor() as cur:
+            cur.execute(query, args)
 
     def load_object(self,
                     obj_cls: type,

@@ -110,13 +110,15 @@ class QCTestResult:
                  test_date: t.Union[datetime.datetime, str],
                  result: str,
                  messages: list[QCMessage] = None,
-                 notes: str = None):
+                 notes: str = None,
+                 is_stale: bool = False):
         self.test_name = test_name
         self.test_version = test_version
         self.test_date = test_date.isoformat() if isinstance(test_date, datetime.datetime) else test_date
         self.result = result
         self.messages = messages or []
         self.notes = notes
+        self.is_stale = is_stale
 
     def passed(self):
         return self.result == 'PASS'
@@ -128,7 +130,8 @@ class QCTestResult:
             '_date': self.test_date,
             '_messages': [m.to_mapping() for m in self.messages],
             '_result': self.result,
-            '_notes': self.notes
+            '_notes': self.notes,
+            '_stale': self.is_stale
         }
 
     @staticmethod
@@ -139,7 +142,8 @@ class QCTestResult:
             map_['_date'],
             map_['_result'],
             [QCMessage.from_mapping(x) for x in map_['_messages']],
-            map_['_notes']
+            map_['_notes'],
+            map_['_stale'] if '_stale' in map_ else False
         )
 
 
@@ -165,6 +169,9 @@ class AbstractValue:
     def is_numeric(self) -> bool:
         raise NotImplementedError
 
+    def is_integer(self) -> bool:
+        raise NotImplementedError
+
     def in_range(self, min_value: t.Optional[float] = None, max_value: t.Optional[float] = None) -> bool:
         raise NotImplementedError
 
@@ -178,6 +185,9 @@ class AbstractValue:
         raise NotImplementedError
 
     def is_iso_datetime(self) -> bool:
+        raise NotImplementedError
+
+    def all_values(self) -> t.Iterable:
         raise NotImplementedError
 
     @property
@@ -226,6 +236,9 @@ class Value(AbstractValue):
 
     def is_empty(self) -> bool:
         return self._value is None or self._value == ''
+
+    def all_values(self) -> t.Iterable:
+        yield self
 
     def is_iso_datetime(self) -> bool:
         try:
@@ -313,6 +326,10 @@ class MultiValue(AbstractValue):
             if bv is not None and bv != '':
                 return bv
         return None
+
+    def all_values(self) -> t.Iterable:
+        for v in self._value:
+            yield from v.all_values()
 
     def is_empty(self) -> bool:
         return all(x.is_empty() for x in self._value)
@@ -418,8 +435,14 @@ class ValueMap:
     def set(self,
             parameter_code: str,
             value: OCProcValue,
-            metadata: t.Optional[DefaultValueDict] = None):
-        value = value if isinstance(value, AbstractValue) else Value(value, metadata)
+            metadata: t.Optional[DefaultValueDict] = None,
+            **kwargs):
+        if not isinstance(value, AbstractValue):
+            value = Value(value, metadata)
+        elif metadata:
+            value.metadata.update(metadata)
+        if kwargs:
+            value.metadata.update(kwargs)
         self._map[parameter_code] = value
 
     def set_multiple(self,
@@ -509,13 +532,18 @@ class DataRecord:
                 for record_set_key in self.subrecords[record_type]:
                     yield from self.subrecords[record_type][record_set_key].records
 
-    def test_already_run(self, test_name: str) -> bool:
-        return any(x.test_name == test_name for x in self.qc_tests)
+    def test_already_run(self, test_name: str, include_stale: bool = False) -> bool:
+        if include_stale:
+            return any(x.test_name == test_name for x in self.qc_tests)
+        else:
+            return any(x.test_name == test_name and not x.is_stale for x in self.qc_tests)
 
-    def latest_test_result(self, test_name: str) -> t.Optional[QCTestResult]:
+    def latest_test_result(self, test_name: str, include_stale: bool = False) -> t.Optional[QCTestResult]:
         best = None
         for qcr in self.qc_tests:
             if qcr.test_name != test_name:
+                continue
+            if (not include_stale) and qcr.is_stale:
                 continue
             if best is None or qcr.test_date > best.test_date:
                 best = qcr
@@ -525,6 +553,7 @@ class DataRecord:
                               test_name: str,
                               test_version: str,
                               notes: str = None):
+        self.mark_test_results_stale(test_name)
         self.qc_tests.append(QCTestResult(
             test_name,
             test_version,
@@ -539,6 +568,7 @@ class DataRecord:
                               test_version: str,
                               messages: list[QCMessage],
                               notes: str = None):
+        self.mark_test_results_stale(test_name)
         self.qc_tests.append(QCTestResult(
             test_name,
             test_version,
@@ -547,6 +577,11 @@ class DataRecord:
             messages,
             notes
         ))
+
+    def mark_test_results_stale(self, test_name: str):
+        for qct in self.qc_tests:
+            if qct.test_name == test_name:
+                qct.is_stale = True
 
     def add_history_entry(self,
                           message: str,

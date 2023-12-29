@@ -15,6 +15,9 @@ Configuration is done via a mapping (typically specified in YAML) that follows
 the following scheme:
 
 ```yaml 
+default_headers:    # Additional headers to add on to each request (if not overridden by the intake process)
+  key1: value1
+  ...
 filename_pattern: ''  # Pattern to construct file names, see below
 accept_user_filename: false  # Set to true to allow users to specify a filename
 validation: ''  # Fully qualified path to a Python callable to verify the submitted file
@@ -49,7 +52,7 @@ default-filename: ''  # Fallback filename, provided by the upload manager
 request-id: ''        # A unique identifier for each file submission
 workflow-name: ''     # The name of the workflow to execute
 last-modified-time: ''  # The date/time (in ISO format) of the best guess of the last modified date of the file
-
+manual-subqueue: ''   # The name of the subqueue for manual verification (defaults to Null) 
 ```
 
 ### Pattern replacements

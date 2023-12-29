@@ -51,6 +51,7 @@ class SourceFileStatus(enum.Enum):
 class ObservationStatus(enum.Enum):
 
     UNVERIFIED = 'UNVERIFIED'
+    IN_PROGRESS = 'IN_PROGRESS'
     VERIFIED = 'VERIFIED'
     DISCARDED = 'DISCARDED'
     DUPLICATE = 'DUPLICATE'
@@ -65,14 +66,14 @@ class ObservationType(enum.Enum):
     OTHER = 'OTHER'
 
 
-class QualityControlStatus(enum.Enum):
+class BatchStatus(enum.Enum):
 
-    UNCHECKED = 'UNCHECKED'
-    REVIEW = 'REVIEW'
-    ERROR = 'ERROR'
-    COMPLETE = 'COMPLETE'
+    NEW = 'NEW'
+    QUEUED = 'QUEUED'
     IN_PROGRESS = 'IN_PROGRESS'
-    DISCARD = 'DISCARD'
+    MANUAL_REVIEW = 'MANUAL_REVIEW'
+    COMPLETE = 'COMPLETE'
+    ERRORED = 'ERRORED'
 
 
 class ObservationWorkingStatus(enum.Enum):
@@ -353,6 +354,7 @@ class NODBQueueItem(_NODBBaseObject):
     locked_by: t.Optional[str] = _NODBBaseObject.make_property("locked_by", coerce=str, readonly=True)
     locked_since: t.Optional[datetime.datetime] = _NODBBaseObject.make_datetime_property("locked_since", readonly=True)
     queue_name: str = _NODBBaseObject.make_property("queue_name", readonly=True, coerce=str)
+    subqueue_name: str = _NODBBaseObject.make_property("subqueue_name", readonly=True, coerce=str)
     unique_item_name: t.Optional[str] = _NODBBaseObject.make_property("unique_item_name", readonly=True, coerce=str)
     priority: t.Optional[int] = _NODBBaseObject.make_property("priority", readonly=True, coerce=int)
     data: dict = _NODBBaseObject.make_property("data", readonly=True)
@@ -410,11 +412,6 @@ class NODBQueueItem(_NODBBaseObject):
                 self.status = new_status
 
 
-
-
-
-
-
 class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
     TABLE_NAME: str = "nodb_source_files"
@@ -452,7 +449,7 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
         })
         self.modified_values.add('history')
 
-    def load_all_observation_data(self, db: NODBControllerInstance, lock_type: LockType = None):
+    def stream_observation_data(self, db: NODBControllerInstance, lock_type: LockType = None) -> t.Iterable[NODBObservationData]:
         with db.cursor() as cur:
             query = f"""
                 SELECT * 
@@ -469,19 +466,43 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
                     **{x: row[x] for x in row.keys()}
                 )
 
-    @classmethod
-    def find_by_source_path(cls, db: NODBControllerInstance, source_path: str, *args, **kwargs):
-        return db.load_object(cls, {
-            'source_path': source_path
-        }, *args, **kwargs)
+    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None) -> t.Iterable[NODBWorkingRecord]:
+        with db.cursor() as cur:
+            query = f"""
+                   SELECT * 
+                   FROM {NODBWorkingRecord.TABLE_NAME} 
+                   WHERE 
+                       received_date = %s
+                       AND source_file_uuid = %s
+               """
+            query += db.build_lock_type_clause(lock_type)
+            cur.execute(query, [self.received_date, self.source_uuid])
+            for row in cur.fetch_stream():
+                yield NODBWorkingRecord(
+                    is_new=False,
+                    **{x: row[x] for x in row.keys()}
+                )
 
     @classmethod
-    def find_by_original_info(cls, db: NODBControllerInstance, original_uuid: str, received_date: datetime.date, message_idx: int, *args, **kwargs):
+    def find_by_source_path(cls, db: NODBControllerInstance, source_path: str, **kwargs):
+        return db.load_object(cls, {
+            'source_path': source_path
+        }, **kwargs)
+
+    @classmethod
+    def find_by_original_info(cls, db: NODBControllerInstance, original_uuid: str, received_date: t.Union[datetime.date, str], message_idx: int, **kwargs):
         return db.load_object(cls, {
             'original_idx': message_idx,
-            'received_date': received_date,
+            'received_date': parse_received_date(received_date),
             'original_uuid': original_uuid
-        }, *args, **kwargs)
+        }, **kwargs)
+
+    @classmethod
+    def find_by_uuid(cls, db: NODBControllerInstance, source_uuid: str, received: t.Union[datetime.date, str], **kwargs):
+        return db.load_object(cls, {
+            'source_uuid': source_uuid,
+            'received_date': parse_received_date(received)
+        }, **kwargs)
 
 
 class NODBUser(_NODBBaseObject):
@@ -564,8 +585,8 @@ class NODBUser(_NODBBaseObject):
         return hashlib.pbkdf2_hmac('sha512', password.encode('utf-8', errors="replace"), salt, iterations)
 
     @classmethod
-    def find_by_username(cls, db, username: str, *args, **kwargs):
-        return db.load_object(cls, {"username": username}, *args, **kwargs)
+    def find_by_username(cls, db, username: str, **kwargs):
+        return db.load_object(cls, {"username": username}, **kwargs)
 
 
 class NODBSession(_NODBBaseObject):
@@ -591,8 +612,8 @@ class NODBSession(_NODBBaseObject):
         return self.expiry_time < datetime.datetime.now(datetime.timezone.utc)
 
     @classmethod
-    def find_by_session_id(cls, db, session_id: str, *args, **kwargs):
-        return db.load_object(cls, {"session_id": session_id}, *args, **kwargs)
+    def find_by_session_id(cls, db, session_id: str, **kwargs):
+        return db.load_object(cls, {"session_id": session_id}, **kwargs)
 
 
 class NODBUploadWorkflow(_NODBBaseObject):
@@ -666,8 +687,8 @@ class NODBUploadWorkflow(_NODBBaseObject):
                 raise CNODCError(f'Invalid value for [queue_priority]: {self.configuration["queue_priority"]}, expecting int', 'WFCHECK', 1014)
 
     @classmethod
-    def find_by_name(cls, db, workflow_name: str, *args, **kwargs):
-        return db.load_object(cls, {"workflow_name": workflow_name}, *args, **kwargs)
+    def find_by_name(cls, db, workflow_name: str, **kwargs):
+        return db.load_object(cls, {"workflow_name": workflow_name},  **kwargs)
 
 
 class NODBObservation(_NODBBaseObject):
@@ -683,7 +704,6 @@ class NODBObservation(_NODBBaseObject):
     source_name: str = _NODBBaseObject.make_property("source_name", coerce=str)
     instrument_type: str = _NODBBaseObject.make_property("instrument_type", coerce=str)
     program_name: str = _NODBBaseObject.make_property("program_name", coerce=str)
-    status: ObservationStatus = _NODBBaseObject.make_enum_property("status", ObservationStatus)
     obs_time: datetime.datetime = _NODBBaseObject.make_datetime_property("obs_time")
     min_depth: float = _NODBBaseObject.make_property("min_depth", coerce=float)
     max_depth: float = _NODBBaseObject.make_property("max_depth", coerce=float)
@@ -695,11 +715,11 @@ class NODBObservation(_NODBBaseObject):
     embargo_date: datetime.datetime = _NODBBaseObject.make_datetime_property("embargo_date")
 
     @classmethod
-    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
+    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], **kwargs):
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
             "received_date": parse_received_date(received_date)
-        }, *args, **kwargs)
+        }, **kwargs)
 
 
 class NODBObservationData(_NODBBaseObject):
@@ -717,6 +737,18 @@ class NODBObservationData(_NODBBaseObject):
     qc_tests: dict = _NODBBaseObject.make_property("qc_tests")
     duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
     duplicate_received_date: datetime.date = _NODBBaseObject.make_date_property("duplicate_received_date")
+    status: ObservationStatus = _NODBBaseObject.make_enum_property("status", ObservationStatus)
+
+    def get_process_metadata(self, key, default=None):
+        if self.process_metadata and key in self.process_metadata:
+            return self.process_metadata[key]
+        return default
+
+    def set_process_metadata(self, key, value):
+        if self.process_metadata is None:
+            self.process_metadata = {}
+        self.process_metadata[key] = value
+        self.modified_values.add('process_metadata')
 
     @classmethod
     def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
@@ -773,14 +805,179 @@ class NODBObservationData(_NODBBaseObject):
             self.mark_modified('data_record')
 
 
+class NODBStation(_NODBBaseObject):
+
+    TABLE_NAME = 'nodb_stations'
+    PRIMARY_KEYS = ('station_uuid', )
+
+    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
+    wmo_id: str = _NODBBaseObject.make_property("wmo_id", coerce=str)
+    wigos_id: str = _NODBBaseObject.make_property("wigos_id", coerce=str)
+    station_name: str = _NODBBaseObject.make_property("station_name", coerce=str)
+    station_id: str = _NODBBaseObject.make_property("station_id", coerce=str)
+    station_type: str = _NODBBaseObject.make_property("station_type", coerce=str)
+    service_start_date: datetime.datetime = _NODBBaseObject.make_datetime_property("service_start_date")
+    service_end_date: datetime.datetime = _NODBBaseObject.make_datetime_property("service_end_date")
+    instrumentation: dict = _NODBBaseObject.make_property('instrumentation')
+    metadata: dict = _NODBBaseObject.make_property('metadata')
+    map_to_uuid: str = _NODBBaseObject.make_property("map_to_uuid", coerce=str)
+    status: StationStatus = _NODBBaseObject.make_enum_property("status", StationStatus)
+    embargo_data_days: int = _NODBBaseObject.make_property('embargo_data_days', coerce=int)
+
+    @classmethod
+    def search(cls,
+               db: NODBControllerInstance,
+               in_service_time: t.Optional[datetime.datetime] = None,
+               wmo_id: t.Optional[str] = None,
+               wigos_id: t.Optional[str] = None,
+               station_id: t.Optional[str] = None,
+               station_name: t.Optional[str] = None) -> list[NODBStation]:
+        with db.cursor() as cur:
+            args = []
+            clauses = []
+            if wmo_id is not None and wmo_id != '':
+                args.append(wmo_id)
+                clauses.append('wmo_id = %s')
+            if wigos_id is not None and wigos_id != '':
+                args.append(wigos_id)
+                clauses.append('wigos_id = %s')
+            if station_id is not None and station_id != '':
+                args.append(station_id)
+                clauses.append('station_id = %s')
+            if station_name is not None and station_name != '':
+                args.append(station_name)
+                clauses.append('station_name = %s')
+            if not args:
+                return []
+            if in_service_time is not None:
+                clauses.append('((service_start_date IS NULL OR service_start_date <= %s) AND (service_end_date IS NULL or service_end_date >= %s)')
+                args.extend([in_service_time, in_service_time])
+            query = f"SELECT * FROM {NODBStation.TABLE_NAME} WHERE " + ' OR '.join(clauses)
+            cur.execute(query, args)
+            return [NODBStation(is_new=False, **x) for x in cur.fetch_all()]
+
+    @classmethod
+    def find_by_uuid(cls, db: NODBControllerInstance, station_uuid: str, **kwargs):
+        return db.load_object(cls, {
+            'station_uuid': station_uuid
+        }, **kwargs)
 
 
+class NODBWorkingRecord(_NODBBaseObject):
+
+    TABLE_NAME = "nodb_working"
+    PRIMARY_KEYS = ("working_uuid",)
+
+    working_uuid: str = _NODBBaseObject.make_property("working_uuid", coerce=str)
+    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
+    source_file_uuid: str = _NODBBaseObject.make_property("source_file_uuid", coerce=str)
+    message_idx: int = _NODBBaseObject.make_property("message_idx", coerce=int)
+    record_idx: int = _NODBBaseObject.make_property("record_idx", coerce=int)
+    data_record: t.Optional[bytes] = _NODBBaseObject.make_property("data_record")
+    qc_metadata: dict = _NODBBaseObject.make_property("qc_metadata")
+    qc_batch_id: str = _NODBBaseObject.make_property("qc_batch_id", coerce=str)
+    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
+    obs_time: datetime.datetime = _NODBBaseObject.make_datetime_property("obs_time")
+    location: str = _NODBBaseObject.make_wkt_property("location")
+    record_uuid: str = _NODBBaseObject.make_property("record_uuid", coerce=str)
+
+    @classmethod
+    def find_by_uuid(cls, db, obs_uuid: str,*args, **kwargs):
+        return db.load_object(cls, {
+            "obs_uuid": obs_uuid,
+        }, *args, **kwargs)
+
+    @classmethod
+    def find_by_source_info(cls,
+                            db,
+                            source_file_uuid: str,
+                            source_received_date: t.Union[str, datetime.date],
+                            message_idx: int,
+                            record_idx: int,
+                            *args, **kwargs):
+
+        return db.load_object(cls, {
+                "received_date": parse_received_date(source_received_date),
+                "source_file_uuid": source_file_uuid,
+                "message_idx": message_idx,
+                "record_idx": record_idx
+            }, *args, **kwargs)
+
+    @property
+    def record(self) -> t.Optional[DataRecord]:
+        if self.data_record is None:
+            return None
+        if not self.in_cache('loaded_record') is None:
+            decoder = OCProc2BinCodec()
+            records = [x for x in decoder.load_all(self.data_record)]
+            if records:
+                self.set_cached('loaded_record', records[0])
+            else:
+                self.set_cached('loaded_record', None)
+        return self.get_cached('loaded_record')
+
+    @record.setter
+    def record(self, data_record: DataRecord):
+        self.set_cached('loaded_record', data_record)
+        if data_record is None:
+            self.data_record = None
+            self.mark_modified('data_record')
+        else:
+            decoder = OCProc2BinCodec()
+            ba = bytearray()
+            for byte_ in decoder.encode_messages(
+                    [data_record],
+                    codec='JSON',
+                    compression='LZMA6CRC4',
+                    correction=None):
+                ba.extend(byte_)
+            self.data_record = ba
+            self.mark_modified('data_record')
+
+    @staticmethod
+    def bulk_set_batch_uuid(
+            db: NODBControllerInstance,
+            working_uuids: list[str],
+            batch_uuid: str
+    ):
+        with db.cursor() as cur:
+            for uuid_subset in db.chunk_for_in(working_uuids):
+                cur.execute(f"""
+                    UPDATE {NODBWorkingRecord.TABLE_NAME} 
+                    SET qc_batch_id = %s
+                    WHERE working_uuid IN {','.join('%s' for _ in range(0, len(uuid_subset)))}""", [
+                    batch_uuid,
+                    *uuid_subset
+                ])
 
 
+class NODBBatch(_NODBBaseObject):
 
+    batch_uuid: str = _NODBBaseObject.make_property("batch_uuid", coerce=str)
+    qc_metadata: dict = _NODBBaseObject.make_property("qc_metadata")
+    status: BatchStatus = _NODBBaseObject.make_enum_property("status", BatchStatus)
 
+    @classmethod
+    def find_by_uuid(cls, db: NODBControllerInstance, batch_uuid: str, **kwargs):
+        return db.load_object(cls, {
+            'batch_uuid': batch_uuid
+        }, **kwargs)
 
-
+    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None):
+        with db.cursor() as cur:
+            query = f"""
+                   SELECT * 
+                   FROM {NODBWorkingRecord.TABLE_NAME} 
+                   WHERE 
+                       qc_batch_id = %s
+               """
+            query += db.build_lock_type_clause(lock_type)
+            cur.execute(query, [self.batch_uuid])
+            for row in cur.fetch_stream():
+                yield NODBWorkingRecord(
+                    is_new=False,
+                    **{x: row[x] for x in row.keys()}
+                )
 
 
 
@@ -874,19 +1071,6 @@ class _NODBWithDataRecord:
     def clear_data_record_cache(self):
         self._data_record_cache = None
 
-
-
-
-
-class NODBStation(_NODBWithMetadata, _NODBBaseObject):
-
-    station_type_name: str = _NODBBaseObject.make_property("station_type_name", coerce=str)
-    wmo_id: str = _NODBBaseObject.make_property("wmo_id", coerce=str)
-    wigos_id: str = _NODBBaseObject.make_property("wigos_id", coerce=str)
-    station_name: str = _NODBBaseObject.make_property("station_name", coerce=str)
-    station_id: str = _NODBBaseObject.make_property("station_id", coerce=str)
-    map_to_uuid: str = _NODBBaseObject.make_property("map_to_uuid", coerce=str)
-    status: StationStatus = _NODBBaseObject.make_enum_property("status", StationStatus)
 
 
 class NODBQCBatch(_NODBWithQCProperties, _NODBBaseObject):

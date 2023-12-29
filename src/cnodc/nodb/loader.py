@@ -1,8 +1,9 @@
 import datetime
+import statistics
 import uuid
 from cnodc.codecs.base import BaseCodec, DecodeResult
 from cnodc.nodb import LockType
-from cnodc.ocproc2 import DataRecord
+from cnodc.ocproc2 import DataRecord, MultiValue
 import cnodc.nodb.structures as structures
 import typing as t
 from cnodc.util import CNODCError
@@ -17,8 +18,8 @@ class NODBLoader(PayloadProcessor):
                  error_directory: str,
                  decoder: BaseCodec,
                  decode_kwargs: dict = None,
-                 failure_queue: str = 'nodb_decode_failures',
-                 verification_queue: str = 'nodb_verification',
+                 failure_queue: str = 'nodb_decode_failure',
+                 verification_queue: str = 'nodb_verify',
                  default_metadata: dict[str, t.Any] = None,
                  **kwargs):
         super().__init__(
@@ -117,7 +118,7 @@ class NODBLoader(PayloadProcessor):
                             message_idx: int,
                             record_idx: int,
                             record: DataRecord):
-        obs_data = structures.NODBObservationData.find_by_source_info(
+        working_record = structures.NODBWorkingRecord.find_by_source_info(
             self._db,
             source_file.source_uuid,
             source_file.received_date,
@@ -125,34 +126,31 @@ class NODBLoader(PayloadProcessor):
             record_idx,
             key_only=True
         )
-        if obs_data is None:
-            obs_data = structures.NODBObservationData()
-            obs_data.obs_uuid = str(uuid.uuid4())
-            obs_data.received_date = source_file.received_date
-            obs_data.message_idx = message_idx
-            obs_data.record_idx = record_idx
-            self._populate_observation_data(obs_data, record)
-            self._db.insert_object(obs_data)
+        if working_record is None:
+            working_record = structures.NODBWorkingRecord()
+            working_record.working_uuid = str(uuid.uuid4())
+            working_record.received_date = source_file.received_date
+            working_record.message_idx = message_idx
+            working_record.record_idx = record_idx
+            self._populate_observation_data(working_record, record)
+            self._db.insert_object(working_record)
             self._db.commit()
 
-    def _populate_observation_data(self, obs_data: structures.NODBObservationData, record: DataRecord):
+    def _populate_observation_data(self, working_record: structures.NODBWorkingRecord, record: DataRecord):
         for metadata_key in self._defaults:
             if metadata_key not in record.metadata:
                 record.metadata[metadata_key] = self._defaults[metadata_key]
-        obs_data.record = record
-        if 'CNODCDuplicateId' in record.metadata and 'CNODCDuplicateDate' in record.metadata:
-            try:
-                obs_data.duplicate_received_date = datetime.date.fromisoformat(record.metadata['CNODCDuplicateDate'].value)
-                obs_data.duplicate_uuid = record.metadata['CNODCDuplicateId'].value
-            except ValueError:
-                self._log.warning(f"Ignoring invalid duplicate received date [{record.metadata['CNODCDuplicateDate']}")
-        if record.qc_tests:
-            qc_tests = {}
-            for test in record.qc_tests:
-                # Assemble the most recent test of each name
-                if test.test_name not in qc_tests or test.test_date > qc_tests[test.test_name][1]:
-                    qc_tests[test.test_name] = (test.test_version, test.test_date, test.result)
-            obs_data.qc_tests = qc_tests
+        working_record.record = record
+        if 'Time' in record.coordinates and record.coordinates['Time'].is_iso_datetime():
+            working_record.obs_time = datetime.datetime.fromisoformat(record.coordinates['Time'].best_value())
+        lat = []
+        if 'Latitude' in record.coordinates:
+            lat = [x.value for x in record.coordinates['Latitude'].all_values() if not x.is_empty()]
+        lon = []
+        if 'Longitude' in record.coordinates:
+            lon = [x.value for x in record.coordinates['Longitude'].all_values() if not x.is_empty()]
+        if lat and lon:
+            working_record.location = f'POINT ({round(statistics.mean(lon), 4)} {round(statistics.mean(lat), 4)})'
 
     def _handle_decode_failure(self,
                                source_file: structures.NODBSourceFile,

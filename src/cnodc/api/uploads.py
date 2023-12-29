@@ -200,7 +200,7 @@ class UploadController:
                 working_headers['default-filename'] = self.request_id
                 controller.handle_incoming_file(
                     local_path=self.get_working_file(),
-                    metadata=working_headers,
+                    headers=working_headers,
                     db=db
                 )
                 self._cleanup_request()

@@ -42,6 +42,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'obs_status') THEN
         CREATE TYPE obs_status AS ENUM (
             'UNVERIFIED',
+            'IN_PROGRESS',
             'VERIFIED',
             'DISCARDED',
             'DUPLICATE',
@@ -218,9 +219,6 @@ CREATE TABLE IF NOT EXISTS nodb_qc_batches (
     batch_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    qc_workflow_name    VARCHAR(126)    NOT NULL,
-    qc_process_name     VARCHAR(126),
-    qc_current_step     INTEGER,
     qc_metadata         JSON,
     status              qc_status     NOT NULL
 );
@@ -248,8 +246,6 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
     instrument_type     VARCHAR(126)    NOT NULL,
     program_name        VARCHAR(126)    NOT NULL,
 
-    status              obs_status      NOT NULL,
-
     obs_time            TIMESTAMPTZ,
     min_depth           REAL,
     max_depth           REAL,
@@ -271,7 +267,6 @@ CREATE INDEX IF NOT EXISTS nodb_obs_mission_name ON nodb_obs(mission_name);
 CREATE INDEX IF NOT EXISTS nodb_obs_source_name ON nodb_obs(source_name);
 CREATE INDEX IF NOT EXISTS nodb_obs_platform_name ON nodb_obs(instrument_type);
 CREATE INDEX IF NOT EXISTS nodb_obs_program_name ON nodb_obs(program_name);
-CREATE INDEX IF NOT EXISTS nodb_obs_status ON nodb_obs(status) WHERE status != 'VERIFIED';
 CREATE INDEX IF NOT EXISTS nodb_obs_obs_time ON nodb_obs(obs_time) WHERE obs_time IS NOT NULL;
 CREATE INDEX IF NOT EXISTS nodb_obs_min_depth ON nodb_obs(min_depth) WHERE min_depth IS NOT NULL;
 CREATE INDEX IF NOT EXISTS nodb_obs_max_depth ON nodb_obs(max_depth) WHERE max_depth IS NOT NULL;
@@ -306,6 +301,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
     message_idx         INTEGER         NOT NULL,
     record_idx          INTEGER         NOT NULL,
 
+    status              obs_status      NOT NULL,
+
     data_record         BYTEA,
 
     process_metadata    JSON,
@@ -314,12 +311,16 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
     duplicate_uuid      UUID,
     duplicate_received_date DATE,
 
+    batch_uuid          UUID,
+
     PRIMARY KEY (obs_uuid, received_date),
     FOREIGN KEY (obs_uuid, received_date) REFERENCES nodb_obs(obs_uuid, received_date),
     FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files(source_uuid, received_date),
     FOREIGN KEY (duplicate_uuid, duplicate_received_date) REFERENCES nodb_obs(obs_uuid, received_date)
 ) PARTITION BY RANGE(received_date);
 
+
+CREATE INDEX IF NOT EXISTS ix_nodb_obs_data_status ON nodb_obs_data(status) WHERE status != 'VERIFIED';
 
 -- Unique index on observations source info to ensure we don't duplicate records from the same file.
 CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(received_date, source_file_uuid, message_idx, record_idx);
@@ -336,8 +337,13 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data_2030 PARTITION OF nodb_obs_data FOR VAL
 -- Table for working data
 CREATE TABLE IF NOT EXISTS nodb_working (
     working_uuid            UUID            NOT NULL    PRIMARY KEY,
+    received_date           DATE            NOT NULL,
     db_created_date         TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+
+    source_file_uuid        UUID            NOT NULL,
+    message_idx             INTEGER         NOT NULL,
+    record_idx              INTEGER         NOT NULL,
 
     qc_metadata             JSON,
     qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
@@ -347,9 +353,9 @@ CREATE TABLE IF NOT EXISTS nodb_working (
     location                GEOGRAPHY(GEOMETRY, 4326),
 
     record_uuid             UUID,
-    record_received_date    DATE,
 
-    FOREIGN KEY (record_uuid, record_received_date) REFERENCES nodb_obs (obs_uuid, received_date)
+    FOREIGN KEY (record_uuid, received_date) REFERENCES nodb_obs (obs_uuid, received_date),
+    FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files (source_file_uuid, received_date)
 );
 
 
@@ -358,6 +364,7 @@ CREATE INDEX IF NOT EXISTS idx_nodb_working_station_uuid ON nodb_working(station
 CREATE INDEX IF NOT EXISTS idx_nodb_working_obs_time ON nodb_working(obs_time);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_location ON nodb_working USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, record_received_date);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_working_source_info ON nodb_working(received_date, source_file_uuid, message_idx, record_idx);
 
 
 -- Trigger for QC batch table modified date maintenance
@@ -379,6 +386,7 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     delay_release       TIMESTAMPTZ                 DEFAULT NULL,
 
     queue_name          VARCHAR(126)    NOT NULL,
+    subqueue_name       VARCHAR(126)                DEFAULT NULL,
     unique_item_name    VARCHAR(126)                DEFAULT NULL,
     priority            INTEGER         NOT NULL    DEFAULT 0,
 
@@ -521,7 +529,8 @@ END; $$;
 -- Function to get the next queue item
 CREATE OR REPLACE FUNCTION next_queue_item(
     qname VARCHAR(126),
-    app_id VARCHAR(126)
+    app_id VARCHAR(126),
+    subqueue_name VARCHAR(126) DEFAULT NULL
 )
 RETURNS UUID
 AS $next_item$
@@ -529,36 +538,69 @@ DECLARE
     item_key UUID;
     selected_key UUID;
 BEGIN
-    SELECT q.queue_uuid INTO item_key
-    FROM nodb_queues q
-    WHERE
-        q.queue_name = qname
-        AND (
-            q.status = 'UNLOCKED'
-            OR (
-                q.status = 'DELAYED_RELEASE'
-                AND q.delay_release <= CURRENT_TIMESTAMP(0)
+    IF subqueue_name IS NULL THEN
+        SELECT q.queue_uuid INTO item_key
+        FROM nodb_queues q
+        WHERE
+            q.queue_name = qname
+            AND (
+                q.status = 'UNLOCKED'
+                OR (
+                    q.status = 'DELAYED_RELEASE'
+                    AND q.delay_release <= CURRENT_TIMESTAMP(0)
+                )
             )
-        )
-        AND (
-            q.unique_item_name IS NULL
-            OR q.unique_item_name NOT IN (
-                SELECT q2.unique_item_name
-                FROM nodb_queues q2
-                WHERE
-                    q2.queue_name = qname
-                    AND q2.status = 'LOCKED'
+            AND (
+                q.unique_item_name IS NULL
+                OR q.unique_item_name NOT IN (
+                    SELECT q2.unique_item_name
+                    FROM nodb_queues q2
+                    WHERE
+                        q2.queue_name = qname
+                        AND q2.status = 'LOCKED'
+                )
             )
-        )
-    FOR NO KEY UPDATE;
-    UPDATE nodb_queues
-    SET
-        status = 'LOCKED',
-        locked_by = app_id,
-        locked_since = CURRENT_TIMESTAMP(0)
-    WHERE
-        queue_uuid = item_key
-        AND status IN ('UNLOCKED', 'DELAYED_RELEASE')
-    RETURNING queue_uuid INTO selected_key;
-    RETURN selected_key;
+        ORDER BY priority DESC
+        LIMIT 1
+        FOR NO KEY UPDATE;
+    ELSE
+        SELECT q.queue_uuid INTO item_key
+        FROM nodb_queues q
+        WHERE
+            q.queue_name = qname
+            AND q.subqueue_name = subqueue_name
+            AND (
+                q.status = 'UNLOCKED'
+                OR (
+                    q.status = 'DELAYED_RELEASE'
+                    AND q.delay_release <= CURRENT_TIMESTAMP(0)
+                )
+            )
+            AND (
+                q.unique_item_name IS NULL
+                OR q.unique_item_name NOT IN (
+                    SELECT q2.unique_item_name
+                    FROM nodb_queues q2
+                    WHERE
+                        q2.queue_name = qname
+                        AND q2.status = 'LOCKED'
+                )
+            )
+        ORDER BY priority DESC
+        LIMIT 1
+        FOR NO KEY UPDATE;
+    END IF;
+    IF FOUND THEN
+        UPDATE nodb_queues
+        SET
+            status = 'LOCKED',
+            locked_by = app_id,
+            locked_since = CURRENT_TIMESTAMP(0)
+        WHERE
+            queue_uuid = item_key
+            AND status IN ('UNLOCKED', 'DELAYED_RELEASE')
+        RETURNING queue_uuid INTO selected_key;
+        RETURN selected_key;
+    END IF;
+    RETURN;
 END; $next_item$ LANGUAGE plpgsql;

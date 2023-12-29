@@ -9,7 +9,8 @@ from cnodc.util import CNODCError, HaltFlag
 import pathlib
 import zrlog
 
-from cnodc.workflow.workflow import WorkflowPayload, FilePayload, ItemPayload, SourceFilePayload
+from cnodc.workflow.workflow import WorkflowPayload, FilePayload, ItemPayload, SourceFilePayload, BatchPayload, \
+    WorkflowController
 
 
 class PayloadProcessor:
@@ -34,6 +35,7 @@ class PayloadProcessor:
         self._halt_flag = halt_flag
         self._db: t.Optional[NODBControllerInstance] = None
         self._current_payload: t.Optional[WorkflowPayload] = None
+        self._current_item: t.Optional[structures.NODBQueueItem] = None
         self._log = zrlog.get_logger(log_name)
 
     def process_queue_item(self, item: structures.NODBQueueItem):
@@ -93,6 +95,49 @@ class PayloadProcessor:
         )
         self._current_payload.update_for_propagation(payload, for_next_step)
         return payload
+
+    def create_batch_payload(self,
+                             batch_uuid: str,
+                             for_next_step: bool = True):
+        payload = BatchPayload(
+            batch_uuid=batch_uuid,
+            metadata={
+                'source_name': self._processor_name,
+                'source_version': self._processor_version,
+                'source_id': self._processor_uuid
+            }
+        )
+        self._current_payload.update_for_propagation(payload, for_next_step)
+        return payload
+
+    def load_source_from_payload(self) -> structures.NODBSourceFile:
+        if not isinstance(self._current_payload, SourceFilePayload):
+            raise CNODCError('Invalid payload type')
+        source_file = structures.NODBSourceFile.find_by_uuid(
+            self._db,
+            self._current_payload.source_uuid,
+            self._current_payload.received_date
+        )
+        if source_file is None:
+            raise CNODCError('Invalid payload, no such UUID')
+        return source_file
+
+    def load_batch_from_payload(self) -> structures.NODBBatch:
+        if not isinstance(self._current_payload, BatchPayload):
+            raise CNODCError('Invalid payload type')
+        batch = structures.NODBBatch.find_by_uuid(
+            self._db,
+            self._current_payload.batch_uuid
+        )
+        if batch is None:
+            raise CNODCError('Invalid batch, no such UUID')
+        return batch
+
+    def load_workflow_controller(self) -> t.Optional[WorkflowController]:
+        workflow_obj = structures.NODBUploadWorkflow.find_by_name(self._db, self._current_payload.workflow_name)
+        if workflow_obj:
+            return WorkflowController(workflow_obj.workflow_name, workflow_obj.configuration, halt_flag=self._halt_flag)
+        return None
 
     def download_file_payload(self) -> pathlib.Path:
         if isinstance(self._current_payload, FilePayload):
