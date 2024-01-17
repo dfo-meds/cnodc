@@ -659,7 +659,7 @@ class DataRecord:
             source_name,
             source_version,
             source_instance,
-            message_type.value
+            message_type
         ))
 
     def record_note(self,

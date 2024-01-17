@@ -71,6 +71,7 @@ class NODBLoader(PayloadProcessor):
 
         # Mark the file as complete and queue it for record verification
         source_file.status = structures.SourceFileStatus.COMPLETE
+        self._db.update_object(source_file)
         if records_created:
             payload = self.create_source_payload(source_file, False)
             self._db.create_queue_item(

@@ -130,12 +130,32 @@
   filter:
     - DissolvedOxygen
 
-5001: "coordinates:Latitude"
-5002: "coordinates:Latitude"
+5001:
+  type: coordinates
+  name: Latitude
+  apply_to: target
+  metadata:
+    Units: "degree_north"
+5002:
+  type: coordinates
+  name: Latitude
+  apply_to: target
+  metadata:
+    Units: "degree_north"
 5036: "metadata:ShipTransectNumber"
 
-6001: "coordinates:Longitude"
-6002: "coordinates:Longitude"
+6001:
+  type: coordinates
+  name: Longitude
+  apply_to: target
+  metadata:
+    Units: "degree_east"
+6002:
+  type: coordinates
+  name: Longitude
+  apply_to: target
+  metadata:
+    Units: "degree_east"
 
 7004: noop
 7030: "metadata:StationHeight"

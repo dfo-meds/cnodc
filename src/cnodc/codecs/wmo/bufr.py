@@ -392,6 +392,8 @@ class _Bufr4Decoder:
             val = property_map[property_name].value()
             if val is not None and val != value.value:
                 self.warn(f"Overwriting {property_type} [{property_name}], replacing [{val}] with [{value.value}]", ctx)
+        if 'metadata' in instruction and instruction['metadata']:
+            value.metadata.update(instruction['metadata'])
         property_map[property_name] = value
 
     def _add_record_metadata(self, property_name, value, ctx, instruction):
@@ -436,7 +438,7 @@ class _Bufr4Decoder:
             if units is not None:
                 metadata['Units'] = units
         if hasattr(node.descriptor, 'scale') and units is not None:
-            metadata['Uncertainty'] = math.pow(10, (-1 * node.descriptor.scale))
+            metadata['Uncertainty'] = math.pow(10, (-1 * node.descriptor.scale)) / 2
         return Value(value, metadata=metadata)
 
     def _parse_node_301011(self, node, ctx: _Bufr4DecoderContext):

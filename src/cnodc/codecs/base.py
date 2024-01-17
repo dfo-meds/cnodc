@@ -1,3 +1,4 @@
+import pathlib
 import typing as t
 
 import zrlog
@@ -289,14 +290,14 @@ class BaseCodec:
                  chunk_size: int = 16384,
                  **kwargs) -> t.Iterable[DataRecord]:
         if hasattr(file, 'read'):
-            return self.decode_messages(self.read_in_chunks(file, chunk_size), **kwargs)
+            yield from self.decode_messages(self.read_in_chunks(file, chunk_size), **kwargs)
         elif isinstance(file, (bytes, bytearray)):
-            return self.decode_messages(BaseCodec.yield_bytes(file), **kwargs)
-        elif isinstance(file, (str, os.PathLike)):
+            yield from self.decode_messages(BaseCodec.yield_bytes(file), **kwargs)
+        elif isinstance(file, (str, os.PathLike, pathlib.Path)):
             with open(file, "rb") as h:
-                return self.decode_messages(self.read_in_chunks(h, chunk_size), **kwargs)
+                yield from self.decode_messages(self.read_in_chunks(h, chunk_size), **kwargs)
         else:
-            return self.decode_messages(file, **kwargs)
+            yield from self.decode_messages(file, **kwargs)
 
     @staticmethod
     def yield_bytes(b: t.Union[bytes, bytearray]):

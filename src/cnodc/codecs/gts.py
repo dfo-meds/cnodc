@@ -104,7 +104,7 @@ class GtsCodec(BaseCodec):
         len_s = len(s)
         if len_s not in (18, 22):
             return False
-        if s[6] != '':
+        if s[6] != ' ':
             return False
         if s[11] != ' ':
             return False
