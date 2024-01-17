@@ -13,10 +13,12 @@ from autoinject import injector
 from cnodc.codecs.ocproc2bin import OCProc2BinCodec
 from cnodc.ocproc2 import DataRecord
 from cnodc.storage import StorageController
+from cnodc.storage.base import StorageTier
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
 if t.TYPE_CHECKING:
     from cnodc.nodb import NODBControllerInstance, LockType
+    import cnodc.storage.core
 
 
 def parse_received_date(rdate: t.Union[str, datetime.date]) -> datetime.date:
@@ -51,11 +53,11 @@ class SourceFileStatus(enum.Enum):
 class ObservationStatus(enum.Enum):
 
     UNVERIFIED = 'UNVERIFIED'
-    IN_PROGRESS = 'IN_PROGRESS'
     VERIFIED = 'VERIFIED'
     DISCARDED = 'DISCARDED'
     DUPLICATE = 'DUPLICATE'
     ARCHIVED = 'ARCHIVED'
+    DUBIOUS = 'DUBIOUS'
 
 
 class ObservationType(enum.Enum):
@@ -263,6 +265,19 @@ class _NODBBaseObject:
         )
 
     @classmethod
+    def make_json_property(cls, item: str):
+        return property(
+            functools.partial(_NODBBaseObject.get, item=item),
+            functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_json)
+        )
+
+    @staticmethod
+    def to_json(x):
+        if isinstance(x, str) and x[0] in ('[', '{'):
+            return json.loads(x)
+        return x
+
+    @classmethod
     def register_primary_key(cls, item_name: str):
         if not hasattr(cls, '_primary_keys'):
             setattr(cls, '_primary_keys', set())
@@ -350,14 +365,14 @@ class NODBQueueItem(_NODBBaseObject):
     queue_uuid: str = _NODBBaseObject.make_property("queue_uuid", coerce=str)
     created_date: datetime.datetime = _NODBBaseObject.make_datetime_property("created_date", readonly=True)
     modified_date: datetime.datetime = _NODBBaseObject.make_datetime_property("modified_date", readonly=True)
-    status: QueueStatus = _NODBBaseObject.make_enum_property("status", QueueStatus, readonly=True)
+    status: QueueStatus = _NODBBaseObject.make_enum_property("status", QueueStatus)
     locked_by: t.Optional[str] = _NODBBaseObject.make_property("locked_by", coerce=str, readonly=True)
     locked_since: t.Optional[datetime.datetime] = _NODBBaseObject.make_datetime_property("locked_since", readonly=True)
     queue_name: str = _NODBBaseObject.make_property("queue_name", readonly=True, coerce=str)
     subqueue_name: str = _NODBBaseObject.make_property("subqueue_name", readonly=True, coerce=str)
     unique_item_name: t.Optional[str] = _NODBBaseObject.make_property("unique_item_name", readonly=True, coerce=str)
     priority: t.Optional[int] = _NODBBaseObject.make_property("priority", readonly=True, coerce=int)
-    data: dict = _NODBBaseObject.make_property("data", readonly=True)
+    data: dict = _NODBBaseObject.make_json_property("data")
 
     def mark_complete(self, db: NODBControllerInstance):
         self.set_queue_status(db, QueueStatus.COMPLETE)
@@ -415,7 +430,7 @@ class NODBQueueItem(_NODBBaseObject):
 class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
     TABLE_NAME: str = "nodb_source_files"
-    PRIMARY_KEYS: tuple[str] = ("source_uuid", "partition_key",)
+    PRIMARY_KEYS: tuple[str] = ("source_uuid", "received_date",)
 
     source_uuid: str = _NODBBaseObject.make_property("source_uuid", coerce=str)
     received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
@@ -634,10 +649,8 @@ class NODBUploadWorkflow(_NODBBaseObject):
         return default
 
     @injector.inject
-    def check_config(self, files: StorageController = None):
-        allow_overwrite = self.get_config("allow_overwrite", "user")
-        if allow_overwrite not in ("always", "never", "user"):
-            raise CNODCError(f'Invalid value for [allow_overwrite]: {allow_overwrite}, must be one of (always|never|user)', 'WFCHECK', 1000)
+    def check_config(self, files: cnodc.storage.core.StorageController):
+        print(files)
         if 'validation' in self.configuration and self.configuration['validation'] is not None:
             try:
                 x = dynamic_object(self.configuration['validation'])
@@ -646,27 +659,14 @@ class NODBUploadWorkflow(_NODBBaseObject):
                         f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python callable', 'WFCHECK', 1001)
             except DynamicObjectLoadError:
                 raise CNODCError(f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python object', 'WFCHECK', 1002)
-        if 'metadata' in self.configuration and self.configuration['metadata']:
-            if not isinstance(self.configuration['metadata'], dict):
-                raise CNODCError("Invalid value for [metadata]: must be a dictionary", "WFCHECK", 1003)
-            for x in self.configuration['metadata'].keys():
-                if not isinstance(x, str):
-                    raise CNODCError(f"Invalid key for [metadata]: {x}, must be a string", "WFCHECK", 1004)
-                if not isinstance(self.configuration['metadata'][x], str):
-                    raise CNODCError(f'Invalid value for [metadata.{x}]: {self.configuration["metadata"][x]}, must be a string', 'WFCHECK', 1005)
         has_upload = False
-        if 'upload' in self.configuration and self.configuration['upload']:
+        if 'working_target' in self.configuration and self.configuration['working_target']:
             has_upload = True
-            try:
-                _ = files.get_handle(self.configuration['upload'])
-            except Exception as ex:
-                raise CNODCError(f"Invalid value for [upload]: {self.configuration['upload']}, {str(ex)}", "WFCHECK", 1006)
-        if 'archive' in self.configuration and self.configuration['archive']:
+            self._check_upload_target_config(self.configuration['working_target'], files, 'working')
+        if 'additional_targets' in self.configuration and self.configuration['additional_targets']:
             has_upload = True
-            try:
-                _ = files.get_handle(self.configuration['archive'])
-            except Exception as ex:
-                raise CNODCError(f"Invalid value for [archive]: {self.configuration['archive']}, {str(ex)}", "WFCHECK", 1007)
+            for idx, target in enumerate(self.configuration['additional_targets']):
+                self._check_upload_target_config(target, files, f'additional{idx}')
         if not has_upload:
             raise CNODCError(f"Workflow missing either upload or archive URL", "WFCHECK", 1008)
         if 'upload_tier' in self.configuration and self.configuration['upload_tier']:
@@ -679,12 +679,32 @@ class NODBUploadWorkflow(_NODBBaseObject):
                 raise CNODCError('Workflow specifies an [archive_tier] without an [archive]', 'WFCHECK', 1011)
             if self.configuration['archive_tier'] not in ('frequent', 'infrequent', 'archival'):
                 raise CNODCError(f'Invalid value for [archive_tier]: {self.configuration["archive_tier"]}, expecting (frequent|infrequent|archival)', "WFCHECK", 1012)
-        if 'queue' in self.configuration and self.configuration['queue']:
-            if not isinstance(self.configuration['queue'], str):
-                raise CNODCError(f'Invalid value for [queue]: {self.configuration["queue"]}, expecting string', 'WFCHECK', 1013)
-        if 'queue_priority' in self.configuration and self.configuration['queue_priority'] is not None:
-            if not isinstance(self.configuration['queue_priority'], int):
-                raise CNODCError(f'Invalid value for [queue_priority]: {self.configuration["queue_priority"]}, expecting int', 'WFCHECK', 1014)
+        # TODO: check default_headers is a dict[str, str]
+        # TODO: check filename_pattern is a string or missing
+        # TODO: check processing steps
+
+    def _check_upload_target_config(self, config: dict, files: StorageController, tn: str):
+        if 'directory' not in config:
+            raise CNODCError(f'Target directory missing in [{tn}]', 'WFCHECK', 1006)
+        try:
+            _ = files.get_handle(config['directory'])
+        except Exception as ex:
+            raise CNODCError(f'Target directory is not supported by storage subsystem in [{tn}]', 'WFCHECK', 1007) from ex
+        if 'allow_overwrite' in config and config['allow_overwrite'] not in ('user', 'always', 'never'):
+            raise CNODCError(f'Overwrite setting must be one of [user|always|never] in [{tn}]', 'WFCHECK', 1000)
+        if 'tier' in config:
+            try:
+                _ = StorageTier(config['tier'])
+            except Exception as ex:
+                raise CNODCError(f'Tier value [{config["tier"]} is not supported in [{tn}]', 'WFCHECK', 1015) from ex
+        if 'metadata' in config and config['metadata']:
+            if not isinstance(config['metadata'], dict):
+                raise CNODCError(f"Invalid value for [metadata] in [{tn}]: must be a dictionary", "WFCHECK", 1003)
+            for x in self.configuration['metadata'].keys():
+                if not isinstance(x, str):
+                    raise CNODCError(f"Invalid key for [metadata] in [{tn}]: {x}, must be a string", "WFCHECK", 1004)
+                if not isinstance(self.configuration['metadata'][x], str):
+                    raise CNODCError(f'Invalid value for [metadata.{x}] in [{tn}]: {self.configuration["metadata"][x]}, must be a string', 'WFCHECK', 1005)
 
     @classmethod
     def find_by_name(cls, db, workflow_name: str, **kwargs):
@@ -824,6 +844,11 @@ class NODBStation(_NODBBaseObject):
     status: StationStatus = _NODBBaseObject.make_enum_property("status", StationStatus)
     embargo_data_days: int = _NODBBaseObject.make_property('embargo_data_days', coerce=int)
 
+    def get_metadata(self, metadata_key, default=None):
+        if self.metadata is not None and metadata_key in self.metadata:
+            return self.metadata[metadata_key] or default
+        return None
+
     @classmethod
     def search(cls,
                db: NODBControllerInstance,
@@ -880,6 +905,17 @@ class NODBWorkingRecord(_NODBBaseObject):
     obs_time: datetime.datetime = _NODBBaseObject.make_datetime_property("obs_time")
     location: str = _NODBBaseObject.make_wkt_property("location")
     record_uuid: str = _NODBBaseObject.make_property("record_uuid", coerce=str)
+
+    def set_metadata(self, key, value):
+        if self.qc_metadata is None:
+            self.qc_metadata = {}
+        self.qc_metadata[key] = value
+        self.mark_modified('qc_metadata')
+
+    def get_metadata(self, key, default=None):
+        if self.qc_metadata is None or key not in self.qc_metadata:
+            return default
+        return self.qc_metadata[key]
 
     @classmethod
     def find_by_uuid(cls, db, obs_uuid: str,*args, **kwargs):

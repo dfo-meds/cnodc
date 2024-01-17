@@ -1,4 +1,4 @@
-CREATE EXTENSION postgis;
+CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- Function that automatically sets the modified date on update
 CREATE OR REPLACE FUNCTION update_modified_date()
@@ -42,7 +42,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'obs_status') THEN
         CREATE TYPE obs_status AS ENUM (
             'UNVERIFIED',
-            'IN_PROGRESS',
+            'DUBIOUS',
             'VERIFIED',
             'DISCARDED',
             'DUPLICATE',
@@ -73,7 +73,7 @@ BEGIN
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_level') THEN
-        CREATE TYPE qc_level AS ENUM (
+        CREATE TYPE processing_level AS ENUM (
             'RAW',
             'ADJUSTED',
             'REAL_TIME',
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS nodb_source_files (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS ix_nodb_source_files_source_path ON nodb_source_files(source_path);
-CREATE INDEX IF NOT EXISTS ix_nodb_source_files_created_date ON nodb_source_files USING BRIN(created_date);
+CREATE INDEX IF NOT EXISTS ix_nodb_source_files_created_date ON nodb_source_files USING BRIN(db_created_date);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_source_files_original_data ON nodb_source_files(received_date, original_uuid, original_idx) WHERE original_uuid IS NOT NULL;
 
 -- Partition tables for 1800 to 2040
@@ -337,25 +337,25 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data_2030 PARTITION OF nodb_obs_data FOR VAL
 -- Table for working data
 CREATE TABLE IF NOT EXISTS nodb_working (
     working_uuid            UUID            NOT NULL    PRIMARY KEY,
-    received_date           DATE            NOT NULL,
     db_created_date         TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
     source_file_uuid        UUID            NOT NULL,
+    received_date           DATE            NOT NULL,
     message_idx             INTEGER         NOT NULL,
     record_idx              INTEGER         NOT NULL,
 
     qc_metadata             JSON,
     qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
     data_record             BYTEA,
-    station_uuid            UUID                        REFERENCES nodb_stations(station_uuid),
+    station_uuid            VARCHAR(126),
     obs_time                TIMESTAMPTZ,
     location                GEOGRAPHY(GEOMETRY, 4326),
 
     record_uuid             UUID,
 
     FOREIGN KEY (record_uuid, received_date) REFERENCES nodb_obs (obs_uuid, received_date),
-    FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files (source_file_uuid, received_date)
+    FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files (source_uuid, received_date)
 );
 
 
@@ -363,7 +363,7 @@ CREATE INDEX IF NOT EXISTS idx_nodb_working_batch_id ON nodb_working(qc_batch_id
 CREATE INDEX IF NOT EXISTS idx_nodb_working_station_uuid ON nodb_working(station_uuid);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_obs_time ON nodb_working(obs_time);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_location ON nodb_working USING GIST(location);
-CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, record_received_date);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, received_date);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_working_source_info ON nodb_working(received_date, source_file_uuid, message_idx, record_idx);
 
 
@@ -602,5 +602,5 @@ BEGIN
         RETURNING queue_uuid INTO selected_key;
         RETURN selected_key;
     END IF;
-    RETURN;
+    RETURN NULL;
 END; $next_item$ LANGUAGE plpgsql;

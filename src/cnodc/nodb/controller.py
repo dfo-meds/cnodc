@@ -40,6 +40,7 @@ class ScannedFileStatus(enum.Enum):
     UNPROCESSED = "1"
     PROCESSED = "2"
 
+
 class LockType(enum.Enum):
 
     NONE = "1"
@@ -88,7 +89,7 @@ def with_nodb_execptions(cb: callable):
     @functools.wraps(cb)
     def _inner(*args, **kwargs):
         try:
-            cb(*args, **kwargs)
+            return cb(*args, **kwargs)
         except psycopg2.Error as ex:
             raise NODBError(f"{ex.__class__.__name__}: {str(ex)} [{ex.pgcode}]", 1001, ex.pgcode) from ex
     return _inner
@@ -146,19 +147,20 @@ class _PGCursor:
             res = self.fetchmany(size)
 
     def create_savepoint(self, name):
-        self._cursor.execute("SAVEPOINT %s", [name])
+        # TODO: save point names should be validated?
+        self._cursor.execute(f"SAVEPOINT {name}")
 
     def rollback_to_savepoint(self, name):
-        self._cursor.execute("ROLLBACK TO SAVEPOINT %s", [name])
+        self._cursor.execute(f"ROLLBACK TO SAVEPOINT {name}")
 
     def release_savepoint(self, name):
-        self._cursor.execute("RELEASE SAVEPOINT %s", [name])
+        self._cursor.execute(f"RELEASE SAVEPOINT {name}")
 
 
 class NODBControllerInstance:
 
-    def __init__(self, pg_connection):
-        self._conn = pg_connection
+    def __init__(self, conn):
+        self._conn = conn
         self._is_closed = False
         self._log = zrlog.get_logger("cnodc.db")
         self._max_in_size = 32767
@@ -180,10 +182,7 @@ class NODBControllerInstance:
         self._conn.rollback()
 
     def close(self):
-        if not self._is_closed:
-            self._conn.close()
-            self._is_closed = True
-            del self._conn
+        pass
 
     def create_savepoint(self, name):
         with self.cursor() as cur:
@@ -243,7 +242,7 @@ class NODBControllerInstance:
 
     def scanned_file_status(self, file_path: str) -> ScannedFileStatus:
         with self.cursor() as cur:
-            cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path], cur)
+            cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path])
             row = cur.fetchone()
             if row is None:
                 return ScannedFileStatus.NOT_PRESENT
@@ -315,7 +314,7 @@ class NODBControllerInstance:
                               queue_name: str,
                               app_id: str,
                               subqueue_name: t.Optional[str] = None,
-                              retries: int = 5) -> t.Optional[structures.NODBQueueItem]:
+                              retries: int = 1) -> t.Optional[structures.NODBQueueItem]:
         with self.cursor() as cur:
             while retries > 0:
                 item_uuid = self._attempt_fetch_queue_item(queue_name, subqueue_name, app_id, cur)
@@ -328,11 +327,11 @@ class NODBControllerInstance:
         try:
             cur.create_savepoint("fetch_queue_item")
             if subqueue_name:
-                cur.execute("SELECT next_queue_item(%s, %s, %s)", (queue_name, app_id, subqueue_name))
+                cur.execute("SELECT * FROM next_queue_item(%s, %s, %s)", (queue_name, app_id, subqueue_name))
             else:
-                cur.execute("SELECT next_queue_item(%s, %s)", (queue_name, app_id))
+                cur.execute("SELECT * FROM next_queue_item(%s, %s)", (queue_name, app_id))
             item = cur.fetchone()
-            if item[0] is not None:
+            if item is not None and item[0] is not None:
                 cur.release_savepoint("fetch_queue_item")
                 return item[0]
             else:
@@ -502,25 +501,55 @@ class NODBControllerInstance:
             ])
 
 
+class NODBControllerBase:
+
+    def __init__(self):
+        self._instance: t.Optional[NODBControllerInstance] = None
+        self._inner_count = 0
+
+    def __enter__(self) -> NODBControllerInstance:
+        if self._instance is None:
+            self._instance = self._build_controller_instance()
+        self._inner_count += 1
+        return self._instance
+
+    def _build_controller_instance(self):
+        raise NotImplementedError
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._inner_count -= 1
+        if self._inner_count == 0:
+            if exc_type is not None:
+                self._instance.rollback()
+            else:
+                self._instance.commit()
+            self._instance.close()
+            self._instance = None
+
+
 @injector.injectable_global
-class NODBController:
+class NODBController(NODBControllerBase):
 
     config: zr.ApplicationConfig = None
 
     @injector.construct
     def __init__(self):
-        self._instance = None
+        super().__init__()
+        self._conn = None
         self._connect_args = self.config.as_dict(("cnodc", "nodb_connection"), default={})
         self._connect_args['cursor_factory'] = pge.DictCursor
 
-    def __enter__(self) -> NODBControllerInstance:
-        self._instance = NODBControllerInstance(pg.connect(**self._connect_args))
-        return self._instance
+    def __cleanup__(self):
+        if self._conn is not None:
+            self._conn.close()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            self._instance.rollback()
-        else:
-            self._instance.commit()
-        self._instance.close()
-        self._instance = None
+    def _build_controller_instance(self):
+        if self._conn is None:
+            try:
+                self._conn = pg.connect(**self._connect_args)
+            except psycopg2.OperationalError as ex:
+                if 'connection refused' in str(ex).lower():
+                    raise CNODCError(f'Connection refused', 'NODB', 1002, is_recoverable=True) from ex
+                else:
+                    raise CNODCError(f'Connection error: {str(ex)}', 'NODB', 1003) from ex
+        return NODBControllerInstance(self._conn)

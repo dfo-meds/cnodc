@@ -1,4 +1,6 @@
 import multiprocessing as mp
+import threading
+import time
 import typing as t
 import zrlog
 import pathlib
@@ -15,9 +17,21 @@ class _SubprocessHaltFlag(HaltFlag):
 
     def __init__(self, halt: mp.Event):
         self._halt = halt
+        # NB: Using self._halt.wait() seems to cause deadlocks in our
+        # use case, so don't do it!
 
     def _should_continue(self) -> bool:
         return not self._halt.is_set()
+
+
+class _ThreadingHaltFlag(HaltFlag):
+
+    def __init__(self, halt: threading.Event):
+        self._halt = halt
+
+    def _should_continue(self) -> bool:
+        return not self._halt.is_set()
+
 
 
 class SaveData:
@@ -80,6 +94,18 @@ class BaseProcess(mp.Process):
         self.halt_flag: HaltFlag = _SubprocessHaltFlag(self._halt)
         self.process_uuid = process_uuid
 
+    def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
+        if time_seconds < (2 * max_delay):
+            time.sleep(time_seconds)
+        else:
+            st = time.monotonic()
+            et = st
+            while (et - st) < time_seconds:
+                time.sleep(min(max_delay, max(time_seconds - (et - st), 0.01)))
+                et = time.monotonic()
+                if not self.continue_loop():
+                    break
+
     def continue_loop(self):
         return not(self._shutdown.is_set() or self._halt.is_set())
 
@@ -102,14 +128,18 @@ class BaseProcess(mp.Process):
             })
             self._save_data = SaveData(self.get_config('save_file'))
             self._save_data.load_file()
+            self._log.debug(f'Starting process {self.process_name}.{self.process_uuid}')
             self.on_start()
+            self._log.debug(f'Process {self.process_name}.{self.process_uuid} is running')
             self._run()
         except Exception as ex:
             self._log.error(f"{ex.__class__.__name__}: {str(ex)}")
             self._log.exception(ex)
         finally:
+            self._log.debug(f'Cleaning up {self.process_name}.{self.process_uuid}')
             self.on_complete()
             self._save_data.save_file()
+            self._log.debug(f'Process {self.process_name}.{self.process_uuid} complete')
 
     def on_start(self):
         pass

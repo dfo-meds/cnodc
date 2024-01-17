@@ -1,7 +1,9 @@
+import decimal
 import typing as t
 import datetime
 import enum
 
+from uncertainties import ufloat
 
 SupportedValue = t.Union[
     None,
@@ -12,6 +14,7 @@ SupportedValue = t.Union[
     set,
     tuple,
     dict,
+    bool,
     datetime.datetime,
     datetime.date
 ]
@@ -23,6 +26,15 @@ class MessageType(enum.Enum):
     NOTE = "N"
     WARNING = "W"
     ERROR = "E"
+
+
+class QCResult(enum.Enum):
+
+    PASS = 'P'
+    MANUAL_REVIEW = 'R'
+    FAIL = 'F'
+    CONTINUE = 'C'
+    HALT = 'H'
 
 
 def normalize_data_value(dv: t.Any):
@@ -50,7 +62,7 @@ class HistoryEntry:
                  source_name: str,
                  source_version: str,
                  source_instance: str,
-                 message_type: str):
+                 message_type: MessageType):
         self.message = message
         self.timestamp = timestamp.isoformat() if isinstance(timestamp, datetime.datetime) else timestamp
         self.source_name = source_name
@@ -63,7 +75,7 @@ class HistoryEntry:
             '_message': self.message,
             '_timestamp': self.timestamp,
             '_source': (self.source_name, self.source_version, self.source_instance),
-            '_message_type': self.message_type
+            '_message_type': self.message_type.value
         }
 
     @staticmethod
@@ -72,7 +84,7 @@ class HistoryEntry:
             map_['_message'],
             map_['_timestamp'],
             *map_['_source'],
-            map_['_message_type']
+            MessageType(map_['_message_type'])
         )
 
 
@@ -102,13 +114,13 @@ class QCMessage:
         )
 
 
-class QCTestResult:
+class QCTestRunInfo:
 
     def __init__(self,
                  test_name: str,
                  test_version: str,
                  test_date: t.Union[datetime.datetime, str],
-                 result: str,
+                 result: QCResult,
                  messages: list[QCMessage] = None,
                  notes: str = None,
                  is_stale: bool = False):
@@ -121,7 +133,7 @@ class QCTestResult:
         self.is_stale = is_stale
 
     def passed(self):
-        return self.result == 'PASS'
+        return self.result == QCResult.PASS
 
     def to_mapping(self):
         return {
@@ -129,18 +141,18 @@ class QCTestResult:
             '_version': self.test_version,
             '_date': self.test_date,
             '_messages': [m.to_mapping() for m in self.messages],
-            '_result': self.result,
+            '_result': self.result.value,
             '_notes': self.notes,
             '_stale': self.is_stale
         }
 
     @staticmethod
     def from_mapping(map_: dict):
-        return QCTestResult(
+        return QCTestRunInfo(
             map_['_name'],
             map_['_version'],
             map_['_date'],
-            map_['_result'],
+            QCResult(map_['_result']),
             [QCMessage.from_mapping(x) for x in map_['_messages']],
             map_['_notes'],
             map_['_stale'] if '_stale' in map_ else False
@@ -188,6 +200,27 @@ class AbstractValue:
         raise NotImplementedError
 
     def all_values(self) -> t.Iterable:
+        raise NotImplementedError
+
+    def to_decimal(self) -> decimal.Decimal:
+        raise NotImplementedError
+
+    def to_float_with_uncertainty(self) -> ufloat:
+        raise NotImplementedError
+
+    def to_float(self) -> float:
+        raise NotImplementedError
+
+    def to_int(self) -> int:
+        raise NotImplementedError
+
+    def to_datetime(self) -> datetime.datetime:
+        raise NotImplementedError
+
+    def to_date(self) -> datetime.date:
+        raise NotImplementedError
+
+    def to_string(self) -> str:
         raise NotImplementedError
 
     @property
@@ -239,6 +272,29 @@ class Value(AbstractValue):
 
     def all_values(self) -> t.Iterable:
         yield self
+
+    def to_decimal(self) -> decimal.Decimal:
+        return decimal.Decimal(self._value)
+
+    def to_float_with_uncertainty(self) -> t.Union[float, ufloat]:
+        if self.metadata.has_value('Uncertainty'):
+            return ufloat(self.to_float(), self.metadata['Uncertainty'].to_float())
+        return self.to_float()
+
+    def to_float(self) -> float:
+        return float(self._value)
+
+    def to_int(self) -> int:
+        return int(self._value)
+
+    def to_datetime(self) -> datetime.datetime:
+        return datetime.datetime.fromisoformat(self._value)
+
+    def to_date(self) -> datetime.date:
+        return datetime.date.fromisoformat(self._value)
+
+    def to_string(self) -> str:
+        return str(self._value)
 
     def is_iso_datetime(self) -> bool:
         try:
@@ -343,6 +399,27 @@ class MultiValue(AbstractValue):
                 return False
             result = True
         return result if result is not None else False
+
+    def to_decimal(self) -> decimal.Decimal:
+        return self.best_value().to_decimal()
+
+    def to_float_with_uncertainty(self) -> t.Union[float, ufloat]:
+        return self.best_value().to_float_with_uncertainty()
+
+    def to_float(self) -> float:
+        return self.best_value().to_float()
+
+    def to_int(self) -> int:
+        return self.best_value().to_int()
+
+    def to_datetime(self) -> datetime.datetime:
+        return self.best_value().to_datetime()
+
+    def to_date(self) -> datetime.date:
+        return self.best_value().to_date()
+
+    def to_string(self) -> str:
+        return self.best_value().to_string()
 
     def is_numeric(self) -> bool:
         return self._broadcast_is_check('is_numeric')
@@ -486,7 +563,7 @@ class DataRecord:
         self.coordinates = ValueMap()
         self.subrecords = RecordMap()
         self.history: list[HistoryEntry] = []
-        self.qc_tests: list[QCTestResult] = []
+        self.qc_tests: list[QCTestRunInfo] = []
 
     def to_mapping(self):
         map_ = {}
@@ -523,7 +600,7 @@ class DataRecord:
             ]
         if '_qc_tests' in map_:
             self.qc_tests = [
-                QCTestResult.from_mapping(x) for x in map_['_qc_tests']
+                QCTestRunInfo.from_mapping(x) for x in map_['_qc_tests']
             ]
 
     def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable:
@@ -538,7 +615,7 @@ class DataRecord:
         else:
             return any(x.test_name == test_name and not x.is_stale for x in self.qc_tests)
 
-    def latest_test_result(self, test_name: str, include_stale: bool = False) -> t.Optional[QCTestResult]:
+    def latest_test_result(self, test_name: str, include_stale: bool = False) -> t.Optional[QCTestRunInfo]:
         best = None
         for qcr in self.qc_tests:
             if qcr.test_name != test_name:
@@ -549,31 +626,18 @@ class DataRecord:
                 best = qcr
         return best
 
-    def record_qc_test_passed(self,
+    def record_qc_test_result(self,
                               test_name: str,
                               test_version: str,
-                              notes: str = None):
-        self.mark_test_results_stale(test_name)
-        self.qc_tests.append(QCTestResult(
-            test_name,
-            test_version,
-            datetime.datetime.now(datetime.timezone.utc),
-            'PASS',
-            None,
-            notes
-        ))
-
-    def record_qc_test_failed(self,
-                              test_name: str,
-                              test_version: str,
+                              outcome: QCResult,
                               messages: list[QCMessage],
                               notes: str = None):
         self.mark_test_results_stale(test_name)
-        self.qc_tests.append(QCTestResult(
+        self.qc_tests.append(QCTestRunInfo(
             test_name,
             test_version,
             datetime.datetime.now(datetime.timezone.utc),
-            'FAIL',
+            outcome,
             messages,
             notes
         ))
@@ -597,6 +661,13 @@ class DataRecord:
             source_instance,
             message_type.value
         ))
+
+    def record_note(self,
+                    message: str,
+                    source_name: str,
+                    source_version: str,
+                    source_instance: str):
+        self.add_history_entry(message, source_name, source_version, source_instance, MessageType.NOTE)
 
     def report_error(self,
                      message: str,
@@ -651,6 +722,9 @@ class RecordMap:
 
     def __init__(self):
         self.record_sets: dict[str, dict[int, RecordSet]] = {}
+
+    def __iter__(self):
+        return iter(self.record_sets)
 
     def __getitem__(self, item):
         return self.record_sets[item]

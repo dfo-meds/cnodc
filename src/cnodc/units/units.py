@@ -95,6 +95,13 @@ class UnitConverter:
                 return False
         return True
 
+    def is_valid_unit(self, unit_str: str) -> bool:
+        try:
+            _, _, _ = self._conversion_info(unit_str)
+            return True
+        except ValueError as ex:
+            return False
+
     def convert(self, quantity: t.Union[float, decimal.Decimal, int], original_units: str, output_units: str) -> decimal.Decimal:
         self._load_tables()
         factor_original, dims_original, expr_original = self._conversion_info(original_units)

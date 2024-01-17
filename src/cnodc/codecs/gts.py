@@ -1,6 +1,5 @@
 from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader
 import typing as t
-from cnodc.codecs.wmo.bufr import Bufr4Decoder
 
 
 class GtsSubDecoder:
@@ -14,6 +13,7 @@ class GtsCodec(BaseCodec):
     WHITESPACE = bytes([13, 10, 32, 3, 4, 0])
 
     def __init__(self, *args, **kwargs):
+        from cnodc.codecs.wmo.bufr import Bufr4Decoder
         super().__init__(log_name="cnodc.codecs.gts", is_decoder=True, *args, **kwargs)
         self._sub_codecs: dict[str, GtsSubDecoder] = {
             'BUFR4': Bufr4Decoder(),
@@ -31,18 +31,22 @@ class GtsCodec(BaseCodec):
         current_idx = 0
         skip_to = kwargs.get('skip_to_message_idx') if 'skip_to_message_idx' in kwargs else None
         while not reader.at_eof():
-            test_line = reader.peek_line(True).decode('ascii')
+            test_line = reader.peek_line(True).decode('ascii', 'replace')
             if self._is_gts_header(test_line):
                 header = reader.consume_line(True).decode('ascii')
             reader.lstrip(GtsCodec.WHITESPACE)
             if skip_to is not None:
-                yield self._attempt_decode_next_gts_message(reader, header, skip_to > current_idx)
+                x = self._attempt_decode_next_gts_message(reader, header, skip_to > current_idx)
+                if x is not None:
+                    yield x
                 current_idx += 1
             else:
-                yield self._attempt_decode_next_gts_message(reader, header)
+                x = self._attempt_decode_next_gts_message(reader, header)
+                if x is not None:
+                    yield x
             reader.lstrip(GtsCodec.WHITESPACE)
 
-    def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
+    def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> t.Optional[DecodeResult]:
         message_type = reader.peek(5)
         if message_type.startswith(b'BUFR'):
             return self._decode_bufr(reader, header, skip_decode)
@@ -57,6 +61,7 @@ class GtsCodec(BaseCodec):
         else:
             discard_line = reader.consume_line(True)
             self.log.debug(f"Discarding line {discard_line.decode('ascii', 'replace')}, unrecognized start sequence")
+            return None
 
     def _decode_bufr(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
         reader.consume(4)

@@ -1,0 +1,23 @@
+
+# validation: ""
+# default_headers:
+# filename_pattern: ""
+# accept_user_filename: false
+working_target:
+  directory: "C:/my/t2/save_target"
+  allow_overwrite: "always"
+  gzip: false
+  # tier: "frequent"
+  # metadata:
+additional_targets:
+  -
+    directory: "C:/my/t2/gzip_target"
+    allow_overwrite: "always"
+    gzip: true
+    # tier: "frequent"
+    # metadata:
+processing_steps:
+  -
+    name: gts_load
+    priority: 0
+

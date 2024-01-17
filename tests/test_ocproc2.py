@@ -291,7 +291,7 @@ class TestOCProc2ImportExport(ut.TestCase):
             'instance1',
             'INFO'
         ))
-        dr.qc_tests.append(ocproc2.QCTestResult(
+        dr.qc_tests.append(ocproc2.QCTestRunInfo(
             'test1',
             'version1',
             '2023-01-03T00:00:00+00:00',

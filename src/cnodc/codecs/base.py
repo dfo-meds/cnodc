@@ -10,7 +10,7 @@ from cnodc.util import HaltFlag, HaltInterrupt
 
 ByteIterable = t.Iterable[t.Union[bytes, bytearray]]
 
-
+# TODO: Investigate using mmap here?
 class ByteSequenceReader:
 
     def __init__(self, raw_bytes: ByteIterable, halt_flag: HaltFlag = None):

@@ -172,7 +172,8 @@ class BaseStorageHandle:
                metadata: t.Optional[dict[str, str]] = None,
                storage_tier: t.Optional[StorageTier] = None):
         if (not allow_overwrite) and self.exists():
-            raise CNODCError(f"Path [{self}] already exists, cannot upload from [{local_path}]", "STORAGE", 1001, is_recoverable=True)
+            raise CNODCError(f"Path [{self.name()}] already exists, cannot overwrite", "STORAGE", 1001, is_recoverable=True)
+        metadata = metadata or {}
         self._add_default_metadata(metadata, storage_tier)
         self._upload(local_path, buffer_size, metadata, storage_tier)
 
@@ -221,7 +222,7 @@ class BaseStorageHandle:
             buffer_size = DEFAULT_CHUNK_SIZE
         if isinstance(local_path, (bytes, bytearray)):
             yield local_path
-        if isinstance(local_path, (str, pathlib.Path)):
+        elif isinstance(local_path, (str, pathlib.Path)):
             with open(local_path, "rb") as src:
                 yield from self._read_in_chunks(src, buffer_size)
         elif hasattr(local_path, 'read'):
@@ -230,7 +231,7 @@ class BaseStorageHandle:
             yield from HaltFlag.iterate(local_path, self._halt_flag, True)
 
     @local_file_error_wrap
-    def _read_in_chunks(self, readable, buffer_size: int):
+    def _read_in_chunks(self, readable, buffer_size: int) -> t.Iterable[bytes]:
         if self._halt_flag:
             self._halt_flag.check_continue(True)
         x = readable.read(buffer_size)

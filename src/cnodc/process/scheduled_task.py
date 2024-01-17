@@ -27,7 +27,7 @@ class ScheduledTask(BaseProcess):
             now = datetime.datetime.now(datetime.timezone.utc)
             if self.check_execution(now):
                 now = self._run_scheduled_task(now)
-            time.sleep(self.sleep_time(now))
+            self.responsive_sleep(self.sleep_time(now))
 
     def _run_scheduled_task(self, now) -> datetime.datetime:
         try:
@@ -45,8 +45,7 @@ class ScheduledTask(BaseProcess):
             self._save_data.save_file()
             self.update_next_execution_time()
             self.is_working.clear()
-            return now
-
+        return now
 
     def update_next_execution_time(self):
         mode = self.get_config("schedule_mode")
@@ -72,10 +71,16 @@ class ScheduledTask(BaseProcess):
         self._log.debug(f"Next execution: {self._next_execution.isoformat()}")
 
     def _execution_delay(self, first_run: bool = False) -> datetime.timedelta:
-        delay = int(self.get_config("delay_seconds"))
+        try:
+            delay = int(self.get_config("delay_seconds"))
+        except TypeError:
+            raise CNODCError('Invalid delay', 'SCHEDTASK', 1002)
         if first_run and self.get_config("run_on_boot"):
             delay = 0
-        fuzz = int(self.get_config("delay_fuzz_milliseconds"))
+        try:
+            fuzz = int(self.get_config("delay_fuzz_milliseconds"))
+        except TypeError:
+            raise CNODCError('Invalid fuzz delay', 'SCHEDTASK', 1003)
         if fuzz > 0:
             delay += random.randint(0, fuzz) / 1000.0
         return datetime.timedelta(seconds=delay)

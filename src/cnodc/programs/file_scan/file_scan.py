@@ -27,14 +27,16 @@ class FileScanTask(ScheduledTask):
         self.set_defaults({
             'scan_target': None,
             'workflow_name': None,
+            'queue_name': 'nodb_download',
             'pattern': '*',
             'recursive': False,
             'remove_downloaded_files': False,
-            'headers': None
+            'metadata': None
         })
 
     @injector.inject
     def on_start(self, storage: StorageController, nodb: NODBController):
+        super().on_start()
         self._storage = storage
         self._nodb = nodb
 
@@ -51,9 +53,10 @@ class FileScanTask(ScheduledTask):
         handle = self._storage.get_handle(scan_target, halt_flag=self.halt_flag)
         if handle is None:
             raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILE_SCAN', 1001)
+        self._log.debug(f'Scanning {scan_target}')
         batch_id = str(uuid.uuid4())
         remove_when_complete = bool(self.get_config("remove_scanned_files"))
-        headers = self.get_config("headers", {})
+        headers = self.get_config("metadata", {})
         with self._nodb as db:
             for file in handle.search(
                     self.get_config('pattern'),
@@ -62,6 +65,7 @@ class FileScanTask(ScheduledTask):
                     full_path = file.path()
                     status = db.scanned_file_status(full_path)
                     if status == ScannedFileStatus.NOT_PRESENT:
+                        self._log.info(f"Found new file {full_path}")
                         db.note_scanned_file(full_path)
                         db.create_queue_item(
                             queue_name,
@@ -80,6 +84,8 @@ class FileScanTask(ScheduledTask):
                             }
                         )
                         db.commit()
+                    else:
+                        self._log.debug(f"Skipping old file {full_path}")
                 except NODBError as ex:
 
                     # In all cases, we want to rollback
@@ -102,10 +108,14 @@ class FileScanTask(ScheduledTask):
                         raise ex
 
 
-class FileScanWorker(QueueWorker):
+class FileDownloadWorker(QueueWorker):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.file_downloader", **kwargs)
+        self.set_defaults({
+            'queue_name': 'nodb_download',
+            'allow_file_deletes': False,
+        })
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
         if 'target_file' not in item.data or not item.data['target_file']:
@@ -117,7 +127,7 @@ class FileScanWorker(QueueWorker):
             item.data['target_file'],
             item.data['headers'] if 'headers' in item.data else {},
             item.data['_metadata'] if '_metadata' in item.data else {},
-            bool(item.data['remove_on_completion']) if 'remove_on_completion' in item.data else False
+            (self.get_config('allow_file_deletes') and bool(item.data['remove_on_completion'])) if 'remove_on_completion' in item.data else False
         )
         return structures.QueueItemResult.SUCCESS
 
@@ -162,21 +172,24 @@ class FileScanWorkflowController:
                 self._remote_handle = self.storage.get_handle(self._remote_path, halt_flag=self.halt_flag)
                 current_status = db.scanned_file_status(self._remote_path)
                 if current_status == ScannedFileStatus.UNPROCESSED:
-                    if headers is None:
+                    if not headers:
                         headers = {}
-                        headers['default-filename'] = self._remote_handle.name()
-                        headers['last-modified-date'] = self._remote_handle.modified_datetime()
-                        if headers['last-modified-date'] is None and 'scanned_time' in metadata:
-                            headers['last-modified-date'] = metadata['scanned-time']
-                        headers['request-id'] = (
-                            metadata['correlation_id']
-                            if 'correlation_id' in metadata else
-                            str(uuid.uuid4())
-                        )
+                    headers['default-filename'] = self._remote_handle.name()
+                    headers['last-modified-date'] = self._remote_handle.modified_datetime().isoformat()
+                    if headers['last-modified-date'] is None and 'scanned_time' in metadata:
+                        headers['last-modified-date'] = metadata['scanned-time']
+                    headers['request-id'] = (
+                        metadata['correlation_id']
+                        if 'correlation_id' in metadata else
+                        str(uuid.uuid4())
+                    )
+                    print(headers)
                     workflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
+                    if workflow is None:
+                        raise CNODCError(f'Workflow [{self.workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
                     wf_controller = WorkflowController(self.workflow_name, workflow.configuration, {
                         'source': 'file_scan',
-                        'correlation_id': headers['request-id'],
+                        'correlation_id': headers['request-id'] if 'request-id' in headers else str(uuid.uuid4()),
                         'upload_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
                     }, self.halt_flag)
                     wf_controller.handle_incoming_file(

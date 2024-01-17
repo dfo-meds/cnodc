@@ -68,10 +68,10 @@ class FileInfo:
 class WorkflowPayload:
 
     def __init__(self,
-                 workflow_name: str,
-                 current_step: int,
-                 headers: dict,
-                 metadata: dict):
+                 workflow_name: t.Optional[str] = None,
+                 current_step: t.Optional[int] = None,
+                 headers: t.Optional[dict] = None,
+                 metadata: t.Optional[dict] = None):
         self.workflow_name = workflow_name
         self.current_step = current_step
         self.headers = headers or {}
@@ -84,6 +84,8 @@ class WorkflowPayload:
             payload.workflow_name = self.workflow_name
             if next_step:
                 payload.current_step = self.current_step + 1
+            else:
+                payload.current_step = self.current_step
 
         else:
             if '_metadata' not in payload:
@@ -124,7 +126,7 @@ class WorkflowPayload:
             raise CNODCError('Invalid step number', 'PAYLOAD', 1004) from ex
         base_kwargs = {
                 'workflow_name': queue_item.data['workflow']['name'],
-                'workflow_step': step_no,
+                'current_step': step_no,
                 'headers': queue_item.data['headers'] if 'headers' in queue_item.data else {},
                 'metadata': queue_item.data['_metadata'] if '_metadata' in queue_item.data else {}
         }
@@ -257,7 +259,7 @@ class WorkflowController:
     nodb: NODBController = None
     storage: StorageController = None
 
-    @injector.inject
+    @injector.construct
     def __init__(self,
                  workflow_name: str,
                  config: dict,
@@ -274,8 +276,9 @@ class WorkflowController:
             return self._handle_incoming_file(local_path, headers, post_hook, db)
         else:
             with self.nodb as db:
-                self._handle_incoming_file(local_path, headers, post_hook, db)
+                x = self._handle_incoming_file(local_path, headers, post_hook, db)
                 db.commit()
+                return x
 
     def queue_step(self,
                         payload: WorkflowPayload,
@@ -286,8 +289,9 @@ class WorkflowController:
             return self._queue_step(payload, priority, unique_key, db)
         else:
             with self.nodb as db:
-                self._queue_step(payload, priority, unique_key, db)
+                x = self._queue_step(payload, priority, unique_key, db)
                 db.commit()
+                return x
 
     def has_more_steps(self, current_idx: int):
         if 'processing_steps' not in self.config or not self.config['processing_steps']:
@@ -297,24 +301,28 @@ class WorkflowController:
         return True
 
     def _handle_incoming_file(self, local_path: pathlib.Path, headers: dict, post_hook: t.Optional[callable], db: NODBControllerInstance):
+        self._log.debug(f"Processing file [{local_path}]")
         file_handles = []
         working_file = None
         try:
+
             if 'default_headers' in self.config:
                 for x in self.config['default_headers']:
                     if x not in headers:
+                        self._log.debug(f"Setting default header {x}={self.config['default_headers'][x]}")
                         headers[x] = self.config['default_headers'][x]
             if 'validation' in self.config:
+                self._log.info(f"Validating uploaded file")
                 self._validate_file_upload(local_path, headers, self.config['validation'])
             with_gzip = False
             filename = self._determine_filename(headers)
             gzip_filename = filename + ".gz"
-            with tempfile.TemporaryDirectory as td:
+            with tempfile.TemporaryDirectory() as td:
                 td = pathlib.Path(td)
                 gzip_file = td / "bin.gz"
                 gzip_made = False
                 if 'working_target' in self.config:
-                    with_gzip = 'gzip' in self.config['working_target'] and self.config['workflow_target']['gzip']
+                    with_gzip = 'gzip' in self.config['working_target'] and self.config['working_target']['gzip']
                     if with_gzip:
                         self._gzip_local_file(local_path, gzip_file)
                         gzip_made = True
@@ -367,6 +375,7 @@ class WorkflowController:
                 raise CNODCError(f"Exception while processing incoming file: {ex.__class__.__name__}: {str(ex)}", "WORKFLOW", 1000)
 
     def _gzip_local_file(self, local_path, gzip_file):
+        self._log.info(f"Creating gzipped version of local file")
         with open(local_path, "rb") as src:
             with gzip.open(gzip_file, "wb") as dest:
                 # NB: 2.5 MiB per read translates to about 0.5 seconds between reads in testing. Thus, splitting the
@@ -429,6 +438,8 @@ class WorkflowController:
                     db: NODBControllerInstance):
         queue_info = self._get_step_info(payload.current_step)
         payload_dict = payload.to_map()
+        if '_metadata' not in payload_dict:
+            payload_dict['_metadata'] = {}
         payload_dict['_metadata']['send_time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         payload_dict['_metadata'].update(self._process_metadata)
         if priority is None and 'priority' in queue_info:
@@ -449,6 +460,7 @@ class WorkflowController:
     def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict) -> tuple[StorageFileHandle, t.Optional[StorageTier]]:
         if 'directory' not in upload_kwargs:
             raise CNODCError("Missing directory for workflow upload action", "WORKFLOW", 1003)
+        self._log.info(f"Uploading file to {upload_kwargs['directory']}")
         storage_metadata = self._get_storage_metadata(
             upload_kwargs['metadata'] if 'metadata' in upload_kwargs and upload_kwargs['metadata'] else {},
             metadata
@@ -472,4 +484,3 @@ class WorkflowController:
             return file_handle, None
         else:
             return file_handle, storage_tier
-

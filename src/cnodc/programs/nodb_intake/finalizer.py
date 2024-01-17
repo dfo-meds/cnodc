@@ -15,14 +15,17 @@ from cnodc.workflow.processor import PayloadProcessor
 from cnodc.workflow.workflow import BatchPayload
 
 
-class NODBProcessWorker(QueueWorker):
+class NODBFinalizeWorker(QueueWorker):
 
     def __init__(self, **kwargs):
-        super().__init__(log_name="cnodc.nodb_processor", **kwargs)
-        self._processor: t.Optional[NODBProcessor] = None
+        super().__init__(log_name="cnodc.nodb_finalizer", **kwargs)
+        self._processor: t.Optional[NODBFinalizer] = None
+        self.set_defaults({
+            'queue_name': 'nodb_finalize'
+        })
 
     def on_start(self):
-        self._processor = NODBProcessor(
+        self._processor = NODBFinalizer(
             processor_uuid=self.process_uuid
         )
 
@@ -30,36 +33,24 @@ class NODBProcessWorker(QueueWorker):
         self._processor.process_queue_item(item)
 
 
-class NODBProcessor(PayloadProcessor):
+class NODBFinalizer(PayloadProcessor):
 
     nodb: NODBController = None
     converter: UnitConverter = None
 
-    NAME = 'nodb_processor'
+    NAME = 'nodb_finalizer'
     VERSION = '1.0'
 
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__(
-            processor_version=NODBProcessor.NAME,
-            processor_name=NODBProcessor.VERSION,
+            processor_version=NODBFinalizer.NAME,
+            processor_name=NODBFinalizer.VERSION,
             require_type=BatchPayload,
             **kwargs
         )
 
     def _process(self):
-        workflow = self.load_workflow_controller()
-        if workflow is None or not workflow.has_more_steps(self._current_payload.current_step):
-            self._complete_batch()
-        else:
-            next_payload = self.create_batch_payload(self._current_payload.batch_uuid, True)
-            workflow.queue_step(
-                next_payload,
-                unique_key=self._current_item.unique_item_name,
-                db=self._db
-            )
-
-    def _complete_batch(self):
         batch = self.load_batch_from_payload()
         for record in batch.stream_working_records(self._db):
             self._complete_record(record)
@@ -90,6 +81,8 @@ class NODBProcessor(PayloadProcessor):
         self._db.commit()
 
     def _finalize_record(self, record: DataRecord, is_top_level: bool = False):
+        # TODO: where values are MultiValued, assign a WorkingQuality to the parent MultiValue based on the best
+        # value of the actual values
         for key in record.metadata:
             self._finalize_value(record.metadata[key])
         for record in record.iter_subrecords():

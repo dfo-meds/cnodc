@@ -1,0 +1,21 @@
+# Core options
+process_class: cnodc.programs.file_scan.FileScanTask
+process_name: file_scanner
+
+## Options from ScheduledTask
+delay_seconds: 60
+# save_file: ''
+# delay_fuzz_milliseconds: 1000
+run_on_boot: yes
+# schedule_mode: from_completion
+
+## Options from FileScanTask
+scan_target: 'C:/my/t2/file_scan_inputs'
+workflow_name: 'test_file_scan'
+metadata:
+  # allow-overwrite: no
+  # manual-subqueue: ''
+# remove_downloaded_files: no
+# recursive: no
+# pattern: '*'
+# queue_name: 'nodb_download'

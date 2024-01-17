@@ -1,0 +1,14 @@
+# Core options
+process_class: cnodc.programs.file_scan.FileDownloadWorker
+process_name: file_downloader
+
+## Options from QueueWorker
+# queue_name: 'nodb_download'
+# delay_time_seconds: 0.25
+retry_delay_seconds: 30
+# delay_factor: 2
+# max_delay_time_seconds: 128
+
+## Options from FileDownloadWorker
+# allow_file_deletes: no
+

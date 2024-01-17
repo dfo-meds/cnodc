@@ -1,3 +1,5 @@
+import math
+
 from .exceptions import CNODCError, ConfigError
 import typing as t
 import importlib
@@ -26,9 +28,6 @@ class HaltFlag(t.Protocol):
 
     def _should_continue(self) -> bool:
         raise NotImplementedError()
-
-    def sleep(self, time_seconds: float):
-        time.sleep(time_seconds)
 
     @staticmethod
     def iterate(iterable: t.Iterable, halt_flag=None, raise_ex: bool = True):
@@ -74,3 +73,12 @@ def dynamic_object(cls_name):
         raise DynamicObjectLoadError(f"Package or module [{package}] not found", "DOBJ", 1001) from ex
     except AttributeError as ex:
         raise DynamicObjectLoadError(f"Class [{specific_cls_name}] not found in [{package}]", "DOBJ", 1002) from ex
+
+
+def is_close(a, sigma_a, b, sigma_b, rel_tol, abs_tol):
+    if a > b:
+        a_lower_bound = a - sigma_a
+        b_upper_bound = b + sigma_b
+        return a_lower_bound < b_upper_bound or math.isclose(a_lower_bound, b_upper_bound, rel_tol=rel_tol, abs_tol=abs_tol)
+
+

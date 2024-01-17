@@ -7,6 +7,8 @@ import cnodc.nodb.structures as structures
 import time
 import typing as t
 
+from ..nodb.controller import NODBError
+
 
 class QueueWorker(BaseProcess):
 
@@ -34,6 +36,7 @@ class QueueWorker(BaseProcess):
             try:
                 self._db = db
                 while self.continue_loop():
+                    self._log.debug(f"Checking for new items in [{self.get_config('queue_name')}]")
                     queue_item = None
                     try:
                         queue_item = db.fetch_next_queue_item(self.get_config("queue_name"), self._app_id)
@@ -43,8 +46,11 @@ class QueueWorker(BaseProcess):
                             self.is_working.clear()
                             self._current_delay_time = self.get_config("delay_time_seconds")
                         else:
-                            time.sleep(self._delay_time())
+                            self.responsive_sleep(self._delay_time())
                     except CNODCError as ex:
+                        # NB: NODB errors require us to rollback so that we can fix them.
+                        if isinstance(ex, NODBError):
+                            self._db.rollback()
                         if ex.is_recoverable:
                             if queue_item:
                                 self._process_result(queue_item, structures.QueueItemResult.RETRY)
