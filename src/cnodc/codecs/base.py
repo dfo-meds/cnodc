@@ -275,6 +275,15 @@ class BaseCodec:
         self._halt_flag = halt_flag
         self.log = zrlog.get_logger(log_name)
 
+    @classmethod
+    def check_file_type(cls, file_path: str) -> bool:
+        if hasattr(cls, 'FILE_EXTENSION'):
+            if isinstance(cls.FILE_EXTENSION, (set, list)):
+                return any(file_path.endswith(x) for x in cls.FILE_EXTENSION)
+            else:
+                return file_path.endswith(cls.FILE_EXTENSION)
+        return False
+
     def dump(self,
              output_file: t.Union[Writable, str, os.PathLike],
              record_set: t.Iterable[DataRecord],
@@ -310,11 +319,11 @@ class BaseCodec:
         on_first = True
         yield from self._encode_start(**kwargs)
         for record_idx, record in enumerate(HaltFlag.iterate(data, self._halt_flag, True)):
-            result = self._encode(record)
+            result = self._encode_record(record)
             if result.success:
                 if not on_first:
                     yield from self._encode_separator(**kwargs)
-                yield from self._encode(record).data_stream
+                yield from result.data_stream
                 on_first = False
             elif fail_on_error:
                 if result.from_exception:
@@ -330,7 +339,10 @@ class BaseCodec:
                        record: DataRecord,
                        **kwargs) -> EncodeResult:
         try:
-            return self._encode(record, **kwargs)
+            return EncodeResult(
+                original=record,
+                data_stream=self._encode(record, **kwargs)
+            )
         except Exception as ex:
             return EncodeResult(
                 original=record,
@@ -339,7 +351,7 @@ class BaseCodec:
 
     def _encode(self,
                 record: DataRecord,
-                **kwargs) -> EncodeResult:
+                **kwargs) -> t.Iterable[bytes]:
         raise NotImplementedError()
 
     def _encode_separator(self, **kwargs) -> ByteIterable:
@@ -365,7 +377,7 @@ class BaseCodec:
                     raise CNODCError(f"Error decoding data from file", "CODECS", 1003)
             else:
                 if result.from_exception:
-                    self.log.error(f"Error decoding data from file: {result.from_exception.__class__.__name__}: {str(result.from_exception)}", "CODECS", 1004)
+                    self.log.error(f"Error decoding data from file: {result.from_exception.__class__.__name__}: {str(result.from_exception)}")
                 else:
                     self.log.error(f"Unknown error decoding data from file", "CODECS", 1005)
 

@@ -68,6 +68,15 @@ def remove_permission(role_name, permission):
 
 
 @main.command
+@click.argument("source_file")
+@click.argument("destination_file")
+@click.option("--source-encoding")
+@click.option("--destination-encoding")
+def transcode(source_file, destination_file, source_encoding=None, destination_encoding=None):
+    from cnodc.codecs.transcoder import transcode
+    transcode(source_file, destination_file, source_encoding, destination_encoding)
+
+@main.command
 @click.argument("workflow_name")
 @click.argument("config_file")
 @injector.inject

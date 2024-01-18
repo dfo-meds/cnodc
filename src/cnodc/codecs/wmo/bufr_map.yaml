@@ -193,7 +193,7 @@
 8029: "metadata:WMOSurfaceType"
 8034:
   apply_to: following
-  name: WMO_QUALIFIER_TS
+  name: WMOTemperatureSalinityQualifier
   type: metadata
   filter:
     - Temperature
@@ -262,6 +262,7 @@
   filter:
     - Depth
     - Pressure
+22059: "variables:PracticalSalinity"
 22060: "metadata:WMODrogueStatus"
 22061: noop
 22062: "variables:PracticalSalinity"

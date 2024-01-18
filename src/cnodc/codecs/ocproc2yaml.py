@@ -13,6 +13,7 @@ class OCProc2YamlCodec(BaseCodec):
 
     LINE_BREAKS = [b'\n', b'\r', b'\x85', b'\xE2\x80\xA8', b'\xE2\x80\xA9']
     DOCUMENT_BREAKS = [b'...', b'---']
+    FILE_EXTENSION = ('yaml',)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.yaml", is_encoder=True, is_decoder=True, **kwargs)
@@ -24,14 +25,9 @@ class OCProc2YamlCodec(BaseCodec):
                 record: DataRecord,
                 **kwargs) -> EncodeResult:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        return EncodeResult(
-            data_stream=[
-                '---\n'.encode(encoding),
-                yaml.safe_dump(record.to_mapping())._encode(encoding),
-                '\n...\n'.encode(encoding),
-            ],
-            original=record
-        )
+        yield '---\n'.encode(encoding)
+        yield yaml.safe_dump(record.to_mapping()).encode(encoding)
+        yield '\n...\n'.encode(encoding)
 
     def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'

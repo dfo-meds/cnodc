@@ -15,6 +15,8 @@ class StreamWrapper:
 
 class OCProc2BinCodec(BaseCodec):
 
+    FILE_EXTENSION = ('.ocp2',)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.bin", is_encoder=True, is_decoder=True, **kwargs)
 

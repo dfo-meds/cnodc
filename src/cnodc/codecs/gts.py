@@ -12,6 +12,8 @@ class GtsCodec(BaseCodec):
 
     WHITESPACE = bytes([13, 10, 32, 3, 4, 0])
 
+    FILE_EXTENSION = ('.bufr',)
+
     def __init__(self, *args, **kwargs):
         from cnodc.codecs.wmo.bufr import Bufr4Decoder
         super().__init__(log_name="cnodc.codecs.gts", is_decoder=True, *args, **kwargs)

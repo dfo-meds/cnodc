@@ -10,6 +10,7 @@ from ..util import CNODCError
 class OCProc2JsonCodec(BaseCodec):
 
     JSON_WHITESPACE = b" \r\n\t"
+    FILE_EXTENSION = ('.json',)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.json", is_encoder=True, is_decoder=True, **kwargs)
@@ -19,12 +20,9 @@ class OCProc2JsonCodec(BaseCodec):
 
     def _encode(self,
                 record: DataRecord,
-                **kwargs) -> EncodeResult:
+                **kwargs) -> t.Iterable[bytes]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        return EncodeResult(
-            data_stream=[json.dumps(record.to_mapping()).encode(encoding)],
-            original=record
-        )
+        yield json.dumps(record.to_mapping()).encode(encoding)
 
     def _encode_separator(self, **kwargs) -> ByteIterable:
         yield b','

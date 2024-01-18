@@ -15,7 +15,7 @@ from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicatio
     ValueDataNode, NoValueDataNode
 from autoinject import injector
 
-from cnodc.ocproc2.structures import AbstractValue, Value
+from cnodc.ocproc2.structures import AbstractValue, Value, MultiValue
 from cnodc.util import CNODCError
 
 
@@ -252,9 +252,9 @@ class _Bufr4Decoder:
                     self.warn(f"Overwriting mapping type [{map_to}] with {mapping['subrecord_type']}", ctx)
                 map_to = mapping['subrecord_type']
                 coord_name = (x,)
-        if map_to is None and n_repeats > 1 and any(x in descriptors for x in (4024, 4025)):
+        if map_to is None and n_repeats > 1 and any(x in descriptors for x in (4021, 4022, 4023, 4024, 4025, 4026)):
             map_to = "TSERIES"
-            coord_name = (4024, 4025)
+            coord_name = (4021, 4022, 4023, 4024, 4025, 4026)
         if map_to is not None:
             self._iterate_into_children(node, ctx, map_to, coord_name)
         else:
@@ -388,13 +388,23 @@ class _Bufr4Decoder:
             for x in ctx.var_metadata:
                 if ctx.var_metadata[x][1] is None or property_name in ctx.var_metadata[x][1]:
                     value.metadata[x] = ctx.var_metadata[x][0]
-        if property_name in property_map:
-            val = property_map[property_name].value()
-            if val is not None and val != value.value:
-                self.warn(f"Overwriting {property_type} [{property_name}], replacing [{val}] with [{value.value}]", ctx)
         if 'metadata' in instruction and instruction['metadata']:
             value.metadata.update(instruction['metadata'])
-        property_map[property_name] = value
+        if property_name in property_map:
+            current_val = property_map[property_name]
+            if isinstance(current_val, MultiValue):
+                current_val.append(value)
+            elif current_val.value is None:
+                property_map[property_name] = value
+            elif current_val == value:
+                pass
+            else:
+                new_val = MultiValue()
+                new_val.append(current_val)
+                new_val.append(value)
+                property_map[property_name] = new_val
+        else:
+            property_map[property_name] = value
 
     def _add_record_metadata(self, property_name, value, ctx, instruction):
         self._set_record_property("metadata", ctx.target.metadata, property_name, value, ctx, instruction, False)
@@ -427,6 +437,8 @@ class _Bufr4Decoder:
             value = bytes([x for x in value if 0 < x < 128]).decode('ascii', errors='replace').strip(' ')
         elif ctx.scale_factor is not None and isinstance(value, (int, float)):
             value *= math.pow(10, ctx.scale_factor)
+        if value == '' or value == b'':
+            value = None
         if raw:
             return value
         metadata = {}
@@ -465,7 +477,7 @@ class _Bufr4Decoder:
             if dt_len > 3:
                 date_str += "T"
                 date_str += ":".join(str(x).zfill(2) for x in node_values[3:])
-                date_str += "Z"
+                date_str += "+00:00"
             return date_str
         else:
             return None
@@ -578,7 +590,7 @@ class _Bufr4Decoder:
         elif applies_to == 11:
             self._add_parameter_quality_flag(ctx, 'Temperature', flag_value)
         elif applies_to == 12:
-            self._add_parameter_quality_flag(ctx, 'Salinity', flag_value)
+            self._add_parameter_quality_flag(ctx, 'PracticalSalinity', flag_value)
         elif applies_to == 13:
             self._add_coordinate_quality_flag(ctx, 'Depth', flag_value)
         elif applies_to == 14:
@@ -746,9 +758,9 @@ class _Bufr4Decoder:
             }, val, ctx)
         else:
             self._apply_instruction({
-                "table": "metadata",
-                "value": "ObservationPeriod",
-                "apply_to": "apply_following"
+                "type": "metadata",
+                "name": "ObservationPeriod",
+                "apply_to": "following"
             }, val, ctx)
 
     def _parse_node_4001(self, node, ctx: _Bufr4DecoderContext):
