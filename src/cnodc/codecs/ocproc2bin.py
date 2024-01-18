@@ -74,6 +74,9 @@ class OCProc2BinCodec(BaseCodec):
         elif codec == 'YAML':
             from cnodc.codecs.ocproc2yaml import OCProc2YamlCodec
             return OCProc2YamlCodec(halt_flag=self._halt_flag)
+        elif codec == 'PICKLE':
+            from cnodc.codecs.ocproc2pickle import OCProc2PickleCodec
+            return OCProc2PickleCodec(halt_flag=self._halt_flag)
         raise CNODCError(f"Invalid codec: {codec}", 'OCPROC2BIN', 1000)
 
     def _get_wrappers(self, compression: t.Optional[str], correction: t.Optional[str]) -> list[StreamWrapper]:
