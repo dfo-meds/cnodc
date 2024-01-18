@@ -5,7 +5,7 @@ process_name: gts_loader
 ## Options from QueueWorker
 # queue_name: 'gts_load'
 # delay_time_seconds: 0.25
-# retry_delay_seconds: 0
+retry_delay_seconds: 10
 # delay_factor: 2
 # max_delay_time_seconds: 128
 
