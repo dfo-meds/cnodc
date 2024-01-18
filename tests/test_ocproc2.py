@@ -281,7 +281,7 @@ class TestOCProc2ImportExport(ut.TestCase):
             'test1',
             'version1',
             'instance1',
-            'INFO'
+            ocproc2.MessageType.INFO
         ))
         dr.history.append(ocproc2.HistoryEntry(
             'hello world2',
@@ -289,13 +289,13 @@ class TestOCProc2ImportExport(ut.TestCase):
             'test1',
             'version1',
             'instance1',
-            'INFO'
+            ocproc2.MessageType.INFO
         ))
         dr.qc_tests.append(ocproc2.QCTestRunInfo(
             'test1',
             'version1',
             '2023-01-03T00:00:00+00:00',
-            'FAIL',
+            ocproc2.QCResult.FAIL,
             [
                 ocproc2.QCMessage('lat_fail', ['a', 'b', 'c'], 90),
                 ocproc2.QCMessage('lon_fail', ['a', 'b', 'd'], -180)
@@ -423,13 +423,13 @@ class TestOCProc2ImportExport(ut.TestCase):
                     '_message': 'hello world',
                     '_timestamp': '2023-01-01T00:00:00+00:00',
                     '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'INFO'
+                    '_message_type': 'I'
                 },
                 {
                     '_message': 'hello world2',
                     '_timestamp': '2023-01-02T00:00:00+00:00',
                     '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'INFO'
+                    '_message_type': 'I'
                 }
             ],
             '_qc_tests': [
@@ -449,7 +449,8 @@ class TestOCProc2ImportExport(ut.TestCase):
                             '_ref': -180
                         }
                     ],
-                    '_result': 'FAIL',
+                    '_result': 'F',
+                    '_stale': False,
                     '_notes': 'hello world3'
                 }
             ]
@@ -571,13 +572,13 @@ class TestOCProc2ImportExport(ut.TestCase):
                     '_message': 'hello world',
                     '_timestamp': '2023-01-01T00:00:00+00:00',
                     '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'INFO'
+                    '_message_type': 'I'
                 },
                 {
                     '_message': 'hello world2',
                     '_timestamp': '2023-01-02T00:00:00+00:00',
                     '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'INFO'
+                    '_message_type': 'I'
                 }
             ],
             '_qc_tests': [
@@ -597,7 +598,8 @@ class TestOCProc2ImportExport(ut.TestCase):
                             '_ref': -180
                         }
                     ],
-                    '_result': 'FAIL',
+                    '_result': 'F',
+                    '_stale': False,
                     '_notes': 'hello world3'
                 }
             ]
