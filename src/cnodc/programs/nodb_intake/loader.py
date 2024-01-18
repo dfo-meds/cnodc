@@ -6,7 +6,7 @@ from cnodc.nodb import LockType
 from cnodc.ocproc2 import DataRecord, MultiValue
 import cnodc.nodb.structures as structures
 import typing as t
-from cnodc.util import CNODCError
+from cnodc.util import CNODCError, HaltInterrupt
 
 from cnodc.workflow.workflow import FilePayload
 from cnodc.workflow.processor import PayloadProcessor
@@ -43,6 +43,7 @@ class NODBLoader(PayloadProcessor):
 
         # If it is already completed, then don't process it again
         if source_file.status in (structures.SourceFileStatus.COMPLETE, structures.SourceFileStatus.ERROR):
+            self._log.info(f"Source file already processed, skipping")
             return
 
         # TODO: consider if it is worth loading the most recent message idx from the error and obs_data tables
@@ -57,22 +58,24 @@ class NODBLoader(PayloadProcessor):
         # Download the file
         temp_file = self.download_file_payload()
 
-        records_created = False
+        total_created = 0
 
         # Decode each entry and save them
         with open(temp_file, "rb") as h:
-            for result in self._decoder.decode(
-                    self._decoder.read_in_chunks(h),
+            for result in self._decoder.decode_to_results(
+                    self._decoder._read_in_chunks(h),
                     include_skipped=False,
                     skip_to_message_idx=skip_to_message_idx,
                     **self._decode_kwargs):
-                if self._create_nodb_record_from_result(source_file, result):
-                    records_created = True
+                total_created += self._create_nodb_record_from_result(source_file, result)
+
+        self._log.info(f"{total_created} records created")
 
         # Mark the file as complete and queue it for record verification
         source_file.status = structures.SourceFileStatus.COMPLETE
         self._db.update_object(source_file)
-        if records_created:
+        # Only need to create a source payload if records were found
+        if total_created > 0:
             payload = self.create_source_payload(source_file, False)
             self._db.create_queue_item(
                 self._verification_queue,
@@ -104,20 +107,30 @@ class NODBLoader(PayloadProcessor):
 
     def _create_nodb_record_from_result(self,
                                         source_file: structures.NODBSourceFile,
-                                        result: DecodeResult) -> bool:
+                                        result: DecodeResult) -> int:
+        total_success = 0
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
                     if self._halt_flag:
                         self._halt_flag.check_continue(True)
                     self._create_nodb_record(source_file, result.message_idx, record_idx, record)
-                self._db.commit()
-                return True
+                    total_success += 1
+            except (HaltInterrupt, KeyboardInterrupt) as ex:
+                raise ex from ex
+            except CNODCError as ex:
+                if ex.is_recoverable:
+                    raise ex from ex
+                else:
+                    self._handle_decode_failure(source_file, result)
+                    self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
             except Exception as ex:
-                pass
+                self._handle_decode_failure(source_file, result)
+                self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
         else:
             self._handle_decode_failure(source_file, result)
-            return False
+            self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
+        return total_success
 
     def _create_nodb_record(self,
                             source_file: structures.NODBSourceFile,
@@ -149,6 +162,7 @@ class NODBLoader(PayloadProcessor):
         working_record.received_date = source_file.received_date
         working_record.message_idx = message_idx
         working_record.record_idx = record_idx
+        working_record.source_file_uuid = source_file.source_uuid
         self._populate_observation_data(working_record, record)
         self._db.insert_object(working_record)
         self._db.commit()
@@ -158,16 +172,6 @@ class NODBLoader(PayloadProcessor):
             if metadata_key not in record.metadata:
                 record.metadata[metadata_key] = self._defaults[metadata_key]
         working_record.record = record
-        if 'Time' in record.coordinates and record.coordinates['Time'].is_iso_datetime():
-            working_record.obs_time = datetime.datetime.fromisoformat(record.coordinates['Time'].best_value())
-        lat = []
-        if 'Latitude' in record.coordinates:
-            lat = [x.value for x in record.coordinates['Latitude'].all_values() if not x.is_empty()]
-        lon = []
-        if 'Longitude' in record.coordinates:
-            lon = [x.value for x in record.coordinates['Longitude'].all_values() if not x.is_empty()]
-        if lat and lon:
-            working_record.location = f'POINT ({round(statistics.mean(lon), 4)} {round(statistics.mean(lat), 4)})'
 
     def _handle_decode_failure(self,
                                source_file: structures.NODBSourceFile,
