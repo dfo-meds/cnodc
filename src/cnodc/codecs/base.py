@@ -255,7 +255,7 @@ class DecodeResult:
         self.skipped = skipped
 
 
-class EncodeResult(t.Protocol):
+class EncodeResult:
 
     def __init__(self,
                  data_stream: t.Optional[ByteIterable] = None,
@@ -280,55 +280,55 @@ class BaseCodec:
              record_set: t.Iterable[DataRecord],
              **kwargs):
         if hasattr(output_file, 'write'):
-            self.write_in_chunks(output_file, self.encode_messages(record_set, **kwargs))
+            self._write_in_chunks(output_file, self.encode_records(record_set, **kwargs))
         else:
             with open(output_file, "wb") as h:
-                self.write_in_chunks(h, self.encode_messages(record_set, **kwargs))
+                self._write_in_chunks(h, self.encode_records(record_set, **kwargs))
 
     def load_all(self,
                  file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
                  chunk_size: int = 16384,
                  **kwargs) -> t.Iterable[DataRecord]:
         if hasattr(file, 'read'):
-            yield from self.decode_messages(self.read_in_chunks(file, chunk_size), **kwargs)
+            yield from self.decode_messages(self._read_in_chunks(file, chunk_size), **kwargs)
         elif isinstance(file, (bytes, bytearray)):
-            yield from self.decode_messages(BaseCodec.yield_bytes(file), **kwargs)
+            yield from self.decode_messages(BaseCodec._yield_bytes(file), **kwargs)
         elif isinstance(file, (str, os.PathLike, pathlib.Path)):
             with open(file, "rb") as h:
-                yield from self.decode_messages(self.read_in_chunks(h, chunk_size), **kwargs)
+                yield from self.decode_messages(self._read_in_chunks(h, chunk_size), **kwargs)
         else:
             yield from self.decode_messages(file, **kwargs)
 
     @staticmethod
-    def yield_bytes(b: t.Union[bytes, bytearray]):
+    def _yield_bytes(b: t.Union[bytes, bytearray]):
         yield b
 
-    def encode_messages(self,
-                        data: t.Iterable[DataRecord],
-                        **kwargs) -> ByteIterable:
+    def encode_records(self,
+                       data: t.Iterable[DataRecord],
+                       **kwargs) -> ByteIterable:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
         on_first = True
-        yield from self.encode_start(**kwargs)
+        yield from self._encode_start(**kwargs)
         for record_idx, record in enumerate(HaltFlag.iterate(data, self._halt_flag, True)):
             result = self._encode(record)
             if result.success:
                 if not on_first:
-                    yield from self.encode_separator(**kwargs)
-                yield self._encode(record).data_stream
+                    yield from self._encode_separator(**kwargs)
+                yield from self._encode(record).data_stream
                 on_first = False
             elif fail_on_error:
                 if result.from_exception:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1000) from result.from_exception
                 else:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1001)
-        yield from self.encode_end(**kwargs)
+        yield from self._encode_end(**kwargs)
 
-    def encode_start(self, **kwargs) -> ByteIterable:
+    def _encode_start(self, **kwargs) -> ByteIterable:
         yield b''
 
-    def encode(self,
-               record: DataRecord,
-               **kwargs) -> EncodeResult:
+    def _encode_record(self,
+                       record: DataRecord,
+                       **kwargs) -> EncodeResult:
         try:
             return self._encode(record, **kwargs)
         except Exception as ex:
@@ -342,20 +342,20 @@ class BaseCodec:
                 **kwargs) -> EncodeResult:
         raise NotImplementedError()
 
-    def encode_separator(self, **kwargs) -> ByteIterable:
+    def _encode_separator(self, **kwargs) -> ByteIterable:
         yield b''
 
-    def encode_end(self, **kwargs) -> ByteIterable:
+    def _encode_end(self, **kwargs) -> ByteIterable:
         yield b''
 
-    def as_byte_sequence(self, bytes_: ByteIterable) -> ByteSequenceReader:
+    def _as_byte_sequence(self, bytes_: ByteIterable) -> ByteSequenceReader:
         return ByteSequenceReader(bytes_, self._halt_flag)
 
     def decode_messages(self,
                         data: ByteIterable,
                         **kwargs) -> t.Iterable[DataRecord]:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
-        for result in HaltFlag.iterate(self.decode(data, **kwargs), self._halt_flag, True):
+        for result in HaltFlag.iterate(self.decode_to_results(data, **kwargs), self._halt_flag, True):
             if result.success:
                 yield from result.records
             elif fail_on_error:
@@ -369,7 +369,7 @@ class BaseCodec:
                 else:
                     self.log.error(f"Unknown error decoding data from file", "CODECS", 1005)
 
-    def decode(self, data: ByteIterable, include_skipped: bool = True, **kwargs) -> t.Iterable[DecodeResult]:
+    def decode_to_results(self, data: ByteIterable, include_skipped: bool = True, **kwargs) -> t.Iterable[DecodeResult]:
         idx = 0
         for result in self._decode(data, **kwargs):
             result.message_idx = idx
@@ -382,11 +382,11 @@ class BaseCodec:
                 **kwargs) -> t.Iterable[DecodeResult]:
         raise NotImplementedError()
 
-    def write_in_chunks(self, file_handle: Writable, output: ByteIterable):
+    def _write_in_chunks(self, file_handle: Writable, output: ByteIterable):
         for bytes_ in HaltFlag.iterate(output, self._halt_flag, True):
             file_handle.write(bytes_)
 
-    def read_in_chunks(self, file_handle: Readable, chunk_size: int = 16384) -> ByteIterable:
+    def _read_in_chunks(self, file_handle: Readable, chunk_size: int = 16384) -> ByteIterable:
         chunk = file_handle.read(chunk_size)
         while chunk != b'':
             if self._halt_flag:

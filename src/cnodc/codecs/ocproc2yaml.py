@@ -17,7 +17,7 @@ class OCProc2YamlCodec(BaseCodec):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.yaml", is_encoder=True, is_decoder=True, **kwargs)
 
-    def encode_start(self, **kwargs) -> ByteIterable:
+    def _encode_start(self, **kwargs) -> ByteIterable:
         yield b'%YAML 1.1\n'
 
     def _encode(self,
@@ -42,7 +42,7 @@ class OCProc2YamlCodec(BaseCodec):
                 ba.extend(line_break)
                 ba.extend(doc_break)
                 doc_breaks.append(bytes(ba))
-        stream = self.as_byte_sequence(data)
+        stream = self._as_byte_sequence(data)
         last_offset = None
         while not stream.at_eof():
             data = b''

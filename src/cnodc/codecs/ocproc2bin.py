@@ -18,9 +18,9 @@ class OCProc2BinCodec(BaseCodec):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.bin", is_encoder=True, is_decoder=True, **kwargs)
 
-    def encode_messages(self, data: t.Iterable[DataRecord], **kwargs) -> ByteIterable:
+    def encode_records(self, data: t.Iterable[DataRecord], **kwargs) -> ByteIterable:
         bin_args, ds_args = self._separate_kwargs(kwargs)
-        out_stream = self._get_codec(bin_args['codec']).encode_messages(data, **ds_args)
+        out_stream = self._get_codec(bin_args['codec']).encode_records(data, **ds_args)
         for wrapper in self._get_wrappers(bin_args['compression'], bin_args['correction']):
             out_stream = wrapper.wrap_stream(out_stream)
         yield from self._make_header(**bin_args)
@@ -44,7 +44,7 @@ class OCProc2BinCodec(BaseCodec):
             header = header_str.split(',', maxsplit=2)
             codec = self._get_codec(header[0])
             in_stream = stream.iterate_rest()
-            for wrapper in reversed(self._get_wrappers(*header)):
+            for wrapper in reversed(self._get_wrappers(*header[1:])):
                 in_stream = wrapper.wrap_stream(in_stream)
             yield from codec.decode_messages(in_stream, **kwargs)
         except UnicodeDecodeError as ex:

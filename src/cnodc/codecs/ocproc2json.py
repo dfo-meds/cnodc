@@ -14,37 +14,31 @@ class OCProc2JsonCodec(BaseCodec):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.json", is_encoder=True, is_decoder=True, **kwargs)
 
-    def encode_start(self, **kwargs) -> ByteIterable:
+    def _encode_start(self, **kwargs) -> ByteIterable:
         yield b'['
 
     def _encode(self,
                 record: DataRecord,
                 **kwargs) -> EncodeResult:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        try:
-            return EncodeResult(
-                data_stream=[json.dumps(record.to_mapping()).encode(encoding)],
-                original=record
-            )
-        except Exception as ex:
-            return EncodeResult(
-                exc=ex,
-                original=record
-            )
+        return EncodeResult(
+            data_stream=[json.dumps(record.to_mapping()).encode(encoding)],
+            original=record
+        )
 
-    def encode_separator(self, **kwargs) -> ByteIterable:
+    def _encode_separator(self, **kwargs) -> ByteIterable:
         yield b','
 
-    def encode_end(self, **kwargs) -> ByteIterable:
+    def _encode_end(self, **kwargs) -> ByteIterable:
         yield b']'
 
     def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        stream = self.as_byte_sequence(data)
+        stream = self._as_byte_sequence(data)
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
         if stream.at_eof():
             return []
-        if stream[0] == 91:
+        elif stream[0] == b'[':
             yield from self._decode_streaming_records(stream, encoding)
         else:
             yield self._decode_single_message(stream, encoding)
@@ -63,13 +57,13 @@ class OCProc2JsonCodec(BaseCodec):
             last_offset = stream.offset()
             buffer.extend(stream.consume_until([b"[", b"]", b"{", b"}"], True))
             end_c = buffer[-1]
-            if end_c in (b"[", b"{"):
+            if end_c in (91, 123):
                 depth += 1
-            elif end_c == b"]":
+            elif end_c == 93:
                 depth -= 1
                 if depth == 0:
                     break
-            elif end_c == b"}":
+            elif end_c == 125:
                 depth -= 1
                 if depth == 1:
                     # First character is either a comma or a square bracket that isn't closed, so finish it
@@ -79,6 +73,11 @@ class OCProc2JsonCodec(BaseCodec):
         # TODO: handle this better
         if not stream.at_eof():
             print("warning, end of file not reached")
+        if buffer == b'':
+            print("warning, missing trailing bracket")
+        elif buffer != b']':
+            print("warning, buffer not empty")
+            print(buffer)
 
     def _decode_message(self, stream: t.Union[bytes, bytearray], encoding: str):
         try:
