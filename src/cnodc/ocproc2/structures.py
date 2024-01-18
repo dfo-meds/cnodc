@@ -377,11 +377,7 @@ class MultiValue(AbstractValue):
             return False
 
     def best_value(self) -> t.Any:
-        for x in self._value:
-            bv = x.best_value()
-            if bv is not None and bv != '':
-                return bv
-        return None
+        return self.first_non_empty().value
 
     def all_values(self) -> t.Iterable:
         for v in self._value:
@@ -400,26 +396,32 @@ class MultiValue(AbstractValue):
             result = True
         return result if result is not None else False
 
+    def first_non_empty(self):
+        for x in self._value:
+            if not x.is_empty():
+                return x
+        return None
+
     def to_decimal(self) -> decimal.Decimal:
-        return self.best_value().to_decimal()
+        return self.first_non_empty().to_decimal()
 
     def to_float_with_uncertainty(self) -> t.Union[float, ufloat]:
-        return self.best_value().to_float_with_uncertainty()
+        return self.first_non_empty().to_float_with_uncertainty()
 
     def to_float(self) -> float:
-        return self.best_value().to_float()
+        return self.first_non_empty().to_float()
 
     def to_int(self) -> int:
-        return self.best_value().to_int()
+        return self.first_non_empty().to_int()
 
     def to_datetime(self) -> datetime.datetime:
-        return self.best_value().to_datetime()
+        return self.first_non_empty().to_datetime()
 
     def to_date(self) -> datetime.date:
-        return self.best_value().to_date()
+        return self.first_non_empty().to_date()
 
     def to_string(self) -> str:
-        return self.best_value().to_string()
+        return self.first_non_empty().to_string()
 
     def is_numeric(self) -> bool:
         return self._broadcast_is_check('is_numeric')
