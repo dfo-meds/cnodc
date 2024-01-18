@@ -11,6 +11,7 @@ from cnodc.util import HaltFlag, HaltInterrupt
 
 ByteIterable = t.Iterable[t.Union[bytes, bytearray]]
 
+
 # TODO: Investigate using mmap here?
 class ByteSequenceReader:
 
@@ -405,3 +406,22 @@ class BaseCodec:
                 self._halt_flag.check_continue(True)
             yield chunk
             chunk = file_handle.read(chunk_size)
+
+    @staticmethod
+    def map_to_record(record_map: dict) -> DataRecord:
+        dr = DataRecord()
+        dr.from_mapping(BaseCodec.uncompress_record_map(record_map))
+        return dr
+
+    @staticmethod
+    def record_to_map(record: DataRecord) -> dict:
+        return BaseCodec.compress_record_map(record.to_mapping())
+
+    @staticmethod
+    def compress_record_map(record_map: dict) -> dict:
+        return record_map
+
+    @staticmethod
+    def uncompress_record_map(record_map: dict) -> dict:
+        return record_map
+

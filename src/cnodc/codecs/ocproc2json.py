@@ -22,7 +22,7 @@ class OCProc2JsonCodec(BaseCodec):
                 record: DataRecord,
                 **kwargs) -> t.Iterable[bytes]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        yield json.dumps(record.to_mapping()).encode(encoding)
+        yield json.dumps(BaseCodec.record_to_map(record)).encode(encoding)
 
     def _encode_separator(self, **kwargs) -> ByteIterable:
         yield b','
@@ -80,10 +80,8 @@ class OCProc2JsonCodec(BaseCodec):
     def _decode_message(self, stream: t.Union[bytes, bytearray], encoding: str):
         try:
             data = stream.decode(encoding)
-            dr = DataRecord()
-            dr.from_mapping(json.loads(data))
             return DecodeResult(
-                records=[dr],
+                records=[BaseCodec.map_to_record(json.loads(data))],
                 original=stream
             )
         except Exception as ex:

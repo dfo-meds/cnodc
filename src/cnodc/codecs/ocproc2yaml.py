@@ -26,7 +26,7 @@ class OCProc2YamlCodec(BaseCodec):
                 **kwargs) -> EncodeResult:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
         yield '---\n'.encode(encoding)
-        yield yaml.safe_dump(record.to_mapping()).encode(encoding)
+        yield yaml.safe_dump(BaseCodec.record_to_map(record)).encode(encoding)
         yield '\n...\n'.encode(encoding)
 
     def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
@@ -49,10 +49,8 @@ class OCProc2YamlCodec(BaseCodec):
                 data = stream.consume_until(doc_breaks, True)
                 doc = yaml.safe_load(data.decode(encoding))
                 if doc:
-                    dr = DataRecord()
-                    dr.from_mapping(doc)
                     yield DecodeResult(
-                        records=[dr],
+                        records=[BaseCodec.map_to_record(doc)],
                         original=data
                     )
             except Exception as ex:
