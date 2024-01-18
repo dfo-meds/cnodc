@@ -29,6 +29,9 @@ def _config_paths():
 
 
 def init_cnodc(app_type: str):
+    # Avoid spam from pybufrkit when DEBUG mode is enabled
+    from pybufrkit.coder import log as pybufrkit_logger
+    pybufrkit_logger.setLevel(logging.INFO)
 
     @zr.configure
     def set_config(app_config: zr.ApplicationConfig):
