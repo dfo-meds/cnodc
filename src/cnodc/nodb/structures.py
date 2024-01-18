@@ -815,7 +815,7 @@ class NODBObservationData(_NODBBaseObject):
         else:
             decoder = OCProc2BinCodec()
             ba = bytearray()
-            for byte_ in decoder.encode_messages(
+            for byte_ in decoder.encode_records(
                     [data_record],
                     codec='JSON',
                     compression='LZMA6CRC4',
@@ -955,13 +955,14 @@ class NODBWorkingRecord(_NODBBaseObject):
     @record.setter
     def record(self, data_record: DataRecord):
         self.set_cached('loaded_record', data_record)
+        self._update_from_data_record(data_record)
         if data_record is None:
             self.data_record = None
             self.mark_modified('data_record')
         else:
             decoder = OCProc2BinCodec()
             ba = bytearray()
-            for byte_ in decoder.encode_messages(
+            for byte_ in decoder.encode_records(
                     [data_record],
                     codec='JSON',
                     compression='LZMA6CRC4',
@@ -969,6 +970,16 @@ class NODBWorkingRecord(_NODBBaseObject):
                 ba.extend(byte_)
             self.data_record = ba
             self.mark_modified('data_record')
+
+    def _update_from_data_record(self, data_record: DataRecord):
+        if data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
+            self.obs_time = data_record.coordinates['Time'].to_datetime()
+        if data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
+            lat = data_record.coordinates['Latitude'].to_float()
+            lon = data_record.coordinates['Longitude'].to_float()
+            self.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
+        if data_record.metadata.has_value('CNODCStation'):
+            self.station_uuid = data_record.metadata['CNODCStation'].best_value()
 
     @staticmethod
     def bulk_set_batch_uuid(
