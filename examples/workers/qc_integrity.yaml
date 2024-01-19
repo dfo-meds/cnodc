@@ -14,8 +14,9 @@ retry_delay_seconds: 5
 qc_test_suite_class: cnodc.qc.integrity_check.NODBIntegrityCheck
 # qc_test_suite_kwargs:
 #   strict: false
-next_queue: "nodb_continue"
+# next_queue: "nodb_continue"
 review_queue: "nodb_integrity_review"
+# recheck_queue: "nodb_integrity_check"
 # input_is_source_file: false
 # use_station_batching: false
 # max_batch_size: -1

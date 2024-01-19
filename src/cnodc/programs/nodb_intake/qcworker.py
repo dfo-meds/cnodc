@@ -27,8 +27,9 @@ class NODBQCWorker(QueueWorker):
             'target_buffer_size': None,
             'input_is_source_file': False,
             'use_station_batching': False,
-            'next_queue': None,
-            'review_queue': None,
+            'next_queue': "nodb_continue",
+            'recheck_queue': None,
+            'review_queue': 'nodb_manual_review',
         })
 
     def on_start(self):
@@ -42,7 +43,8 @@ class NODBQCWorker(QueueWorker):
             },
             submitter_kwargs={
                 'next_queue': self.get_config('next_queue'),
-                'review_queue': self.get_config('review_queue')
+                'review_queue': self.get_config('review_queue'),
+                'recheck_queue': self.get_config('recheck_queue') or self.get_config('queue_name')
             },
             use_source_file=self.get_config('input_is_source_file', False),
             use_station_batcher=self.get_config('use_station_batching', False),
@@ -145,16 +147,22 @@ class NODBBatchSubmitter:
                  last_payload: WorkflowPayload,
                  next_queue: str = None,
                  review_queue: str = None,
+                 recheck_queue: str = None,
                  next_step_queue: str = 'nodb_continue'):
         self._db = db
         self._next_step = next_step_queue
         self._previous_payload = last_payload
         self._next_queue = next_queue
+        self._recheck_queue = recheck_queue
         self._review_queue = review_queue
 
     def submit_existing_batch(self, batch_id: str, batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
         queue_name = self._get_queue_name(batch_outcome)
         payload = BatchPayload(batch_id)
+        if batch_outcome == BatchOutcome.REVIEW_QUEUE:
+            payload.headers['post-review-queue'] = self._recheck_queue
+        elif 'post-review-queue' in payload.headers:
+            del payload.headers['post-review-queue']
         self._previous_payload.update_for_propagation(payload)
         if queue_name is not None:
             self._db.create_queue_item(

@@ -33,8 +33,7 @@ class QCResult(enum.Enum):
     PASS = 'P'
     MANUAL_REVIEW = 'R'
     FAIL = 'F'
-    CONTINUE = 'C'
-    HALT = 'H'
+    SKIP = 'S'
 
 
 def normalize_data_value(dv: t.Any):

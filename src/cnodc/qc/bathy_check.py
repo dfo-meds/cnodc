@@ -8,9 +8,14 @@ from cnodc.util import dynamic_object
 
 class NODBBathymetryCheck(BaseTestSuite):
 
-    def __init__(self, bathymetry_model_class: str, bathymetry_model_kwargs: dict, **kwargs):
+    def __init__(self,
+                 bathymetry_model_class: str,
+                 bathymetry_model_kwargs: dict,
+                 minimum_relative_uncertainty: float = 0.1,
+                 **kwargs):
         super().__init__('nodb_bathy_check', '1.0', **kwargs)
         bathymetry_model_kwargs = bathymetry_model_kwargs or {}
+        self._min_uncertainty = minimum_relative_uncertainty
         self._bathymetry_model = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
 
     @RecordTest()
@@ -23,8 +28,11 @@ class NODBBathymetryCheck(BaseTestSuite):
         x = record.coordinates['Longitude'].to_float_with_uncertainty()
         y = record.coordinates['Latitude'].to_float_with_uncertainty()
         z = self._bathymetry_model.water_depth(x, y)
-        # This is the most conservative check possible (almost certainly above sea level)
+        if z is None:
+            self.record_note(f'Bathymetry [{self._bathymetry_model.ref_name}] does not support coordiantes ({x}, {y})', context)
+            return
         self.record_note(f"Bathymetry [{self._bathymetry_model.ref_name}] reports water depth at ({x}, {y}) to be {z} m", context)
+        # This is the most conservative check possible (almost certainly above sea level)
         if not self.is_less_than(z, 1e-6):
             record.coordinates['Latitude'].metadata['WorkingQuality'] = 14
             record.coordinates['Longitude'].metadata['WorkingQuality'] = 14
@@ -34,10 +42,10 @@ class NODBBathymetryCheck(BaseTestSuite):
             # tidal and other effects. However, if the uncertainty is larger than 10% of
             # the value, then we use the uncertainty instead
             if isinstance(z, UFloat):
-                if z.std_dev < 0.1 * abs(z.nominal_value):
-                    z = ufloat(z.nominal_value, 0.1 * abs(z.nominal_value))
+                if z.std_dev < self._min_uncertainty * abs(z.nominal_value):
+                    z = ufloat(z.nominal_value, self._min_uncertainty * abs(z.nominal_value))
             else:
-                z = ufloat(z, 0.1 * abs(z))
+                z = ufloat(z, self._min_uncertainty * abs(z))
             self._check_for_soundings(record, z, context)
 
     def _check_for_soundings(self, record: ocproc2.DataRecord, z: UFloat, context):

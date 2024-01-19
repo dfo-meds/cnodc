@@ -17,8 +17,9 @@ qc_test_suite_kwargs:
   bathymetry_model_kwargs:
     base_dir: "C:/my/gebco_2023_geotiff"
     uncertainty: 180
-next_queue: "nodb_continue"
-review_queue: "nodb_bathy_review"
+# next_queue: "nodb_continue"
+# review_queue: "nodb_manual_review"
+# recheck_queue: "gebco2023_bathy_check"
 # input_is_source_file: false
 # use_station_batching: false
 # max_batch_size: -1

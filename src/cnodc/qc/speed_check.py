@@ -32,7 +32,6 @@ class NODBSpeedCheck(BaseTestSuite):
                 key_info[sid].append((xx, yy, tt, tu, identifier))
             except QCSkipTest:
                 continue
-        results = {}
         for key in key_info:
             self._process_speed_subbatch(key, key_info[key], batch)
 
