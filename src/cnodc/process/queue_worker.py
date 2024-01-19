@@ -23,6 +23,7 @@ class QueueWorker(BaseProcess):
             "retry_delay_seconds": 0,
             "delay_factor": 2,
             "max_delay_time_seconds": 128,
+            'deprioritize_failures': True
         })
         self._db: t.Optional[NODBControllerInstance] = None
 
@@ -85,7 +86,7 @@ class QueueWorker(BaseProcess):
             self.on_failure(queue_item)
             after = self.after_failure
         else:
-            queue_item.release(self._db, self.get_config("retry_delay_seconds"))
+            queue_item.release(self._db, self.get_config("retry_delay_seconds"), self.get_config('deprioritize_failures'))
             self.on_retry(queue_item)
             after = self.after_retry
         self._db.commit()

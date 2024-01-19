@@ -6,30 +6,69 @@ from cnodc.nodb import LockType
 from cnodc.ocproc2 import DataRecord, MultiValue
 import cnodc.nodb.structures as structures
 import typing as t
-from cnodc.util import CNODCError, HaltInterrupt
+from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 
 from cnodc.workflow.workflow import FilePayload
 from cnodc.workflow.processor import PayloadProcessor
+from cnodc.process.queue_worker import QueueWorker
 
 
-class NODBLoader(PayloadProcessor):
+class NODBDecodeLoadWorker(QueueWorker):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(log_name="cnodc.nodb_loader", *args, **kwargs)
+        self._loader: t.Optional[NODBDecodeLoader] = None
+        self.set_defaults({
+            'queue_name': None,
+            'next_queue': 'nodb_station_check',
+            'failure_queue': 'nodb_decode_failure',
+            'error_directory': None,
+            'default_metadata': {},
+            'decoder_class': None,
+            'decode_kwargs': {}
+        })
+
+    def on_start(self):
+        codec = dynamic_object(self.get_config('decoder_class'))(halt_flag=self.halt_flag)
+        self._loader = NODBDecodeLoader(
+            processor_uuid=self.process_uuid,
+            error_directory=self.get_config('error_directory'),
+            decoder=codec,
+            decode_kwargs=self.get_config('decode_kwargs'),
+            next_queue=self.get_config('next_queue'),
+            failure_queue=self.get_config('failure_queue'),
+            default_metadata=self.get_config('default_metadata'),
+            halt_flag=self.halt_flag
+        )
+
+    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
+        return self._loader.process_queue_item(item)
+
+
+class NODBDecodeLoader(PayloadProcessor):
 
     def __init__(self,
                  error_directory: str,
                  decoder: BaseCodec,
                  decode_kwargs: dict = None,
                  failure_queue: str = 'nodb_decode_failure',
-                 verification_queue: str = 'nodb_station_check',
+                 next_queue: str = 'nodb_station_check',
                  default_metadata: dict[str, t.Any] = None,
                  **kwargs):
         super().__init__(
+            log_name='cnodc.nodb_loader',
             require_type=FilePayload,
+            processor_name='nodb_load',
+            processor_version='1.0',
             **kwargs)
-        self._verification_queue = verification_queue
+        self._verification_queue = next_queue
         self._decode_kwargs = decode_kwargs or {}
         self._failure_queue = failure_queue
         self._defaults = default_metadata or {}
         self._decoder: BaseCodec = decoder
+        self._before_message: t.Optional[callable] = None
+        self._after_success: t.Optional[callable] = None
+        self._after_error: t.Optional[callable] = None
         self._error_dir = self.storage.get_handle(error_directory, halt_flag=self._halt_flag)
         if not (self._error_dir.is_dir() and self._error_dir.exists()):
             raise CNODCError(f"Specified error directory [{error_directory}] is not a directory", "NODBLOAD", 1003)
@@ -109,6 +148,8 @@ class NODBLoader(PayloadProcessor):
                                         source_file: structures.NODBSourceFile,
                                         result: DecodeResult) -> int:
         total_success = 0
+        if self._before_message is not None:
+            self._before_message(source_file, result)
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
@@ -116,20 +157,23 @@ class NODBLoader(PayloadProcessor):
                         self._halt_flag.check_continue(True)
                     self._create_nodb_record(source_file, result.message_idx, record_idx, record)
                     total_success += 1
+                if self._after_success is not None:
+                    self._after_success(source_file, result)
+                self._db.commit()
             except (HaltInterrupt, KeyboardInterrupt) as ex:
                 raise ex from ex
             except CNODCError as ex:
                 if ex.is_recoverable:
                     raise ex from ex
                 else:
-                    self._handle_decode_failure(source_file, result)
+                    self._handle_decode_failure(source_file, result, ex)
                     self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
             except Exception as ex:
-                self._handle_decode_failure(source_file, result)
+                self._handle_decode_failure(source_file, result, ex)
                 self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
         else:
             self._handle_decode_failure(source_file, result)
-            self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
+            self._log.error(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
         return total_success
 
     def _create_nodb_record(self,
@@ -165,7 +209,6 @@ class NODBLoader(PayloadProcessor):
         working_record.source_file_uuid = source_file.source_uuid
         self._populate_observation_data(working_record, record)
         self._db.insert_object(working_record)
-        self._db.commit()
 
     def _populate_observation_data(self, working_record: structures.NODBWorkingRecord, record: DataRecord):
         for metadata_key in self._defaults:
@@ -177,6 +220,8 @@ class NODBLoader(PayloadProcessor):
                                source_file: structures.NODBSourceFile,
                                result: DecodeResult,
                                additional_exception: Exception = None):
+        if self._after_error is not None:
+            self._after_error(source_file, result, additional_exception)
         child_file = structures.NODBSourceFile.find_by_original_info(
             self._db,
             source_file.original_uuid,
@@ -194,10 +239,16 @@ class NODBLoader(PayloadProcessor):
             child_file.file_name = source_file.file_name
             child_file.source_path = file.path()
             child_file.status = structures.SourceFileStatus.ERROR
-            exc = additional_exception if additional_exception is not None else result.from_exception
-            if exc:
+            if result.from_exception:
                 child_file.report_error(
-                    f"Decode error: {exc.__class__.__name__}: {str(exc)}",
+                    f"Decode error: {result.from_exception.__class__.__name__}: {str(result.from_exception)}",
+                    self._processor_name,
+                    self._processor_version,
+                    self._processor_uuid
+                )
+            if additional_exception:
+                child_file.report_error(
+                    f"Decode error: {additional_exception.__class__.__name__}: {str(additional_exception)}",
                     self._processor_name,
                     self._processor_version,
                     self._processor_uuid

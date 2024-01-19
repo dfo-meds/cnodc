@@ -1,15 +1,26 @@
 # Core options
-process_class: cnodc.programs.gts_loader.GTSLoadWorker
+process_class: cnodc.programs.nodb_intake.NODBLoadWorker
 process_name: gts_loader
 
 ## Options from QueueWorker
-# queue_name: 'gts_load'
+queue_name: 'gts_load'
 # delay_time_seconds: 0.25
 retry_delay_seconds: 10
 # delay_factor: 2
 # max_delay_time_seconds: 128
+# deprioritize_failures: yes
 
-## Options from GTSLoadWorker
+## Options from NODBLoadWorker
 # allow_file_deletes: no
 error_directory: "C:/my/t2/gts_file_errors"
+default_metadata:
+  CNODCSource: gts
+  CNODCProgram: gtspp
+  CNODCLevel: ADJUSTED
+  CNODCStatus: UNVERIFIED
+decoder_class: cnodc.codecs.gts.GtsCodec
+# decode_kwargs:
+# next_queue: nodb_station_check
+# failure_queue: nodb_decode_failure
+#
 

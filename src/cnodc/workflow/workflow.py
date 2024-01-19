@@ -424,12 +424,15 @@ class WorkflowController:
             return None
         return filename
 
-    def _get_step_info(self, step_idx: int):
+    def _get_step_info(self, step_idx: int) -> dict:
         if 'processing_steps' not in self.config or not self.config['processing_steps']:
             raise CNODCError('No processing steps defined', 'WORKFLOW', 1001)
         if step_idx < 0 or step_idx >= len(self.config['processing_steps']):
             raise CNODCError(f"Invalid step index [{step_idx}]", 'WORKFLOW', 1002)
-        return self.config['processing_steps'][step_idx]
+        step_info = self.config['processing_steps'][step_idx]
+        if isinstance(step_info, str):
+            return {'name': step_info}
+        return step_info
 
     def _queue_step(self,
                     payload: WorkflowPayload,

@@ -80,6 +80,7 @@ class NODBFinalizer(PayloadProcessor):
         self._db.delete_object(working)
         self._db.commit()
 
+    # TODO: the below code should probably be spun out into its own function somewhere in case it needs to be used elsewhere
     def _finalize_record(self, record: DataRecord, is_top_level: bool = False):
         # TODO: where values are MultiValued, assign a WorkingQuality to the parent MultiValue based on the best
         # value of the actual values

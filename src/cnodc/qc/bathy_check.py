@@ -3,13 +3,15 @@ from uncertainties import UFloat, ufloat
 from cnodc.bathymetry import BathymetryModel
 from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext
 import cnodc.ocproc2.structures as ocproc2
+from cnodc.util import dynamic_object
 
 
 class NODBBathymetryCheck(BaseTestSuite):
 
-    def __init__(self, bathymetry_model: BathymetryModel, **kwargs):
+    def __init__(self, bathymetry_model_class: str, bathymetry_model_kwargs: dict, **kwargs):
         super().__init__('nodb_bathy_check', '1.0', **kwargs)
-        self.bathymetry = bathymetry_model
+        bathymetry_model_kwargs = bathymetry_model_kwargs or {}
+        self._bathymetry_model = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
 
     @RecordTest()
     def check_position(self, record: ocproc2.DataRecord, context: TestContext):
@@ -20,9 +22,9 @@ class NODBBathymetryCheck(BaseTestSuite):
             return
         x = record.coordinates['Longitude'].to_float_with_uncertainty()
         y = record.coordinates['Latitude'].to_float_with_uncertainty()
-        z = self.bathymetry.water_depth(x, y)
+        z = self._bathymetry_model.water_depth(x, y)
         # This is the most conservative check possible (almost certainly above sea level)
-        self.record_note(f"Bathymetry [{self.bathymetry.ref_name}] reports water depth at ({x}, {y}) to be {z} m", context)
+        self.record_note(f"Bathymetry [{self._bathymetry_model.ref_name}] reports water depth at ({x}, {y}) to be {z} m", context)
         if not self.is_less_than(z, 1e-6):
             record.coordinates['Latitude'].metadata['WorkingQuality'] = 14
             record.coordinates['Longitude'].metadata['WorkingQuality'] = 14

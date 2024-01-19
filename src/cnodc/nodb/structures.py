@@ -380,14 +380,15 @@ class NODBQueueItem(_NODBBaseObject):
     def mark_failed(self, db: NODBControllerInstance):
         self.set_queue_status(db, QueueStatus.ERROR)
 
-    def release(self, db: NODBControllerInstance, release_in_seconds: t.Optional[int] = None):
+    def release(self, db: NODBControllerInstance, release_in_seconds: t.Optional[int] = None, reduce_priority: bool = False):
         if release_in_seconds is None or release_in_seconds <= 0:
-            self.set_queue_status(db, QueueStatus.UNLOCKED)
+            self.set_queue_status(db, QueueStatus.UNLOCKED, reduce_priority=reduce_priority)
         else:
             self.set_queue_status(
                 db,
                 QueueStatus.DELAYED_RELEASE,
-                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds)
+                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds),
+                reduce_priority=reduce_priority
             )
 
     def renew(self, db: NODBControllerInstance):
@@ -405,7 +406,11 @@ class NODBQueueItem(_NODBBaseObject):
                     self.queue_uuid
                 ])
 
-    def set_queue_status(self, db: NODBControllerInstance, new_status: QueueStatus, release_at: t.Optional[datetime.datetime] = None):
+    def set_queue_status(self,
+                         db: NODBControllerInstance,
+                         new_status: QueueStatus,
+                         release_at: t.Optional[datetime.datetime] = None,
+                         reduce_priority: bool = False):
         if self.status == QueueStatus.LOCKED:
             with db.cursor() as cur:
                 cur.execute(f"""
@@ -415,12 +420,14 @@ class NODBQueueItem(_NODBBaseObject):
                         locked_by = NULL,
                         locked_since = NULL,
                         delay_release = %s
+                        priority -= %s
                     WHERE 
                         queue_uuid = %s
                         AND status = 'LOCKED'
                 """, [
                     new_status.value,
                     release_at,
+                    1 if reduce_priority else 0,
                     self.queue_uuid
                 ])
                 # TODO: check if the row was actually updated?

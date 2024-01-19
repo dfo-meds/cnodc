@@ -1,0 +1,29 @@
+# Core options
+process_class: cnodc.programs.nodb_intake.NODBQCWorker
+process_name: gts_speed_check
+
+## Options from QueueWorker
+queue_name: 'gebco2023_bathy_check'
+# delay_time_seconds: 0.25
+retry_delay_seconds: 5
+# delay_factor: 2
+# max_delay_time_seconds: 128
+# deprioritize_failures: yes
+
+## Options from NODBQCWorker
+qc_test_suite_class: cnodc.qc.bathy_check.NODBBathymetryCheck
+qc_test_suite_kwargs:
+  bathymetry_model_class: cnodc.bathymetry.gebco.GEBCO2023BathymetryModel
+  bathymetry_model_kwargs:
+    base_dir: "C:/my/gebco_2023_geotiff"
+    uncertainty: 180
+next_queue: "nodb_continue"
+review_queue: "nodb_bathy_review"
+# input_is_source_file: false
+# use_station_batching: false
+# max_batch_size: -1
+# max_buffer_size: -1
+# target_buffer_size: -1
+
+
+

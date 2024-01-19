@@ -14,11 +14,11 @@ class GEBCO2023BathymetryModel(BathymetryModel):
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, p):
+    def __init__(self, base_dir: str, uncertainty: float):
         super().__init__("gebco2023")
-        self._gebco_dir = p # self.config.as_path('gebco2023_directory')
+        self._gebco_dir = base_dir  # self.config.as_path('gebco2023_directory')
         self._ref_cache: dict[str, tifffile.ZarrTiffStore] = {}
-        self._gebco_error = 180
+        self._gebco_error = uncertainty
 
     def close(self):
         for x in self._ref_cache:

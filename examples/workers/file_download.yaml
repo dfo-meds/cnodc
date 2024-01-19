@@ -8,6 +8,7 @@ process_name: file_downloader
 retry_delay_seconds: 30
 # delay_factor: 2
 # max_delay_time_seconds: 128
+# deprioritize_failures: yes
 
 ## Options from FileDownloadWorker
 # allow_file_deletes: no

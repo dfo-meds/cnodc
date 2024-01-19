@@ -1,0 +1,14 @@
+# Core options
+process_class: cnodc.programs.nodb_intake.NODBProgressWorker
+process_name: nodb_progressor
+
+## Options from QueueWorker
+# queue_name: 'nodb_continue'
+# delay_time_seconds: 0.25
+retry_delay_seconds: 5
+# delay_factor: 2
+# max_delay_time_seconds: 128
+# deprioritize_failures: yes
+
+## Options from NODBProgressWorker
+
