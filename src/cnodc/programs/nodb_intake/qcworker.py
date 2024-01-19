@@ -6,19 +6,28 @@ import uuid
 from cnodc.nodb import LockType, NODBControllerInstance
 from cnodc.process.queue_worker import QueueWorker
 import typing as t
-from cnodc.qc.base import SingleRecordTestSuite
 import cnodc.nodb.structures as structures
+from cnodc.qc.base import BaseTestSuite
 from cnodc.util import dynamic_object
 from cnodc.workflow.processor import PayloadProcessor
 from cnodc.workflow.workflow import BatchPayload, WorkflowPayload, SourceFilePayload
 import cnodc.ocproc2.structures as ocproc2
 
 
-class QCWorker(QueueWorker):
+class NODBQCWorker(QueueWorker):
 
     def __init__(self, **kwargs):
         super().__init__(log_name='cnodc.qc_worker', **kwargs)
         self._processor: t.Optional[QCProcessor] = None
+        self.set_defaults({
+            'qc_test_suite_class': None,
+            'qc_test_suite_kwargs': {},
+            'max_batch_size': None,
+            'max_buffer_size': None,
+            'target_buffer_size': None,
+            'next_queue': None,
+            'review_queue': None,
+        })
 
     def on_start(self):
         self._processor = QCProcessor(
@@ -30,8 +39,7 @@ class QCWorker(QueueWorker):
                 'target_buffer_size': self.get_config('target_buffer_size', None)
             },
             submitter_kwargs={
-                'next_queue': self.get_config('success_queue'),
-                'failure_queue': self.get_config('failure_queue'),
+                'next_queue': self.get_config('next_queue'),
                 'review_queue': self.get_config('review_queue')
             },
             use_source_file=self.get_config('input_is_source_file', False),
@@ -50,15 +58,15 @@ class QCProcessor(PayloadProcessor):
                  test_suite_kwargs: dict,
                  batcher_kwargs: dict,
                  submitter_kwargs: dict,
-                 processor_id: str,
+                 processor_uuid: str,
                  use_source_file: bool = False,
                  **kwargs):
-        self._test_suite: SingleRecordTestSuite = dynamic_object(test_suite)(**test_suite_kwargs, test_runner_id=processor_id)
+        self._test_suite: BaseTestSuite = dynamic_object(test_suite)(**test_suite_kwargs, test_runner_id=processor_uuid)
         super().__init__(
             require_type=BatchPayload if not use_source_file else SourceFilePayload,
             process_name=self._test_suite.test_name,
             process_version=self._test_suite.test_version,
-            processor_uuid=processor_id,
+            processor_uuid=processor_uuid,
             **kwargs
         )
         self._use_source_file = use_source_file
