@@ -3,6 +3,9 @@ import enum
 import math
 import sys
 import typing as t
+
+import zrlog
+
 import cnodc.ocproc2.structures as ocproc2
 from cnodc.nodb import NODBController, NODBControllerInstance
 from cnodc.units import UnitConverter
@@ -226,6 +229,7 @@ class BaseTestSuite:
         self.test_version = qc_test_version
         self.test_runner_id = test_runner_id
         self._db: t.Optional[NODBControllerInstance] = None
+        self._log = zrlog.get_logger(f"qc.test.{qc_test_name}")
 
     def set_db_instance(self, db: NODBControllerInstance):
         self._db = db
@@ -318,14 +322,8 @@ class BaseTestSuite:
 
     def _verify_record_and_iterate(self, context: TestContext):
         self._verify_record(context)
-        current_path = context.current_path
-        for subrecord_type in context.current_record.subrecords:
-            context.current_subrecord_type = subrecord_type
-            for subrecord_set_idx in context.current_record.subrecords[subrecord_type]:
-                for subrecord_idx, sub_record in enumerate(context.current_record.subrecords[subrecord_type][subrecord_set_idx].records):
-                    context.current_path = [*current_path, f"{subrecord_type}/{subrecord_set_idx}/{subrecord_idx}"]
-                    context.current_record = sub_record
-                    self._verify_record_and_iterate(context)
+        for sr, sr_ctx in self.iterate_on_subrecords(context.current_record, context):
+            self._verify_record_and_iterate(sr_ctx)
 
     def _verify_record(self, context: TestContext):
         for test in self._get_qc_tests():
@@ -497,3 +495,15 @@ class BaseTestSuite:
             else:
                 return self.searcher.find_by_uuid(self._db, station_uuid)
         return None
+
+    def iterate_on_subrecords(self, record: ocproc2.DataRecord, context: TestContext):
+        base_path = context.current_path
+        base_record = context.current_record
+        for srt in record.subrecords:
+            for srs_idx in record.subrecords[srt]:
+                for sr_idx, sr in enumerate(record.subrecords[srt][srs_idx].records):
+                    context.current_path = [*base_path, f'{srt}/{srs_idx}/{sr_idx}']
+                    context.current_record = sr
+                    yield sr, context
+        context.current_path = base_path
+        context.current_record = base_record

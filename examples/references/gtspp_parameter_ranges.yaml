@@ -1,0 +1,176 @@
+GLOBAL:
+  AirPressure:
+    minimum: 850
+    maximum: 1060
+    units: hPa
+  # NB: Originally "Air Pressure Tendency" but converted for the 3 hour period
+  AirPressureChange3Hour:
+    minimum: -90
+    maximum: 90
+    units: hPa
+  AirTemperature:
+    minimum: -80
+    maximum: 40
+    units: °C
+  AlkalinityMolar:
+    minimum: 800
+    maximum: 4000
+    units: umol L-1
+  AmmoniaMolar:
+    minimum: 0
+    maximum: 50
+    units: umol L-1
+  CarbonateAlkalinityMolar:
+    minimum: 0
+    maximum: 30
+    units: umol L-1
+  ChlorophyllA:
+    minimum: 0
+    maximum: 30
+    units: mg m-3
+  ChlorophyllB:
+    minimum: 0
+    maximum: 30
+    units: mg m-3
+  ChlorophyllC:
+    minimum: 0
+    maximum: 30
+    units: mg m-3
+  # CloudAmount handled by the integrity check
+  # CloudCode handled by the integrity check
+  # CurrentDirection handled by the integrity check
+  CurrentSpeed:
+    minimum: 0
+    maximum: 3
+    units: m s-1
+  SeaDepth:
+    minimum: -10000
+    maximum: 0
+    units: m
+  Depth:
+    minimum: -10000
+    maximum: 0
+    units: m
+  # Molarity to Molality is given by m = 1000M / (1000rho - M1 M)
+  # where M1 is the molecular mass (g mol-1), rho is the density (kg m-3) and M is molarity (mol m-3 or mol L-1)
+  # we assume M1 as 31.999 g mol-1 (as per periodic table) and rho as being no less than 1020 kg m-3 and about
+  # 1025 kg m-3 (as done by others, see https://www.nodc.noaa.gov/OC5/WOD/wod18-notes.html)
+  # (also note higher rho leads to lower DO values). 638 is then the converted value of the original GTSPP table.
+  DissolvedOxygen:
+    minimum: 0
+    maximum: 638
+    units: umol kg-1
+  DissolvedOxygenMolarity:
+    minimum: 0
+    maximum: 650
+    units: mmol m-3
+  Fluorescence:
+    minimum: 0
+    maximum: 30
+    units: mg m-3
+  FluorescencePotential:
+    minimum: -0.5
+    maximum: 10
+    units: V
+  # FluorescenceFraction handled by integrity check
+  Fluoride:
+    minimum: 0
+    maximum: 0.12
+    units: mg L-1
+  # LightTransmission handled by integrity check
+  NitrateMolar:
+    minimum: 0
+    maximum: 50
+    units: umol L-1
+  NitriteMolar:
+    minimum: 0
+    maximum: 4
+    units: umol L-1
+  ParticulateCarbon:
+    minimum: 0
+    maximum: 1000
+    units: mg L-1
+  PH:
+    minimum: 6.5
+    maximum: 9.0
+    units: "1"
+  Phaeophytin:
+    minimum: 0
+    maximum: 25
+    units: mg m-3
+  PhosphateMolar:
+    minimum: 0
+    maximum: 4
+    units: umol L-1
+  PracticalSalinity:
+    minimum: 0
+    maximum: 41
+    units: 0.01
+  SilicateMolar:
+    minimum: 0
+    maximum: 300
+    units: umol L-1
+  SoundVelocity:
+    minimum: 1425
+    maximum: 1575
+    units: m s-1
+  TotalNitrogenMolar:
+    minimum: 0
+    maximum: 50
+    units: mmol m-3
+  TotalPhosphorousMolar:
+    minimum: 0
+    maximum: 20
+    units: umol L-1
+  Temperature:
+    minimum: -2
+    maximum: 40
+    units: °C
+  WaveHeight:
+    minimum: 0
+    maximum: 30
+    units: m
+  WavePeriod:
+    minimum: 0
+    maximum: 25
+    units: s
+  WindSpeed:
+    minimum: 0
+    maximum: 60
+REGIONAL:
+  mediterranean_sea:
+    _BoundingBox: POLYGON((30 -6, 30 40, 40 35, 42 20, 50 15, 40 5, 30 -6))
+    Temperature:
+      minimum: 13.0
+      maximum: 40.0
+      units: °C
+    PracticalSalinity:
+      minimum: 0.0
+      maximum: 40
+      units: 0.01
+    SeaDepth:
+      minimum: -5200
+      maximum: 0
+      units: m
+    Depth:
+      minimum: -5200
+      maximum: 0
+      units: m
+  red_sea:
+    _BoundingBox: POLYGON((10 40, 20 50, 30 30, 10 40))
+    Temperature:
+      minimum: 21.7
+      maximum: 40.0
+      units: °C
+    PracticalSalinity:
+      minimum: 0
+      maximum: 40
+      units: 0.01
+    SeaDepth:
+      minimum: -3500
+      maximum: 0
+      units: m
+    Depth:
+      minimum: -3500
+      maximum: 0
+      units: m

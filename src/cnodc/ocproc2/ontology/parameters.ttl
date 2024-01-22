@@ -473,6 +473,8 @@ cnodc:CurrentDirection rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM62-VIII: d0 d0" ;
   cnodc:wmoCodeGroup "FM63-XI: Dc Dc" ;
   cnodc:wmoCodeGroup "FM64-X: dn dn" ;
+  cnodc:minValue 0 ;
+  cnodc:maxValue 360 ;
   cnodc:standardName "sea_water_velocity_to_direction" ;
   skos:exactMatch bufr4B22:004 ;
   skos:exactMatch bufr4B22:005 ;
@@ -1066,6 +1068,8 @@ cnodc:WindDirection rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:elementGroup "parameters" ;
   cnodc:preferredUnits "degree" ;
+  cnodc:minValue 0 ;
+  cnodc:maxValue 360 ;
   cnodc:wmoCodeGroup "FM18-XII: d d" ;
   cnodc:wmoCodeGroup "FM63-XI: d d" ;
   cnodc:wmoCodeGroup "FM64-X: dd" ;
@@ -1598,6 +1602,17 @@ cnodc:DissolvedOxygen rdf:type skos:Concept ;
   skos:inScheme cnodc:elements .
 
 
+cnodc:DissolvedOxygenMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:preferredUnits "umol m-3" ;
+  skos:exactMatch bufr4B22:188 ;
+  skos:exactMatch pcode:OXYG ;
+  skos:inScheme cnodc:elements .
+
+
 cnodc:BatteryVoltage rdf:type skos:Concept ;
   skos:prefLabel ""@en ;
   skos:documentation ""@en ;
@@ -1764,6 +1779,184 @@ cnodc:DeviceID rdf:type skos:Concept ;
   skos:inScheme cnodc:elements .
 
 
+cnodc:AlkalinityMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:AmmoniaMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:CarbonateAlkalinityMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:ChlorophyllA rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "mg m-3" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:ChlorophyllB rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "mg m-3" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:ChlorophyllC rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "mg m-3" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:FluorescencePotential rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:prefererdUnits "V" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:FluorescenceFraction rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:prefererdUnits "0.01" ;
+  cnodc:minValue 0 ;
+  cnodc:maxValue 100 ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:Fluorescence rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:prefererdUnits "kg L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:Fluoride rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "mg L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:LightTransmission rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "0.01" ;
+  cnodc:minValue 0 ;
+  cnodc:maxValue 100 ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:NitrateMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:NitriteMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:TotalNitrogenMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:preferredUnits "mmol m-3" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:TotalPhosphorousMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:preferredUnits "mmol m-3" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:ParticulateCarbon rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "mg L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:PH rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:Phaeophytin rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "mg m-3" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PhosphateMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SilicateMolar rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnits "umol L-1" ;
+  cnodc:elementGroup "parameters" ;
+  skos:inScheme cnodc:elements .
 
 cnodc:recordSetTypes rdf:type skos:ConceptScheme .
 

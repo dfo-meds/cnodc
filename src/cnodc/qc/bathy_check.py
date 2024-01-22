@@ -29,7 +29,7 @@ class NODBBathymetryCheck(BaseTestSuite):
         y = record.coordinates['Latitude'].to_float_with_uncertainty()
         z = self._bathymetry_model.water_depth(x, y)
         if z is None:
-            self.record_note(f'Bathymetry [{self._bathymetry_model.ref_name}] does not support coordiantes ({x}, {y})', context)
+            self.record_note(f'Bathymetry [{self._bathymetry_model.ref_name}] does not support coordinates ({x}, {y})', context)
             return
         self.record_note(f"Bathymetry [{self._bathymetry_model.ref_name}] reports water depth at ({x}, {y}) to be {z} m", context)
         # This is the most conservative check possible (almost certainly above sea level)
@@ -57,14 +57,10 @@ class NODBBathymetryCheck(BaseTestSuite):
         if 'Depth' in record.coordinates:
             context.current_path = [*base_path, 'Depth']
             self._check_depth(record.coordinates['Depth'], z, context)
-        for srt in record.subrecords:
-            for srs_idx in record.subrecords[srt]:
-                for sr_idx, sr in enumerate(record.subrecords[srt][srs_idx].records):
-                    # These records will eventually be checked by the RecordTest() above and can be skipped.
-                    if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):
-                        continue
-                    context.current_path = [*base_path, f'{srt}/{srs_idx}/{sr_idx}']
-                    self._check_for_soundings(sr, z, context)
+        for sr, sr_ctx in self.iterate_on_subrecords(record, context):
+            if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):
+                continue
+            self._check_for_soundings(sr, z, sr_ctx)
 
     def _check_sounding(self, v: ocproc2.Value, z: UFloat, context):
         if not self.is_close(v, z, "m"):
