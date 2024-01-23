@@ -1,0 +1,133 @@
+-
+  Depth:
+    minimum: 0
+    maximum: 25
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 37
+    units: °C
+  PracticalSalinity:
+    minimum: 0
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 25
+    maximum: 50
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 36
+    units: °C
+  PracticalSalinity:
+    minimum: 0
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 50
+    maximum: 100
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 37
+    units: °C
+  PracticalSalinity:
+    minimum: 1
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 100
+    maximum: 150
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 34
+    units: °C
+  PracticalSalinity:
+    minimum: 3
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 150
+    maximum: 200
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 33
+    units: °C
+  PracticalSalinity:
+    minimum: 3
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 200
+    maximum: 300
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 29
+    units: °C
+  PracticalSalinity:
+    minimum: 3
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 300
+    maximum: 400
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 27
+    units: °C
+  PracticalSalinity:
+    minimum: 3
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 400
+    maximum: 1100
+    units: m
+  Temperature:
+    minimum: -2
+    maximum: 27
+    units: °C
+  PracticalSalinity:
+    minimum: 10
+    maximum: 41
+    units: 0.001
+- Depth:
+    minimum: 1100
+    maximum: 3000
+    units: m
+  Temperature:
+    minimum: -1.5
+    maximum: 18
+    units: °C
+  PracticalSalinity:
+    minimum: 22
+    maximum: 38
+    units: 0.001
+- Depth:
+    minimum: 3000
+    maximum: 5500
+    units: m
+  Temperature:
+    minimum: -1.5
+    maximum: 7
+    units: °C
+  PracticalSalinity:
+    minimum: 33
+    maximum: 37
+    units: 0.001
+- Depth:
+    minimum: 5500
+    maximum: 12000
+    units: m
+  Temperature:
+    minimum: -1.5
+    maximum: 4
+    units: °C
+  PracticalSalinity:
+    minimum: 33
+    maximum: 37
+    units: 0.001

@@ -1253,7 +1253,7 @@ class _SearchDataAggregator:
         if len(self._internals['coordinates']) == 1:
             return self._internals['coordinates'][0][0], self._internals['coordinates'][0][1], self._estimate_best_time()
         # Use a geodetic mean of the coordinates. This is slow but coordinates is usually going to be small in size
-        mean = geodesy.mean_vector(self._internals['coordinates'])
+        mean = ocean_math.mean_vector(self._internals['coordinates'])
         return mean[0], mean[1], self._estimate_best_time()
 
     def _estimate_best_time(self) -> t.Optional[float]:

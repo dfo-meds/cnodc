@@ -146,6 +146,7 @@ cnodc:Pressure rdf:type skos:Concept ;
   cnodc:elementGroup "coordinates" ;
   cnodc:variableName "" ;
   cnodc:standardName "sea_water_pressure" ;
+  cnodc:allowMulti "false" ;
   skos:exactMatch p07:CFSN0330 ;
   skos:narrowerMatch p07:CF12N583 ;
   skos:narrowerMatch p07:CF12N584 ;
@@ -420,6 +421,16 @@ cnodc:Temperature rdf:type skos:Concept ;
   skos:exactMatch bufr4B22:049 ;
   skos:exactMatch pcode:TEMP ;
   skos:exactMatch pcode:SSTP ;
+  skos:inScheme cnodc:elements .
+
+
+cnodc:TemperatureScale rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:string ;
+  cnodc:elementGroup "metadata:element" ;
+  cnodc:allowedValue "ITS-90" ;
+  cnodc:allowedValue "IPTS-68" ;
   skos:inScheme cnodc:elements .
 
 

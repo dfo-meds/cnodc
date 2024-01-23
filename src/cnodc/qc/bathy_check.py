@@ -49,25 +49,18 @@ class NODBBathymetryCheck(BaseTestSuite):
             self._check_for_soundings(record, z, context)
 
     def _check_for_soundings(self, record: ocproc2.DataRecord, z: UFloat, context):
-        base_path = context.current_path
         if 'SeaDepth' in record.parameters:
-            context.current_path = [*base_path, 'SeaDepth']
-            for av in record.parameters['SeaDepth'].all_values():
-                self._check_sounding(av, z, context)
+            self.test_all_subvalues(record.parameters['SeaDepth'], context, self._check_sounding, z=z)
         if 'Depth' in record.coordinates:
-            context.current_path = [*base_path, 'Depth']
-            self._check_depth(record.coordinates['Depth'], z, context)
+            self.test_all_subvalues(record.coordinates['Depth'], context, self._check_depth, z=z)
         for sr, sr_ctx in self.iterate_on_subrecords(record, context):
             if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):
                 continue
-            self._check_for_soundings(sr, z, sr_ctx)
+            with sr_ctx.self_context():
+                self._check_for_soundings(sr, z, sr_ctx)
 
-    def _check_sounding(self, v: ocproc2.Value, z: UFloat, context):
-        if not self.is_close(v, z, "m"):
-            v.metadata['WorkingQuality'] = 14
-            context.report_for_review('sounding_bathymetry_mismatch', ref_value=str(z))
+    def _check_sounding(self, v: ocproc2.Value, ctx: TestContext, z: UFloat):
+        self.assert_close_to('sounding_bathymetry_mismatch', v, z, "m")
 
-    def _check_depth(self, v: ocproc2.Value, z: UFloat, context):
-        if not self.is_greater_than(v, z, "m"):
-            v.metadata['WorkingQuality'] = 14
-            context.report_for_review('depth_too_deep', ref_value=str(z))
+    def _check_depth(self, v: ocproc2.Value, ctx: TestContext, z: UFloat):
+        self.assert_greater_than('depth_too_deep', v, z, "m")

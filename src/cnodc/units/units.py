@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 import zrlog
 import threading
 from autoinject import injector
+from uncertainties import UFloat
 
 
 class Converter:
@@ -102,7 +103,7 @@ class UnitConverter:
         except ValueError as ex:
             return False
 
-    def convert(self, quantity: t.Union[float, decimal.Decimal, int], original_units: str, output_units: str) -> decimal.Decimal:
+    def convert(self, quantity: t.Union[float, decimal.Decimal, int, UFloat], original_units: str, output_units: str) -> decimal.Decimal:
         self._load_tables()
         factor_original, dims_original, expr_original = self._conversion_info(original_units)
         factor_output, dims_output, expr_output = self._conversion_info(output_units)

@@ -7,8 +7,8 @@ from uncertainties import UFloat
 import cnodc.ocproc2.structures as ocproc2
 import typing as t
 import yaml
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest
-from cnodc.geodesy.intersection import upoint_to_geometry
+from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, QCTest
+from cnodc.ocean_math.geodesy import upoint_to_geometry
 from cnodc.units import UnitConverter
 
 
@@ -79,7 +79,7 @@ class NODBParameterCheck(BaseTestSuite):
         self._ref = NODBParameterReference(pathlib.Path(config_file) if not isinstance(config_file, pathlib.Path) else config_file, self.converter)
 
     @RecordTest()
-    def test_inter_record_speed(self, record: ocproc2.DataRecord, context: TestContext):
+    def test_parameter_ranges(self, record: ocproc2.DataRecord, context: TestContext):
         self.require_good_value(record.coordinates, 'Latitude', True)
         self.require_good_value(record.coordinates, 'Longitude', True)
         references, regions = self._ref.build_parameter_references(
@@ -89,35 +89,34 @@ class NODBParameterCheck(BaseTestSuite):
         if not references:
             return
         self.record_note(f"Parameter regions identified as [{';'.join(regions)}]", context, False)
-        self._test_against_reference(record, context, references, regions)
+        self._test_against_reference_and_loop(record, context, references)
 
-    def _test_against_reference_and_loop(self, record: ocproc2.DataRecord, context: TestContext, references: dict, regions: set):
-        self._test_against_reference(record, context, references, regions)
+    def _test_against_reference_and_loop(self, record: ocproc2.DataRecord, context: TestContext, references: dict):
+        self._test_against_reference(record, context, references)
         for sr, sr_ctx in self.iterate_on_subrecords(record, context):
             if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):
                 continue
-            self._test_against_reference_and_loop(sr, sr_ctx, references, regions)
+            with sr_ctx.self_context() as ctx:
+                self._test_against_reference_and_loop(sr, ctx, references)
 
-    def _test_against_reference(self, record: ocproc2.DataRecord, context: TestContext, references: dict, regions: set):
-        base_path = context.current_path
+    def _test_against_reference(self, record: ocproc2.DataRecord, context: TestContext, references: dict):
         for x in references:
             if x in record.coordinates:
-                context.current_path = [*base_path, f'coordinates/{x}']
-                self._test_reference_range(record.coordinates[x], context, references[x], regions)
+                with context.coordinate_context(x):
+                    self._test_reference_range(record.coordinates[x], references[x])
             elif x in record.parameters:
-                context.current_path = [*base_path, f'parameters/{x}']
-                self._test_reference_range(record.parameters[x], context, references[x], regions)
+                with context.parameter_context(x):
+                    self._test_reference_range(record.parameters[x], references[x])
             elif x in record.metadata:
-                context.current_path = [*base_path, f'metadata/{x}']
-                self._test_reference_range(record.metadata[x], context, references[x], regions)
+                with context.metadata_context(x):
+                    self._test_reference_range(record.metadata[x],  references[x])
 
-    def _test_reference_range(self, v: ocproc2.AbstractValue, context: TestContext, reference: dict, regions: set):
-        units = reference['units'] if 'units' in reference else None
-        ref_note = f'{units or ""} [{",".join(regions)}]'
+    def _test_reference_range(self, v: ocproc2.AbstractValue, reference: dict):
+        ref_units = reference['units'] if 'units' in reference else None
         for real_val in v.all_values():
             if real_val.is_empty():
                 continue
-            if 'minimum' in reference and self.is_less_than(real_val, reference['minimum'], units):
-                context.report_for_review('parameter_too_low', ref_value=f"{reference['minimum']} {ref_note}")
-            elif 'maximum' in reference and self.is_greater_than(real_val, reference['maximum'], units):
-                context.report_for_review('parameter_too_high', ref_value=f"{reference['maximum']} {ref_note}")
+            if 'minimum' in reference:
+                self.assert_greater_than('parameter_too_low', real_val, reference['minimum'], ref_units)
+            if 'maximum' in reference:
+                self.assert_less_than('parameter_too_high', real_val, reference['maximum'], ref_units)

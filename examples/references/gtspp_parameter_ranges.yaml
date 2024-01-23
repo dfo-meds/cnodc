@@ -147,7 +147,7 @@ REGIONAL:
     PracticalSalinity:
       minimum: 0.0
       maximum: 40
-      units: 0.01
+      units: 0.001
     SeaDepth:
       minimum: -5200
       maximum: 0

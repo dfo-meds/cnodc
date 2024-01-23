@@ -1,7 +1,7 @@
 import datetime
 import math
 
-from cnodc.geodesy.distance import uhaversine
+from cnodc.ocean_math.distance import uhaversine
 import cnodc.ocproc2.structures as ocproc2
 import typing as t
 from uncertainties import ufloat

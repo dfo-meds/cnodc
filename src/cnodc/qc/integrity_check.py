@@ -1,7 +1,9 @@
+from cnodc import ocproc2
 from cnodc.ocproc2.structures import AbstractValue, MultiValue
 from cnodc.ocproc2.validation import OCProc2Ontology
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, MetadataTest
+from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, MetadataTest, QCAssertionError, QCSkipTest
 from autoinject import injector
+import typing as t
 
 
 class NODBIntegrityCheck(BaseTestSuite):
@@ -15,18 +17,23 @@ class NODBIntegrityCheck(BaseTestSuite):
 
     @MetadataTest('Units')
     def units_check(self, value: AbstractValue, context: TestContext):
-        for v in value.all_values():
-            if v.is_empty():
-                continue
-            elif not self.converter.is_valid_unit(v.value):
-                context.report_for_review('units_invalid_unit_string')
-                v.metadata['WorkingQuality'] = 21
+        for v, v_ctx in self.iterate_on_subvalues(value, context):
+            with v_ctx.self_context() as ctx:
+                if v.is_empty():
+                    continue
+                self.assert_valid_units(v.value, 'units_invalid_unit_string')
 
     @RecordTest(top_only=True)
-    def coordinate_check(self, record, context: TestContext):
-        self.assert_has_coordinate(context, 'Latitude', 'lat_missing')
-        self.assert_has_coordinate(context, 'Longitude', 'lon_missing')
-        self.assert_has_coordinate(context, 'Time', 'time_missing')
+    def latitude_check(self, record, context: TestContext):
+        self.assert_has_coordinate(record, 'Latitude', 'lat_missing')
+
+    @RecordTest(top_only=True)
+    def longitude_check(self, record, context: TestContext):
+        self.assert_has_coordinate(record, 'Longitude', 'lon_missing')
+
+    @RecordTest(top_only=True)
+    def time_check(self, record, context: TestContext):
+        self.assert_has_coordinate(record, 'Time', 'time_missing')
 
     @RecordTest(subrecord_type='PROFILE')
     def profile_depth_check(self, record, context: TestContext):
@@ -60,99 +67,94 @@ class NODBIntegrityCheck(BaseTestSuite):
     @RecordTest()
     def ontology_check(self, record, context: TestContext):
         scope = "record:parent" if context.is_top_level() else "record:child"
-        original_path = context.current_path
-        for key in context.current_record.metadata:
-            context.current_path = [*original_path, f'metadata/{key}']
-            self._verify_element(context, f"metadata:{scope}", key, context.current_record.metadata[key])
-        for key in context.current_record.coordinates:
-            context.current_path = [*original_path, f'coordinates/{key}']
-            self._verify_element(context, "coordinates", key, context.current_record.coordinates[key])
-        for key in context.current_record.parameters:
-            context.current_path = [*original_path, f'parameters/{key}']
-            self._verify_element(context, "parameters", key, context.current_record.parameters[key])
-        for record_type in context.current_record.subrecords:
-            context.current_path = [*original_path, record_type]
-            self._verify_record_type(context, record_type)
-            for recordset_idx in context.current_record.subrecords[record_type]:
-                context.current_path = [*original_path, f"{record_type}/{recordset_idx}"]
-                for key in context.current_record.subrecords[record_type][recordset_idx].metadata:
-                    context.current_path = [*original_path, f"{record_type}/{recordset_idx}", f"metadata/{key}"]
-                    self._verify_element(context, "metadata:recordset", key, context.current_record.subrecords[record_type][recordset_idx].metadata[key])
+        for key in record.metadata:
+            with context.metadata_context(key) as ctx:
+                self._verify_element(ctx, f"metadata:{scope}", key, record.metadata[key])
+        for key in record.coordinates:
+            with context.coordinate_context(key) as ctx:
+                self._verify_element(ctx, "coordinates", key, record.coordinates[key])
+        for key in record.parameters:
+            with context.parameter_context(key) as ctx:
+                self._verify_element(ctx, "parameters", key, record.parameters[key])
+        for srt in record.subrecords:
+            self._verify_record_type(context, srt)
+        for srs, srs_ctx in self.iterate_on_subrecord_sets(record, context):
+            for key in srs.metadata:
+                with srs_ctx.metadata_context(key) as ctx:
+                    self._verify_element(ctx, "metadata:recordset", key, srs.metadata[key])
                   
     def _verify_record_type(self, context: TestContext, record_type: str):
-        if self._strict:
-            if not self.ontology.is_defined_recordset_type(record_type):
-                context.report_for_review('ontology_invalid_recordset_type')
+        with context.self_context():
+            if self._strict:
+                self.assert_true(self.ontology.is_defined_recordset_type(record_type), 'ontology_invalid_recordset_type')
 
     def _verify_element(self, context: TestContext, element_group: str, element_name: str, element_value: AbstractValue):
         # Check if the element is a defined parameter type in the scheme
         if not self.ontology.is_defined_parameter(element_name):
             if self._strict:
-                context.report_for_review('ontology_undefined_element')
-            return
+                self.report_for_review('ontology_undefined_element', 20)
+            else:
+                self.skip_test()
 
         # Check if the element is of an allowed group
         allowed_groups = self.ontology.element_group(element_name)
         if allowed_groups:
-            if not any(element_group.startswith(x) for x in allowed_groups):
-                context.report_for_review('ontology_invalid_group')
-                element_value.metadata['WorkingQuality'] = 20
+            self.assert_true(any(element_group.startswith(x) for x in allowed_groups), 'ontology_invalid_group', 20)
         elif self._strict:
-            context.report_for_review('ontology_no_allowed_groups')
-            element_value.metadata['WorkingQuality'] = 20
+            self.report_for_review('ontology_no_allowed_groups', 20)
 
         # If the element is multi-valued, check if this is allowed
-        if isinstance(element_value, MultiValue) and not self.ontology.allow_multiple_values(element_name):
-            context.report_for_review('ontology_multi_not_allowed')
-            element_value.metadata['WorkingQuality'] = 20
+        if not self.ontology.allow_multiple_values(element_name):
+            self.assert_not_multi(element_value, 'ontology_multi_not_allowed')
 
         # Check all non-empty values against the preferred unit and data type
-        preferred_unit = self.ontology.preferred_unit(element_name)
-        data_type = self.ontology.data_type(element_name)
-        min_value = self.ontology.min_value(element_name)
-        max_value = self.ontology.max_value(element_name)
-        allowed_values = self.ontology.allowed_values(element_name)
-        if preferred_unit is not None or data_type is not None or min_value is not None or max_value is not None or allowed_values:
-            for value in element_value.all_values():
-                if value.is_empty():
-                    continue
-                if preferred_unit is not None:
-                    if value.metadata.has_value('Units'):
-                        if not self.converter.compatible(preferred_unit, value.metadata.best_value('Units')):
-                            context.report_for_review('ontology_incompatible_units')
-                            value.metadata['WorkingQuality'] = 21
-                    elif self._strict:
-                        context.report_for_review('ontology_missing_units')
-                        value.metadata['WorkingQuality'] = 21
-                if data_type is None:
-                    pass
-                elif data_type in ('dateTimeStamp', 'date') and not value.is_iso_datetime():
-                    context.report_for_review('ontology_invalid_datetime')
-                    value.metadata['WorkingQuality'] = 20
-                elif data_type == 'integer' and not value.is_integer():
-                    context.report_for_review('ontology_invalid_integer')
-                    value.metadata['WorkingQuality'] = 20
-                elif data_type == 'decimal' and not value.is_numeric():
-                    context.report_for_review('ontology_invalid_decimal')
-                    value.metadata['WorkingQuality'] = 20
-                elif data_type == 'string' and isinstance(value.value, (dict, list, tuple, set)):
-                    context.report_for_review('ontology_invalid_string')
-                    value.metadata['WorkingQuality'] = 20
-                elif data_type == 'List' and not isinstance(value.value, (list, tuple, set)):
-                    context.report_for_review('ontology_invalid_list')
-                    value.metadata['WorkingQuality'] = 20
-                if value.is_numeric() and not value.in_range(min_value, max_value):
-                    context.report_for_review('ontology_out_of_range', ref_value=[min_value, max_value])
-                    value.metadata['WorkingQuality'] = 14
-                elif allowed_values:
-                    if value.value not in allowed_values:
-                        context.report_for_review('ontology_value_not_allowed', ref_value=allowed_values)
-                    value.metadata['WorkingQuality'] = 14
-        # Loop into the element metadata
-        original_path = context.current_path
+        self.test_all_subvalues(
+            element_value,
+            context,
+            self._test_element_value,
+            preferred_unit=self.ontology.preferred_unit(element_name),
+            data_type=self.ontology.data_type(element_name),
+            min_value=self.ontology.min_value(element_name),
+            max_value=self.ontology.max_value(element_name),
+            allowed_values=self.ontology.allowed_values(element_name)
+        )
+
+        # Go into the element metadata
         for key in element_value.metadata:
             # Never check these just so we avoid an infinite loop
             if key == 'WorkingQuality':
                 continue
-            context.current_path = [*original_path, f'metadata#{key}']
-            self._verify_element(context, "metadata:element", key, element_value.metadata[key])
+            with context.element_metadata_context(key):
+                self._verify_element(context, "metadata:element", key, element_value.metadata[key])
+
+    def _test_element_value(self,
+                            value: ocproc2.Value,
+                            ctx: TestContext,
+                            preferred_unit: t.Optional[str],
+                            data_type: t.Optional[str],
+                            min_value: t.Optional[float],
+                            max_value: t.Optional[float],
+                            allowed_values: t.Optional[list]):
+        if value.is_empty():
+            return
+        if preferred_unit is not None:
+            self.assert_compatible_units(value, preferred_unit, 'ontology_invalid_units', skip_null=(not self._strict))
+        if data_type is None:
+            pass
+        elif data_type in ('dateTimeStamp', 'date'):
+            self.assert_iso_datetime(value, 'ontology_invalid_datetime', 20)
+        elif data_type == 'integer':
+            self.assert_integer(value, 'ontology_invalid_integer', 20)
+        elif data_type == 'decimal':
+            self.assert_numeric(value, 'ontology_invalid_decimal', 20)
+        elif data_type == 'string':
+            self.assert_string_like(value, 'ontology_invalid_string', 20)
+        elif data_type == 'List':
+            self.assert_list_like(value, 'ontology_invalid_list', 20)
+        if value.is_numeric():
+            if min_value is not None:
+                self.assert_greater_than('ontology_out_of_range', value, min_value, preferred_unit)
+            if max_value is not None:
+                self.assert_less_than('ontology_out_of_range', value, max_value, preferred_unit)
+        if allowed_values:
+            self.assert_in(value.value, allowed_values, 'ontology_value_not_allowed')
