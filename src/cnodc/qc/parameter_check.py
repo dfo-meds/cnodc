@@ -75,7 +75,12 @@ class NODBParameterReference:
 class NODBParameterCheck(BaseTestSuite):
 
     def __init__(self, config_file: t.Union[pathlib.Path, str], **kwargs):
-        super().__init__('nodb_parameter_check', '1.0', preload_batch=True, **kwargs)
+        super().__init__(
+            'nodb_parameter_check',
+            '1.0',
+            test_tags=['GTSPP_2.1', 'GTSPP_2.2'],
+            **kwargs
+        )
         self._ref = NODBParameterReference(pathlib.Path(config_file) if not isinstance(config_file, pathlib.Path) else config_file, self.converter)
 
     @RecordTest()

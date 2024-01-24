@@ -10,7 +10,7 @@ import cnodc.ocproc2.structures as ocproc2
 class NODBMandatoryManualReviewCheck(BaseTestSuite):
 
     def __init__(self, **kwargs):
-        super().__init__('nodb_mandatory_review', '1.0', **kwargs)
+        super().__init__('nodb_mandatory_review', '1.0', test_tags=['GTSPP_5.1'], **kwargs)
 
     @RecordTest(top_only=True)
     def test_top_record(self, record: ocproc2.DataRecord, context: TestContext):

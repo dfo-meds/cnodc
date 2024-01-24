@@ -122,8 +122,10 @@ class QCTestRunInfo:
                  result: QCResult,
                  messages: list[QCMessage] = None,
                  notes: str = None,
-                 is_stale: bool = False):
+                 is_stale: bool = False,
+                 test_tags: t.Optional[list[str]] = None):
         self.test_name = test_name
+        self.test_tags = test_tags or []
         self.test_version = test_version
         self.test_date = test_date.isoformat() if isinstance(test_date, datetime.datetime) else test_date
         self.result = result
@@ -142,7 +144,8 @@ class QCTestRunInfo:
             '_messages': [m.to_mapping() for m in self.messages],
             '_result': self.result.value,
             '_notes': self.notes,
-            '_stale': self.is_stale
+            '_stale': self.is_stale,
+            '_tags': self.test_tags
         }
 
     @staticmethod
@@ -154,7 +157,8 @@ class QCTestRunInfo:
             QCResult(map_['_result']),
             [QCMessage.from_mapping(x) for x in map_['_messages']],
             map_['_notes'],
-            map_['_stale'] if '_stale' in map_ else False
+            map_['_stale'] if '_stale' in map_ else False,
+            map_['_tags'] if '_tags' in map_ else None
         )
 
 
@@ -632,7 +636,8 @@ class DataRecord:
                               test_version: str,
                               outcome: QCResult,
                               messages: list[QCMessage],
-                              notes: str = None):
+                              notes: str = None,
+                              test_tags: t.Optional[list[str]] = None):
         self.mark_test_results_stale(test_name)
         self.qc_tests.append(QCTestRunInfo(
             test_name,
@@ -640,7 +645,8 @@ class DataRecord:
             datetime.datetime.now(datetime.timezone.utc),
             outcome,
             messages,
-            notes
+            notes,
+            test_tags,
         ))
 
     def mark_test_results_stale(self, test_name: str):

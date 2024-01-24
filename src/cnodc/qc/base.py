@@ -491,10 +491,11 @@ class BaseTestSuite:
     nodb: NODBController = None
 
     @injector.construct
-    def __init__(self, qc_test_name: str, qc_test_version: str, test_runner_id: str = ''):
+    def __init__(self, qc_test_name: str, qc_test_version: str, test_runner_id: str = '', test_tags: t.Optional[list[str]] = None):
         self.test_name = qc_test_name
         self.test_version = qc_test_version
         self.test_runner_id = test_runner_id
+        self.test_tags = [x for x in test_tags if x is not None] if test_tags else []
         self._db: t.Optional[NODBControllerInstance] = None
         self._log = zrlog.get_logger(f"qc.test.{qc_test_name}")
 
@@ -587,6 +588,7 @@ class BaseTestSuite:
         context.top_record.record_qc_test_result(
             test_name=self.test_name,
             test_version=self.test_version,
+            test_tags=self.test_tags,
             outcome=context.result,
             messages=context.qc_messages,
         )

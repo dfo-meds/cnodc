@@ -92,6 +92,7 @@ class GTSPPProfileCheck(BaseTestSuite):
                  spike_file: t.Union[str, pathlib.Path],
                  run_increasing_test: bool = True,
                  run_envelope_test: bool = True,
+                 run_constant_test: bool = True,
                  run_spike_test: bool = True,
                  run_gradient_test: bool = True,
                  run_spike_extrema_test: bool = True,
@@ -99,11 +100,22 @@ class GTSPPProfileCheck(BaseTestSuite):
                  run_density_inversion_test: bool = True,
                  run_temperature_inversion_test: bool = True,
                  **kwargs):
-        super().__init__(**kwargs)
+        super().__init__('gtspp_profile', '1_0', test_tags=[
+            'GTSPP_2.3' if run_increasing_test else None,
+            'GTSPP_2.4' if run_envelope_test else None,
+            'GTSPP_2.5' if run_constant_test else None,
+            'GTSPP_2.6' if run_freezing_point_test else None,
+            'GTSPP_2.7' if run_spike_test else None,
+            'GTSPP_2.8' if run_spike_extrema_test else None,
+            'GTSPP_2.9' if run_gradient_test else None,
+            'GTSPP_2.10' if run_density_inversion_test else None,
+            'GTSPP_2.12' if run_temperature_inversion_test else None
+        ], **kwargs)
         self._envelope_ref = EnvelopeReference(envelope_file, self.converter) if run_envelope_test else None
         self._spike_ref = SpikeReference(spike_file) if (run_spike_test or run_gradient_test or run_spike_extrema_test) else None
         self.run_increasing_test = run_increasing_test
         self.run_envelope_test = run_envelope_test
+        self.run_constant_test = run_constant_test
         self.run_freezing_point_test = run_freezing_point_test
         self.run_spike_test = run_spike_test
         self.run_spike_extrema_test = run_spike_extrema_test
@@ -172,6 +184,10 @@ class GTSPPProfileCheck(BaseTestSuite):
             self.assert_greater_than('envelope_too_low', v, reference['minimum'], units, **kwargs)
         elif 'maximum' in reference:
             self.assert_less_than('envelope_too_high', v, reference['maximum'], units, **kwargs)
+
+    @ProfileTest()
+    def constant_profile_test(self, profile: SubRecordArray, context: TestContext):
+        pass
 
     @ProfileLevelTest()
     def freezing_point_test(self, profile: SubRecordArray, current_level: int, context: TestContext):

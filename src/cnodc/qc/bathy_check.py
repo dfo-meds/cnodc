@@ -12,11 +12,25 @@ class NODBBathymetryCheck(BaseTestSuite):
                  bathymetry_model_class: str,
                  bathymetry_model_kwargs: dict,
                  minimum_relative_uncertainty: float = 0.1,
+                 run_on_land_test: bool = True,
+                 run_sounding_test: bool = True,
+                 run_bottom_test: bool = True,
                  **kwargs):
-        super().__init__('nodb_bathy_check', '1.0', **kwargs)
+        super().__init__(
+            'nodb_bathy_check',
+            '1.0',
+            test_tags=[
+                'GTSPP_1.4' if run_on_land_test else None,
+                'GTSPP_1.6' if run_sounding_test else None,
+                'GTSPP_2.11' if run_bottom_test else None
+            ],
+            **kwargs)
         bathymetry_model_kwargs = bathymetry_model_kwargs or {}
         self._min_uncertainty = minimum_relative_uncertainty
         self._bathymetry_model = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
+        self.run_on_land_test = run_on_land_test
+        self.run_sounding_test = run_sounding_test
+        self.run_bottom_test = run_bottom_test
 
     @RecordTest()
     def check_position(self, record: ocproc2.DataRecord, context: TestContext):
@@ -33,11 +47,11 @@ class NODBBathymetryCheck(BaseTestSuite):
             return
         self.record_note(f"Bathymetry [{self._bathymetry_model.ref_name}] reports water depth at ({x}, {y}) to be {z} m", context)
         # This is the most conservative check possible (almost certainly above sea level)
-        if not self.is_less_than(z, 1e-6):
+        if self.run_on_land_test and not self.is_less_than(z, 1e-6):
             record.coordinates['Latitude'].metadata['WorkingQuality'] = 14
             record.coordinates['Longitude'].metadata['WorkingQuality'] = 14
             context.report_for_review('position_above_sea_level', ref_value=str(z))
-        else:
+        elif self.run_bottom_test or self.run_sounding_test:
             # When checking the sounding, we allow values up to 10% deeper to allow for
             # tidal and other effects. However, if the uncertainty is larger than 10% of
             # the value, then we use the uncertainty instead
@@ -49,9 +63,9 @@ class NODBBathymetryCheck(BaseTestSuite):
             self._check_for_soundings(record, z, context)
 
     def _check_for_soundings(self, record: ocproc2.DataRecord, z: UFloat, context):
-        if 'SeaDepth' in record.parameters:
+        if self.run_sounding_test and 'SeaDepth' in record.parameters:
             self.test_all_subvalues(record.parameters['SeaDepth'], context, self._check_sounding, z=z)
-        if 'Depth' in record.coordinates:
+        if self.run_bottom_test and 'Depth' in record.coordinates:
             self.test_all_subvalues(record.coordinates['Depth'], context, self._check_depth, z=z)
         for sr, sr_ctx in self.iterate_on_subrecords(record, context):
             if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):

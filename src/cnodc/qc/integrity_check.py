@@ -12,7 +12,12 @@ class NODBIntegrityCheck(BaseTestSuite):
 
     @injector.construct
     def __init__(self, strict_mode: bool = False, **kwargs):
-        super().__init__('nodb_integrity_check', '1.0', **kwargs)
+        super().__init__(
+            'nodb_integrity_check',
+            '1.0',
+            test_tags=['GTSPP_1.2', 'GTSPP_1.3'],
+            **kwargs
+        )
         self._strict = strict_mode
 
     @MetadataTest('Units')
