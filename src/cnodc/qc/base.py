@@ -907,34 +907,36 @@ class BaseTestSuite:
                         yield sr, ctx
 
     def value_in_units(self,
-                       v: ocproc2.AbstractValue,
+                       value: ocproc2.AbstractValue,
                        expected_units: t.Optional[str],
                        temp_scale: str = None,
                        null_dubious: bool = False,
                        null_erroneous: bool = False):
-        if v.is_empty():
-            return None
-        wq = v.metadata.best_value('WorkingQuality', 0)
-        if wq in (9, 19):
-            return None
-        if wq in (3, 13) and null_dubious:
-            return None
-        if wq in (4, 14) and null_erroneous:
-            return None
-        raw_v = v.to_float_with_uncertainty()
-        raw_un = v.metadata.best_value('Units', None)
-        if temp_scale is not None:
-            ref_scale = v.metadata.best_value('TemperatureScale', None)
-            if ref_scale is not None and ref_scale != temp_scale:
-                from cnodc.ocean_math.seawater import eos80_convert_temperature
-                if raw_un != '°C':
-                    raw_v = self.converter.convert(raw_v, raw_un, '°C')
-                    raw_un = '°C'
-                raw_v = eos80_convert_temperature(raw_v, ref_scale, temp_scale)
-        if expected_units is not None:
-            if raw_un is not None and raw_un != '' and raw_un != expected_units:
-                raw_v = self.converter.convert(raw_v, raw_un, expected_units)
-        return raw_v
+        for v in value.all_values():
+            if v.is_empty():
+                continue
+            wq = v.metadata.best_value('WorkingQuality', 0)
+            if wq in (9, 19):
+                continue
+            if wq in (3, 13) and null_dubious:
+                continue
+            if wq in (4, 14) and null_erroneous:
+                continue
+            raw_v = v.to_float_with_uncertainty()
+            raw_un = v.metadata.best_value('Units', None)
+            if temp_scale is not None:
+                ref_scale = v.metadata.best_value('TemperatureScale', None)
+                if ref_scale is not None and ref_scale != temp_scale:
+                    from cnodc.ocean_math.seawater import eos80_convert_temperature
+                    if raw_un != '°C':
+                        raw_v = self.converter.convert(raw_v, raw_un, '°C')
+                        raw_un = '°C'
+                    raw_v = eos80_convert_temperature(raw_v, ref_scale, temp_scale)
+            if expected_units is not None:
+                if raw_un is not None and raw_un != '' and raw_un != expected_units:
+                    raw_v = self.converter.convert(raw_v, raw_un, expected_units)
+            return raw_v
+        return None
 
     def _build_parameter_array(self, recordset: ocproc2.RecordSet) -> SubRecordArray:
         pkeys = set()
