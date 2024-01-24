@@ -103,20 +103,20 @@ class NODBParameterCheck(BaseTestSuite):
         for x in references:
             if x in record.coordinates:
                 with context.coordinate_context(x):
-                    self._test_reference_range(record.coordinates[x], references[x])
+                    self.test_all_subvalues(record.coordinates[x], context, self._test_reference_range, reference=references[x])
             elif x in record.parameters:
                 with context.parameter_context(x):
-                    self._test_reference_range(record.parameters[x], references[x])
+                    self.test_all_subvalues(record.parameters[x], context, self._test_reference_range, reference=references[x])
             elif x in record.metadata:
                 with context.metadata_context(x):
-                    self._test_reference_range(record.metadata[x],  references[x])
+                    self.test_all_subvalues(record.metadata[x], context, self._test_reference_range, reference=references[x])
 
-    def _test_reference_range(self, v: ocproc2.AbstractValue, reference: dict):
+    def _test_reference_range(self, v: ocproc2.Value, ctx: TestContext, reference: dict):
         ref_units = reference['units'] if 'units' in reference else None
-        for real_val in v.all_values():
-            if real_val.is_empty():
-                continue
-            if 'minimum' in reference:
-                self.assert_greater_than('parameter_too_low', real_val, reference['minimum'], ref_units)
-            if 'maximum' in reference:
-                self.assert_less_than('parameter_too_high', real_val, reference['maximum'], ref_units)
+        kwargs = reference['kwargs'] if 'kwargs' in reference else {}
+        if v.is_empty():
+            return
+        if 'minimum' in reference:
+            self.assert_greater_than('parameter_too_low', v, reference['minimum'], ref_units, **kwargs)
+        if 'maximum' in reference:
+            self.assert_less_than('parameter_too_high', v, reference['maximum'], ref_units, **kwargs)

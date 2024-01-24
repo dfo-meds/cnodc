@@ -776,14 +776,12 @@ class BaseTestSuite:
                  rel_tol: float = 1e-9,
                  abs_tol: float = 0.0,
                  allow_less_than: bool = False,
-                 allow_greater_than: bool = False) -> bool:
+                 allow_greater_than: bool = False,
+                 **kwargs) -> bool:
         if isinstance(v, ocproc2.Value):
             if v.is_empty():
                 return False
-            bv = v.to_float_with_uncertainty()
-            bv_units = v.metadata.best_value('Units', None)
-            if bv_units is not None and expected_units is not None and bv_units != expected_units:
-                bv = self.converter.convert(bv, bv_units, expected_units)
+            bv = self.value_in_units(v, expected_units, **kwargs)
         else:
             if v is None:
                 return False
@@ -807,26 +805,29 @@ class BaseTestSuite:
                         expected: t.Union[float, UFloat],
                         expected_units: t.Optional[str] = None,
                         rel_tol: float = 1e-9,
-                        abs_tol: float = 0) -> bool:
-        return self.is_close(v, expected, expected_units, rel_tol, abs_tol, allow_greater_than=True)
+                        abs_tol: float = 0,
+                        **kwargs) -> bool:
+        return self.is_close(v, expected, expected_units, rel_tol, abs_tol, allow_greater_than=True, **kwargs)
 
     def is_less_than(self,
                         v: t.Union[ocproc2.Value, UFloat, float],
                         expected: t.Union[float, UFloat],
                         expected_units: t.Optional[str] = None,
                         rel_tol: float = 1e-9,
-                        abs_tol: float = 0) -> bool:
-        return self.is_close(v, expected, expected_units, rel_tol, abs_tol, allow_less_than=True)
+                        abs_tol: float = 0,
+                        **kwargs) -> bool:
+        return self.is_close(v, expected, expected_units, rel_tol, abs_tol, allow_less_than=True, **kwargs)
 
     def assert_close_to(self,
-                 error_code: str,
-                 v: t.Union[ocproc2.Value, UFloat, float],
-                 expected: t.Union[float, UFloat],
-                 expected_units: t.Optional[str] = None,
-                 rel_tol: float = 1e-9,
-                 abs_tol: float = 0.0,
-                 qc_flag: t.Optional[int] = 14):
-        if not self.is_close(v, expected, expected_units, rel_tol, abs_tol):
+                        error_code: str,
+                        v: t.Union[ocproc2.Value, UFloat, float],
+                        expected: t.Union[float, UFloat],
+                        expected_units: t.Optional[str] = None,
+                        rel_tol: float = 1e-9,
+                        abs_tol: float = 0.0,
+                        qc_flag: t.Optional[int] = 14,
+                        **kwargs):
+        if not self.is_close(v, expected, expected_units, rel_tol, abs_tol, **kwargs):
             self.report_for_review(error_code, qc_flag)
 
     def assert_less_than(self,
@@ -836,8 +837,9 @@ class BaseTestSuite:
                         expected_units: t.Optional[str] = None,
                         rel_tol: float = 1e-9,
                         abs_tol: float = 0,
-                        qc_flag: t.Optional[int] = 14):
-        if not self.is_less_than(v, expected, expected_units, rel_tol, abs_tol):
+                        qc_flag: t.Optional[int] = 14,
+                        **kwargs):
+        if not self.is_less_than(v, expected, expected_units, rel_tol, abs_tol, **kwargs):
             self.report_for_review(error_code, qc_flag, expected if expected_units is None else f"{expected} {expected_units}")
 
     def assert_greater_than(self,
@@ -847,8 +849,9 @@ class BaseTestSuite:
                         expected_units: t.Optional[str] = None,
                         rel_tol: float = 1e-9,
                         abs_tol: float = 0,
-                        qc_flag: t.Optional[int] = 14):
-        if not self.is_greater_than(v, expected, expected_units, rel_tol, abs_tol):
+                        qc_flag: t.Optional[int] = 14,
+                        **kwargs):
+        if not self.is_greater_than(v, expected, expected_units, rel_tol, abs_tol, **kwargs):
             self.report_for_review(error_code, qc_flag, expected if expected_units is None else f"{expected} {expected_units}")
 
     def load_station(self, context: TestContext) -> t.Optional[structures.NODBStation]:
@@ -903,7 +906,21 @@ class BaseTestSuite:
                     with context.subrecord_context(srt, srs_idx, sr_idx) as ctx:
                         yield sr, ctx
 
-    def value_in_units(self, v: ocproc2.AbstractValue, expected_units: t.Optional[str], temp_scale: str = None):
+    def value_in_units(self,
+                       v: ocproc2.AbstractValue,
+                       expected_units: t.Optional[str],
+                       temp_scale: str = None,
+                       null_dubious: bool = False,
+                       null_erroneous: bool = False):
+        if v.is_empty():
+            return None
+        wq = v.metadata.best_value('WorkingQuality', 0)
+        if wq in (9, 19):
+            return None
+        if wq in (3, 13) and null_dubious:
+            return None
+        if wq in (4, 14) and null_erroneous:
+            return None
         raw_v = v.to_float_with_uncertainty()
         raw_un = v.metadata.best_value('Units', None)
         if temp_scale is not None:
@@ -918,8 +935,6 @@ class BaseTestSuite:
             if raw_un is not None and raw_un != '' and raw_un != expected_units:
                 raw_v = self.converter.convert(raw_v, raw_un, expected_units)
         return raw_v
-
-
 
     def _build_parameter_array(self, recordset: ocproc2.RecordSet) -> SubRecordArray:
         pkeys = set()

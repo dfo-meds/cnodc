@@ -1,0 +1,18 @@
+Temperature:
+  spike: 2
+  top_vdown: -10
+  top_vup: 10
+  bottom_vdown: -10
+  bottom_vup: 10
+  gradient: 10
+  units: °C
+  kwargs:
+    temp_scale: ITS-90
+PracticalSalinity:
+  spike: 0.3
+  top_vdown: -5
+  top_vup: 5
+  bottom_vdown: -5
+  bottom_vup: 5
+  gradient: 5
+  units: 0.001
