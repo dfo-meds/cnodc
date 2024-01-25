@@ -83,7 +83,7 @@ class HistoryEntry:
             map_['_message'],
             map_['_timestamp'],
             *map_['_source'],
-            MessageType(map_['_message_type'])
+            message_type=MessageType(map_['_message_type'])
         )
 
 

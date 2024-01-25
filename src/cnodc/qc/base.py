@@ -36,6 +36,7 @@ class TestContext:
         self.current_recordset: t.Optional[ocproc2.RecordSet] = None
         self.current_value: t.Optional[ocproc2.AbstractValue] = None
         self.result = ocproc2.QCResult.PASS
+        self.test_tags = set()
         self._station: t.Optional[structures.NODBStation] = None
 
     @contextlib.contextmanager
@@ -472,18 +473,6 @@ class StationSearcher:
         )
 
 
-class _AssertWrapper:
-
-    def __init__(self, values: t.Union[ocproc2.AbstractValue, t.Sequence[ocproc2.AbstractValue]]):
-        self._values = values
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-
 class BaseTestSuite:
 
     converter: UnitConverter = None
@@ -526,9 +515,10 @@ class BaseTestSuite:
                     yield self._handle_qc_result(ctx), True
                 else:
                     working_batch[wr.working_uuid] = wr
-            contexts = {
-                x: TestContext(working_batch[x].record) for x in working_batch
-            }
+            contexts = {}
+            for x in working_batch:
+                contexts[x] = TestContext(working_batch[x].record)
+                contexts[x].test_tags.update(self.test_tags)
             for bt in batch_tests:
                 bt.execute_batch(self, contexts)
             for uuid_ in working_batch:
@@ -578,6 +568,7 @@ class BaseTestSuite:
 
         if context is None:
             context = TestContext(record)
+            context.test_tags.update(self.test_tags)
         try:
             self._verify_record_and_iterate(context)
         except QCComplete:
