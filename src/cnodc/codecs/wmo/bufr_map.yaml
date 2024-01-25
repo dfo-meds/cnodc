@@ -30,6 +30,9 @@
   type: metadata
   name: Uncertainty
   apply_to: following
+  remove_metadata:
+    - Units
+    - Uncertainty
   filter:
     - Temperature
 2030:
@@ -212,9 +215,24 @@
 11041: "variables:WindGustMaxSpeed"
 11043: "variables:WindGustMaxDirection"
 
-12101: "variables:AirTemperature"
-12102: "variables:WetBulbTemperature"
-12103: "variables:DewpointTemperature"
+12101:
+  type: variables
+  apply_to: target
+  name: AirTemperature
+  metadata:
+    TemperatureScale: "ITS-90"
+12102:
+  type: variables
+  apply_to: target
+  name: WetBulbTemperature
+  metadata:
+    TemperatureScale: "ITS-90"
+12103:
+  type: variables
+  apply_to: target
+  name: DewpointTemperature
+  metadata:
+    TemperatureScale: "ITS-90"
 
 13003: "variables:RelativeHumidity"
 13011: "variables:TotalPrecipitation"
@@ -246,10 +264,30 @@
 22021: "variables:WaveHeight"
 22031: "variables:CurrentSpeed"
 22032: "variables:CurrentSpeed"
-22042: "variables:Temperature"
-22043: "variables:Temperature"
-22045: "variables:Temperature"
-22049: "variables:Temperature"
+22042:
+  type: variables
+  apply_to: target
+  name: Temperature
+  metadata:
+    TemperatureScale: "ITS-90"
+22043:
+  type: variables
+  apply_to: target
+  name: Temperature
+  metadata:
+    TemperatureScale: "ITS-90"
+22045:
+  type: variables
+  apply_to: target
+  name: Temperature
+  metadata:
+    TemperatureScale: "ITS-90"
+22049:
+  type: variables
+  apply_to: target
+  name: Temperature
+  metadata:
+    TemperatureScale: "ITS-90"
 22055: "metadata:FloatCycleNumber"
 22056:
   type: metadata

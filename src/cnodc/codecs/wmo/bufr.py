@@ -345,6 +345,13 @@ class _Bufr4Decoder:
                 value.value = instruction['value_map'][value.value]
             elif value.value is not None:
                 self.warn(f"Instruction provides a value_map but [{value.value}] is not in it", ctx)
+        if 'remove_metadata' in instruction and instruction['remove_metadata']:
+            for key in instruction['remove_metadata']:
+                if key in value.metadata:
+                    del value.metadata[key]
+        if 'metadata' in instruction and instruction['metadata']:
+            for key in instruction['metadata']:
+                value.metadata[key] = instruction['metadata'][key]
         if 'apply_to' not in instruction:
             self.error(f"Instruction is missing 'apply_to'", ctx)
         elif instruction['apply_to'] == 'target':
