@@ -7,12 +7,12 @@ from uncertainties import UFloat
 import cnodc.ocproc2.structures as ocproc2
 import typing as t
 import yaml
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, QCTest
+from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest
 from cnodc.ocean_math.geodesy import upoint_to_geometry
 from cnodc.units import UnitConverter
 
 
-class NODBParameterReference:
+class ParameterReferences:
 
     def __init__(self, config_file: pathlib.Path, converter: UnitConverter):
         self._converter = converter
@@ -72,16 +72,16 @@ class NODBParameterReference:
         return base, regions
 
 
-class NODBParameterCheck(BaseTestSuite):
+class GTSPPParameterRangeTest(BaseTestSuite):
 
     def __init__(self, config_file: t.Union[pathlib.Path, str], **kwargs):
         super().__init__(
-            'nodb_parameter_check',
+            'gtspp_parameter_check',
             '1.0',
             test_tags=['GTSPP_2.1', 'GTSPP_2.2'],
             **kwargs
         )
-        self._ref = NODBParameterReference(pathlib.Path(config_file) if not isinstance(config_file, pathlib.Path) else config_file, self.converter)
+        self._ref = ParameterReferences(pathlib.Path(config_file) if not isinstance(config_file, pathlib.Path) else config_file, self.converter)
 
     @RecordTest()
     def test_parameter_ranges(self, record: ocproc2.DataRecord, context: TestContext):

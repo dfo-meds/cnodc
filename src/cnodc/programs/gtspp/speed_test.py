@@ -1,17 +1,17 @@
 import datetime
 import math
 
-from cnodc.ocean_math.distance import uhaversine
+from cnodc.ocean_math.geodesy import uhaversine
 import cnodc.ocproc2.structures as ocproc2
 import typing as t
 from uncertainties import ufloat
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, QCSkipTest, QCAssertionError, BatchTest
 
 
-class NODBSpeedCheck(BaseTestSuite):
+class GTSPPSpeedTest(BaseTestSuite):
 
     def __init__(self, **kwargs):
-        super().__init__('nodb_speed_check', '1.0', test_tags=['GTSPP_1.5'], **kwargs)
+        super().__init__('gtspp_speed_check', '1.0', test_tags=['GTSPP_1.5'], **kwargs)
 
     @BatchTest()
     def test_inter_record_speed(self, batch: dict[str, TestContext]):

@@ -6,7 +6,7 @@ import cnodc.ocproc2.structures as ocproc2
 from cnodc.util import dynamic_object
 
 
-class NODBBathymetryCheck(BaseTestSuite):
+class GTSPPBathymetryTest(BaseTestSuite):
 
     def __init__(self,
                  bathymetry_model_class: str,
@@ -17,7 +17,7 @@ class NODBBathymetryCheck(BaseTestSuite):
                  run_bottom_test: bool = True,
                  **kwargs):
         super().__init__(
-            'nodb_bathy_check',
+            'gtspp_bathy_check',
             '1.0',
             test_tags=[
                 'GTSPP_1.4' if run_on_land_test else None,
