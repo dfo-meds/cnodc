@@ -1,4 +1,4 @@
-import umath_wrapper as umath
+import cnodc.ocean_math.umath_wrapper as umath
 from uncertainties import ufloat
 import typing as t
 import shapely
@@ -7,12 +7,13 @@ import shapely
 _EARTH_RADIUS = ufloat(6371000, 10000)
 
 
-def uhaversine(point1: tuple[umath.FLOAT, umath.FLOAT],
-               point2: tuple[umath.FLOAT, umath.FLOAT]) -> umath.FLOAT:
-    lat1 = umath.radians(point1[0])
-    lon1 = umath.radians(point1[1])
-    lat2 = umath.radians(point2[0])
-    lon2 = umath.radians(point2[1])
+def uhaversine(yx1: tuple[umath.FLOAT, umath.FLOAT],
+               yx2: tuple[umath.FLOAT, umath.FLOAT]) -> umath.FLOAT:
+    """Points are [lat, lon]"""
+    lat1 = umath.radians(yx1[0])
+    lon1 = umath.radians(yx1[1])
+    lat2 = umath.radians(yx2[0])
+    lon2 = umath.radians(yx2[1])
     d_lat = lat2 - lat1
     d_lon = lon2 - lon1
     a = (umath.sin(d_lat * 0.5) ** 2) + (umath.cos(lat1) * umath.cos(lat2) * (umath.sin(d_lon * 0.5) ** 2))
