@@ -11,6 +11,7 @@ import zrlog
 
 import cnodc.ocproc2.structures as ocproc2
 from cnodc.nodb import NODBController, NODBControllerInstance
+from cnodc.ocean_math.seawater import eos80_pressure
 from cnodc.units import UnitConverter
 from autoinject import injector
 import cnodc.nodb.structures as structures
@@ -27,7 +28,7 @@ class QCSkipTest(Exception):
 
 class TestContext:
 
-    def __init__(self, record: ocproc2.DataRecord):
+    def __init__(self, record: ocproc2.DataRecord, working_record: structures.NODBWorkingRecord = None):
         self.qc_messages: list[ocproc2.QCMessage] = []
         self.top_record: ocproc2.DataRecord = record
         self.current_record: ocproc2.DataRecord = record
@@ -36,6 +37,7 @@ class TestContext:
         self.current_recordset: t.Optional[ocproc2.RecordSet] = None
         self.current_value: t.Optional[ocproc2.AbstractValue] = None
         self.result = ocproc2.QCResult.PASS
+        self.working_record = working_record
         self.test_tags = set()
         self._station: t.Optional[structures.NODBStation] = None
 
@@ -237,7 +239,9 @@ class SubRecordArray:
         self.length = len(self.indexes)
 
     def get_data(self, key: str, idx: int):
-        return self.data[key][idx]
+        if key in self.data and self.length > idx > 0:
+            return self.data[key][idx]
+        return None
 
     @contextlib.contextmanager
     def row_context(self, row_idx: int, ctx: TestContext) -> TestContext:
@@ -488,6 +492,18 @@ class BaseTestSuite:
         self._db: t.Optional[NODBControllerInstance] = None
         self._log = zrlog.get_logger(f"qc.test.{qc_test_name}")
 
+    def calculate_pressure_in_dbar(self, pressure_val: t.Optional[ocproc2.Value], depth_val: t.Optional[ocproc2.Value], latitude_val: t.Optional[ocproc2.Value]) -> t.Union[None, float, UFloat]:
+        if pressure_val is not None:
+            pressure_dbar = self.value_in_units(pressure_val, 'dbar')
+            if pressure_dbar is not None:
+                return pressure_dbar
+        if depth_val is not None and latitude_val is not None:
+            depth_m = self.value_in_units(depth_val, 'm')
+            latitude = self.value_in_units(latitude_val)
+            if depth_m is not None and latitude is not None:
+                return eos80_pressure(depth_m, latitude)
+        return None
+
     def set_db_instance(self, db: NODBControllerInstance):
         self._db = db
 
@@ -510,14 +526,14 @@ class BaseTestSuite:
             working_batch: dict[str, structures.NODBWorkingRecord] = {}
             for wr in batch:
                 if self._skip_record(wr):
-                    ctx = TestContext(wr.record)
+                    ctx = TestContext(wr.record, wr)
                     ctx.skip_qc_test(False)
                     yield self._handle_qc_result(ctx), True
                 else:
                     working_batch[wr.working_uuid] = wr
             contexts = {}
             for x in working_batch:
-                contexts[x] = TestContext(working_batch[x].record)
+                contexts[x] = TestContext(working_batch[x].record, working_batch[x])
                 contexts[x].test_tags.update(self.test_tags)
             for bt in batch_tests:
                 bt.execute_batch(self, contexts)
@@ -540,13 +556,14 @@ class BaseTestSuite:
 
     def _process_record(self, working_record: structures.NODBWorkingRecord, context=None) -> tuple[structures.NODBWorkingRecord, ocproc2.DataRecord, ocproc2.QCResult, bool]:
         dr = working_record.record
-        outcome, is_modified = self.verify_record(dr, context)
+        outcome, is_modified = self.verify_record(dr, context=context)
         return working_record, dr, outcome, is_modified
 
     def verify_record(self,
                       record: ocproc2.DataRecord,
                       force_rerun: bool = False,
-                      context: t.Optional[TestContext] = None) -> tuple[ocproc2.QCResult, bool]:
+                      context: t.Optional[TestContext] = None,
+                      working_record: t.Optional[structures.NODBWorkingRecord] = None) -> tuple[ocproc2.QCResult, bool]:
         """Run the test suite on the record and return the result.
 
         @param record: The record to verify
@@ -567,7 +584,7 @@ class BaseTestSuite:
                 return last_result.result, False
 
         if context is None:
-            context = TestContext(record)
+            context = TestContext(record, working_record)
             context.test_tags.update(self.test_tags)
         try:
             self._verify_record_and_iterate(context)
@@ -901,7 +918,7 @@ class BaseTestSuite:
 
     def value_in_units(self,
                        value: ocproc2.AbstractValue,
-                       expected_units: t.Optional[str],
+                       expected_units: t.Optional[str] = None,
                        temp_scale: str = None,
                        null_dubious: bool = False,
                        null_erroneous: bool = False):
