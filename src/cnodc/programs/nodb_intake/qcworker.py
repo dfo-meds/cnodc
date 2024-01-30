@@ -83,7 +83,7 @@ class QCProcessor(PayloadProcessor):
 
     def _process(self):
         self._test_suite.set_db_instance(self._db)
-        submitter = NODBBatchSubmitter(self._db, self._current_payload, **self._submitter_kwargs)
+        submitter = NODBBatchSubmitter(self._db, self._current_payload, test_name=self._test_suite.test_name, **self._submitter_kwargs)
         separator = (
             StationResultBatcher(batch_submitter=submitter, **self._batcher_kwargs)
             if self._use_station_batcher else
@@ -148,8 +148,10 @@ class NODBBatchSubmitter:
                  next_queue: str = None,
                  review_queue: str = None,
                  recheck_queue: str = None,
-                 next_step_queue: str = 'nodb_continue'):
+                 next_step_queue: str = 'nodb_continue',
+                 test_name: str = None):
         self._db = db
+        self._test_name = test_name
         self._next_step = next_step_queue
         self._previous_payload = last_payload
         self._next_queue = next_queue
@@ -161,8 +163,12 @@ class NODBBatchSubmitter:
         payload = BatchPayload(batch_id)
         if batch_outcome == BatchOutcome.REVIEW_QUEUE:
             payload.headers['post-review-queue'] = self._recheck_queue
-        elif 'post-review-queue' in payload.headers:
-            del payload.headers['post-review-queue']
+            payload.headers['current-qc-test'] = self._test_name
+        else:
+            if 'post-review-queue' in payload.headers:
+                del payload.headers['post-review-queue']
+            if 'current-qc-test' in payload.headers:
+                del payload.headers['current-qc-test']
         self._previous_payload.update_for_propagation(payload)
         if queue_name is not None:
             self._db.create_queue_item(
