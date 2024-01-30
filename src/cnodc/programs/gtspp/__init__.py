@@ -7,3 +7,4 @@ from .spike_gradient_test import GTSPPSpikeGradientTest
 from .temperature_inversion_test import GTSPPTemperatureInversionTest
 from .bathymetry_test import GTSPPBathymetryTest
 from .speed_test import GTSPPSpeedTest
+from .mandatory_review import GTSPPMandatoryManualReviewTest
