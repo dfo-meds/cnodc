@@ -321,6 +321,50 @@ cnodc:BUFRDescriptors rdf:type skos:Concept ;
   cnodc:elementGroup "metadata:record" ;
   skos:inScheme cnodc:elements .
 
+cnodc:BUFROriginCentre rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:integer ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFROriginSubcentre rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:integer ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRDataCategory rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:integer ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRSubsetIndex rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:integer ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRIsObservation rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:integer ;
+  cnodc:maxValue 1 ;
+  cnodc:minValue 0 ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRMessageTime rdf:type skos:Concept ;
+  skos:prefLabel ""@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
 
 cnodc:Units rdf:type skos:Concept ;
   skos:prefLabel "Units"@en ;
@@ -431,6 +475,7 @@ cnodc:TemperatureScale rdf:type skos:Concept ;
   cnodc:elementGroup "metadata:element" ;
   cnodc:allowedValue "ITS-90" ;
   cnodc:allowedValue "IPTS-68" ;
+  cnodc:allowedValue "IPTS-48" ;
   skos:inScheme cnodc:elements .
 
 
@@ -453,6 +498,10 @@ cnodc:PracticalSalinity rdf:type skos:Concept ;
   skos:broaderMatch p07:CFSN0331 ;
   skos:narrowerMatch p07:Z13QZFM ;
   skos:inScheme cnodc:elements .
+
+
+cnodc:AbsoluteSalinity rdf:type skos:Concept ;
+
 
 
 cnodc:CurrentSpeed rdf:type skos:Concept ;

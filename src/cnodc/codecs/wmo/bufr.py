@@ -1,3 +1,4 @@
+import datetime
 import typing as t
 
 import zrlog
@@ -186,6 +187,20 @@ class _Bufr4Decoder:
         ctx.target.metadata['GTSHeader'] = self.header
         descriptors = self.message.unexpanded_descriptors.value
         ctx.target.metadata['BUFRDescriptors'] = list(descriptors)
+        ctx.target.metadata['BUFROriginCentre'] = self.message.originating_centre
+        ctx.target.metadata['BUFROriginSubcentre'] = self.message.originating_subcentre
+        ctx.target.metadata['BUFRDataCategory'] = self.message.data_category
+        ctx.target.metadata['BUFRSubsetIndex'] = subset_number
+        ctx.target.metadata['BUFRIsObservation'] = 1 if self.message.is_observation else 0
+        ctx.target.metadata['BUFRMessageTime'] = datetime.datetime(
+            year=self.message.year,
+            month=self.message.month,
+            day=self.message.day,
+            hour=self.message.hour,
+            minute=self.message.minute,
+            second=self.message.second,
+            tzinfo=datetime.timezone.utc
+        ).isoformat()
         ctx.hierarchy = []
         ctx.hierarchy = [f'M#{subset_number}']
         self._iterate_on_nodes(self.raw_data.decoded_nodes_all_subsets[subset_number], ctx)
