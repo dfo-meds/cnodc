@@ -305,7 +305,6 @@ class WorkflowController:
         file_handles = []
         working_file = None
         try:
-
             if 'default_headers' in self.config:
                 for x in self.config['default_headers']:
                     if x not in headers:

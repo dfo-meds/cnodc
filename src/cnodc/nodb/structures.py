@@ -657,7 +657,6 @@ class NODBUploadWorkflow(_NODBBaseObject):
 
     @injector.inject
     def check_config(self, files: cnodc.storage.core.StorageController):
-        print(files)
         if 'validation' in self.configuration and self.configuration['validation'] is not None:
             try:
                 x = dynamic_object(self.configuration['validation'])
@@ -713,9 +712,25 @@ class NODBUploadWorkflow(_NODBBaseObject):
                 if not isinstance(self.configuration['metadata'][x], str):
                     raise CNODCError(f'Invalid value for [metadata.{x}] in [{tn}]: {self.configuration["metadata"][x]}, must be a string', 'WFCHECK', 1005)
 
+    def check_access(self, user_permissions: t.Union[list, set, tuple]):
+        if '_admin' in user_permissions:
+            return True
+        needed_permissions = self.permissions()
+        if '_any' in needed_permissions:
+            return True
+        return any(x in user_permissions for x in needed_permissions)
+
     @classmethod
     def find_by_name(cls, db, workflow_name: str, **kwargs):
         return db.load_object(cls, {"workflow_name": workflow_name},  **kwargs)
+
+    @classmethod
+    def find_all(cls, db, **kwargs):
+        with db.cursor() as cur:
+            cur.execute(f'SELECT * FROM {NODBUploadWorkflow.TABLE_NAME}')
+            for row in cur.fetch_stream():
+                yield NODBUploadWorkflow(**row, is_new=False)
+
 
 
 class NODBObservation(_NODBBaseObject):

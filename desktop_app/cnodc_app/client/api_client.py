@@ -23,6 +23,8 @@ class _CNODCAPIClient:
         self._token = None
         self._expiry = None
         self._app_url = self.config.as_str(('cnodc_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
+        self._access_list = None
+        self._check_time = 300  # Renew when five minutes left on session
 
     def make_request(self, endpoint: str, method: str, **kwargs: str) -> dict:
         full_url = f"{self._app_url}/{endpoint}"
@@ -36,15 +38,15 @@ class _CNODCAPIClient:
             raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
         return json_body
 
-    def login(self, username: str, password: str) -> str:
+    def login(self, username: str, password: str) -> tuple[str, list[str]]:
         response = self.make_request('login', 'POST', username=username, password=password)
         self._token = response['token']
         self._expiry = datetime.datetime.fromisoformat(response['expiry'])
-        return response['username']
+        self._access_list = response['access']
+        return response['username'], self._access_list
 
     def refresh(self) -> bool:
-        if self._token is not None:
-            # TODO: check expiry time to determine if renewal is necessary
+        if self._token is not None and (self._expiry - datetime.datetime.now(tz=datetime.timezone.utc)).total_seconds() <= self._check_time:
             response = self.make_request('renew', 'POST')
             self._token = response['token']
             self._expiry = datetime.datetime.fromisoformat(response['expiry'])
@@ -52,7 +54,7 @@ class _CNODCAPIClient:
 
 
 @injector.inject
-def login(username: str, password: str, client: _CNODCAPIClient = None) -> str:
+def login(username: str, password: str, client: _CNODCAPIClient = None) -> tuple[str, list[str]]:
     return client.login(username, password)
 
 

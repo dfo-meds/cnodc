@@ -33,6 +33,14 @@ class UploadResult(enum.Enum):
     COMPLETE = 2
 
 
+def list_all_workflows_with_access(nodb: NODBController = None, login: LoginController = None) -> list[str]:
+    user_perms = login.current_permissions()
+    with nodb as db:
+        for workflow in structures.NODBUploadWorkflow.find_all(db):
+            if workflow.check_access(user_perms):
+                yield workflow.workflow_name
+
+
 class UploadController:
 
     login: LoginController = None
@@ -46,6 +54,22 @@ class UploadController:
         self._request_dir = None
         self._assembled_file = None
         self._log = zrlog.get_logger("cnodc.web_uploader")
+
+    def properties(self):
+        properties = {}
+        with self.nodb as db:
+            workflow = self._load_workflow(db)
+            properties['has_access'] = self._check_access(workflow)
+        return properties
+
+    def check_access(self):
+        with self.nodb as db:
+            workflow = self._load_workflow(db)
+            return self._check_access(workflow)
+
+    def _check_access(self, workflow: structures.NODBUploadWorkflow):
+        user_permissions = self.login.current_permissions()
+        return workflow.check_access(user_permissions)
 
     def _ensure_request_id(self):
         if self.request_id is None:
@@ -171,8 +195,7 @@ class UploadController:
 
     def _load_workflow(self, db: NODBControllerInstance):
         workflow: structures.NODBUploadWorkflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
-        permissions = self.login.current_permissions()
-        if '_admin' not in permissions and not any(x in permissions for x in workflow.permissions()):
+        if not self._check_access(workflow):
             raise CNODCError('Access denied', 'UPLOADCTRL', 1020)
         return workflow
 

@@ -59,17 +59,22 @@ def require_login(cb: callable, permission_names: t.Optional[t.Iterable[str]] = 
 
     @functools.wraps(cb)
     def _inner_wrapper(*args, **kwargs):
-        _check_login_access(permission_names)
-        return cb(*args, **kwargs)
+        if has_access(permission_names):
+            return cb(*args, **kwargs)
 
     return _inner_wrapper
 
 
 @injector.inject
-def _check_login_access(permissions: t.Optional[t.Iterable[str]], login: LoginController = None):
+def has_access(permissions: t.Optional[t.Iterable[str]], login: LoginController = None, raise_ex: bool = True) -> bool:
     if not login.verify_token():
-        raise CNODCError("Invalid token", "AUTH", 1000)
+        if raise_ex:
+            raise CNODCError("Invalid token", "AUTH", 1000)
+        return False
     current_perms = login.current_permissions()
     if permissions and '__admin__' not in current_perms and any(p not in current_perms for p in permissions):
         zrlog.get_logger("cnodc.auth").debug(f"Access denied because none of [{';'.join(permissions)}] found in [{';'.join(current_perms)}]")
-        raise CNODCError("Unauthorized request", "AUTH", 1001)
+        if raise_ex:
+            raise CNODCError("Unauthorized request", "AUTH", 1001)
+        return False
+    return True

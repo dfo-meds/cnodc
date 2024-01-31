@@ -87,6 +87,7 @@ class CNODCQCApp:
         s = ttk.Style()
         s.configure('Errored.BorderedEntry.TFrame', background='red')
         self.username = None
+        self.access_list = []
         self.root.title(i18n.get_text('root_title'))
         self.root.geometry('500x500')
         self.root.bind("<Configure>", self.on_configure)
@@ -137,14 +138,16 @@ class CNODCQCApp:
             self._update_username_display()
         self.root.after(5000, self.auto_refresh_session)
 
-    def on_login(self, result: str):
-        self.username = result
+    def on_login(self, result: tuple[str, list[str]]):
+        self.username = result[0]
+        self.access_list = result[1]
         self._update_username_display()
 
     def on_login_fail(self, ex: Exception):
         self._show_user_exception(ex)
         if self.username is not None:
             self.username = None
+            self.access_list = []
             self._update_username_display()
 
     def _show_user_exception(self, ex: Exception):
