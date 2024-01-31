@@ -149,8 +149,8 @@ class LoginController:
                 db.delete_session(session_id)
                 db.commit()
                 return False
-            flask.g.permissions = flask.g.user.permissions(db)
-            self._logger.debug(f"User roles: [{';'.join(flask.g.user.roles)}]; permissions: [{';'.join(flask.g.permissions)}]")
+            flask.g.permissions = flask.g.user.permissions(db) or set()
+            self._logger.debug(f"User roles: [{';'.join(flask.g.user.roles or [])}]; permissions: [{';'.join(flask.g.permissions)}]")
             return True
 
     def current_session(self) -> t.Optional[structures.NODBSession]:

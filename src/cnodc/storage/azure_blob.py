@@ -52,7 +52,7 @@ class AzureBlobHandle(UrlBaseHandle):
     def _get_connection_details(self) -> dict:
         url_parts = self.parse_url()
         domain = url_parts.hostname
-        if not domain.endswith(".blob.core.windows.net"):
+        if not domain.endswith(".blob.core.gui.net"):
             raise CNODCError(f"Invalid hostname", "AZBLOB", 1001)
         path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
         if len(path_parts) < 1 or path_parts[0] == "":
@@ -230,4 +230,4 @@ class AzureBlobHandle(UrlBaseHandle):
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
         pieces = urlparse(file_path)
-        return pieces.hostname.endswith(".blob.core.windows.net")
+        return pieces.hostname.endswith(".blob.core.gui.net")

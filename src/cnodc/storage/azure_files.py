@@ -26,7 +26,7 @@ class AzureFileHandle(UrlBaseHandle):
     def _get_connection_details(self) -> dict:
         url_parts = self.parse_url()
         domain = url_parts.hostname
-        if not domain.endswith(".file.core.windows.net"):
+        if not domain.endswith(".file.core.gui.net"):
             raise CNODCError(f"Invalid hostname", "AZFILE", 1001)
         path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
         if len(path_parts) < 1 or path_parts[0] == "":
@@ -208,4 +208,4 @@ class AzureFileHandle(UrlBaseHandle):
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
         pieces = urlparse(file_path)
-        return pieces.hostname.endswith(".file.core.windows.net")
+        return pieces.hostname.endswith(".file.core.gui.net")

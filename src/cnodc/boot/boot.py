@@ -79,7 +79,7 @@ def init_flask(app: flask.Flask, config: zr.ApplicationConfig):
     if not app.config.get("SECRET_KEY"):
         raise CNODCError("Missing secret_key", "BOOT", 1000)
     elif isinstance(app.config.get("SECRET_KEY"), str):
-        app.config["SECRET_KEY"] = app.config.get("SECRET_KEY")._encode("utf-8")
+        app.config["SECRET_KEY"] = app.config.get("SECRET_KEY").encode("utf-8")
 
     # Manage autoinject settings
     import flask_autoinject

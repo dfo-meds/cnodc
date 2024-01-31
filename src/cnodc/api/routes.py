@@ -17,7 +17,8 @@ def login(login_controller: LoginController = None):
     )
     return {
         'token': login_controller.generate_token(session),
-        'expiry': session.expiry_time.isoformat()
+        'expiry': session.expiry_time.isoformat(),
+        'username': flask.request.json['username'],
     }
 
 
