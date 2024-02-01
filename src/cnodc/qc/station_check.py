@@ -10,7 +10,13 @@ import cnodc.ocproc2.structures as ocproc2
 class NODBStationCheck(BaseTestSuite):
 
     def __init__(self, **kwargs):
-        super().__init__('nodb_station_check', '1.0', test_tags=['GTSPP_1.1'], **kwargs)
+        super().__init__(
+            'nodb_station_check',
+            '1.0',
+            station_invariant=False,
+            test_tags=['GTSPP_1.1'],
+            **kwargs
+        )
 
     def _station_check(self, context: TestContext):
         # Skip station check if WorkingQuality=9

@@ -28,7 +28,11 @@ class QCSkipTest(Exception):
 
 class TestContext:
 
-    def __init__(self, record: ocproc2.DataRecord, working_record: structures.NODBWorkingRecord = None):
+    def __init__(self,
+                 record: ocproc2.DataRecord,
+                 batch_context: dict,
+                 working_record: structures.NODBWorkingRecord = None):
+        self.batch_context: dict = batch_context
         self.qc_messages: list[ocproc2.QCMessage] = []
         self.top_record: ocproc2.DataRecord = record
         self.current_record: ocproc2.DataRecord = record
@@ -484,8 +488,16 @@ class BaseTestSuite:
     nodb: NODBController = None
 
     @injector.construct
-    def __init__(self, qc_test_name: str, qc_test_version: str, test_runner_id: str = '', test_tags: t.Optional[list[str]] = None):
+    def __init__(self,
+                 qc_test_name: str,
+                 qc_test_version: str,
+                 test_runner_id: str = '',
+                 test_tags: t.Optional[list[str]] = None,
+                 working_sort_by: t.Optional[str] = None,
+                 station_invariant: bool = True):
         self.test_name = qc_test_name
+        self.station_invariant = station_invariant
+        self.working_sort_by = working_sort_by
         self.test_version = qc_test_version
         self.test_runner_id = test_runner_id
         self.test_tags = [x for x in test_tags if x is not None] if test_tags else []
@@ -522,18 +534,19 @@ class BaseTestSuite:
 
     def process_batch(self, batch: t.Iterable[structures.NODBWorkingRecord]) -> t.Iterable[tuple[structures.NODBWorkingRecord, ocproc2.DataRecord, ocproc2.QCResult, bool]]:
         batch_tests = self._get_batch_tests()
+        batch_context = {}
         if batch_tests:
             working_batch: dict[str, structures.NODBWorkingRecord] = {}
             for wr in batch:
                 if self._skip_record(wr):
-                    ctx = TestContext(wr.record, wr)
+                    ctx = TestContext(wr.record, batch_context, wr)
                     ctx.skip_qc_test(False)
                     yield self._handle_qc_result(ctx), True
                 else:
                     working_batch[wr.working_uuid] = wr
             contexts = {}
             for x in working_batch:
-                contexts[x] = TestContext(working_batch[x].record, working_batch[x])
+                contexts[x] = TestContext(working_batch[x].record, batch_context, working_batch[x])
                 contexts[x].test_tags.update(self.test_tags)
             for bt in batch_tests:
                 bt.execute_batch(self, contexts)
@@ -544,7 +557,8 @@ class BaseTestSuite:
                 if self._skip_record(wr):
                     yield wr, None, ocproc2.QCResult.SKIP, False
                 else:
-                    yield self._process_record(wr)
+                    ctx = TestContext(wr.record, batch_context, wr)
+                    yield self._process_record(wr, ctx)
 
     def _skip_record(self, record: structures.NODBWorkingRecord) -> bool:
         skip_tests: list[str] = record.get_metadata('skip_tests', [])
@@ -554,16 +568,12 @@ class BaseTestSuite:
             return True
         return False
 
-    def _process_record(self, working_record: structures.NODBWorkingRecord, context=None) -> tuple[structures.NODBWorkingRecord, ocproc2.DataRecord, ocproc2.QCResult, bool]:
+    def _process_record(self, working_record: structures.NODBWorkingRecord, context) -> tuple[structures.NODBWorkingRecord, ocproc2.DataRecord, ocproc2.QCResult, bool]:
         dr = working_record.record
-        outcome, is_modified = self.verify_record(dr, context=context)
+        outcome, is_modified = self.run_tests(context)
         return working_record, dr, outcome, is_modified
 
-    def verify_record(self,
-                      record: ocproc2.DataRecord,
-                      force_rerun: bool = False,
-                      context: t.Optional[TestContext] = None,
-                      working_record: t.Optional[structures.NODBWorkingRecord] = None) -> tuple[ocproc2.QCResult, bool]:
+    def run_tests(self, context: TestContext, force_rerun: bool = False) -> tuple[ocproc2.QCResult, bool]:
         """Run the test suite on the record and return the result.
 
         @param record: The record to verify
@@ -576,20 +586,14 @@ class BaseTestSuite:
         @rtype: tuple[L{cnodc.ocproc2.QCResult}, bool]
         """
         # Don't re-test discarded records, just halt
-        if record.metadata.best_value('CNODCStatus') == 'DISCARDED':
+        if context.top_record.metadata.best_value('CNODCStatus') == 'DISCARDED':
             return ocproc2.QCResult.SKIP, False
         if not force_rerun:
-            last_result = record.latest_test_result(self.test_name)
+            last_result = context.top_record.latest_test_result(self.test_name)
             if last_result:
                 return last_result.result, False
-
-        if context is None:
-            context = TestContext(record, working_record)
-            context.test_tags.update(self.test_tags)
-        try:
+        with context.self_context():
             self._verify_record_and_iterate(context)
-        except QCComplete:
-            pass
         return self._handle_qc_result(context), True
 
     def _handle_qc_result(self, context: TestContext) -> ocproc2.QCResult:

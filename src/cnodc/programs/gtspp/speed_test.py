@@ -11,56 +11,60 @@ from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, QCSkipTest, QC
 class GTSPPSpeedTest(BaseTestSuite):
 
     def __init__(self, **kwargs):
-        super().__init__('gtspp_speed_check', '1.0', test_tags=['GTSPP_1.5'], **kwargs)
+        super().__init__(
+            'gtspp_speed_check',
+            '1.0',
+            test_tags=['GTSPP_1.5'],
+            working_sort_by='obs_time_asc',
+            **kwargs
+        )
 
-    @BatchTest()
-    def test_inter_record_speed(self, batch: dict[str, TestContext]):
-        key_info = {}
-        for identifier in batch:
-            try:
-                self.require_good_value(batch[identifier].top_record.metadata, 'CNODCStation', allow_dubious=False)
-                self.require_good_value(batch[identifier].top_record.coordinates, 'Time', allow_dubious=False)
-                self.require_good_value(batch[identifier].top_record.coordinates, 'Latitude', allow_dubious=False)
-                self.require_good_value(batch[identifier].top_record.coordinates, 'Longitude', allow_dubious=False)
-                xx = batch[identifier].top_record.coordinates['Longitude'].to_float_with_uncertainty()
-                yy = batch[identifier].top_record.coordinates['Latitude'].to_float_with_uncertainty()
-                tt = datetime.datetime.fromisoformat(batch[identifier].top_record.coordinates['Time'].to_datetime())
-                tu = batch[identifier].top_record.coordinates['Time'].metadata.best_value('Uncertainty', 0)
-                sid = batch[identifier].top_record.metadata['CNODCStation'].to_string()
-                if sid not in key_info:
-                    key_info[sid] = []
-                key_info[sid].append((xx, yy, tt, tu, identifier))
-            except QCSkipTest:
-                continue
-        for key in key_info:
-            self._process_speed_subbatch(key, key_info[key], batch)
+    @RecordTest
+    def test_inter_record_speed(self, record: ocproc2.DataRecord, context: TestContext):
+        self.require_good_value(record.metadata, 'CNODCStation', allow_dubious=False)
+        self.require_good_value(record.coordinates, 'Time', allow_dubious=False)
+        self.require_good_value(record.coordinates, 'Latitude', allow_dubious=False)
+        self.require_good_value(record.coordinates, 'Longitude', allow_dubious=False)
+        xx = record.coordinates['Longitude'].to_float_with_uncertainty()
+        yy = record.coordinates['Latitude'].to_float_with_uncertainty()
+        tt = record.coordinates['Time'].to_datetime()
+        sid = record.metadata['CNODCStation'].to_string()
+        info = (xx, yy, tt)
+        if 'previous_positions' not in context.batch_context:
+            context.batch_context['previous_positions'] = {}
+        if 'top_speeds' not in context.batch_context:
+            context.batch_context['top_speeds'] = {}
+        try:
+            if sid in context.batch_context['previous_positions']:
+                if sid not in context.batch_context['top_speeds']:
+                    context.batch_context['top_speeds'][sid] = self._get_top_speed(sid)
+                self._run_speed_test(
+                    info,
+                    context.batch_context['previous_positions'][sid],
+                    context.batch_context['top_speeds'][sid],
+                    context
+                )
+        finally:
+            context.batch_context['previous_positions'][sid] = info
 
-    def _process_speed_subbatch(self,
-                                station_uuid: str,
-                                records: list[tuple[t.Union[float, ufloat], t.Union[float, ufloat], datetime.datetime, t.Union[float, int], str]],
-                                batch: dict[str, TestContext]):
-        # Ignore 1 record batches
-        if len(records) < 2:
-            return
-        station = self._load_station(station_uuid)
+    def _get_top_speed(self, station_id: str) -> t.Optional[float]:
         top_speed = 40
+        station = self._load_station(station_id)
         if station is not None:
             if station.get_metadata('skip_speed_check', False):
-                return
+                return None
             top_speed = station.get_metadata('top_speed', top_speed)
         if isinstance(top_speed, str) and ' ' in top_speed:
             p = top_speed.find(' ')
-            top_speed = self.converter.convert(float(top_speed[:p]), top_speed[p:].strip(), 'm s-1')
-        else:
-            top_speed = float(top_speed)
-        # Sort by time ascending
-        records.sort(key=lambda x: x[2])
-        for i in range(1, len(records)):
-            distance = uhaversine((records[i-1][1], records[i-1][0]), (records[i][1], records[i][0]))
-            time = (records[i][2] - records[i-1][2]).total_seconds()
-            time_uncertainty = math.sqrt((records[i][3] ** 2) + records[i-1][3] ** 2)
-            speed = distance / ufloat(time, time_uncertainty)
-            if self.is_greater_than(speed, top_speed):
-                batch[records[i][4]].report_for_review('speed_too_fast')
-                batch[records[i][4]].top_record.coordinates['Latitude'].metadata['WorkingQuality'] = 13
-                batch[records[i][4]].top_record.coordinates['Longitude'].metadata['WorkingQuality'] = 13
+            return float(self.converter.convert(float(top_speed[:p]), top_speed[p:].strip(), 'm s-1'))
+        return float(top_speed)
+
+    def _run_speed_test(self, xyt2: tuple, xyt1: tuple, top_speed, context):
+        if top_speed is None:
+            return
+        distance = uhaversine((xyt2[1], xyt2[0]), (xyt1[1], xyt1[0]))
+        time = (xyt2[2] - xyt1[2]).total_seconds()
+        if self.is_greater_than(distance / time, top_speed):
+            context.top_record.coordinates['Latitude'].metadata['WorkingQuality'] = 13
+            context.top_record.coordinates['Longitude'].metadata['WorkingQuality'] = 13
+            self.report_for_review('speed_too_fast')

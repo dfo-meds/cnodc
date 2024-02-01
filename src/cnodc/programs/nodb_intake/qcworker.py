@@ -32,12 +32,9 @@ class NODBQCWorker(PayloadWorker):
                 'max_batch_size': None,
                 'max_buffer_size': None,
                 'target_buffer_size': None,
-                'input_is_source_file': False,
-                'use_station_batching': False,
                 'next_queue': "nodb_continue",
                 'recheck_queue': None,
                 'review_queue': 'nodb_manual_review',
-                'order_by': None,
             },
             **kwargs
         )
@@ -77,7 +74,7 @@ class NODBQCWorker(PayloadWorker):
             'max_buffer_size': self.get_config('max_buffer_size'),
             'target_buffer_size': self.get_config('target_buffer_size')
         }
-        if self.get_config('use_station_batching') or isinstance(payload, SourceFilePayload):
+        if (not self._test_suite.station_invariant) or isinstance(payload, SourceFilePayload):
             return StationResultBatcher(**kwargs)
         else:
             return SimpleResultBatcher(**kwargs)
@@ -89,7 +86,7 @@ class NODBQCWorker(PayloadWorker):
             self._process_records(batch.stream_working_records(
                 self._db,
                 lock_type=LockType.FOR_NO_KEY_UPDATE,
-                order_by=self.get_config('order_by')
+                order_by=self._test_suite.working_sort_by
             ), batcher)
             batcher.flush_all()
             if batcher.remove_original_batch:
@@ -102,7 +99,7 @@ class NODBQCWorker(PayloadWorker):
             self._process_records(source.stream_working_records(
                 self._db,
                 lock_type=LockType.FOR_NO_KEY_UPDATE,
-                order_by=self.get_config('order_by')
+                order_by=self._test_suite.working_sort_by
             ), batcher)
             batcher.flush_all()
             self._current_item.mark_complete(self._db)
