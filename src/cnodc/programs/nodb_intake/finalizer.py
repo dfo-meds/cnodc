@@ -3,59 +3,37 @@ import uuid
 
 from cnodc.ocproc2 import DataRecord, ValueMap
 from cnodc.ocproc2.structures import AbstractValue, MultiValue, Value
-from cnodc.process.queue_worker import QueueWorker
+from cnodc.process.payload_worker import BatchPayloadWorker
 import cnodc.nodb.structures as structures
 import typing as t
 
-from cnodc.nodb import NODBController
-from autoinject import injector
-
+from cnodc.process.queue_worker import QueueItemResult
 from cnodc.units import UnitConverter
-from cnodc.workflow.processor import PayloadProcessor
 from cnodc.workflow.workflow import BatchPayload
 
 
-class NODBFinalizeWorker(QueueWorker):
+class NODBFinalizeWorker(BatchPayloadWorker):
 
-    def __init__(self, **kwargs):
-        super().__init__(log_name="cnodc.nodb_finalizer", **kwargs)
-        self._processor: t.Optional[NODBFinalizer] = None
-        self.set_defaults({
-            'queue_name': 'nodb_finalize'
-        })
-
-    def on_start(self):
-        self._processor = NODBFinalizer(
-            processor_uuid=self.process_uuid
-        )
-
-    def process_queue_item(self, item: structures.NODBQueueItem):
-        self._processor.process_queue_item(item)
-
-
-class NODBFinalizer(PayloadProcessor):
-
-    nodb: NODBController = None
     converter: UnitConverter = None
 
-    NAME = 'nodb_finalizer'
-    VERSION = '1.0'
-
-    @injector.construct
     def __init__(self, **kwargs):
         super().__init__(
-            processor_version=NODBFinalizer.NAME,
-            processor_name=NODBFinalizer.VERSION,
-            require_type=BatchPayload,
+            process_name="finalizer",
+            process_version="1_0",
+            defaults={
+                'queue_name': 'nodb_finalize'
+            },
             **kwargs
         )
 
-    def _process(self):
-        batch = self.load_batch_from_payload()
+    def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]:
+        batch = payload.load_batch(self._db)
         for record in batch.stream_working_records(self._db):
             self._complete_record(record)
         self._db.delete_object(batch)
+        self._current_item.mark_complete(self._db)
         self._db.commit()
+        return QueueItemResult.HANDLED
 
     def _complete_record(self, working: structures.NODBWorkingRecord):
         record = working.record

@@ -48,10 +48,18 @@ def list_access():
 def _build_access_list() -> list[str]:
     from .uploads import list_all_workflows_with_access
     options = ['change-password', 'renew', 'access']
+    if has_access('handle_queue_items'):
+        if has_access('handle_decode_failures'):
+            options.append('queue:decode-failure')
+        if has_access('handle_ocean_reviews'):
+            options.append('queue:ocean-review')
+        if has_access('handle_integrity_failures'):
+            options.append('queue:integrity-failure')
+        if has_access('handle_station_failures'):
+            options.append('queue:station-failure')
     if has_access('submit_files'):
-        options.append('submit')
-    for workflow_name in list_all_workflows_with_access():
-        options.append(f'workflow:{workflow_name}')
+        for workflow_name in list_all_workflows_with_access():
+            options.append(f'submit:{workflow_name}')
     return options
 
 
@@ -136,11 +144,44 @@ def workflow_info(workflow_name):
     return info
 
 
-@cnodc.route('/next/decode_failure', methods=['POST'])
+@cnodc.route('/next/decode-failure', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_decode_failures")
-def next_decode_failure():
-    return _dequeue_handler('nodb_decode_failure')
+@injector.inject
+def next_decode_failure(nodb_web: NODBWebController = None):
+    return nodb_web.get_next_queue_item(
+        queue_name='nodb_decode_failure'
+    )
+
+
+@cnodc.route('/next/integrity-failure', methods=['POST'])
+@require_inputs(['app_id'])
+@require_permission("handle_integrity_failures")
+@injector.inject
+def next_decode_failure(nodb_web: NODBWebController = None):
+    return nodb_web.get_next_queue_item(
+        queue_name='nodb_integrity_review'
+    )
+
+
+@cnodc.route('/next/station-failure', methods=['POST'])
+@require_inputs(['app_id'])
+@require_permission("handle_station_failures")
+@injector.inject
+def next_decode_failure(nodb_web: NODBWebController = None):
+    return nodb_web.get_next_queue_item(
+        queue_name='nodb_station_review'
+    )
+
+
+@cnodc.route('/next/ocean-review', methods=['POST'])
+@require_inputs(['app_id'])
+@require_permission("handle_ocean_reviews")
+@injector.inject
+def next_decode_failure(nodb_web: NODBWebController = None):
+    return nodb_web.get_next_queue_item(
+        queue_name='nodb_manual_review',
+    )
 
 
 @cnodc.route('/queue-item/<queue_item_uuid>/renew', methods=['POST'])
@@ -180,13 +221,4 @@ def fail_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None):
     nodb_web.mark_queue_item_failed(
         item_uuid=queue_item_uuid,
         enc_app_id=flask.request.json['app_id']
-    )
-
-
-@injector.inject
-def _dequeue_handler(queue_name: str, subqueue_name: t.Optional[str] = None, nodb_web: NODBWebController = None, login: LoginController = None):
-    return nodb_web.get_next_queue_item(
-        queue_name=queue_name,
-        user_id=login.current_user().username,
-        subqueue_name=subqueue_name
     )

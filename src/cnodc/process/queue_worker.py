@@ -1,4 +1,4 @@
-from .base import BaseProcess
+from .base import BaseWorker
 from cnodc.util import CNODCError, HaltInterrupt
 from autoinject import injector
 import uuid
@@ -8,15 +8,25 @@ import time
 import typing as t
 
 from ..nodb.controller import NODBError
+import enum
 
 
-class QueueWorker(BaseProcess):
+class QueueItemResult(enum.Enum):
+
+    SUCCESS = 'SUCCESS'
+    FAILED = 'FAILED'
+    RETRY = 'RETRY'
+    HANDLED = 'HANDLED'
+
+
+class QueueWorker(BaseWorker):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._queue_name = None
         self._app_id = None
         self._current_delay_time = None
+        self._current_item: t.Optional[structures.NODBQueueItem] = None
         self.set_defaults({
             "queue_name": None,
             "delay_time_seconds": 0.25,
@@ -38,14 +48,13 @@ class QueueWorker(BaseProcess):
                 self._db = db
                 while self.continue_loop():
                     self._log.debug(f"Checking for new items in [{self.get_config('queue_name')}]")
-                    queue_item = None
+                    self._current_item = None
                     try:
-                        queue_item = db.fetch_next_queue_item(self.get_config("queue_name"), self._app_id)
-                        if queue_item is not None:
-                            self.is_working.set()
-                            self._process_result(queue_item, self.process_queue_item(queue_item))
-                            self.is_working.clear()
+                        self._current_item = db.fetch_next_queue_item(self.get_config("queue_name"), self._app_id)
+                        self.before_item()
+                        if self._current_item is not None:
                             self._current_delay_time = self.get_config("delay_time_seconds")
+                            self._process_result(self._current_item, self.process_queue_item(self._current_item))
                         else:
                             self.responsive_sleep(self._delay_time())
                     except CNODCError as ex:
@@ -53,35 +62,41 @@ class QueueWorker(BaseProcess):
                         if isinstance(ex, NODBError):
                             self._db.rollback()
                         if ex.is_recoverable:
-                            if queue_item:
-                                self._process_result(queue_item, structures.QueueItemResult.RETRY)
-                                self._log.exception(f"Recoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
+                            if self._current_item:
+                                self._process_result(self._current_item, QueueItemResult.RETRY)
+                                self._log.exception(f"Recoverable exception occurred during queue item processing [{self._current_item.queue_uuid}]")
                             else:
                                 self._log.exception("Recoverable exception occurred during queue item processing")
                         else:
-                            if queue_item:
-                                self._process_result(queue_item, structures.QueueItemResult.FAILED)
-                                self._log.exception(f"Unrecoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
+                            if self._current_item:
+                                self._process_result(self._current_item, QueueItemResult.FAILED)
+                                self._log.exception(f"Unrecoverable exception occurred during queue item processing [{self._current_item.queue_uuid}]")
                             raise ex
                     except (KeyboardInterrupt, HaltInterrupt) as ex:
-                        self._process_result(queue_item, structures.QueueItemResult.RETRY)
+                        if self._current_item:
+                            self._process_result(self._current_item, QueueItemResult.RETRY)
                         self._log.exception(f"Processing halt reqeusted")
                         break
                     except Exception as ex:
-                        if queue_item:
-                            self._process_result(queue_item, structures.QueueItemResult.FAILED)
-                            self._log.exception(f"Unrecoverable exception occurred during queue item processing [{queue_item.queue_uuid}]")
+                        if self._current_item:
+                            self._process_result(self._current_item, QueueItemResult.FAILED)
+                            self._log.exception(f"Unrecoverable exception occurred during queue item processing [{self._current_item.queue_uuid}]")
                         raise ex
+                    finally:
+                        self.after_item()
+                        self._current_item = None
             finally:
                 self._db = None
 
-    def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[structures.QueueItemResult]):
-
-        if result is None or result == structures.QueueItemResult.SUCCESS:
+    def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[QueueItemResult]):
+        if result is None or result == QueueItemResult.SUCCESS:
             queue_item.mark_complete(self._db)
             self.on_success(queue_item)
             after = self.after_success
-        elif result == structures.QueueItemResult.FAILED:
+        elif result == QueueItemResult.HANDLED:
+            self.on_success(queue_item)
+            after = self.after_success
+        elif result == QueueItemResult.FAILED:
             queue_item.mark_failed(self._db)
             self.on_failure(queue_item)
             after = self.after_failure
@@ -118,5 +133,5 @@ class QueueWorker(BaseProcess):
             self._current_delay_time = _max_time
         return curr_time
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
+    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
         raise NotImplementedError()

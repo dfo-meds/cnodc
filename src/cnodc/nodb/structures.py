@@ -106,13 +106,6 @@ class QueueStatus(enum.Enum):
     ERROR = 'ERROR'
 
 
-class QueueItemResult(enum.Enum):
-
-    SUCCESS = 'SUCCESS'
-    FAILED = 'FAILED'
-    RETRY = 'RETRY'
-
-
 class ProcessingLevel(enum.Enum):
 
     RAW = 'RAW'
@@ -488,7 +481,7 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
                     **{x: row[x] for x in row.keys()}
                 )
 
-    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None) -> t.Iterable[NODBWorkingRecord]:
+    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None, order_by: t.Optional[str] = None) -> t.Iterable[NODBWorkingRecord]:
         with db.cursor() as cur:
             query = f"""
                    SELECT * 
@@ -496,7 +489,7 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
                    WHERE 
                        received_date = %s
                        AND source_file_uuid = %s
-               """
+               """ + NODBWorkingRecord.build_query_extras(order_by)
             query += db.build_lock_type_clause(lock_type)
             cur.execute(query, [self.received_date, self.source_uuid])
             for row in cur.fetch_stream():
@@ -1019,6 +1012,19 @@ class NODBWorkingRecord(_NODBBaseObject):
                     *uuid_subset
                 ])
 
+    @staticmethod
+    def build_query_extras(order_by: t.Optional[str]):
+        extras = ""
+        if order_by is None:
+            pass
+        elif order_by == 'obs_time_asc':
+            extras += " ORDER BY obs_time ASC"
+        else:
+            zrlog.get_logger('cnodc.nodb.wr').error(f'Invalid order by statement {order_by}')
+            pass
+        return extras
+
+
 
 class NODBBatch(_NODBBaseObject):
 
@@ -1032,14 +1038,14 @@ class NODBBatch(_NODBBaseObject):
             'batch_uuid': batch_uuid
         }, **kwargs)
 
-    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None):
+    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None, order_by: t.Optional[str] = None):
         with db.cursor() as cur:
             query = f"""
                    SELECT * 
                    FROM {NODBWorkingRecord.TABLE_NAME} 
                    WHERE 
                        qc_batch_id = %s
-               """
+               """ + NODBWorkingRecord.build_query_extras(order_by)
             query += db.build_lock_type_clause(lock_type)
             cur.execute(query, [self.batch_uuid])
             for row in cur.fetch_stream():

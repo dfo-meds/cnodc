@@ -3,12 +3,16 @@ import typing as t
 
 import flask
 from autoinject import injector
+
+from cnodc.api.auth import LoginController
 from cnodc.nodb import NODBController
 from cnodc.util import CNODCError
 import uuid
 import cnodc.nodb.structures as structures
 import threading
 import itsdangerous
+
+from cnodc.workflow.workflow import WorkflowPayload
 
 DB_LOCK_TIME = 3600  # in seconds
 
@@ -17,6 +21,7 @@ DB_LOCK_TIME = 3600  # in seconds
 class NODBWebController:
 
     nodb: NODBController = None
+    login: LoginController = None
 
     @injector.construct
     def __init__(self):
@@ -35,9 +40,8 @@ class NODBWebController:
 
     def get_next_queue_item(self,
                             queue_name: str,
-                            user_id: str,
-                            subqueue_name: str):
-        app_id = f"{user_id}.{uuid.uuid4()}"
+                            subqueue_name: t.Optional[str] = None):
+        app_id = f"{self.login.current_user()}.{uuid.uuid4()}"
         with self.nodb as db:
             queue_item = db.fetch_next_queue_item(
                 queue_name=queue_name,
@@ -103,6 +107,9 @@ class NODBWebController:
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id)
             queue_item.mark_complete(db)
+            payload = WorkflowPayload.build(queue_item)
+            payload.increment_priority()
+            payload.enqueue_followup(db)
             db.commit()
             return {
                 'success': True
@@ -113,9 +120,8 @@ class NODBWebController:
         if queue_item is None:
             raise CNODCError('Invalid queue item ID', 'NODBWEB', 1001)
         if queue_item.status != structures.QueueStatus.LOCKED:
-            raise CNODCError('Invalid queue state', 'NODBWEB', 1003)
+            raise CNODCError('Invalid queue state', 'NODBWEB', 1002)
         app_id = self._get_serializer().loads(enc_app_id, 'queue_app_id')
         if queue_item.locked_by != app_id:
-            raise CNODCError('Invalid user ID', 'NODBWEB', 1002)
+            raise CNODCError('Invalid user ID', 'NODBWEB', 1003)
         return queue_item
-

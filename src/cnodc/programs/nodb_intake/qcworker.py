@@ -4,108 +4,112 @@ import hashlib
 import uuid
 
 from cnodc.nodb import LockType, NODBControllerInstance
-from cnodc.process.queue_worker import QueueWorker
+from cnodc.process.payload_worker import PayloadWorker
 import typing as t
 import cnodc.nodb.structures as structures
+from cnodc.process.queue_worker import QueueItemResult
 from cnodc.qc.base import BaseTestSuite
-from cnodc.util import dynamic_object
-from cnodc.workflow.processor import PayloadProcessor
+from cnodc.util import dynamic_object, CNODCError
 from cnodc.workflow.workflow import BatchPayload, WorkflowPayload, SourceFilePayload
 import cnodc.ocproc2.structures as ocproc2
 
 
-class NODBQCWorker(QueueWorker):
+class BatchOutcome(enum.Enum):
+
+    NEXT_QUEUE = 'N'
+    REVIEW_QUEUE = 'R'
+
+
+class NODBQCWorker(PayloadWorker):
 
     def __init__(self, **kwargs):
-        super().__init__(log_name='cnodc.qc_worker', **kwargs)
-        self._processor: t.Optional[QCProcessor] = None
-        self.set_defaults({
-            'qc_test_suite_class': None,
-            'qc_test_suite_kwargs': {},
-            'max_batch_size': None,
-            'max_buffer_size': None,
-            'target_buffer_size': None,
-            'input_is_source_file': False,
-            'use_station_batching': False,
-            'next_queue': "nodb_continue",
-            'recheck_queue': None,
-            'review_queue': 'nodb_manual_review',
-        })
-
-    def on_start(self):
-        self._processor = QCProcessor(
-            test_suite=self.get_config('qc_test_suite_class'),
-            test_suite_kwargs=self.get_config('qc_test_suite_kwargs', {}),
-            batcher_kwargs={
-                'max_batch_size': self.get_config('max_batch_size', None),
-                'max_buffer_size': self.get_config('max_buffer_size', None),
-                'target_buffer_size': self.get_config('target_buffer_size', None)
-            },
-            submitter_kwargs={
-                'next_queue': self.get_config('next_queue'),
-                'review_queue': self.get_config('review_queue'),
-                'recheck_queue': self.get_config('recheck_queue') or self.get_config('queue_name')
-            },
-            use_source_file=self.get_config('input_is_source_file', False),
-            use_station_batcher=self.get_config('use_station_batching', False),
-            processor_uuid=self.process_uuid,
-        )
-
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
-        self._processor.process_queue_item(item)
-        return None
-
-
-class QCProcessor(PayloadProcessor):
-
-    def __init__(self,
-                 test_suite: str,
-                 test_suite_kwargs: dict,
-                 batcher_kwargs: dict,
-                 submitter_kwargs: dict,
-                 processor_uuid: str,
-                 use_source_file: bool = False,
-                 use_station_batcher: bool = False,
-                 **kwargs):
-        self._test_suite: BaseTestSuite = dynamic_object(test_suite)(**test_suite_kwargs, test_runner_id=processor_uuid)
         super().__init__(
-            require_type=BatchPayload if not use_source_file else SourceFilePayload,
-            process_name=self._test_suite.test_name,
-            process_version=self._test_suite.test_version,
-            processor_uuid=processor_uuid,
+            process_name="qc_worker",
+            process_version="1_0",
+            defaults={
+                'qc_test_suite_class': None,
+                'qc_test_suite_kwargs': {},
+                'max_batch_size': None,
+                'max_buffer_size': None,
+                'target_buffer_size': None,
+                'input_is_source_file': False,
+                'use_station_batching': False,
+                'next_queue': "nodb_continue",
+                'recheck_queue': None,
+                'review_queue': 'nodb_manual_review',
+                'order_by': None,
+            },
             **kwargs
         )
-        # Always use the station batcher when processing a source file
-        self._use_station_batcher = use_station_batcher or use_source_file
-        self._use_source_file = use_source_file
-        self._batcher_kwargs = batcher_kwargs or {}
-        self._submitter_kwargs = submitter_kwargs or {}
-
-    def _process(self):
-        self._test_suite.set_db_instance(self._db)
-        submitter = NODBBatchSubmitter(self._db, self._current_payload, test_name=self._test_suite.test_name, **self._submitter_kwargs)
-        separator = (
-            StationResultBatcher(batch_submitter=submitter, **self._batcher_kwargs)
-            if self._use_station_batcher else
-            SimpleResultBatcher(batch_submitter=submitter, **self._batcher_kwargs)
+        self._test_suite: BaseTestSuite = dynamic_object(
+            self.get_config('qc_test_suite_class')
+        )(
+            test_runner_id=self._process_uuid,
+            **self.get_config('qc_test_suite_kwargs', {})
         )
-        if not self._use_source_file:
-            batch = self.load_batch_from_payload()
-            self._process_records(batch.stream_working_records(self._db, lock_type=LockType.FOR_NO_KEY_UPDATE), separator)
-            separator.flush_all()
-            if separator.remove_original_batch:
+
+    def submit_existing_batch(self, batch_id: str, batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
+        payload = self.batch_payload_from_uuid(batch_id)
+        queue_name = self.get_config('next_queue')
+        if batch_outcome == BatchOutcome.REVIEW_QUEUE:
+            payload.set_followup_queue(self.get_config('recheck_queue') or self.get_config('queue_name'))
+            payload.set_metadata('current-qc-test', self._test_suite.test_name)
+            queue_name = self.get_config('review_queue')
+        else:
+            payload.set_followup_queue(None)
+            payload.set_metadata('current-qc-test', None)
+        payload.set_unique_key(group_key)
+        payload.enqueue(self._db, queue_name)
+        self._db.commit()
+
+    def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
+        batch = structures.NODBBatch()
+        batch.batch_uuid = str(uuid.uuid4())
+        batch.status = structures.BatchStatus.QUEUED
+        self._db.insert_object(batch)
+        structures.NODBWorkingRecord.bulk_set_batch_uuid(self._db, working_uuids, batch.batch_uuid)
+        self.submit_existing_batch(batch.batch_uuid, batch_outcome, group_key)
+
+    def _build_batcher(self, payload: WorkflowPayload):
+        kwargs = {
+            'batch_submitter': self,
+            'max_batch_size': self.get_config('max_batch_size'),
+            'max_buffer_size': self.get_config('max_buffer_size'),
+            'target_buffer_size': self.get_config('target_buffer_size')
+        }
+        if self.get_config('use_station_batching') or isinstance(payload, SourceFilePayload):
+            return StationResultBatcher(**kwargs)
+        else:
+            return SimpleResultBatcher(**kwargs)
+
+    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
+        batcher = self._build_batcher(payload)
+        if isinstance(payload, BatchPayload):
+            batch = payload.load_batch(self._db)
+            self._process_records(batch.stream_working_records(
+                self._db,
+                lock_type=LockType.FOR_NO_KEY_UPDATE,
+                order_by=self.get_config('order_by')
+            ), batcher)
+            batcher.flush_all()
+            if batcher.remove_original_batch:
                 self._db.delete_object(batch)
             self._current_item.mark_complete(self._db)
             self._db.commit()
-        else:
-            source = self.load_source_from_payload()
-            self._process_records(
-                source.stream_working_records(self._db, lock_type=LockType.FOR_NO_KEY_UPDATE),
-                separator
-            )
-            separator.flush_all()
+            return QueueItemResult.HANDLED
+        elif isinstance(payload, SourceFilePayload):
+            source = payload.load_source_file(self._db)
+            self._process_records(source.stream_working_records(
+                self._db,
+                lock_type=LockType.FOR_NO_KEY_UPDATE,
+                order_by=self.get_config('order_by')
+            ), batcher)
+            batcher.flush_all()
             self._current_item.mark_complete(self._db)
             self._db.commit()
+            return QueueItemResult.HANDLED
+        else:
+            raise CNODCError(f'Invalid payload type for QC processing (must be batch or source file, found {payload.__class__.__name__})')
 
     def _process_records(self, records: t.Iterable[structures.NODBWorkingRecord], separator):
         for wr, dr, outcome, is_modified in self._test_suite.process_batch(records):
@@ -134,86 +138,10 @@ class QCProcessor(PayloadProcessor):
         working_record.record = data_record
 
 
-class BatchOutcome(enum.Enum):
-
-    NEXT_QUEUE = 'N'
-    REVIEW_QUEUE = 'R'
-
-
-class NODBBatchSubmitter:
-
-    def __init__(self,
-                 db: NODBControllerInstance,
-                 last_payload: WorkflowPayload,
-                 next_queue: str = None,
-                 review_queue: str = None,
-                 recheck_queue: str = None,
-                 next_step_queue: str = 'nodb_continue',
-                 test_name: str = None):
-        self._db = db
-        self._test_name = test_name
-        self._next_step = next_step_queue
-        self._previous_payload = last_payload
-        self._next_queue = next_queue
-        self._recheck_queue = recheck_queue
-        self._review_queue = review_queue
-
-    def submit_existing_batch(self, batch_id: str, batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
-        queue_name = self._get_queue_name(batch_outcome)
-        payload = BatchPayload(batch_id)
-        if batch_outcome == BatchOutcome.REVIEW_QUEUE:
-            payload.headers['post-review-queue'] = self._recheck_queue
-            payload.headers['current-qc-test'] = self._test_name
-        else:
-            if 'post-review-queue' in payload.headers:
-                del payload.headers['post-review-queue']
-            if 'current-qc-test' in payload.headers:
-                del payload.headers['current-qc-test']
-        self._previous_payload.update_for_propagation(payload)
-        if queue_name is not None:
-            self._db.create_queue_item(
-                queue_name=queue_name,
-                subqueue_name=self._get_subqueue_name(),
-                data=payload.to_map(),
-                unique_item_key=group_key
-            )
-        else:
-            if group_key is not None:
-                payload.headers['forward-unique-item-key'] = group_key
-            elif 'unique-item-key' in payload.headers:
-                del payload.headers['unique-item-key']
-            self._db.create_queue_item(
-                queue_name=self._next_step,
-                data=payload.to_map(),
-            )
-
-    def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
-        batch = structures.NODBBatch()
-        batch.batch_uuid = str(uuid.uuid4())
-        batch.status = structures.BatchStatus.QUEUED
-        self._db.insert_object(batch)
-        structures.NODBWorkingRecord.bulk_set_batch_uuid(self._db, working_uuids, batch.batch_uuid)
-        self.submit_existing_batch(batch.batch_uuid, batch_outcome, group_key)
-        self._db.commit()
-
-    def _get_subqueue_name(self) -> t.Optional[str]:
-        if 'manual-subqueue' in self._previous_payload.headers:
-            return self._previous_payload.headers['manual-subqueue'] or None
-        return None
-
-    def _get_queue_name(self, outcome: BatchOutcome) -> t.Optional[str]:
-        if outcome == BatchOutcome.NEXT_QUEUE:
-            return self._next_queue
-        elif outcome == BatchOutcome.REVIEW_QUEUE:
-            return self._review_queue
-        else:
-            raise ValueError('Invalid batch outcome type')
-
-
 class BaseResultBatcher:
 
     def __init__(self,
-                 batch_submitter: NODBBatchSubmitter,
+                 batch_submitter: NODBQCWorker,
                  max_batch_size: int = None,
                  max_buffer_size: int = None,
                  target_buffer_size: int = None,

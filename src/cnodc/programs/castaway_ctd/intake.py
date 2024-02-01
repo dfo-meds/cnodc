@@ -2,7 +2,8 @@ import gzip
 import shutil
 
 from cnodc.nodb import NODBControllerInstance, structures
-from cnodc.process.queue_worker import QueueWorker
+from cnodc.process.payload_worker import FilePayloadWorker
+from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 from autoinject import injector
 from cnodc.storage import StorageController, BaseStorageHandle
@@ -17,6 +18,7 @@ import numpy as np
 import math
 import datetime
 
+from cnodc.workflow.workflow import FilePayload
 
 REF_TIME = datetime.datetime(1950, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -70,30 +72,34 @@ PROCESSED_VARIABLES = {
 }
 
 
-class CastawayIntakeWorker(QueueWorker):
+class CastawayIntakeWorker(FilePayloadWorker):
 
     storage: StorageController = None
+    erddap: ErddapController = None
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, log_name="cnodc.castaway.intake", **kwargs)
+        super().__init__(
+            process_name='castaway_ctd',
+            process_version='1.0',
+            defaults={
+                'erddap_directory_raw': '',
+                'erddap_directory_processed': '',
+                'archive_directory_raw': '',
+                'archive_directory_processed': '',
+                'erddap_dataset_id': None,
+                'gzip': True,
+                'erddap_cluster': None
+            },
+            **kwargs
+        )
         self._erddap: t.Optional[ErddapController] = None
         self._storage: t.Optional[StorageController] = None
         self._upload_target_raw: t.Optional[BaseStorageHandle] = None
         self._archive_target_raw: t.Optional[BaseStorageHandle] = None
         self._upload_target_processed: t.Optional[BaseStorageHandle] = None
         self._archive_target_processed: t.Optional[BaseStorageHandle] = None
-        self.set_defaults({
-            'erddap_directory_raw': '',
-            'erddap_directory_processed': '',
-            'archive_directory_raw': '',
-            'archive_directory_processed': '',
-            'erddap_dataset_id': None,
-            'gzip': True,
-            'erddap_cluster': None
-        })
 
-    @injector.inject
-    def on_start(self, storage: StorageController = None, erddap: ErddapController = None):
+    def on_start(self):
         if self.get_config("erddap_directory_raw") is None:
             raise CNODCError("ERDDAP upload directory not specified", "CASTAWAY", 2003)
         if self.get_config("archive_directory_raw") is None:
@@ -102,120 +108,109 @@ class CastawayIntakeWorker(QueueWorker):
             raise CNODCError("ERDDAP upload directory not specified", "CASTAWAY", 2009)
         if self.get_config("archive_directory_processed") is None:
             raise CNODCError("Archive directory not specified", "CASTAWAY", 2010)
-        self._storage = storage
-        self._erddap = erddap
-        self._upload_target_raw = storage.get_handle(self.get_config("erddap_directory_raw"), halt_flag=self.halt_flag)
+        self._upload_target_raw = self.storage.get_handle(self.get_config("erddap_directory_raw"), halt_flag=self._halt_flag)
         if not self._upload_target_raw.exists():
             raise CNODCError(f"Upload directory [{self._upload_target_raw}] does not exist", "CASTAWAY", 2005)
-        self._archive_target_raw = storage.get_handle(self.get_config("archive_directory_raw"), halt_flag=self.halt_flag)
+        self._archive_target_raw = self.storage.get_handle(self.get_config("archive_directory_raw"), halt_flag=self._halt_flag)
         if not self._archive_target_raw.exists():
             raise CNODCError(f"Archive directory [{self._archive_target_raw}] does not exist", "CASTAWAY", 2006)
-        self._upload_target_processed = storage.get_handle(self.get_config("erddap_directory_processed"), halt_flag=self.halt_flag)
+        self._upload_target_processed = self.storage.get_handle(self.get_config("erddap_directory_processed"), halt_flag=self._halt_flag)
         if not self._upload_target_processed.exists():
             raise CNODCError(f"Upload directory [{self._upload_target_processed}] does not exist", "CASTAWAY", 2011)
-        self._archive_target_processed = storage.get_handle(self.get_config("archive_directory_processed"), halt_flag=self.halt_flag)
+        self._archive_target_processed = self.storage.get_handle(self.get_config("archive_directory_processed"), halt_flag=self._halt_flag)
         if not self._archive_target_processed.exists():
             raise CNODCError(f"Archive directory [{self._archive_target_processed}] does not exist", "CASTAWAY", 2012)
 
-    def process_queue_item(self,
-                            item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
-        if 'upload_file' not in item.data or not item.data['upload_file']:
-            raise CNODCError("Missing [upload_file] in queue item", "CASTAWAY", 2000)
-        file_handle = self._storage.get_handle(item.data['upload_file'])
-        if not file_handle.exists():
-            raise CNODCError(f"Upload file [{item.data['upload_file']} no longer exists", "CASTAWAY", 2001)
-        with tempfile.TemporaryDirectory() as temp_dir:
+    def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
+        # Download the original file
+        temp_dir = self.temp_dir()
+        local_file = payload.download(temp_dir)
+        self._halt_flag.breakpoint()
 
-            # Download the original file
-            temp_dir = pathlib.Path(temp_dir)
-            local_file = temp_dir / "castaway.csv"
-            file_handle.download(local_file)
-            self.halt_flag.breakpoint()
+        # Unpack the original file
+        castaway_data = CastawayData(local_file)
 
-            # Unpack the original file
-            castaway_data = CastawayData(local_file, item.data['gzip'] if 'gzip' in item.data else False)
+        # Determine the file upload paths
+        gzip_erddap = bool(self.get_config('gzip', True))
+        upload_file_name = castaway_data.netcdf_file_name(gzip_erddap)
+        archive_file_name = castaway_data.netcdf_file_name(True)
+        upload_file: t.Optional[BaseStorageHandle] = None
+        archive_file: t.Optional[BaseStorageHandle] = None
+        if castaway_data.is_raw():
+            upload_file = self._upload_target_raw.child(upload_file_name)
+            archive_file = self._archive_target_raw.child(archive_file_name)
+        else:
+            upload_file = self._upload_target_processed.child(upload_file_name)
+            archive_file = self._archive_target_processed.child(archive_file_name)
 
-            # Determine the file upload paths
-            gzip_erddap = bool(self.get_config('gzip', True))
-            upload_file_name = castaway_data.netcdf_file_name(gzip_erddap)
-            archive_file_name = castaway_data.netcdf_file_name(True)
-            upload_file: t.Optional[BaseStorageHandle] = None
-            archive_file: t.Optional[BaseStorageHandle] = None
-            if castaway_data.is_raw():
-                upload_file = self._upload_target_raw.child(upload_file_name)
-                archive_file = self._archive_target_raw.child(archive_file_name)
-            else:
-                upload_file = self._upload_target_processed.child(upload_file_name)
-                archive_file = self._archive_target_processed.child(archive_file_name)
+        # Check if the file already exists (currently an error)
+        # TODO: Check overwrite flag?
+        if upload_file.exists():
+            raise CNODCError(f"Upload file already exists for this profile [{upload_file}]", "CASTAWAY", 2007)
+        if archive_file.exists():
+            raise CNODCError(f"Archive file already exists for this profile [{archive_file}]", "CASTAWAY", 2008)
+        self._halt_flag.breakpoint()
 
-            # Check if the file already exists (currently an error)
-            # TODO: Check overwrite flag?
-            if upload_file.exists():
-                raise CNODCError(f"Upload file already exists for this profile [{upload_file}]", "CASTAWAY", 2007)
-            if archive_file.exists():
-                raise CNODCError(f"Archive file already exists for this profile [{archive_file}]", "CASTAWAY", 2008)
-            self.halt_flag.breakpoint()
+        # Build the NetCDF file
+        netcdf_file = temp_dir / "castaway.nc"
+        castaway_data.build_netcdf_file(netcdf_file, self._halt_flag)
+        self._halt_flag.breakpoint()
 
-            # Build the NetCDF file
-            netcdf_file = temp_dir / "castaway.nc"
-            castaway_data.build_netcdf_file(netcdf_file, self.halt_flag)
-            self.halt_flag.breakpoint()
+        # Gzip the NetCDF file
+        gzip_netcdf_file = temp_dir / "castaway.nc.gz"
+        with gzip.open(gzip_netcdf_file, "wb") as dest:
+            with open(netcdf_file, "rb") as src:
+                shutil.copyfileobj(src, dest)
+        self._halt_flag.breakpoint()
 
-            # Gzip the NetCDF file
-            gzip_netcdf_file = temp_dir / "castaway.nc.gz"
-            with gzip.open(gzip_netcdf_file, "wb") as dest:
-                with open(netcdf_file, "rb") as src:
-                    shutil.copyfileobj(src, dest)
-            self.halt_flag.breakpoint()
-
-            # Do the upload and rollback if there is an issue
-            stage = 0
-            try:
-                upload_file.upload(
-                    netcdf_file if not gzip_erddap else gzip_netcdf_file,
-                    storage_tier=StorageTier.FREQUENT,
-                    metadata={
-                        'Program': 'CASTAWAY_CTD',
-                        'Dataset': 'RAW' if castaway_data.is_raw() else 'PROCESSED',
-                        'CostUnit': 'MARITIMES',
-                        'Gzip': 'Y' if gzip_erddap else 'N'
-                    }
+        # Do the upload and rollback if there is an issue
+        stage = 0
+        try:
+            upload_file.upload(
+                netcdf_file if not gzip_erddap else gzip_netcdf_file,
+                storage_tier=StorageTier.FREQUENT,
+                metadata={
+                    'Program': 'CASTAWAY_CTD',
+                    'Dataset': 'RAW' if castaway_data.is_raw() else 'PROCESSED',
+                    'CostUnit': 'MARITIMES',
+                    'Gzip': 'Y' if gzip_erddap else 'N'
+                }
+            )
+            self._halt_flag.breakpoint()
+            # TODO LATER: save profile to database and trigger processing
+            stage = 1
+            archive_file.upload(
+                gzip_netcdf_file,
+                storage_tier=StorageTier.ARCHIVAL,
+                metadata={
+                    'Program': 'CASTAWAY_CTD',
+                    'Dataset': 'RAW' if castaway_data.is_raw() else 'PROCESSED',
+                    'CostUnit': 'MARITIMES',
+                    'Gzip': 'Y'
+                }
+            )
+            self._halt_flag.breakpoint()
+            stage = 2
+            if self.get_config('erddap_dataset_id'):
+                self._erddap.reload_dataset(
+                    self.get_config('erddap_dataset_id'),
+                    cluster_name=self.get_config('erddap_cluster', None)
                 )
-                self.halt_flag.breakpoint()
-                # TODO LATER: save profile to database and trigger processing
-                stage = 1
-                archive_file.upload(
-                    gzip_netcdf_file,
-                    storage_tier=StorageTier.ARCHIVAL,
-                    metadata={
-                        'Program': 'CASTAWAY_CTD',
-                        'Dataset': 'RAW' if castaway_data.is_raw() else 'PROCESSED',
-                        'CostUnit': 'MARITIMES',
-                        'Gzip': 'Y'
-                    }
-                )
-                self.halt_flag.breakpoint()
-                stage = 2
-                if self.get_config('erddap_dataset_id'):
-                    self._erddap.reload_dataset(
-                        self.get_config('erddap_dataset_id'),
-                        cluster_name=self.get_config('erddap_cluster', None)
-                    )
-                item.mark_complete(self._db)
-                return None
-            except Exception as ex:
-                if stage >= 1:
-                    upload_file.remove()
-                if stage >= 2:
-                    archive_file.remove()
-                raise ex
+            self._current_item.mark_complete(self._db)
+            self._db.commit()
+        except Exception as ex:
+            if stage >= 1:
+                upload_file.remove()
+            if stage >= 2:
+                archive_file.remove()
+            raise ex
+        return QueueItemResult.HANDLED
 
 
 class CastawayData:
 
-    def __init__(self, source_file: pathlib.Path, is_gzip: bool = False):
+    def __init__(self, source_file: pathlib.Path):
         self._source_file = source_file
-        self._is_gzip = is_gzip
         self._data_load_flag: bool = False
         self._metadata: dict[str, str] = {}
         self._headers: list[str] = []
@@ -225,8 +220,7 @@ class CastawayData:
         if not self._data_load_flag:
             header_count = None
             check_against = []
-            open_fn = gzip.open if self._is_gzip else open
-            with open_fn(self._source_file, "r", encoding="utf-8") as h:
+            with open(self._source_file, "r", encoding="utf-8") as h:
                 reader = csv.reader(h)
                 for line_no, line in enumerate(reader):
                     if state == "metadata":

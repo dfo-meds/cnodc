@@ -1,14 +1,14 @@
 import pathlib
 import random
 
-from .base import BaseProcess
+from .base import BaseWorker
 import time
 import datetime
 import typing as t
 from cnodc.util import CNODCError
 
 
-class ScheduledTask(BaseProcess):
+class ScheduledTask(BaseWorker):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,9 +31,10 @@ class ScheduledTask(BaseProcess):
 
     def _run_scheduled_task(self, now) -> datetime.datetime:
         try:
-            self.is_working.set()
             self._save_data['last_start'] = now.isoformat()
+            self.before_item()
             self.execute()
+            self.after_item()
         except CNODCError as ex:
             if not ex.is_recoverable:
                 raise ex from ex
@@ -44,7 +45,6 @@ class ScheduledTask(BaseProcess):
             self._save_data['last_end'] = now.isoformat()
             self._save_data.save_file()
             self.update_next_execution_time()
-            self.is_working.clear()
         return now
 
     def update_next_execution_time(self):

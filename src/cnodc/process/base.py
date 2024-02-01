@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import tempfile
 import threading
 import time
 import typing as t
@@ -9,29 +10,26 @@ from autoinject import injector
 from cnodc.nodb import NODBController
 from cnodc.storage import StorageController
 import requests
-from cnodc.util import HaltFlag
+from cnodc.util import HaltFlag, dynamic_object
 import json
-
-
-class _SubprocessHaltFlag(HaltFlag):
-
-    def __init__(self, halt: mp.Event):
-        self._halt = halt
-        # NB: Using self._halt.wait() seems to cause deadlocks in our
-        # use case, so don't do it!
-
-    def _should_continue(self) -> bool:
-        return not self._halt.is_set()
 
 
 class _ThreadingHaltFlag(HaltFlag):
 
-    def __init__(self, halt: threading.Event):
-        self._halt = halt
+    def __init__(self, global_halt: threading.Event):
+        self._global = global_halt
 
     def _should_continue(self) -> bool:
-        return not self._halt.is_set()
+        return not self._global.is_set()
 
+
+class _NoHaltFlag(HaltFlag):
+
+    def __init__(self):
+        pass
+
+    def _should_continue(self) -> bool:
+        return True
 
 
 class SaveData:
@@ -78,21 +76,32 @@ class SaveData:
                 self._save_failed = True
 
 
-class BaseProcess(mp.Process):
+class BaseWorker:
 
-    def __init__(self, log_name: str, process_name: str, process_uuid: str, halt_flag: mp.Event, config: dict = None):
-        super().__init__(daemon=True)
-        self._log_name = log_name
-        self.process_name = process_name
-        self._log: t.Optional[ImprovedLogger] = None
-        self._config = config or {}
-        self._save_data: t.Optional[SaveData] = None
-        self._defaults = {}
-        self._halt: mp.Event = halt_flag
-        self.is_working: mp.Event = mp.Event()
-        self._shutdown: mp.Event = mp.Event()
-        self.halt_flag: HaltFlag = _SubprocessHaltFlag(self._halt)
-        self.process_uuid = process_uuid
+    def __init__(self,
+                 process_name: str,
+                 process_version: str,
+                 _process_uuid: str,
+                 _halt_flag: HaltFlag,
+                 _end_flag: HaltFlag,
+                 _config: dict = None,
+                 defaults: dict = None):
+        self._halt_flag = _halt_flag
+        self._end_flag = _end_flag
+        self._process_uuid = _process_uuid
+        self._process_name = process_name
+        self._process_version = process_version
+        self._config = _config or {}
+        self._log: t.Optional[ImprovedLogger] = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
+        self._save_data = SaveData(self.get_config('save_file'))
+        self._save_data.load_file()
+        self._defaults = defaults or {}
+        self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
+        zrlog.set_extras({
+            'process_uuid': self._process_uuid,
+            'process_name': self._process_name,
+            'process_version': self._process_version,
+        })
 
     def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
         if time_seconds < (2 * max_delay):
@@ -107,7 +116,7 @@ class BaseProcess(mp.Process):
                     break
 
     def continue_loop(self):
-        return not(self._shutdown.is_set() or self._halt.is_set())
+        return self._halt_flag.check_continue(False) and self._end_flag.check_continue(False)
 
     def get_config(self, key, default=None):
         if key in self._config and self._config[key] is not None:
@@ -121,25 +130,18 @@ class BaseProcess(mp.Process):
 
     def run(self) -> None:
         try:
-            self._log = zrlog.get_logger(self._log_name)
-            zrlog.set_extras({
-                'process_uuid': self.process_uuid,
-                'process_name': self.process_name,
-            })
-            self._save_data = SaveData(self.get_config('save_file'))
-            self._save_data.load_file()
-            self._log.debug(f'Starting process {self.process_name}.{self.process_uuid}')
+            self._log.debug(f'Starting process {self._process_uuid}')
             self.on_start()
-            self._log.debug(f'Process {self.process_name}.{self.process_uuid} is running')
+            self._log.debug(f'Process {self._process_uuid} is running')
             self._run()
         except Exception as ex:
             self._log.error(f"{ex.__class__.__name__}: {str(ex)}")
             self._log.exception(ex)
         finally:
-            self._log.debug(f'Cleaning up {self.process_name}.{self.process_uuid}')
+            self._log.debug(f'Cleaning up {self._process_uuid}')
             self.on_complete()
             self._save_data.save_file()
-            self._log.debug(f'Process {self.process_name}.{self.process_uuid} complete')
+            self._log.debug(f'Process {self._process_uuid} complete')
 
     def on_start(self):
         pass
@@ -149,3 +151,16 @@ class BaseProcess(mp.Process):
 
     def _run(self):
         pass
+
+    def before_item(self):
+        pass
+
+    def temp_dir(self) -> pathlib.Path:
+        if self._temp_dir is None:
+            self._temp_dir = tempfile.TemporaryDirectory()
+        return pathlib.Path(self._temp_dir.name)
+
+    def after_item(self):
+        if self._temp_dir is not None:
+            self._temp_dir.cleanup()
+            self._temp_dir = None

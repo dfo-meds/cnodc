@@ -6,79 +6,61 @@ from cnodc.nodb import LockType
 from cnodc.ocproc2 import DataRecord, MultiValue
 import cnodc.nodb.structures as structures
 import typing as t
+
+from cnodc.process.payload_worker import SourcePayloadWorker, FilePayloadWorker
+from cnodc.storage import StorageController
 from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 
 from cnodc.workflow.workflow import FilePayload
-from cnodc.workflow.processor import PayloadProcessor
-from cnodc.process.queue_worker import QueueWorker
+from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 
 
-class NODBDecodeLoadWorker(QueueWorker):
+class NODBDecodeLoadWorker(FilePayloadWorker):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(log_name="cnodc.nodb_loader", *args, **kwargs)
-        self._loader: t.Optional[NODBDecodeLoader] = None
-        self.set_defaults({
-            'queue_name': None,
-            'next_queue': 'nodb_station_check',
-            'failure_queue': 'nodb_decode_failure',
-            'error_directory': None,
-            'default_metadata': {},
-            'decoder_class': None,
-            'decode_kwargs': {}
-        })
+    storage: StorageController = None
 
-    def on_start(self):
-        codec = dynamic_object(self.get_config('decoder_class'))(halt_flag=self.halt_flag)
-        self._loader = NODBDecodeLoader(
-            processor_uuid=self.process_uuid,
-            error_directory=self.get_config('error_directory'),
-            decoder=codec,
-            decode_kwargs=self.get_config('decode_kwargs'),
-            next_queue=self.get_config('next_queue'),
-            failure_queue=self.get_config('failure_queue'),
-            default_metadata=self.get_config('default_metadata'),
-            halt_flag=self.halt_flag
-        )
-
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[structures.QueueItemResult]:
-        return self._loader.process_queue_item(item)
-
-
-class NODBDecodeLoader(PayloadProcessor):
-
-    def __init__(self,
-                 error_directory: str,
-                 decoder: BaseCodec,
-                 decode_kwargs: dict = None,
-                 failure_queue: str = 'nodb_decode_failure',
-                 next_queue: str = 'nodb_station_check',
-                 default_metadata: dict[str, t.Any] = None,
-                 **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(
-            log_name='cnodc.nodb_loader',
-            require_type=FilePayload,
-            processor_name='nodb_load',
-            processor_version='1.0',
-            **kwargs)
-        self._verification_queue = next_queue
-        self._decode_kwargs = decode_kwargs or {}
-        self._failure_queue = failure_queue
-        self._defaults = default_metadata or {}
-        self._decoder: BaseCodec = decoder
-        self._before_message: t.Optional[callable] = None
-        self._after_success: t.Optional[callable] = None
-        self._after_error: t.Optional[callable] = None
-        self._error_dir = self.storage.get_handle(error_directory, halt_flag=self._halt_flag)
-        if not (self._error_dir.is_dir() and self._error_dir.exists()):
-            raise CNODCError(f"Specified error directory [{error_directory}] is not a directory", "NODBLOAD", 1003)
+            process_name='decoder',
+            process_version='1.0',
+            defaults={
+                'queue_name': None,
+                'next_queue': 'nodb_station_check',
+                'failure_queue': 'nodb_decode_failure',
+                'error_directory': None,
+                'default_metadata': {},
+                'decoder_class': None,
+                'decode_kwargs': {},
+                'before_message': None,
+                'after_success': None,
+                'after_error': None
+            },
+            **kwargs
+        )
+        self._error_dir_handle = self.storage.get_handle(
+            self.get_config('error_directory'),
+            self._halt_flag
+        )
+        self._decoder: BaseCodec = dynamic_object(self.get_config('decoder_class'))(halt_flag=self._halt_flag)
+        self._decoder_kwargs = self.get_config('decoder_kwargs', {})
+        if not (self._error_dir_handle.is_dir() and self._error_dir_handle.exists()):
+            raise CNODCError(f"Specified error directory is not a directory", "NODBLOAD", 1003)
         if not self._decoder.is_decoder:
             raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODBLOAD", 1002)
+        self._before_message = self.get_config('before_message')
+        if self._before_message is not None:
+            self._before_message = dynamic_object(self._before_message)
+        self._after_success = self.get_config('after_success')
+        if self._after_success is not None:
+            self._after_success = dynamic_object(self._after_success)
+        self._after_error = self.get_config('after_error')
+        if self._after_error is not None:
+            self._after_error = dynamic_object(self._after_error)
 
-    def _process(self):
+    def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
 
         # Find the source file
-        source_file = self._fetch_source_file()
+        source_file = self._fetch_source_file(payload)
 
         # If it is already completed, then don't process it again
         if source_file.status in (structures.SourceFileStatus.COMPLETE, structures.SourceFileStatus.ERROR):
@@ -95,7 +77,8 @@ class NODBDecodeLoader(PayloadProcessor):
         self._db.commit()
 
         # Download the file
-        temp_file = self.download_file_payload()
+        temp_dir = self.temp_dir()
+        temp_file = payload.download(temp_dir, self.storage, halt_flag=self._halt_flag)
 
         total_created = 0
 
@@ -105,7 +88,7 @@ class NODBDecodeLoader(PayloadProcessor):
                     self._decoder._read_in_chunks(h),
                     include_skipped=False,
                     skip_to_message_idx=skip_to_message_idx,
-                    **self._decode_kwargs):
+                    **self._decoder_kwargs):
                 total_created += self._create_nodb_record_from_result(source_file, result)
 
         self._log.info(f"{total_created} records created")
@@ -115,15 +98,12 @@ class NODBDecodeLoader(PayloadProcessor):
         self._db.update_object(source_file)
         # Only need to create a source payload if records were found
         if total_created > 0:
-            payload = self.create_source_payload(source_file, False)
-            self._db.create_queue_item(
-                self._verification_queue,
-                payload.to_map()
-            )
+            payload = self.source_payload_from_nodb(source_file)
+            payload.enqueue(self._db, self.get_config('next_queue'))
         self._db.commit()
 
-    def _fetch_source_file(self) -> structures.NODBSourceFile:
-        file_info = self._current_payload.file_info
+    def _fetch_source_file(self, payload: FilePayload) -> structures.NODBSourceFile:
+        file_info = payload.file_info
         source_file = structures.NODBSourceFile.find_by_source_path(
             self._db,
             file_info.file_path,
@@ -229,7 +209,7 @@ class NODBDecodeLoader(PayloadProcessor):
             result.message_idx
         )
         if child_file is None:
-            file = self._error_dir.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
+            file = self._error_dir_handle.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
             file.upload(result.original, allow_overwrite=True)
             child_file = structures.NODBSourceFile()
             child_file.source_uuid = str(uuid.uuid4())
@@ -242,21 +222,22 @@ class NODBDecodeLoader(PayloadProcessor):
             if result.from_exception:
                 child_file.report_error(
                     f"Decode error: {result.from_exception.__class__.__name__}: {str(result.from_exception)}",
-                    self._processor_name,
-                    self._processor_version,
-                    self._processor_uuid
+                    self._process_name,
+                    self._process_version,
+                    self._process_uuid
                 )
             if additional_exception:
                 child_file.report_error(
                     f"Decode error: {additional_exception.__class__.__name__}: {str(additional_exception)}",
-                    self._processor_name,
-                    self._processor_version,
-                    self._processor_uuid
+                    self._process_name,
+                    self._process_version,
+                    self._process_uuid
                 )
             self._db.insert_object(child_file)
-            if self._failure_queue is not None:
-                payload = self.create_source_payload(child_file, False)
-                payload.headers['decode-class'] = self._decoder.__class__.__name__
-                self._db.create_queue_item(self._failure_queue, payload.to_map())
+            failure_queue = self.get_config('failure_queue')
+            if failure_queue is not None:
+                payload = self.source_payload_from_nodb(child_file)
+                payload.metadata['decoder-class'] = self._decoder.__class__.__name__
+                payload.enqueue(self._db, failure_queue)
             self._db.commit()
         return child_file
