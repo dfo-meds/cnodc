@@ -1,4 +1,5 @@
 import datetime
+import pathlib
 import statistics
 import uuid
 from cnodc.codecs.base import BaseCodec, DecodeResult
@@ -7,15 +8,15 @@ from cnodc.ocproc2 import DataRecord, MultiValue
 import cnodc.nodb.structures as structures
 import typing as t
 
-from cnodc.process.payload_worker import SourcePayloadWorker, FilePayloadWorker
+from cnodc.process.payload_worker import PayloadWorker
 from cnodc.storage import StorageController
 from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 
-from cnodc.workflow.workflow import FilePayload
+from cnodc.workflow.workflow import FilePayload, WorkflowPayload, SourceFilePayload
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 
 
-class NODBDecodeLoadWorker(FilePayloadWorker):
+class NODBDecodeLoadWorker(PayloadWorker):
 
     storage: StorageController = None
 
@@ -57,7 +58,7 @@ class NODBDecodeLoadWorker(FilePayloadWorker):
         if self._after_error is not None:
             self._after_error = dynamic_object(self._after_error)
 
-    def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
+    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
 
         # Find the source file
         source_file = self._fetch_source_file(payload)
@@ -77,8 +78,7 @@ class NODBDecodeLoadWorker(FilePayloadWorker):
         self._db.commit()
 
         # Download the file
-        temp_dir = self.temp_dir()
-        temp_file = payload.download(temp_dir, self.storage, halt_flag=self._halt_flag)
+        temp_file = self._download_file(payload, source_file)
 
         total_created = 0
 
@@ -102,27 +102,48 @@ class NODBDecodeLoadWorker(FilePayloadWorker):
             payload.enqueue(self._db, self.get_config('next_queue'))
         self._db.commit()
 
-    def _fetch_source_file(self, payload: FilePayload) -> structures.NODBSourceFile:
-        file_info = payload.file_info
-        source_file = structures.NODBSourceFile.find_by_source_path(
-            self._db,
-            file_info.file_path,
-            lock_type=LockType.FOR_NO_KEY_UPDATE
-        )
-        if source_file is None:
-            rdate = (
-                file_info.last_modified_date.date()
-                if file_info.last_modified_date is not None else
-                datetime.datetime.now(datetime.timezone.utc)
+    def _download_file(self, payload: WorkflowPayload, source_file: structures.NODBSourceFile) -> pathlib.Path:
+        temp_dir = self.temp_dir()
+        if isinstance(payload, FilePayload):
+            return payload.download(temp_dir, self.storage, halt_flag=self._halt_flag)
+        elif isinstance(payload, SourceFilePayload):
+            handle = self.storage.get_handle(source_file.source_path, halt_flag=self._halt_flag)
+            target = temp_dir / "file"
+            handle.download(target)
+            # TODO: check for gzip
+            return target
+        else:
+            raise ValueError('invalid payload type')
+
+    def _fetch_source_file(self, payload: WorkflowPayload) -> structures.NODBSourceFile:
+        if isinstance(payload, FilePayload):
+            file_info = payload.file_info
+            source_file = structures.NODBSourceFile.find_by_source_path(
+                self._db,
+                file_info.file_path,
+                lock_type=LockType.FOR_NO_KEY_UPDATE
             )
-            source_file = structures.NODBSourceFile()
-            source_file.source_path = file_info.file_path
-            source_file.received_date = rdate
-            source_file.status = structures.SourceFileStatus.NEW
-            source_file.file_name = file_info.filename
-            self._db.insert_object(source_file)
-            self._db.commit()
-        return source_file
+            if source_file is None:
+                rdate = (
+                    file_info.last_modified_date.date()
+                    if file_info.last_modified_date is not None else
+                    datetime.datetime.now(datetime.timezone.utc)
+                )
+                source_file = structures.NODBSourceFile()
+                source_file.source_path = file_info.file_path
+                source_file.received_date = rdate
+                source_file.status = structures.SourceFileStatus.NEW
+                source_file.file_name = file_info.filename
+                self._db.insert_object(source_file)
+                self._db.commit()
+            return source_file
+        elif isinstance(payload, SourceFilePayload):
+            source_file = payload.load_source_file(self._db)
+            if source_file is None:
+                raise ValueError('invalid payload')
+            return source_file
+        else:
+            raise ValueError('invalid payload type')
 
     def _create_nodb_record_from_result(self,
                                         source_file: structures.NODBSourceFile,
@@ -238,6 +259,7 @@ class NODBDecodeLoadWorker(FilePayloadWorker):
             if failure_queue is not None:
                 payload = self.source_payload_from_nodb(child_file)
                 payload.metadata['decoder-class'] = self._decoder.__class__.__name__
+                payload.set_followup_queue(self.get_config('queue-name'))
                 payload.enqueue(self._db, failure_queue)
             self._db.commit()
         return child_file

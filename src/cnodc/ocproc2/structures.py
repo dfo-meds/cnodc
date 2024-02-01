@@ -1,4 +1,5 @@
 import decimal
+import hashlib
 import typing as t
 import datetime
 import enum
@@ -77,6 +78,14 @@ class HistoryEntry:
             '_message_type': self.message_type.value
         }
 
+    def update_hash(self, h):
+        h.update(self.message.encode('utf-8', 'replace'))
+        h.update(self.timestamp.encode('utf-8', 'replace'))
+        h.update(self.source_name.encode('utf-8', 'replace'))
+        h.update(self.source_version.encode('utf-8', 'replace'))
+        h.update(self.source_instance.encode('utf-8', 'replace'))
+        h.update(self.message_type.value.encode('utf-8', 'replace'))
+
     @staticmethod
     def from_mapping(map_: dict):
         return HistoryEntry(
@@ -87,20 +96,37 @@ class HistoryEntry:
         )
 
 
+def normalize_qc_path(path: t.Union[None, str, list[str]]) -> str:
+    if path is None:
+        return ''
+    if isinstance(path, list):
+        path = '/'.join(path)
+    path = path.strip('/')
+    while '//' in path:
+        path = path.replace('//', '/')
+    return path
+
+
 class QCMessage:
 
     def __init__(self,
                  code: str,
-                 record_path: list[str],
+                 record_path: t.Union[str, list[str]],
                  ref_value: SupportedValue = None):
         self.code = code
-        self.record_path = record_path
+        self.record_path = normalize_qc_path(record_path)
         self.ref_value = ref_value
+
+    def update_hash(self, h):
+        h.update(self.code.encode('utf-8', 'replace'))
+        h.update(self.record_path.encode('utf-8', 'replace'))
+        if self.ref_value is not None:
+            h.update(str(self.ref_value).encode('utf-8', 'replace'))
 
     def to_mapping(self):
         return {
             '_code': self.code,
-            '_path': self.record_path or [],
+            '_path': self.record_path,
             '_ref': self.ref_value
         }
 
@@ -132,6 +158,19 @@ class QCTestRunInfo:
         self.messages = messages or []
         self.notes = notes
         self.is_stale = is_stale
+
+    def update_hash(self, h):
+        h.update(self.test_name.encode('utf-8', 'replace'))
+        if self.test_tags:
+            h.update(str(self.test_tags).encode('utf-8', 'replace'))
+        h.update(self.test_version.encode('utf-8', 'replace'))
+        h.update(self.test_date.encode('utf-8', 'replace'))
+        h.update(self.result.value.encode('utf-8', 'replace'))
+        if self.notes is not None:
+            h.update(self.notes.encode('utf-8', 'replace'))
+        h.update(b'\x01' if self.is_stale else b'\x02')
+        for m in self.messages:
+            m.update_hash(h)
 
     def passed(self):
         return self.result == QCResult.PASS
@@ -177,6 +216,12 @@ class AbstractValue:
             s += ';'.join(f"{x}={repr(self.metadata[x])}" for x in self.metadata)
             s += ")"
         return s
+
+    def find_child(self, path: list[str]):
+        raise NotImplementedError
+
+    def update_hash(self, h):
+        raise NotImplementedError
 
     def is_empty(self) -> bool:
         raise NotImplementedError
@@ -267,6 +312,14 @@ class Value(AbstractValue):
     def __str__(self):
         return str(self._value)
 
+    def find_child(self, path: list[str]):
+        if not path or path[0] == "0":
+            return self
+        elif path[0] == 'metadata':
+            return self.metadata.find_child(path[1:])
+        else:
+            return None
+
     def best_value(self) -> t.Any:
         return self._value
 
@@ -286,6 +339,13 @@ class Value(AbstractValue):
 
     def to_float(self) -> float:
         return float(self._value)
+
+    def update_hash(self, h):
+        if self._value is None:
+            h.update(b'\x00')
+        else:
+            h.update(str(self._value).encode('utf-8', 'replace'))
+        self.metadata.update_hash(h)
 
     def to_int(self) -> int:
         return int(self._value)
@@ -378,6 +438,23 @@ class MultiValue(AbstractValue):
             return len(other) == len(self) and all(other[x] == self[x] for x in range(0, len(self)))
         else:
             return False
+
+    def find_child(self, path: list[str]):
+        if not path:
+            return self
+        elif path[0] == 'metadata':
+            return self.metadata.find_child(path[1:])
+        elif path[0].isdigit():
+            idx = int(path[0])
+            if 0 <= idx < len(self._value):
+                return self._value[idx]
+            return None
+        else:
+            return None
+
+    def update_hash(self, h):
+        for v in self.values():
+            v.update_hash(h)
 
     def best_value(self) -> t.Any:
         return self.first_non_empty().value
@@ -483,6 +560,14 @@ class ValueMap:
             return False
         return all(self._map[k] == other._map[k] for k in keys1)
 
+    def find_child(self, path: list[str]):
+        if not path:
+            return self
+        elif path[0] in self._map:
+            return self._map[path[0]].find_child(path[1:])
+        else:
+            return None
+
     def __delitem__(self, key):
         del self._map[key]
 
@@ -494,6 +579,11 @@ class ValueMap:
 
     def __getitem__(self, item: str):
         return self._map[item]
+
+    def update_hash(self, h):
+        for k in sorted(self._map.keys()):
+            h.update(k.encode('utf-8', 'replace'))
+            self._map[k].update_hash(h)
 
     def keys(self):
         return self._map.keys()
@@ -570,6 +660,20 @@ class DataRecord:
         self.history: list[HistoryEntry] = []
         self.qc_tests: list[QCTestRunInfo] = []
 
+    def find_child(self, object_path: list[str]):
+        if not object_path:
+            return self
+        if object_path[0] == 'metadata':
+            return self.metadata.find_child(object_path[1:])
+        elif object_path[0] == 'parameters':
+            return self.parameters.find_child(object_path[1:])
+        elif object_path[0] == 'coordinates':
+            return self.coordinates.find_child(object_path[1:])
+        elif object_path[0] == 'subrecords':
+            return self.subrecords.find_child(object_path[1:])
+        else:
+            return None
+
     def to_mapping(self):
         map_ = {}
         md = self.metadata.to_mapping()
@@ -631,6 +735,21 @@ class DataRecord:
                 best = qcr
         return best
 
+    def generate_hash(self) -> str:
+        h = hashlib.sha1()
+        self.update_hash(h)
+        return h.hexdigest()
+
+    def update_hash(self, h):
+        self.metadata.update_hash(h)
+        self.parameters.update_hash(h)
+        self.coordinates.update_hash(h)
+        self.subrecords.update_hash(h)
+        for his in self.history:
+            his.update_hash(h)
+        for q in self.qc_tests:
+            q.update_hash(h)
+
     def record_qc_test_result(self,
                               test_name: str,
                               test_version: str,
@@ -646,7 +765,7 @@ class DataRecord:
             outcome,
             messages,
             notes,
-            test_tags,
+            test_tags=test_tags,
         ))
 
     def mark_test_results_stale(self, test_name: str):
@@ -704,6 +823,11 @@ class RecordSet:
         self.metadata = ValueMap()
         self.records: list[DataRecord] = []
 
+    def update_hash(self, h):
+        self.metadata.update_hash(h)
+        for r in self.records:
+            r.update_hash(h)
+
     def to_mapping(self):
         md = self.metadata.to_mapping()
         if md:
@@ -724,6 +848,18 @@ class RecordSet:
             record.from_mapping(r)
             self.records.append(record)
 
+    def find_child(self, path: list[str]):
+        if not path:
+            return self
+        if path[0] == 'metadata':
+            return self.metadata.find_child(path[1:])
+        if not path[0].isdigit():
+            return None
+        idx = int(path[0])
+        if idx < 0 or idx >= len(self.records):
+            return None
+        return self.records[idx]
+
 
 class RecordMap:
 
@@ -738,6 +874,27 @@ class RecordMap:
 
     def __contains__(self, key):
         return key in self.record_sets
+
+    def find_child(self, path: list[str]):
+        if not path:
+            return self
+        if path[0] not in self.record_sets:
+            return None
+        if len(path) < 2:
+            return self.record_sets[path[0]]
+        if not path[1].isdigit():
+            return None
+        idx = int(path[1])
+        if idx not in self.record_sets[path[0]]:
+            return None
+        return self.record_sets[path[0]][int(path[1])].find_child(path[2:])
+
+    def update_hash(self, h):
+        for srt in self.record_sets:
+            h.update(srt.encode('utf-8', 'replace'))
+            for idx in self.record_sets[srt]:
+                h.update(str(idx).encode('utf-8', 'replace'))
+                self.record_sets[srt][idx].update_hash(h)
 
     def new_recordset(self, record_type: str):
         if record_type not in self.record_sets:

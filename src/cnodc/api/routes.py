@@ -158,7 +158,7 @@ def next_decode_failure(nodb_web: NODBWebController = None):
 @require_inputs(['app_id'])
 @require_permission("handle_integrity_failures")
 @injector.inject
-def next_decode_failure(nodb_web: NODBWebController = None):
+def next_integrity_failure(nodb_web: NODBWebController = None):
     return nodb_web.get_next_queue_item(
         queue_name='nodb_integrity_review'
     )
@@ -168,7 +168,7 @@ def next_decode_failure(nodb_web: NODBWebController = None):
 @require_inputs(['app_id'])
 @require_permission("handle_station_failures")
 @injector.inject
-def next_decode_failure(nodb_web: NODBWebController = None):
+def next_station_failure(nodb_web: NODBWebController = None):
     return nodb_web.get_next_queue_item(
         queue_name='nodb_station_review'
     )
@@ -178,15 +178,50 @@ def next_decode_failure(nodb_web: NODBWebController = None):
 @require_inputs(['app_id'])
 @require_permission("handle_ocean_reviews")
 @injector.inject
-def next_decode_failure(nodb_web: NODBWebController = None):
+def next_ocean_review(nodb_web: NODBWebController = None):
     return nodb_web.get_next_queue_item(
         queue_name='nodb_manual_review',
+    )
+
+
+@cnodc.route('/queue-item/<queue_item_uuid>/stream-batch', methods=['GET'])
+@require_inputs(['app_id'])
+@require_permission("handle_queue_items")
+@injector.inject
+def download_batch(queue_item_uuid: str, nodb_web: NODBWebController = None):
+    return nodb_web.stream_batch_working_records(
+        item_uuid=queue_item_uuid,
+        enc_app_id=flask.request.json['app_id']
+    )
+
+
+@cnodc.route('/queue-item/<queue_item_uuid>/apply-changes', methods=['POST'])
+@require_inputs(['app_id', 'operations'])
+@require_permission("handle_queue_items")
+@injector.inject
+def apply_changes(queue_item_uuid: str, nodb_web: NODBWebController = None):
+    return nodb_web.apply_updates(
+        item_uuid=queue_item_uuid,
+        enc_app_id=flask.request.json['app_id'],
+        update_json=flask.request.json['operations']
+    )
+
+
+@cnodc.route('/queue-item/<queue_item_uuid>/retry-decode', methods=['POST'])
+@require_inputs(['app_id', 'operations'])
+@require_permission("handle_queue_items")
+@injector.inject
+def retry_decode(queue_item_uuid: str, nodb_web: NODBWebController = None):
+    return nodb_web.retry_decode(
+        item_uuid=queue_item_uuid,
+        enc_app_id=flask.request.json['app_id']
     )
 
 
 @cnodc.route('/queue-item/<queue_item_uuid>/renew', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
+@injector.inject
 def renew_queue_lock(queue_item_uuid: str, nodb_web: NODBWebController = None):
     nodb_web.renew_queue_item_lock(
         item_uuid=queue_item_uuid,
@@ -197,6 +232,7 @@ def renew_queue_lock(queue_item_uuid: str, nodb_web: NODBWebController = None):
 @cnodc.route('/queue-item/<queue_item_uuid>/release', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
+@injector.inject
 def release_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None):
     nodb_web.release_queue_item_lock(
         item_uuid=queue_item_uuid,
@@ -207,6 +243,7 @@ def release_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None)
 @cnodc.route('/queue-item/<queue_item_uuid>/complete', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
+@injector.inject
 def complete_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None):
     nodb_web.mark_queue_item_complete(
         item_uuid=queue_item_uuid,
@@ -217,6 +254,7 @@ def complete_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None
 @cnodc.route('/queue-item/<queue_item_uuid>/fail', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
+@injector.inject
 def fail_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None):
     nodb_web.mark_queue_item_failed(
         item_uuid=queue_item_uuid,
