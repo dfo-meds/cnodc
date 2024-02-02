@@ -67,13 +67,13 @@ class CursorWrapper:
 class LocalDatabase:
 
     def __init__(self):
-        self._database_file = pathlib.Path('~/cnodcqc.local.db').expanduser().resolve()
+        self._database_file = pathlib.Path('~/cnodcqc.local.db').expanduser().absolute().resolve()
         self._connection = None
         self.get_connection()
 
     def get_connection(self):
         if self._connection is None:
-            self._connection = sqlite3.connect(self._database_file)
+            self._connection = sqlite3.connect(self._database_file, isolation_level=None)
             self.create_db()
         return self._connection
 
@@ -81,7 +81,7 @@ class LocalDatabase:
         return CursorWrapper(self.get_connection().cursor())
 
     def create_db(self):
-        sql_file = pathlib.Path(__file__).resolve().parent / 'local_db.sql'
+        sql_file = pathlib.Path(__file__).absolute().resolve().parent / 'local_db.sql'
         if not sql_file.exists():
             raise ValueError('schema file not defined')
         with open(sql_file, 'r', encoding='utf-8') as h:
