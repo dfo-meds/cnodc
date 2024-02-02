@@ -54,7 +54,7 @@ class _CNODCAPIClient:
         self._token = response['token']
         self._expiry = datetime.datetime.fromisoformat(response['expiry'])
         self._access_list = response['access']
-        return response['username'], self._access_list
+        return response['username'], list(x for x in self._access_list)
 
     def refresh(self) -> bool:
         if self._token is not None:

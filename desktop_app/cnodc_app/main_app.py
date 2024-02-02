@@ -2,16 +2,21 @@ import queue
 import tkinter as tk
 import tkinter.messagebox as tkmb
 import tkinter.ttk as ttk
+import traceback
 
 import zrlog
 
+from cnodc_app.client.local_db import LocalDatabase
 from cnodc_app.gui.choice_dialog import ask_choice
 import cnodc_app.translations as i18n
 import threading
 import uuid
 import typing as t
 
+from cnodc_app.gui.login_pane import LoginPane
+from cnodc_app.gui.menu_manager import MenuManager
 from cnodc_app.util import dynamic_object, TranslatableException
+from autoinject import injector
 
 
 class CNODCQCAppDispatcher(threading.Thread):
@@ -42,7 +47,7 @@ class CNODCQCAppDispatcher(threading.Thread):
             kwargs = kwargs or {}
             result = obj(*args, **kwargs)
         except Exception as ex:
-            result = ex
+            result = (traceback.TracebackException.from_exception(ex), ex)
         finally:
             self.result_queue.put_nowait((job_id, result))
 
@@ -67,10 +72,11 @@ class CNODCQCAppDispatcher(threading.Thread):
     def _process_result(self, job_id: str, results: t.Any):
         if job_id in self._job_map:
             try:
-                if isinstance(results, Exception):
-                    zrlog.get_logger('cnodc_app.dispatcher').error(f"Exception in dispatched method: {repr(results)}")
+                if isinstance(results, tuple) and len(results) == 2 and isinstance(results[0], traceback.TracebackException):
+                    output = ''.join(results[0].format())
+                    zrlog.get_logger('cnodc_app.dispatcher').error(f"Exception in dispatched method: {output}")
                     if self._job_map[job_id][1] is not None:
-                        self._job_map[job_id][1](results)
+                        self._job_map[job_id][1](results[1])
                 else:
                     self._job_map[job_id][0](results)
             except Exception as ex:
@@ -82,75 +88,49 @@ class CNODCQCAppDispatcher(threading.Thread):
 
 class CNODCQCApp:
 
+    local_db: LocalDatabase = None
+
+    @injector.construct
     def __init__(self):
         self.root = tk.Tk()
-        s = ttk.Style()
-        s.configure('Errored.BorderedEntry.TFrame', background='red')
-        self.username = None
-        self.access_list = []
         self.root.title(i18n.get_text('root_title'))
         self.root.geometry('500x500')
         self.root.bind("<Configure>", self.on_configure)
-        self.root.bind('<<LanguageChange>>', self.on_language_change)
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
-        self.menubar = tk.Menu(self.root, tearoff=0)
-        self.filemenu = tk.Menu(self.menubar, tearoff=0)
-        self.filemenu.add_command(label=i18n.get_text('menu_login'), command=self.do_login)
-        self.menubar.add_cascade(label=i18n.get_text('menu_file'), menu=self.filemenu)
-        self.root.config(menu=self.menubar)
         self._run_on_startup = True
+        s = ttk.Style()
+        s.configure('Errored.BorderedEntry.TFrame', background='red')
+        self.menus = MenuManager(self.root)
+        self.menus.add_sub_menu('file', 'menu_file')
+        self.menus.add_sub_menu('qc', 'menu_qc')
         self.dispatcher = CNODCQCAppDispatcher()
-        self.dispatcher.start()
         self._dispatch_list = {}
-        bf = ttk.Frame(self.root)
-        self.login_label = ttk.Label(bf, text=i18n.get_text('no_user_logged_in'))
-        self.login_label.pack()
-        bf.grid(row=1, column=0)
-
-    def do_login(self):
-        from cnodc_app.gui.login_dialog import ask_login
-        unpw = ask_login(self.root)
-        if unpw is not None:
-            self.dispatcher.submit_job(
-                'cnodc_app.client.api_client.login',
-                job_kwargs={
-                    'username': unpw[0],
-                    'password': unpw[1]
-                },
-                on_success=self.on_login,
-                on_error=self.on_login_fail
-            )
+        self._panes = []
+        self.login = LoginPane(self)
+        self._panes.append(self.login)
+        self.bottom_bar = ttk.Frame(self.root)
+        self.bottom_bar.grid(row=1, column=0)
+        for pane in self._panes:
+            pane.on_init()
 
     def check_dispatcher(self):
         self.dispatcher.process_results()
         self.root.after(500, self.check_dispatcher)
 
-    def auto_refresh_session(self):
+    def reload_stations(self):
         self.dispatcher.submit_job(
-            'cnodc_app.client.api_client.refresh',
-            on_success=self.after_refresh,
-            on_error=self.after_refresh
+            'cnodc_app.client.api_client.reload_stations',
+            on_success=self.on_station_reload,
+            on_error=self.on_station_reload_error
         )
 
-    def after_refresh(self, res: bool = None):
-        if res is False and self.username is not None:
-            self.username = None
-            self._update_username_display()
-        self.root.after(5000, self.auto_refresh_session)
+    def on_station_reload(self, result: bool):
+        pass
 
-    def on_login(self, result: tuple[str, list[str]]):
-        self.username = result[0]
-        self.access_list = result[1]
-        self._update_username_display()
+    def on_station_reload_error(self, ex: Exception):
+        pass
 
-    def on_login_fail(self, ex: Exception):
-        self._show_user_exception(ex)
-        if self.username is not None:
-            self.username = None
-            self.access_list = []
-            self._update_username_display()
-
-    def _show_user_exception(self, ex: Exception):
+    def show_user_exception(self, ex: Exception):
         if isinstance(ex, TranslatableException):
             tkmb.showerror(
                 title=i18n.get_text('error_message_title'),
@@ -162,41 +142,42 @@ class CNODCQCApp:
                 message=f"{ex.__class__.__name__}: {str(ex)}"
             )
 
-    def _update_username_display(self):
-        if self.username is None:
-            self.login_label.configure(text=i18n.get_text('no_user_logged_in'))
-            self.filemenu.entryconfigure(0, state=tk.NORMAL)
-        else:
-            self.login_label.configure(text=i18n.get_text('user_logged_in', username=self.username))
-            self.filemenu.entryconfigure(0, state=tk.DISABLED)
+    def update_user_access(self, access_list: list[str]):
+        for x in self._panes:
+            x.on_user_access_update(access_list)
 
     def on_close(self):
-        self.dispatcher.halt.set()
-        self.dispatcher.join()
+        for x in self._panes:
+            x.on_close()
+        if self.dispatcher.is_alive():
+            self.dispatcher.halt.set()
+            self.dispatcher.join()
         while not self.dispatcher.result_queue.empty():
             self.dispatcher.result_queue.get_nowait()
+        while not self.dispatcher.work_queue.empty():
+            self.dispatcher.work_queue.get_nowait()
         self.root.destroy()
 
-    def on_language_change(self, e):
+    def on_language_change(self):
         self.root.title(i18n.get_text('root_title'))
-        self.filemenu.entryconfigure(0, label=i18n.get_text('menu_login'))
-        self.menubar.entryconfigure(0, label=i18n.get_text('menu_file'))
-        self._update_username_display()
+        self.menus.update_languages()
+        for x in self._panes:
+            x.on_language_change()
 
     def on_configure(self, e):
         if self._run_on_startup:
             self._run_on_startup = False
-            self.on_startup()
+            self.root.after(250, self.on_startup)
 
     def on_startup(self):
+        self.dispatcher.start()
         sel = ask_choice(self.root, options=i18n.supported_langauges(), title=i18n.get_text('language_select_dialog_title'))
         if sel is None:
             self.on_close()
         else:
             i18n.set_language(sel)
-            self.root.event_generate('<<LanguageChange>>')
+            self.on_language_change()
         self.check_dispatcher()
-        self.auto_refresh_session()
 
     def launch(self):
         self.root.mainloop()

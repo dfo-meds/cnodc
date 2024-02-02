@@ -17,7 +17,9 @@ TRANSLATIONS = {
         'login_dialog_username': 'Username',
         'login_dialog_password': 'Password',
         'invalid_credentials': 'Invalid username and/or password',
-        'remote_api_error': 'An error occurred on the server: {message}\nError code: {code}'
+        'remote_api_error': 'An error occurred on the server: {message}\nError code: {code}',
+        'station_reload': 'Refresh Station List',
+        'menu_qc': 'Quality Control',
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

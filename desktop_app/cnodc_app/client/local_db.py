@@ -67,12 +67,18 @@ class CursorWrapper:
 class LocalDatabase:
 
     def __init__(self):
-        self._database_file = pathlib.Path('~/cnodcqc.local.db').resolve()
-        self._connection = sqlite3.connect(self._database_file)
-        self.create_db()
+        self._database_file = pathlib.Path('~/cnodcqc.local.db').expanduser().resolve()
+        self._connection = None
+        self.get_connection()
+
+    def get_connection(self):
+        if self._connection is None:
+            self._connection = sqlite3.connect(self._database_file)
+            self.create_db()
+        return self._connection
 
     def cursor(self) -> CursorWrapper:
-        return CursorWrapper(self._connection.cursor())
+        return CursorWrapper(self.get_connection().cursor())
 
     def create_db(self):
         sql_file = pathlib.Path(__file__).resolve().parent / 'local_db.sql'
