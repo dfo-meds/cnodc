@@ -20,6 +20,7 @@ TRANSLATIONS = {
         'remote_api_error': 'An error occurred on the server: {message}\nError code: {code}',
         'station_reload': 'Refresh Station List',
         'menu_qc': 'Quality Control',
+        'menu_reload_stations': 'Sync Stations',
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

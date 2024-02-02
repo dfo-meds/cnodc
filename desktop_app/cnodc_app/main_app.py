@@ -15,6 +15,7 @@ import typing as t
 
 from cnodc_app.gui.login_pane import LoginPane
 from cnodc_app.gui.menu_manager import MenuManager
+from cnodc_app.gui.station_pane import StationPane
 from cnodc_app.util import dynamic_object, TranslatableException
 from autoinject import injector
 
@@ -106,8 +107,8 @@ class CNODCQCApp:
         self.dispatcher = CNODCQCAppDispatcher()
         self._dispatch_list = {}
         self._panes = []
-        self.login = LoginPane(self)
-        self._panes.append(self.login)
+        self._panes.append(LoginPane(self))
+        self._panes.append(StationPane(self))
         self.bottom_bar = ttk.Frame(self.root)
         self.bottom_bar.grid(row=1, column=0)
         for pane in self._panes:
