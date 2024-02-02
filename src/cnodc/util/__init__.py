@@ -1,3 +1,4 @@
+import datetime
 import math
 
 from .exceptions import CNODCError, ConfigError
@@ -8,6 +9,19 @@ import time
 
 
 JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
+
+
+def clean_for_json(data):
+    if isinstance(data, dict):
+        return {
+            x: clean_for_json(data[x]) for x in data
+        }
+    elif isinstance(data, (set, list, tuple)):
+        return [clean_for_json(x) for x in data]
+    elif isinstance(data, (datetime.datetime, datetime.date)):
+        return data.isoformat()
+    else:
+        return data
 
 
 class HaltInterrupt(KeyboardInterrupt):

@@ -1,4 +1,5 @@
 import datetime
+import json
 import typing as t
 
 import flask
@@ -8,7 +9,7 @@ from cnodc.api.auth import LoginController
 from cnodc.codecs import OCProc2BinCodec
 from cnodc.nodb import NODBController, LockType
 from cnodc.ocproc2.operations import QCOperator
-from cnodc.util import CNODCError
+from cnodc.util import CNODCError, clean_for_json
 import uuid
 import cnodc.nodb.structures as structures
 import threading
@@ -136,6 +137,25 @@ class NODBWebController:
                 codec='JSON',
                 compression='LZMA6CRC8'
             )
+
+    def create_station(self, station_def: dict):
+        if not isinstance(station_def, dict):
+            raise ValueError('invalid station definition')
+        # TODO: station validation
+        # TODO: check for conflicts with existing station identifiers
+        with self.nodb as db:
+            station = structures.NODBStation(**station_def)
+            db.insert_object(station)
+            db.commit()
+            return {
+                'success': True,
+                'station_uuid': station.station_uuid
+            }
+
+    def list_stations(self):
+        with self.nodb as db:
+            for station_raw in structures.NODBStation.find_all_raw(db):
+                yield json.dumps(clean_for_json(station_raw))
 
     def apply_updates(self,
                       item_uuid: str,

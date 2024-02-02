@@ -144,6 +144,21 @@ def workflow_info(workflow_name):
     return info
 
 
+@cnodc.route('/stations', methods=['GET'])
+@require_permission('handle_station_failures')
+@injector.inject
+def list_stations(nodb_web: NODBWebController = None):
+    return nodb_web.list_stations(), {'Content-Type': 'application/octet-stream'}
+
+
+@cnodc.route('/stations/new', methods=['POST'])
+@require_inputs(['station'])
+@require_permission('handle_station_failures')
+@injector.inject
+def create_station(nodb_web: NODBWebController = None):
+    return nodb_web.create_station(flask.request.json['station'])
+
+
 @cnodc.route('/next/decode-failure', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_decode_failures")
@@ -192,7 +207,7 @@ def download_batch(queue_item_uuid: str, nodb_web: NODBWebController = None):
     return nodb_web.stream_batch_working_records(
         item_uuid=queue_item_uuid,
         enc_app_id=flask.request.json['app_id']
-    )
+    ), {'Content-Type': 'application/octet-stream'}
 
 
 @cnodc.route('/queue-item/<queue_item_uuid>/apply-changes', methods=['POST'])

@@ -1,4 +1,18 @@
+import datetime
 import importlib
+
+
+def clean_for_json(data):
+    if isinstance(data, dict):
+        return {
+            x: clean_for_json(data[x]) for x in data
+        }
+    elif isinstance(data, (set, list, tuple)):
+        return [clean_for_json(x) for x in data]
+    elif isinstance(data, (datetime.datetime, datetime.date)):
+        return data.isoformat()
+    else:
+        return data
 
 
 class TranslatableException(Exception):

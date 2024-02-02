@@ -902,6 +902,13 @@ class NODBStation(_NODBBaseObject):
             'station_uuid': station_uuid
         }, **kwargs)
 
+    @classmethod
+    def find_all_raw(cls, db: NODBControllerInstance):
+        with db.cursor() as cur:
+            cur.execute(f"SELECT * FROM {NODBStation.TABLE_NAME}")
+            for row in cur.fetch_stream():
+                yield row
+
 
 class NODBWorkingRecord(_NODBBaseObject):
 
