@@ -1045,6 +1045,13 @@ class NODBBatch(_NODBBaseObject):
             'batch_uuid': batch_uuid
         }, **kwargs)
 
+    @classmethod
+    def count_working_by_uuid(cls, db: NODBControllerInstance, batch_uuid: str) -> int:
+        with db.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {NODBWorkingRecord.TABLE_NAME} WHERE qc_batch_id = %s", [batch_uuid])
+            row = cur.fetch_one()
+            return row[0]
+
     def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None, order_by: t.Optional[str] = None):
         with db.cursor() as cur:
             query = f"""

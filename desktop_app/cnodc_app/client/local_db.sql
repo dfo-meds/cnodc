@@ -15,3 +15,19 @@ CREATE TABLE IF NOT EXISTS stations (
     embargo_data_days INT
 
 );
+
+
+CREATE TABLE IF NOT EXISTS records (
+
+    record_uuid TEXT,
+    record_content TEXT
+
+);
+
+
+CREATE TABLE IF NOT EXISTS actions (
+
+    record_uuid TEXT,
+    action_text TEXT
+
+);

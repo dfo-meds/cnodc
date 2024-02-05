@@ -1,7 +1,7 @@
 import typing as t
 from cnodc.ocproc2 import DataRecord
 from .base import BaseCodec, ByteIterable, ByteSequenceReader
-from ..util import CNODCError
+from ..util import CNODCError, vlq_encode, vlq_decode
 
 
 class StreamWrapper:
@@ -22,11 +22,22 @@ class OCProc2BinCodec(BaseCodec):
 
     def encode_records(self, data: t.Iterable[DataRecord], **kwargs) -> ByteIterable:
         bin_args, ds_args = self._separate_kwargs(kwargs)
-        out_stream = self._get_codec(bin_args['codec']).encode_records(data, **ds_args)
-        for wrapper in self._get_wrappers(bin_args['compression'], bin_args['correction']):
-            out_stream = wrapper.wrap_stream(out_stream)
+        codec = self._get_codec(bin_args['codec'])
+        wrappers = self._get_wrappers(bin_args['compression'], bin_args['correction'])
         yield from self._make_header(**bin_args)
-        yield from out_stream
+        if bin_args['stream']:
+            for record in data:
+                out_stream = codec.encode_records([record], **ds_args)
+                for wrapper in wrappers:
+                    out_stream = wrapper.wrap_stream(out_stream)
+                full_out = b''.join(out_stream)
+                yield vlq_encode(len(full_out))
+                yield full_out
+        else:
+            out_stream = codec.encode_records(data, **ds_args)
+            for wrapper in wrappers:
+                out_stream = wrapper.wrap_stream(out_stream)
+            yield from out_stream
 
     def decode_messages(self,
                         data: ByteIterable,
@@ -41,14 +52,28 @@ class OCProc2BinCodec(BaseCodec):
             raise CNODCError(f"Invalid format for OCPROC2BIN [header wrong length]", "OCPROC2BIN", 1008)
         try:
             header_str = header_bytes.decode('ascii')
-            if header_str.count(',') != 2:
+            comma_count = header_str.count(',')
+            if comma_count < 2 or comma_count > 3:
                 raise CNODCError(f"Invalid format for OCPROC2BIN [header wrong number of elements]", "OCPROC2BIN", 1010)
-            header = header_str.split(',', maxsplit=2)
+            header = header_str.split(',', maxsplit=3)
             codec = self._get_codec(header[0])
-            in_stream = stream.iterate_rest()
-            for wrapper in reversed(self._get_wrappers(*header[1:])):
-                in_stream = wrapper.wrap_stream(in_stream)
-            yield from codec.decode_messages(in_stream, **kwargs)
+            if len(header) == 2 or header[2] == 'F':
+                in_stream = stream.iterate_rest()
+                for wrapper in reversed(self._get_wrappers(*header[1:-1])):
+                    in_stream = wrapper.unwrap_stream(in_stream)
+                yield from codec.decode_messages(in_stream, **kwargs)
+            else:
+                wrappers = self._get_wrappers(*header[1:-1])
+                wrappers.reverse()
+                while not stream.at_eof():
+                    idx = 0
+                    while stream.peek(0)[0] > 127:
+                        idx += 1
+                    record_length, byte_count = vlq_decode(stream.consume(idx + 1))
+                    content = [stream.consume(record_length)]
+                    for wrapper in wrappers:
+                        content = wrapper.unwrap_stream(content)
+                    yield from codec.decode_messages(content, **kwargs)
         except UnicodeDecodeError as ex:
             raise CNODCError(f"Invalid header format for OCPROC2BIN [header not ASCII]", "OCPROC2BIN", 1009) from ex
 
@@ -56,12 +81,13 @@ class OCProc2BinCodec(BaseCodec):
         bin_kwargs = {
             'codec': kwargs.pop('codec') if 'codec' in kwargs else 'JSON',
             'compression': kwargs.pop('compression') if 'compression' in kwargs else None,
-            'correction': kwargs.pop('correction') if 'correction' in kwargs else None
+            'correction': kwargs.pop('correction') if 'correction' in kwargs else None,
+            'stream': bool(kwargs.pop('stream')) if 'stream' in kwargs else False
         }
         return bin_kwargs, kwargs
 
-    def _make_header(self, codec: str, compression: t.Optional[str], correction: t.Optional[str]) -> t.Iterable[bytes]:
-        s = f"{codec},{compression or ''},{correction or ''}"
+    def _make_header(self, codec: str, compression: t.Optional[str], correction: t.Optional[str], stream: bool) -> t.Iterable[bytes]:
+        s = f"{codec},{compression or ''},{correction or ''},{'T' if stream else 'F'}"
         if len(s) > 65000:
             raise CNODCError(f'Header string is too long', 'OCPROC2BIN', 1006)
         yield len(s).to_bytes(2, 'little', signed=False)

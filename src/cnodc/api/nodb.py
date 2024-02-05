@@ -9,7 +9,7 @@ from cnodc.api.auth import LoginController
 from cnodc.codecs import OCProc2BinCodec
 from cnodc.nodb import NODBController, LockType
 from cnodc.ocproc2.operations import QCOperator
-from cnodc.util import CNODCError, clean_for_json
+from cnodc.util import CNODCError, clean_for_json, vlq_encode
 import uuid
 import cnodc.nodb.structures as structures
 import threading
@@ -52,7 +52,7 @@ class NODBWebController:
                 subqueue_name=subqueue_name
             )
             if queue_item is None:
-                return {'item_uuid': None, 'lock_expiry': None, 'actions': {}}
+                return {'item_uuid': None}
             else:
                 kwargs = {
                     'queue_item_uuid': queue_item.queue_uuid,
@@ -131,12 +131,19 @@ class NODBWebController:
             batch: structures.NODBBatch = structures.NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
             if batch is None:
                 raise ValueError('invalid batch')
+            batch_size = structures.NODBBatch.count_working_by_uuid(db, queue_item.data['batch_info']['uuid'])
             codec = OCProc2BinCodec()
-            yield from codec.encode_records(
-                (wr.record for wr in batch.stream_working_records(db)),
-                codec='JSON',
-                compression='LZMA6CRC8'
-            )
+            yield vlq_encode(batch_size)
+            for wr in batch.stream_working_records(db):
+                yield vlq_encode(len(wr.working_uuid))
+                yield wr.working_uuid.encode('ascii')
+                data = b''.join(codec.encode_records(
+                    [wr.record],
+                    codec='JSON',
+                    compression='LZMA6CRC4'
+                ))
+                yield vlq_encode(len(data))
+                yield data
 
     def create_station(self, station_def: dict):
         if not isinstance(station_def, dict):
