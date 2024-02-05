@@ -22,3 +22,8 @@ class BasePane:
     def on_user_access_update(self, permissions: list[str]):
         pass
 
+    def on_open_qc_batch(self, batch_type: str):
+        pass
+
+    def on_close_qc_batch(self, batch_type: str, load_next: bool):
+        pass

@@ -2,6 +2,7 @@ from __future__ import annotations
 from cnodc_app.gui.base_pane import BasePane
 import typing as t
 import tkinter as tk
+import tkinter.ttk as ttk
 import cnodc_app.translations as i18n
 
 
@@ -15,8 +16,8 @@ class LoginPane(BasePane):
 
     def on_init(self):
         self.app.menus.add_command('file/login', 'menu_login', self.do_login)
-        self._user_status_bar = tk.Label(self.app.bottom_bar, text="", relief=tk.GROOVE, width=15)
-        self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='E')
+        self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief=tk.SOLID, borderwidth=2, width=15, anchor=tk.E)
+        self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
 
     def do_login(self):
         from cnodc_app.gui.login_dialog import ask_login

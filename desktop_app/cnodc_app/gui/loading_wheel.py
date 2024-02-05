@@ -1,9 +1,11 @@
 import pathlib
 from PIL import Image, ImageTk
 import tkinter as tk
+import tkinter.ttk as ttk
 
 
-class LoadingWheel(tk.Label):
+
+class LoadingWheel(ttk.Label):
 
     def __init__(self, root: tk.Tk, parent):
         super().__init__(parent)
@@ -23,7 +25,7 @@ class LoadingWheel(tk.Label):
         self._current_frame = None
         self._max_frame = len(self._images)
         self._root = root
-        self.configure(image=self._blank, relief=tk.SUNKEN)
+        self.configure(image=self._blank, relief=tk.SOLID, borderwidth=2)
         self._delay = 50
 
     def destroy(self):

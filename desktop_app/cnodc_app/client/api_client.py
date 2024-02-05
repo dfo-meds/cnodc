@@ -123,6 +123,9 @@ class _CNODCAPIClient:
             cur.commit()
             return True
 
+    def load_next_station_failure(self) -> bool:
+        return True
+
     def _iter_json_dicts(self, response: requests.Response):
         buffer = ''
         check_idx = 1
@@ -168,4 +171,8 @@ def reload_stations(client: _CNODCAPIClient = None) -> bool:
 def create_station(station_def: dict, client: _CNODCAPIClient = None) -> bool:
     return client.create_station(station_def)
 
+
+@injector.inject
+def next_station_failure(client: _CNODCAPIClient = None) -> bool:
+    return client.load_next_station_failure()
 

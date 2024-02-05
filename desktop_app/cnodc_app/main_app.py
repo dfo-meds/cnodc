@@ -126,6 +126,11 @@ class CNODCQCApp:
         self.menus.add_sub_menu('file', 'menu_file')
         self.menus.add_sub_menu('qc', 'menu_qc')
         self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
+        self.top_bar = ttk.Frame(self.root)
+        self.top_bar.grid(row=0, column=0, sticky='NSEW')
+        self.middle_frame = ttk.Frame(self.root)
+        self.middle_frame.grid(row=1, column=0, sticky='NSEW')
         self.bottom_bar = ttk.Frame(self.root)
         self.bottom_bar.grid(row=2, column=0, sticky='EWNS')
         self.bottom_bar.columnconfigure(0, weight=0)
@@ -134,9 +139,10 @@ class CNODCQCApp:
         self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
         self.loading_wheel.grid(row=0, column=0, sticky='W')
         self.loading_wheel.enable()
-        self.status_info = ttk.Label(self.bottom_bar, text="", relief=tk.GROOVE)
-        self.status_info.grid(row=0, column=1, ipadx=5, ipady=2, sticky='EW')
+        self.status_info = ttk.Label(self.bottom_bar, text="W", relief=tk.SOLID, borderwidth=2)
+        self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
         self.dispatcher = CNODCQCAppDispatcher(self.loading_wheel)
+        self._current_batch_type = None
         self._panes = []
         self._panes.append(LoginPane(self))
         self._panes.append(StationPane(self))
@@ -157,6 +163,9 @@ class CNODCQCApp:
     def check_messages(self):
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
+
+    def show_user_info(self, title: str, message: str):
+        tkmb.showinfo(title, message)
 
     def show_user_exception(self, ex: Exception):
         if isinstance(ex, TranslatableException):
@@ -192,6 +201,19 @@ class CNODCQCApp:
         self.menus.update_languages()
         for x in self._panes:
             x.on_language_change()
+
+    def open_qc_batch(self, batch_type: str):
+        self._current_batch_type = batch_type
+        for x in self._panes:
+            x.on_open_qc_batch(batch_type)
+
+    def close_current_batch(self, load_next: bool = False):
+        self.close_qc_batch(self._current_batch_type, load_next)
+        self._current_batch_type = None
+
+    def close_qc_batch(self, batch_type: str, load_next: bool = False):
+        for x in self._panes:
+            x.on_close_qc_batch(batch_type, load_next)
 
     def on_configure(self, e):
         if self._run_on_startup:
