@@ -7,15 +7,22 @@ import traceback
 import zrlog
 
 from cnodc_app.client.local_db import LocalDatabase
+from cnodc_app.gui.action_pane import ActionPane
+from cnodc_app.gui.button_pane import ButtonPane
 from cnodc_app.gui.choice_dialog import ask_choice
 import cnodc_app.translations as i18n
 import threading
 import uuid
 import typing as t
 
+from cnodc_app.gui.error_pane import ErrorPane
+from cnodc_app.gui.history_pane import HistoryPane
 from cnodc_app.gui.login_pane import LoginPane
 from cnodc_app.gui.menu_manager import MenuManager
+from cnodc_app.gui.metadata_pane import MetadataPane
+from cnodc_app.gui.record_list_pane import RecordListPane
 from cnodc_app.gui.station_pane import StationPane
+from cnodc_app.gui.tool_pane import ToolPane
 from cnodc_app.util import dynamic_object, TranslatableException
 from autoinject import injector
 
@@ -109,6 +116,13 @@ class CNODCQCApp:
         self._panes = []
         self._panes.append(LoginPane(self))
         self._panes.append(StationPane(self))
+        self._panes.append(ButtonPane(self))
+        self._panes.append(RecordListPane(self))
+        self._panes.append(ToolPane(self))
+        self._panes.append(MetadataPane(self))
+        self._panes.append(ErrorPane(self))
+        self._panes.append(ActionPane(self))
+        self._panes.append(HistoryPane(self))
         self.bottom_bar = ttk.Frame(self.root)
         self.bottom_bar.grid(row=1, column=0)
         for pane in self._panes:
