@@ -15,8 +15,8 @@ class LoginPane(BasePane):
 
     def on_init(self):
         self.app.menus.add_command('file/login', 'menu_login', self.do_login)
-        self._user_status_bar = tk.Label(self.app.bottom_bar, text="")
-        self._user_status_bar.pack()
+        self._user_status_bar = tk.Label(self.app.bottom_bar, text="", relief=tk.GROOVE, width=15)
+        self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='E')
 
     def do_login(self):
         from cnodc_app.gui.login_dialog import ask_login
@@ -44,7 +44,7 @@ class LoginPane(BasePane):
         if self._username is not None:
             self._username = None
             self._access_list = []
-            self.update_user_state()
+        self.update_user_state()
 
     def auto_refresh_session(self):
         if self._username is not None:

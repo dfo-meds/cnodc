@@ -17,8 +17,10 @@ import typing as t
 
 from cnodc_app.gui.error_pane import ErrorPane
 from cnodc_app.gui.history_pane import HistoryPane
+from cnodc_app.gui.loading_wheel import LoadingWheel
 from cnodc_app.gui.login_pane import LoginPane
 from cnodc_app.gui.menu_manager import MenuManager
+from cnodc_app.gui.messenger import CrossThreadMessenger
 from cnodc_app.gui.metadata_pane import MetadataPane
 from cnodc_app.gui.record_list_pane import RecordListPane
 from cnodc_app.gui.station_pane import StationPane
@@ -29,9 +31,14 @@ from autoinject import injector
 
 class CNODCQCAppDispatcher(threading.Thread):
 
-    def __init__(self):
+    messenger: CrossThreadMessenger = None
+
+    @injector.construct
+    def __init__(self, loading_wheel: LoadingWheel):
         super().__init__()
+        self._loading = loading_wheel
         self.halt = threading.Event()
+        self.is_working = threading.Event()
         self.work_queue = queue.SimpleQueue()
         self.result_queue = queue.SimpleQueue()
         self._job_map = {}
@@ -44,6 +51,7 @@ class CNODCQCAppDispatcher(threading.Thread):
 
     def _process_jobs_until_empty(self):
         while not self.work_queue.empty():
+            self.is_working.set()
             info = self.work_queue.get_nowait()
             self._process_job(*info)
 
@@ -58,6 +66,7 @@ class CNODCQCAppDispatcher(threading.Thread):
             result = (traceback.TracebackException.from_exception(ex), ex)
         finally:
             self.result_queue.put_nowait((job_id, result))
+            self.is_working.clear()
 
     def submit_job(self,
                    job_callable: str,
@@ -76,6 +85,10 @@ class CNODCQCAppDispatcher(threading.Thread):
                 self._process_result(item[0], item[1])
             except queue.Empty:
                 break
+        if self.is_working.is_set() or not self.work_queue.empty() or not self.result_queue.empty():
+            self._loading.enable()
+        else:
+            self._loading.disable()
 
     def _process_result(self, job_id: str, results: t.Any):
         if job_id in self._job_map:
@@ -97,6 +110,7 @@ class CNODCQCAppDispatcher(threading.Thread):
 class CNODCQCApp:
 
     local_db: LocalDatabase = None
+    messenger: CrossThreadMessenger = None
 
     @injector.construct
     def __init__(self):
@@ -111,8 +125,18 @@ class CNODCQCApp:
         self.menus = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu_file')
         self.menus.add_sub_menu('qc', 'menu_qc')
-        self.dispatcher = CNODCQCAppDispatcher()
-        self._dispatch_list = {}
+        self.root.columnconfigure(0, weight=1)
+        self.bottom_bar = ttk.Frame(self.root)
+        self.bottom_bar.grid(row=2, column=0, sticky='EWNS')
+        self.bottom_bar.columnconfigure(0, weight=0)
+        self.bottom_bar.columnconfigure(1, weight=1)
+        self.bottom_bar.columnconfigure(2, weight=0)
+        self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
+        self.loading_wheel.grid(row=0, column=0, sticky='W')
+        self.loading_wheel.enable()
+        self.status_info = ttk.Label(self.bottom_bar, text="", relief=tk.GROOVE)
+        self.status_info.grid(row=0, column=1, ipadx=5, ipady=2, sticky='EW')
+        self.dispatcher = CNODCQCAppDispatcher(self.loading_wheel)
         self._panes = []
         self._panes.append(LoginPane(self))
         self._panes.append(StationPane(self))
@@ -123,8 +147,6 @@ class CNODCQCApp:
         self._panes.append(ErrorPane(self))
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
-        self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=1, column=0)
         for pane in self._panes:
             pane.on_init()
 
@@ -132,18 +154,9 @@ class CNODCQCApp:
         self.dispatcher.process_results()
         self.root.after(500, self.check_dispatcher)
 
-    def reload_stations(self):
-        self.dispatcher.submit_job(
-            'cnodc_app.client.api_client.reload_stations',
-            on_success=self.on_station_reload,
-            on_error=self.on_station_reload_error
-        )
-
-    def on_station_reload(self, result: bool):
-        pass
-
-    def on_station_reload_error(self, ex: Exception):
-        pass
+    def check_messages(self):
+        self.messenger.receive_into_label(self.status_info)
+        self.root.after(50, self.check_messages)
 
     def show_user_exception(self, ex: Exception):
         if isinstance(ex, TranslatableException):
@@ -162,6 +175,7 @@ class CNODCQCApp:
             x.on_user_access_update(access_list)
 
     def on_close(self):
+        self.status_info.destroy()
         for x in self._panes:
             x.on_close()
         if self.dispatcher.is_alive():
@@ -193,6 +207,7 @@ class CNODCQCApp:
             i18n.set_language(sel)
             self.on_language_change()
         self.check_dispatcher()
+        self.check_messages()
 
     def launch(self):
         self.root.mainloop()

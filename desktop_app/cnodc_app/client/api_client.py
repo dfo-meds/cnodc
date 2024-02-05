@@ -5,9 +5,16 @@ import typing as t
 from autoinject import injector
 
 from cnodc_app.client.local_db import LocalDatabase, CursorWrapper
+from cnodc_app.gui.messenger import CrossThreadMessenger
 from cnodc_app.util import TranslatableException, clean_for_json
 import zirconium as zr
 import requests
+
+
+ALLOW_TEST_USER = True
+ALL_PERMISSIONS = [
+    'queue:station-failure'
+]
 
 
 class RemoteAPIError(TranslatableException):
@@ -21,6 +28,7 @@ class _CNODCAPIClient:
 
     config: zr.ApplicationConfig = None
     local_db: LocalDatabase = None
+    messenger: CrossThreadMessenger = None
 
     @injector.construct
     def __init__(self):
@@ -29,8 +37,10 @@ class _CNODCAPIClient:
         self._app_url = self.config.as_str(('cnodc_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
         self._access_list = None
         self._check_time = 300  # Renew when five minutes left on session
+        self._test_mode = False
 
     def make_raw_json_request(self, endpoint: str, method: str, **kwargs: str) -> requests.Response:
+        self.messenger.send_translatable('foobar')
         full_url = f"{self._app_url}/{endpoint}"
         headers = {}
         if self._token is not None:
@@ -50,6 +60,9 @@ class _CNODCAPIClient:
         return json_body
 
     def login(self, username: str, password: str) -> tuple[str, list[str]]:
+        if ALLOW_TEST_USER and username == 'test' and password == 'test':
+            self._test_mode = True
+            return 'test', ALL_PERMISSIONS
         response = self.make_json_request(endpoint='login', method='POST', username=username, password=password)
         self._token = response['token']
         self._expiry = datetime.datetime.fromisoformat(response['expiry'])
@@ -57,6 +70,8 @@ class _CNODCAPIClient:
         return response['username'], list(x for x in self._access_list)
 
     def refresh(self) -> bool:
+        if self._test_mode:
+            return True
         if self._token is not None:
             now = datetime.datetime.now(tz=datetime.timezone.utc)
             time_left = (self._expiry - now).total_seconds()
@@ -76,11 +91,15 @@ class _CNODCAPIClient:
             return False
 
     def _check_access(self, access_key_name: str):
+        if self._test_mode:
+            return True
         if self._access_list is None or access_key_name not in self._access_list:
             raise RemoteAPIError('access denied')
 
     def reload_stations(self) -> bool:
         self._check_access('queue:station-failure')
+        if self._test_mode:
+            return True
         response = self.make_raw_json_request('stations', 'GET')
         with self.local_db.cursor() as cur:
             cur.begin_transaction()
@@ -95,11 +114,12 @@ class _CNODCAPIClient:
         with self.local_db.cursor() as cur:
             cur.begin_transaction()
             cur.insert('stations', station_def)
-            self.make_json_request(
-                endpoint='stations/new',
-                method='POST',
-                station=station_def
-            )
+            if not self._test_mode:
+                self.make_json_request(
+                    endpoint='stations/new',
+                    method='POST',
+                    station=station_def
+                )
             cur.commit()
             return True
 
