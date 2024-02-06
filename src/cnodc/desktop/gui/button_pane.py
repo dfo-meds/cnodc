@@ -1,5 +1,5 @@
 import tkinter as tk
-from cnodc_app.gui.base_pane import BasePane
+from cnodc.desktop.gui.base_pane import BasePane
 import tkinter.ttk as ttk
 
 

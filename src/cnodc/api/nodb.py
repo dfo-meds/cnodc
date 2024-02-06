@@ -137,8 +137,12 @@ class NODBWebController:
             for wr in batch.stream_working_records(db):
                 yield vlq_encode(len(wr.working_uuid))
                 yield wr.working_uuid.encode('ascii')
+                record = wr.record
+                hash_code = record.generate_hash()
+                yield vlq_encode(len(hash_code))
+                yield hash_code.encode('ascii')
                 data = b''.join(codec.encode_records(
-                    [wr.record],
+                    [record],
                     codec='JSON',
                     compression='LZMA6CRC4'
                 ))

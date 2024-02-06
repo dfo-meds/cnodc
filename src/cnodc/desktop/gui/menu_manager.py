@@ -1,5 +1,5 @@
 import tkinter as tk
-from cnodc_app import translations as i18n
+import cnodc.desktop.translations as i18n
 
 
 class MenuManager:

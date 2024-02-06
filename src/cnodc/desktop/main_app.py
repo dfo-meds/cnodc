@@ -6,26 +6,27 @@ import traceback
 
 import zrlog
 
-from cnodc_app.client.local_db import LocalDatabase
-from cnodc_app.gui.action_pane import ActionPane
-from cnodc_app.gui.button_pane import ButtonPane
-from cnodc_app.gui.choice_dialog import ask_choice
-import cnodc_app.translations as i18n
+from cnodc.desktop.client.local_db import LocalDatabase
+from cnodc.desktop.gui.action_pane import ActionPane
+from cnodc.desktop.gui.button_pane import ButtonPane
+from cnodc.desktop.gui.choice_dialog import ask_choice
+import cnodc.desktop.translations as i18n
 import threading
 import uuid
 import typing as t
 
-from cnodc_app.gui.error_pane import ErrorPane
-from cnodc_app.gui.history_pane import HistoryPane
-from cnodc_app.gui.loading_wheel import LoadingWheel
-from cnodc_app.gui.login_pane import LoginPane
-from cnodc_app.gui.menu_manager import MenuManager
-from cnodc_app.gui.messenger import CrossThreadMessenger
-from cnodc_app.gui.metadata_pane import MetadataPane
-from cnodc_app.gui.record_list_pane import RecordListPane
-from cnodc_app.gui.station_pane import StationPane
-from cnodc_app.gui.tool_pane import ToolPane
-from cnodc_app.util import dynamic_object, TranslatableException
+from cnodc.desktop.gui.error_pane import ErrorPane
+from cnodc.desktop.gui.history_pane import HistoryPane
+from cnodc.desktop.gui.loading_wheel import LoadingWheel
+from cnodc.desktop.gui.login_pane import LoginPane
+from cnodc.desktop.gui.menu_manager import MenuManager
+from cnodc.desktop.gui.messenger import CrossThreadMessenger
+from cnodc.desktop.gui.metadata_pane import MetadataPane
+from cnodc.desktop.gui.record_list_pane import RecordListPane
+from cnodc.desktop.gui.station_pane import StationPane
+from cnodc.desktop.gui.tool_pane import ToolPane
+from cnodc.desktop.util import TranslatableException
+from cnodc.util import dynamic_object
 from autoinject import injector
 
 
@@ -95,14 +96,14 @@ class CNODCQCAppDispatcher(threading.Thread):
             try:
                 if isinstance(results, tuple) and len(results) == 2 and isinstance(results[0], traceback.TracebackException):
                     output = ''.join(results[0].format())
-                    zrlog.get_logger('cnodc_app.dispatcher').error(f"Exception in dispatched method: {output}")
+                    zrlog.get_logger('desktop.dispatcher').error(f"Exception in dispatched method: {output}")
                     if self._job_map[job_id][1] is not None:
                         self._job_map[job_id][1](results[1])
                 else:
                     self._job_map[job_id][0](results)
             except Exception as ex:
                 # TODO: user error handling
-                zrlog.get_logger('cnodc_app.dispatcher').exception('Exception during dispatch handling')
+                zrlog.get_logger('desktop.dispatcher').exception('Exception during dispatch handling')
             finally:
                 del self._job_map[job_id]
 

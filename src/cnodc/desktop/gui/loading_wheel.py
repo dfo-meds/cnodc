@@ -4,7 +4,6 @@ import tkinter as tk
 import tkinter.ttk as ttk
 
 
-
 class LoadingWheel(ttk.Label):
 
     def __init__(self, root: tk.Tk, parent):

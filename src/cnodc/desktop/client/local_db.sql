@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS stations (
 CREATE TABLE IF NOT EXISTS records (
 
     record_uuid TEXT,
+    record_hash TEXT,
+    display TEXT,
     record_content TEXT
 
 );

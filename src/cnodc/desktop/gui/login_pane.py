@@ -1,9 +1,9 @@
 from __future__ import annotations
-from cnodc_app.gui.base_pane import BasePane
+from cnodc.desktop.gui.base_pane import BasePane
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
-import cnodc_app.translations as i18n
+import cnodc.desktop.translations as i18n
 
 
 class LoginPane(BasePane):
@@ -20,12 +20,12 @@ class LoginPane(BasePane):
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
 
     def do_login(self):
-        from cnodc_app.gui.login_dialog import ask_login
+        from cnodc.desktop.gui.login_dialog import ask_login
         unpw = ask_login(self.app.root)
         if unpw is not None:
             self.app.menus.disable_command('file/login')
             self.app.dispatcher.submit_job(
-                'cnodc_app.client.api_client.login',
+                'desktop.client.api_client.login',
                 job_kwargs={
                     'username': unpw[0],
                     'password': unpw[1]
@@ -50,7 +50,7 @@ class LoginPane(BasePane):
     def auto_refresh_session(self):
         if self._username is not None:
             self.app.dispatcher.submit_job(
-                'cnodc_app.client.api_client.refresh',
+                'desktop.client.api_client.refresh',
                 on_success=self.after_refresh,
                 on_error=self.after_refresh
             )

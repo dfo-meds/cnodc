@@ -2,7 +2,7 @@ from __future__ import annotations
 import typing as t
 
 if t.TYPE_CHECKING:
-    from cnodc_app.main_app import CNODCQCApp
+    from cnodc.desktop.main_app import CNODCQCApp
 
 
 class BasePane:

@@ -1,7 +1,7 @@
 from autoinject import injector
 import queue
 import tkinter as tk
-import cnodc_app.translations as i18n
+import cnodc.desktop.translations as i18n
 
 
 @injector.injectable_global
