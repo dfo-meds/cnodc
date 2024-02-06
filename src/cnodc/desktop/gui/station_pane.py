@@ -32,7 +32,7 @@ class StationPane(BasePane):
     def next_station_failure(self):
         self.app.menus.disable_command('qc/next_station_failure')
         self.app.dispatcher.submit_job(
-            'desktop.client.api_client.next_station_failure',
+            'cnodc.desktop.client.api_client.next_station_failure',
             on_success=self._next_station_failure_success,
             on_error=self._next_station_failure_error
         )
@@ -54,7 +54,7 @@ class StationPane(BasePane):
     def reload_stations(self):
         self.app.menus.disable_command('qc/reload_stations')
         self.app.dispatcher.submit_job(
-            'desktop.client.api_client.reload_stations',
+            'cnodc.desktop.client.api_client.reload_stations',
             on_success=self._reload_success,
             on_error=self._reload_error
         )

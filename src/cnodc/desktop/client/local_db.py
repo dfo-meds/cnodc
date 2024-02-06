@@ -23,7 +23,11 @@ class CursorWrapper:
         self._cursor.close()
 
     def execute(self, sql: str, parameters: t.Optional[t.Union[tuple, list]] = None):
-        return self._cursor.execute(sql, () if parameters is None else parameters)
+        print(sql, parameters)
+        if parameters:
+            return self._cursor.execute(sql, parameters)
+        else:
+            return self._cursor.execute(sql)
 
     def execute_script(self, sql_script: str):
         return self._cursor.executescript(sql_script)
@@ -49,7 +53,7 @@ class CursorWrapper:
     def insert(self, table_name: str, values: dict) -> int:
         keys = list(values.keys())
         values = [self._clean_for_insert(values[k]) for k in keys]
-        value_placeholders = ','.join('%s' for _ in keys)
+        value_placeholders = ','.join('?' for _ in keys)
         q = f'INSERT INTO {table_name}({",".join(keys)}) VALUES ({value_placeholders})'
         self.execute(q, values)
         return self._cursor.lastrowid
@@ -86,4 +90,4 @@ class LocalDatabase:
             raise ValueError('schema file not defined')
         with open(sql_file, 'r', encoding='utf-8') as h:
             with self.cursor() as cur:
-                cur.execute(h.read())
+                cur.execute_script(h.read())

@@ -25,7 +25,7 @@ class LoginPane(BasePane):
         if unpw is not None:
             self.app.menus.disable_command('file/login')
             self.app.dispatcher.submit_job(
-                'desktop.client.api_client.login',
+                'cnodc.desktop.client.api_client.login',
                 job_kwargs={
                     'username': unpw[0],
                     'password': unpw[1]
@@ -50,7 +50,7 @@ class LoginPane(BasePane):
     def auto_refresh_session(self):
         if self._username is not None:
             self.app.dispatcher.submit_job(
-                'desktop.client.api_client.refresh',
+                'cnodc.desktop.client.api_client.refresh',
                 on_success=self.after_refresh,
                 on_error=self.after_refresh
             )

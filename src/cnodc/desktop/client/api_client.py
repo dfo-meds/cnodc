@@ -24,7 +24,6 @@ class RemoteAPIError(TranslatableException):
 class _WebAPIClient:
 
     config: zr.ApplicationConfig = None
-    local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
 
     @injector.construct
@@ -100,6 +99,10 @@ class _WebAPIClient:
 @injector.injectable
 class CNODCServerAPI:
 
+    local_db: LocalDatabase = None
+    messenger: CrossThreadMessenger = None
+
+    @injector.construct
     def __init__(self, test_mode: bool = True):
         self._expiry = None
         self._access_list = None
