@@ -7,6 +7,7 @@ import typing as t
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
 import cnodc.ocproc2.structures as ocproc2
+from cnodc.ocproc2.operations import QCOperator
 
 
 class RecordListPane(BasePane):
@@ -18,12 +19,15 @@ class RecordListPane(BasePane):
         super().__init__(*args, **kwargs)
         self._record_list: t.Optional[ScrollableTreeview] = None
         self._subrecord_list: t.Optional[ScrollableTreeview] = None
+        self._current_record_info = None
+        self._current_subrecord_info = None
 
     def on_init(self):
-        self.app.middle_top_frame.columnconfigure(0, weight=1)
-        self.app.middle_bottom_frame.columnconfigure(0, weight=1)
+        self.app.left_frame.rowconfigure(0, weight=1)
+        self.app.left_frame.rowconfigure(1, weight=1)
+        self.app.left_frame.columnconfigure(0, weight=1)
         self._record_list = ScrollableTreeview(
-            parent=self.app.middle_top_frame,
+            parent=self.app.left_frame,
             selectmode="browse",
             show="",
             headers=[
@@ -35,7 +39,7 @@ class RecordListPane(BasePane):
         self._record_list.tag_configure('has-error', foreground='red')
         self._record_list.grid(row=0, column=0, sticky='EWNS')
         self._subrecord_list = ScrollableTreeview(
-            parent=self.app.middle_bottom_frame,
+            parent=self.app.left_frame,
             selectmode="browse",
             show="tree",
             headers=[
@@ -45,24 +49,36 @@ class RecordListPane(BasePane):
             displaycolumns=(1,)
         )
         self._subrecord_list.tag_configure('has-error', foreground='red')
-        self._subrecord_list.grid(row=0, column=0, sticky='EWNS')
-        self._subrecord_list.table.column('#0', width=80, stretch=False)
-        self._current_record_info = None
+        self._subrecord_list.grid(row=1, column=0, sticky='EWNS')
+        self._subrecord_list.table.column('#0', width=40, stretch=False)
 
     def after_open_batch(self, batch_type: str):
         self._record_list.clear_items()
         self._record_list.extend_items(self._load_record_list())
 
     def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
+        self._current_subrecord_info = None
         self._subrecord_list.clear_items()
         self._build_subrecord_list(record)
 
+    def record_operator_action(self, action: QCOperator):
+        if self._current_record_info is not None:
+            action.apply(self._current_record_info[1], None)
+            if self._current_subrecord_info is None:
+                self.app.show_record(self._current_record_info[1], '')
+            else:
+                self._show_subrecord()
+
     def _on_subrecord_click(self, item_info, is_change: bool, event):
-        item = self._current_record_info[1].find_child(item_info['values'][0].split('/'))
+        self._current_subrecord_info = item_info['values'][0]
+        self._show_subrecord()
+
+    def _show_subrecord(self):
+        item = self._current_record_info[1].find_child(self._current_subrecord_info)
         if isinstance(item, ocproc2.DataRecord):
-            self.app.show_record(item)
+            self.app.show_record(item, self._current_subrecord_info)
         elif isinstance(item, ocproc2.RecordSet):
-            self.app.show_recordset(item)
+            self.app.show_recordset(item, self._current_subrecord_info)
 
     def _on_record_click(self, item_info, is_change: bool, event):
         if is_change or self._current_record_info is None:
@@ -74,7 +90,7 @@ class RecordListPane(BasePane):
                 self._current_record_info = (row[0], record)
                 self.app.on_record_change(row[0], record)
         else:
-            self.app.show_record(self._current_record_info[1])
+            self.app.show_record(self._current_record_info[1], '')
 
     def _load_record_list(self) -> t.Iterable[tuple[str, tuple, tuple]]:
         with self.local_db.cursor() as cur:

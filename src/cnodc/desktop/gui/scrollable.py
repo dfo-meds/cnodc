@@ -30,6 +30,7 @@ class ScrollableTreeview(tk.Frame):
                  headers: list[str],
                  height=None,
                  width=None,
+                 padding=0,
                  displaycolumns: t.Optional[t.Union[tuple, list]] = None,
                  selectmode: t.Optional[str] = "browse",
                  on_select: t.Optional[callable] = None,
@@ -48,6 +49,7 @@ class ScrollableTreeview(tk.Frame):
         self.set_headers(headers)
         if displaycolumns is not None:
             self.set_display_columns(displaycolumns)
+        self.table.configure(padding=padding)
         self.table.grid(row=0, column=0, sticky="nsew")
         self.table.bind('<<TreeviewSelect>>', self._on_select)
         self.table.bind('<Button-3>', self._on_button3)

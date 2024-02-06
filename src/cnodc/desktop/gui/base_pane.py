@@ -2,6 +2,7 @@ from __future__ import annotations
 import typing as t
 import enum
 
+from cnodc.ocproc2.operations import QCOperator
 
 if t.TYPE_CHECKING:
     from cnodc.desktop.main_app import CNODCQCApp
@@ -45,11 +46,15 @@ class BasePane:
     def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
         pass
 
-    def show_recordset(self, record_set: ocproc2.RecordSet):
+    def show_recordset(self, record_set: ocproc2.RecordSet, path: str):
         pass
 
-    def show_record(self, record: ocproc2.DataRecord):
+    def show_record(self, record: ocproc2.DataRecord, path: str):
         pass
 
     def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
         pass
+
+    def record_operator_action(self, action: QCOperator):
+        pass
+

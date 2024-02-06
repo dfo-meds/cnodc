@@ -371,6 +371,9 @@ class Value(AbstractValue):
             return False
         return isinstance(self._value, (int, float))
 
+    def is_integer(self) -> bool:
+        return isinstance(self._value, int) and not isinstance(self._value, bool)
+
     def in_range(self, min_value: t.Optional[float] = None, max_value: t.Optional[float] = None) -> bool:
         if min_value is not None and self._value < min_value:
             return False

@@ -24,11 +24,12 @@ from cnodc.desktop.gui.loading_wheel import LoadingWheel
 from cnodc.desktop.gui.login_pane import LoginPane
 from cnodc.desktop.gui.menu_manager import MenuManager
 from cnodc.desktop.gui.messenger import CrossThreadMessenger
-from cnodc.desktop.gui.metadata_pane import MetadataPane
+from cnodc.desktop.gui.parameter_pane import ParameterPane
 from cnodc.desktop.gui.record_list_pane import RecordListPane
 from cnodc.desktop.gui.station_pane import StationPane
 from cnodc.desktop.gui.tool_pane import ToolPane
 from cnodc.desktop.util import TranslatableException
+from cnodc.ocproc2.operations import QCOperator
 from cnodc.util import dynamic_object
 from autoinject import injector
 
@@ -121,31 +122,35 @@ class CNODCQCApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title(i18n.get_text('root_title'))
-        self.root.geometry('500x500')
+        self.root.geometry('900x500')
         self.root.bind("<Configure>", self.on_configure)
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
         self._run_on_startup = True
         s = ttk.Style()
         s.configure('Errored.BorderedEntry.TFrame', background='red')
+        s.configure('Treeview', indent=5)
         self.menus = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu_file')
         self.menus.add_sub_menu('qc', 'menu_qc')
         self.root.columnconfigure(0, weight=1)
+        self.root.columnconfigure(1, weight=4)
+        self.root.columnconfigure(2, weight=1)
         self.root.rowconfigure(1, weight=1)
         self.top_bar = ttk.Frame(self.root)
-        self.top_bar.grid(row=0, column=0, sticky='NSEW')
-        self.middle_top_frame = ttk.Frame(self.root)
-        self.middle_top_frame.grid(row=1, column=0, sticky='NSEW')
-        self.middle_bottom_frame = ttk.Frame(self.root)
-        self.middle_bottom_frame.grid(row=2, column=0, sticky='NSEW')
+        self.top_bar.grid(row=0, column=0, sticky='NSEW', columnspan=3)
+        self.left_frame = ttk.Frame(self.root)
+        self.left_frame.grid(row=1, column=0, sticky='NSEW')
+        self.middle_frame = ttk.Frame(self.root)
+        self.middle_frame.grid(row=1, column=1, sticky='NSEW')
+        self.right_frame = ttk.Frame(self.root)
+        self.right_frame.grid(row=1, column=2, sticky='NSEW')
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=3, column=0, sticky='EWNS')
+        self.bottom_bar.grid(row=2, column=0, sticky='EWNS', columnspan=3)
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
         self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
         self.loading_wheel.grid(row=0, column=0, sticky='W')
-        self.loading_wheel.enable()
         self.status_info = ttk.Label(self.bottom_bar, text="W", relief=tk.SOLID, borderwidth=2)
         self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
         self.dispatcher = CNODCQCAppDispatcher(self.loading_wheel)
@@ -156,7 +161,7 @@ class CNODCQCApp:
         self._panes.append(ButtonPane(self))
         self._panes.append(RecordListPane(self))
         self._panes.append(ToolPane(self))
-        self._panes.append(MetadataPane(self))
+        self._panes.append(ParameterPane(self))
         self._panes.append(ErrorPane(self))
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
@@ -171,18 +176,22 @@ class CNODCQCApp:
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
 
-    def show_recordset(self, recordset):
+    def record_operator_action(self, action: QCOperator):
         for pane in self._panes:
-            pane.show_recordset(recordset)
+            pane.record_operator_action(action)
 
-    def show_record(self, record):
+    def show_recordset(self, recordset, path: str):
         for pane in self._panes:
-            pane.show_record(record)
+            pane.show_recordset(recordset, path)
+
+    def show_record(self, record, path: str):
+        for pane in self._panes:
+            pane.show_record(record, path)
 
     def on_record_change(self, record_uuid: str, record):
         for pane in self._panes:
             pane.on_record_change(record_uuid, record)
-        self.show_record(record)
+        self.show_record(record, '')
 
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
