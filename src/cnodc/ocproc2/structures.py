@@ -660,9 +660,11 @@ class DataRecord:
         self.history: list[HistoryEntry] = []
         self.qc_tests: list[QCTestRunInfo] = []
 
-    def find_child(self, object_path: list[str]):
+    def find_child(self, object_path: t.Union[str, list[str]]):
         if not object_path:
             return self
+        if isinstance(object_path, str):
+            object_path = [x for x in object_path.split('/') if x != '']
         if object_path[0] == 'metadata':
             return self.metadata.find_child(object_path[1:])
         elif object_path[0] == 'parameters':
@@ -919,8 +921,8 @@ class RecordMap:
         for x in map_:
             self.record_sets[x] = {}
             for y in map_[x]:
-                self.record_sets[x][y] = RecordSet()
-                self.record_sets[x][y].from_mapping(map_[x][y])
+                self.record_sets[x][int(y)] = RecordSet()
+                self.record_sets[x][int(y)].from_mapping(map_[x][y])
 
     def get(self, record_set_type: str, record_set_index: int):
         if record_set_type in self.record_sets and record_set_index in self.record_sets[record_set_type]:

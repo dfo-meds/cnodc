@@ -186,6 +186,7 @@ class CNODCServerAPI:
     def _make_item_request(self, action_name: str):
         return self._client.make_json_request(
             self._current_queue_item['actions'][action_name],
+            'POST',
             app_id=self._current_queue_item['app_id']
         )
 
@@ -208,6 +209,10 @@ class CNODCServerAPI:
             return False
         self._make_item_request('complete')
         self._current_queue_item = None
+        return True
+
+    def save_work(self) -> bool:
+        # TODO
         return True
 
     def renew_lock(self) -> bool:
@@ -236,7 +241,8 @@ class CNODCServerAPI:
                 'record_uuid': working_uuid,
                 'display': self._build_display(record, working_uuid),
                 'record_hash': record_hash,
-                'record_content': json.dumps(record.to_mapping())
+                'record_content': json.dumps(record.to_mapping()),
+                'has_errors': 1 if record.qc_tests[-1].result == ocproc2.QCResult.MANUAL_REVIEW else 0
             })
         cur.commit()
 
@@ -253,7 +259,7 @@ class CNODCServerAPI:
             s.append(f'P:{record.coordinates.best_value("Pressure")}')
         if not s:
             s.append(f"I:{working_id}")
-        return ';'.join(s)
+        return '  '.join(s)
 
 
 
@@ -300,4 +306,9 @@ def create_station(station_def: dict, client: CNODCServerAPI = None) -> bool:
 @injector.inject
 def next_station_failure(client: CNODCServerAPI = None) -> bool:
     return client.load_next_station_failure()
+
+
+@injector.inject
+def save_work(client: CNODCServerAPI = None) -> bool:
+    return client.save_work()
 

@@ -16,13 +16,15 @@ CREATE TABLE IF NOT EXISTS stations (
 
 );
 
+DROP TABLE IF EXISTS records;
 
 CREATE TABLE IF NOT EXISTS records (
 
     record_uuid TEXT,
     record_hash TEXT,
     display TEXT,
-    record_content TEXT
+    record_content TEXT,
+    has_errors INT
 
 );
 

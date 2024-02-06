@@ -29,6 +29,12 @@ class CursorWrapper:
         else:
             return self._cursor.execute(sql)
 
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
     def execute_script(self, sql_script: str):
         return self._cursor.executescript(sql_script)
 
@@ -78,13 +84,13 @@ class LocalDatabase:
     def get_connection(self):
         if self._connection is None:
             self._connection = sqlite3.connect(self._database_file, isolation_level=None)
-            self.create_db()
+            self._create_db()
         return self._connection
 
     def cursor(self) -> CursorWrapper:
         return CursorWrapper(self.get_connection().cursor())
 
-    def create_db(self):
+    def _create_db(self):
         sql_file = pathlib.Path(__file__).absolute().resolve().parent / 'local_db.sql'
         if not sql_file.exists():
             raise ValueError('schema file not defined')

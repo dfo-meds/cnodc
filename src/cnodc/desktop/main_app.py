@@ -1,3 +1,5 @@
+import enum
+import functools
 import queue
 import tkinter as tk
 import tkinter.messagebox as tkmb
@@ -6,6 +8,7 @@ import traceback
 
 import zrlog
 
+from cnodc.desktop.gui.base_pane import QCBatchCloseOperation
 from cnodc.desktop.client.local_db import LocalDatabase
 from cnodc.desktop.gui.action_pane import ActionPane
 from cnodc.desktop.gui.button_pane import ButtonPane
@@ -54,7 +57,8 @@ class CNODCQCAppDispatcher(threading.Thread):
         while not self.work_queue.empty():
             self.is_working.set()
             info = self.work_queue.get_nowait()
-            self._process_job(*info)
+            if not self.halt.is_set():
+                self._process_job(*info)
 
     def _process_job(self, job_id: str, cb: str, args: list, kwargs: dict):
         result = None
@@ -130,10 +134,12 @@ class CNODCQCApp:
         self.root.rowconfigure(1, weight=1)
         self.top_bar = ttk.Frame(self.root)
         self.top_bar.grid(row=0, column=0, sticky='NSEW')
-        self.middle_frame = ttk.Frame(self.root)
-        self.middle_frame.grid(row=1, column=0, sticky='NSEW')
+        self.middle_top_frame = ttk.Frame(self.root)
+        self.middle_top_frame.grid(row=1, column=0, sticky='NSEW')
+        self.middle_bottom_frame = ttk.Frame(self.root)
+        self.middle_bottom_frame.grid(row=2, column=0, sticky='NSEW')
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=2, column=0, sticky='EWNS')
+        self.bottom_bar.grid(row=3, column=0, sticky='EWNS')
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
@@ -165,6 +171,19 @@ class CNODCQCApp:
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
 
+    def show_recordset(self, recordset):
+        for pane in self._panes:
+            pane.show_recordset(recordset)
+
+    def show_record(self, record):
+        for pane in self._panes:
+            pane.show_record(record)
+
+    def on_record_change(self, record_uuid: str, record):
+        for pane in self._panes:
+            pane.on_record_change(record_uuid, record)
+        self.show_record(record)
+
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
 
@@ -185,12 +204,12 @@ class CNODCQCApp:
             x.on_user_access_update(access_list)
 
     def on_close(self):
-        self.status_info.destroy()
-        for x in self._panes:
-            x.on_close()
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()
             self.dispatcher.join()
+        self.status_info.destroy()
+        for x in self._panes:
+            x.on_close()
         while not self.dispatcher.result_queue.empty():
             self.dispatcher.result_queue.get_nowait()
         while not self.dispatcher.work_queue.empty():
@@ -203,18 +222,60 @@ class CNODCQCApp:
         for x in self._panes:
             x.on_language_change()
 
-    def open_qc_batch(self, batch_type: str):
-        self._current_batch_type = batch_type
+    def open_qc_batch(self, name: str, load_fn: str):
+        # TODO: check if the batch is open and prompt?
+        self._current_batch_type = (name, load_fn)
         for x in self._panes:
-            x.on_open_qc_batch(batch_type)
+            x.before_open_batch(name)
+        self.dispatcher.submit_job(
+            load_fn,
+            on_success=self._open_qc_batch_success,
+            on_error=self._open_qc_batch_error
+        )
 
-    def close_current_batch(self, load_next: bool = False):
-        self.close_qc_batch(self._current_batch_type, load_next)
+    def _open_qc_batch_success(self, res):
+        if res:
+            for x in self._panes:
+                x.after_open_batch(self._current_batch_type[0])
+        else:
+            self.show_user_info(
+                title=i18n.get_text(f'no_items_title_{self._current_batch_type[0]}'),
+                message=i18n.get_text(f'no_items_message_{self._current_batch_type[0]}')
+            )
+            for x in self._panes:
+                x.after_close_batch(QCBatchCloseOperation.LOAD_ERROR, self._current_batch_type[0], False)
+            self._current_batch_type = None
+
+    def _open_qc_batch_error(self, ex):
+        self.show_user_exception(ex)
+        for x in self._panes:
+            x.after_close_batch(QCBatchCloseOperation.LOAD_ERROR, self._current_batch_type[0], False, ex)
         self._current_batch_type = None
 
-    def close_qc_batch(self, batch_type: str, load_next: bool = False):
+    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False):
+        self.close_qc_batch(op, self._current_batch_type[0], load_next)
+
+    def close_qc_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool = False):
         for x in self._panes:
-            x.on_close_qc_batch(batch_type, load_next)
+            x.before_close_batch(op, batch_type, load_next)
+        self.dispatcher.submit_job(
+            op.value,
+            on_success=functools.partial(self._close_qc_batch_success, op=op, batch_type=batch_type, load_next=load_next),
+            on_error=functools.partial(self._close_qc_batch_error, op=op, batch_type=batch_type, load_next=load_next),
+        )
+
+    def _close_qc_batch_success(self, res, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
+        for x in self._panes:
+            x.after_close_batch(op, batch_type, load_next)
+        if load_next:
+            self.open_qc_batch(*self._current_batch_type)
+        else:
+            self._current_batch_type = None
+
+    def _close_qc_batch_error(self, ex, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
+        self.show_user_exception(ex)
+        for x in self._panes:
+            x.after_close_batch(op, batch_type, False, ex)
 
     def on_configure(self, e):
         if self._run_on_startup:

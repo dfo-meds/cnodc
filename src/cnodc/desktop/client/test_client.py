@@ -88,6 +88,11 @@ class TestClient:
         r.coordinates['Longitude'] = ocproc2.Value(-47.123, Uncertainty=0.0005, Units='degrees')
         r.coordinates['Time'] = ocproc2.Value('2023-02-06T09:58:00+00:00')
         r.metadata['CNODCStationString'] = 'WMOID=12345'
+        for i in range(0, 10):
+            sr = ocproc2.DataRecord()
+            sr.coordinates['Depth'] = ocproc2.Value((10 * i) + 1, Uncertainty=0.5, Units="m")
+            sr.parameters['Temperature'] = ocproc2.Value(275, Uncertainty=0.5, Units='K')
+            r.subrecords.append_record_set('PROFILE', 0, sr)
         r.record_qc_test_result(
             'nodb_station_check',
             '1.0',
