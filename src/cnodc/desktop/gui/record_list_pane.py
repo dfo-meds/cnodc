@@ -84,31 +84,38 @@ class RecordListPane(BasePane):
         self._subrecord_list.clear_items()
         self._build_subrecord_list(record)
 
-    def record_operator_action(self, actions: list[QCOperator]):
+    def on_new_actions(self, actions: dict[int, QCOperator]):
+        if self._current_record_info is not None:
+            for action in actions.values():
+                action.apply(self._current_record_info[1], None)
+            self._update_others()
+
+    def _update_others(self):
+        if self._current_subrecord_info is None:
+            self.app.show_record(self._current_record_info[1], '')
+        else:
+            item = self._current_record_info[1].find_child(self._current_subrecord_info)
+            if item is None:
+                self._current_subrecord_info = None
+                self.app.show_record(self._current_record_info[1], '')
+            elif isinstance(item, ocproc2.DataRecord):
+                self.app.show_record(item, self._current_subrecord_info)
+            elif isinstance(item, ocproc2.RecordSet):
+                self.app.show_recordset(item, self._current_subrecord_info)
+
+    def on_reapply_actions(self, actions: dict[int, QCOperator]):
         if self._current_record_info is not None:
             with self.local_db.cursor() as cur:
-                for action in actions:
-                    cur.insert('actions', {
-                        'record_uuid': self._current_record_info[0],
-                        'action_text': json.dumps(action.to_map())
-                    })
-                    action.apply(self._current_record_info[1], None)
-                    if self._current_subrecord_info is None:
-                        self.app.show_record(self._current_record_info[1], '')
-                    else:
-                        self._show_subrecord()
-                cur.commit()
+                cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", [self._current_record_info[0]])
+                row = cur.fetchone()
+                record = ocproc2.DataRecord()
+                record.from_mapping(json.loads(row[0]))
+                self._current_record_info = (self._current_record_info[0], record)
+            self._update_others()
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):
         self._current_subrecord_info = item_info['values'][0]
-        self._show_subrecord()
-
-    def _show_subrecord(self):
-        item = self._current_record_info[1].find_child(self._current_subrecord_info)
-        if isinstance(item, ocproc2.DataRecord):
-            self.app.show_record(item, self._current_subrecord_info)
-        elif isinstance(item, ocproc2.RecordSet):
-            self.app.show_recordset(item, self._current_subrecord_info)
+        self._update_others()
 
     def _on_record_click(self, item_info, is_change: bool, event):
         self._current_subrecord_info = None
@@ -121,7 +128,7 @@ class RecordListPane(BasePane):
                 self._current_record_info = (row[0], record)
                 self.app.on_record_change(row[0], record)
         else:
-            self.app.show_record(self._current_record_info[1], '')
+            self._update_others()
 
     def _load_record_list(self) -> t.Iterable[tuple[str, tuple, tuple]]:
         with self.local_db.cursor() as cur:

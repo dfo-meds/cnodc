@@ -1,5 +1,6 @@
 import enum
 import functools
+import json
 import queue
 import tkinter as tk
 import tkinter.messagebox as tkmb
@@ -167,6 +168,7 @@ class CNODCQCApp:
         self._panes.append(HistoryPane(self))
         for pane in self._panes:
             pane.on_init()
+        self._current_record_uuid = None
 
     def check_dispatcher(self):
         self.dispatcher.process_results()
@@ -176,9 +178,18 @@ class CNODCQCApp:
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
 
-    def record_operator_action(self, actions: list[QCOperator]):
-        for pane in self._panes:
-            pane.record_operator_action(actions)
+    def record_operator_actions(self, actions: list[QCOperator]):
+        if self._current_record_uuid is not None:
+            action_dict: dict[int, QCOperator] = {}
+            with self.local_db.cursor() as cur:
+                for action in actions:
+                    rowid = cur.insert('actions', {
+                        'record_uuid': self._current_record_uuid,
+                        'action_text': json.dumps(action.to_map())
+                    })
+                    action_dict[rowid] = action
+            for pane in self._panes:
+                pane.on_new_actions(action_dict)
 
     def show_recordset(self, recordset, path: str):
         for pane in self._panes:
@@ -188,7 +199,20 @@ class CNODCQCApp:
         for pane in self._panes:
             pane.show_record(record, path)
 
+    def remove_action(self, db_index: int):
+        with self.local_db.cursor() as cur:
+            cur.execute('DELETE FROM actions WHERE rowid = ?', [db_index])
+            cur.commit()
+            actions = {}
+            if self._current_record_uuid:
+                cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [self._current_record_uuid])
+                for rowid, action_text in cur.fetchall():
+                    actions[rowid] = QCOperator.from_map(json.loads(action_text))
+            for p in self._panes:
+                p.on_reapply_actions(actions)
+
     def on_record_change(self, record_uuid: str, record):
+        self._current_record_uuid = record_uuid
         for pane in self._panes:
             pane.on_record_change(record_uuid, record)
         self.show_record(record, '')

@@ -38,6 +38,9 @@ TRANSLATIONS = {
         'minute': 'Minute',
         'second': 'Second',
         'timezone': 'TZ',
+        'metadata': 'Metadata',
+        'coordinates': 'Coordinates',
+        'parameters': 'Parameters',
         'data_type_choice_title': 'Choose Data Type',
         'data_type_choice_prompt': 'Select the type of data',
         'data_type_string': 'Text',
@@ -49,7 +52,11 @@ TRANSLATIONS = {
         'data_type_not_supported_message': 'Editing {data_type} elements is not supported',
         'close_without_saving_title': 'Unsaved Changes',
         'close_without_saving_message': 'You have unsaved changes, are you sure you want to close the batch?',
-        'menu_next_station_failure': 'Load Next Station Failure'
+        'menu_next_station_failure': 'Load Next Station Failure',
+        'action_item_name': 'Action',
+        'action_item_object': 'Target',
+        'action_item_value': 'New Value',
+        'remove': 'Remove'
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

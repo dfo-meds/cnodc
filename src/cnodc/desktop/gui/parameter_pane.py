@@ -62,16 +62,17 @@ class ParameterContextMenu:
     def _edit_value(self):
         new_value = self._edit_choice()
         if new_value is not None:
-            self._app.record_operator_action([
-                ops.QCSetValue(self._target_path, new_value),
-                ops.QCSetValue(f"{self._target_path}/metadata/WorkingQuality", 5),
-                ops.QCAddHistory(
-                    f"CHANGE [{self._target_path}] FROM [{self._current_value.to_string()}] TO [{str(new_value)}]",
-                    "operator_qc",
-                    VERSION,
-                    self._current_user,
-                    message_type=ocproc2.MessageType.INFO.value
-                )
+            self._app.record_operator_actions([
+                ops.QCSetValue(self._target_path, new_value, children=[
+                    ops.QCSetWorkingQuality(self._target_path, 5),
+                    ops.QCAddHistory(
+                        f"CHANGE [{self._target_path}] FROM [{self._current_value.to_string()}] TO [{str(new_value)}]",
+                        "operator_qc",
+                        VERSION,
+                        self._current_user,
+                        message_type=ocproc2.MessageType.INFO.value
+                    )
+                ])
             ])
 
     def _edit_choice(self):
@@ -180,16 +181,19 @@ class ParameterContextMenu:
         self._set_working_quality_flag(2)
 
     def _set_working_quality_flag(self, flag_no: int):
-        self._app.record_operator_action([
-            ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', flag_no),
-            ops.QCAddHistory(
-                f"CHANGE QC FLAG [{self._target_path}] TO [{flag_no}]",
-                "operator_qc",
-                VERSION,
-                self._current_user,
-                message_type=ocproc2.MessageType.INFO.value
-            )
-        ])
+        cwq = self._current_value.metadata.best_value('WorkingQuality', 0)
+        if int(cwq) != flag_no:
+            self._app.record_operator_actions([
+                ops.QCSetWorkingQuality(self._target_path, flag_no, children=[
+                    ops.QCAddHistory(
+                        f"CHANGE QC FLAG [{self._target_path}] TO [{flag_no}]",
+                        "operator_qc",
+                        VERSION,
+                        self._current_user,
+                        message_type=ocproc2.MessageType.INFO.value
+                    )
+                ])
+            ])
 
     def handle_popup_click(self, e):
         try:
@@ -261,21 +265,21 @@ class ParameterPane(BasePane):
         self._value_lookup = {}
         if record.metadata:
             m_path = f'{path}/metadata' if path else 'metadata'
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', 'Metadata', '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.get_text('metadata'), '', '', ''], tags=['header'])
             is_alt = False
             for k in record.metadata.keys():
                 self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
         if record.coordinates:
             c_path = f'{path}/coordinates' if path else 'coordinates'
-            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=['', 'Coordinates', '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=['', i18n.get_text('coordinates'), '', '', ''], tags=['header'])
             is_alt = False
             for k in record.coordinates.keys():
                 self._create_parameter_entry(record.coordinates[k], c_path, k, is_alt=is_alt)
                 is_alt = not is_alt
         if record.parameters:
             p_path = f'{path}/parameters' if path else 'parameters'
-            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=['', 'Coordinates', '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=['', i18n.get_text('parameters'), '', '', ''], tags=['header'])
             is_alt = False
             for k in record.parameters.keys():
                 self._create_parameter_entry(record.parameters[k], p_path, k, is_alt=is_alt)
@@ -286,7 +290,7 @@ class ParameterPane(BasePane):
         if record_set.metadata:
             m_path = f'{path}/metadata'
             is_alt = False
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', 'Metadata', '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.get_text('metadata'), '', '', ''], tags=['header'])
             for k in record_set.metadata.keys():
                 self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
