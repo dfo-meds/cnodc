@@ -12,7 +12,7 @@ class StationPane(BasePane):
         self.app.menus.add_command('qc/reload_stations', 'menu_reload_stations', self.reload_stations, True)
         self.app.menus.add_command('qc/next_station_failure', 'menu_next_station_failure', self.next_station_failure, True)
 
-    def on_user_access_update(self, permissions: list[str]):
+    def on_user_access_update(self, username: str, permissions: list[str]):
         if 'queue:station-failure' in permissions:
             self.app.menus.enable_command('qc/reload_stations')
             self.app.menus.enable_command('qc/next_station_failure')

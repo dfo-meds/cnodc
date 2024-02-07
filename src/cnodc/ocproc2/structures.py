@@ -784,7 +784,7 @@ class DataRecord:
                           source_version: str,
                           source_instance: str,
                           message_type: MessageType.NOTE,
-                          change_time: t.Optional[datetime.datetime]):
+                          change_time: t.Optional[datetime.datetime] = None):
         self.history.append(HistoryEntry(
             message,
             change_time or datetime.datetime.now(datetime.timezone.utc),

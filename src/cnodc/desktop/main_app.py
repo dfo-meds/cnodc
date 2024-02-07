@@ -115,8 +115,6 @@ class CNODCQCAppDispatcher(threading.Thread):
 
 class CNODCQCApp:
 
-    VERSION_NUMBER = "1.0"
-
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
 

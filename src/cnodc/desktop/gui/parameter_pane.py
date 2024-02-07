@@ -12,7 +12,7 @@ import typing as t
 import tkinter as tk
 import tkinter.simpledialog as tksd
 
-from cnodc.desktop.main_app import CNODCQCApp
+from cnodc.desktop import VERSION
 from cnodc.ocproc2.validation import OCProc2Ontology, OCProc2ElementInfo
 from cnodc.desktop.gui.date_time_dialog import ask_date, ask_time, ask_datetime
 from autoinject import injector
@@ -68,7 +68,7 @@ class ParameterContextMenu:
                 ops.QCAddHistory(
                     f"CHANGE [{self._target_path}] FROM [{self._current_value.to_string()}] TO [{str(new_value)}]",
                     "operator_qc",
-                    CNODCQCApp.VERSION_NUMBER,
+                    VERSION,
                     self._current_user,
                     message_type=ocproc2.MessageType.INFO.value
                 )
@@ -185,7 +185,7 @@ class ParameterContextMenu:
             ops.QCAddHistory(
                 f"CHANGE QC FLAG [{self._target_path}] TO [{flag_no}]",
                 "operator_qc",
-                CNODCQCApp.VERSION_NUMBER,
+                VERSION,
                 self._current_user,
                 message_type=ocproc2.MessageType.INFO.value
             )
@@ -227,7 +227,7 @@ class ParameterPane(BasePane):
         self._current_user = username
 
     def on_init(self):
-        self.app.right_frame.rowconfigure(0, weight=1)
+        self.app.right_frame.rowconfigure(0, weight=2)
         self.app.right_frame.columnconfigure(0, weight=1)
         self._parameter_list = ScrollableTreeview(
             parent=self.app.right_frame,
