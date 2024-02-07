@@ -38,20 +38,12 @@ class ButtonPane(BasePane):
             button.configure(state=tk.NORMAL)
 
     def _save(self, after_save=None):
+        self.app.save_changes(after_save or self._after_save)
+
+    def before_save(self):
         self.disable_all()
-        self.app.dispatcher.submit_job(
-            'cnodc.desktop.client.api_client.save_work',
-            on_success=after_save if after_save is not None else self._on_save_success,
-            on_error=self._on_save_error
-        )
 
-    def _on_save_success(self, res: bool):
-        if not res:
-            print('shouldnt happen')
-        self.enable_all()
-
-    def _on_save_error(self, ex):
-        self.app.show_user_exception(ex)
+    def _after_save(self, ex=None):
         self.enable_all()
 
     def _save_and_close(self):

@@ -125,6 +125,14 @@ class CNODCServerAPI:
         self._username = response['username']
         return self._username, list(x for x in self._access_list)
 
+    def logout(self) -> bool:
+        if self._client.is_logged_in():
+            self._client.make_json_request(
+                endpoint='logout',
+                method='POST'
+            )
+        return True
+
     def refresh(self) -> bool:
         if self._client.is_logged_in():
             now = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -328,4 +336,9 @@ def next_station_failure(client: CNODCServerAPI = None) -> bool:
 @injector.inject
 def save_work(client: CNODCServerAPI = None) -> bool:
     return client.save_work()
+
+
+@injector.inject
+def logout(client: CNODCServerAPI = None) -> bool:
+    return client.logout()
 

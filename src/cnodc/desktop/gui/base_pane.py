@@ -31,6 +31,12 @@ class BasePane:
     def on_close(self):
         pass
 
+    def before_save(self):
+        pass
+
+    def after_save(self, ex: Exception = None):
+        pass
+
     def on_user_access_update(self, username: str, permissions: list[str]):
         pass
 

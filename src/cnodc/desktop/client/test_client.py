@@ -16,6 +16,8 @@ class TestClient:
     def make_json_request(self, endpoint: str, method: str, **kwargs: str) -> dict:
         if endpoint == 'login' and method == 'POST':
             return self._login(**kwargs)
+        elif endpoint == 'logout' and method == 'POST':
+            return self._logout()
         elif endpoint == 'renew' and method == 'POST':
             return self._renew()
         elif endpoint == 'stations/new' and method == 'POST':
@@ -49,6 +51,9 @@ class TestClient:
 
     def is_logged_in(self):
         return self._token is not None
+
+    def _logout(self) -> dict:
+        return {'success': True}
 
     def _login(self, username, password) -> dict:
         return {

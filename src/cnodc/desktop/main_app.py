@@ -208,11 +208,45 @@ class CNODCQCApp:
                 message=f"{ex.__class__.__name__}: {str(ex)}"
             )
 
+    def save_changes(self, after_save: callable = None):
+        for x in self._panes:
+            x.before_save()
+        self.dispatcher.submit_job(
+            'cnodc.desktop.client.api_client.save_work',
+            on_error=self._on_save_error,
+            on_success=functools.partial(self._after_save, after_save=after_save)
+        )
+
+    def _on_save_error(self, ex):
+        self.show_user_exception(ex)
+        for x in self._panes:
+            x.after_save(ex)
+
+    def _after_save(self, res: bool, after_save: callable = None):
+        if res:
+            for x in self._panes:
+                x.after_save()
+            if after_save:
+                after_save()
+
     def update_user_access(self, username: str, access_list: list[str]):
         for x in self._panes:
             x.on_user_access_update(username, access_list)
 
     def on_close(self):
+        if self._current_batch_type is not None:
+            self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close)
+        else:
+            self._on_close()
+
+    def _on_close(self):
+        self.dispatcher.submit_job(
+            'cnodc.desktop.client.api_client.logout',
+            on_success=self._actual_close,
+            on_error=self._actual_close
+        )
+
+    def _actual_close(self, e=None):
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()
             self.dispatcher.join()
@@ -261,10 +295,10 @@ class CNODCQCApp:
             x.after_close_batch(QCBatchCloseOperation.LOAD_ERROR, self._current_batch_type[0], False, ex)
         self._current_batch_type = None
 
-    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False):
-        self.close_qc_batch(op, self._current_batch_type[0], load_next)
+    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None):
+        return self.close_qc_batch(op, self._current_batch_type[0], load_next, after_close)
 
-    def close_qc_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool = False):
+    def close_qc_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool = False, after_close: callable = None):
         can_close = True
         for x in self._panes:
             try:
@@ -274,16 +308,18 @@ class CNODCQCApp:
         if can_close:
             self.dispatcher.submit_job(
                 op.value,
-                on_success=functools.partial(self._close_qc_batch_success, op=op, batch_type=batch_type, load_next=load_next),
+                on_success=functools.partial(self._close_qc_batch_success, op=op, batch_type=batch_type, load_next=load_next, after_close=after_close),
                 on_error=functools.partial(self._close_qc_batch_error, op=op, batch_type=batch_type, load_next=load_next),
             )
         else:
             for x in self._panes:
                 x.after_open_batch(batch_type)
 
-    def _close_qc_batch_success(self, res, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
+    def _close_qc_batch_success(self, res, op: QCBatchCloseOperation, batch_type: str, load_next: bool, after_close: callable = None):
         for x in self._panes:
             x.after_close_batch(op, batch_type, load_next)
+        if after_close:
+            after_close()
         if load_next:
             self.open_qc_batch(*self._current_batch_type)
         else:
