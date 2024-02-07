@@ -19,9 +19,9 @@ class QCOperator:
         mt = map_['_type']
         if mt == 'set_value':
             return QCSetValue.from_map(map_)
-        elif mt == 'history':
+        elif mt == 'add_history':
             return QCAddHistory.from_map(map_)
-        raise ValueError('invalid operator type')
+        raise ValueError(f'invalid operator type: {mt}')
 
 
 class QCAddHistory(QCOperator):
@@ -41,7 +41,7 @@ class QCAddHistory(QCOperator):
 
     def to_map(self) -> dict:
         return {
-            '_type': 'history',
+            '_type': 'add_history',
             'message': self._message,
             'name': self._name,
             'version': self._version,
@@ -79,14 +79,20 @@ class QCSetValue(QCOperator):
         self._new_value = new_value
 
     def apply(self, record: ocproc2.DataRecord, working_record):
-        v: ocproc2.Value = record.find_child(self._value_path.split('/'))
-        if v is None:
-            raise ValueError('cannot find value path')
-        v.value = self._new_value
+        path = self._value_path.split('/')
+        v: ocproc2.Value = record.find_child(path)
+        if isinstance(v, ocproc2.Value):
+            v.value = self._new_value
+            return
+        parent = record.find_child(path[:-1])
+        if isinstance(parent, ocproc2.ValueMap):
+            parent[path[-1]] = self._new_value
+            return
+        raise ValueError('cannot find a value to set')
 
     def to_map(self) -> dict:
         return {
-            '_type': 'set_metadata',
+            '_type': 'set_value',
             'path': self._value_path,
             'value': self._new_value,
         }

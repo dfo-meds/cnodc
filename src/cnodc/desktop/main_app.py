@@ -28,7 +28,7 @@ from cnodc.desktop.gui.parameter_pane import ParameterPane
 from cnodc.desktop.gui.record_list_pane import RecordListPane
 from cnodc.desktop.gui.station_pane import StationPane
 from cnodc.desktop.gui.tool_pane import ToolPane
-from cnodc.desktop.util import TranslatableException
+from cnodc.desktop.util import TranslatableException, StopAction
 from cnodc.ocproc2.operations import QCOperator
 from cnodc.util import dynamic_object
 from autoinject import injector
@@ -176,9 +176,9 @@ class CNODCQCApp:
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
 
-    def record_operator_action(self, action: QCOperator):
+    def record_operator_action(self, actions: list[QCOperator]):
         for pane in self._panes:
-            pane.record_operator_action(action)
+            pane.record_operator_action(actions)
 
     def show_recordset(self, recordset, path: str):
         for pane in self._panes:
@@ -265,13 +265,21 @@ class CNODCQCApp:
         self.close_qc_batch(op, self._current_batch_type[0], load_next)
 
     def close_qc_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool = False):
+        can_close = True
         for x in self._panes:
-            x.before_close_batch(op, batch_type, load_next)
-        self.dispatcher.submit_job(
-            op.value,
-            on_success=functools.partial(self._close_qc_batch_success, op=op, batch_type=batch_type, load_next=load_next),
-            on_error=functools.partial(self._close_qc_batch_error, op=op, batch_type=batch_type, load_next=load_next),
-        )
+            try:
+                x.before_close_batch(op, batch_type, load_next)
+            except StopAction:
+                can_close = False
+        if can_close:
+            self.dispatcher.submit_job(
+                op.value,
+                on_success=functools.partial(self._close_qc_batch_success, op=op, batch_type=batch_type, load_next=load_next),
+                on_error=functools.partial(self._close_qc_batch_error, op=op, batch_type=batch_type, load_next=load_next),
+            )
+        else:
+            for x in self._panes:
+                x.after_open_batch(batch_type)
 
     def _close_qc_batch_success(self, res, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
         for x in self._panes:

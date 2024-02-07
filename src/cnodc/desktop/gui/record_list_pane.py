@@ -1,13 +1,15 @@
 import json
 
-from cnodc.desktop.gui.base_pane import BasePane
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation
 from cnodc.desktop.client.local_db import LocalDatabase
 from autoinject import injector
 import typing as t
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
 import cnodc.ocproc2.structures as ocproc2
+from cnodc.desktop.util import StopAction
 from cnodc.ocproc2.operations import QCOperator
+import tkinter.messagebox as tkmb
 
 
 class RecordListPane(BasePane):
@@ -56,18 +58,46 @@ class RecordListPane(BasePane):
         self._record_list.clear_items()
         self._record_list.extend_items(self._load_record_list())
 
+    def before_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
+        with self.local_db.cursor() as cur:
+            cur.execute('SELECT COUNT(*) FROM actions')
+            count = cur.fetchone()[0]
+            if count > 0:
+                if not tkmb.askyesno(
+                    title=i18n.get_text('close_without_saving_title'),
+                    detail=i18n.get_text('close_without_saving_message')
+                ):
+                    raise StopAction
+
+    def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
+        if ex is None:
+            self._record_list.clear_items()
+            self._subrecord_list.clear_items()
+            self._current_record_info = None
+            self._current_subrecord_info = None
+            with self.local_db.cursor() as cur:
+                cur.truncate_table('actions')
+                cur.commit()
+
     def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
         self._current_subrecord_info = None
         self._subrecord_list.clear_items()
         self._build_subrecord_list(record)
 
-    def record_operator_action(self, action: QCOperator):
+    def record_operator_action(self, actions: list[QCOperator]):
         if self._current_record_info is not None:
-            action.apply(self._current_record_info[1], None)
-            if self._current_subrecord_info is None:
-                self.app.show_record(self._current_record_info[1], '')
-            else:
-                self._show_subrecord()
+            with self.local_db.cursor() as cur:
+                for action in actions:
+                    cur.insert('actions', {
+                        'record_uuid': self._current_record_info[0],
+                        'action_text': json.dumps(action.to_map())
+                    })
+                    action.apply(self._current_record_info[1], None)
+                    if self._current_subrecord_info is None:
+                        self.app.show_record(self._current_record_info[1], '')
+                    else:
+                        self._show_subrecord()
+                cur.commit()
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):
         self._current_subrecord_info = item_info['values'][0]
@@ -81,6 +111,7 @@ class RecordListPane(BasePane):
             self.app.show_recordset(item, self._current_subrecord_info)
 
     def _on_record_click(self, item_info, is_change: bool, event):
+        self._current_subrecord_info = None
         if is_change or self._current_record_info is None:
             with self.local_db.cursor() as cur:
                 cur.execute("SELECT record_uuid, record_content FROM records WHERE record_uuid = ?", [item_info['text']])
@@ -107,11 +138,11 @@ class RecordListPane(BasePane):
                 self._subrecord_list.table.insert(srt_text, 'end', text='', iid=rs_text, values=(rs_text, rs_idx,))
                 for idx, record in enumerate(current_record.subrecords[srt][rs_idx].records):
                     record_text = f"{srt_text}/{rs_idx}/{idx}"
-                    self._subrecord_list.table.insert(rs_text, 'end', text='', iid=record_text, values=(record_text, f'Record {idx}',))
+                    self._subrecord_list.table.insert(rs_text, 'end', text='', iid=record_text, values=(record_text, self._build_record_display(record, idx),))
                     self._build_subrecord_list(record, record_text)
 
-    def _build_record_display(self, record: ocproc2.DataRecord):
-        return '??'
+    def _build_record_display(self, record: ocproc2.DataRecord, idx: int):
+        return f'Record {idx}'
 
 
 

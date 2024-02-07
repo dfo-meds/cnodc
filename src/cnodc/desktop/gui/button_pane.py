@@ -70,7 +70,7 @@ class ButtonPane(BasePane):
         self.disable_all()
         self._save(self._then_fail)
 
-    def _then_close(self, res: bool, load_next: bool = False):
+    def _then_close(self, res: bool = True, load_next: bool = False):
         if res:
             self.app.close_current_batch(QCBatchCloseOperation.COMPLETE, load_next)
         else:

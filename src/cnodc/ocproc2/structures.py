@@ -863,7 +863,7 @@ class RecordSet:
         idx = int(path[0])
         if idx < 0 or idx >= len(self.records):
             return None
-        return self.records[idx]
+        return self.records[idx].find_child(path[1:])
 
 
 class RecordMap:

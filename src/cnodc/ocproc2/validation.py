@@ -16,6 +16,115 @@ CNODC_ALLOW_MULTI = f'{CNODC_PREFIX}allowMulti'
 CNODC_MIN = f'{CNODC_PREFIX}minValue'
 CNODC_MAX = f'{CNODC_PREFIX}maxValue'
 CNODC_ALLOW = f'{CNODC_PREFIX}allowedValue'
+SKOS_LABEL = f'http://www.w3.org/2004/02/skos/core#prefLabel'
+SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
+
+
+class OCProc2ElementInfo:
+
+    def __init__(self,
+                 name: str,
+                 allow_multi: bool = True,
+                 min_value: t.Optional[float] = None,
+                 max_value: t.Optional[float] = None,
+                 data_type: t.Optional[str] = None,
+                 preferred_unit: t.Optional[str] = None,
+                 groups: t.Optional[set[str]] = None,
+                 allowed_values: t.Optional[set[t.Union[int, str]]] = None):
+        self.name = name
+        self.groups = groups or set()
+        self.preferred_unit = preferred_unit
+        self.data_type = data_type
+        self.allow_multi = allow_multi
+        self.min_value = min_value
+        self.max_value = max_value
+        self.allowed_values = allowed_values or set()
+        self._label = {}
+        self._documentation = {}
+
+    def label(self, lang: str = 'en') -> str:
+        return self._get_language_attribute(self._label, lang)
+
+    def documentation(self, lang: str = 'en') -> str:
+        return self._get_language_attribute(self._documentation, lang)
+
+    def _get_language_attribute(self, lang_attr: dict, lang: str = 'en') -> str:
+        if lang in lang_attr and lang_attr[lang] != '':
+            return lang_attr[lang]
+        elif 'und' in lang_attr and lang_attr['und'] != '':
+            return lang_attr['und']
+        elif 'en' in self._label and lang_attr['en'] != '':
+            return lang_attr['en']
+        else:
+            return ''
+
+    def set_preferred_unit(self, unit: t.Union[set, str]):
+        if isinstance(unit, set):
+            self.preferred_unit = list(unit)[0]
+        elif unit is None or unit == '':
+            self.preferred_unit = None
+        else:
+            self.preferred_unit = unit
+
+    def set_data_type(self, data_type: t.Union[set, str]):
+        if isinstance(data_type, set):
+            dt = list(data_type)[0]
+        elif data_type is None or data_type == '':
+            dt = None
+        else:
+            dt = data_type
+        self.data_type = dt[dt.rfind('#')+1:] if dt else None
+
+    def update_groups(self, groups: t.Union[set, str]):
+        if isinstance(groups, set):
+            self.groups.update(groups)
+        else:
+            self.groups.add(groups)
+
+    def update_allowed_values(self, avs: t.Union[set, str, int]):
+        if isinstance(avs, set):
+            self.allowed_values.update(avs)
+        else:
+            self.allowed_values.add(avs)
+
+    def set_allow_multi(self, allow_multi: t.Union[set, str]):
+        if isinstance(allow_multi, set):
+            self.allow_multi = not any(str(x).lower() == 'false' for x in allow_multi)
+        else:
+            self.allow_multi = str(allow_multi).lower() != 'false'
+
+    def set_min_value(self, min_value: t.Union[set, float]):
+        if isinstance(min_value, set):
+            self.min_value = float(list(min_value)[0])
+        else:
+            self.min_value = float(min_value)
+
+    def set_max_value(self, max_value: t.Union[set, float]):
+        if isinstance(max_value, set):
+            self.max_value = float(list(max_value)[0])
+        else:
+            self.max_value = float(max_value)
+
+    def set_label(self, label: t.Union[set, str]):
+        if isinstance(label, set):
+            for l in label:
+                self._set_multi_language(l, self._label)
+        else:
+            self._set_multi_language(label, self._label)
+
+    def set_documentation(self, doc: t.Union[set, str]):
+        if isinstance(doc, set):
+            for d in doc:
+                self._set_multi_language(d, self._documentation)
+        else:
+            self._set_multi_language(doc, self._documentation)
+
+    def _set_multi_language(self, label, property: dict):
+        lang = getattr(label, 'language') if hasattr(label, 'language') else 'und'
+        if lang is None or lang == '':
+            lang = 'und'
+        property[lang] = str(label)
+
 
 
 @injector.injectable_global
@@ -23,9 +132,9 @@ class OCProc2Ontology:
 
     def __init__(self, ontology_file: pathlib.Path = None):
         self._onto_file = ontology_file or pathlib.Path(__file__).absolute().parent / 'ontology' / 'parameters.ttl'
-        self._parameters = None
+        self._parameters: t.Optional[dict[str, OCProc2ElementInfo]] = None
         self._recordset_types = set()
-        self._load_lock = threading.Lock
+        self._load_lock = threading.Lock()
         self._load_graph()
 
     def _load_graph(self):
@@ -35,16 +144,15 @@ class OCProc2Ontology:
                     self._parameters = {}
                     graph = rdflib.Graph()
                     graph.parse(str(self._onto_file))
-                    graph_dict = {}
+                    graph_dict: dict[str, dict] = {}
                     for a, b, c in graph:
                         a = str(a)
                         b = str(b)
-                        c = str(c)
                         if a not in graph_dict:
                             graph_dict[a] = {}
                         if b in graph_dict[a]:
                             if isinstance(graph_dict[a][b], str):
-                                graph_dict[a][b] = set(graph_dict[a][b])
+                                graph_dict[a][b] = {graph_dict[a][b]}
                             graph_dict[a][b].add(c)
                         else:
                             graph_dict[a][b] = c
@@ -53,75 +161,53 @@ class OCProc2Ontology:
                             continue
                         if SKOS_IN_SCHEME not in graph_dict[key]:
                             continue
-                        if graph_dict[key][SKOS_IN_SCHEME] == CNODC_ELEMENTS:
+                        if str(graph_dict[key][SKOS_IN_SCHEME]) == CNODC_ELEMENTS:
                             e_name = key[key.rfind('#')+1:]
-                            self._parameters[e_name] = {
-                                'preferred_unit': None,
-                                'data_type': None,
-                                'groups': set(),
-                                'allow_multi': True,
-                                'min_value': None,
-                                'max_value': None,
-                                'allowed_values': set()
-                            }
+                            self._parameters[e_name] = OCProc2ElementInfo(e_name)
+                            if SKOS_LABEL in graph_dict[key]:
+                                self._parameters[e_name].set_label(graph_dict[key][SKOS_LABEL])
+                            if SKOS_DOCUMENTATION in graph_dict[key]:
+                                self._parameters[e_name].set_documentation(graph_dict[key][SKOS_DOCUMENTATION])
                             if CNODC_PREF_UNIT in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_PREF_UNIT], set):
-                                    self._parameters[e_name]['preferred_unit'] = list(graph_dict[key][CNODC_PREF_UNIT])[0]
-                                else:
-                                    self._parameters[e_name]['preferred_unit'] = graph_dict[key][CNODC_PREF_UNIT]
+                                self._parameters[e_name].set_preferred_unit(graph_dict[key][CNODC_PREF_UNIT])
                             if CNODC_DATA_TYPE in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_DATA_TYPE], set):
-                                    data_type = list(graph_dict[key][CNODC_DATA_TYPE])[0]
-                                else:
-                                    data_type = graph_dict[key][CNODC_DATA_TYPE]
-                                self._parameters[e_name]['data_type'] = data_type[data_type.rfind('#')+1:]
+                                self._parameters[e_name].set_data_type(graph_dict[key][CNODC_DATA_TYPE])
                             if CNODC_GROUP in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_GROUP], set):
-                                    self._parameters[e_name]['groups'] = graph_dict[key][CNODC_GROUP]
-                                else:
-                                    self._parameters[e_name]['groups'] = set(graph_dict[key][CNODC_GROUP])
+                                self._parameters[e_name].update_groups(graph_dict[key][CNODC_GROUP])
                             if CNODC_ALLOW_MULTI in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_ALLOW_MULTI], set):
-                                    self._parameters[e_name]['allow_multi'] = not any(graph_dict[key][CNODC_ALLOW_MULTI] == 'false')
-                                else:
-                                    self._parameters[e_name]['allow_multi'] = graph_dict[key][CNODC_ALLOW_MULTI] != 'false'
+                                self._parameters[e_name].set_allow_multi(graph_dict[key][CNODC_ALLOW_MULTI])
                             if CNODC_MIN in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_MIN], set):
-                                    self._parameters[e_name]['min_value'] = list(graph_dict[key][CNODC_MIN])[0]
-                                else:
-                                    self._parameters[e_name]['min_value'] = graph_dict[key][CNODC_MIN]
+                                self._parameters[e_name].set_min_value(graph_dict[key][CNODC_MIN])
                             if CNODC_MAX in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_MAX], set):
-                                    self._parameters[e_name]['max_value'] = list(graph_dict[key][CNODC_MAX])[0]
-                                else:
-                                    self._parameters[e_name]['min_value'] = graph_dict[key][CNODC_MAX]
+                                self._parameters[e_name].set_max_value(graph_dict[key][CNODC_MAX])
                             if CNODC_ALLOW in graph_dict[key]:
-                                if isinstance(graph_dict[key][CNODC_ALLOW], set):
-                                    self._parameters[e_name]['allowed_values'] = graph_dict[key][CNODC_ALLOW]
-                                else:
-                                    self._parameters[e_name]['allowed_values'] = set(graph_dict[key][CNODC_ALLOW])
-
+                                self._parameters[e_name].update_allowed_values(graph_dict[key][CNODC_ALLOW])
                         elif graph_dict[key][SKOS_IN_SCHEME] == CNODC_RECORDSET_TYPES:
                             self._recordset_types.add(key[key.rfind('#')+1:])
 
+    def element_info(self, element_name: str) -> t.Optional[OCProc2ElementInfo]:
+        if element_name in self._parameters:
+            return self._parameters[element_name]
+        return None
+
     def allow_multiple_values(self, element_name: str) -> bool:
         if element_name in self._parameters:
-            return self._parameters[element_name]['allow_multi']
+            return self._parameters[element_name].allow_multi
         return True
 
     def preferred_unit(self, element_name: str) -> t.Optional[str]:
         if element_name in self._parameters:
-            return self._parameters[element_name]['preferred_unit']
+            return self._parameters[element_name].preferred_unit
         return None
 
     def element_group(self, element_name: str) -> t.Optional[set[str]]:
         if element_name in self._parameters:
-            return self._parameters[element_name]['groups']
+            return self._parameters[element_name].groups
         return None
 
     def data_type(self, element_name: str) -> t.Optional[str]:
         if element_name in self._parameters:
-            return self._parameters[element_name]['data_type']
+            return self._parameters[element_name].data_type
         return None
 
     def is_defined_element(self, element_name: str) -> bool:
@@ -131,10 +217,16 @@ class OCProc2Ontology:
         return recordset_type in self._recordset_types
 
     def min_value(self, element_name: str) -> t.Optional[t.Union[float, int]]:
-        return self._parameters[element_name]['min_value']
+        if element_name in self._parameters:
+            return self._parameters[element_name].min_value
+        return None
 
     def max_value(self, element_name: str) -> t.Optional[t.Union[float, int]]:
-        return self._parameters[element_name]['max_value']
+        if element_name in self._parameters:
+            return self._parameters[element_name].max_value
+        return None
 
-    def allowed_values(self, element_name: str) -> set[t.Union[str, int]]:
-        return self._parameters[element_name]['allowed_values']
+    def allowed_values(self, element_name: str) -> t.Optional[set[t.Union[str, int]]]:
+        if element_name in self._parameters:
+            return self._parameters[element_name].allowed_values
+        return None

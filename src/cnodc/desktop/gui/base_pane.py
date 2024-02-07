@@ -55,6 +55,6 @@ class BasePane:
     def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
         pass
 
-    def record_operator_action(self, action: QCOperator):
+    def record_operator_action(self, actions: list[QCOperator]):
         pass
 

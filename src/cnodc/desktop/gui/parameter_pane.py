@@ -1,18 +1,33 @@
 import datetime
-
-from cnodc.desktop.gui.base_pane import BasePane
+import tkinter.simpledialog
+import tkcalendar as tkc
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation
+from cnodc.desktop.gui.choice_dialog import ask_choice
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
 import cnodc.ocproc2.structures as ocproc2
 import cnodc.ocproc2.operations as ops
+import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
+import tkinter.simpledialog as tksd
+from cnodc.ocproc2.validation import OCProc2Ontology, OCProc2ElementInfo
+from cnodc.desktop.gui.date_time_dialog import ask_date, ask_time, ask_datetime
+from autoinject import injector
 
 
 class ParameterContextMenu:
 
-    def __init__(self, app, target_path):
+    def __init__(self,
+                 app,
+                 target_path,
+                 element_info: OCProc2ElementInfo,
+                 current_units: t.Optional[str] = None,
+                 current_value: t.Optional = None):
+        self._current_value: ocproc2.Value = current_value
         self._app = app
+        self._element_info = element_info
+        self._current_units = current_units or (element_info.preferred_unit if element_info else '')
         self._target_path = target_path
         self._menu = tk.Menu(app.root, tearoff=0)
         self._menu.add_command(
@@ -41,22 +56,117 @@ class ParameterContextMenu:
         )
 
     def _edit_value(self):
-        print(self._target_path, '5')
+        new_value = self._edit_choice()
+        if new_value is not None:
+            self._app.record_operator_action([
+                ops.QCSetValue(self._target_path, new_value),
+                ops.QCSetValue(f"{self._target_path}/metadata/WorkingQuality", 5)
+            ])
+
+    def _edit_choice(self):
+        title = ''
+        prompt = ''
+        unit_str = '' if self._current_units is None else f' [{self._current_units}]'
+        if self._element_info is not None:
+            title = self._element_info.label(i18n.current_language())
+            prompt = [
+                f"{self._element_info.documentation(i18n.current_language())}{unit_str}"
+            ]
+            if self._element_info.max_value is not None or self._element_info.min_value is not None:
+                if self._element_info.max_value is None:
+                    prompt.append(i18n.get_text('prompt_min_value', min=str(self._element_info.min_value)))
+                elif self._element_info.min_value is None:
+                    prompt.append(i18n.get_text('prompt_max_value', max=str(self._element_info.max_value)))
+                else:
+                    prompt.append(i18n.get_text('prompt_range', min=str(self._element_info.min_value), max=str(self._element_info.max_value)))
+            prompt = "\n".join(prompt)
+            if self._element_info.allowed_values:
+                return ask_choice(
+                    title=title,
+                    prompt=prompt,
+                    default=self._current_value.value,
+                    parent=self._app.root,
+                    options={x: str(x) for x in self._element_info.allowed_values}
+                )
+        return self._prompt_for_data_type(title, prompt, self._element_info.data_type if self._element_info else None)
+
+    def _prompt_for_data_type(self, title, prompt, data_type):
+        if data_type == 'decimal':
+            return tksd.askfloat(
+                title=title,
+                prompt=prompt,
+                initialvalue=self._current_value.to_float() if self._current_value.is_numeric() else None,
+                minvalue=self._element_info.min_value if self._element_info is not None else None,
+                maxvalue=self._element_info.max_value if self._element_info is not None else None
+            )
+        elif data_type == 'integer':
+            return tksd.askinteger(
+                title=title,
+                prompt=prompt,
+                initialvalue=self._current_value.to_int() if self._current_value.is_integer() else None,
+                minvalue=self._element_info.min_value if self._element_info is not None else None,
+                maxvalue=self._element_info.max_value if self._element_info is not None else None
+            )
+        elif data_type == 'string':
+            return tksd.askstring(
+                title=title,
+                initialvalue=self._current_value.to_string(),
+                prompt=prompt
+            )
+        elif data_type == 'dateTimeStamp':
+            return ask_datetime(
+                parent=self._app.root,
+                default=self._current_value.to_datetime() if self._current_value.is_iso_datetime() else None,
+                title=title,
+                prompt=prompt
+            )
+        elif data_type == 'date':
+            return ask_date(
+                parent=self._app.root,
+                default=self._current_value.to_datetime() if self._current_value.is_iso_datetime() else None,
+                title=title,
+                prompt=prompt
+            )
+        elif data_type is None:
+            data_type = ask_choice(
+                title=i18n.get_text('data_type_choice_title'),
+                prompt=i18n.get_text('data_type_choice_prompt'),
+                parent=self._app.root,
+                options={
+                    'string': i18n.get_text('data_type_string'),
+                    'integer': i18n.get_text('data_type_integer'),
+                    'dateTimeStamp': i18n.get_text('data_type_datetime'),
+                    'date': i18n.get_text('data_type_date'),
+                    'decimal': i18n.get_text('data_type_decimal')
+                }
+            )
+            if data_type is not None:
+                # We need for tk to process the focus event from ask_choice
+                # before we give it another prompt.
+                self._app.root.update()
+                return self._prompt_for_data_type(title, prompt, data_type)
+            else:
+                return None
+        else:
+            tkmb.showwarning(
+                title=i18n.get_text('data_type_not_supported_title'),
+                message=i18n.get_text('data_type_not_supported_message', data_type=data_type)
+            )
 
     def _flag_dubious(self):
-        self._app.record_operator_action(ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 3))
+        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 3)])
 
     def _flag_erroneous(self):
-        self._app.record_operator_action(ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 4))
+        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 4)])
 
     def _flag_missing(self):
-        self._app.record_operator_action(ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 9))
+        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 9)])
 
     def _flag_good(self):
-        self._app.record_operator_action(ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 1))
+        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 1)])
 
     def _flag_probably_good(self):
-        self._app.record_operator_action(ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 2))
+        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 2)])
 
     def handle_popup_click(self, e):
         try:
@@ -67,13 +177,15 @@ class ParameterContextMenu:
 
 class ParameterPane(BasePane):
 
+    ontology: OCProc2Ontology = None
+
     TAG_MAP = {
         1: 'good',
         2: 'probably_good',
         3: 'dubious',
         4: 'erroneous',
         9: 'missing',
-        12: 'recommend_probably_good',
+        12: 'recommend-probably-good',
         13: 'recommend-dubious',
         14: 'recommend-erroneous',
         19: 'recommend-missing',
@@ -81,9 +193,11 @@ class ParameterPane(BasePane):
         21: 'invalid',
     }
 
+    @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._parameter_list: t.Optional[ScrollableTreeview] = None
+        self._value_lookup: dict[str, ocproc2.Value] = {}
 
     def on_init(self):
         self.app.right_frame.rowconfigure(0, weight=1)
@@ -91,92 +205,131 @@ class ParameterPane(BasePane):
         self._parameter_list = ScrollableTreeview(
             parent=self.app.right_frame,
             selectmode='browse',
-            show="tree",
+            show="tree headings",
             headers=[
+                '',
                 i18n.get_text('parameter_list_name'),
                 i18n.get_text('parameter_list_value'),
+                i18n.get_text('parameter_list_units'),
+                i18n.get_text('parameter_list_quality'),
             ],
             on_right_click=self._on_parameter_right_click,
-            displaycolumns=(1, 2,)
+            displaycolumns=(1, 2, 3, 4)
         )
-        self._parameter_list.tag_configure('recommend-dubious', foreground='blue')
+        self._parameter_list.tag_configure('header', background='#000000', foreground='#FFFFFF')
+        self._parameter_list.tag_configure('alt', background='#EEEEEE')
+        self._parameter_list.tag_configure('invalid', foreground='red')
+        self._parameter_list.tag_configure('recommend-dubious', foreground='orange')
         self._parameter_list.tag_configure('recommend-erroneous', foreground='red')
-        self._parameter_list.tag_configure('recommend-missing', foreground='orange')
+        self._parameter_list.tag_configure('recommend-missing', foreground='purple')
         self._parameter_list.grid(row=0, column=0, sticky='NSEW')
-        self._parameter_list.table.column('#0', width=40, stretch=False)
-        self._parameter_list.table.column('#1', minwidth=60, anchor='w')
-        self._parameter_list.table.column('#2', anchor='e')
+        self._parameter_list.table.column('#0', width=35, stretch=tk.NO)
+        self._parameter_list.table.column('#1', width=150, anchor='w')
+        self._parameter_list.table.column('#2', width=150, anchor='w')
+        self._parameter_list.table.column('#3', width=75, anchor='e')
+        self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
 
     def show_record(self, record: ocproc2.DataRecord, path: str):
         self._parameter_list.clear_items()
+        self._value_lookup = {}
         if record.metadata:
             m_path = f'{path}/metadata' if path else 'metadata'
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=[m_path, 'Metadata', ''])
+            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', 'Metadata', '', '', ''], tags=['header'])
+            is_alt = False
             for k in record.metadata.keys():
-                self._create_parameter_entry(record.metadata[k], m_path, k)
+                self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
+                is_alt = not is_alt
         if record.coordinates:
             c_path = f'{path}/coordinates' if path else 'coordinates'
-            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=[c_path, 'Coordinates', ''])
+            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=['', 'Coordinates', '', '', ''], tags=['header'])
+            is_alt = False
             for k in record.coordinates.keys():
-                self._create_parameter_entry(record.coordinates[k], c_path, k)
+                self._create_parameter_entry(record.coordinates[k], c_path, k, is_alt=is_alt)
+                is_alt = not is_alt
         if record.parameters:
             p_path = f'{path}/parameters' if path else 'parameters'
-            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=[p_path, 'Coordinates', ''])
+            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=['', 'Coordinates', '', '', ''], tags=['header'])
+            is_alt = False
             for k in record.parameters.keys():
-                self._create_parameter_entry(record.parameters[k], p_path, k)
+                self._create_parameter_entry(record.parameters[k], p_path, k, is_alt=is_alt)
+                is_alt = not is_alt
 
     def show_recordset(self, record_set: ocproc2.RecordSet, path: str):
         self._parameter_list.clear_items()
         if record_set.metadata:
             m_path = f'{path}/metadata'
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=[m_path, 'Metadata', ''])
+            is_alt = False
+            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', 'Metadata', '', '', ''], tags=['header'])
             for k in record_set.metadata.keys():
-                self._create_parameter_entry(record_set.metadata[k], m_path, k)
+                self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
+                is_alt = not is_alt
 
-    def _create_parameter_entry(self, v: ocproc2.AbstractValue, parent_path: str, key: str, depth: int = 1):
+    def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
+        if ex is None:
+            self._parameter_list.clear_items()
+
+    def _create_parameter_entry(self, v: ocproc2.AbstractValue, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
         if isinstance(v, ocproc2.MultiValue):
+            is_alt = False
             for idx, subv in v.values():
-                self._create_parameter_entry(subv, f'{parent_path}/{key}/{idx}', str(idx), depth + 1)
-        else:
-            self._create_parameter_list_item(v, parent_path, key, depth)
+                self._create_parameter_entry(subv, f'{parent_path}/{key}/{idx}', str(idx), depth + 1, is_alt)
+                is_alt = not is_alt
+        elif isinstance(v, ocproc2.Value):
+            self._create_parameter_list_item(v, parent_path, key, depth, is_alt)
         if v.metadata:
+            is_alt = False
             for k in v.metadata:
-                if k in ('Units', 'Quality', 'WorkingQuality') and v.is_numeric():
+                if k in ('Units', 'Quality', 'WorkingQuality'):
                     continue
-                self._create_parameter_entry(v.metadata[k], f'{parent_path}/{key}', k, depth + 1)
+                self._create_parameter_entry(v.metadata[k], f'{parent_path}/{key}', k, depth + 1, is_alt)
+                is_alt = not is_alt
 
-    def _create_parameter_list_item(self, v: ocproc2.AbstractValue, parent_path: str, key: str, depth: int):
+    def _create_parameter_list_item(self, v: ocproc2.Value, parent_path: str, key: str, depth: int, is_alt: bool):
         path = f'{parent_path}/{key}'
         dv, tags = self._parameter_display_value(v)
-        self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{key}', dv], tags=tags)
+        if is_alt:
+            tags.append('alt')
+        self._value_lookup[path] = v
+        self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{key}', *dv], tags=tags)
 
-    def _parameter_display_value(self, v: ocproc2.AbstractValue):
+    def _parameter_display_value(self, v: ocproc2.AbstractValue) -> tuple[tuple, list]:
         tags = []
-        wq = v.metadata.best_value('WorkingQuality', None)
+        wq = v.metadata.best_value('WorkingQuality', 0)
         if wq is not None and not isinstance(wq, int):
             try:
                 wq = int(wq)
             except ValueError:
-                wq = None
+                wq = 0
         if wq is not None and wq in ParameterPane.TAG_MAP:
             tags.append(ParameterPane.TAG_MAP[wq])
         if v.is_empty():
-            return '|empty|', tags
+            return ('', '', wq), tags,
         if v.is_iso_datetime():
             dt_utc = datetime.datetime.fromtimestamp(v.to_datetime().timestamp(), datetime.timezone.utc)
-            return dt_utc.strftime('%Y-%m-%d %H:%M:%S [UTC]'), tags
+            return (dt_utc.strftime('%Y-%m-%d %H:%M:%S'), 'UTC', wq), tags
         if v.is_numeric():
             val = v.to_float() if not v.is_integer() else v.to_int()
             units = v.metadata.best_value('Units', None)
             if units is not None:
-                val = f"{str(val)} {v.metadata.best_value('Units')}"
+                return (str(val), v.metadata.best_value('Units'), wq), tags
             else:
-                val = str(val)
-            return val, tags
-        return v.to_string(), tags
+                return (str(val), '', wq), tags
+        return (v.to_string(), '', wq), tags
 
     def _on_parameter_right_click(self, item, event):
-        pcm = ParameterContextMenu(self.app, item['values'][0])
-        pcm.handle_popup_click(event)
+        if item['values'][0] != '':
+            pcm = ParameterContextMenu(
+                self.app,
+                item['values'][0],
+                self._get_element_info(item['values'][0]),
+                item['values'][3],
+                self._value_lookup[item['values'][0]]
+            )
+            pcm.handle_popup_click(event)
 
+    def _get_element_info(self, path: str) -> t.Optional[OCProc2ElementInfo]:
+        elements = path.split('/')
+        while elements[-1].isdigit():
+            elements = elements[:-1]
+        return self.ontology.element_info(elements[-1])
 

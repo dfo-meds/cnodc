@@ -21,6 +21,35 @@ TRANSLATIONS = {
         'station_reload': 'Refresh Station List',
         'menu_qc': 'Quality Control',
         'menu_reload_stations': 'Sync Stations',
+        'parameter_list_name': 'Element',
+        'parameter_list_value': 'Value',
+        'parameter_list_units': 'Units',
+        'parameter_list_quality': 'Q',
+        'parameter_context_edit': 'Edit',
+        'parameter_context_flag_good': 'Good (1)',
+        'parameter_context_flag_probably_good': 'Probably Good (2)',
+        'parameter_context_flag_dubious': 'Dubious (3)',
+        'parameter_context_flag_erroneous': 'Erroneous (4)',
+        'parameter_context_flag_missing': 'Missing (9)',
+        'prompt_min_value': 'Minimum: {min}',
+        'prompt_max_value': 'Maximum: {max}',
+        'prompt_range': 'Range: [{min}, {max}]',
+        'hour': 'Hour',
+        'minute': 'Minute',
+        'second': 'Second',
+        'timezone': 'TZ',
+        'data_type_choice_title': 'Choose Data Type',
+        'data_type_choice_prompt': 'Select the type of data',
+        'data_type_string': 'Text',
+        'data_type_integer': 'Integer',
+        'data_type_datetime': 'Date and Time',
+        'data_type_date': 'Date',
+        'data_type_decimal': 'Real Number',
+        'data_type_not_supported_title': 'Not Supported',
+        'data_type_not_supported_message': 'Editing {data_type} elements is not supported',
+        'close_without_saving_title': 'Unsaved Changes',
+        'close_without_saving_message': 'You have unsaved changes, are you sure you want to close the batch?',
+        'menu_next_station_failure': 'Load Next Station Failure'
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',
@@ -35,7 +64,7 @@ CURRENT_LANGUAGE = cv.ContextVar[str]("current_language", default="und")
 
 def get_text(key: str, lang: str = None, **kwargs: str):
     if lang is None:
-        lang = CURRENT_LANGUAGE.get()
+        lang = current_language()
     if key in TRANSLATIONS[lang]:
         return sub_text(TRANSLATIONS[lang][key], kwargs)
     elif lang != 'und' and key in TRANSLATIONS['und']:
@@ -52,6 +81,10 @@ def sub_text(txt: str, subs: dict[str, str]):
         if key in txt:
             txt = txt.replace(key, subs[x])
     return txt
+
+
+def current_language() -> str:
+    return CURRENT_LANGUAGE.get()
 
 
 def set_language(lang_code: str):

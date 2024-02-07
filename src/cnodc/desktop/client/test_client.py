@@ -1,9 +1,11 @@
 import datetime
+import json
 import typing as t
 
 from requests import HTTPError
 
 import cnodc.ocproc2.structures as ocproc2
+from cnodc.ocproc2.operations import QCOperator
 
 
 class TestClient:
@@ -28,6 +30,8 @@ class TestClient:
             return self._complete_item(**kwargs)
         elif endpoint.startswith('renew/') and method == 'POST':
             return self._renew_item(**kwargs)
+        elif endpoint.startswith('apply/') and method == 'POST':
+            return self._apply_to_item(**kwargs)
         raise Exception('invalid test request')
 
     def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord]]:
@@ -76,6 +80,7 @@ class TestClient:
                 'complete': 'complete/12345',
                 'renew': 'renew/12345',
                 'download_working': 'download/12345',
+                'apply_working': 'apply/12345'
             }
         }
 
@@ -124,3 +129,22 @@ class TestClient:
         if app_id != '67890':
             raise Exception('invalid app id')
         return {'success': True}
+
+    def _apply_to_item(self, app_id: str, operations: dict):
+        if app_id != '67890':
+            raise Exception('invalid app id')
+        if not isinstance(operations, dict):
+            raise Exception('invalid operations')
+        for x in operations:
+            if 'hash' not in operations[x]:
+                raise Exception('invalid operation format')
+            if not isinstance(operations[x]['hash'], str):
+                raise Exception('invalid operation format')
+            if 'actions' not in operations[x]:
+                raise Exception('invalid operation format')
+            if not isinstance(operations[x]['actions'], list):
+                raise Exception('invalid operation format')
+            for y in operations[x]['actions']:
+                if not isinstance(y, dict):
+                    raise Exception('invalid operation format')
+                QCOperator.from_map(y)

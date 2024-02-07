@@ -183,11 +183,12 @@ class CNODCServerAPI:
             cur.commit()
         return True
 
-    def _make_item_request(self, action_name: str):
+    def _make_item_request(self, action_name: str, **kwargs):
         return self._client.make_json_request(
             self._current_queue_item['actions'][action_name],
             'POST',
-            app_id=self._current_queue_item['app_id']
+            app_id=self._current_queue_item['app_id'],
+            **kwargs
         )
 
     def release_lock(self) -> bool:
@@ -212,8 +213,24 @@ class CNODCServerAPI:
         return True
 
     def save_work(self) -> bool:
-        # TODO
-        return True
+        if self._current_queue_item is None:
+            return False
+        with self.local_db.cursor() as cur:
+            actions = {}
+            cur.execute('SELECT a.record_uuid, a.action_text, r.record_hash FROM actions a JOIN records r ON r.record_uuid = a.record_uuid')
+            for record_id, action_text, record_hash in cur.fetchall():
+                if record_id not in actions:
+                    actions[record_id] = {
+                        'hash': record_hash,
+                        'actions': []
+                    }
+                actions[record_id]['actions'].append(
+                    json.loads(action_text)
+                )
+            self._make_item_request('apply_working', operations=actions)
+            cur.truncate_table('actions')
+            cur.commit()
+            return True
 
     def renew_lock(self) -> bool:
         if self._current_queue_item is None:

@@ -52,7 +52,7 @@ cnodc:allowedValue rdf:type rdf:Property ;
 
 cnodc:requireCoordinate rdf:type rdf:Property ;
   rdfs:domain skos:Concept ;
-  rdfs:range skos:Concept ;
+  rdfs:range skos:Concept .
 
 cnodc:preferredUnit rdf:type rdf:Property ;
   rdfs:subClassOf cnodc:acceptsUnit .
@@ -83,6 +83,7 @@ cnodc:elements rdf:type skos:ConceptScheme .
 
 cnodc:Latitude rdf:type skos:Concept ;
   skos:prefLabel "Latitude"@en ;
+  skos:prefLabel "Latitude"@fr ;
   skos:documentation "Decimal degrees north of the equator"@en ;
   cnodc:preferredUnit "degree_north" ;
   cnodc:dataType xsd:decimal ;
@@ -419,6 +420,16 @@ cnodc:Quality rdf:type skos:Concept ;
   skos:prefLabel "Quality"@en ;
   skos:documentation "GTSPP compatible quality flag"@en ;
   cnodc:dataType xsd:integer ;
+  cnodc:allowedValue 0 ;
+  cnodc:allowedValue 1 ;
+  cnodc:allowedValue 2 ;
+  cnodc:allowedValue 3 ;
+  cnodc:allowedValue 4 ;
+  cnodc:allowedValue 5 ;
+  cnodc:allowedValue 6 ;
+  cnodc:allowedValue 7 ;
+  cnodc:allowedValue 8 ;
+  cnodc:allowedValue 9 ;
   cnodc:elementGroup "metadata:element" ;
   cnodc:wmoCodeGroup "FM18-XII: Ql" ;
   cnodc:wmoCodeGroup "FM18-XII: Qt" ;
@@ -430,8 +441,21 @@ cnodc:Quality rdf:type skos:Concept ;
 cnodc:WorkingQuality rdf:type skos:Concept ;
   skos:prefLabel "Quality (Working)"@en ;
   skos:documentation "Internally proposed quality flag"@en ;
-  cnodc:dataType xsd:string ;
+  cnodc:dataType xsd:integer ;
   cnodc:elementGroup "metadata:element" ;
+  cnodc:allowedValue 0 ;
+  cnodc:allowedValue 1 ;
+  cnodc:allowedValue 2 ;
+  cnodc:allowedValue 3 ;
+  cnodc:allowedValue 4 ;
+  cnodc:allowedValue 5 ;
+  cnodc:allowedValue 9 ;
+  cnodc:allowedValue 13 ;
+  cnodc:allowedValue 14 ;
+  cnodc:allowedValue 15 ;
+  cnodc:allowedValue 19 ;
+  cnodc:allowedValue 20 ;
+  cnodc:allowedValue 21 ;
   skos:inScheme cnodc:elements .
 
 
@@ -501,6 +525,10 @@ cnodc:PracticalSalinity rdf:type skos:Concept ;
 
 
 cnodc:AbsoluteSalinity rdf:type skos:Concept ;
+  skos:prefLabel "Sea Water Absolute Salinity"@en ;
+  skos:documentation "Absolute salinity of sea water"@en ;
+  cnodc:preferredUnits "g kg-1" ;
+  skos:inScheme cnodc:elements .
 
 
 
@@ -549,7 +577,7 @@ cnodc:InstrumentManufacturingDate rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:dateTimeStamp ;
   cnodc:elementGroup "metadata" ;
-  skos:relatedMatch bufr:4B08:041 ;
+  skos:relatedMatch bufr4B08:041 ;
   skos:narrowerMatch bufr4B04:001 ;
   skos:narrowerMatch bufr4B04:002 ;
   skos:narrowerMatch bufr4B04:003 ;
@@ -573,9 +601,9 @@ cnodc:LastKnownPositionTime rdf:type skos:Concept ;
   skos:prefLabel "Time of Last Known Position"@en ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:dateTimeStamp ;
-  cnodc:elementGroup "metadata ;
-  cnodc:wmoCodeGroup "FM18-XII Buoy: Y Y M M J G G g g / (Second Group)"
-  skos:relatedMatch bufr:4B08:021 ;
+  cnodc:elementGroup "metadata" ;
+  cnodc:wmoCodeGroup "FM18-XII Buoy: Y Y M M J G G g g / (Second Group)" ;
+  skos:relatedMatch bufr4B08:021 ;
   skos:narrowerMatch bufr4B04:001 ;
   skos:narrowerMatch bufr4B04:002 ;
   skos:narrowerMatch bufr4B04:003 ;
@@ -605,9 +633,9 @@ cnodc:ObservationPeriod rdf:type skos:Concept ;
   skos:prefLabel "Observation Period"@en ;
   skos:documentation "Time over which a measurement was taken"@en ;
   cnodc:elementGroup "metadata" ;
-  cnodc:wmoCodeGroup "FM62-VIII: mT"
-  cnodc:wmoCodeGroup "FM62-VIII: mS"
-  cnodc:wmoCodeGroup "FM62-VIII: mc"
+  cnodc:wmoCodeGroup "FM62-VIII: mT" ;
+  cnodc:wmoCodeGroup "FM62-VIII: mS" ;
+  cnodc:wmoCodeGroup "FM62-VIII: mc" ;
   skos:narrowerMatch bufr4B04:021 ;
   skos:narrowerMatch bufr4B04:022 ;
   skos:narrowerMatch bufr4B04:023 ;
@@ -945,7 +973,7 @@ cnodc:SubmergenceTime rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:decimal ;
   cnodc:elementGroup "metadata" ;
-  cnodc.preferredUnits "0.01" ;
+  cnodc:preferredUnits "0.01" ;
   skos:exactMatch bufr4B02:190 ;
   skos:inScheme cnodc:elements .
 
@@ -1735,8 +1763,8 @@ cnodc:WMOQualityLocationClass rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:wmoCodeGroup "FM18-XII: QA" ;
   skos:exactMatch bufr4B33:027 ;
-  skos:exactMatch pcode: BQA%24;
-  skos:broaderMatch pcode: GGST;
+  skos:exactMatch pcode:BQA%24 ;
+  skos:broaderMatch pcode:GGST ;
   skos:inScheme cnodc:elements .
 
 

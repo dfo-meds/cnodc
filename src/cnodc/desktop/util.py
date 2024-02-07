@@ -13,3 +13,7 @@ class TranslatableException(Exception):
 
     def __str__(self):
         return self.message
+
+
+class StopAction(Exception):
+    pass
