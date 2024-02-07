@@ -1,3 +1,5 @@
+import datetime
+import typing as t
 import cnodc.ocproc2.structures as ocproc2
 
 
@@ -31,9 +33,11 @@ class QCAddHistory(QCOperator):
                  source_name: str,
                  source_version: str,
                  source_instance: str,
-                 message_type: str):
+                 message_type: str,
+                 change_time: t.Optional[datetime.datetime] = None):
         super().__init__()
         self._message = message
+        self._datetime = change_time or datetime.datetime.now(datetime.timezone.utc)
         self._name = source_name
         self._version = source_version
         self._instance = source_instance
@@ -46,7 +50,8 @@ class QCAddHistory(QCOperator):
             'name': self._name,
             'version': self._version,
             'instance': self._instance,
-            'type': self._type
+            'type': self._type,
+            'change_time': self._datetime.isoformat()
         }
 
     def apply(self, record: ocproc2.DataRecord, working_record):
@@ -55,7 +60,8 @@ class QCAddHistory(QCOperator):
             source_name=self._name,
             source_version=self._version,
             source_instance=self._instance,
-            message_type=ocproc2.MessageType(self._type)
+            message_type=ocproc2.MessageType(self._type),
+            change_time=self._datetime
         )
 
     @staticmethod
@@ -65,7 +71,8 @@ class QCAddHistory(QCOperator):
             map_['name'],
             map_['version'],
             map_['instance'],
-            map_['type']
+            map_['type'],
+            datetime.datetime.fromisoformat(map_['change_time'])
         )
 
 

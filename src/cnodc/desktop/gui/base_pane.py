@@ -31,7 +31,7 @@ class BasePane:
     def on_close(self):
         pass
 
-    def on_user_access_update(self, permissions: list[str]):
+    def on_user_access_update(self, username: str, permissions: list[str]):
         pass
 
     def before_open_batch(self, batch_type: str):

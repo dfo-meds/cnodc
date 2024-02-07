@@ -115,6 +115,8 @@ class CNODCQCAppDispatcher(threading.Thread):
 
 class CNODCQCApp:
 
+    VERSION_NUMBER = "1.0"
+
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
 
@@ -208,9 +210,9 @@ class CNODCQCApp:
                 message=f"{ex.__class__.__name__}: {str(ex)}"
             )
 
-    def update_user_access(self, access_list: list[str]):
+    def update_user_access(self, username: str, access_list: list[str]):
         for x in self._panes:
-            x.on_user_access_update(access_list)
+            x.on_user_access_update(username, access_list)
 
     def on_close(self):
         if self.dispatcher.is_alive():

@@ -77,5 +77,5 @@ class LoginPane(BasePane):
         else:
             self.app.menus.disable_command('file/login')
         self.on_language_change()
-        self.app.update_user_access(self._access_list or [])
+        self.app.update_user_access(self._username or None, self._access_list or [])
 

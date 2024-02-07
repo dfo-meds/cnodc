@@ -11,6 +11,8 @@ import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
 import tkinter.simpledialog as tksd
+
+from cnodc.desktop.main_app import CNODCQCApp
 from cnodc.ocproc2.validation import OCProc2Ontology, OCProc2ElementInfo
 from cnodc.desktop.gui.date_time_dialog import ask_date, ask_time, ask_datetime
 from autoinject import injector
@@ -21,10 +23,12 @@ class ParameterContextMenu:
     def __init__(self,
                  app,
                  target_path,
-                 element_info: OCProc2ElementInfo,
+                 element_info: t.Optional[OCProc2ElementInfo],
+                 current_user: str,
                  current_units: t.Optional[str] = None,
                  current_value: t.Optional = None):
         self._current_value: ocproc2.Value = current_value
+        self._current_user = current_user
         self._app = app
         self._element_info = element_info
         self._current_units = current_units or (element_info.preferred_unit if element_info else '')
@@ -60,7 +64,14 @@ class ParameterContextMenu:
         if new_value is not None:
             self._app.record_operator_action([
                 ops.QCSetValue(self._target_path, new_value),
-                ops.QCSetValue(f"{self._target_path}/metadata/WorkingQuality", 5)
+                ops.QCSetValue(f"{self._target_path}/metadata/WorkingQuality", 5),
+                ops.QCAddHistory(
+                    f"CHANGE [{self._target_path}] FROM [{self._current_value.to_string()}] TO [{str(new_value)}]",
+                    "operator_qc",
+                    CNODCQCApp.VERSION_NUMBER,
+                    self._current_user,
+                    message_type=ocproc2.MessageType.INFO.value
+                )
             ])
 
     def _edit_choice(self):
@@ -154,19 +165,31 @@ class ParameterContextMenu:
             )
 
     def _flag_dubious(self):
-        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 3)])
+        self._set_working_quality_flag(3)
 
     def _flag_erroneous(self):
-        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 4)])
+        self._set_working_quality_flag(4)
 
     def _flag_missing(self):
-        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 9)])
+        self._set_working_quality_flag(9)
 
     def _flag_good(self):
-        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 1)])
+        self._set_working_quality_flag(1)
 
     def _flag_probably_good(self):
-        self._app.record_operator_action([ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', 2)])
+        self._set_working_quality_flag(2)
+
+    def _set_working_quality_flag(self, flag_no: int):
+        self._app.record_operator_action([
+            ops.QCSetValue(f'{self._target_path}/metadata/WorkingQuality', flag_no),
+            ops.QCAddHistory(
+                f"CHANGE QC FLAG [{self._target_path}] TO [{flag_no}]",
+                "operator_qc",
+                CNODCQCApp.VERSION_NUMBER,
+                self._current_user,
+                message_type=ocproc2.MessageType.INFO.value
+            )
+        ])
 
     def handle_popup_click(self, e):
         try:
@@ -198,6 +221,10 @@ class ParameterPane(BasePane):
         super().__init__(*args, **kwargs)
         self._parameter_list: t.Optional[ScrollableTreeview] = None
         self._value_lookup: dict[str, ocproc2.Value] = {}
+        self._current_user = None
+
+    def on_user_access_update(self, username: str, permissions: list[str]):
+        self._current_user = username
 
     def on_init(self):
         self.app.right_frame.rowconfigure(0, weight=1)
@@ -322,6 +349,7 @@ class ParameterPane(BasePane):
                 self.app,
                 item['values'][0],
                 self._get_element_info(item['values'][0]),
+                self._current_user,
                 item['values'][3],
                 self._value_lookup[item['values'][0]]
             )
