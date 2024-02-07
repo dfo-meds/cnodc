@@ -76,6 +76,16 @@ class LoginController:
             self._logger.notice(f"User session renewed")
             return session
 
+    def destroy_session(self):
+        if not flask.has_request_context():
+            self._logger.error(f"Destruction of current session, no request context")
+            raise CNODCError("Session destruction only available in request context", "LOGINCTRL", 1007)
+        with self.nodb as db:
+            session = self.current_session()
+            db.delete_session(session.session_id)
+            db.commit()
+            self._logger.info('User session terminated')
+
     def _get_session_time(self) -> int:
         session_time = flask.current_app.config.get('PERMANENT_SESSION_LIFETIME')
         if session_time < 1:

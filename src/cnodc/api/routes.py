@@ -25,6 +25,17 @@ def login(login_controller: LoginController = None):
     }
 
 
+@cnodc.route('/logout', methods=["POST"])
+@json_api
+@require_login
+@injector.inject
+def renew(login_controller: LoginController = None):
+    login_controller.destroy_session()
+    return {
+        'success': True
+    }
+
+
 @cnodc.route('/renew', methods=["POST"])
 @json_api
 @require_login
