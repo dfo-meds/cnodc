@@ -44,10 +44,6 @@ class ActionPane(BasePane):
         if ex is None:
             self._action_list.clear_items()
 
-    def after_save(self, ex=None):
-        if ex is None:
-            self._action_list.clear_items()
-
     def on_new_actions(self, actions: dict[int, QCOperator]):
         for action_id in sorted(actions.keys()):
             self._add_action_item(action_id, actions[action_id])

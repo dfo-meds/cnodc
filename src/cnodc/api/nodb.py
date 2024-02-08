@@ -180,14 +180,14 @@ class NODBWebController:
             results = {}
             for wr_uuid in update_json:
                 try:
-                    self._apply_updates_to_working_record(
+                    hash_ = self._apply_updates_to_working_record(
                         db,
                         wr_uuid,
                         batch.batch_uuid,
                         update_json[wr_uuid]['hash'],
                         update_json[wr_uuid]['actions']
                     )
-                    results[wr_uuid] = (True, None)
+                    results[wr_uuid] = (True, hash_)
                 except Exception as ex:
                     results[wr_uuid] = (False, repr(ex))
             db.commit()
@@ -198,7 +198,7 @@ class NODBWebController:
                                          record_uuid: str,
                                          batch_uuid: str,
                                          hash_check: str,
-                                         update_list: list[dict]):
+                                         update_list: list[dict]) -> str:
         working_record: structures.NODBWorkingRecord = structures.NODBWorkingRecord.find_by_uuid(
             db,
             record_uuid,
@@ -215,6 +215,7 @@ class NODBWebController:
             op = QCOperator.from_map(op_def)
             op.apply(data_record, working_record)
         working_record.record = data_record
+        return data_record.generate_hash()
 
     def mark_queue_item_complete(self,
                           item_uuid: str,

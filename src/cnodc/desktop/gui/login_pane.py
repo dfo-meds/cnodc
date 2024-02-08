@@ -55,15 +55,18 @@ class LoginPane(BasePane):
                 on_error=self.after_refresh
             )
 
-    def after_refresh(self, res: t.Union[bool, Exception]):
-        if res is False:
+    def after_refresh(self, res: t.Union[int, Exception]):
+        if res < 0:
             self._username = None
             self._access_list = None
             self.update_user_state()
             return
         elif isinstance(res, Exception):
             self.app.show_user_exception(res)
-        self.app.root.after(5000, self.auto_refresh_session)
+            res = 5000
+        else:
+            res = max(res * 1000, 5000)
+        self.app.root.after(res, self.auto_refresh_session)
 
     def on_language_change(self):
         if self._username is None:

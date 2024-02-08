@@ -63,22 +63,10 @@ class ButtonPane(BasePane):
         self._save(self._then_fail)
 
     def _then_close(self, res: bool = True, load_next: bool = False):
-        if res:
-            self.app.close_current_batch(QCBatchCloseOperation.COMPLETE, load_next)
-        else:
-            print('shouldnt happen')
+        self.app.close_current_batch(QCBatchCloseOperation.COMPLETE, load_next)
 
     def _then_release(self, res: bool = True):
-        if res:
-            self.app.close_current_batch(QCBatchCloseOperation.RELEASE)
-        else:
-            print('shouldnt happen')
+        self.app.close_current_batch(QCBatchCloseOperation.RELEASE)
 
     def _then_fail(self, res: bool = True):
-        if res:
-            self.app.close_current_batch(QCBatchCloseOperation.FAIL)
-        else:
-            print('shouldnt happen')
-
-
-
+        self.app.close_current_batch(QCBatchCloseOperation.FAIL)

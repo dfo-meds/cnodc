@@ -5,8 +5,8 @@ import cnodc.ocproc2.structures as ocproc2
 
 class QCOperator:
 
-    def __init__(self, type_: str, children: list = None):
-        self._type = type_
+    def __init__(self, op_type: str, children: list = None):
+        self._op_type = op_type
         self._children = children or []
 
     def add_child(self, child):
@@ -26,7 +26,7 @@ class QCOperator:
 
     def to_map(self) -> dict:
         map_ = {
-            '_type': self._type,
+            '_type': self._op_type,
         }
         if self._children:
             map_['children'] = [x.to_map() for x in self._children]
@@ -54,7 +54,7 @@ class QCOperator:
         }
         if mt == 'set_value':
             return QCSetValue._from_map(map_, kwargs)
-        elif mt == 'add_history':
+        elif mt == 'history':
             return QCAddHistory._from_map(map_, kwargs)
         elif mt == 'set_flag':
             return QCSetWorkingQuality._from_map(map_, kwargs)
@@ -71,7 +71,7 @@ class QCAddHistory(QCOperator):
                  message_type: str,
                  change_time: t.Optional[datetime.datetime] = None,
                  **kwargs):
-        super().__init__(type_='history', **kwargs)
+        super().__init__(op_type='history', **kwargs)
         self._message = message
         self._datetime = change_time or datetime.datetime.now(datetime.timezone.utc)
         self._name = source_name
@@ -131,8 +131,8 @@ class QCSetValue(QCOperator):
                  new_value,
                  change_time: t.Optional[datetime.datetime] = None,
                  **kwargs):
-        if 'type_' not in kwargs:
-            kwargs['type_'] = 'set_value'
+        if 'op_type' not in kwargs:
+            kwargs['op_type'] = 'set_value'
         super().__init__(**kwargs)
         self._value_path = ocproc2.normalize_qc_path(value_path)
         self._new_value = new_value
@@ -183,7 +183,7 @@ class QCSetValue(QCOperator):
 class QCSetWorkingQuality(QCSetValue):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, type_='set_flag')
+        super().__init__(*args, **kwargs, op_type='set_flag')
 
     @property
     def name(self):

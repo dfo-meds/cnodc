@@ -135,7 +135,8 @@ class TestClient:
             raise Exception('invalid app id')
         return {'success': True}
 
-    def _apply_to_item(self, app_id: str, operations: dict):
+    def _apply_to_item(self, app_id: str, operations: dict) -> dict:
+        results = {}
         if app_id != '67890':
             raise Exception('invalid app id')
         if not isinstance(operations, dict):
@@ -153,3 +154,5 @@ class TestClient:
                 if not isinstance(y, dict):
                     raise Exception('invalid operation format')
                 QCOperator.from_map(y)
+                results[x] = [True, operations[x]['hash']]
+        return results

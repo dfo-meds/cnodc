@@ -122,6 +122,7 @@ class CNODCQCApp:
     @injector.construct
     def __init__(self):
         self.root = tk.Tk()
+        self.root.state('zoomed')
         self.root.title(i18n.get_text('root_title'))
         self.root.geometry('900x500')
         self.root.bind("<Configure>", self.on_configure)
@@ -203,19 +204,27 @@ class CNODCQCApp:
         with self.local_db.cursor() as cur:
             cur.execute('DELETE FROM actions WHERE rowid = ?', [db_index])
             cur.commit()
-            actions = {}
-            if self._current_record_uuid:
-                cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [self._current_record_uuid])
-                for rowid, action_text in cur.fetchall():
-                    actions[rowid] = QCOperator.from_map(json.loads(action_text))
-            for p in self._panes:
-                p.on_reapply_actions(actions)
+            self._refresh_action_list(cur)
+
+    def refresh_action_list(self):
+        with self.local_db.cursor() as cur:
+            self._refresh_action_list(cur)
+
+    def _refresh_action_list(self, cur):
+        actions = {}
+        if self._current_record_uuid:
+            cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [self._current_record_uuid])
+            for rowid, action_text in cur.fetchall():
+                actions[rowid] = QCOperator.from_map(json.loads(action_text))
+        for p in self._panes:
+            p.on_reapply_actions(actions)
 
     def on_record_change(self, record_uuid: str, record):
         self._current_record_uuid = record_uuid
         for pane in self._panes:
             pane.on_record_change(record_uuid, record)
         self.show_record(record, '')
+        self.refresh_action_list()
 
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
@@ -247,11 +256,16 @@ class CNODCQCApp:
             x.after_save(ex)
 
     def _after_save(self, res: bool, after_save: callable = None):
-        if res:
-            for x in self._panes:
-                x.after_save()
-            if after_save:
-                after_save()
+        if not res:
+            self.refresh_action_list()
+            self.show_user_info(
+                i18n.get_text('save_partial_fail_title'),
+                i18n.get_text('save_partial_fail_message')
+            )
+        for x in self._panes:
+            x.after_save()
+        if after_save:
+            after_save(res)
 
     def update_user_access(self, username: str, access_list: list[str]):
         for x in self._panes:

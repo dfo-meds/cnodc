@@ -34,7 +34,7 @@ class LoadingWheel(ttk.Label):
         del self._blank
 
     def enable(self):
-        if self._current_frame is None:
+        if self._current_frame is None and self._images:
             self._current_frame = 0
             self.configure(image=self._images[self._current_frame])
             self._root.after(self._delay, self._update_frame)

@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS records (
     record_hash TEXT,
     display TEXT,
     record_content TEXT,
+    lat REAL,
+    lon REAL,
+    datetime TEXT,
     has_errors INT
 
 );

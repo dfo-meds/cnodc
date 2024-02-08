@@ -1,7 +1,10 @@
 import datetime
+import itertools
 import json
 import sqlite3
 import pathlib
+
+import zrlog
 from autoinject import injector
 import typing as t
 
@@ -11,6 +14,7 @@ class CursorWrapper:
     def __init__(self, cursor: sqlite3.Cursor):
         self._cursor = cursor
         self._in_tx = False
+        self._log = zrlog.get_logger('cnodc.desktop.db')
 
     def __enter__(self):
         return self
@@ -23,7 +27,7 @@ class CursorWrapper:
         self._cursor.close()
 
     def execute(self, sql: str, parameters: t.Optional[t.Union[tuple, list]] = None):
-        print(sql, parameters)
+        self._log.debug(f"{sql}\n{parameters}")
         if parameters:
             return self._cursor.execute(sql, parameters)
         else:
@@ -63,6 +67,21 @@ class CursorWrapper:
         q = f'INSERT INTO {table_name}({",".join(keys)}) VALUES ({value_placeholders})'
         self.execute(q, values)
         return self._cursor.lastrowid
+
+    def update(self, table_name: str, values: dict, where: dict):
+        v_keys = list(values.keys())
+        w_keys = list(where.keys())
+        set_clause = ', '.join(f'{key} = ?' for key in v_keys)
+        where_clause = ' AND '.join(f'{key} = ?' for key in w_keys)
+        q = f'UPDATE {table_name} SET {set_clause} WHERE {where_clause}'
+        values = [itertools.chain((values[v] for v in v_keys), (where[w] for w in w_keys))]
+        self.execute(q, values)
+
+    def delete(self, table_name: str, values: dict):
+        keys = list(values.keys())
+        clause = ' AND '.join(f'{key} = ?' for key in keys)
+        q = f'DELETE FROM {table_name} WHERE {clause}'
+        self.execute(q, [values[x] for x in keys])
 
     def _clean_for_insert(self, value):
         if isinstance(value, (dict, tuple, list, set)):

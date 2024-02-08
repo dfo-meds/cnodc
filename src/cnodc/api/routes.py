@@ -29,7 +29,7 @@ def login(login_controller: LoginController = None):
 @json_api
 @require_login
 @injector.inject
-def renew(login_controller: LoginController = None):
+def logout(login_controller: LoginController = None):
     login_controller.destroy_session()
     return {
         'success': True

@@ -1,6 +1,8 @@
 import datetime
 import json
 import typing as t
+
+import zrlog
 from autoinject import injector
 
 from cnodc.codecs import OCProc2BinCodec
@@ -30,9 +32,11 @@ class _WebAPIClient:
     def __init__(self):
         self._token = None
         self._app_url = self.config.as_str(('cnodc_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
+        self._log = zrlog.get_logger('cnodc.desktop.web_client')
 
     def _make_raw_request(self, endpoint: str, method: str, **kwargs: str) -> requests.Response:
         full_url = f"{self._app_url}/{endpoint}" if not endpoint.startswith('http') else endpoint
+        self._log.debug(f"{method} {full_url}")
         headers = {}
         if self._token is not None:
             headers['Authorization'] = f'bearer {self._token}'
@@ -111,6 +115,7 @@ class CNODCServerAPI:
         self._current_queue_item = None
         self._username = None
         self._client = TestClient() if test_mode else _WebAPIClient()
+        self._log = zrlog.get_logger('cnodc.desktop.api')
 
     def login(self, username: str, password: str) -> tuple[str, list[str]]:
         response = self._client.make_json_request(
@@ -123,6 +128,7 @@ class CNODCServerAPI:
         self._expiry = datetime.datetime.fromisoformat(response['expiry'])
         self._access_list = response['access']
         self._username = response['username']
+        self._log.info(f'User {self._username} logged in')
         return self._username, list(x for x in self._access_list)
 
     def logout(self) -> bool:
@@ -131,26 +137,34 @@ class CNODCServerAPI:
                 endpoint='logout',
                 method='POST'
             )
+            self._log.info(f'User logged out')
+            self._username = None
+            self._client.set_token(None)
+            self._access_list = None
+            self._expiry = None
         return True
 
-    def refresh(self) -> bool:
+    def refresh(self) -> int:
         if self._client.is_logged_in():
             now = datetime.datetime.now(tz=datetime.timezone.utc)
-            time_left = (self._expiry - now).total_seconds()
+            time_left = int((self._expiry - now).total_seconds())
             if time_left < 0:
                 self._client.set_token(None)
                 self._expiry = None
                 self._access_list = None
-                return False
+                self._log.info('User session expired')
+                return -1
             elif time_left < self._check_time:
+                self._log.debug('Renewing session')
                 response = self._client.make_json_request('renew', 'POST')
                 self._client.set_token(response['token'])
                 self._expiry = datetime.datetime.fromisoformat(response['expiry'])
-                return True
+                now = datetime.datetime.now(tz=datetime.timezone.utc)
+                return int((self._expiry - now).total_seconds()) - self._check_time
             else:
-                return True
+                return time_left - self._check_time
         else:
-            return False
+            return -1
 
     def _check_access(self, access_key_name: str):
         if self._access_list is None or access_key_name not in self._access_list:
@@ -235,10 +249,16 @@ class CNODCServerAPI:
                 actions[record_id]['actions'].append(
                     json.loads(action_text)
                 )
-            self._make_item_request('apply_working', operations=actions)
-            cur.truncate_table('actions')
+            new_results = self._make_item_request('apply_working', operations=actions)
+            result = True
+            for record_uuid in new_results:
+                if new_results[record_uuid][0]:
+                    cur.delete('actions', {'record_uuid': record_uuid})
+                    cur.update('records', {'record_hash': new_results[record_uuid][1]}, {'record_uuid': record_uuid})
+                else:
+                    result = False
             cur.commit()
-            return True
+            return result
 
     def renew_lock(self) -> bool:
         if self._current_queue_item is None:
@@ -262,10 +282,27 @@ class CNODCServerAPI:
                 method='GET',
                 app_id=self._current_queue_item['app_id']
         ):
+            lat = None
+            lon = None
+            ts = None
+            if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
+                try:
+                    lat = record.coordinates['Latitude'].to_float()
+                    lon = record.coordinates['Longitude'].to_float()
+                except (ValueError, TypeError):
+                    pass
+            if record.coordinates.has_value('Time'):
+                try:
+                    ts = record.coordinates['Time'].to_datetime().isoformat()
+                except (ValueError, TypeError):
+                    pass
             cur.insert('records', {
                 'record_uuid': working_uuid,
                 'display': self._build_display(record, working_uuid),
                 'record_hash': record_hash,
+                'lat': lat,
+                'lon': lon,
+                'datetime': ts,
                 'record_content': json.dumps(record.to_mapping()),
                 'has_errors': 1 if record.qc_tests[-1].result == ocproc2.QCResult.MANUAL_REVIEW else 0
             })
@@ -287,14 +324,13 @@ class CNODCServerAPI:
         return '  '.join(s)
 
 
-
 @injector.inject
 def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str, list[str]]:
     return client.login(username, password)
 
 
 @injector.inject
-def refresh(client: CNODCServerAPI = None) -> bool:
+def refresh(client: CNODCServerAPI = None) -> int:
     return client.refresh()
 
 
