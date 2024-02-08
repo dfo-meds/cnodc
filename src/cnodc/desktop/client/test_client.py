@@ -34,6 +34,10 @@ class TestClient:
             return self._renew_item(**kwargs)
         elif endpoint.startswith('apply/') and method == 'POST':
             return self._apply_to_item(**kwargs)
+        elif endpoint.startswith('escalate/') and method == 'POST':
+            return self._apply_to_item(**kwargs)
+        elif endpoint.startswith('descalate/') and method == 'POST':
+            return self._apply_to_item(**kwargs)
         raise Exception('invalid test request')
 
     def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord]]:
@@ -80,42 +84,56 @@ class TestClient:
             'app_id': '67890',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
             'actions': {
-                'release': 'release/12345',
-                'fail': 'fail/12345',
-                'complete': 'complete/12345',
                 'renew': 'renew/12345',
+                'release': 'release/12345',
+                #'fail': 'fail/12345',
+                'complete': 'complete/12345',
+                'escalate': 'escalate/12345',
+                'descalate': 'descalate/12345',
                 'download_working': 'download/12345',
-                'apply_working': 'apply/12345'
+                'apply_working': 'apply/12345',
+                'clear_actions': 'clear/12345',
             }
         }
 
     def _download_station_failure(self, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord]]:
         if app_id != '67890':
             raise Exception('invalid app id')
-        r = ocproc2.DataRecord()
-        r.metadata['WMOID'] = '12345'
-        r.coordinates['Latitude'] = ocproc2.Value(45.321, Uncertainty=0.0005, Units='degrees', WorkingQuality=1)
-        r.coordinates['Longitude'] = ocproc2.Value(-47.123, Uncertainty=0.0005, Units='degrees', WorkingQuality=2)
-        r.coordinates['Time'] = ocproc2.Value('2023-02-06T09:58:00+00:00', WorkingQuality=20)
-        r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=19)
-        for i in range(0, 10):
-            sr = ocproc2.DataRecord()
-            sr.coordinates['Depth'] = ocproc2.Value((10 * i) + 1, Uncertainty=0.5, Units="m", WorkingQuality=13)
-            sr.parameters['Temperature'] = ocproc2.Value(275, Uncertainty=0.5, Units='K', WorkingQuality=14)
-            r.subrecords.append_record_set('PROFILE', 0, sr)
-        r.record_qc_test_result(
-            'nodb_station_check',
-            '1.0',
-            ocproc2.QCResult.MANUAL_REVIEW,
-            messages=[
-                ocproc2.QCMessage('station_no_record', '')
-            ],
-            test_tags=['GTSPP_1.1']
-        )
-        r.add_history_entry('Test record, not real', 'desktop_test', '1.0', 'abc', ocproc2.MessageType.INFO)
-        yield '0001', r.generate_hash(), r
+        for i in range(1, 10):
+            r = ocproc2.DataRecord()
+            r.metadata['WMOID'] = '12345'
+            r.coordinates['Latitude'] = ocproc2.Value(round(45.321 + (0.05 * i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
+            r.coordinates['Longitude'] = ocproc2.Value(round(-47.123 - (0.05 * i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
+            r.coordinates['Time'] = ocproc2.Value(f'2023-02-06T{10+i}:58:00+00:00', WorkingQuality=0)
+            r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=0)
+            for j in range(0, 10):
+                sr = ocproc2.DataRecord()
+                sr.coordinates['Depth'] = ocproc2.Value((10 * j) + 1, Uncertainty=0.5, Units="m", WorkingQuality=0)
+                sr.parameters['Temperature'] = ocproc2.Value(276 + i - j, Uncertainty=0.5, Units='K', WorkingQuality=0)
+                r.subrecords.append_record_set('PROFILE', 0, sr)
+            r.record_qc_test_result(
+                'nodb_station_check',
+                '1.0',
+                ocproc2.QCResult.MANUAL_REVIEW,
+                messages=[
+                    ocproc2.QCMessage('station_no_record', '')
+                ],
+                test_tags=['GTSPP_1.1']
+            )
+            r.add_history_entry('Test record, not real', 'desktop_test', '1.0', 'abc', ocproc2.MessageType.INFO)
+            yield f'000{i}', r.generate_hash(), r
 
     def _release_item(self, app_id: str) -> dict:
+        if app_id != '67890':
+            raise Exception('invalid app id')
+        return {'success': True}
+
+    def _escalate_item(self, app_id: str) -> dict:
+        if app_id != '67890':
+            raise Exception('invalid app id')
+        return {'success': True}
+
+    def _descalate_item(self, app_id: str) -> dict:
         if app_id != '67890':
             raise Exception('invalid app id')
         return {'success': True}

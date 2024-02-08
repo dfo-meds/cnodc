@@ -62,7 +62,7 @@ class ParameterContextMenu:
     def _edit_value(self):
         new_value = self._edit_choice()
         if new_value is not None:
-            self._app.record_operator_actions([
+            self._app.save_operations([
                 ops.QCSetValue(self._target_path, new_value, children=[
                     ops.QCSetWorkingQuality(self._target_path, 5),
                     ops.QCAddHistory(
@@ -183,7 +183,7 @@ class ParameterContextMenu:
     def _set_working_quality_flag(self, flag_no: int):
         cwq = self._current_value.metadata.best_value('WorkingQuality', 0)
         if int(cwq) != flag_no:
-            self._app.record_operator_actions([
+            self._app.save_operations([
                 ops.QCSetWorkingQuality(self._target_path, flag_no, children=[
                     ops.QCAddHistory(
                         f"CHANGE QC FLAG [{self._target_path}] TO [{flag_no}]",

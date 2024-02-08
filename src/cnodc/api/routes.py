@@ -226,10 +226,21 @@ def download_batch(queue_item_uuid: str, nodb_web: NODBWebController = None):
 @require_permission("handle_queue_items")
 @injector.inject
 def apply_changes(queue_item_uuid: str, nodb_web: NODBWebController = None):
-    return nodb_web.apply_updates(
+    return nodb_web.save_updates(
         item_uuid=queue_item_uuid,
         enc_app_id=flask.request.json['app_id'],
         update_json=flask.request.json['operations']
+    )
+
+
+@cnodc.route('/queue-item/<queue_item_uuid>/clear-actions', methods=['POST'])
+@require_inputs(['app_id'])
+@require_permission("handle_queue_items")
+@injector.inject
+def reset_actions(queue_item_uuid: str, nodb_web: NODBWebController = None):
+    return nodb_web.reset_actions(
+        item_uuid=queue_item_uuid,
+        enc_app_id=flask.request.json['app_id']
     )
 
 

@@ -11,12 +11,14 @@ retry_delay_seconds: 5
 # deprioritize_failures: yes
 
 ## Options from NODBQCWorker
-qc_test_suite_class: cnodc.qc.bathy_check.NODBBathymetryCheck
-qc_test_suite_kwargs:
-  bathymetry_model_class: cnodc.bathymetry.gebco.GEBCO2023BathymetryModel
-  bathymetry_model_kwargs:
-    base_dir: "C:/my/gebco_2023_geotiff"
-    uncertainty: 180
+qc_tests:
+  -
+    qc_test_suite_class: cnodc.qc.bathy_check.NODBBathymetryCheck
+    qc_test_suite_kwargs:
+      bathymetry_model_class: cnodc.bathymetry.gebco.GEBCO2023BathymetryModel
+      bathymetry_model_kwargs:
+        base_dir: "C:/my/gebco_2023_geotiff"
+        uncertainty: 180
 # next_queue: "nodb_continue"
 # review_queue: "nodb_manual_review"
 # recheck_queue: "gebco2023_bathy_check"

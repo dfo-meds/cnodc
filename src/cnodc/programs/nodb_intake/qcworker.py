@@ -8,7 +8,7 @@ from cnodc.process.payload_worker import PayloadWorker
 import typing as t
 import cnodc.nodb.structures as structures
 from cnodc.process.queue_worker import QueueItemResult
-from cnodc.qc.base import BaseTestSuite
+from cnodc.qc.base import BaseTestSuite, QCTestRunner
 from cnodc.util import dynamic_object, CNODCError
 from cnodc.workflow.workflow import BatchPayload, WorkflowPayload, SourceFilePayload
 import cnodc.ocproc2.structures as ocproc2
@@ -27,8 +27,7 @@ class NODBQCWorker(PayloadWorker):
             process_name="qc_worker",
             process_version="1_0",
             defaults={
-                'qc_test_suite_class': None,
-                'qc_test_suite_kwargs': {},
+                'qc_tests': [],
                 'max_batch_size': None,
                 'max_buffer_size': None,
                 'target_buffer_size': None,
@@ -38,22 +37,31 @@ class NODBQCWorker(PayloadWorker):
             },
             **kwargs
         )
-        self._test_suite: BaseTestSuite = dynamic_object(
-            self.get_config('qc_test_suite_class')
-        )(
-            test_runner_id=self._process_uuid,
-            **self.get_config('qc_test_suite_kwargs', {})
-        )
+        self._test_runner = self._build_test_runner(self.get_config('qc_tests', []))
+
+    def _build_test_runner(self, qc_tests: list[dict]) -> QCTestRunner:
+        tests = []
+        for qc_test_def in qc_tests:
+            kwargs = (qc_test_def['kwargs'] or {}) if 'kwargs' in qc_test_def else {}
+            kwargs['test_runner_id'] = self._process_uuid
+            tests.append(dynamic_object(qc_test_def['class'])(**kwargs))
+        return QCTestRunner(tests)
 
     def submit_existing_batch(self, batch_id: str, batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
         payload = self.batch_payload_from_uuid(batch_id)
         queue_name = self.get_config('next_queue')
         if batch_outcome == BatchOutcome.REVIEW_QUEUE:
-            payload.set_followup_queue(self.get_config('recheck_queue') or self.get_config('queue_name'))
-            payload.set_metadata('current-qc-test', self._test_suite.test_name)
+            payload.set_followup_queue(queue_name)
+            payload.set_metadata('current-qc-tests', self._test_runner.test_names())
+            payload.set_metadata('recheck-queue', self.get_config('recheck_queue') or self.get_config('queue_name'))
+            payload.set_metadata('escalation-queue', self.get_config('escalation_queue', None))
+            payload.set_metadata('descalation-queue', self.get_config('review_queue'))
             queue_name = self.get_config('review_queue')
         else:
             payload.set_followup_queue(None)
+            payload.set_metadata('escalation-queue', None)
+            payload.set_metadata('descalation-queue', None)
+            payload.set_metadata('recheck-queue', None)
             payload.set_metadata('current-qc-test', None)
         payload.set_unique_key(group_key)
         payload.enqueue(self._db, queue_name)
@@ -74,7 +82,7 @@ class NODBQCWorker(PayloadWorker):
             'max_buffer_size': self.get_config('max_buffer_size'),
             'target_buffer_size': self.get_config('target_buffer_size')
         }
-        if (not self._test_suite.station_invariant) or isinstance(payload, SourceFilePayload):
+        if (not self._test_runner.station_invariant) or isinstance(payload, SourceFilePayload):
             return StationResultBatcher(**kwargs)
         else:
             return SimpleResultBatcher(**kwargs)
@@ -86,7 +94,7 @@ class NODBQCWorker(PayloadWorker):
             self._process_records(batch.stream_working_records(
                 self._db,
                 lock_type=LockType.FOR_NO_KEY_UPDATE,
-                order_by=self._test_suite.working_sort_by
+                order_by=self._test_runner.working_sort_by
             ), batcher)
             batcher.flush_all()
             if batcher.remove_original_batch:
@@ -99,7 +107,7 @@ class NODBQCWorker(PayloadWorker):
             self._process_records(source.stream_working_records(
                 self._db,
                 lock_type=LockType.FOR_NO_KEY_UPDATE,
-                order_by=self._test_suite.working_sort_by
+                order_by=self._test_runner.working_sort_by
             ), batcher)
             batcher.flush_all()
             self._current_item.mark_complete(self._db)
@@ -109,7 +117,7 @@ class NODBQCWorker(PayloadWorker):
             raise CNODCError(f'Invalid payload type for QC processing (must be batch or source file, found {payload.__class__.__name__})')
 
     def _process_records(self, records: t.Iterable[structures.NODBWorkingRecord], separator):
-        for wr, dr, outcome, is_modified in self._test_suite.process_batch(records):
+        for wr, dr, outcome, is_modified in self._test_runner.process_batch(records):
             if is_modified:
                 self._update_working_record(wr, dr)
             separator.add_result(wr, dr, outcome)

@@ -1,7 +1,7 @@
 import functools
 
 from cnodc.desktop.client.local_db import LocalDatabase
-from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState
 import typing as t
 import cnodc.desktop.translations as i18n
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
@@ -40,13 +40,10 @@ class ActionPane(BasePane):
         self._action_list.table.column('#2', width=250, anchor='w')
         self._action_list.table.column('#3', width=150, anchor='w')
 
-    def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
-        if ex is None:
-            self._action_list.clear_items()
-
-    def on_new_actions(self, actions: dict[int, QCOperator]):
-        for action_id in sorted(actions.keys()):
-            self._add_action_item(action_id, actions[action_id])
+    def refresh_display(self, app_state: ApplicationState):
+        self._action_list.clear_items()
+        for action_id in sorted(app_state.actions.keys()):
+            self._add_action_item(action_id, app_state.actions[action_id])
 
     def _add_action_item(self, action_id: int, action: QCOperator):
         self._action_list.table.insert(
@@ -68,13 +65,4 @@ class ActionPane(BasePane):
             menu.grab_release()
 
     def _remove_item(self, db_index: int):
-        self.app.remove_action(db_index)
-
-    def on_reapply_actions(self, actions):
-        self._action_list.clear_items()
-        self.on_new_actions(actions)
-
-
-
-
-
+        self.app.delete_operation(db_index)

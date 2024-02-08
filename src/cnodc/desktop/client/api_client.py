@@ -193,25 +193,41 @@ class CNODCServerAPI:
             cur.commit()
             return True
 
-    def load_next_station_failure(self) -> bool:
+    def load_next_station_failure(self) -> t.Optional[list[str]]:
         with self.local_db.cursor() as cur:
             cur.begin_transaction()
             response = self._client.make_json_request('next/station-failure', 'POST')
             if response['item_uuid'] is None:
-                return False
+                return None
             else:
                 self._current_queue_item = response
                 self._load_working_records(cur)
             cur.commit()
-        return True
+        return list(self._current_queue_item['actions'].keys())
 
     def _make_item_request(self, action_name: str, **kwargs):
+        if action_name not in self._current_queue_item['actions']:
+            raise RemoteAPIError('Insufficient permissions for the operation')
         return self._client.make_json_request(
             self._current_queue_item['actions'][action_name],
             'POST',
             app_id=self._current_queue_item['app_id'],
             **kwargs
         )
+
+    def escalate_item(self) -> bool:
+        if self._current_queue_item is None:
+            return False
+        self._make_item_request('escalate')
+        self._current_queue_item = None
+        return True
+
+    def descalate_item(self) -> bool:
+        if self._current_queue_item is None:
+            return False
+        self._make_item_request('descalate')
+        self._current_queue_item = None
+        return True
 
     def release_lock(self) -> bool:
         if self._current_queue_item is None:
@@ -365,8 +381,18 @@ def create_station(station_def: dict, client: CNODCServerAPI = None) -> bool:
 
 
 @injector.inject
-def next_station_failure(client: CNODCServerAPI = None) -> bool:
+def next_station_failure(client: CNODCServerAPI = None) -> t.Optional[list[str]]:
     return client.load_next_station_failure()
+
+
+@injector.inject
+def escalate_item(client: CNODCServerAPI = None) -> bool:
+    return client.escalate_item()
+
+
+@injector.inject
+def descalate_item(client: CNODCServerAPI = None) -> bool:
+    return client.descalate_item()
 
 
 @injector.inject

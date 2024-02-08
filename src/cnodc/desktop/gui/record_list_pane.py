@@ -54,7 +54,7 @@ class RecordListPane(BasePane):
         self._subrecord_list.grid(row=1, column=0, sticky='EWNS')
         self._subrecord_list.table.column('#0', width=40, stretch=False)
 
-    def after_open_batch(self, batch_type: str):
+    def after_open_batch(self, batch_type: str, available_actions: list[str]):
         self._record_list.clear_items()
         self._record_list.extend_items(self._load_record_list())
 
@@ -80,55 +80,16 @@ class RecordListPane(BasePane):
                 cur.commit()
 
     def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
+        self._record_list.table.selection(record_uuid)
         self._current_subrecord_info = None
         self._subrecord_list.clear_items()
         self._build_subrecord_list(record)
 
-    def on_new_actions(self, actions: dict[int, QCOperator]):
-        if self._current_record_info is not None:
-            for action in actions.values():
-                action.apply(self._current_record_info[1], None)
-            self._update_others()
-
-    def _update_others(self):
-        if self._current_subrecord_info is None:
-            self.app.show_record(self._current_record_info[1], '')
-        else:
-            item = self._current_record_info[1].find_child(self._current_subrecord_info)
-            if item is None:
-                self._current_subrecord_info = None
-                self.app.show_record(self._current_record_info[1], '')
-            elif isinstance(item, ocproc2.DataRecord):
-                self.app.show_record(item, self._current_subrecord_info)
-            elif isinstance(item, ocproc2.RecordSet):
-                self.app.show_recordset(item, self._current_subrecord_info)
-
-    def on_reapply_actions(self, actions: dict[int, QCOperator]):
-        if self._current_record_info is not None:
-            with self.local_db.cursor() as cur:
-                cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", [self._current_record_info[0]])
-                row = cur.fetchone()
-                record = ocproc2.DataRecord()
-                record.from_mapping(json.loads(row[0]))
-                self._current_record_info = (self._current_record_info[0], record)
-            self._update_others()
-
     def _on_subrecord_click(self, item_info, is_change: bool, event):
-        self._current_subrecord_info = item_info['values'][0]
-        self._update_others()
+        self.app.load_child_item(item_info['values'][0])
 
     def _on_record_click(self, item_info, is_change: bool, event):
-        self._current_subrecord_info = None
-        if is_change or self._current_record_info is None:
-            with self.local_db.cursor() as cur:
-                cur.execute("SELECT record_uuid, record_content FROM records WHERE record_uuid = ?", [item_info['text']])
-                row = cur.fetchone()
-                record = ocproc2.DataRecord()
-                record.from_mapping(json.loads(row[1]))
-                self._current_record_info = (row[0], record)
-                self.app.on_record_change(row[0], record)
-        else:
-            self._update_others()
+        self.app.load_record(item_info['text'])
 
     def _load_record_list(self) -> t.Iterable[tuple[str, tuple, tuple]]:
         with self.local_db.cursor() as cur:

@@ -362,6 +362,7 @@ class NODBQueueItem(_NODBBaseObject):
     locked_by: t.Optional[str] = _NODBBaseObject.make_property("locked_by", coerce=str, readonly=True)
     locked_since: t.Optional[datetime.datetime] = _NODBBaseObject.make_datetime_property("locked_since", readonly=True)
     queue_name: str = _NODBBaseObject.make_property("queue_name", readonly=True, coerce=str)
+    escalation_level: int = _NODBBaseObject.make_property("escalation_level", coerce=int)
     subqueue_name: str = _NODBBaseObject.make_property("subqueue_name", readonly=True, coerce=str)
     unique_item_name: t.Optional[str] = _NODBBaseObject.make_property("unique_item_name", readonly=True, coerce=str)
     priority: t.Optional[int] = _NODBBaseObject.make_property("priority", readonly=True, coerce=int)
@@ -373,15 +374,18 @@ class NODBQueueItem(_NODBBaseObject):
     def mark_failed(self, db: NODBControllerInstance):
         self.set_queue_status(db, QueueStatus.ERROR)
 
-    def release(self, db: NODBControllerInstance, release_in_seconds: t.Optional[int] = None, reduce_priority: bool = False):
+    def release(self,
+                db: NODBControllerInstance,
+                release_in_seconds: t.Optional[int] = None,
+                **kwargs):
         if release_in_seconds is None or release_in_seconds <= 0:
-            self.set_queue_status(db, QueueStatus.UNLOCKED, reduce_priority=reduce_priority)
+            self.set_queue_status(db, QueueStatus.UNLOCKED, **kwargs)
         else:
             self.set_queue_status(
                 db,
                 QueueStatus.DELAYED_RELEASE,
                 datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds),
-                reduce_priority=reduce_priority
+                **kwargs
             )
 
     def renew(self, db: NODBControllerInstance):
@@ -403,7 +407,8 @@ class NODBQueueItem(_NODBBaseObject):
                          db: NODBControllerInstance,
                          new_status: QueueStatus,
                          release_at: t.Optional[datetime.datetime] = None,
-                         reduce_priority: bool = False):
+                         reduce_priority: bool = False,
+                         escalation_level: t.Optional[int] = None):
         if self.status == QueueStatus.LOCKED:
             with db.cursor() as cur:
                 cur.execute(f"""
@@ -414,6 +419,7 @@ class NODBQueueItem(_NODBBaseObject):
                         locked_since = NULL,
                         delay_release = %s
                         priority -= %s
+                        escalation_level = %s
                     WHERE 
                         queue_uuid = %s
                         AND status = 'LOCKED'
@@ -421,6 +427,7 @@ class NODBQueueItem(_NODBBaseObject):
                     new_status.value,
                     release_at,
                     1 if reduce_priority else 0,
+                    escalation_level if escalation_level is not None else (self.escalation_level or 0),
                     self.queue_uuid
                 ])
                 # TODO: check if the row was actually updated?

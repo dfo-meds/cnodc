@@ -385,6 +385,7 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     locked_since        TIMESTAMPTZ                 DEFAULT NULL,
     delay_release       TIMESTAMPTZ                 DEFAULT NULL,
 
+    escalation_level    INTEGER         NOT NULL    DEFAULT 0,
     queue_name          VARCHAR(126)    NOT NULL,
     subqueue_name       VARCHAR(126)                DEFAULT NULL,
     unique_item_name    VARCHAR(126)                DEFAULT NULL,
@@ -530,7 +531,8 @@ END; $$;
 CREATE OR REPLACE FUNCTION next_queue_item(
     qname VARCHAR(126),
     app_id VARCHAR(126),
-    subqueue_name VARCHAR(126) DEFAULT NULL
+    subqueue_name VARCHAR(126) DEFAULT NULL,
+    max_level INTEGER DEFAULT 0
 )
 RETURNS UUID
 AS $next_item$
@@ -543,6 +545,7 @@ BEGIN
         FROM nodb_queues q
         WHERE
             q.queue_name = qname
+            AND q.escalation_level <= max_level
             AND (
                 q.status = 'UNLOCKED'
                 OR (
@@ -568,6 +571,7 @@ BEGIN
         FROM nodb_queues q
         WHERE
             q.queue_name = qname
+            AND q.escalation_level <= max_level
             AND q.subqueue_name = subqueue_name
             AND (
                 q.status = 'UNLOCKED'

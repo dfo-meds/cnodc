@@ -8,8 +8,8 @@ import tkinter.ttk as ttk
 import traceback
 
 import zrlog
-
-from cnodc.desktop.gui.base_pane import QCBatchCloseOperation
+import cnodc.ocproc2.structures as ocproc2
+from cnodc.desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState
 from cnodc.desktop.client.local_db import LocalDatabase
 from cnodc.desktop.gui.action_pane import ActionPane
 from cnodc.desktop.gui.button_pane import ButtonPane
@@ -28,7 +28,7 @@ from cnodc.desktop.gui.messenger import CrossThreadMessenger
 from cnodc.desktop.gui.parameter_pane import ParameterPane
 from cnodc.desktop.gui.record_list_pane import RecordListPane
 from cnodc.desktop.gui.station_pane import StationPane
-from cnodc.desktop.gui.tool_pane import ToolPane
+from cnodc.desktop.gui.map_pane import MapPane
 from cnodc.desktop.util import TranslatableException, StopAction
 from cnodc.ocproc2.operations import QCOperator
 from cnodc.util import dynamic_object
@@ -113,7 +113,6 @@ class CNODCQCAppDispatcher(threading.Thread):
             finally:
                 del self._job_map[job_id]
 
-
 class CNODCQCApp:
 
     local_db: LocalDatabase = None
@@ -156,20 +155,19 @@ class CNODCQCApp:
         self.status_info = ttk.Label(self.bottom_bar, text="W", relief=tk.SOLID, borderwidth=2)
         self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
         self.dispatcher = CNODCQCAppDispatcher(self.loading_wheel)
-        self._current_batch_type = None
         self._panes = []
         self._panes.append(LoginPane(self))
         self._panes.append(StationPane(self))
         self._panes.append(ButtonPane(self))
         self._panes.append(RecordListPane(self))
-        self._panes.append(ToolPane(self))
+        self._panes.append(MapPane(self))
         self._panes.append(ParameterPane(self))
         self._panes.append(ErrorPane(self))
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
         for pane in self._panes:
             pane.on_init()
-        self._current_record_uuid = None
+        self.app_state = ApplicationState()
 
     def check_dispatcher(self):
         self.dispatcher.process_results()
@@ -179,52 +177,73 @@ class CNODCQCApp:
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
 
-    def record_operator_actions(self, actions: list[QCOperator]):
-        if self._current_record_uuid is not None:
+    def save_operations(self, actions: list[QCOperator]):
+        if self.app_state.record_uuid is not None:
             action_dict: dict[int, QCOperator] = {}
             with self.local_db.cursor() as cur:
                 for action in actions:
                     rowid = cur.insert('actions', {
-                        'record_uuid': self._current_record_uuid,
+                        'record_uuid': self.app_state.record_uuid,
                         'action_text': json.dumps(action.to_map())
                     })
                     action_dict[rowid] = action
-            for pane in self._panes:
-                pane.on_new_actions(action_dict)
+            self.reload_record()
 
-    def show_recordset(self, recordset, path: str):
-        for pane in self._panes:
-            pane.show_recordset(recordset, path)
-
-    def show_record(self, record, path: str):
-        for pane in self._panes:
-            pane.show_record(record, path)
-
-    def remove_action(self, db_index: int):
+    def delete_operation(self, db_index: int):
         with self.local_db.cursor() as cur:
             cur.execute('DELETE FROM actions WHERE rowid = ?', [db_index])
             cur.commit()
-            self._refresh_action_list(cur)
+        self.reload_record()
 
-    def refresh_action_list(self):
-        with self.local_db.cursor() as cur:
-            self._refresh_action_list(cur)
+    def reload_record(self):
+        if self.app_state.record_uuid is not None:
+            self.load_record(self.app_state.record_uuid, True)
 
-    def _refresh_action_list(self, cur):
-        actions = {}
-        if self._current_record_uuid:
-            cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [self._current_record_uuid])
-            for rowid, action_text in cur.fetchall():
-                actions[rowid] = QCOperator.from_map(json.loads(action_text))
-        for p in self._panes:
-            p.on_reapply_actions(actions)
+    def load_record(self, record_uuid, force_reload: bool = False):
+        if force_reload or self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
+            with self.local_db.cursor() as cur:
+                cur.execute("SELECT record_uuid, record_content FROM records WHERE record_uuid = ?", [record_uuid])
+                row = cur.fetchone()
+                self.app_state.record = ocproc2.DataRecord()
+                self.app_state.record.from_mapping(json.loads(row[1]))
+                self.app_state.record_uuid = record_uuid
+                cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [self.app_state.record_uuid])
+                self.app_state.actions = {}
+                for rowid, action_text in cur.fetchall():
+                    operator = QCOperator.from_map(json.loads(action_text))
+                    operator.apply(self.app_state.record)
+                    self.app_state.actions[rowid] = operator
+                if self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
+                    self.app_state.subrecord_path = None
+                elif self.app_state.subrecord_path is not None:
+                    subpath = self.app_state.subrecord_path
+                    self.app_state.subrecord_path = None
+                    self.load_child_item(subpath, False)
+                self.refresh_display()
+        elif self.app_state.subrecord_path is not None:
+            self.app_state.subrecord_path = None
+            self.refresh_display()
 
-    def on_record_change(self, record_uuid: str, record):
-        self._current_record_uuid = record_uuid
+    def load_child_item(self, path: str, refresh: bool = True):
+        if self.app_state.record_uuid is not None and path != self.app_state.subrecord_path:
+            child = self.app_state.record.find_child(path)
+            if isinstance(child, ocproc2.DataRecord):
+                self.app_state.subrecord_path = path
+                self.app_state.child_record = child
+                self.app_state.child_recordset = None
+            elif isinstance(child, ocproc2.RecordSet):
+                self.app_state.subrecord_path = path
+                self.app_state.child_record = None
+                self.app_state.child_recordset = child
+            else:
+                self.app_state.child_recordset = None
+                self.app_state.child_record = None
+            if refresh:
+                self.refresh_display()
+
+    def refresh_display(self):
         for pane in self._panes:
-            pane.on_record_change(record_uuid, record)
-        self.show_record(record, '')
-        self.refresh_action_list()
+            pane.refresh_display(self.app_state)
 
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
@@ -242,8 +261,8 @@ class CNODCQCApp:
             )
 
     def save_changes(self, after_save: callable = None):
-        for x in self._panes:
-            x.before_save()
+        self.app_state.save_in_progress = True
+        self.refresh_display()
         self.dispatcher.submit_job(
             'cnodc.desktop.client.api_client.save_work',
             on_error=self._on_save_error,
@@ -252,27 +271,28 @@ class CNODCQCApp:
 
     def _on_save_error(self, ex):
         self.show_user_exception(ex)
-        for x in self._panes:
-            x.after_save(ex)
+        self.app_state.save_in_progress = False
+        self.refresh_display()
 
     def _after_save(self, res: bool, after_save: callable = None):
         if not res:
-            self.refresh_action_list()
             self.show_user_info(
                 i18n.get_text('save_partial_fail_title'),
                 i18n.get_text('save_partial_fail_message')
             )
-        for x in self._panes:
-            x.after_save()
+        self.app_state.save_in_progress = False
         if after_save:
             after_save(res)
+        else:
+            self.refresh_display()
 
     def update_user_access(self, username: str, access_list: list[str]):
-        for x in self._panes:
-            x.on_user_access_update(username, access_list)
+        self.app_state.username = username
+        self.app_state.user_access = access_list
+        self.refresh_display()
 
     def on_close(self):
-        if self._current_batch_type is not None:
+        if self.app_state.batch_type is not None:
             self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close)
         else:
             self._on_close()
@@ -305,68 +325,79 @@ class CNODCQCApp:
 
     def open_qc_batch(self, name: str, load_fn: str):
         # TODO: check if the batch is open and prompt?
-        self._current_batch_type = (name, load_fn)
-        for x in self._panes:
-            x.before_open_batch(name)
+        self.app_state.open_in_progress = True
+        self.app_state.batch_type = name
+        self.app_state.batch_function = load_fn
+        self.app_state.batch_state = BatchOpenState.OPENING
+        self.refresh_display()
         self.dispatcher.submit_job(
             load_fn,
             on_success=self._open_qc_batch_success,
             on_error=self._open_qc_batch_error
         )
 
-    def _open_qc_batch_success(self, res):
-        if res:
-            for x in self._panes:
-                x.after_open_batch(self._current_batch_type[0])
+    def _open_qc_batch_success(self, available_actions: t.Optional[list[str]]):
+        if available_actions is not None:
+            self.app_state.batch_actions = available_actions
+            self.app_state.batch_state = BatchOpenState.OPEN
+            with self.local_db.cursor() as cur:
+                # TODO: load in batch_record_info from the DB
+                pass
         else:
             self.show_user_info(
-                title=i18n.get_text(f'no_items_title_{self._current_batch_type[0]}'),
-                message=i18n.get_text(f'no_items_message_{self._current_batch_type[0]}')
+                title=i18n.get_text(f'no_items_title_{self.app_state.batch_type}'),
+                message=i18n.get_text(f'no_items_message_{self.app_state.batch_type}')
             )
-            for x in self._panes:
-                x.after_close_batch(QCBatchCloseOperation.LOAD_ERROR, self._current_batch_type[0], False)
-            self._current_batch_type = None
+            self.app_state.batch_state = None
+            self.app_state.batch_actions = None
+            self.app_state.batch_type = None
+            self.app_state.batch_function = None
+            self.app_state.batch_record_info = None
+            self.refresh_display()
 
     def _open_qc_batch_error(self, ex):
         self.show_user_exception(ex)
-        for x in self._panes:
-            x.after_close_batch(QCBatchCloseOperation.LOAD_ERROR, self._current_batch_type[0], False, ex)
-        self._current_batch_type = None
+        self.app_state.batch_state = BatchOpenState.OPEN_ERROR
+        self.refresh_display()
+        self.app_state.batch_state = None
+        self.app_state.batch_actions = None
+        self.app_state.batch_type = None
+        self.app_state.batch_function = None
+        self.app_state.batch_record_info = None
+        self.refresh_display()
 
     def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None):
-        return self.close_qc_batch(op, self._current_batch_type[0], load_next, after_close)
+        self.app_state.batch_state = BatchOpenState.CLOSING
+        self.app_state.batch_closing_op = op
+        # TODO: prompt for closing if there are unsaved actions for any record
+        self.refresh_display()
+        self.dispatcher.submit_job(
+            op.value,
+            on_success=functools.partial(self._close_qc_batch_success, load_next=load_next, after_close=after_close),
+            on_error=self._close_qc_batch_error
+        )
 
-    def close_qc_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool = False, after_close: callable = None):
-        can_close = True
-        for x in self._panes:
-            try:
-                x.before_close_batch(op, batch_type, load_next)
-            except StopAction:
-                can_close = False
-        if can_close:
-            self.dispatcher.submit_job(
-                op.value,
-                on_success=functools.partial(self._close_qc_batch_success, op=op, batch_type=batch_type, load_next=load_next, after_close=after_close),
-                on_error=functools.partial(self._close_qc_batch_error, op=op, batch_type=batch_type, load_next=load_next),
-            )
-        else:
-            for x in self._panes:
-                x.after_open_batch(batch_type)
-
-    def _close_qc_batch_success(self, res, op: QCBatchCloseOperation, batch_type: str, load_next: bool, after_close: callable = None):
-        for x in self._panes:
-            x.after_close_batch(op, batch_type, load_next)
+    def _close_qc_batch_success(self, res, load_next: bool, after_close: callable = None):
+        self.app_state.batch_actions = None
+        self.app_state.batch_state = BatchOpenState.CLOSED
+        self.refresh_display()
         if after_close:
             after_close()
         if load_next:
-            self.open_qc_batch(*self._current_batch_type)
+            self.open_qc_batch(self.app_state.batch_type, self.app_state.batch_function)
         else:
-            self._current_batch_type = None
+            self.app_state.batch_state = None
+            self.app_state.batch_function = None
+            self.app_state.batch_actions = None
+            self.app_state.batch_type = None
+            self.app_state.batch_record_info = None
 
     def _close_qc_batch_error(self, ex, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
+        self.app_state.batch_state = BatchOpenState.CLOSE_ERROR
+        self.refresh_display()
         self.show_user_exception(ex)
-        for x in self._panes:
-            x.after_close_batch(op, batch_type, False, ex)
+        self.app_state.batch_state = BatchOpenState.OPEN
+        self.refresh_display()
 
     def on_configure(self, e):
         if self._run_on_startup:
