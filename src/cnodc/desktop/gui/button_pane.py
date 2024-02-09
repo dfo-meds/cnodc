@@ -1,6 +1,6 @@
 import functools
 import tkinter as tk
-from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange
 import tkinter.ttk as ttk
 import enum
 
@@ -22,14 +22,15 @@ class ButtonPane(BasePane):
         for idx, button in enumerate(self._buttons.keys()):
             self._buttons[button].grid(row=0, column=idx, ipadx=2, ipady=2)
 
-    def refresh_display(self, app_state: ApplicationState):
-        self.set_button_state('save', app_state.is_batch_action_available('apply_working'))
-        self.set_button_state('load_next', app_state.is_batch_action_available('complete'))
-        self.set_button_state('complete', app_state.is_batch_action_available('complete'))
-        self.set_button_state('release', app_state.is_batch_action_available('release'))
-        self.set_button_state('fail', app_state.is_batch_action_available('fail'))
-        self.set_button_state('escalate', app_state.is_batch_action_available('escalate'))
-        self.set_button_state('descalate', app_state.is_batch_action_available('descalate'))
+    def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
+        if change_type & (DisplayChange.OP_ONGOING | DisplayChange.BATCH):
+            self.set_button_state('save', app_state.is_batch_action_available('apply_working'))
+            self.set_button_state('load_next', app_state.is_batch_action_available('complete'))
+            self.set_button_state('complete', app_state.is_batch_action_available('complete'))
+            self.set_button_state('release', app_state.is_batch_action_available('release'))
+            self.set_button_state('fail', app_state.is_batch_action_available('fail'))
+            self.set_button_state('escalate', app_state.is_batch_action_available('escalate'))
+            self.set_button_state('descalate', app_state.is_batch_action_available('descalate'))
 
     def set_button_state(self, key: str, is_enabled: bool):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))

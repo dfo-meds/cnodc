@@ -56,7 +56,8 @@ TRANSLATIONS = {
         'action_item_name': 'Action',
         'action_item_object': 'Target',
         'action_item_value': 'New Value',
-        'remove': 'Remove'
+        'remove': 'Remove',
+        'record_set_label_profile': 'Profile #{index}',
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

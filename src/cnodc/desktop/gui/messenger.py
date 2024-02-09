@@ -22,3 +22,7 @@ class CrossThreadMessenger:
         except queue.Empty:
             pass
 
+    def close(self):
+        while not self._messages.empty():
+            self._messages.get_nowait()
+

@@ -27,6 +27,12 @@ class MenuManager:
             self._menu_items[path] = [next_item, text_key, 0, self._menu_items[parent_key][2]]
             self._menu_items[parent_key][2] += 1
 
+    def set_state(self, path: str, enabled: bool):
+        if enabled:
+            self.enable_command(path)
+        else:
+            self.disable_command(path)
+
     def disable_command(self, path: str):
         parent_key = path[:path.rfind('/')]
         menu = self._menu_items[parent_key][0]

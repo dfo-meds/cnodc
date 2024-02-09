@@ -1,7 +1,7 @@
 import datetime
 import tkinter.simpledialog
 import tkcalendar as tkc
-from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange
 from cnodc.desktop.gui.choice_dialog import ask_choice
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
@@ -227,9 +227,6 @@ class ParameterPane(BasePane):
         self._value_lookup: dict[str, ocproc2.Value] = {}
         self._current_user = None
 
-    def on_user_access_update(self, username: str, permissions: list[str]):
-        self._current_user = username
-
     def on_init(self):
         self.app.right_frame.rowconfigure(0, weight=2)
         self.app.right_frame.columnconfigure(0, weight=1)
@@ -259,6 +256,19 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#2', width=150, anchor='w')
         self._parameter_list.table.column('#3', width=75, anchor='e')
         self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
+
+    def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
+        if change_type & DisplayChange.USER:
+            self._current_user = app_state.username
+        if change_type & DisplayChange.RECORD_CHILD:
+            if app_state.child_recordset is not None:
+                self.show_recordset(app_state.child_recordset, app_state.subrecord_path)
+            elif app_state.child_record is not None:
+                self.show_record(app_state.child_record, app_state.subrecord_path)
+            elif app_state.record is not None:
+                self.show_record(app_state.record, app_state.subrecord_path)
+            else:
+                self._parameter_list.clear_items()
 
     def show_record(self, record: ocproc2.DataRecord, path: str):
         self._parameter_list.clear_items()
@@ -294,10 +304,6 @@ class ParameterPane(BasePane):
             for k in record_set.metadata.keys():
                 self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
-
-    def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
-        if ex is None:
-            self._parameter_list.clear_items()
 
     def _create_parameter_entry(self, v: ocproc2.AbstractValue, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
         if isinstance(v, ocproc2.MultiValue):

@@ -1,6 +1,6 @@
 import functools
 
-from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, BatchOpenState
 import tkintermapview as tkmv
 import typing as t
 import cnodc.ocproc2.structures as ocproc2
@@ -20,37 +20,28 @@ class MapPane(BasePane):
     def on_init(self):
         self._map = tkmv.TkinterMapView(self.app.middle_frame, width=500, height=500, corner_radius=0)
         self._map.grid(row=0, column=0)
+        # TODO configurable map servers and starting configuration
         self._map.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
         self._map.set_position(45.41694, -75.70131)
         self._map.set_zoom(10)
 
-    def refresh_display(self, app_state: ApplicationState):
-        self._map.delete_all_marker()
-        with self.local_db.cursor() as cur:
-            cur.execute("SELECT record_uuid, lat, lon, datetime FROM records")
-            for record_uuid, lat, lon, ts in cur.fetchall():
-                if lat is not None and lon is not None:
-                    self._map.set_marker(lat, lon, text=record_uuid, command=functools.partial(self._open_record, record_uuid=record_uuid))
+    def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
+        if change_type & DisplayChange.BATCH:
+            self._map.delete_all_marker()
+            if app_state.batch_state == BatchOpenState.OPEN:
+                for sr in app_state.batch_record_info.values():
+                    if sr.latitude is not None and sr.longitude is not None:
+                        self._map.set_marker(
+                            sr.latitude,
+                            sr.longitude,
+                            text=sr.record_uuid,
+                            command=functools.partial(self._open_record, record_uuid=sr.record_uuid)
+                        )
+        if change_type & DisplayChange.RECORD:
+            coordinates = app_state.current_coordinates()
+            if coordinates is not None:
+                self._map.set_position(*coordinates)
+                self._map.set_zoom(10)
 
     def _open_record(self, marker, record_uuid: str):
-        self.app.show_record(record_uuid)
-
-    def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
-        self._map.delete_all_marker()
-
-    def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
-        try:
-            if not record.coordinates.has_value('Latitude'):
-                return
-            if not record.coordinates.has_value('Longitude'):
-                return
-            lat = record.coordinates['Latitude'].to_float()
-            lon = record.coordinates['Longitude'].to_float()
-            self._map.set_position(lat, lon)
-            self._map.set_zoom(10)
-        except (ValueError, TypeError):
-            pass
-
-
-
-
+        self.app.load_record(record_uuid)
