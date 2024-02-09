@@ -1,6 +1,7 @@
 import functools
 import json
 import queue
+import time
 import tkinter as tk
 import tkinter.messagebox as tkmb
 import tkinter.ttk as ttk
@@ -126,6 +127,10 @@ class CNODCQCApp:
 
     @injector.construct
     def __init__(self):
+        self.app_state = ApplicationState(self.refresh_display)
+        self._current_screen_size = None
+        self._last_screen_width_change_time = None
+        self._screen_resize_in_progress = False
         self.root = tk.Tk()
         self.root.state('zoomed')
         self.root.title(i18n.get_text('root_title'))
@@ -139,23 +144,34 @@ class CNODCQCApp:
         self.menus = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu_file')
         self.menus.add_sub_menu('qc', 'menu_qc')
-        self.root.columnconfigure(0, weight=1)
-        self.root.columnconfigure(1, weight=4)
-        self.root.columnconfigure(2, weight=1)
-        self.root.rowconfigure(1, weight=1)
+        self.root.rowconfigure(0, weight=0)
+        self.root.rowconfigure(1, weight=3)
+        self.root.rowconfigure(2, weight=3)
+        self.root.rowconfigure(3, weight=0)
+        self.root.columnconfigure(0, weight=0)
+        self.root.columnconfigure(1, weight=2)
+        self.root.columnconfigure(2, weight=2)
         self.top_bar = ttk.Frame(self.root)
-        self.top_bar.grid(row=0, column=0, sticky='NSEW', columnspan=3)
-        self.left_frame = ttk.Frame(self.root)
-        self.left_frame.grid(row=1, column=0, sticky='NSEW')
-        self.middle_frame = ttk.Frame(self.root)
-        self.middle_frame.grid(row=1, column=1, sticky='NSEW')
-        self.right_frame = ttk.Frame(self.root)
-        self.right_frame.grid(row=1, column=2, sticky='NSEW')
+        self.top_bar.grid(row=0, column=1, sticky='NSEW', columnspan=2)
+        self.middle_left = ttk.Frame(self.root)
+        self.middle_left.grid(row=1, column=1, sticky='NSEW', rowspan=2)
+        self.middle_left.rowconfigure(0, weight=1)
+        self.middle_left.columnconfigure(0, weight=1)
+        self.middle_right = ttk.Frame(self.root)
+        self.middle_right.grid(row=1, column=2, sticky='NSEW', rowspan=2)
+        self.middle_right.rowconfigure(0, weight=1)
+        self.middle_right.columnconfigure(0, weight=1)
+        self.bottom_notebook = ttk.Notebook(self.root)
+        self.bottom_notebook.grid(row=3, column=1, sticky='NSEW', columnspan=2)
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=2, column=0, sticky='EWNS', columnspan=3)
+        self.bottom_bar.grid(row=4, column=0, sticky='EWNS', columnspan=3)
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
+        self.left_frame = ttk.Frame(self.root)
+        self.left_frame.grid(row=0, column=0, sticky='NSEW', rowspan=4)
+        self.left_frame.rowconfigure(0, weight=1)
+        self.left_frame.columnconfigure(0, weight=1)
         self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
         self.loading_wheel.grid(row=0, column=0, sticky='W')
         self.status_info = ttk.Label(self.bottom_bar, text="W", relief=tk.SOLID, borderwidth=2)
@@ -173,7 +189,6 @@ class CNODCQCApp:
         self._panes.append(HistoryPane(self))
         for pane in self._panes:
             pane.on_init()
-        self.app_state = ApplicationState(self.refresh_display)
 
     def check_dispatcher(self):
         self.dispatcher.process_results()
@@ -192,7 +207,6 @@ class CNODCQCApp:
                         'record_uuid': self.app_state.record_uuid,
                         'action_text': json.dumps(action.to_map())
                     })
-
                     action_dict[rowid] = action
             self.app_state.extend_actions(action_dict)
 
@@ -221,7 +235,7 @@ class CNODCQCApp:
                 actions = {}
                 for rowid, action_text in cur.fetchall():
                     operator = QCOperator.from_map(json.loads(action_text))
-                    operator.apply(record)
+                    operator.apply(record, None)
                     actions[rowid] = operator
                 subrecord_path = None
                 if self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
@@ -358,6 +372,20 @@ class CNODCQCApp:
         if self._run_on_startup:
             self._run_on_startup = False
             self.root.after(250, self.on_startup)
+        screen_size = (self.root.winfo_width(), self.root.winfo_height())
+        if screen_size != self._current_screen_size:
+            self._current_screen_size = screen_size
+            self._last_screen_width_change_time = time.monotonic()
+            self._screen_resize_in_progress = True
+
+    def check_screen_resize_complete(self):
+        if self._screen_resize_in_progress:
+            elapsed = time.monotonic() - self._last_screen_width_change_time
+            if elapsed >= 1:
+                self._screen_resize_in_progress = False
+                self._last_screen_width_change_time = None
+                self.app_state.refresh_display(DisplayChange.SCREEN_SIZE)
+        self.root.after(500, self.check_screen_resize_complete)
 
     def on_startup(self):
         self.dispatcher.start()
@@ -369,6 +397,7 @@ class CNODCQCApp:
             self.on_language_change()
         self.check_dispatcher()
         self.check_messages()
+        self.check_screen_resize_complete()
 
     def launch(self):
         self.root.mainloop()

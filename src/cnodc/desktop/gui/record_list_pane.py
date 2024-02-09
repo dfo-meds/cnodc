@@ -11,6 +11,7 @@ import cnodc.ocproc2.structures as ocproc2
 from cnodc.desktop.util import StopAction
 from cnodc.ocproc2.operations import QCOperator
 import tkinter.messagebox as tkmb
+import tkinter.ttk as ttk
 
 
 class RecordListPane(BasePane):
@@ -20,17 +21,27 @@ class RecordListPane(BasePane):
     @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._group: t.Optional[ttk.Frame] = None
         self._record_list: t.Optional[ScrollableTreeview] = None
         self._subrecord_list: t.Optional[ScrollableTreeview] = None
+        self._record_label: t.Optional[ttk.Label] = None
+        self._subrecord_label: t.Optional[ttk.Label] = None
         self._current_record_info = None
         self._current_subrecord_info = None
 
     def on_init(self):
-        self.app.left_frame.rowconfigure(0, weight=1)
-        self.app.left_frame.rowconfigure(1, weight=1)
-        self.app.left_frame.columnconfigure(0, weight=1)
+        self._group = ttk.Frame(self.app.left_frame)
+        self._group.grid(row=0, column=0, sticky='NSEW')
+        self._group.rowconfigure(0, weight=0)
+        self._group.rowconfigure(1, weight=3)
+        self._group.rowconfigure(2, weight=0)
+        self._group.rowconfigure(3, weight=1)
+        self._group.columnconfigure(0, weight=1)
+        # TODO: label styling
+        self._record_label = ttk.Label(self._group, text="Records").grid(row=0, column=0, sticky='NSEW')
+        self._subrecord_label = ttk.Label(self._group, text="Child Records").grid(row=2, column=0, sticky='NSEW')
         self._record_list = ScrollableTreeview(
-            parent=self.app.left_frame,
+            parent=self._group,
             selectmode="browse",
             show="",
             headers=[
@@ -40,10 +51,10 @@ class RecordListPane(BasePane):
             displaycolumns=(0,)
         )
         self._record_list.tag_configure('has-error', foreground='red')
-        self._record_list.grid(row=0, column=0, sticky='EWNS')
+        self._record_list.grid(row=1, column=0, sticky='EWNS')
         self._record_list.table.column('#1', anchor='w')
         self._subrecord_list = ScrollableTreeview(
-            parent=self.app.left_frame,
+            parent=self._group,
             selectmode="browse",
             show="tree",
             headers=[
@@ -53,9 +64,14 @@ class RecordListPane(BasePane):
             displaycolumns=(0,)
         )
         self._subrecord_list.tag_configure('has-error', foreground='red')
-        self._subrecord_list.grid(row=1, column=0, sticky='EWNS')
-        self._subrecord_list.table.column('#0', width=40, stretch=False)
+        self._subrecord_list.grid(row=3, column=0, sticky='EWNS')
+        self._subrecord_list.table.column('#0', width=30, stretch=False)
         self._subrecord_list.table.column('#1', anchor='w')
+
+    def on_language_change(self):
+        # TODO: headings for both treeviews
+
+        pass
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.BATCH:
@@ -110,6 +126,7 @@ class RecordListPane(BasePane):
             elif record.coordinates.has_value('Pressure'):
                 units = record.coordinates['Pressure'].metadata.best_value('Units', 'Pa')
                 return f'{prefix}{record.coordinates["Pressure"].to_float()} {units}'
+        # TODO: other profile types
         return f'{prefix}Record {idx}'
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):

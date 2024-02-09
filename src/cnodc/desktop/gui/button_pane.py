@@ -32,6 +32,10 @@ class ButtonPane(BasePane):
             self.set_button_state('escalate', app_state.is_batch_action_available('escalate'))
             self.set_button_state('descalate', app_state.is_batch_action_available('descalate'))
 
+    def on_language_change(self):
+        # TODO: button labels
+        pass
+
     def set_button_state(self, key: str, is_enabled: bool):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))
 

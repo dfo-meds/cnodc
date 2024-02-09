@@ -10,6 +10,7 @@ import cnodc.ocproc2.operations as ops
 import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
+import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 
 from cnodc.desktop import VERSION
@@ -225,13 +226,13 @@ class ParameterPane(BasePane):
         super().__init__(*args, **kwargs)
         self._parameter_list: t.Optional[ScrollableTreeview] = None
         self._value_lookup: dict[str, ocproc2.Value] = {}
-        self._current_user = None
 
     def on_init(self):
-        self.app.right_frame.rowconfigure(0, weight=2)
-        self.app.right_frame.columnconfigure(0, weight=1)
+        param_frame = ttk.Frame(self.app.bottom_notebook)
+        param_frame.rowconfigure(0, weight=1)
+        param_frame.columnconfigure(0, weight=1)
         self._parameter_list = ScrollableTreeview(
-            parent=self.app.right_frame,
+            parent=param_frame,
             selectmode='browse',
             show="tree headings",
             headers=[
@@ -256,19 +257,25 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#2', width=150, anchor='w')
         self._parameter_list.table.column('#3', width=75, anchor='e')
         self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
+        self.app.bottom_notebook.add(param_frame, text='Properties', sticky='NSEW')
+
+    def on_language_change(self):
+        # TODO: parameter list headings
+        self._rebuild_parameter_list(self.app.app_state)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.USER:
-            self._current_user = app_state.username
         if change_type & DisplayChange.RECORD_CHILD:
-            if app_state.child_recordset is not None:
-                self.show_recordset(app_state.child_recordset, app_state.subrecord_path)
-            elif app_state.child_record is not None:
-                self.show_record(app_state.child_record, app_state.subrecord_path)
-            elif app_state.record is not None:
-                self.show_record(app_state.record, app_state.subrecord_path)
-            else:
-                self._parameter_list.clear_items()
+            self._rebuild_parameter_list(app_state)
+
+    def _rebuild_parameter_list(self, app_state):
+        if app_state.child_recordset is not None:
+            self.show_recordset(app_state.child_recordset, app_state.subrecord_path)
+        elif app_state.child_record is not None:
+            self.show_record(app_state.child_record, app_state.subrecord_path)
+        elif app_state.record is not None:
+            self.show_record(app_state.record, app_state.subrecord_path)
+        else:
+            self._parameter_list.clear_items()
 
     def show_record(self, record: ocproc2.DataRecord, path: str):
         self._parameter_list.clear_items()
@@ -308,6 +315,7 @@ class ParameterPane(BasePane):
     def _create_parameter_entry(self, v: ocproc2.AbstractValue, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
         if isinstance(v, ocproc2.MultiValue):
             is_alt = False
+            # TODO: need a heading here (with translations)
             for idx, subv in v.values():
                 self._create_parameter_entry(subv, f'{parent_path}/{key}/{idx}', str(idx), depth + 1, is_alt)
                 is_alt = not is_alt
@@ -327,6 +335,7 @@ class ParameterPane(BasePane):
         if is_alt:
             tags.append('alt')
         self._value_lookup[path] = v
+        # TODO: instead of using key, use a lookup of key (if not a number)
         self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{key}', *dv], tags=tags)
 
     def _parameter_display_value(self, v: ocproc2.AbstractValue) -> tuple[tuple, list]:
@@ -359,7 +368,7 @@ class ParameterPane(BasePane):
                 self.app,
                 item['values'][0],
                 self._get_element_info(item['values'][0]),
-                self._current_user,
+                self.app.app_state.username,
                 item['values'][3],
                 self._value_lookup[item['values'][0]]
             )

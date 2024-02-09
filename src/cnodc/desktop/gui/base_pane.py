@@ -41,6 +41,7 @@ class DisplayChange(enum.Flag):
     RECORD_CHILD = enum.auto()
     ACTION = enum.auto()
     OP_ONGOING = enum.auto()
+    SCREEN_SIZE = enum.auto()
 
 
 class BatchType(enum.Enum):
@@ -176,6 +177,7 @@ class ApplicationState:
         self.actions = actions
         self.subrecord_path = subrecord_path
         self._set_child_item()
+        self._update_batch_info_from_current_record()
         self.refresh_display(DisplayChange.ACTION | DisplayChange.RECORD | DisplayChange.RECORD_CHILD)
 
     def set_record_subpath(self, subpath: t.Optional[str]):
@@ -190,7 +192,10 @@ class ApplicationState:
             self.actions.update(actions)
         for action in actions.values():
             action.apply(self.record, None)
-        self.refresh_display(DisplayChange.ACTION | DisplayChange.RECORD_CHILD)
+        mode = DisplayChange.ACTION | DisplayChange.RECORD_CHILD
+        if self._update_batch_info_from_current_record():
+            mode |= DisplayChange.RECORD
+        self.refresh_display(mode)
 
     def _set_child_item(self):
         if self.record_uuid is not None and self.subrecord_path is not None:
@@ -212,6 +217,12 @@ class ApplicationState:
     def refresh_display(self, change_type: DisplayChange, *args, **kwargs):
         self._display_cb(self, change_type)
 
+    def _update_batch_info_from_current_record(self) -> bool:
+        # TODO:
+        # return true if the record was updated
+        # check latitude, longitude, time, and if there are any errors
+        pass
+
 
 class BasePane:
 
@@ -225,42 +236,6 @@ class BasePane:
         pass
 
     def on_close(self):
-        pass
-
-    def before_save(self):
-        pass
-
-    def after_save(self, ex: Exception = None):
-        pass
-
-    def on_user_access_update(self, username: str, permissions: list[str]):
-        pass
-
-    def before_open_batch(self, batch_type: str):
-        pass
-
-    def after_open_batch(self, batch_type: str, available_actions: list[str]):
-        pass
-
-    def before_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool):
-        pass
-
-    def after_close_batch(self, op: QCBatchCloseOperation, batch_type: str, load_next: bool, ex=None):
-        pass
-
-    def show_recordset(self, record_set: ocproc2.RecordSet, path: str):
-        pass
-
-    def show_record(self, record: ocproc2.DataRecord, path: str):
-        pass
-
-    def on_record_change(self, record_uuid: str, record: ocproc2.DataRecord):
-        pass
-
-    def on_new_actions(self, actions: dict[int, QCOperator]):
-        pass
-
-    def on_reapply_actions(self, actions: dict[int, QCOperator]):
         pass
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
