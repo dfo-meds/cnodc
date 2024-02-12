@@ -102,9 +102,9 @@ class TestClient:
         for i in range(1, 10):
             r = ocproc2.DataRecord()
             r.metadata['WMOID'] = '12345'
-            r.coordinates['Latitude'] = ocproc2.Value(round(45.321 + (0.05 * i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
-            r.coordinates['Longitude'] = ocproc2.Value(round(-47.123 - (0.05 * i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
-            r.coordinates['Time'] = ocproc2.Value(f'2023-02-06T{10+i}:58:00+00:00', WorkingQuality=0)
+            r.coordinates['Latitude'] = ocproc2.Value(round(self._get_lat(i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
+            r.coordinates['Longitude'] = ocproc2.Value(round(self._get_long(i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
+            r.coordinates['Time'] = ocproc2.Value(self._get_time(i), WorkingQuality=0)
             r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=0)
             for j in range(0, 20):
                 sr = ocproc2.DataRecord()
@@ -126,6 +126,17 @@ class TestClient:
             )
             r.add_history_entry('Test record, not real', 'desktop_test', '1.0', 'abc', ocproc2.MessageType.INFO)
             yield f'000{i}', r.generate_hash(), r
+
+    def _get_lat(self, x: int):
+        return 45 - (0.03 * x) + (random.randint(-100, 100) / 100)
+
+    def _get_long(self, x: int):
+        return -45 - (0.03 * x) + (random.randint(-100, 100) / 100)
+
+    def _get_time(self, x: int):
+        dt = datetime.datetime.now(datetime.timezone.utc)
+        dt += datetime.timedelta(hours=x, minutes=random.randint(0, 10))
+        return dt.isoformat()
 
     def _temp_wq(self, depth: float):
         if depth < 100:

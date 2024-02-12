@@ -52,18 +52,28 @@ class BatchType(enum.Enum):
 class SimpleRecordInfo:
 
     def __init__(self,
+                 idx: int,
                  rowid: int,
                  record_uuid: str,
-                 lat: t.Optional[float],
-                 lon: t.Optional[float],
-                 ts: t.Optional[str],
-                 has_errors: t.Optional[bool]):
+                 lat: t.Optional[float] = None,
+                 lon: t.Optional[float] = None,
+                 ts: t.Optional[str] = None,
+                 has_errors: t.Optional[bool] = None,
+                 station_id: t.Optional[str] = None,
+                 lat_qc: t.Optional[int] = None,
+                 lon_qc: t.Optional[int] = None,
+                 time_qc: t.Optional[int] = None):
+        self.index = idx
         self.rowid = rowid
         self.record_uuid = record_uuid
         self.latitude = lat
         self.longitude = lon
         self.timestamp = datetime.datetime.fromisoformat(ts) if ts else None
         self.has_errors = has_errors
+        self.station_id = station_id
+        self.latitude_qc = lat_qc or 0
+        self.longitude_qc = lon_qc or 0
+        self.time_qc = time_qc or 0
 
 
 class ApplicationState:

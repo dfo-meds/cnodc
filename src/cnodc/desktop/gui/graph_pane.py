@@ -1,6 +1,7 @@
 import functools
 
-from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, BatchOpenState
+from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, \
+    BatchOpenState, SimpleRecordInfo
 import tkintermapview as tkmv
 import typing as t
 import cnodc.ocproc2.structures as ocproc2
@@ -13,6 +14,7 @@ import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.backend_bases as mplbb
 import tkinter as tk
 import cnodc.desktop.translations as i18n
+from cnodc.ocean_math.geodesy import uhaversine
 from cnodc.ocproc2.operations import QCSetWorkingQuality, QCAddHistory
 
 from cnodc.units import UnitConverter
@@ -121,8 +123,10 @@ class GraphPane(BasePane):
             if app_state.record is not None and 'PROFILE' in app_state.record.subrecords:
                 self._update_boxes(app_state.record)
         elif change_type & DisplayChange.ACTION:
-            if self._axes is not None:
+            if app_state.batch_state == BatchOpenState.OPEN and self._axes is not None:
                 self._reload_recordset()
+            else:
+                self._clear_graph()
 
     def _reload_recordset(self):
         self._clear_graph()
@@ -131,6 +135,8 @@ class GraphPane(BasePane):
 
     def _update_boxes(self, record: ocproc2.DataRecord):
         rs_choices = []
+        if self.app.app_state.batch_record_info is not None and len(self.app.app_state.batch_record_info) > 1:
+            rs_choices.append('Batch')
         for srt in record.subrecords:
             for rs_idx in record.subrecords[srt]:
                 rs_choices.append(f"{srt}#{rs_idx}")
@@ -158,14 +164,19 @@ class GraphPane(BasePane):
         self._current_recordset_id = record_set_name
         last_ind = self._current_combobox_value(self._combo_independent)
         last_dep = self._current_combobox_value(self._combo_dependent)
-        srt, rs_idx = record_set_name.split('#', maxsplit=1)
-        path = f'subrecords/{srt}/{rs_idx}'
-        self._current_recordset: ocproc2.RecordSet = self.app.app_state.record.find_child(path)
         dep_vars = set()
         ind_vars = set()
-        for r in self._current_recordset.records:
-            dep_vars.update(r.parameters.keys())
-            ind_vars.update(r.coordinates.keys())
+        if record_set_name == 'Batch':
+            self._current_recordset = None
+            dep_vars.add('Speed')
+            ind_vars.add('Index')
+        else:
+            srt, rs_idx = record_set_name.split('#', maxsplit=1)
+            path = f'subrecords/{srt}/{rs_idx}'
+            self._current_recordset: ocproc2.RecordSet = self.app.app_state.record.find_child(path)
+            for r in self._current_recordset.records:
+                dep_vars.update(r.parameters.keys())
+                ind_vars.update(r.coordinates.keys())
         dep_vars = list(dep_vars)
         dep_vars.sort()
         ind_vars = list(ind_vars)
@@ -199,11 +210,14 @@ class GraphPane(BasePane):
             if p is None or c is None:
                 self._clear_graph()
             else:
-                self._show_graph(
-                    self._current_recordset,
-                    c,
-                    p
-                )
+                if self._current_recordset_id == 'Batch':
+                    self._show_batch_graph(self.app.app_state.batch_record_info, c, p)
+                else:
+                    self._show_graph(
+                        self._current_recordset,
+                        c,
+                        p
+                    )
                 self._current_parameter = p
                 self._current_coordinate = c
 
@@ -214,11 +228,72 @@ class GraphPane(BasePane):
             self._current_coordinate = None
             self._current_parameter = None
 
+    def _show_batch_graph(self, batch_info, x_name: str, y_name: str):
+        self._clear_graph()
+        unit_map = {}
+        batch_values = [x for x in batch_info.values()]
+        if y_name == 'Speed':
+            x_qc_values = [self._extract_diff_batch_value(batch_values[i-1], batch_values[i], x_name, unit_map) for i in range(1, len(batch_values))]
+            y_qc_values = [self._extract_diff_batch_value(batch_values[i-1], batch_values[i], y_name, unit_map) for i in range(1, len(batch_values))]
+        else:
+            x_qc_values = [self._extract_batch_value(batch_values[i], x_name, unit_map) for i in range(0, len(batch_values))]
+            y_qc_values = [self._extract_batch_value(batch_values[i], y_name, unit_map) for i in range(0, len(batch_values))]
+        self._show_qc_graph(
+            x_qc_values,
+            y_qc_values,
+            x_name,
+            y_name,
+            unit_map
+        )
+
+    def _extract_batch_value(self, batch_info: SimpleRecordInfo,  key: str, unit_map: dict) -> tuple[t.Optional[float], int]:
+        # TODO: store QC values in simple record info too
+        if key == 'Time':
+            return batch_info.timestamp, batch_info.time_qc
+        elif key == 'Latitude':
+            return batch_info.latitude, batch_info.latitude_qc
+        elif key == 'Longitude':
+            return batch_info.longitude, batch_info.longitude_qc
+        elif key == 'Index':
+            return batch_info.index, 1
+        return None, 9
+
+    def _extract_diff_batch_value(self, batch_info_a: SimpleRecordInfo, batch_info_b: SimpleRecordInfo, key: str, unit_map: dict) -> tuple[t.Optional[float], int]:
+        if key == 'Speed':
+            # TODO: look at QC values in simple record info after we add them
+            if batch_info_a.latitude is None or batch_info_b.latitude is None:
+                return None, 9
+            if batch_info_a.longitude is None or batch_info_b.longitude is None:
+                return None, 9
+            if batch_info_a.timestamp is None or batch_info_b.timestamp is None:
+                return None, 9
+            qc = 0
+            if batch_info_a.latitude_qc == 4 or batch_info_b.latitude_qc == 4 or batch_info_a.longitude_qc == 4 or batch_info_b.longitude_qc == 4:
+                qc = 4
+            elif batch_info_a.latitude_qc == 3 or batch_info_b.latitude_qc == 3 or batch_info_a.longitude_qc == 3 or batch_info_b.longitude_qc == 3:
+                qc = 3
+            elif batch_info_a.latitude_qc == 2 or batch_info_b.latitude_qc == 2 or batch_info_a.longitude_qc == 2 or batch_info_b.longitude_qc == 2:
+                qc = 2
+            distance = uhaversine((batch_info_b.latitude, batch_info_b.longitude), (batch_info_a.latitude, batch_info_a.longitude)).nominal_value
+            unit_map[key] = "m s-1"
+            return abs(distance / (batch_info_b.timestamp - batch_info_a.timestamp).total_seconds()), qc
+        else:
+            return self._extract_batch_value(batch_info_b, key, unit_map)
+
     def _show_graph(self, record_set: ocproc2.RecordSet, x_name: str, y_name: str):
         self._clear_graph()
         unit_map = {}
         x_qc_values = [self._extract_value(r.coordinates, x_name, unit_map) for r in record_set.records]
         y_qc_values = [self._extract_value(r.parameters, y_name, unit_map) for r in record_set.records]
+        self._show_qc_graph(
+            x_qc_values,
+            y_qc_values,
+            x_name,
+            y_name,
+            unit_map
+        )
+
+    def _show_qc_graph(self, x_qc_values, y_qc_values, x_name, y_name, unit_map):
         x_values = [x[0] for x in x_qc_values]
         y_values = [y[0] for y in y_qc_values]
         self._axes: mpla.Axes = self._figure.subplots(1, 1)

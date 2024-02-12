@@ -381,7 +381,7 @@ class CNODCQCApp:
         if available_actions is not None:
             with self.local_db.cursor() as cur:
                 cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors FROM records ORDER BY datetime ASC")
-                record_info = [SimpleRecordInfo(*x) for x in cur.fetchall()]
+                record_info = [SimpleRecordInfo(idx + 1, *x) for idx, x in enumerate(cur.fetchall())]
                 self.app_state.complete_batch_open(available_actions, record_info)
         else:
             self.show_user_info(

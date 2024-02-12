@@ -54,7 +54,7 @@ class MapPane(BasePane):
                         self._map.set_marker(
                             sr.latitude,
                             sr.longitude,
-                            text=sr.record_uuid,
+                            text=str(sr.index),
                             command=functools.partial(self._open_record, record_uuid=sr.record_uuid)
                         )
         if change_type & DisplayChange.RECORD:
