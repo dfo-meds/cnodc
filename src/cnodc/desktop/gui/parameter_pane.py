@@ -185,15 +185,7 @@ class ParameterContextMenu:
         cwq = self._current_value.metadata.best_value('WorkingQuality', 0)
         if int(cwq) != flag_no:
             self._app.save_operations([
-                ops.QCSetWorkingQuality(self._target_path, flag_no, children=[
-                    ops.QCAddHistory(
-                        f"CHANGE QC FLAG [{self._target_path}] TO [{flag_no}]",
-                        "operator_qc",
-                        VERSION,
-                        self._current_user,
-                        message_type=ocproc2.MessageType.INFO.value
-                    )
-                ])
+                self._app.create_flag_operator(self._target_path, flag_no)
             ])
 
     def handle_popup_click(self, e):
@@ -209,7 +201,7 @@ class ParameterPane(BasePane):
 
     TAG_MAP = {
         1: 'good',
-        2: 'probably_good',
+        2: 'probably-good',
         3: 'dubious',
         4: 'erroneous',
         9: 'missing',
@@ -248,9 +240,16 @@ class ParameterPane(BasePane):
         self._parameter_list.tag_configure('header', background='#000000', foreground='#FFFFFF')
         self._parameter_list.tag_configure('alt', background='#EEEEEE')
         self._parameter_list.tag_configure('invalid', foreground='red')
-        self._parameter_list.tag_configure('recommend-dubious', foreground='orange')
-        self._parameter_list.tag_configure('recommend-erroneous', foreground='red')
-        self._parameter_list.tag_configure('recommend-missing', foreground='purple')
+        self._parameter_list.tag_configure('good', foreground=self.app.quality_color(1))
+        self._parameter_list.tag_configure('probably-good', foreground=self.app.quality_color(2))
+        self._parameter_list.tag_configure('dubious', foreground=self.app.quality_color(3))
+        self._parameter_list.tag_configure('erroneous', foreground=self.app.quality_color(4))
+        self._parameter_list.tag_configure('missing', foreground=self.app.quality_color(9))
+        self._parameter_list.tag_configure('recommend-probably-good', foreground=self.app.quality_color(12))
+        self._parameter_list.tag_configure('recommend-dubious', foreground=self.app.quality_color(13))
+        self._parameter_list.tag_configure('recommend-erroneous', foreground=self.app.quality_color(14))
+        self._parameter_list.tag_configure('recommend-missing', foreground=self.app.quality_color(19))
+        self._parameter_list.tag_configure('invalid', foreground=self.app.quality_color(20))
         self._parameter_list.grid(row=0, column=0, sticky='NSEW')
         self._parameter_list.table.column('#0', width=35, stretch=tk.NO)
         self._parameter_list.table.column('#1', width=150, anchor='w')
@@ -264,7 +263,7 @@ class ParameterPane(BasePane):
         self._rebuild_parameter_list(self.app.app_state)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.RECORD_CHILD:
+        if change_type & (DisplayChange.RECORD_CHILD | DisplayChange.RECORD):
             self._rebuild_parameter_list(app_state)
 
     def _rebuild_parameter_list(self, app_state):

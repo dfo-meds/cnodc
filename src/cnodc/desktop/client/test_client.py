@@ -1,7 +1,7 @@
 import datetime
 import json
 import typing as t
-
+import random
 from requests import HTTPError
 
 import cnodc.ocproc2.structures as ocproc2
@@ -106,10 +106,14 @@ class TestClient:
             r.coordinates['Longitude'] = ocproc2.Value(round(-47.123 - (0.05 * i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
             r.coordinates['Time'] = ocproc2.Value(f'2023-02-06T{10+i}:58:00+00:00', WorkingQuality=0)
             r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=0)
-            for j in range(0, 10):
+            for j in range(0, 20):
                 sr = ocproc2.DataRecord()
-                sr.coordinates['Depth'] = ocproc2.Value((10 * j) + 1, Uncertainty=0.5, Units="m", WorkingQuality=0)
-                sr.parameters['Temperature'] = ocproc2.Value(276 + i - j, Uncertainty=0.5, Units='K', WorkingQuality=0)
+                depth = (j * 50) + (random.randint(0, 10) / 100)
+                sr.coordinates['Depth'] = ocproc2.Value(depth, Uncertainty=0.5, Units="m", WorkingQuality=(0 if i < 8 else (3 if i == 8 else 4)))
+                sr.parameters['Temperature'] = ocproc2.Value(self._temp(depth), Uncertainty=0.005, Units='K', WorkingQuality=self._temp_wq(depth))
+                sr.parameters['PracticalSalinity'] = ocproc2.Value(self._sal(depth), Uncertainty=0.0005, Units='0.001', WorkingQuality=0)
+                sr.parameters['CurrentSpeed'] = ocproc2.Value(self._curspd(depth), Units='m s-1', WorkingQuality=0, Uncertainty=0.5)
+                sr.parameters['CurrentDirection'] = ocproc2.Value(self._curdir(depth), Units='degrees', WorkingQuality=0, Uncertainty=1)
                 r.subrecords.append_record_set('PROFILE', 0, sr)
             r.record_qc_test_result(
                 'nodb_station_check',
@@ -122,6 +126,52 @@ class TestClient:
             )
             r.add_history_entry('Test record, not real', 'desktop_test', '1.0', 'abc', ocproc2.MessageType.INFO)
             yield f'000{i}', r.generate_hash(), r
+
+    def _temp_wq(self, depth: float):
+        if depth < 100:
+            return 1
+        elif depth < 150:
+            return 2
+        elif depth < 200:
+            return 3
+        elif depth < 250:
+            return 4
+        elif depth < 300:
+            return 5
+        elif depth < 350:
+            return 13
+        elif depth < 400:
+            return 14
+        else:
+            return 0
+
+    def _temp(self, depth: float):
+        if depth > 300:
+            return 279.15 - (depth / 100) + (random.randint(0, 100) / 200)
+        elif depth < 50:
+            return 305.15 - (depth / 100) + (random.randint(0, 100) / 200)
+        else:
+            return 310 - (0.114 * depth) + (random.randint(0, 100) / 200)
+
+    def _sal(self, depth: float):
+        if depth < 100:
+            return 36.000 - (depth / 1000) + (random.randint(0, 100) / 500)
+        elif depth > 500:
+            return 35 - random.randint(-50, 50) / 1000
+        else:
+            return 36.25 - (0.0025 * depth) + (random.randint(0, 100) / 500)
+
+    def _curspd(self, depth: float):
+        if depth < 200 or depth > 400:
+            return 0.02 + (random.randint(0, 100) / 1000)
+        else:
+            return 0.15 + (random.randint(0, 100) / 100)
+
+    def _curdir(self, depth: float):
+        if depth < 200 or depth > 400:
+            return 45 + random.randint(-10, 10)
+        else:
+            return 97 + random.randint(-10, 10)
 
     def _release_item(self, app_id: str) -> dict:
         if app_id != '67890':

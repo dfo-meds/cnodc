@@ -66,6 +66,8 @@ TRANSLATIONS = {
         'message_type_n': 'Note',
         'message_type_w': 'Warning',
         'message_type_e': 'Error',
+        'flag_at_and_below': 'Flag [{flag}] at position and below',
+        'flag_at_and_right': 'Flag [{flag}] at position and right',
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

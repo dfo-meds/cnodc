@@ -9,6 +9,7 @@ import traceback
 
 import zrlog
 import cnodc.ocproc2.structures as ocproc2
+from cnodc.desktop import VERSION
 from cnodc.desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
     BatchType, SimpleRecordInfo
 from cnodc.desktop.client.local_db import LocalDatabase
@@ -21,6 +22,7 @@ import uuid
 import typing as t
 
 from cnodc.desktop.gui.error_pane import ErrorPane
+from cnodc.desktop.gui.graph_pane import GraphPane
 from cnodc.desktop.gui.history_pane import HistoryPane
 from cnodc.desktop.gui.loading_wheel import LoadingWheel
 from cnodc.desktop.gui.login_pane import LoginPane
@@ -31,7 +33,7 @@ from cnodc.desktop.gui.record_list_pane import RecordListPane
 from cnodc.desktop.gui.station_pane import StationPane
 from cnodc.desktop.gui.map_pane import MapPane
 from cnodc.desktop.util import TranslatableException
-from cnodc.ocproc2.operations import QCOperator
+from cnodc.ocproc2.operations import QCOperator, QCSetWorkingQuality, QCAddHistory
 from cnodc.util import dynamic_object
 from autoinject import injector
 
@@ -183,10 +185,12 @@ class CNODCQCApp:
         self._panes.append(ButtonPane(self))
         self._panes.append(RecordListPane(self))
         self._panes.append(MapPane(self))
+        self._panes.append(GraphPane(self))
         self._panes.append(ParameterPane(self))
         self._panes.append(ErrorPane(self))
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
+        self._is_closing: bool = False
         for pane in self._panes:
             pane.on_init()
 
@@ -271,6 +275,31 @@ class CNODCQCApp:
             on_success=functools.partial(self._after_save, after_save=after_save)
         )
 
+    def quality_color(self, wq: int, ind_wq: int = None):
+        if wq == 1:
+            return 'forestgreen'
+        elif wq == 2:
+            return 'lightseagreen'
+        elif wq == 12:
+            return 'turquoise'
+        elif wq == 3:
+            return 'darkorange'
+        elif wq == 13:
+            return 'goldenrod'
+        elif wq == 4:
+            return 'maroon'
+        elif wq == 14:
+            return 'coral'
+        elif wq == 9:
+            return 'purple'
+        elif wq == 19:
+            return 'pink'
+        elif wq in (20, 21):
+            return 'red'
+        elif ind_wq is not None and ind_wq in (3, 4, 13, 14, 19, 9):
+            return 'silver'
+        return 'black'
+
     def _on_save_error(self, ex):
         self.show_user_exception(ex)
         self.app_state.set_save_flag(False)
@@ -290,8 +319,12 @@ class CNODCQCApp:
             self.close_current_batch(QCBatchCloseOperation.LOGOUT)
 
     def on_close(self):
+        if self._is_closing:
+            return
+        self._is_closing = True
         if self.app_state.batch_type is not None:
-            self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close)
+            if not self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close):
+                self._is_closing = False
         else:
             self._on_close()
 
@@ -313,6 +346,21 @@ class CNODCQCApp:
         self.messenger.close()
         self.status_info.destroy()
         self.root.destroy()
+
+    def create_flag_operator(self, target_path: str, flag: int):
+        return QCSetWorkingQuality(
+            value_path=target_path,
+            new_value=flag,
+            children=[
+                QCAddHistory(
+                    message=f"CHANGE QC FLAG [{target_path}] to [{flag}]",
+                    source_name="manual_qc",
+                    source_version=VERSION,
+                    source_instance=self.app_state.username,
+                    message_type=ocproc2.MessageType.INFO.value
+                )
+            ]
+        )
 
     def on_language_change(self):
         self.root.title(i18n.get_text('root_title'))
@@ -346,7 +394,7 @@ class CNODCQCApp:
         self.show_user_exception(ex)
         self.app_state.handle_batch_open_error()
 
-    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None):
+    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None) -> bool:
         # TODO: prompt for closing if there are unsaved actions for any record
         self.app_state.start_batch_close(op, load_next)
         self.dispatcher.submit_job(
@@ -354,6 +402,7 @@ class CNODCQCApp:
             on_success=functools.partial(self._close_qc_batch_success, after_close=after_close),
             on_error=self._close_qc_batch_error
         )
+        return True
 
     def _close_qc_batch_success(self, res, after_close: callable = None):
         self.app_state.complete_batch_close()

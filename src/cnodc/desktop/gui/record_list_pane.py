@@ -130,7 +130,7 @@ class RecordListPane(BasePane):
         return f'{prefix}Record {idx}'
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):
-        self.app.load_child(item_info['values'][0])
+        self.app.load_child(item_info['values'][1])
 
     def _on_record_click(self, item_info, is_change: bool, event):
         self.app.load_record(item_info['text'])

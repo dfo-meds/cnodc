@@ -313,7 +313,7 @@ class Value(AbstractValue):
         return str(self._value)
 
     def find_child(self, path: list[str]):
-        if not path or path[0] == "0":
+        if (not path) or path[0] == "0":
             return self
         elif path[0] == 'metadata':
             return self.metadata.find_child(path[1:])
