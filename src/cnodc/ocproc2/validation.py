@@ -16,11 +16,79 @@ CNODC_ALLOW_MULTI = f'{CNODC_PREFIX}allowMulti'
 CNODC_MIN = f'{CNODC_PREFIX}minValue'
 CNODC_MAX = f'{CNODC_PREFIX}maxValue'
 CNODC_ALLOW = f'{CNODC_PREFIX}allowedValue'
+CNODC_COORDINATE = f'{CNODC_PREFIX}requireCoordinate'
 SKOS_LABEL = f'http://www.w3.org/2004/02/skos/core#prefLabel'
 SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
 
 
-class OCProc2ElementInfo:
+class _BaseInfo:
+
+    def __init__(self, name):
+        self.name = name
+        self._label = {}
+        self._documentation = {}
+
+    def label(self, lang: str = 'en') -> str:
+        return self._get_language_attribute(self._label, lang, self.name)
+
+    def documentation(self, lang: str = 'en') -> str:
+        return self._get_language_attribute(self._documentation, lang)
+
+    def _get_language_attribute(self, lang_attr: dict, lang: str = 'en', default: str = '') -> str:
+        if lang in lang_attr and lang_attr[lang] != '':
+            return lang_attr[lang]
+        elif 'und' in lang_attr and lang_attr['und'] != '':
+            return lang_attr['und']
+        elif 'en' in self._label and lang_attr['en'] != '':
+            return lang_attr['en']
+        else:
+            return default
+
+    def _set_multi_language(self, label, property: dict):
+        lang = getattr(label, 'language') if hasattr(label, 'language') else 'und'
+        if lang is None or lang == '':
+            lang = 'und'
+        property[lang] = str(label)
+
+    def set_label(self, label: t.Union[set, str]):
+        if isinstance(label, set):
+            for l in label:
+                self._set_multi_language(l, self._label)
+        else:
+            self._set_multi_language(label, self._label)
+
+    def set_documentation(self, doc: t.Union[set, str]):
+        if isinstance(doc, set):
+            for d in doc:
+                self._set_multi_language(d, self._documentation)
+        else:
+            self._set_multi_language(doc, self._documentation)
+
+    def _remove_prefix(self, x: t.Union[set, str]):
+        if x is None:
+            return x
+        if isinstance(x, set):
+            return set(self._remove_prefix(y) for y in x)
+        else:
+            return x if '#' not in x else x[x.rfind('#')+1:]
+
+
+class OCProc2ChildRecordTypeInfo(_BaseInfo):
+
+    def __init__(self,
+                 name: str,
+                 relevant_coordinates: t.Optional[list[str]] = None):
+        self.coordinates = relevant_coordinates or set()
+        super().__init__(name)
+
+    def update_coordinates(self, coordinates: t.Union[set, str]):
+        if isinstance(coordinates, set):
+            self.coordinates.update(self._remove_prefix(coordinates))
+        else:
+            self.coordinates.add(self._remove_prefix(coordinates))
+
+
+class OCProc2ElementInfo(_BaseInfo):
 
     def __init__(self,
                  name: str,
@@ -31,7 +99,6 @@ class OCProc2ElementInfo:
                  preferred_unit: t.Optional[str] = None,
                  groups: t.Optional[set[str]] = None,
                  allowed_values: t.Optional[set[t.Union[int, str]]] = None):
-        self.name = name
         self.groups = groups or set()
         self.preferred_unit = preferred_unit
         self.data_type = data_type
@@ -39,24 +106,7 @@ class OCProc2ElementInfo:
         self.min_value = min_value
         self.max_value = max_value
         self.allowed_values = allowed_values or set()
-        self._label = {}
-        self._documentation = {}
-
-    def label(self, lang: str = 'en') -> str:
-        return self._get_language_attribute(self._label, lang)
-
-    def documentation(self, lang: str = 'en') -> str:
-        return self._get_language_attribute(self._documentation, lang)
-
-    def _get_language_attribute(self, lang_attr: dict, lang: str = 'en') -> str:
-        if lang in lang_attr and lang_attr[lang] != '':
-            return lang_attr[lang]
-        elif 'und' in lang_attr and lang_attr['und'] != '':
-            return lang_attr['und']
-        elif 'en' in self._label and lang_attr['en'] != '':
-            return lang_attr['en']
-        else:
-            return ''
+        super().__init__(name)
 
     def set_preferred_unit(self, unit: t.Union[set, str]):
         if isinstance(unit, set):
@@ -105,27 +155,6 @@ class OCProc2ElementInfo:
         else:
             self.max_value = float(max_value)
 
-    def set_label(self, label: t.Union[set, str]):
-        if isinstance(label, set):
-            for l in label:
-                self._set_multi_language(l, self._label)
-        else:
-            self._set_multi_language(label, self._label)
-
-    def set_documentation(self, doc: t.Union[set, str]):
-        if isinstance(doc, set):
-            for d in doc:
-                self._set_multi_language(d, self._documentation)
-        else:
-            self._set_multi_language(doc, self._documentation)
-
-    def _set_multi_language(self, label, property: dict):
-        lang = getattr(label, 'language') if hasattr(label, 'language') else 'und'
-        if lang is None or lang == '':
-            lang = 'und'
-        property[lang] = str(label)
-
-
 
 @injector.injectable_global
 class OCProc2Ontology:
@@ -133,7 +162,7 @@ class OCProc2Ontology:
     def __init__(self, ontology_file: pathlib.Path = None):
         self._onto_file = ontology_file or pathlib.Path(__file__).absolute().parent / 'ontology' / 'parameters.ttl'
         self._parameters: t.Optional[dict[str, OCProc2ElementInfo]] = None
-        self._recordset_types = set()
+        self._recordset_types: t.Optional[dict, str, OCProc2ChildRecordTypeInfo] = None
         self._load_lock = threading.Lock()
         self._load_graph()
 
@@ -142,6 +171,7 @@ class OCProc2Ontology:
             with self._load_lock:
                 if self._parameters is None:
                     self._parameters = {}
+                    self._recordset_types = {}
                     graph = rdflib.Graph()
                     graph.parse(str(self._onto_file))
                     graph_dict: dict[str, dict] = {}
@@ -182,8 +212,20 @@ class OCProc2Ontology:
                                 self._parameters[e_name].set_max_value(graph_dict[key][CNODC_MAX])
                             if CNODC_ALLOW in graph_dict[key]:
                                 self._parameters[e_name].update_allowed_values(graph_dict[key][CNODC_ALLOW])
-                        elif graph_dict[key][SKOS_IN_SCHEME] == CNODC_RECORDSET_TYPES:
-                            self._recordset_types.add(key[key.rfind('#')+1:])
+                        elif str(graph_dict[key][SKOS_IN_SCHEME]) == CNODC_RECORDSET_TYPES:
+                            e_name = key[key.rfind('#')+1:]
+                            self._recordset_types[e_name] = OCProc2ChildRecordTypeInfo(key)
+                            if SKOS_LABEL in graph_dict[key]:
+                                self._recordset_types[e_name].set_label(graph_dict[key][SKOS_LABEL])
+                            if SKOS_DOCUMENTATION in graph_dict[key]:
+                                self._recordset_types[e_name].set_documentation(graph_dict[key][SKOS_DOCUMENTATION])
+                            if CNODC_COORDINATE in graph_dict[key]:
+                                self._recordset_types[e_name].update_coordinates(graph_dict[key][CNODC_COORDINATE])
+
+    def recordset_info(self, recordset_type_name: str) -> t.Optional[OCProc2ChildRecordTypeInfo]:
+        if recordset_type_name in self._recordset_types:
+            return self._recordset_types[recordset_type_name]
+        return None
 
     def element_info(self, element_name: str) -> t.Optional[OCProc2ElementInfo]:
         if element_name in self._parameters:

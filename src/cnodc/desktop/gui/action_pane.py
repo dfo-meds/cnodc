@@ -42,7 +42,7 @@ class ActionPane(BasePane):
         self._action_list.table.column('#3', width=150, anchor='w')
         self.app.bottom_notebook.add(action_frame, text='Operations', sticky='NSEW')
 
-    def on_language_change(self):
+    def on_language_change(self, language: str):
         # TODO: treeview headings
         # TODO: notebook text label
         # TODO: translate action names??
@@ -67,6 +67,10 @@ class ActionPane(BasePane):
     def _on_action_right_click(self, item, e):
         menu = tk.Menu(self.app.root, tearoff=0)
         menu.add_command(
+            label=i18n.get_text('goto'),
+            command=functools.partial(self._goto_item, path=item['values'][1])
+        )
+        menu.add_command(
             label=i18n.get_text('remove'),
             command=functools.partial(self._remove_item, db_index=item['values'][-1])
         )
@@ -77,3 +81,6 @@ class ActionPane(BasePane):
 
     def _remove_item(self, db_index: int):
         self.app.delete_operation(db_index)
+
+    def _goto_item(self, path: str):
+        self.app.load_closest_child(path)

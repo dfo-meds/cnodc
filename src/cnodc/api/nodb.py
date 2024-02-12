@@ -77,6 +77,8 @@ class NODBWebController:
                 if f'complete_{queue_name}' in access_perms:
                     response['actions']['complete'] = flask.url_for('cnodc.fail_queue_item', **kwargs)
                 if 'metadata' in queue_item.data:
+                    if 'current-qc-tests' in queue_item.data['metadata']:
+                        response['current_tests'] = queue_item.data['current_tests']
                     if f'escalate_{queue_name}' in access_perms and 'escalation-queue' in queue_item.data['metadata']:
                         esc_queue = queue_item.data['metadata']['escalation-queue'] or ''
                         if esc_queue and esc_queue != queue_name:
@@ -88,6 +90,7 @@ class NODBWebController:
                 if 'batch_info' in queue_item.data:
                     response['actions']['download_working'] = flask.url_for('cnodc.download_batch', **kwargs)
                     response['actions']['apply_working'] = flask.url_for('cnodc.apply_changes', **kwargs)
+                    response['batch_size'] = structures.NODBBatch.count_working_by_uuid(db, queue_item.data['batch_info']['uuid'])
                     if f'clear_actions_{queue_name}' in access_perms:
                         response['actions']['clear_actions'] = flask.url_for('cnodc.reset_actions', **kwargs)
                 elif 'source_info' in queue_item.data:
@@ -194,9 +197,7 @@ class NODBWebController:
             batch: structures.NODBBatch = structures.NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
             if batch is None:
                 raise ValueError('invalid batch')
-            batch_size = structures.NODBBatch.count_working_by_uuid(db, queue_item.data['batch_info']['uuid'])
             codec = OCProc2BinCodec()
-            yield vlq_encode(batch_size)
             for wr in batch.stream_working_records(db):
                 yield vlq_encode(len(wr.working_uuid))
                 yield wr.working_uuid.encode('ascii')
@@ -205,8 +206,12 @@ class NODBWebController:
                 yield vlq_encode(len(hash_code))
                 yield hash_code.encode('ascii')
                 actions = wr.get_metadata('actions', None)
-                if actions:
-                    self._apply_all_actions(record, actions)
+                if actions is not None:
+                    content = json.dumps(actions)
+                    yield vlq_encode(len(content))
+                    yield actions.encode('utf-8')
+                else:
+                    yield vlq_encode(0)
                 data = b''.join(codec.encode_records(
                     [record],
                     codec='JSON',

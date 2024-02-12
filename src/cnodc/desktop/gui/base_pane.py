@@ -59,10 +59,10 @@ class SimpleRecordInfo:
                  lon: t.Optional[float] = None,
                  ts: t.Optional[str] = None,
                  has_errors: t.Optional[bool] = None,
-                 station_id: t.Optional[str] = None,
                  lat_qc: t.Optional[int] = None,
                  lon_qc: t.Optional[int] = None,
-                 time_qc: t.Optional[int] = None):
+                 time_qc: t.Optional[int] = None,
+                 station_id: t.Optional[str] = None):
         self.index = idx
         self.rowid = rowid
         self.record_uuid = record_uuid
@@ -80,21 +80,27 @@ class ApplicationState:
 
     def __init__(self, display_callable: callable):
         self._display_cb = display_callable
-        self.batch_state = None
-        self.batch_type = None
-        self.batch_actions = None
-        self.batch_close_op = None
+        self.batch_state: t.Optional[BatchOpenState] = None
+        self.batch_type: t.Optional[BatchType] = None
+        self.batch_actions: t.Optional[list[str]] = None
+        self.batch_close_op: t.Optional[QCBatchCloseOperation] = None
         self.batch_load_after_close = None
-        self.record = None
-        self.record_uuid = None
-        self.subrecord_path = None
-        self.child_record = None
-        self.child_recordset = None
-        self.actions = None
-        self.save_in_progress = False
-        self.username = None
-        self.user_access = None
+        self.batch_test_names: t.Optional[list[str]] = None
+        self.record: t.Optional[ocproc2.DataRecord] = None
+        self.record_uuid: t.Optional[str] = None
+        self.subrecord_path: t.Optional[str] = None
+        self.child_record: t.Optional[ocproc2.DataRecord] = None
+        self.child_recordset: t.Optional[ocproc2.RecordSet] = None
+        self.actions: t.Optional[list[QCOperator]] = None
+        self.save_in_progress: bool = False
+        self.username: t.Optional[str] = None
+        self.user_access: t.Optional[list[str]] = None
         self.batch_record_info: t.Optional[dict[str, SimpleRecordInfo]] = None
+
+    def ordered_simple_records(self) -> list[SimpleRecordInfo]:
+        srs = list(self.batch_record_info.values())
+        srs.sort(key=lambda x: (x.station_id, x.timestamp))
+        return srs
 
     def is_batch_action_available(self, action_name: str):
         if self.save_in_progress:
@@ -123,10 +129,11 @@ class ApplicationState:
             return None
         return info.latitude, info.longitude
 
-    def complete_batch_open(self, batch_actions: list[str], record_info: list[SimpleRecordInfo]):
+    def complete_batch_open(self, batch_actions: list[str], batch_test_names: list[str], record_info: list[SimpleRecordInfo]):
         self.batch_actions = batch_actions
         self.batch_state = BatchOpenState.OPEN
-        self.batch_record_info = {x.record_uuid: x for x in record_info}
+        self.batch_test_names = batch_test_names
+        self.batch_record_info = {x.record_uuid: x for x in record_info} if record_info else {}
         self.refresh_display(DisplayChange.BATCH | DisplayChange.OP_ONGOING)
 
     def handle_batch_open_error(self):
@@ -141,6 +148,7 @@ class ApplicationState:
             self.batch_actions = None
             self.batch_record_info = None
             self.batch_actions = None
+            self.batch_test_names = None
             self.batch_close_op = None
             self.batch_load_after_close = None
             self.refresh_display(DisplayChange.BATCH | DisplayChange.OP_ONGOING)
@@ -242,7 +250,7 @@ class BasePane:
     def on_init(self):
         pass
 
-    def on_language_change(self):
+    def on_language_change(self, language: str):
         pass
 
     def on_close(self):

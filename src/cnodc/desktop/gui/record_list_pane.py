@@ -13,10 +13,13 @@ from cnodc.ocproc2.operations import QCOperator
 import tkinter.messagebox as tkmb
 import tkinter.ttk as ttk
 
+from cnodc.ocproc2.validation import OCProc2Ontology
+
 
 class RecordListPane(BasePane):
 
     local_db: LocalDatabase = None
+    ontology: OCProc2Ontology = None
 
     @injector.construct
     def __init__(self, *args, **kwargs):
@@ -38,21 +41,23 @@ class RecordListPane(BasePane):
         self._group.rowconfigure(3, weight=1)
         self._group.columnconfigure(0, weight=1)
         # TODO: label styling
-        self._record_label = ttk.Label(self._group, text="Records").grid(row=0, column=0, sticky='NSEW')
-        self._subrecord_label = ttk.Label(self._group, text="Child Records").grid(row=2, column=0, sticky='NSEW')
+        self._record_label = ttk.Label(self._group, text=i18n.get_text("record_list_title")).grid(row=0, column=0, sticky='NSEW')
+        self._subrecord_label = ttk.Label(self._group, text=i18n.get_text("child_record_list_title")).grid(row=2, column=0, sticky='NSEW')
         self._record_list = ScrollableTreeview(
             parent=self._group,
             selectmode="browse",
             show="",
             headers=[
+                i18n.get_text('record_list_index'),
                 i18n.get_text('record_list_title'),
             ],
             on_click=self._on_record_click,
-            displaycolumns=(0,)
+            displaycolumns=(0, 1)
         )
         self._record_list.tag_configure('has-error', foreground='red')
         self._record_list.grid(row=1, column=0, sticky='EWNS')
-        self._record_list.table.column('#1', anchor='w')
+        self._record_list.table.column('#1', anchor='w', stretch=False, width=45)
+        self._record_list.table.column('#2', anchor='w')
         self._subrecord_list = ScrollableTreeview(
             parent=self._group,
             selectmode="browse",
@@ -68,10 +73,11 @@ class RecordListPane(BasePane):
         self._subrecord_list.table.column('#0', width=30, stretch=False)
         self._subrecord_list.table.column('#1', anchor='w')
 
-    def on_language_change(self):
-        # TODO: headings for both treeviews
-
-        pass
+    def on_language_change(self, language: str):
+        if self._record_label is not None:
+            self._record_label.configure(text=i18n.get_text('record_list_title'))
+        if self._subrecord_label is not None:
+            self._subrecord_label.configure(text=i18n.get_text('child_record_list_title'))
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.BATCH:
@@ -85,6 +91,9 @@ class RecordListPane(BasePane):
             self._subrecord_list.clear_items()
             if app_state.record is not None:
                 self._build_subrecord_list(app_state.record)
+        if change_type & DisplayChange.RECORD_CHILD:
+            # TODO: set the selection for child
+            pass
 
     def _build_record_list(self, app_state: ApplicationState):
         for sr in app_state.batch_record_info.values():
@@ -92,14 +101,14 @@ class RecordListPane(BasePane):
                 parent='',
                 index='end',
                 text=sr.record_uuid,
-                values=[self._build_top_record_display(sr)],
+                values=[sr.index, self._build_top_record_display(sr)],
                 tags=['has-error' if sr.has_errors else 'no-error']
             )
 
     def _build_top_record_display(self, sr: SimpleRecordInfo):
         if sr.timestamp is not None:
-            return f"{sr.rowid} {sr.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
-        return f'{sr.rowid} {sr.record_uuid}'
+            return f"{sr.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+        return f'{sr.record_uuid}'
 
     def _build_subrecord_list(self, record: ocproc2.DataRecord, parent_text: str = '', depth: int = 0):
         for srt in record.subrecords:
@@ -115,19 +124,27 @@ class RecordListPane(BasePane):
                     self._build_subrecord_list(record, record_text, depth + 2)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
-        return (' ' * (depth * 2)) + i18n.get_text(f'record_set_label_{subrecord_set_type.lower()}', index=str(record_set_idx))
+        name = subrecord_set_type
+        einfo = self.ontology.recordset_info(subrecord_set_type)
+        if einfo is not None:
+            name = einfo.label(i18n.current_language())
+        return f'{(" " * (depth * 2))}{name}#{record_set_idx}'
 
     def _build_record_display(self, record: ocproc2.DataRecord, srt: str, idx: int, depth: int):
-        prefix = (' ' * (depth * 2))
-        if srt == 'PROFILE':
-            if record.coordinates.has_value('Depth'):
-                units = record.coordinates['Depth'].metadata.best_value('Units', 'm')
-                return f'{prefix}{record.coordinates["Depth"].to_float()} {units}'
-            elif record.coordinates.has_value('Pressure'):
-                units = record.coordinates['Pressure'].metadata.best_value('Units', 'Pa')
-                return f'{prefix}{record.coordinates["Pressure"].to_float()} {units}'
-        # TODO: other profile types
-        return f'{prefix}Record {idx}'
+        display = i18n.get_text(f"record_label", index=str(idx))
+        einfo = self.ontology.recordset_info(srt)
+        if einfo and einfo.coordinates:
+            c_names = list(einfo.coordinates)
+            c_names.sort()
+            for c_name in c_names:
+                if record.coordinates.has_value(c_name):
+                    value = record.coordinates[c_name]
+                    units = value.metadata.best_value('Units')
+                    if units:
+                        display += f" [{value.to_float()} {units}]"
+                    else:
+                        display += f" [{value.to_float()}]"
+        return f'{(" " * (depth * 2))}{display}'
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):
         self.app.load_child(item_info['values'][1])

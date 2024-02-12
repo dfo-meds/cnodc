@@ -2049,19 +2049,23 @@ cnodc:SilicateMolar rdf:type skos:Concept ;
 cnodc:recordSetTypes rdf:type skos:ConceptScheme .
 
 cnodc:TSERIES rdf:type skos:Concept ;
+  skos:prefLabel "Time Series"@en ;
   cnodc:requireCoordinate cnodc:TimeOffset ;
   cnodc:requireCoordinate cnodc:Time ;
   skos:inScheme cnodc:recordSetTypes .
 
 cnodc:PROFILE rdf:type skos:Concept ;
+  skos:prefLabel "Profile"@en ;
   cnodc:requireCoordinate cnodc:Depth ;
   cnodc:requireCoordinate cnodc:Pressure ;
   skos:inScheme cnodc:recordSetTypes .
 
 cnodc:WAVE_SENSORS rdf:type skos:Concept ;
+  skos:prefLabel "Wave Sensor"@en ;
   cnodc:requireCoordinate cnodc:WaveSensor ;
   skos:inScheme cnodc:recordSetTypes .
 
 cnodc:SPEC_WAVE rdf:type skos:Concept ;
+  skos:prefLabel "Wave Spectra"@en ;
   cnodc:requireCoordinate cnodc:CentralFrequency ;
   skos:inScheme cnodc:recordSetTypes .

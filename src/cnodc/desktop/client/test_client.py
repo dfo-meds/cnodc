@@ -40,7 +40,7 @@ class TestClient:
             return self._apply_to_item(**kwargs)
         raise Exception('invalid test request')
 
-    def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord]]:
+    def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
         if endpoint == 'download/12345' and method == 'GET':
             return self._download_station_failure(**kwargs)
         raise Exception('invalid test request')
@@ -83,6 +83,8 @@ class TestClient:
             'item_uuid': '12345',
             'app_id': '67890',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
+            'current_tests': ['nodb_station_check'],
+            'batch_size': 9,
             'actions': {
                 'renew': 'renew/12345',
                 'release': 'release/12345',
@@ -96,16 +98,15 @@ class TestClient:
             }
         }
 
-    def _download_station_failure(self, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord]]:
+    def _download_station_failure(self, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
         if app_id != '67890':
             raise Exception('invalid app id')
         for i in range(1, 10):
             r = ocproc2.DataRecord()
-            r.metadata['WMOID'] = '12345'
+
             r.coordinates['Latitude'] = ocproc2.Value(round(self._get_lat(i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
             r.coordinates['Longitude'] = ocproc2.Value(round(self._get_long(i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
             r.coordinates['Time'] = ocproc2.Value(self._get_time(i), WorkingQuality=0)
-            r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=0)
             for j in range(0, 20):
                 sr = ocproc2.DataRecord()
                 depth = (j * 50) + (random.randint(0, 10) / 100)
@@ -115,20 +116,34 @@ class TestClient:
                 sr.parameters['CurrentSpeed'] = ocproc2.Value(self._curspd(depth), Units='m s-1', WorkingQuality=0, Uncertainty=0.5)
                 sr.parameters['CurrentDirection'] = ocproc2.Value(self._curdir(depth), Units='degrees', WorkingQuality=0, Uncertainty=1)
                 r.subrecords.append_record_set('PROFILE', 0, sr)
-            r.record_qc_test_result(
-                'nodb_station_check',
-                '1.0',
-                ocproc2.QCResult.MANUAL_REVIEW,
-                messages=[
-                    ocproc2.QCMessage('station_no_record', '')
-                ],
-                test_tags=['GTSPP_1.1']
-            )
+            if i % 2 == 0:
+                r.metadata['WMOID'] = '12345'
+                r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=0)
+                r.record_qc_test_result(
+                    'nodb_station_check',
+                    '1.0',
+                    ocproc2.QCResult.MANUAL_REVIEW,
+                    messages=[
+                        ocproc2.QCMessage('station_no_record', ''),
+                        ocproc2.QCMessage('temp_invalid', 'subrecords/PROFILE/0/4/parameters/Temperature')
+                    ],
+                    test_tags=['GTSPP_1.1']
+                )
+            else:
+                r.metadata['WMOID'] = '23456'
+                r.metadata['CNODCStation'] = ocproc2.Value('12345', WorkingQuality=1)
+                r.record_qc_test_result(
+                    'nodb_station_check',
+                    '1.0',
+                    ocproc2.QCResult.PASS,
+                    messages=[],
+                    test_tags=['GTSPP_1.1']
+                )
             r.add_history_entry('Test record, not real', 'desktop_test', '1.0', 'abc', ocproc2.MessageType.INFO)
-            yield f'000{i}', r.generate_hash(), r
+            yield f'000{i}', r.generate_hash(), r, []
 
     def _get_lat(self, x: int):
-        return 45 - (0.03 * x) + (random.randint(-100, 100) / 100)
+        return 45 - (0.03 * x) + (random.randint(-100, 100) / 100) - (0 if x % 2 else 10)
 
     def _get_long(self, x: int):
         return -45 - (0.03 * x) + (random.randint(-100, 100) / 100)

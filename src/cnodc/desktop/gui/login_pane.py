@@ -68,7 +68,7 @@ class LoginPane(BasePane):
             res = max(res * 1000, 5000)
         self.app.root.after(res, self.auto_refresh_session)
 
-    def on_language_change(self):
+    def on_language_change(self, language: str):
         if self._username is None:
             self._user_status_bar.configure(text=i18n.get_text('no_user_logged_in'))
         else:
@@ -79,6 +79,6 @@ class LoginPane(BasePane):
             self.app.menus.enable_command('file/login')
         else:
             self.app.menus.disable_command('file/login')
-        self.on_language_change()
+        self.on_language_change(i18n.current_language())
         self.app.update_user_info(self._username or None, self._access_list or [])
 

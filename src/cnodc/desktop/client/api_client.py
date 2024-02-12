@@ -11,6 +11,7 @@ from cnodc.desktop.client.local_db import LocalDatabase, CursorWrapper
 from cnodc.desktop.client.test_client import TestClient
 from cnodc.desktop.gui.messenger import CrossThreadMessenger
 from cnodc.desktop.util import TranslatableException
+from cnodc.ocproc2.operations import QCOperator
 from cnodc.util import clean_for_json, vlq_decode
 import zirconium as zr
 import requests
@@ -54,16 +55,20 @@ class _WebAPIClient:
             raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
         return json_body
 
-    def make_working_records_request(self, *args, **kwargs) -> t.Iterable[tuple[str, str, ocproc2.DataRecord]]:
+    def make_working_records_request(self, *args, **kwargs) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
         response = self._make_raw_request(*args, **kwargs)
         codec = OCProc2BinCodec()
         stream = ByteSequenceReader(response.iter_content(10240, False))
-        record_estimate = stream.consume_vlq_int()
         while not stream.at_eof():
             record_id = stream.consume(stream.consume_vlq_int()).decode('ascii')
             record_hash = stream.consume(stream.consume_vlq_int()).decode('ascii')
             record_content = stream.consume(stream.consume_vlq_int())
-            yield record_id, record_hash, codec.decode_messages([record_content])
+            action_content = stream.consume(stream.consume_vlq_int())
+            actions = []
+            if action_content != b'':
+                actions = json.loads(action_content.decode('utf-8'))
+
+            yield record_id, record_hash, codec.decode_messages([record_content]), actions
 
     def make_json_dict_list_request(self, *args, **kwargs) -> t.Iterable[dict]:
         response = self._make_raw_request(*args, **kwargs)
@@ -193,7 +198,7 @@ class CNODCServerAPI:
             cur.commit()
             return True
 
-    def load_next_station_failure(self) -> t.Optional[list[str]]:
+    def load_next_station_failure(self) -> t.Optional[tuple[list[str], list[str]]]:
         with self.local_db.cursor() as cur:
             cur.begin_transaction()
             response = self._client.make_json_request('next/station-failure', 'POST')
@@ -201,9 +206,9 @@ class CNODCServerAPI:
                 return None
             else:
                 self._current_queue_item = response
-                self._load_working_records(cur)
+                self._load_working_records(cur, self._current_queue_item['batch_size'])
             cur.commit()
-        return list(self._current_queue_item['actions'].keys())
+        return list(self._current_queue_item['actions'].keys()), self._current_queue_item['current_tests']
 
     def _make_item_request(self, action_name: str, **kwargs):
         if action_name not in self._current_queue_item['actions']:
@@ -255,7 +260,7 @@ class CNODCServerAPI:
             return False
         with self.local_db.cursor() as cur:
             actions = {}
-            cur.execute('SELECT a.record_uuid, a.action_text, r.record_hash FROM actions a JOIN records r ON r.record_uuid = a.record_uuid')
+            cur.execute('SELECT a.record_uuid, a.action_text, r.record_hash FROM actions a JOIN records r ON r.record_uuid = a.record_uuid AND is_saved = 0')
             for record_id, action_text, record_hash in cur.fetchall():
                 if record_id not in actions:
                     actions[record_id] = {
@@ -265,16 +270,11 @@ class CNODCServerAPI:
                 actions[record_id]['actions'].append(
                     json.loads(action_text)
                 )
-            new_results = self._make_item_request('apply_working', operations=actions)
-            result = True
-            for record_uuid in new_results:
-                if new_results[record_uuid][0]:
-                    cur.delete('actions', {'record_uuid': record_uuid})
-                    cur.update('records', {'record_hash': new_results[record_uuid][1]}, {'record_uuid': record_uuid})
-                else:
-                    result = False
+            response = self._make_item_request('apply_working', operations=actions)
+            successful_saves = [wrid for wrid in response if response[wrid][0]]
+            cur.execute("UPDATE actions SET is_saved = 1 WHERE record_uuid IN (" + (','.join('?' for _ in successful_saves)) + ")", successful_saves)
             cur.commit()
-            return result
+            return True
 
     def renew_lock(self) -> bool:
         if self._current_queue_item is None:
@@ -289,11 +289,12 @@ class CNODCServerAPI:
             self._current_queue_item.update(resp)
         return True
 
-    def _load_working_records(self, cur: CursorWrapper):
+    def _load_working_records(self, cur: CursorWrapper, rough_count: int):
         if 'actions' not in self._current_queue_item or 'download_working' not in self._current_queue_item['actions']:
             raise ValueError('Missing response information')
         cur.truncate_table('records')
-        for working_uuid, record_hash, record in self._client.make_working_records_request(
+        cur.truncate_table('actions')
+        for working_uuid, record_hash, record, actions in self._client.make_working_records_request(
                 endpoint=self._current_queue_item['actions']['download_working'],
                 method='GET',
                 app_id=self._current_queue_item['app_id']
@@ -301,27 +302,47 @@ class CNODCServerAPI:
             lat = None
             lon = None
             ts = None
+            lat_qc = None
+            lon_qc = None
+            ts_qc = None
+            station_id = None
+            if record.metadata.has_value('CNODCStation'):
+                station_id = record.metadata.best_value('CNODCStation')
+            elif record.metadata.has_value('CNODCStationString'):
+                station_id = record.metadata.best_value('CNODCStationString')
             if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
                 try:
                     lat = record.coordinates['Latitude'].to_float()
                     lon = record.coordinates['Longitude'].to_float()
+                    lat_qc = int(record.coordinates['Latitude'].metadata.best_value('WorkingQuality', 0))
+                    lon_qc = int(record.coordinates['Longitude'].metadata.best_value('WorkingQuality', 0))
                 except (ValueError, TypeError):
                     pass
             if record.coordinates.has_value('Time'):
                 try:
                     ts = record.coordinates['Time'].to_datetime().isoformat()
+                    ts_qc = int(record.coordinates['Time'].metadata.best_value('WorkingQuality', 0))
                 except (ValueError, TypeError):
                     pass
             cur.insert('records', {
                 'record_uuid': working_uuid,
                 'display': self._build_display(record, working_uuid),
                 'record_hash': record_hash,
+                'station_id': station_id,
                 'lat': lat,
                 'lon': lon,
+                'lat_qc': lat_qc,
+                'lon_qc': lon_qc,
                 'datetime': ts,
+                'datetime_qc': ts_qc,
                 'record_content': json.dumps(record.to_mapping()),
                 'has_errors': 1 if record.qc_tests[-1].result == ocproc2.QCResult.MANUAL_REVIEW else 0
             })
+            for action in actions:
+                cur.insert('actions', {
+                    'record_uuid': working_uuid,
+                    'action_text': json.dumps(action)
+                })
         cur.commit()
 
     def _build_display(self, record: ocproc2.DataRecord, working_id: str):

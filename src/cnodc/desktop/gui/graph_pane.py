@@ -41,13 +41,12 @@ class GraphPane(BasePane):
         self._combo_dependent: t.Optional[ttk.Combobox] = None
 
     def on_init(self):
-        self._chart_frame = ttk.Frame(self.app.middle_right)
+        self._chart_frame = ttk.Frame(self.app.middle_right, width=600, height=600)
         self._chart_frame.grid(row=0, column=0, sticky='NSEW')
         self._chart_frame.rowconfigure(0, weight=1)
         self._chart_frame.columnconfigure(0, weight=1)
         self._figure = mplf.Figure(dpi=100, figsize=(1, 1))
         self._canvas = mpltk.FigureCanvasTkAgg(self._figure, master=self._chart_frame)
-        self._canvas.get_tk_widget().configure(scrollregion=(0, 0, 600, 600))
         self._canvas.draw()
         self._canvas.mpl_connect('button_release_event', self._on_click)
         self._canvas.get_tk_widget().grid(row=0, column=0, sticky='NSEW')
@@ -66,10 +65,16 @@ class GraphPane(BasePane):
         self._combo_independent.grid(row=0, column=1, padx=5, pady=5)
         self._combo_independent.bind('<<ComboboxSelected>>', self._var_change)
 
+    def on_language_change(self, language: str):
+        # TODO: labels for table
+        # TODO: if possible, drop-down list elements
+        pass
+
     def _on_click(self, event: mplbb.MouseEvent):
-        if event.button != 3 or self._current_coordinate is None or self._current_parameter is None or self._current_recordset is None:
+        if event.ydata is None or event.button != 3 or self._current_coordinate is None or self._current_parameter is None:
             return
-        if event.ydata is None:
+        if self._current_recordset is None:
+            # TODO: check for BATCH selected and  give lat/long/time flagging options?
             return
         if self._current_coordinate in ('Depth', 'Pressure'):
             coordinate_value = round(event.ydata * -1, 4)
@@ -134,6 +139,7 @@ class GraphPane(BasePane):
         self._update_variables(self._current_combobox_value(self._combo_recordset))
 
     def _update_boxes(self, record: ocproc2.DataRecord):
+        current_choice = self._current_combobox_value(self._combo_recordset)
         rs_choices = []
         if self.app.app_state.batch_record_info is not None and len(self.app.app_state.batch_record_info) > 1:
             rs_choices.append('Batch')
@@ -143,8 +149,9 @@ class GraphPane(BasePane):
         self._combo_recordset.configure(values=rs_choices)
         self._current_recordset_id = None
         if rs_choices:
-            self._combo_recordset.current(0)
-            self._update_variables(rs_choices[0])
+            index = rs_choices.index(current_choice) if current_choice in rs_choices else 0
+            self._combo_recordset.current(index)
+            self._update_variables(rs_choices[index])
         else:
             self._update_variables(None)
 
@@ -166,6 +173,7 @@ class GraphPane(BasePane):
         last_dep = self._current_combobox_value(self._combo_dependent)
         dep_vars = set()
         ind_vars = set()
+        # TODO: method of translating record set names and variable names??
         if record_set_name == 'Batch':
             self._current_recordset = None
             dep_vars.add('Speed')
@@ -314,9 +322,16 @@ class GraphPane(BasePane):
                 y_values[i],
                 c=self.app.quality_color(y_qc_values[i][1], x_qc_values[i][1])
             )
-        self._axes.set_ylabel(f'{y_name} [{unit_map[y_name]}]' if y_name in unit_map else y_name)
-        self._axes.set_xlabel(f'{x_name} [{unit_map[x_name]}]' if x_name in unit_map else x_name)
+        self._axes.set_ylabel(self._get_label(y_name, unit_map[y_name] if y_name in unit_map else None))
+        self._axes.set_xlabel(self._get_label(x_name, unit_map[x_name] if x_name in unit_map else None))
         self._canvas.draw()
+
+    def _get_label(self, key, units: t.Optional[str] = None):
+        # TODO: lookup in ontology and label graph with it
+        if units:
+            return f"{key} [{units}]"
+        else:
+            return key
 
     def _extract_value(self, map_: ocproc2.ValueMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:
         if not map_.has_value(value_name):

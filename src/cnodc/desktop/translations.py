@@ -68,6 +68,17 @@ TRANSLATIONS = {
         'message_type_e': 'Error',
         'flag_at_and_below': 'Flag [{flag}] at position and below',
         'flag_at_and_right': 'Flag [{flag}] at position and right',
+        'qc_test_name': 'Test Name',
+        'qc_test_time': 'Time Run',
+        'qc_test_error_name': 'Error',
+        'qc_test_element_name': 'Element',
+        "record_list_title": "Records",
+        "child_record_list_title": "Child Records",
+        "record_label": "Record {index}",
+        "qc_test_nodb_station_check": "Station Check",
+        "qc_error_station_no_record": "Missing Station Record",  # todo remove me
+        "qc_error_temp_invalid": "Invalid temperature",  # todo remove me
+        "goto": "Goto",
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

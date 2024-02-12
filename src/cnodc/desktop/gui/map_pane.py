@@ -1,4 +1,6 @@
 import functools
+import pathlib
+import tkinter
 
 from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, BatchOpenState
 import tkintermapview as tkmv
@@ -7,6 +9,8 @@ import cnodc.ocproc2.structures as ocproc2
 import tkinter.ttk as ttk
 from autoinject import injector
 from cnodc.desktop.client.local_db import LocalDatabase
+import PIL.Image as Image
+import PIL.ImageTk as ImageTk
 
 
 class MapPane(BasePane):
@@ -20,9 +24,12 @@ class MapPane(BasePane):
         self._map: t.Optional[tkmv.TkinterMapView] = None
         self._current_position = (45.41694, -75.70131)
         self._current_zoom = 10
+        base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
+        self._error_image = ImageTk.PhotoImage(Image.open(str(base_path / 'red_dot.png')).resize((15, 15)))
+        self._good_image = ImageTk.PhotoImage(Image.open(str(base_path / 'green_dot.png')).resize((15, 15)))
 
     def on_init(self):
-        self._map_frame = ttk.Frame(self.app.middle_left)
+        self._map_frame = ttk.Frame(self.app.middle_left, width=500, height=500)
         self._map_frame.grid(row=0, column=0, sticky='NSEW')
         self._rebuild_map(600, 600)
 
@@ -42,21 +49,45 @@ class MapPane(BasePane):
             self._map.set_zoom(self._current_zoom)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.SCREEN_SIZE:
-            #self._rebuild_map(self._map_frame.winfo_width(), self._map_frame.winfo_height())
-            # TODO: better way to resize map when window resizes?
-            pass
-        if self._map is not None and (change_type & (DisplayChange.BATCH | DisplayChange.SCREEN_SIZE)):
+        if self._map is not None and (change_type & DisplayChange.BATCH):
             self._map.delete_all_marker()
-            if app_state.batch_state == BatchOpenState.OPEN:
+            if app_state.batch_state == BatchOpenState.OPEN and app_state.batch_record_info:
+                min_lat = None
+                max_lat = None
+                min_lon = None
+                max_lon = None
+                last_station = None
+                station_path = []
                 for sr in app_state.batch_record_info.values():
+                    if last_station is not None and sr.station_id != last_station:
+                        if len(station_path) > 1:
+                            self._map.set_path(station_path, width=4, color='#666666')
+                        station_path = []
+                    last_station = sr.station_id
+                    station_path.append((sr.latitude, sr.longitude))
                     if sr.latitude is not None and sr.longitude is not None:
+                        if min_lat is None or sr.latitude < min_lat:
+                            min_lat = sr.latitude
+                        if max_lat is None or sr.latitude > max_lat:
+                            max_lat = sr.latitude
+                        if min_lon is None or sr.longitude < min_lon:
+                            min_lon = sr.longitude
+                        if max_lon is None or sr.longitude > max_lon:
+                            max_lon = sr.longitude
                         self._map.set_marker(
                             sr.latitude,
                             sr.longitude,
                             text=str(sr.index),
-                            command=functools.partial(self._open_record, record_uuid=sr.record_uuid)
+                            icon=self._error_image if sr.has_errors else self._good_image,
+                            command=functools.partial(self._open_record, record_uuid=sr.record_uuid),
+                            text_color="#FFFFFF"
                         )
+                if station_path:
+                    self._map.set_path(station_path, width=4, color='#666666')
+                self._map.fit_bounding_box(
+                    (max_lat, min_lon),
+                    (min_lat, max_lon)
+                )
         if change_type & DisplayChange.RECORD:
             coordinates = app_state.current_coordinates()
             if coordinates is not None:

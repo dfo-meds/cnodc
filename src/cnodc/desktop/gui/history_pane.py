@@ -37,7 +37,7 @@ class HistoryPane(BasePane):
         self._history_list.table.column('#4', width=125, stretch=tk.NO, anchor='w')
         self._history_list.grid(row=0, column=0, sticky='NSEW')
 
-    def on_language_change(self):
+    def on_language_change(self, language: str):
         # TODO: treeview headings
         # TODO: notebook label
         # TODO: column 3 (message type) and maybe date/time format?

@@ -26,9 +26,13 @@ CREATE TABLE IF NOT EXISTS records (
     display TEXT,
     record_content TEXT,
     lat REAL,
+    lat_qc INT,
     lon REAL,
+    lon_qc INT,
     datetime TEXT,
-    has_errors INT
+    datetime_qc INTEGER,
+    has_errors INT,
+    station_id TEXT
 
 );
 
@@ -36,6 +40,7 @@ CREATE TABLE IF NOT EXISTS records (
 CREATE TABLE IF NOT EXISTS actions (
 
     record_uuid TEXT,
-    action_text TEXT
+    action_text TEXT,
+    is_saved INT DEFAULT 0
 
 );

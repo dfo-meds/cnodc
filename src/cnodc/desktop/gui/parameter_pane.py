@@ -220,9 +220,10 @@ class ParameterPane(BasePane):
         self._value_lookup: dict[str, ocproc2.Value] = {}
 
     def on_init(self):
-        param_frame = ttk.Frame(self.app.bottom_notebook)
+        param_frame = ttk.Frame(self.app.far_right)
         param_frame.rowconfigure(0, weight=1)
         param_frame.columnconfigure(0, weight=1)
+        param_frame.grid(row=0, column=0, sticky='NSEW')
         self._parameter_list = ScrollableTreeview(
             parent=param_frame,
             selectmode='browse',
@@ -256,10 +257,8 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#2', width=150, anchor='w')
         self._parameter_list.table.column('#3', width=75, anchor='e')
         self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
-        self.app.bottom_notebook.add(param_frame, text='Properties', sticky='NSEW')
 
-    def on_language_change(self):
-        # TODO: parameter list headings
+    def on_language_change(self, language: str):
         self._rebuild_parameter_list(self.app.app_state)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -334,8 +333,13 @@ class ParameterPane(BasePane):
         if is_alt:
             tags.append('alt')
         self._value_lookup[path] = v
-        # TODO: instead of using key, use a lookup of key (if not a number)
-        self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{key}', *dv], tags=tags)
+        self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{self._key_name(key)}', *dv], tags=tags)
+
+    def _key_name(self, key: str):
+        einfo = self.ontology.element_info(key)
+        if einfo is not None:
+            return einfo.label(i18n.current_language())
+        return key
 
     def _parameter_display_value(self, v: ocproc2.AbstractValue) -> tuple[tuple, list]:
         tags = []

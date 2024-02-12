@@ -129,6 +129,7 @@ class CNODCQCApp:
 
     @injector.construct
     def __init__(self):
+        self.log = zrlog.get_logger('cnodc.desktop')
         self.app_state = ApplicationState(self.refresh_display)
         self._current_screen_size = None
         self._last_screen_width_change_time = None
@@ -147,14 +148,18 @@ class CNODCQCApp:
         self.menus.add_sub_menu('file', 'menu_file')
         self.menus.add_sub_menu('qc', 'menu_qc')
         self.root.rowconfigure(0, weight=0)
-        self.root.rowconfigure(1, weight=3)
-        self.root.rowconfigure(2, weight=3)
-        self.root.rowconfigure(3, weight=0)
-        self.root.columnconfigure(0, weight=0)
-        self.root.columnconfigure(1, weight=2)
-        self.root.columnconfigure(2, weight=2)
+        self.root.rowconfigure(1, weight=0)
+        self.root.rowconfigure(2, weight=0)
+        self.root.rowconfigure(3, weight=1)
+        self.root.columnconfigure(0, weight=1)
+        self.root.columnconfigure(1, weight=0)
+        self.root.columnconfigure(2, weight=0)
+        self.root.columnconfigure(3, weight=1)
         self.top_bar = ttk.Frame(self.root)
-        self.top_bar.grid(row=0, column=1, sticky='NSEW', columnspan=2)
+        self.top_bar.grid(row=0, column=1, sticky='NSEW', columnspan=3)
+        self.top_bar.rowconfigure(0, weight=1)
+        self.top_bar.columnconfigure(0, weight=0)
+        self.top_bar.columnconfigure(1, weight=1)
         self.middle_left = ttk.Frame(self.root)
         self.middle_left.grid(row=1, column=1, sticky='NSEW', rowspan=2)
         self.middle_left.rowconfigure(0, weight=1)
@@ -163,10 +168,14 @@ class CNODCQCApp:
         self.middle_right.grid(row=1, column=2, sticky='NSEW', rowspan=2)
         self.middle_right.rowconfigure(0, weight=1)
         self.middle_right.columnconfigure(0, weight=1)
+        self.far_right = ttk.Frame(self.root)
+        self.far_right.grid(row=1, column=3, sticky='NSEW', rowspan=2)
+        self.far_right.rowconfigure(0, weight=1)
+        self.far_right.columnconfigure(0, weight=1)
         self.bottom_notebook = ttk.Notebook(self.root)
-        self.bottom_notebook.grid(row=3, column=1, sticky='NSEW', columnspan=2)
+        self.bottom_notebook.grid(row=3, column=1, sticky='NSEW', columnspan=3)
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=4, column=0, sticky='EWNS', columnspan=3)
+        self.bottom_bar.grid(row=4, column=0, sticky='EWNS', columnspan=4)
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
@@ -191,8 +200,7 @@ class CNODCQCApp:
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
         self._is_closing: bool = False
-        for pane in self._panes:
-            pane.on_init()
+        self._pane_broadcast('on_init')
 
     def check_dispatcher(self):
         self.dispatcher.process_results()
@@ -224,7 +232,7 @@ class CNODCQCApp:
         if self.app_state.record_uuid is not None:
             self.load_record(self.app_state.record_uuid, True)
 
-    def load_child(self, child_path):
+    def load_child(self, child_path: t.Optional[str]):
         if child_path != self.app_state.subrecord_path:
             self.app_state.set_record_subpath(child_path)
 
@@ -249,8 +257,14 @@ class CNODCQCApp:
             self.app_state.set_record_subpath(None)
 
     def refresh_display(self, app_state, change_type: DisplayChange):
+        self._pane_broadcast('refresh_display', app_state, change_type)
+
+    def _pane_broadcast(self, call_name: str, *args, **kwargs):
         for pane in self._panes:
-            pane.refresh_display(app_state, change_type)
+            try:
+                getattr(pane, call_name)(*args, **kwargs)
+            except Exception as ex:
+                self.log.exception(f"error broadcasting {call_name} to {pane}")
 
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
@@ -340,8 +354,7 @@ class CNODCQCApp:
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()
             self.dispatcher.join()
-        for x in self._panes:
-            x.on_close()
+        self._pane_broadcast('on_close')
         self.dispatcher.close()
         self.messenger.close()
         self.status_info.destroy()
@@ -365,8 +378,18 @@ class CNODCQCApp:
     def on_language_change(self):
         self.root.title(i18n.get_text('root_title'))
         self.menus.update_languages()
-        for x in self._panes:
-            x.on_language_change()
+        self._pane_broadcast('on_language_change', i18n.current_language())
+
+    def load_closest_child(self, full_path: str):
+        path: list[str] = full_path.split('/')
+        if 'subrecords' in path:
+            idx = -1
+            while path[idx] != 'subrecords':
+                idx -= 1
+            record_path = '/'.join(path[0:idx + 4])
+            self.load_child(record_path)
+        else:
+            self.load_child(None)
 
     def open_qc_batch(self, batch_type: BatchType):
         # TODO: check if the batch is open and prompt?
@@ -377,12 +400,12 @@ class CNODCQCApp:
             on_error=self._open_qc_batch_error
         )
 
-    def _open_qc_batch_success(self, available_actions: t.Optional[list[str]]):
-        if available_actions is not None:
+    def _open_qc_batch_success(self, result: tuple[list[str], list[str]]):
+        if result is not None and result[0] is not None:
             with self.local_db.cursor() as cur:
-                cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors FROM records ORDER BY datetime ASC")
+                cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, station_id FROM records ORDER BY station_id ASC, datetime ASC")
                 record_info = [SimpleRecordInfo(idx + 1, *x) for idx, x in enumerate(cur.fetchall())]
-                self.app_state.complete_batch_open(available_actions, record_info)
+                self.app_state.complete_batch_open(result[0], result[1], record_info)
         else:
             self.show_user_info(
                 title=i18n.get_text(f'no_items_title_{self.app_state.batch_type}'),
