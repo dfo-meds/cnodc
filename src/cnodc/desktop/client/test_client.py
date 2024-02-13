@@ -75,7 +75,7 @@ class TestClient:
     def _list_stations(self) -> t.Iterable[dict]:
         return []
 
-    def _create_station(self, station_def: dict) -> dict:
+    def _create_station(self, station: dict) -> dict:
         return {'success': True}
 
     def _next_station_failure(self) -> dict:
