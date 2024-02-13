@@ -48,15 +48,15 @@ class NODBDecodeLoadWorker(PayloadWorker):
             raise CNODCError(f"Specified error directory is not a directory", "NODBLOAD", 1003)
         if not self._decoder.is_decoder:
             raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODBLOAD", 1002)
-        self._before_message = self.get_config('before_message')
-        if self._before_message is not None:
-            self._before_message = dynamic_object(self._before_message)
-        self._after_success = self.get_config('after_success')
-        if self._after_success is not None:
-            self._after_success = dynamic_object(self._after_success)
-        self._after_error = self.get_config('after_error')
-        if self._after_error is not None:
-            self._after_error = dynamic_object(self._after_error)
+        self._before_message_hook = self.get_config('before_message')
+        if self._before_message_hook is not None:
+            self._before_message_hook = dynamic_object(self._before_message_hook)
+        self._after_success_hook = self.get_config('after_success')
+        if self._after_success_hook is not None:
+            self._after_success_hook = dynamic_object(self._after_success)
+        self._after_error_hook = self.get_config('after_error')
+        if self._after_error_hook is not None:
+            self._after_error_hook = dynamic_object(self._after_error)
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
 
@@ -149,8 +149,9 @@ class NODBDecodeLoadWorker(PayloadWorker):
                                         source_file: structures.NODBSourceFile,
                                         result: DecodeResult) -> int:
         total_success = 0
-        if self._before_message is not None:
-            self._before_message(source_file, result)
+        self._before_message(source_file, result)
+        if self._before_message_hook is not None:
+            self._before_message_hook(source_file, result)
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
@@ -158,8 +159,9 @@ class NODBDecodeLoadWorker(PayloadWorker):
                         self._halt_flag.check_continue(True)
                     self._create_nodb_record(source_file, result.message_idx, record_idx, record)
                     total_success += 1
-                if self._after_success is not None:
-                    self._after_success(source_file, result)
+                self._after_success(source_file, result)
+                if self._after_success_hook is not None:
+                    self._after_success_hook(source_file, result)
                 self._db.commit()
             except (HaltInterrupt, KeyboardInterrupt) as ex:
                 raise ex from ex
@@ -221,8 +223,9 @@ class NODBDecodeLoadWorker(PayloadWorker):
                                source_file: structures.NODBSourceFile,
                                result: DecodeResult,
                                additional_exception: Exception = None):
-        if self._after_error is not None:
-            self._after_error(source_file, result, additional_exception)
+        self._after_error(source_file, result, additional_exception)
+        if self._after_error_hook is not None:
+            self._after_error_hook(source_file, result, additional_exception)
         child_file = structures.NODBSourceFile.find_by_original_info(
             self._db,
             source_file.original_uuid,
@@ -263,3 +266,12 @@ class NODBDecodeLoadWorker(PayloadWorker):
                 payload.enqueue(self._db, failure_queue)
             self._db.commit()
         return child_file
+
+    def _before_message(self, source_file: structures.NODBSourceFile, result: DecodeResult):
+        pass
+
+    def _after_success(self, source_file, result):
+        pass
+
+    def _after_error(self, source_file, result, additional_exception):
+        pass

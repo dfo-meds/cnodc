@@ -1,4 +1,4 @@
-from cnodc.qc.base import BaseTestSuite, TestContext, SubRecordArray, ProfileLevelTest, RecordSetTest, RecordTest
+from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest, RecordTest
 import cnodc.ocproc2.structures as ocproc2
 from cnodc.ocean_math.seawater import eos80_freezing_point_t90
 
