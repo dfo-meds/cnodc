@@ -1,13 +1,15 @@
 import datetime
+import itertools
 import typing as t
 
+import pybufrkit.descriptors
 import zrlog
 
 from cnodc.codecs.gts import GtsSubDecoder
 from cnodc.codecs.base import DecodeResult
 import math
 import yaml
-from pybufrkit.tables import TableGroupCacheManager
+from pybufrkit.tables import TableGroupCacheManager, TableGroupKey
 from pybufrkit.renderer import NestedTextRenderer
 from cnodc.ocproc2 import DataRecord, RecordSet
 import pathlib
@@ -145,6 +147,26 @@ class _Bufr4DecoderContext:
 
 class _Bufr4Decoder:
 
+    BUFR_MESSAGE_CODES = {
+        315008,
+        315009,
+        315004,
+        315007,
+        315011,
+        315003,
+        308015,
+        307079
+    }
+
+    BUFR_EQUIVALENT_CODES = {
+        5001: [5002],
+        5002: [5001],
+        6001: [6002],
+        6002: [6001],
+        1015: [1019],
+        1019: [1015],
+    }
+
     def __init__(self, header, content: t.Union[bytearray, bytes], bufr_tables: BufrCDSTables):
         self.bufr_tables = bufr_tables
         self.header = header
@@ -178,29 +200,94 @@ class _Bufr4Decoder:
         pieces = self.header.split(' ')
         if len(pieces) > 3 and pieces[3][0] in ('C', 'A', 'P'):
             raise CNODCError("BUFR decoder not configured to properly handle CCx AAx or Pxx messages", "BUFR_DECODE", 1000)
+        descriptors = list(x for x in self.message.unexpanded_descriptors.value)
+        common_metadata = {
+            'GTSHeader': self.header,
+            'BUFRDescriptors': descriptors,
+            'BUFRInferredMessageType': self._identify_bufr_message_type(descriptors),
+            'BUFROriginCentre': self.message.originating_centre,
+            'BUFROriginSubcentre': self.message.originating_subcentre,
+            'BUFRDataCategory': self.message.data_category,
+            'BUFRIsObservation': 1 if self.message.is_observation else 0,
+            'BUFRMessageTime': datetime.datetime(
+                year=self.message.year,
+                month=self.message.month,
+                day=self.message.day,
+                hour=self.message.hour,
+                minute=self.message.minute,
+                second=self.message.second,
+                tzinfo=datetime.timezone.utc
+            ).isoformat()
+        }
         for n in range(0, self.message.n_subsets.value):
-            yield self._convert_subset_to_record(n)
+            yield self._convert_subset_to_record(n, common_metadata)
 
-    def _convert_subset_to_record(self, subset_number) -> DataRecord:
+    def _expand_bufr_descriptors(self, descriptors: list[int], pbt):
+        def _expand_from_members(d):
+            new_d = []
+            for descriptor in d:
+                if descriptor.id < 100000:
+                    new_d.append(descriptor)
+                elif descriptor.id < 200000:
+                    new_d.append(descriptor)
+                    if hasattr(descriptor, 'factor') and descriptor.factor is not None:
+                        new_d.append(descriptor.factor)
+                    if descriptor.members:
+                        new_d.extend(_expand_from_members(descriptor.members))
+                elif descriptor.id >= 300000:
+                    new_d.extend(_expand_from_members(descriptor.members))
+            return new_d
+        y = _expand_from_members([pbt.lookup(d) for d in descriptors])
+        return [x.id for x in y]
+
+    def _identify_bufr_message_type(self, descriptors: list[int]):
+        for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
+            if x in descriptors:
+                return [x]
+        this_message = self._expand_bufr_descriptors(descriptors, self.pybufr_tables)
+        for version in range(39, 5, -1):
+            results = []
+            pbt = TableGroupCacheManager.get_table_group_by_key(
+                TableGroupKey(self.message.table_group_key.tables_root_dir, ('0', '0_0', str(version)), None)
+            )
+            for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
+                unpacked = pbt.lookup(x)
+                if isinstance(unpacked, pybufrkit.descriptors.UndefinedSequenceDescriptor):
+                    continue
+                compare_to = self._expand_bufr_descriptors([x], pbt)
+                d = self._descriptor_distance(compare_to, this_message)
+                if d > -1:
+                    results.append(x)
+            if results:
+                return results
+        return []
+
+    def _descriptor_distance(self, received: list[int], check_against: list[int]):
+        if received[0] not in check_against:
+            return -1
+        current_idx = check_against.index(received[0])
+        gaps = 0
+        for idx in range(0, len(received)):
+            find = [received[idx]]
+            if received[idx] in _Bufr4Decoder.BUFR_EQUIVALENT_CODES:
+                find.extend(_Bufr4Decoder.BUFR_EQUIVALENT_CODES[received[idx]])
+            best_idx = None
+            for x in find:
+                if x in check_against[current_idx:]:
+                    idx2 = check_against[current_idx:].index(x) + current_idx
+                    if best_idx is None or idx2 < best_idx:
+                        best_idx = idx2
+            if best_idx is None:
+                return -1
+            gaps += best_idx - current_idx
+            current_idx = best_idx + 1
+        return gaps
+
+    def _convert_subset_to_record(self, subset_number, common_metadata: dict) -> DataRecord:
         ctx = _Bufr4DecoderContext(subset_number)
         ctx.target = DataRecord()
-        ctx.target.metadata['GTSHeader'] = self.header
-        descriptors = self.message.unexpanded_descriptors.value
-        ctx.target.metadata['BUFRDescriptors'] = list(descriptors)
-        ctx.target.metadata['BUFROriginCentre'] = self.message.originating_centre
-        ctx.target.metadata['BUFROriginSubcentre'] = self.message.originating_subcentre
-        ctx.target.metadata['BUFRDataCategory'] = self.message.data_category
+        ctx.target.metadata.update(common_metadata)
         ctx.target.metadata['BUFRSubsetIndex'] = subset_number
-        ctx.target.metadata['BUFRIsObservation'] = 1 if self.message.is_observation else 0
-        ctx.target.metadata['BUFRMessageTime'] = datetime.datetime(
-            year=self.message.year,
-            month=self.message.month,
-            day=self.message.day,
-            hour=self.message.hour,
-            minute=self.message.minute,
-            second=self.message.second,
-            tzinfo=datetime.timezone.utc
-        ).isoformat()
         ctx.hierarchy = []
         ctx.hierarchy = [f'M#{subset_number}']
         self._iterate_on_nodes(self.raw_data.decoded_nodes_all_subsets[subset_number], ctx)

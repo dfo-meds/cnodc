@@ -322,6 +322,15 @@ cnodc:BUFRDescriptors rdf:type skos:Concept ;
   cnodc:elementGroup "metadata:record" ;
   skos:inScheme cnodc:elements .
 
+
+cnodc:BUFRInferredMessageType rdf:type skos:Cocnept ;
+  skos:prefLabel "BUFR Inferred Message Type"@en ;
+  skos:documentation ""@en ;
+  cnodc:dataType cnodc:List ;
+  cnodc:elementGroup "metadata:record" ;
+  skos:inScheme cnodc:elements .
+
+
 cnodc:BUFROriginCentre rdf:type skos:Concept ;
   skos:prefLabel ""@en ;
   skos:documentation ""@en ;
