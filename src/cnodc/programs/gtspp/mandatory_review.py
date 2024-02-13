@@ -15,5 +15,5 @@ class GTSPPMandatoryManualReviewTest(BaseTestSuite):
     @RecordTest(top_only=True)
     def test_top_record(self, record: ocproc2.DataRecord, context: TestContext):
         station = self.load_station(context)
-        if station.get_metadata('require_review'):
+        if station.get_metadata('require_review', False):
             context.report_for_review('manual_review_required')

@@ -57,7 +57,11 @@ class GTSPPSpeedTest(BaseTestSuite):
         if isinstance(top_speed, str) and ' ' in top_speed:
             p = top_speed.find(' ')
             return float(self.converter.convert(float(top_speed[:p]), top_speed[p:].strip(), 'm s-1'))
-        return float(top_speed)
+        try:
+            return float(top_speed)
+        except (ValueError, TypeError):
+            # TODO: notify that there was an error
+            return 40
 
     def _run_speed_test(self, xyt2: tuple, xyt1: tuple, top_speed, context):
         if top_speed is None:
