@@ -190,7 +190,6 @@ class CNODCQCApp:
         self.dispatcher = CNODCQCAppDispatcher(self.loading_wheel)
         self._panes = []
         self._panes.append(LoginPane(self))
-        self._panes.append(StationPane(self))
         self._panes.append(ButtonPane(self))
         self._panes.append(RecordListPane(self))
         self._panes.append(MapPane(self))
@@ -199,6 +198,7 @@ class CNODCQCApp:
         self._panes.append(ErrorPane(self))
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
+        self._panes.append(StationPane(self))
         self._is_closing: bool = False
         self._pane_broadcast('on_init')
 

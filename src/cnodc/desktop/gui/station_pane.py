@@ -3,10 +3,17 @@ from __future__ import annotations
 import datetime
 
 from cnodc.desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchType
+from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
 import tkinter.simpledialog as tksd
 import tkinter as tk
+import typing as t
 import tkinter.ttk as ttk
+from autoinject import injector
+
+
+if t.TYPE_CHECKING:
+    import cnodc.desktop.client.local_db.LocalDatabase
 
 
 class StationCreationDialog(tksd.Dialog):
@@ -114,13 +121,37 @@ class StationCreationDialog(tksd.Dialog):
 
 class StationPane(BasePane):
 
+    local_db: cnodc.desktop.client.local_db.LocalDatabase = None
+
+    @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._station_list: t.Optional[ScrollableTreeview] = None
 
     def on_init(self):
         self.app.menus.add_command('qc/reload_stations', 'menu_reload_stations', self.reload_stations, True)
         self.app.menus.add_command('qc/next_station_failure', 'menu_next_station_failure', self.next_station_failure, True)
         self.app.menus.add_command('qc/create_station', 'menu_create_station', self.create_station, True)
+        station_frame = ttk.Frame(self.app.bottom_notebook)
+        station_frame.rowconfigure(0, weight=1)
+        station_frame.columnconfigure(0, weight=1)
+        self._station_list = ScrollableTreeview(
+            parent=station_frame,
+            selectmode="browse",
+            show="headings",
+            headers=[
+                i18n.get_text('station_uuid'),
+                i18n.get_text('station_wmo_id'),
+                i18n.get_text('station_wigos_id'),
+                i18n.get_text('station_name'),
+                i18n.get_text('station_id'),
+                i18n.get_text('station_start_date'),
+                i18n.get_text('station_end_date')
+            ],
+            displaycolumns=(0, 1, 2, 3, 4, 5, 6)
+        )
+        self._station_list.grid(row=0, column=0, sticky='NSEW')
+        self.app.bottom_notebook.add(station_frame, text=i18n.get_text('station_list'), sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:
@@ -128,6 +159,7 @@ class StationPane(BasePane):
             self.app.menus.set_state('qc/reload_stations', has_station_access)
             self.app.menus.set_state('qc/next_station_failure', has_station_access)
             self.app.menus.set_state('qc/create_station', has_station_access)
+            self._update_station_list()
         elif change_type & DisplayChange.BATCH:
             self.app.menus.set_state('qc/next_station_failure', app_state.batch_type is None)
 
@@ -144,8 +176,23 @@ class StationPane(BasePane):
                 on_error=self._on_station_creation_fail
             )
 
+    def _update_station_list(self):
+        self._station_list.clear_items()
+        with self.local_db.cursor() as cur:
+            cur.execute("""
+                SELECT station_uuid, wmo_id, wigos_id, station_name, station_id, service_start_date, service_end_date
+                FROM stations
+            """)
+            for row in cur.fetchall():
+                self._station_list.table.insert(
+                    parent='',
+                    index='end',
+                    values=row,
+                    text=''
+                )
+
     def _on_station_creation(self, res):
-        print('station created')
+        self._update_station_list()
         self.app.menus.set_state('qc/create_station', True)
 
     def _on_station_creation_fail(self, ex):
@@ -167,6 +214,7 @@ class StationPane(BasePane):
         )
 
     def _reload_success(self, res):
+        self._update_station_list()
         self.app.menus.enable_command('qc/reload_stations')
 
     def _reload_error(self, ex):
