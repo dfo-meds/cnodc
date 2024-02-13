@@ -19,12 +19,12 @@ class GTSPPSpeedTest(BaseTestSuite):
             **kwargs
         )
 
-    @RecordTest
+    @RecordTest(top_only=True)
     def test_inter_record_speed(self, record: ocproc2.DataRecord, context: TestContext):
-        self.require_good_value(record.metadata, 'CNODCStation', allow_dubious=False)
-        self.require_good_value(record.coordinates, 'Time', allow_dubious=False)
-        self.require_good_value(record.coordinates, 'Latitude', allow_dubious=False)
-        self.require_good_value(record.coordinates, 'Longitude', allow_dubious=False)
+        self.precheck_value_in_map(record.metadata, 'CNODCStation', allow_dubious=False)
+        self.precheck_value_in_map(record.coordinates, 'Time', allow_dubious=False)
+        self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=False)
+        self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=False)
         xx = record.coordinates['Longitude'].to_float_with_uncertainty()
         yy = record.coordinates['Latitude'].to_float_with_uncertainty()
         tt = record.coordinates['Time'].to_datetime()
@@ -64,7 +64,5 @@ class GTSPPSpeedTest(BaseTestSuite):
             return
         distance = uhaversine((xyt2[1], xyt2[0]), (xyt1[1], xyt1[0]))
         time = (xyt2[2] - xyt1[2]).total_seconds()
-        if self.is_greater_than(distance / time, top_speed):
-            context.top_record.coordinates['Latitude'].metadata['WorkingQuality'] = 13
-            context.top_record.coordinates['Longitude'].metadata['WorkingQuality'] = 13
-            self.report_for_review('speed_too_fast')
+        with context.two_coordinate_context('Latitude', 'Longitude') as ctx2:
+            self.assert_greater_than('speed_too_fast', distance / time, top_speed, qc_flag=13)

@@ -27,15 +27,15 @@ class GTSPPBathymetryTest(BaseTestSuite):
             **kwargs)
         bathymetry_model_kwargs = bathymetry_model_kwargs or {}
         self._min_uncertainty = minimum_relative_uncertainty
-        self._bathymetry_model = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
+        self._bathymetry_model: BathymetryModel = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
         self.run_on_land_test = run_on_land_test
         self.run_sounding_test = run_sounding_test
         self.run_bottom_test = run_bottom_test
 
     @RecordTest()
     def check_position(self, record: ocproc2.DataRecord, context: TestContext):
-        self.require_good_value(record.coordinates, 'Latitude', True)
-        self.require_good_value(record.coordinates, 'Longitude', True)
+        self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
+        self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
         station = self.load_station(context)
         if station is not None and station.get_metadata('skip_bathymetry_check', False):
             return
@@ -47,10 +47,9 @@ class GTSPPBathymetryTest(BaseTestSuite):
             return
         self.record_note(f"Bathymetry [{self._bathymetry_model.ref_name}] reports water depth at ({x}, {y}) to be {z} m", context)
         # This is the most conservative check possible (almost certainly above sea level)
-        if self.run_on_land_test and not self.is_less_than(z, 1e-6):
-            record.coordinates['Latitude'].metadata['WorkingQuality'] = 14
-            record.coordinates['Longitude'].metadata['WorkingQuality'] = 14
-            context.report_for_review('position_above_sea_level', ref_value=str(z))
+        if self.run_on_land_test:
+            with context.two_coordinate_context('Latitude', 'Longitude') as ctx:
+                self.assert_less_than('position_above_sea_level', z, 1e-6)
         elif self.run_bottom_test or self.run_sounding_test:
             # When checking the sounding, we allow values up to 10% deeper to allow for
             # tidal and other effects. However, if the uncertainty is larger than 10% of
@@ -60,21 +59,21 @@ class GTSPPBathymetryTest(BaseTestSuite):
                     z = ufloat(z.nominal_value, self._min_uncertainty * abs(z.nominal_value))
             else:
                 z = ufloat(z, self._min_uncertainty * abs(z))
-            self._check_for_soundings(record, z, context)
+            self._check_for_soundings(record, context, z)
 
-    def _check_for_soundings(self, record: ocproc2.DataRecord, z: UFloat, context):
+    def _check_for_soundings(self, record: ocproc2.DataRecord, context, z: UFloat):
         if self.run_sounding_test and 'SeaDepth' in record.parameters:
-            self.test_all_subvalues(record.parameters['SeaDepth'], context, self._check_sounding, z=z)
+            with context.parameter_context('SeaDepth') as ctx:
+                self.test_all_subvalues(ctx, self._check_sounding, z=z)
         if self.run_bottom_test and 'Depth' in record.coordinates:
-            self.test_all_subvalues(record.coordinates['Depth'], context, self._check_depth, z=z)
-        for sr, sr_ctx in self.iterate_on_subrecords(record, context):
-            if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):
-                continue
-            with sr_ctx.self_context():
-                self._check_for_soundings(sr, z, sr_ctx)
+            with context.coordinate_context('Depth') as ctx:
+                self.test_all_subvalues(ctx, self._check_depth, z=z)
+        self.test_all_subrecords_without_coordinates(context, self._check_for_soundings, z=z)
 
     def _check_sounding(self, v: ocproc2.Value, ctx: TestContext, z: UFloat):
-        self.assert_close_to('sounding_bathymetry_mismatch', v, z, "m")
+        self.precheck_value(v)
+        self.assert_close_to('sounding_bathymetry_mismatch', self.value_in_units(v, 'm'), z)
 
     def _check_depth(self, v: ocproc2.Value, ctx: TestContext, z: UFloat):
-        self.assert_greater_than('depth_too_deep', v, z, "m")
+        self.precheck_value(v)
+        self.assert_greater_than('depth_too_deep', self.value_in_units(v), z)

@@ -18,7 +18,8 @@ class NODBStationCheck(BaseTestSuite):
             **kwargs
         )
 
-    def _station_check(self, context: TestContext):
+    @RecordTest(top_only=True)
+    def test_top_record(self, record: ocproc2.DataRecord, context: TestContext):
         # Skip station check if WorkingQuality=9
         if 'CNODCStation' in context.current_record.metadata:
             if context.current_record.metadata['CNODCStation'].best_value('WorkingQuality', 0) == 9:
@@ -141,7 +142,3 @@ class NODBStationCheck(BaseTestSuite):
             else:
                 # TODO: this should probably prompt an error of some kind (map_to_uuid isn't set to a good value)
                 return station
-
-    @RecordTest(top_only=True)
-    def test_top_record(self, record: ocproc2.DataRecord, context: TestContext):
-        self._station_check(context)

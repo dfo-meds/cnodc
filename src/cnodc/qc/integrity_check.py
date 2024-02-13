@@ -22,7 +22,7 @@ class NODBIntegrityCheck(BaseTestSuite):
 
     @MetadataTest('Units')
     def units_check(self, value: AbstractValue, context: TestContext):
-        for v, v_ctx in self.iterate_on_subvalues(value, context):
+        for v, v_ctx in self.iterate_on_subvalues(context):
             with v_ctx.self_context() as ctx:
                 if v.is_empty():
                     continue
@@ -40,34 +40,15 @@ class NODBIntegrityCheck(BaseTestSuite):
     def time_check(self, record, context: TestContext):
         self.assert_has_coordinate(record, 'Time', 'time_missing')
 
-    @RecordTest(subrecord_type='PROFILE')
+    @RecordTest()
     def profile_depth_check(self, record, context: TestContext):
-        # TODO: use the ontology for this?
-        if 'Pressure' in record.coordinates and not record.coordinates['Pressure'].is_empty():
-            return
-        if 'Depth' in record.coordinates and not record.coordinates['Depth'].is_empty():
-            return
-        context.report_for_review('level_missing')
-
-    @RecordTest(subrecord_type='SPEC_WAVE')
-    def spectral_wave_frequency_check(self, record, context: TestContext):
-        if 'CentralFrequency' in record.coordinates and not record.coordinates['CentralFrequency'].is_empty():
-            return
-        context.report_for_review('frequency_missing')
-
-    @RecordTest(subrecord_type='WAVE_SENSORS')
-    def wave_sensor_check(self, record, context: TestContext):
-        if 'WaveSensor' in record.coordinates and not record.coordinates['WaveSensor'].is_empty():
-            return
-        context.report_for_review('wave_sensor_missing')
-
-    @RecordTest(subrecord_type='TSERIES')
-    def time_series_coordinate_check(self, record, context: TestContext):
-        if 'TimeOffset' in record.coordinates and not record.coordinates['TimeOffset'].is_empty():
-            return
-        if 'Time' in record.coordinates and not record.coordinates['Time'].is_empty():
-            return
-        context.report_for_review('time_missing')
+        if context.current_subrecord_type is None:
+            self.skip_test()
+        if not self.ontology.is_defined_recordset_type(context.current_subrecord_type):
+            self.skip_test()
+        valid_coordinates = self.ontology.recordset_info(context.current_subrecord_type)
+        if not any(record.coordinates.has_value(x) for x in valid_coordinates.coordinates):
+            context.report_for_review('coordinate_missing')
 
     @RecordTest()
     def ontology_check(self, record, context: TestContext):
@@ -83,7 +64,7 @@ class NODBIntegrityCheck(BaseTestSuite):
                 self._verify_element(ctx, "parameters", key, record.parameters[key])
         for srt in record.subrecords:
             self._verify_record_type(context, srt)
-        for srs, srs_ctx in self.iterate_on_subrecord_sets(record, context):
+        for srs, srs_ctx in self.iterate_on_subrecord_sets(context):
             for key in srs.metadata:
                 with srs_ctx.metadata_context(key) as ctx:
                     self._verify_element(ctx, "metadata:recordset", key, srs.metadata[key])
@@ -114,7 +95,6 @@ class NODBIntegrityCheck(BaseTestSuite):
 
         # Check all non-empty values against the preferred unit and data type
         self.test_all_subvalues(
-            element_value,
             context,
             self._test_element_value,
             preferred_unit=self.ontology.preferred_unit(element_name),
@@ -158,8 +138,8 @@ class NODBIntegrityCheck(BaseTestSuite):
             self.assert_list_like(value, 'ontology_invalid_list', 20)
         if value.is_numeric():
             if min_value is not None:
-                self.assert_greater_than('ontology_out_of_range', value, min_value, preferred_unit)
+                self.assert_greater_than('ontology_out_of_range', self.value_in_units(value, preferred_unit), min_value)
             if max_value is not None:
-                self.assert_less_than('ontology_out_of_range', value, max_value, preferred_unit)
+                self.assert_less_than('ontology_out_of_range', self.value_in_units(value, preferred_unit), max_value)
         if allowed_values:
             self.assert_in(value.value, allowed_values, 'ontology_value_not_allowed')

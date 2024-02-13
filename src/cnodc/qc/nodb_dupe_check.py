@@ -9,6 +9,7 @@ import cnodc.nodb.structures as structures
 import enum
 import typing as t
 from autoinject import injector
+import cnodc.ocean_math.umath_wrapper as umath
 
 
 class DuplicateCheckResult(enum.Enum):
@@ -51,6 +52,7 @@ class RecordSearcher:
                      max_lat: float,
                      min_lon: float,
                      max_lon: float) -> t.Iterable[t.Union[structures.NODBWorkingRecord, structures.NODBObservationData]]:
+        # TODO
         pass
 
 
@@ -74,10 +76,10 @@ class NODBDuplicateCheck(BaseTestSuite):
         # Build a list of records in this batch that have a valid Latitude, Longitude, Time, and CNODCStation
         for key in batch:
             try:
-                self.require_good_value(batch[key].top_record.coordinates, 'Latitude')
-                self.require_good_value(batch[key].top_record.coordinates, 'Longitude')
-                self.require_good_value(batch[key].top_record.coordinates, 'Time')
-                self.require_good_value(batch[key].top_record.metadata, 'CNODCStation')
+                self.precheck_value_in_map(batch[key].top_record.coordinates, 'Latitude')
+                self.precheck_value_in_map(batch[key].top_record.coordinates, 'Longitude')
+                self.precheck_value_in_map(batch[key].top_record.coordinates, 'Time')
+                self.precheck_value_in_map(batch[key].top_record.metadata, 'CNODCStation')
                 batch_keys.append(key)
             except QCSkipTest:
                 continue
@@ -99,6 +101,7 @@ class NODBDuplicateCheck(BaseTestSuite):
             self._check_db_duplicates(batch[key])
 
     def _check_db_duplicates(self, context_a: TestContext):
+        # TODO
         pass
 
     def _stream_db_records(self, context_a: TestContext) -> t.Iterable[t.Union[structures.NODBWorkingRecord, structures.NODBObservationData]]:
@@ -216,7 +219,7 @@ class NODBDuplicateCheck(BaseTestSuite):
         lat_b = record_b.coordinates['Latitude'].to_float_with_uncertainty()
         lon_b = record_b.coordinates['Longitude'].to_float_with_uncertainty()
         distance = uhaversine((lat_a, lon_a), (lat_b, lon_b))
-        if self.is_greater_than(distance, self.distance_window):
+        if umath.is_greater_than(distance, self.distance_window):
             return DuplicateCheckResult.NO_MATCH
         return self._check_record_contents(record_a, record_b)
 
@@ -479,7 +482,7 @@ class NODBDuplicateCheck(BaseTestSuite):
                 expected_units=val_a.metadata.best_value('Units', None),
                 temp_scale=val_a.metadata.best_value('TemperatureScale', None)
             )
-            if not self.is_close(val_a_real, val_b_real):
+            if not umath.is_close(val_a_real, val_b_real):
                 return ValueCompareResult.CONFLICT
             is_numeric = True
         # For non-numeric values, we just check equality

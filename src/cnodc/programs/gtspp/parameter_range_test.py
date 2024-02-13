@@ -7,7 +7,7 @@ from uncertainties import UFloat
 import cnodc.ocproc2.structures as ocproc2
 import typing as t
 import yaml
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest
+from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, ReferenceRange
 from cnodc.ocean_math.geodesy import upoint_to_geometry
 from cnodc.units import UnitConverter
 
@@ -17,51 +17,54 @@ class ParameterReferences:
     def __init__(self, config_file: pathlib.Path, converter: UnitConverter):
         self._converter = converter
         self._file_path = config_file
-        self._config = {}
+        self._config = {'GLOBAL': {}, 'REGIONAL': {}}
         self._log = zrlog.get_logger("cnodc.param_reference")
         if not self._file_path.exists():
             raise ValueError(f"Invalid configuration file: {self._file_path}")
         with open(self._file_path, "r") as h:
-            self._config = yaml.safe_load(h) or {}
-        if 'GLOBAL' not in self._config:
+            config = yaml.safe_load(h) or {}
+        if 'GLOBAL' not in config:
             self._log.warning(f"Parameter check missing GLOBAL section in f{self._file_path}")
-            self._config['GLOBAL'] = {}
-        elif not isinstance(self._config['GLOBAL'], dict):
+            config['GLOBAL'] = {}
+        elif not isinstance(config['GLOBAL'], dict):
             raise ValueError('Global section is not a dictionary')
         else:
-            self._validate_range_entries(self._config['GLOBAL'])
-        if 'REGIONAL' not in self._config:
+            self._validate_range_entries(config['GLOBAL'], self._config['GLOBAL'])
+        if 'REGIONAL' not in config:
             self._config['REGIONAL'] = {}
-        elif not isinstance(self._config['REGIONAL'], dict):
+        elif not isinstance(config['REGIONAL'], dict):
             raise ValueError('Regional section is not a dictionary')
         else:
-            for key in list(self._config['REGIONAL'].keys()):
-                if '_BoundingBox' not in self._config['REGIONAL'][key]:
+            for key in list(config['REGIONAL'].keys()):
+                if '_BoundingBox' not in config['REGIONAL'][key]:
                     raise ValueError(f'Invalid regional section {key} in {self._file_path}, missing bounding box')
-                self._config['REGIONAL'][key]['_BoundingBox'] = shapely.from_wkt(self._config['REGIONAL'][key]['_BoundingBox'])
-                if not isinstance(self._config['REGIONAL'][key]['_BoundingBox'], shapely.Polygon):
+                config['REGIONAL'][key]['_BoundingBox'] = shapely.from_wkt(config['REGIONAL'][key]['_BoundingBox'])
+                if not isinstance(config['REGIONAL'][key]['_BoundingBox'], shapely.Polygon):
                     raise ValueError(f"Bounding box for {key} in {self._file_path} must be a polygon")
-                self._validate_range_entries(self._config['REGIONAL'][key], True)
+                self._config['REGIONAL'][key] = {}
+                self._validate_range_entries(config['REGIONAL'][key], self._config['REGIONAL'][key], True)
 
-    def _validate_range_entries(self, entries: dict, skip_bounding_box: bool = False):
+    def _validate_range_entries(self, entries: dict, target: dict, skip_bounding_box: bool = False):
         for x in entries:
             if x == '_BoundingBox' and skip_bounding_box:
-                continue
-            if not isinstance(x, dict):
-                raise ValueError(f'Entry {x} in parameter list must be a dictionary')
-            has_min = 'minimum' in x
-            has_max = 'maximum' in x
-            if not (has_min or has_max):
-                self._log.warning(f"Entry {x} does not define a minimum or maximum")
-                continue
-            if has_min:
-                x['minimum'] = float(x['minimum'])
-            if has_max:
-                x['maximum'] = float(x['maximum'])
-            if 'units' in x and x['units'] and not self._converter.is_valid_unit(x['units']):
-                raise ValueError(f'Entry {x} has an invalid unit string')
+                pass
+            else:
+                if not isinstance(x, dict):
+                    raise ValueError(f'Entry {x} in parameter list must be a dictionary')
+                has_min = 'minimum' in x
+                has_max = 'maximum' in x
+                if not (has_min or has_max):
+                    self._log.warning(f"Entry {x} does not define a minimum or maximum")
+                    continue
+                if has_min:
+                    x['minimum'] = float(x['minimum'])
+                if has_max:
+                    x['maximum'] = float(x['maximum'])
+                if 'units' in x and x['units'] and not self._converter.is_valid_unit(x['units']):
+                    raise ValueError(f'Entry {x} has an invalid unit string')
+            target[x] = ReferenceRange.from_map(x)
 
-    def build_parameter_references(self, lat: t.Union[float, UFloat], lon: t.Union[float, UFloat]) -> tuple[dict, set]:
+    def build_parameter_references(self, lat: t.Union[float, UFloat], lon: t.Union[float, UFloat]) -> tuple[dict[str, ReferenceRange], set[str]]:
         regions = set()
         base = {x: self._config['GLOBAL'][x] for x in self._config['GLOBAL']}
         geom = upoint_to_geometry(latitude=lat, longitude=lon)
@@ -85,8 +88,8 @@ class GTSPPParameterRangeTest(BaseTestSuite):
 
     @RecordTest()
     def test_parameter_ranges(self, record: ocproc2.DataRecord, context: TestContext):
-        self.require_good_value(record.coordinates, 'Latitude', True)
-        self.require_good_value(record.coordinates, 'Longitude', True)
+        self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
+        self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
         references, regions = self._ref.build_parameter_references(
             record.coordinates['Latitude'].to_float_with_uncertainty(),
             record.coordinates['Longitude'].to_float_with_uncertainty()
@@ -96,32 +99,6 @@ class GTSPPParameterRangeTest(BaseTestSuite):
         self.record_note(f"Parameter regions identified as [{';'.join(regions)}]", context, False)
         self._test_against_reference_and_loop(record, context, references)
 
-    def _test_against_reference_and_loop(self, record: ocproc2.DataRecord, context: TestContext, references: dict):
-        self._test_against_reference(record, context, references)
-        for sr, sr_ctx in self.iterate_on_subrecords(record, context):
-            if sr.coordinates.has_value('Latitude') or sr.coordinates.has_value('Longitude'):
-                continue
-            with sr_ctx.self_context() as ctx:
-                self._test_against_reference_and_loop(sr, ctx, references)
-
-    def _test_against_reference(self, record: ocproc2.DataRecord, context: TestContext, references: dict):
-        for x in references:
-            if x in record.coordinates:
-                with context.coordinate_context(x):
-                    self.test_all_subvalues(record.coordinates[x], context, self._test_reference_range, reference=references[x])
-            elif x in record.parameters:
-                with context.parameter_context(x):
-                    self.test_all_subvalues(record.parameters[x], context, self._test_reference_range, reference=references[x])
-            elif x in record.metadata:
-                with context.metadata_context(x):
-                    self.test_all_subvalues(record.metadata[x], context, self._test_reference_range, reference=references[x])
-
-    def _test_reference_range(self, v: ocproc2.Value, ctx: TestContext, reference: dict):
-        ref_units = reference['units'] if 'units' in reference else None
-        kwargs = reference['kwargs'] if 'kwargs' in reference else {}
-        if v.is_empty():
-            return
-        if 'minimum' in reference:
-            self.assert_greater_than('parameter_too_low', v, reference['minimum'], ref_units, **kwargs)
-        if 'maximum' in reference:
-            self.assert_less_than('parameter_too_high', v, reference['maximum'], ref_units, **kwargs)
+    def _test_against_reference_and_loop(self, record, context: TestContext, references: dict):
+        self.test_all_references_in_record(context, references, 'outside_parameter_ranges', 13)
+        self.test_all_subrecords_without_coordinates(context, self._test_against_reference_and_loop, references=references)
