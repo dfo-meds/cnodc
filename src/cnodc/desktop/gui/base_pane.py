@@ -103,6 +103,7 @@ class ApplicationState:
         self.actions: t.Optional[list[QCOperator]] = None
         self.save_in_progress: bool = False
         self.username: t.Optional[str] = None
+        self.has_unsaved_changes: bool = False
         self.user_access: t.Optional[dict[str, dict[str, str]]] = None
         self.batch_record_info: t.Optional[dict[str, SimpleRecordInfo]] = None
 
@@ -215,14 +216,17 @@ class ApplicationState:
             return True
         return False
 
-    def set_save_flag(self, is_saving: bool):
+    def set_save_flag(self, is_saving: bool, has_unsaved_changes: t.Optional[bool] = None):
         self.save_in_progress = is_saving
+        if has_unsaved_changes is not None:
+            self.has_unsaved_changes = has_unsaved_changes
         self.refresh_display(DisplayChange.OP_ONGOING)
 
-    def set_record_info(self, record_uuid: str, record: ocproc2.DataRecord, subrecord_path: t.Optional[str], actions):
+    def set_record_info(self, record_uuid: str, record: ocproc2.DataRecord, subrecord_path: t.Optional[str], actions, has_unsaved_actions: bool):
         self.record = record
         self.record_uuid = record_uuid
         self.actions = actions
+        self.has_unsaved_changes = has_unsaved_actions
         self.subrecord_path = subrecord_path
         self._set_child_item()
         self._update_batch_info_from_current_record()
@@ -240,6 +244,7 @@ class ApplicationState:
             self.actions.update(actions)
         for action in actions.values():
             action.apply(self.record, None)
+        self.has_unsaved_changes = True
         mode = DisplayChange.ACTION | DisplayChange.RECORD_CHILD
         if self._update_batch_info_from_current_record():
             mode |= DisplayChange.RECORD

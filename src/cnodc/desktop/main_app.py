@@ -244,16 +244,19 @@ class CNODCQCApp:
                 row = cur.fetchone()
                 record = ocproc2.DataRecord()
                 record.from_mapping(json.loads(row[1]))
-                cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [record_uuid])
+                cur.execute('SELECT rowid, action_text, is_saved FROM actions WHERE record_uuid = ?', [record_uuid])
                 actions = {}
-                for rowid, action_text in cur.fetchall():
+                has_unsaved = False
+                for rowid, action_text, is_saved in cur.fetchall():
+                    if is_saved == 0:
+                        has_unsaved = True
                     operator = QCOperator.from_map(json.loads(action_text))
                     operator.apply(record, None)
                     actions[rowid] = operator
                 subrecord_path = None
                 if self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
                     subrecord_path = self.app_state.subrecord_path
-                self.app_state.set_record_info(record_uuid, record, subrecord_path, actions)
+                self.app_state.set_record_info(record_uuid, record, subrecord_path, actions, has_unsaved)
         elif self.app_state.subrecord_path is not None:
             self.app_state.set_record_subpath(None)
 
@@ -283,12 +286,13 @@ class CNODCQCApp:
             )
 
     def save_changes(self, after_save: callable = None):
-        self.app_state.set_save_flag(True)
-        self.dispatcher.submit_job(
-            'cnodc.desktop.client.api_client.save_work',
-            on_error=self._on_save_error,
-            on_success=functools.partial(self._after_save, after_save=after_save)
-        )
+        if self.app_state.has_unsaved_changes:
+            self.app_state.set_save_flag(True)
+            self.dispatcher.submit_job(
+                'cnodc.desktop.client.api_client.save_work',
+                on_error=self._on_save_error,
+                on_success=functools.partial(self._after_save, after_save=after_save)
+            )
 
     def quality_color(self, wq: int, ind_wq: int = None):
         if wq == 1:
@@ -317,7 +321,7 @@ class CNODCQCApp:
 
     def _on_save_error(self, ex):
         self.show_user_exception(ex)
-        self.app_state.set_save_flag(False)
+        self.app_state.set_save_flag(False, self.app_state.has_unsaved_changes)
 
     def _after_save(self, res: bool, after_save: callable = None):
         if not res:
@@ -325,7 +329,9 @@ class CNODCQCApp:
                 i18n.get_text('save_partial_fail_title'),
                 i18n.get_text('save_partial_fail_message')
             )
-        self.app_state.set_save_flag(False)
+            self.app_state.set_save_flag(False, self.app_state.has_unsaved_changes)
+        else:
+            self.app_state.set_save_flag(False, False)
         if after_save:
             after_save(res)
 
