@@ -244,19 +244,16 @@ class CNODCQCApp:
                 row = cur.fetchone()
                 record = ocproc2.DataRecord()
                 record.from_mapping(json.loads(row[1]))
-                cur.execute('SELECT rowid, action_text, is_saved FROM actions WHERE record_uuid = ?', [record_uuid])
+                cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [record_uuid])
                 actions = {}
-                has_unsaved = False
-                for rowid, action_text, is_saved in cur.fetchall():
-                    if is_saved == 0:
-                        has_unsaved = True
+                for rowid, action_text in cur.fetchall():
                     operator = QCOperator.from_map(json.loads(action_text))
                     operator.apply(record, None)
                     actions[rowid] = operator
                 subrecord_path = None
                 if self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
                     subrecord_path = self.app_state.subrecord_path
-                self.app_state.set_record_info(record_uuid, record, subrecord_path, actions, has_unsaved)
+                self.app_state.set_record_info(record_uuid, record, subrecord_path, actions)
         elif self.app_state.subrecord_path is not None:
             self.app_state.set_record_subpath(None)
 

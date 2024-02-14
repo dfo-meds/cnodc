@@ -164,6 +164,7 @@ class ApplicationState:
         self.batch_actions = batch_actions
         self.batch_state = BatchOpenState.OPEN
         self.batch_test_names = batch_test_names
+        self.has_unsaved_changes = False
         self.batch_record_info = {x.record_uuid: x for x in record_info} if record_info else {}
         self.refresh_display(DisplayChange.BATCH | DisplayChange.OP_ONGOING)
 
@@ -178,6 +179,7 @@ class ApplicationState:
             self.batch_service_name = None
             self.batch_actions = None
             self.batch_record_info = None
+            self.has_unsaved_changes = False
             self.batch_actions = None
             self.batch_test_names = None
             self.batch_close_op = None
@@ -194,6 +196,7 @@ class ApplicationState:
         self.batch_state = BatchOpenState.CLOSED
         self.batch_actions = []
         self.record = None
+        self.has_unsaved_changes = False
         self.record_uuid = None
         self.child_record = None
         self.child_recordset = None
@@ -222,11 +225,10 @@ class ApplicationState:
             self.has_unsaved_changes = has_unsaved_changes
         self.refresh_display(DisplayChange.OP_ONGOING)
 
-    def set_record_info(self, record_uuid: str, record: ocproc2.DataRecord, subrecord_path: t.Optional[str], actions, has_unsaved_actions: bool):
+    def set_record_info(self, record_uuid: str, record: ocproc2.DataRecord, subrecord_path: t.Optional[str], actions):
         self.record = record
         self.record_uuid = record_uuid
         self.actions = actions
-        self.has_unsaved_changes = has_unsaved_actions
         self.subrecord_path = subrecord_path
         self._set_child_item()
         self._update_batch_info_from_current_record()

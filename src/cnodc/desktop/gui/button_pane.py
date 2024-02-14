@@ -42,6 +42,8 @@ class ButtonPane(BasePane):
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:
             self.set_button_state('load_new', app_state.can_open_new_queue_item())
+        if change_type & DisplayChange.ACTION:
+            self.set_button_state('save', app_state.is_batch_action_available('apply_working') and app_state.has_unsaved_changes)
         if change_type & (DisplayChange.OP_ONGOING | DisplayChange.BATCH):
             self.set_button_state('load_new', app_state.can_open_new_queue_item())
             self.set_button_state('save', app_state.is_batch_action_available('apply_working') and app_state.has_unsaved_changes)
