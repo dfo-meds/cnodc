@@ -37,9 +37,9 @@ class TestClient:
         elif endpoint.startswith('apply/') and method == 'POST':
             return self._apply_to_item(**kwargs)
         elif endpoint.startswith('escalate/') and method == 'POST':
-            return self._apply_to_item(**kwargs)
+            return self._escalate_item(**kwargs)
         elif endpoint.startswith('descalate/') and method == 'POST':
-            return self._apply_to_item(**kwargs)
+            return self._descalate_item(**kwargs)
         raise Exception('invalid test request')
 
     def change_password(self, password):
