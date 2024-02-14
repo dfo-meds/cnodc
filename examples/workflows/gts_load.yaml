@@ -3,6 +3,9 @@
 # default_metadata:
 # filename_pattern: ""
 # accept_user_filename: false
+label:
+  en: 'Hello World'
+  fr: 'Bonjour le monde'
 working_target:
   directory: "C:/my/t2/save_target"
   allow_overwrite: "always"

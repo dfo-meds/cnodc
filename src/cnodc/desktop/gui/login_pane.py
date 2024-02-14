@@ -4,6 +4,13 @@ import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
 import cnodc.desktop.translations as i18n
+import tkinter.simpledialog as tksd
+
+
+class PasswordDialog(tksd.Dialog):
+
+    def __init__(self, parent):
+        super().__init__(parent, title=i18n.get_text(''))
 
 
 class LoginPane(BasePane):
@@ -16,8 +23,31 @@ class LoginPane(BasePane):
 
     def on_init(self):
         self.app.menus.add_command('file/login', 'menu_login', self.do_login)
+        self.app.menus.add_command('file/change_password', 'menu_change_password', self.change_password, True)
+        self.app.menus.add_command('file/logout', 'menu_logout', self.do_logout, True)
         self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief=tk.SOLID, borderwidth=2, width=15, anchor=tk.E)
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
+
+    def do_logout(self):
+        self.app.menus.disable_command('file/logout')
+        self.app.menus.disable_command('file/change_password')
+        self.app.dispatcher.submit_job(
+            'cnodc.desktop.client.api_client.logout',
+            on_success=self.on_logout,
+            on_error=self.on_logout_fail
+        )
+
+    def on_logout(self, result: tuple[str, list[str]]):
+        self._username = None
+        self._access_list = None
+        self.update_user_state()
+
+    def on_logout_fail(self, ex: Exception):
+        self.app.show_user_exception(ex)
+        self.update_user_state()
+
+    def change_password(self):
+        pass
 
     def do_login(self):
         from cnodc.desktop.gui.login_dialog import ask_login
@@ -44,7 +74,7 @@ class LoginPane(BasePane):
         self.app.show_user_exception(ex)
         if self._username is not None:
             self._username = None
-            self._access_list = []
+            self._access_list = None
         self.update_user_state()
 
     def auto_refresh_session(self):
@@ -77,8 +107,12 @@ class LoginPane(BasePane):
     def update_user_state(self):
         if self._username is None:
             self.app.menus.enable_command('file/login')
+            self.app.menus.disable_command('file/logout')
+            self.app.menus.disable_command('file/change_password')
         else:
             self.app.menus.disable_command('file/login')
+            self.app.menus.enable_command('file/logout')
+            self.app.menus.enable_command('file/change_password')
         self.on_language_change(i18n.current_language())
-        self.app.update_user_info(self._username or None, self._access_list or [])
+        self.app.update_user_info(self._username or None, self._access_list or {})
 

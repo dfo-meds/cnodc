@@ -130,7 +130,6 @@ class StationPane(BasePane):
 
     def on_init(self):
         self.app.menus.add_command('qc/reload_stations', 'menu_reload_stations', self.reload_stations, True)
-        self.app.menus.add_command('qc/next_station_failure', 'menu_next_station_failure', self.next_station_failure, True)
         self.app.menus.add_command('qc/create_station', 'menu_create_station', self.create_station, True)
         station_frame = ttk.Frame(self.app.bottom_notebook)
         station_frame.rowconfigure(0, weight=1)
@@ -148,20 +147,18 @@ class StationPane(BasePane):
                 i18n.get_text('station_start_date'),
                 i18n.get_text('station_end_date')
             ],
-            displaycolumns=(0, 1, 2, 3, 4, 5, 6)
+            displaycolumns=(0, 1, 2, 3, 4, 5, 6),
+            on_right_click=self._on_right_click
         )
         self._station_list.grid(row=0, column=0, sticky='NSEW')
+        # TODO: station searching options?
         self.app.bottom_notebook.add(station_frame, text=i18n.get_text('station_list'), sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:
-            has_station_access = app_state.user_access and 'queue:station-failure' in app_state.user_access
-            self.app.menus.set_state('qc/reload_stations', has_station_access)
-            self.app.menus.set_state('qc/next_station_failure', has_station_access)
-            self.app.menus.set_state('qc/create_station', has_station_access)
+            self.app.menus.set_state('qc/reload_stations', app_state.has_access('other:list_stations'))
+            self.app.menus.set_state('qc/create_station', app_state.has_access('other:create_station'))
             self._update_station_list()
-        elif change_type & DisplayChange.BATCH:
-            self.app.menus.set_state('qc/next_station_failure', app_state.batch_type is None)
 
     def create_station(self):
         s = StationCreationDialog(self.app.root)
@@ -199,12 +196,6 @@ class StationPane(BasePane):
         self.app.show_user_exception(ex)
         self.app.menus.set_state('qc/create_station', True)
 
-    def next_station_failure(self):
-        self.app.menus.disable_command('qc/next_station_failure')
-        self.app.open_qc_batch(
-            BatchType.STATION,
-        )
-
     def reload_stations(self):
         self.app.menus.disable_command('qc/reload_stations')
         self.app.dispatcher.submit_job(
@@ -221,3 +212,6 @@ class StationPane(BasePane):
         self.app.show_user_exception(ex)
         self.app.menus.enable_command('qc/reload_stations')
 
+    def _on_right_click(self, item, *args):
+        # TODO: menu options for editing and assigning to the current record, if appropriate
+        pass

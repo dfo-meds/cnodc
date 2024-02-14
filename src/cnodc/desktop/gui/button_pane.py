@@ -4,7 +4,8 @@ from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, Applica
 import tkinter.ttk as ttk
 import enum
 import typing as t
-
+import cnodc.desktop.translations as i18n
+from cnodc.desktop.gui.choice_dialog import ask_choice
 
 
 class ButtonPane(BasePane):
@@ -17,6 +18,8 @@ class ButtonPane(BasePane):
     def on_init(self):
         button_frame = ttk.Frame(self.app.top_bar)
         button_frame.grid(row=0, column=0)
+        # TODO: translate button text
+        self._buttons['load_new'] = ttk.Button(button_frame, text="Load", command=self._next_item, state=tk.DISABLED)
         self._buttons['save'] = ttk.Button(button_frame, text="Save", command=self.app.save_changes, state=tk.DISABLED)
         self._buttons['load_next'] = ttk.Button(button_frame, text="Submit and Load", command=functools.partial(self._then_complete, load_next=True), state=tk.DISABLED)
         self._buttons['complete'] = ttk.Button(button_frame, text="Submit", command=self._then_complete, state=tk.DISABLED)
@@ -31,8 +34,16 @@ class ButtonPane(BasePane):
         self._label = ttk.Label(self.app.top_bar, text="", font=('', 18, 'bold'))
         self._label.grid(row=0, column=idx, ipadx=2, ipady=2, sticky='e')
 
+    def _next_item(self):
+        choice = ask_choice(self.app.root, self.app.app_state.service_choices())
+        if choice is not None:
+            self.app.open_qc_batch(choice)
+
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
+        if change_type & DisplayChange.USER:
+            self.set_button_state('load_new', app_state.can_open_new_queue_item())
         if change_type & (DisplayChange.OP_ONGOING | DisplayChange.BATCH):
+            self.set_button_state('load_new', app_state.can_open_new_queue_item())
             self.set_button_state('save', app_state.is_batch_action_available('apply_working'))
             self.set_button_state('load_next', app_state.is_batch_action_available('complete'))
             self.set_button_state('complete', app_state.is_batch_action_available('complete'))

@@ -713,10 +713,10 @@ class NODBUploadWorkflow(_NODBBaseObject):
                     raise CNODCError(f'Invalid value for [metadata.{x}] in [{tn}]: {self.configuration["metadata"][x]}, must be a string', 'WFCHECK', 1005)
 
     def check_access(self, user_permissions: t.Union[list, set, tuple]):
-        if '_admin' in user_permissions:
+        if '__admin__' in user_permissions:
             return True
         needed_permissions = self.permissions()
-        if '_any' in needed_permissions:
+        if '__any__' in needed_permissions:
             return True
         return any(x in user_permissions for x in needed_permissions)
 

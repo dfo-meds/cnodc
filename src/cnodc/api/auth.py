@@ -196,6 +196,12 @@ class UserController:
                 "USERCTRL",
                 1000
             )
+        if len(password) < 15:
+            raise CNODCError(
+                "Password must be at least 15 characters long",
+                "USERCTRL",
+                1010
+            )
         with self.nodb as db:
             # Regain lock for password update
             user = structures.NODBUser.find_by_username(db, user.username, lock_type=LockType.FOR_NO_KEY_UPDATE)

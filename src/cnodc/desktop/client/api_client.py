@@ -122,7 +122,7 @@ class CNODCServerAPI:
         self._client = TestClient() if test_mode else _WebAPIClient()
         self._log = zrlog.get_logger('cnodc.desktop.api')
 
-    def login(self, username: str, password: str) -> tuple[str, list[str]]:
+    def login(self, username: str, password: str) -> tuple[str, dict[str, dict[str, str]]]:
         response = self._client.make_json_request(
             endpoint='login',
             method='POST',
@@ -134,12 +134,19 @@ class CNODCServerAPI:
         self._access_list = response['access']
         self._username = response['username']
         self._log.info(f'User {self._username} logged in')
-        return self._username, list(x for x in self._access_list)
+        return self._username, self._compile_access_list()
+
+    def _compile_access_list(self) -> dict[str, dict[str, str]]:
+        results = {}
+        for x in self._access_list:
+            for y in self._access_list[x]:
+                results[f"{x}:{y}"] = {} if 'name' not in self._access_list[x][y] else self._access_list[x][y]['name']
+        return results
 
     def logout(self) -> bool:
         if self._client.is_logged_in():
             self._client.make_json_request(
-                endpoint='logout',
+                endpoint=self._api_endpoint('other:logout'),
                 method='POST'
             )
             self._log.info(f'User logged out')
@@ -161,7 +168,10 @@ class CNODCServerAPI:
                 return -1
             elif time_left < self._check_time:
                 self._log.debug('Renewing session')
-                response = self._client.make_json_request('renew', 'POST')
+                response = self._client.make_json_request(
+                    endpoint=self._api_endpoint('other:renew'),
+                    method='POST'
+                )
                 self._client.set_token(response['token'])
                 self._expiry = datetime.datetime.fromisoformat(response['expiry'])
                 now = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -180,7 +190,10 @@ class CNODCServerAPI:
         with self.local_db.cursor() as cur:
             cur.begin_transaction()
             cur.truncate_table('stations')
-            for station_def in self._client.make_json_dict_list_request('stations', 'GET'):
+            for station_def in self._client.make_json_dict_list_request(
+                    endpoint=self._api_endpoint('other:list_stations'),
+                    method='GET'
+            ):
                 cur.insert('stations', station_def)
             cur.commit()
         return True
@@ -191,17 +204,24 @@ class CNODCServerAPI:
             cur.begin_transaction()
             cur.insert('stations', station_def)
             self._client.make_json_request(
-                endpoint='stations/new',
+                endpoint=self._api_endpoint('other:create_station'),
                 method='POST',
                 station=station_def
             )
             cur.commit()
             return True
 
-    def load_next_station_failure(self) -> t.Optional[tuple[list[str], list[str]]]:
+    def _api_endpoint(self, item_name: str):
+        item_names = item_name.split(':')
+        d = self._access_list
+        for x in item_names:
+            d = d[x]
+        return d['url'] if isinstance(d, dict) else d
+
+    def load_next_queue_item(self, service_name: str) -> t.Optional[tuple[list[str], list[str]]]:
         with self.local_db.cursor() as cur:
             cur.begin_transaction()
-            response = self._client.make_json_request('next/station-failure', 'POST')
+            response = self._client.make_json_request(self._api_endpoint(service_name), 'POST')
             if response['item_uuid'] is None:
                 return None
             else:
@@ -362,7 +382,7 @@ class CNODCServerAPI:
 
 
 @injector.inject
-def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str, list[str]]:
+def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str, dict[str, dict[str, str]]]:
     return client.login(username, password)
 
 
@@ -402,8 +422,8 @@ def create_station(station_def: dict, client: CNODCServerAPI = None) -> bool:
 
 
 @injector.inject
-def next_station_failure(client: CNODCServerAPI = None) -> t.Optional[list[str]]:
-    return client.load_next_station_failure()
+def next_queue_item(service_name: str, client: CNODCServerAPI = None) -> t.Optional[list[str]]:
+    return client.load_next_queue_item(service_name)
 
 
 @injector.inject

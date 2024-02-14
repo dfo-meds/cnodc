@@ -18,6 +18,8 @@ class TestClient:
             return self._login(**kwargs)
         elif endpoint == 'logout' and method == 'POST':
             return self._logout()
+        elif endpoint == 'change-password':
+            return self._change_password(**kwargs)
         elif endpoint == 'renew' and method == 'POST':
             return self._renew()
         elif endpoint == 'stations/new' and method == 'POST':
@@ -39,6 +41,11 @@ class TestClient:
         elif endpoint.startswith('descalate/') and method == 'POST':
             return self._apply_to_item(**kwargs)
         raise Exception('invalid test request')
+
+    def change_password(self, password):
+        if len(password) < 15:
+            raise Exception('Password too short')
+        return {'success': True}
 
     def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
         if endpoint == 'download/12345' and method == 'GET':
@@ -63,9 +70,34 @@ class TestClient:
         return {
             'token': 'abc',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
-            'access': [
-                'queue:station-failure'
-            ],
+            'access': {
+                'other': {
+                    'change_password': 'change-password',
+                    'renew': 'renew',
+                    'logout': 'logout',
+                    'access': 'access',
+                    'create_station': 'stations/new',
+                    'list_stations': 'stations',
+                },
+                'service_queues': {
+                    'station-failure': {
+                        'url': 'next/station-failure',
+                        'name': {
+                            'en': 'Station Failures',
+                            'fr': 'Failures de station'
+                        }
+                    }
+                },
+                'workflows': {
+                    'test': {
+                        'url': 'upload/test',
+                        'name': {
+                            'en': 'Test Workflow',
+                            'fr': 'Workflow test'
+                        }
+                    }
+                }
+            },
             'username': username
         }
 

@@ -8,8 +8,6 @@ import cnodc.desktop.translations as i18n
 def ask_choice(*args, **kwargs):
     dialog = ChoiceDialog(*args, **kwargs)
     res = dialog.result
-    dialog.destroy()
-    del dialog
     return res
 
 

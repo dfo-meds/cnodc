@@ -110,7 +110,7 @@ def dynamic_object(cls_name):
     except ModuleNotFoundError as ex:
         raise DynamicObjectLoadError(f"Package or module [{package}] not found", "DOBJ", 1001) from ex
     except AttributeError as ex:
-        raise DynamicObjectLoadError(f"Class [{specific_cls_name}] not found in [{package}]", "DOBJ", 1002) from ex
+        raise DynamicObjectLoadError(f"Object [{specific_cls_name}] not found in [{package}]", "DOBJ", 1002) from ex
 
 
 def is_close(a, sigma_a, b, sigma_b, rel_tol, abs_tol):

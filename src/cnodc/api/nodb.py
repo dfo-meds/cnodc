@@ -17,7 +17,7 @@ import threading
 import itsdangerous
 
 from cnodc.workflow.workflow import WorkflowPayload
-
+import zirconium as zr
 DB_LOCK_TIME = 3600  # in seconds
 
 
@@ -26,11 +26,57 @@ class NODBWebController:
 
     nodb: NODBController = None
     login: LoginController = None
+    config: zr.ApplicationConfig = None
 
     @injector.construct
     def __init__(self):
         self._serializer = None
         self._serializer_lock = threading.Lock()
+
+    def access_list(self):
+        access_perms = self.login.current_permissions()
+        access_list = {
+            'other': {
+                'change_password': flask.url_for('cnodc.change_password', _external=True),
+                'renew': flask.url_for('cnodc.renew', _external=True),
+                'logout': flask.url_for('cnodc.logout', _external=True),
+                'access': flask.url_for('cnodc.list_access', _external=True),
+            },
+            'service_queues': self._all_queue_services(access_perms),
+            'workflows': self._all_workflows(access_perms)
+        }
+        if '__admin__' in access_perms or 'handle_nodb_station_failure' in access_perms:
+            access_list['other'].update({
+                'create_station': flask.url_for('cnodc.create_station', _external=True),
+                'list_stations': flask.url_for('cnodc.list_stations', _external=True),
+            })
+        return access_list
+
+    def _all_workflows(self, access_perms: set) -> dict:
+        results = {}
+        with self.nodb as db:
+            for workflow in structures.NODBUploadWorkflow.find_all(db):
+                if workflow.check_access(access_perms):
+                    results[workflow.workflow_name] = {
+                        'url': flask.url_for('cnodc.submit_file', workflow_name=workflow.workflow_name, _external=True),
+                        'name': workflow.configuration['label'] if 'label' in workflow.configuration else {}
+                    }
+        return results
+
+    def _all_queue_services(self, access_perms: set) -> dict:
+        results: dict[str, dict[str, t.Any]] = {}
+        services = self.config.as_dict(('cnodc', 'queue_services'), {})
+        for service_name in services:
+            if '__admin__' in access_perms or f'handle_{services[service_name]["queue_name"]}' in access_perms:
+                results[service_name]: dict[str, t.Any] = {
+                    'url': flask.url_for('cnodc.next_queue_item', queue_service_name=service_name, _external=True),
+                    'name': {
+                        x: services[service_name][x]
+                        for x in services[service_name]
+                        if x not in ('permission', 'queue_name', 'subqueue_name')
+                    }
+                }
+        return results
 
     def _get_serializer(self) -> itsdangerous.Serializer:
         if not flask.current_app.config.get('SECRET_KEY'):
@@ -43,18 +89,24 @@ class NODBWebController:
         return self._serializer
 
     def get_next_queue_item(self,
-                            queue_name: str,
-                            subqueue_name: t.Optional[str] = None):
+                            service_name: str):
+        services = self.config.as_dict(('cnodc', 'queue_services'), {})
+        if service_name not in services:
+            raise ValueError('invalid service name')
+        service_config = services[service_name]
+        queue_name = service_config['queue_name']
         access_perms = self.login.current_permissions()
-        if f'handle_{queue_name}' not in access_perms:
+        if f"handle_{queue_name}" not in access_perms:
             raise ValueError('cannot access this queue')
         app_id = f"{self.login.current_user()}.{uuid.uuid4()}"
         with self.nodb as db:
-            queue_item = db.fetch_next_queue_item(
-                queue_name=queue_name,
-                app_id=app_id,
-                subqueue_name=subqueue_name
-            )
+            kwargs = {
+                'app_id': app_id,
+                'queue_name': service_config['queue_name']
+            }
+            if 'subqueue_name' in service_config:
+                kwargs['subqueue_name'] = service_config['subqueue_name']
+            queue_item = db.fetch_next_queue_item(**kwargs)
             if queue_item is None:
                 return {'item_uuid': None}
             else:

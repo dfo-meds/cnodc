@@ -328,7 +328,7 @@ class CNODCQCApp:
         if after_save:
             after_save(res)
 
-    def update_user_info(self, username: t.Optional[str], access_list: list[str]):
+    def update_user_info(self, username: t.Optional[str], access_list: dict[str, dict[str, str]]):
         if self.app_state.update_user_info(username, access_list) and username is None:
             self.close_current_batch(QCBatchCloseOperation.LOGOUT)
 
@@ -336,7 +336,7 @@ class CNODCQCApp:
         if self._is_closing:
             return
         self._is_closing = True
-        if self.app_state.batch_type is not None:
+        if self.app_state.batch_service_name is not None:
             if not self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close):
                 self._is_closing = False
         else:
@@ -391,11 +391,14 @@ class CNODCQCApp:
         else:
             self.load_child(None)
 
-    def open_qc_batch(self, batch_type: BatchType):
+    def open_qc_batch(self, batch_service_name: str):
         # TODO: check if the batch is open and prompt?
-        self.app_state.start_batch_open(batch_type)
+        self.app_state.start_batch_open(batch_service_name)
         self.dispatcher.submit_job(
-            batch_type.value,
+            'cnodc.desktop.client.api_client.next_queue_item',
+            job_kwargs={
+                'service_name': batch_service_name
+            },
             on_success=self._open_qc_batch_success,
             on_error=self._open_qc_batch_error
         )
@@ -408,8 +411,8 @@ class CNODCQCApp:
                 self.app_state.complete_batch_open(result[0], result[1], record_info)
         else:
             self.show_user_info(
-                title=i18n.get_text(f'no_items_title_{self.app_state.batch_type}'),
-                message=i18n.get_text(f'no_items_message_{self.app_state.batch_type}')
+                title=i18n.get_text(f'no_items_title_{self.app_state.batch_service_name}'),
+                message=i18n.get_text(f'no_items_message_{self.app_state.batch_service_name}')
             )
             self.app_state.clear_batch()
 
@@ -432,7 +435,7 @@ class CNODCQCApp:
         if after_close:
             after_close()
         elif self.app_state.batch_load_after_close:
-            self.open_qc_batch(self.app_state.batch_type)
+            self.open_qc_batch(self.app_state.batch_service_name)
         else:
             self.app_state.clear_batch()
 

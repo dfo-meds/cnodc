@@ -6,6 +6,8 @@ import enum
 
 from cnodc.ocproc2.operations import QCOperator
 import cnodc.ocproc2.structures as ocproc2
+import cnodc.desktop.translations as i18n
+
 
 if t.TYPE_CHECKING:
     from cnodc.desktop.main_app import CNODCQCApp
@@ -81,7 +83,7 @@ class ApplicationState:
     def __init__(self, display_callable: callable):
         self._display_cb = display_callable
         self.batch_state: t.Optional[BatchOpenState] = None
-        self.batch_type: t.Optional[BatchType] = None
+        self.batch_service_name: t.Optional[str] = None
         self.batch_actions: t.Optional[list[str]] = None
         self.batch_close_op: t.Optional[QCBatchCloseOperation] = None
         self.batch_load_after_close = None
@@ -94,13 +96,34 @@ class ApplicationState:
         self.actions: t.Optional[list[QCOperator]] = None
         self.save_in_progress: bool = False
         self.username: t.Optional[str] = None
-        self.user_access: t.Optional[list[str]] = None
+        self.user_access: t.Optional[dict[str, dict[str, str]]] = None
         self.batch_record_info: t.Optional[dict[str, SimpleRecordInfo]] = None
+
+    def has_access(self, access_name: str) -> bool:
+        return self.user_access is not None and access_name in self.user_access
 
     def ordered_simple_records(self) -> list[SimpleRecordInfo]:
         srs = list(self.batch_record_info.values())
         srs.sort(key=lambda x: (x.station_id, x.timestamp))
         return srs
+
+    def can_open_new_queue_item(self) -> bool:
+        if self.user_access is None:
+            return False
+        if self.batch_state is not None:
+            return False
+        if not any(x.startswith('service_queues:') for x in self.user_access.keys()):
+            return False
+        return True
+
+    def service_choices(self, language: str = None) -> dict[str, str]:
+        if language is None:
+            language = i18n.current_language()
+        results = {}
+        for key in self.user_access.keys():
+            if key.startswith('service_queues:'):
+                results[key] = self.user_access[key][language] if language in self.user_access[key] else key
+        return results
 
     def is_batch_action_available(self, action_name: str):
         if self.save_in_progress:
@@ -109,8 +132,8 @@ class ApplicationState:
             return False
         return self.batch_actions is not None and action_name in self.batch_actions
 
-    def start_batch_open(self, batch_type: BatchType):
-        self.batch_type = batch_type
+    def start_batch_open(self, batch_service_name: str):
+        self.batch_service_name = batch_service_name
         self.batch_state = BatchOpenState.OPENING
         self.batch_actions = None
         self.batch_close_op = None
@@ -142,9 +165,9 @@ class ApplicationState:
         self.clear_batch()
 
     def clear_batch(self):
-        if self.batch_type is not None:
+        if self.batch_service_name is not None:
             self.batch_state = None
-            self.batch_type = None
+            self.batch_service_name = None
             self.batch_actions = None
             self.batch_record_info = None
             self.batch_actions = None
@@ -177,7 +200,7 @@ class ApplicationState:
         self.batch_load_after_close = None
         self.refresh_display(DisplayChange.BATCH | DisplayChange.OP_ONGOING)
 
-    def update_user_info(self, username: str, access_list: list[str]) -> bool:
+    def update_user_info(self, username: str, access_list: dict[str, dict[str, str]]) -> bool:
         if self.username != username or self.user_access != access_list:
             self.username = username
             self.user_access = access_list

@@ -12,7 +12,7 @@ cnodc = flask.Blueprint("cnodc", __name__)
 @cnodc.route("/login", methods=["POST"])
 @require_inputs(["username", "password"])
 @injector.inject
-def login(login_controller: LoginController = None):
+def login(login_controller: LoginController = None, nodb_web: NODBWebController = None):
     session = login_controller.do_login(
         flask.request.json["username"],
         flask.request.json["password"]
@@ -21,7 +21,7 @@ def login(login_controller: LoginController = None):
         'token': login_controller.generate_token(session),
         'expiry': session.expiry_time.isoformat(),
         'username': flask.request.json['username'],
-        'access': _build_access_list()
+        'access': nodb_web.access_list()
     }
 
 
@@ -51,27 +51,9 @@ def renew(login_controller: LoginController = None):
 @cnodc.route('/access', methods=['GET'])
 @json_api
 @require_login
-def list_access():
-    return _build_access_list()
-
-
 @injector.inject
-def _build_access_list() -> list[str]:
-    from .uploads import list_all_workflows_with_access
-    options = ['change-password', 'renew', 'access']
-    if has_access('handle_queue_items'):
-        if has_access('handle_decode_failures'):
-            options.append('queue:decode-failure')
-        if has_access('handle_ocean_reviews'):
-            options.append('queue:ocean-review')
-        if has_access('handle_integrity_failures'):
-            options.append('queue:integrity-failure')
-        if has_access('handle_station_failures'):
-            options.append('queue:station-failure')
-    if has_access('submit_files'):
-        for workflow_name in list_all_workflows_with_access():
-            options.append(f'submit:{workflow_name}')
-    return options
+def list_access(nodb_web: NODBWebController):
+    return nodb_web.access_list()
 
 
 @cnodc.route('/change-password', methods=["POST"])
@@ -156,7 +138,7 @@ def workflow_info(workflow_name):
 
 
 @cnodc.route('/stations', methods=['GET'])
-@require_permission('handle_station_failures')
+@require_permission('handle_nodb_station_failure')
 @injector.inject
 def list_stations(nodb_web: NODBWebController = None):
     return nodb_web.list_stations(), {'Content-Type': 'application/octet-stream'}
@@ -164,49 +146,22 @@ def list_stations(nodb_web: NODBWebController = None):
 
 @cnodc.route('/stations/new', methods=['POST'])
 @require_inputs(['station'])
-@require_permission('handle_station_failures')
+@require_permission('handle_nodb_station_failure')
 @injector.inject
 def create_station(nodb_web: NODBWebController = None):
     return nodb_web.create_station(flask.request.json['station'])
 
 
-@cnodc.route('/next/decode-failure', methods=['POST'])
+# TODO: update station
+
+
+@cnodc.route('/queue-item/next/<queue_service_name>', methods=['POST'])
 @require_inputs(['app_id'])
-@require_permission("handle_decode_failures")
+@require_permission("handle_queue_items")
 @injector.inject
-def next_decode_failure(nodb_web: NODBWebController = None):
+def next_queue_item(queue_service_name, nodb_web: NODBWebController = None):
     return nodb_web.get_next_queue_item(
-        queue_name='nodb_decode_failure'
-    )
-
-
-@cnodc.route('/next/integrity-failure', methods=['POST'])
-@require_inputs(['app_id'])
-@require_permission("handle_integrity_failures")
-@injector.inject
-def next_integrity_failure(nodb_web: NODBWebController = None):
-    return nodb_web.get_next_queue_item(
-        queue_name='nodb_integrity_review'
-    )
-
-
-@cnodc.route('/next/station-failure', methods=['POST'])
-@require_inputs(['app_id'])
-@require_permission("handle_station_failures")
-@injector.inject
-def next_station_failure(nodb_web: NODBWebController = None):
-    return nodb_web.get_next_queue_item(
-        queue_name='nodb_station_review'
-    )
-
-
-@cnodc.route('/next/ocean-review', methods=['POST'])
-@require_inputs(['app_id'])
-@require_permission("handle_ocean_reviews")
-@injector.inject
-def next_ocean_review(nodb_web: NODBWebController = None):
-    return nodb_web.get_next_queue_item(
-        queue_name='nodb_manual_review',
+        service_name=queue_service_name
     )
 
 
