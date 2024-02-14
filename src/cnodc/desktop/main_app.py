@@ -11,7 +11,7 @@ import zrlog
 import cnodc.ocproc2.structures as ocproc2
 from cnodc.desktop import VERSION
 from cnodc.desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
-    BatchType, SimpleRecordInfo
+    BatchType, SimpleRecordInfo, CloseBatchResult
 from cnodc.desktop.client.local_db import LocalDatabase
 from cnodc.desktop.gui.action_pane import ActionPane
 from cnodc.desktop.gui.button_pane import ButtonPane
@@ -89,6 +89,7 @@ class CNODCQCAppDispatcher(threading.Thread):
                    on_error: callable = None,
                    job_args: list = None,
                    job_kwargs: dict = None,):
+        obj = dynamic_object(job_callable)
         job_id = str(uuid.uuid4())
         self.work_queue.put_nowait((job_id, job_callable, job_args, job_kwargs))
         self._job_map[job_id] = (on_success, on_error)
@@ -336,10 +337,10 @@ class CNODCQCApp:
         if self._is_closing:
             return
         self._is_closing = True
-        if self.app_state.batch_service_name is not None:
-            if not self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close):
-                self._is_closing = False
-        else:
+        result = self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close)
+        if result == CloseBatchResult.CANCELLED:
+            self._is_closing = False
+        elif result == CloseBatchResult.ALREADY_CLOSED:
             self._on_close()
 
     def _on_close(self):
@@ -420,15 +421,16 @@ class CNODCQCApp:
         self.show_user_exception(ex)
         self.app_state.handle_batch_open_error()
 
-    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None) -> bool:
-        # TODO: prompt for closing if there are unsaved actions for any record
-        self.app_state.start_batch_close(op, load_next)
-        self.dispatcher.submit_job(
-            op.value,
-            on_success=functools.partial(self._close_qc_batch_success, after_close=after_close),
-            on_error=self._close_qc_batch_error
-        )
-        return True
+    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None) -> CloseBatchResult:
+        if self.app_state.batch_state == BatchOpenState.OPEN:
+            self.app_state.start_batch_close(op, load_next)
+            self.dispatcher.submit_job(
+                op.value if '.' in op.value else QCBatchCloseOperation.RELEASE.value,
+                on_success=functools.partial(self._close_qc_batch_success, after_close=after_close),
+                on_error=self._close_qc_batch_error
+            )
+            return CloseBatchResult.CLOSING
+        return CloseBatchResult.ALREADY_CLOSED
 
     def _close_qc_batch_success(self, res, after_close: callable = None):
         self.app_state.complete_batch_close()

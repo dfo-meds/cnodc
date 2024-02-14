@@ -21,8 +21,8 @@ class QCBatchCloseOperation(enum.Enum):
     FAIL = 'cnodc.desktop.client.api_client.fail_item'
     ESCALATE = 'cnodc.desktop.client.api_client.escalate_item'
     DESCALATE = 'cnodc.desktop.client.api_client.descalate_item'
-    LOAD_ERROR = ''
-    LOGOUT = ''
+    LOAD_ERROR = 'E'
+    LOGOUT = 'L'
 
 
 class BatchOpenState(enum.Enum):
@@ -33,6 +33,13 @@ class BatchOpenState(enum.Enum):
     CLOSING = 'C'
     CLOSED = 'C2'
     CLOSE_ERROR = 'CE'
+
+
+class CloseBatchResult(enum.Enum):
+
+    CLOSING = 'C'
+    ALREADY_CLOSED = 'L'
+    CANCELLED = 'N'
 
 
 class DisplayChange(enum.Flag):
