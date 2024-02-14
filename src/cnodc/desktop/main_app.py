@@ -426,6 +426,13 @@ class CNODCQCApp:
 
     def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None) -> CloseBatchResult:
         if self.app_state.batch_state == BatchOpenState.OPEN:
+            if self.app_state.has_unsaved_changes:
+                result = tkmb.askyesno(
+                    title=i18n.get_text('close_without_saving_title'),
+                    message=i18n.get_text('close_without_saving_message')
+                )
+                if not result:
+                    return CloseBatchResult.CANCELLED
             self.app_state.start_batch_close(op, load_next)
             self.dispatcher.submit_job(
                 op.value if '.' in op.value else QCBatchCloseOperation.RELEASE.value,
