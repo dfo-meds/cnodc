@@ -1,4 +1,7 @@
 import contextvars as cv
+import typing as t
+
+
 TRANSLATIONS = {
     'und': {
         'choice_dialog_ok': 'Selectionnez | Select',
@@ -79,6 +82,18 @@ TRANSLATIONS = {
         "qc_error_station_no_record": "Missing Station Record",  # todo remove me
         "qc_error_temp_invalid": "Invalid temperature",  # todo remove me
         "goto": "Goto",
+        "tooltip.descalate": "De-escalate",
+        "tooltip.escalate": "Escalate",
+        "tooltip.fail": "Report Error",
+        "tooltip.release": "Release",
+        "tooltip.complete": "Submit",
+        "tooltip.load_next": "Submit and Load Next (Ctrl-N)",
+        "tooltip.save": "Save (Ctrl-S)",
+        "tooltip.load_new": "Load",
+        "station_list": "Stations",
+        "menu_change_password": "Change Password",
+        "menu_logout": "Logout",
+        "menu_create_station": "Create Station",
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',
@@ -102,6 +117,19 @@ def get_text(key: str, lang: str = None, **kwargs: str):
         return sub_text(TRANSLATIONS['en'][key], kwargs)
     else:
         return f"?{key}?"
+
+
+def get_text_from_dict(options: dict[str, str], lang: str = None, default: t.Optional[str] = None):
+    if lang is None:
+        lang = current_language()
+    if lang in options:
+        return options[lang]
+    elif lang != 'und' and 'und' in options:
+        return options['und']
+    elif lang != 'en' and 'en' in options:
+        return options['en']
+    else:
+        return default or str(options)
 
 
 def sub_text(txt: str, subs: dict[str, str]):

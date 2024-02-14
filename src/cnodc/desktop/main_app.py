@@ -144,6 +144,7 @@ class CNODCQCApp:
         self._run_on_startup = True
         s = ttk.Style()
         s.configure('Errored.BorderedEntry.TFrame', background='red')
+        s.configure('TButton', background='#FFFFFF')
         s.configure('Treeview', indent=5)
         self.menus = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu_file')
@@ -283,7 +284,7 @@ class CNODCQCApp:
             )
 
     def save_changes(self, after_save: callable = None):
-        if self.app_state.has_unsaved_changes:
+        if self.app_state.has_unsaved_changes and self.app_state.is_batch_action_available('apply_working'):
             self.app_state.set_save_flag(True)
             self.dispatcher.submit_job(
                 'cnodc.desktop.client.api_client.save_work',
@@ -330,6 +331,7 @@ class CNODCQCApp:
         else:
             self.app_state.set_save_flag(False, False)
         if after_save:
+            print(after_save)
             after_save(res)
 
     def update_user_info(self, username: t.Optional[str], access_list: dict[str, dict[str, str]]):
