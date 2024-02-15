@@ -1,6 +1,8 @@
 import functools
 import math
 
+from matplotlib.lines import Line2D
+
 from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, \
     BatchOpenState, SimpleRecordInfo
 import tkintermapview as tkmv
@@ -127,7 +129,7 @@ class GraphPane(BasePane):
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD | DisplayChange.BATCH):
             self._clear_graph()
-            if app_state.record is not None and 'PROFILE' in app_state.record.subrecords:
+            if app_state.batch_state == BatchOpenState.OPEN:
                 self._update_boxes(app_state.record)
         elif change_type & DisplayChange.ACTION:
             if app_state.batch_state == BatchOpenState.OPEN and self._axes is not None:
@@ -145,9 +147,10 @@ class GraphPane(BasePane):
         rs_choices = []
         if self.app.app_state.batch_record_info is not None and len(self.app.app_state.batch_record_info) > 1:
             rs_choices.append('Batch')
-        for srt in record.subrecords:
-            for rs_idx in record.subrecords[srt]:
-                rs_choices.append(f"{srt}#{rs_idx}")
+        if record is not None:
+            for srt in record.subrecords:
+                for rs_idx in record.subrecords[srt]:
+                    rs_choices.append(f"{srt}#{rs_idx}")
         self._combo_recordset.configure(values=rs_choices)
         self._current_recordset_id = None
         if rs_choices:
@@ -183,7 +186,7 @@ class GraphPane(BasePane):
         else:
             srt, rs_idx = record_set_name.split('#', maxsplit=1)
             path = f'subrecords/{srt}/{rs_idx}'
-            self._current_recordset: ocproc2.RecordSet = self.app.app_state.record.find_child(path)
+            self._current_recordset: ocproc2.RecordSet = self.app.app_state.record.find_child(path) if self.app.app_state is not None else None
             if self._current_recordset:
                 for r in self._current_recordset.records:
                     dep_vars.update(r.parameters.keys())
@@ -361,7 +364,6 @@ class GraphPane(BasePane):
             x_values,
             '-',
             c='#6666CC',
-            label=self._get_label('Temperature', unit_map['Temperature'] if 'Temperature' in unit_map else None),
             linewidth=0.5
         )
         self._axes2 = self._axes.twiny()
@@ -377,13 +379,26 @@ class GraphPane(BasePane):
             x_values,
             '-',
             c='#CC6666',
-            label=self._get_label('Salinity', unit_map['Salinity'] if 'Salinity' in unit_map else None),
             linewidth=0.5
         )
         self._axes.set_ylabel(self._get_label(x_name, unit_map[x_name] if x_name in unit_map else None))
         self._axes.set_xlabel(self._get_label('Temperature', unit_map['Temperature'] if 'Temperature' in unit_map else None))
         self._axes2.set_xlabel(self._get_label('Salinity', unit_map['Salinity'] if 'Salinity' in unit_map else None))
-        self._axes.legend()
+        box = self._axes.get_position()
+        self._axes.set_position([box.x0, box.y0 + (box.height * 0.1), box.width, box.height * 0.9])
+        self._axes.legend(
+            [
+                Line2D([0], [0], linewidth=0.5, c='#CC6666'),
+                Line2D([0], [0], linewidth=0.5, c='#6666CC'),
+            ], [
+                self._get_label('Salinity', unit_map['Salinity'] if 'Salinity' in unit_map else None),
+                self._get_label('Temperature', unit_map['Temperature'] if 'Temperature' in unit_map else None)
+            ],
+            loc="upper center",
+            ncols=2,
+            bbox_to_anchor=(0.5, -0.15),
+
+        )
         self._canvas.draw()
 
     def _show_qc_graph(self, x_qc_values, y_qc_values, x_name, y_name, unit_map):
