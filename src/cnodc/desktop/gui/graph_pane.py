@@ -1,4 +1,5 @@
 import functools
+import math
 
 from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, \
     BatchOpenState, SimpleRecordInfo
@@ -32,6 +33,7 @@ class GraphPane(BasePane):
         self._figure: t.Optional[mplf.Figure] = None
         self._canvas: t.Optional[mpltk.FigureCanvasTkAgg] = None
         self._axes: t.Optional[mpla.Axes] = None
+        self._axes2: t.Optional[mpla.Axes] = None
         self._current_coordinate: t.Optional[str] = None
         self._current_parameter: t.Optional[str] = None
         self._current_recordset_id: t.Optional[str] = None
@@ -182,9 +184,14 @@ class GraphPane(BasePane):
             srt, rs_idx = record_set_name.split('#', maxsplit=1)
             path = f'subrecords/{srt}/{rs_idx}'
             self._current_recordset: ocproc2.RecordSet = self.app.app_state.record.find_child(path)
-            for r in self._current_recordset.records:
-                dep_vars.update(r.parameters.keys())
-                ind_vars.update(r.coordinates.keys())
+            if self._current_recordset:
+                for r in self._current_recordset.records:
+                    dep_vars.update(r.parameters.keys())
+                    ind_vars.update(r.coordinates.keys())
+            if 'Temperature' in dep_vars and ('PracticalSalinity' in dep_vars or 'AbsoluteSalinity' in dep_vars):
+                dep_vars.add('Temperature+Salinity')
+                if 'Pressure' in ind_vars or ('Depth' in ind_vars and self.app.app_state.record.coordinates.has_value('Latitude')):
+                    dep_vars.add('Density')
         dep_vars = list(dep_vars)
         dep_vars.sort()
         ind_vars = list(ind_vars)
@@ -290,16 +297,94 @@ class GraphPane(BasePane):
 
     def _show_graph(self, record_set: ocproc2.RecordSet, x_name: str, y_name: str):
         self._clear_graph()
+        if y_name == 'Temperature+Salinity':
+            self._show_ts_graph(record_set, x_name)
+        else:
+            unit_map = {}
+            x_qc_values = [self._extract_value(r.coordinates, x_name, unit_map) for r in record_set.records]
+            y_qc_values = [self._extract_value(r.parameters, y_name, unit_map) for r in record_set.records]
+            self._show_qc_graph(
+                x_qc_values,
+                y_qc_values,
+                x_name,
+                y_name,
+                unit_map
+            )
+
+    def _extract_plot_list(self, qc_values: list[tuple[float, int]]) -> tuple[float, float, list[float]]:
+        data = []
+        min_value = None
+        max_value = None
+        for v, qc in qc_values:
+            data.append(v)
+            if v is not None:
+                if min_value is None or min_value > v:
+                    min_value = v
+                if max_value is None or max_value < v:
+                    max_value = v
+        return min_value, max_value, data
+
+    def _build_ticks(self, min_val: float, max_val: float, num_ticks: int = 7):
+        step_size = (max_val - min_val) / (num_ticks - 1)
+        round_places = -1 * math.floor(math.log10(step_size))
+        result = [min_val]
+        for x in range(1, num_ticks - 1):
+            new_val = round(min_val + (step_size * x), round_places)
+            if new_val not in result:
+                result.append(new_val)
+        result.append(max_val)
+        return result
+
+    def _calculate_x_axis_range(self, xx1: tuple[float, float], xx2: tuple[float, float]) -> tuple[float, float]:
+        m = (xx2[1] - xx1[1]) / (xx2[0] - xx1[0])
+        b = xx1[1] - (xx1[0] * m)
+        return b, m + b
+
+    def _show_ts_graph(self, record_set: ocproc2.RecordSet, x_name):
         unit_map = {}
         x_qc_values = [self._extract_value(r.coordinates, x_name, unit_map) for r in record_set.records]
-        y_qc_values = [self._extract_value(r.parameters, y_name, unit_map) for r in record_set.records]
-        self._show_qc_graph(
-            x_qc_values,
-            y_qc_values,
-            x_name,
-            y_name,
-            unit_map
+        y_temp_values = [self._extract_value(r.parameters, 'Temperature', unit_map) for r in record_set.records]
+        y_salinity_values = [self._extract_value(r.parameters, 'Salinity', unit_map) for r in record_set.records]
+        self._axes: mpla.Axes = self._figure.subplots(1, 1)
+        x_values = [-1 * x[0] for x in x_qc_values]
+        min_temp, max_temp, temp_values = self._extract_plot_list(y_temp_values)
+        min_saln, max_saln, saln_values = self._extract_plot_list(y_salinity_values)
+        if min_temp is not None:
+            self._axes.set_xlim(self._calculate_x_axis_range(
+                (0.03, min_temp),
+                (0.49, max_temp)
+            ))
+            self._axes.set_xticks(self._build_ticks(min_temp, max_temp))
+            self._axes.tick_params(axis='x', labelrotation=90)
+        self._axes.plot(
+            temp_values,
+            x_values,
+            '-',
+            c='#6666CC',
+            label=self._get_label('Temperature', unit_map['Temperature'] if 'Temperature' in unit_map else None),
+            linewidth=0.5
         )
+        self._axes2 = self._axes.twiny()
+        if min_saln is not None:
+            self._axes2.set_xlim(self._calculate_x_axis_range(
+                (0.51, min_saln),
+                (0.97, max_saln)
+            ))
+            self._axes2.set_xticks(self._build_ticks(min_saln, max_saln))
+            self._axes2.tick_params(axis='x', labelrotation=90)
+        self._axes2.plot(
+            saln_values,
+            x_values,
+            '-',
+            c='#CC6666',
+            label=self._get_label('Salinity', unit_map['Salinity'] if 'Salinity' in unit_map else None),
+            linewidth=0.5
+        )
+        self._axes.set_ylabel(self._get_label(x_name, unit_map[x_name] if x_name in unit_map else None))
+        self._axes.set_xlabel(self._get_label('Temperature', unit_map['Temperature'] if 'Temperature' in unit_map else None))
+        self._axes2.set_xlabel(self._get_label('Salinity', unit_map['Salinity'] if 'Salinity' in unit_map else None))
+        self._axes.legend()
+        self._canvas.draw()
 
     def _show_qc_graph(self, x_qc_values, y_qc_values, x_name, y_name, unit_map):
         x_values = [x[0] for x in x_qc_values]
@@ -328,12 +413,40 @@ class GraphPane(BasePane):
 
     def _get_label(self, key, units: t.Optional[str] = None):
         # TODO: lookup in ontology and label graph with it
+
         if units:
             return f"{key} [{units}]"
         else:
             return key
 
     def _extract_value(self, map_: ocproc2.ValueMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:
+        # TODO: Density
+        # TODO: Salinity (PSAL or ASAL)
+        if value_name == 'Salinity':
+            if 'PracticalSalinity' in map_:
+                saln, qc_saln = self._extract_value(map_, 'PracticalSalinity', unit_map)
+                if 'PracticalSalinity' not in unit_map:
+                    unit_map['PracticalSalinity'] = '0.001'
+                if 'Salinity' not in unit_map:
+                    unit_map['Salinity'] = unit_map['PracticalSalinity']
+                if unit_map['Salinity'] == unit_map['PracticalSalinity']:
+                    return saln, qc_saln
+                else:
+                    # TODO: convert PSAL to ASAL
+                    pass
+                    return None, 9
+            elif 'AbsoluteSalinity' in map_:
+                saln, qc_saln = self._extract_value(map_, 'AbsoluteSalinity', unit_map)
+                if 'AbsoluteSalinity' not in unit_map:
+                    unit_map['AbsoluteSalinity'] = 'g kg-1'
+                if 'Salinity' not in unit_map:
+                    unit_map['Salinity'] = unit_map['AbsoluteSalinity']
+                if unit_map['Salinity'] == unit_map['AbsoluteSalinity']:
+                    return saln, qc_saln
+                else:
+                    # TODO: convert ASAL to PSAL
+                    pass
+                    return None, 9
         if not map_.has_value(value_name):
             return None, 9
         val = map_[value_name]

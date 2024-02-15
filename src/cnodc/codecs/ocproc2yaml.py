@@ -47,6 +47,9 @@ class OCProc2YamlCodec(BaseCodec):
             try:
                 last_offset = stream.offset()
                 data = stream.consume_until(doc_breaks, True)
+                # TODO: if the ... message ending is omitted, then the decoding breaks
+                # we can fix this by checking if the document ends with
+                # ---(line breaks) and strip the extra characters.
                 doc = yaml.safe_load(data.decode(encoding))
                 if doc:
                     yield DecodeResult(

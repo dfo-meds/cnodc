@@ -18,6 +18,35 @@ _coordinates:
     _value: '2023-01-01T00:00+00:00'
     _metadata:
       WorkingQuality: 1
+_subrecords:
+  PROFILE:
+    0:
+      - _coordinates:
+          Depth: 5
+        _parameters:
+          Temperature: 5
+          PracticalSalinity: 12.3
+      - _coordinates:
+          Depth: 15
+        _parameters:
+          Temperature: 4.5
+          PracticalSalinity: 13.3
+      - _coordinates:
+          Depth: 25
+        _parameters:
+          Temperature: 4
+          PracticalSalinity: 14.3
+      - _coordinates:
+          Depth: 35
+        _parameters:
+          Temperature: 3.75
+          PracticalSalinity: 14.5
+      - _coordinates:
+          Depth: 45
+        _parameters:
+          Temperature: 3.75
+          PracticalSalinity: 14.7
+
 _history:
   -
     _message: 'Test record manually created'

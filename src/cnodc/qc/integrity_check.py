@@ -138,8 +138,8 @@ class NODBIntegrityCheck(BaseTestSuite):
             self.assert_list_like(value, 'ontology_invalid_list', 20)
         if value.is_numeric():
             if min_value is not None:
-                self.assert_greater_than('ontology_out_of_range', self.value_in_units(value, preferred_unit), min_value)
+                self.assert_greater_than('ontology_lower_than_range', self.value_in_units(value, preferred_unit), min_value)
             if max_value is not None:
-                self.assert_less_than('ontology_out_of_range', self.value_in_units(value, preferred_unit), max_value)
+                self.assert_less_than('ontology_greater_than_range', self.value_in_units(value, preferred_unit), max_value)
         if allowed_values:
             self.assert_in(value.value, allowed_values, 'ontology_value_not_allowed')
