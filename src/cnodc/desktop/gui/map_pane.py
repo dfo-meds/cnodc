@@ -82,12 +82,15 @@ class MapPane(BasePane):
                             command=functools.partial(self._open_record, record_uuid=sr.record_uuid),
                             text_color="#FFFFFF"
                         )
-                if station_path:
+                if len(station_path) > 1:
                     self._map.set_path(station_path, width=4, color='#666666')
-                self._map.fit_bounding_box(
-                    (max_lat, min_lon),
-                    (min_lat, max_lon)
-                )
+                if max_lat == min_lat and max_lon == min_lon:
+                    self._map.set_position(max_lat, max_lon)
+                else:
+                    self._map.fit_bounding_box(
+                        (max_lat, min_lon),
+                        (min_lat, max_lon)
+                    )
         if change_type & DisplayChange.RECORD:
             coordinates = app_state.current_coordinates()
             if coordinates is not None:
