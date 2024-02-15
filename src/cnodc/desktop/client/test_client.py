@@ -1,10 +1,12 @@
 import datetime
 import json
+import pathlib
 import typing as t
 import random
 from requests import HTTPError
 
 import cnodc.ocproc2.structures as ocproc2
+from cnodc.codecs import OCProc2YamlCodec
 from cnodc.ocproc2.operations import QCOperator
 
 
@@ -24,8 +26,8 @@ class TestClient:
             return self._renew()
         elif endpoint == 'stations/new' and method == 'POST':
             return self._create_station(**kwargs)
-        elif endpoint == 'next/station-failure' and method == 'POST':
-            return self._next_station_failure()
+        elif endpoint.startswith('next/') and method == 'POST':
+            return self._next_queue_item(endpoint[5:])
         elif endpoint.startswith('release/') and method == 'POST':
             return self._release_item(**kwargs)
         elif endpoint.startswith('fail/') and method == 'POST':
@@ -48,8 +50,8 @@ class TestClient:
         return {'success': True}
 
     def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
-        if endpoint == 'download/12345' and method == 'GET':
-            return self._download_station_failure(**kwargs)
+        if endpoint.startswith('download/') and method == 'GET':
+            return self._download_station_failure(endpoint[9:], **kwargs)
         raise Exception('invalid test request')
 
     def make_json_dict_list_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[dict]:
@@ -67,6 +69,10 @@ class TestClient:
         return {'success': True}
 
     def _login(self, username, password) -> dict:
+        queue_path = pathlib.Path(__file__).absolute().parent / 'ocproc2_examples'
+        queues = []
+        for file in queue_path.glob('*.yaml'):
+            queues.append(file.name[:-5])
         return {
             'token': 'abc',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
@@ -80,13 +86,14 @@ class TestClient:
                     'list_stations': 'stations',
                 },
                 'service_queues': {
-                    'station-failure': {
-                        'url': 'next/station-failure',
+                    q: {
+                        'url': f'next/{q}',
                         'name': {
-                            'en': 'Station Failures',
-                            'fr': 'Failures de station'
+                            'en': q,
+                            'fr': q
                         }
                     }
+                    for q in queues
                 },
                 'workflows': {
                     'test': {
@@ -110,69 +117,37 @@ class TestClient:
     def _create_station(self, station: dict) -> dict:
         return {'success': True}
 
-    def _next_station_failure(self) -> dict:
+    def _next_queue_item(self, error_file_name: str) -> dict:
+        tests = []
+        if error_file_name.startswith('station_'):
+            tests.append('nodb_station_check')
         return {
-            'item_uuid': '12345',
+            'item_uuid': error_file_name,
             'app_id': '67890',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
-            'current_tests': ['nodb_station_check'],
-            'batch_size': 9,
+            # TODO
+            'current_tests': tests,
+            'batch_size': 1,
             'actions': {
-                'renew': 'renew/12345',
-                'release': 'release/12345',
-                #'fail': 'fail/12345',
-                'complete': 'complete/12345',
-                'escalate': 'escalate/12345',
-                'descalate': 'descalate/12345',
-                'download_working': 'download/12345',
-                'apply_working': 'apply/12345',
-                'clear_actions': 'clear/12345',
+                'renew': f'renew/{error_file_name}',
+                'release': f'release/{error_file_name}',
+                'fail': f'fail/{error_file_name}',
+                'complete': f'complete/{error_file_name}',
+                'escalate': f'escalate/{error_file_name}',
+                'descalate': f'descalate/{error_file_name}',
+                'download_working': f'download/{error_file_name}',
+                'apply_working': f'apply/{error_file_name}',
+                'clear_actions': f'clear/{error_file_name}',
             }
         }
 
-    def _download_station_failure(self, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
+    def _download_station_failure(self, filename: str, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
         if app_id != '67890':
             raise Exception('invalid app id')
-        for i in range(1, 10):
-            r = ocproc2.DataRecord()
-
-            r.coordinates['Latitude'] = ocproc2.Value(round(self._get_lat(i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
-            r.coordinates['Longitude'] = ocproc2.Value(round(self._get_long(i), 3), Uncertainty=0.0005, Units='degrees', WorkingQuality=0)
-            r.coordinates['Time'] = ocproc2.Value(self._get_time(i), WorkingQuality=0)
-            for j in range(0, 20):
-                sr = ocproc2.DataRecord()
-                depth = (j * 50) + (random.randint(0, 10) / 100)
-                sr.coordinates['Depth'] = ocproc2.Value(depth, Uncertainty=0.5, Units="m", WorkingQuality=(0 if i < 8 else (3 if i == 8 else 4)))
-                sr.parameters['Temperature'] = ocproc2.Value(self._temp(depth), Uncertainty=0.005, Units='K', WorkingQuality=self._temp_wq(depth))
-                sr.parameters['PracticalSalinity'] = ocproc2.Value(self._sal(depth), Uncertainty=0.0005, Units='0.001', WorkingQuality=0)
-                sr.parameters['CurrentSpeed'] = ocproc2.Value(self._curspd(depth), Units='m s-1', WorkingQuality=0, Uncertainty=0.5)
-                sr.parameters['CurrentDirection'] = ocproc2.Value(self._curdir(depth), Units='degrees', WorkingQuality=0, Uncertainty=1)
-                r.subrecords.append_record_set('PROFILE', 0, sr)
-            if i % 2 == 0:
-                r.metadata['WMOID'] = '12345'
-                r.metadata['CNODCStationString'] = ocproc2.Value('WMOID=12345', WorkingQuality=0)
-                r.record_qc_test_result(
-                    'nodb_station_check',
-                    '1.0',
-                    ocproc2.QCResult.MANUAL_REVIEW,
-                    messages=[
-                        ocproc2.QCMessage('station_no_record', ''),
-                        ocproc2.QCMessage('temp_invalid', 'subrecords/PROFILE/0/4/parameters/Temperature')
-                    ],
-                    test_tags=['GTSPP_1.1']
-                )
-            else:
-                r.metadata['WMOID'] = '23456'
-                r.metadata['CNODCStation'] = ocproc2.Value('12345', WorkingQuality=1)
-                r.record_qc_test_result(
-                    'nodb_station_check',
-                    '1.0',
-                    ocproc2.QCResult.PASS,
-                    messages=[],
-                    test_tags=['GTSPP_1.1']
-                )
-            r.add_history_entry('Test record, not real', 'desktop_test', '1.0', 'abc', ocproc2.MessageType.INFO)
-            yield f'000{i}', r.generate_hash(), r, []
+        file_path = pathlib.Path(__file__).absolute().parent / 'ocproc2_examples' / f'{filename}.yaml'
+        codec = OCProc2YamlCodec()
+        for idx, record in enumerate(codec.load_all(file_path)):
+            yield str(idx), record.generate_hash(), record, []
 
     def _get_lat(self, x: int):
         return 45 - (0.03 * x) + (random.randint(-100, 100) / 100) - (0 if x % 2 else 10)

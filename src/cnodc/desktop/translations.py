@@ -79,8 +79,6 @@ TRANSLATIONS = {
         "child_record_list_title": "Child Records",
         "record_label": "Record {index}",
         "qc_test_nodb_station_check": "Station Check",
-        "qc_error_station_no_record": "Missing Station Record",  # todo remove me
-        "qc_error_temp_invalid": "Invalid temperature",  # todo remove me
         "goto": "Goto",
         "tooltip_descalate": "De-escalate",
         "tooltip_escalate": "Escalate",
@@ -100,7 +98,12 @@ TRANSLATIONS = {
         'password_change_success_title': 'Password Changed',
         'password_change_success_message': 'Your password has been changed',
         'logout_success_title': 'Logged Out',
-        'logout_success_message': 'You have been logged out.'
+        'logout_success_message': 'You have been logged out.',
+        'qc_error_station_no_id': 'No Station ID Detected',
+        'qc_error_station_no_record': 'No Station Match Found',
+        'qc_error_station_bad_uuid': 'Invalid CNODC Station ID',
+        'qc_error_station_incomplete': 'Incomplete Station Record',
+        'qc_error_station_many_records': 'Several Station Matches Found',
     },
     'fr': {
         'choice_dialog_ok': 'Selectionnez',

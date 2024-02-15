@@ -1,0 +1,88 @@
+_metadata:
+  WMOID:
+_coordinates:
+  Latitude:
+    _value: 45.123
+    _metadata:
+      Units: 'degrees'
+      WorkingQuality: 1
+      Uncertainty: 0.0005
+  Longitude:
+    _value: -45.123
+    _metadata:
+      Units: 'degrees'
+      WorkingQuality: 1
+      Uncertainty: 0.0005
+  Time:
+    _value: '2023-01-01T00:00+00:00'
+    _metadata:
+      WorkingQuality: 1
+_history:
+  -
+    _message: 'Test record manually created'
+    _timestamp: '2024-02-15T14:19:00+00:00'
+    _source:
+      - 'manual'
+      - '1.0'
+      - 'ErinTurnbull'
+    _message_type: 'I'
+_qc_tests:
+  -
+    _name: 'nodb_station_check'
+    _version: '1.0'
+    _date: '2024-02-15T14:19:00+00:00'
+    _messages:
+      -
+        _code: 'station_no_id'
+        _path: ''
+        _ref:
+    _result: 'R'
+    _notes: ''
+    _stale: false
+    _tags:
+      - 'GTSPP_1.1'
+...
+---
+_metadata:
+  WMOID:
+_coordinates:
+  Latitude:
+    _value: 45.133
+    _metadata:
+      Units: 'degrees'
+      WorkingQuality: 1
+      Uncertainty: 0.0005
+  Longitude:
+    _value: -45.133
+    _metadata:
+      Units: 'degrees'
+      WorkingQuality: 1
+      Uncertainty: 0.0005
+  Time:
+    _value: '2023-01-01T10:00+00:00'
+    _metadata:
+      WorkingQuality: 1
+_history:
+  -
+    _message: 'Test record manually created'
+    _timestamp: '2024-02-15T14:19:00+00:00'
+    _source:
+      - 'manual'
+      - '1.0'
+      - 'ErinTurnbull'
+    _message_type: 'I'
+_qc_tests:
+  -
+    _name: 'nodb_station_check'
+    _version: '1.0'
+    _date: '2024-02-15T14:19:00+00:00'
+    _messages:
+      -
+        _code: 'station_no_id'
+        _path: ''
+        _ref:
+    _result: 'R'
+    _notes: ''
+    _stale: false
+    _tags:
+      - 'GTSPP_1.1'
