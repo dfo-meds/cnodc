@@ -616,8 +616,7 @@ class BaseTestSuite:
             if raise_ex and not result:
                 raise QCSkipTest()
             return result
-        wq = value.metadata.best_value('WorkingQuality', 0)
-        if wq in (1, 2, 4) or (wq == 9 and not allow_empty) or (wq == 3 and not allow_dubious):
+        if value.passed_qc() or not value.is_good(allow_dubious, allow_empty):
             if raise_ex:
                 raise QCSkipTest()
             return False

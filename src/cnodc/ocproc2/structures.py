@@ -4,7 +4,10 @@ import typing as t
 import datetime
 import enum
 
-from uncertainties import ufloat
+from uncertainties import ufloat, UFloat
+from autoinject import injector
+from cnodc.units import UnitConverter
+from cnodc.units.units import convert
 
 SupportedValue = t.Union[
     None,
@@ -223,10 +226,22 @@ class AbstractValue:
     def update_hash(self, h):
         raise NotImplementedError
 
+    def is_good(self, allow_dubious: bool = False, allow_empty: bool = False) -> bool:
+        raise NotImplementedError
+
+    def passed_qc(self) -> bool:
+        raise NotImplementedError
+
     def is_empty(self) -> bool:
         raise NotImplementedError
 
     def is_numeric(self) -> bool:
+        raise NotImplementedError
+
+    def working_quality(self) -> int:
+        raise NotImplementedError
+
+    def units(self) -> t.Optional[str]:
         raise NotImplementedError
 
     def is_integer(self) -> bool:
@@ -241,7 +256,7 @@ class AbstractValue:
     def from_mapping(self, map_: t.Any):
         raise NotImplementedError
 
-    def best_value(self) -> t.Any:
+    def best_value(self, coerce: t.Optional[callable] = None) -> t.Any:
         raise NotImplementedError
 
     def is_iso_datetime(self) -> bool:
@@ -250,16 +265,16 @@ class AbstractValue:
     def all_values(self) -> t.Iterable:
         raise NotImplementedError
 
-    def to_decimal(self) -> decimal.Decimal:
+    def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
         raise NotImplementedError
 
-    def to_float_with_uncertainty(self) -> ufloat:
+    def to_float_with_uncertainty(self, units: t.Optional[str] = None) -> ufloat:
         raise NotImplementedError
 
-    def to_float(self) -> float:
+    def to_float(self, units: t.Optional[str] = None) -> float:
         raise NotImplementedError
 
-    def to_int(self) -> int:
+    def to_int(self, units: t.Optional[str] = None) -> int:
         raise NotImplementedError
 
     def to_datetime(self) -> datetime.datetime:
@@ -320,7 +335,9 @@ class Value(AbstractValue):
         else:
             return None
 
-    def best_value(self) -> t.Any:
+    def best_value(self, coerce: t.Optional[callable] = None) -> t.Any:
+        if coerce is not None and not self.is_empty():
+            return coerce(self._value)
         return self._value
 
     def is_empty(self) -> bool:
@@ -329,16 +346,49 @@ class Value(AbstractValue):
     def all_values(self) -> t.Iterable:
         yield self
 
-    def to_decimal(self) -> decimal.Decimal:
-        return decimal.Decimal(self._value)
+    def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
+        return self._convert_units(decimal.Decimal(self._value), units)
 
-    def to_float_with_uncertainty(self) -> t.Union[float, ufloat]:
+    def to_float_with_uncertainty(self, units: t.Optional[str] = None) -> t.Union[float, UFloat]:
         if self.metadata.has_value('Uncertainty'):
-            return ufloat(self.to_float(), self.metadata['Uncertainty'].to_float())
-        return self.to_float()
+            return self._convert_units(ufloat(self.to_float(), self.metadata['Uncertainty'].to_float()), units)
+        return self._convert_units(self.to_float(), units)
 
-    def to_float(self) -> float:
-        return float(self._value)
+    def to_float(self, units: t.Optional[str] = None) -> float:
+        return self._convert_units(float(self._value), units)
+
+    def to_int(self, units: t.Optional[str] = None) -> int:
+        return self._convert_units(int(self._value), units)
+
+    def _convert_units(self, v, to_units: t.Optional[str]):
+        return convert(v, self.units(), to_units)
+
+    def passed_qc(self) -> bool:
+        wq = self.working_quality()
+        return wq in (1, 2, 5)
+
+    def is_good(self,
+                allow_empty: bool = False,
+                allow_dubious: bool = False) -> bool:
+        if self.is_empty():
+            return allow_empty
+        wq = self.working_quality()
+        if wq == 4:
+            return False
+        elif wq == 3:
+            return allow_dubious
+        elif wq == 9:
+            return allow_empty
+        return True
+
+    def working_quality(self) -> t.Optional[int]:
+        return self.metadata.best_value('WorkingQuality', 0)
+
+    def uncertainty(self) -> t.Optional[float]:
+        return self.metadata.best_value('Uncertainty', None)
+
+    def units(self) -> t.Optional[str]:
+        return self.metadata.best_value('Units', None)
 
     def update_hash(self, h):
         if self._value is None:
@@ -346,9 +396,6 @@ class Value(AbstractValue):
         else:
             h.update(str(self._value).encode('utf-8', 'replace'))
         self.metadata.update_hash(h)
-
-    def to_int(self) -> int:
-        return int(self._value)
 
     def to_datetime(self) -> datetime.datetime:
         return datetime.datetime.fromisoformat(self._value)
@@ -442,6 +489,12 @@ class MultiValue(AbstractValue):
         else:
             return False
 
+    def passed_qc(self) -> bool:
+        return all(x.passed_qc() for x in self.all_values())
+
+    def is_good(self, **kwargs) -> bool:
+        return any(x.is_good(**kwargs) for x in self.all_values())
+
     def find_child(self, path: list[str]):
         if not path:
             return self
@@ -459,8 +512,8 @@ class MultiValue(AbstractValue):
         for v in self.values():
             v.update_hash(h)
 
-    def best_value(self) -> t.Any:
-        return self.first_non_empty().value
+    def best_value(self, coerce: t.Optional[callable] = None) -> t.Any:
+        return self.first_non_empty().best_value(coerce)
 
     def all_values(self) -> t.Iterable:
         for v in self._value:
@@ -485,17 +538,26 @@ class MultiValue(AbstractValue):
                 return x
         return None
 
-    def to_decimal(self) -> decimal.Decimal:
-        return self.first_non_empty().to_decimal()
+    def uncertainty(self) -> t.Optional[float]:
+        return self.first_non_empty().uncertainty()
 
-    def to_float_with_uncertainty(self) -> t.Union[float, ufloat]:
-        return self.first_non_empty().to_float_with_uncertainty()
+    def units(self) -> t.Optional[str]:
+        return self.first_non_empty().units()
 
-    def to_float(self) -> float:
-        return self.first_non_empty().to_float()
+    def working_quality(self) -> int:
+        return self.first_non_empty().working_quality()
 
-    def to_int(self) -> int:
-        return self.first_non_empty().to_int()
+    def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
+        return self.first_non_empty().to_decimal(units)
+
+    def to_float_with_uncertainty(self, units: t.Optional[str] = None) -> t.Union[float, ufloat]:
+        return self.first_non_empty().to_float_with_uncertainty(units)
+
+    def to_float(self, units: t.Optional[str] = None) -> float:
+        return self.first_non_empty().to_float(units)
+
+    def to_int(self, units: t.Optional[str] = None) -> int:
+        return self.first_non_empty().to_int(units)
 
     def to_datetime(self) -> datetime.datetime:
         return self.first_non_empty().to_datetime()

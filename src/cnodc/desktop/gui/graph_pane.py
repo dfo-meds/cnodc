@@ -18,6 +18,7 @@ import matplotlib.backend_bases as mplbb
 import tkinter as tk
 import cnodc.desktop.translations as i18n
 from cnodc.ocean_math.geodesy import uhaversine
+from cnodc.ocean_math.seawater import eos80_pressure
 from cnodc.ocproc2.operations import QCSetWorkingQuality, QCAddHistory
 
 from cnodc.units import UnitConverter
@@ -305,7 +306,10 @@ class GraphPane(BasePane):
         else:
             unit_map = {}
             x_qc_values = [self._extract_value(r.coordinates, x_name, unit_map) for r in record_set.records]
-            y_qc_values = [self._extract_value(r.parameters, y_name, unit_map) for r in record_set.records]
+            if y_name == 'Density':
+                y_qc_values = [self._calculate_density(r, unit_map) for r in record_set.records]
+            else:
+                y_qc_values = [self._extract_value(r.parameters, y_name, unit_map) for r in record_set.records]
             self._show_qc_graph(
                 x_qc_values,
                 y_qc_values,
@@ -434,8 +438,24 @@ class GraphPane(BasePane):
         else:
             return key
 
+    def _calculate_density(self, record: ocproc2.DataRecord, unit_map: dict) -> tuple[t.Optional[float], int]:
+        if 'Pressure' not in unit_map:
+            unit_map['Pressure'] = 'dbar'
+        if 'Depth' not in unit_map:
+            unit_map['Depth'] = 'm'
+        p, p_qc = self._extract_value(record.coordinates, 'Pressure', unit_map)
+        if p is None:
+            d, d_qc = self._extract_value(record.coordinates, 'Depth', unit_map)
+            lat, lat_qc = self._extract_value(self.app.app_state.record, 'Latitude', unit_map)
+            if d is not None and lat is not None:
+                p = eos80_pressure(d, lat)
+                p_qc = max(p_qc, d_qc)
+        if p is None:
+            return None, 9
+
+
+
     def _extract_value(self, map_: ocproc2.ValueMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:
-        # TODO: Density
         # TODO: Salinity (PSAL or ASAL)
         if value_name == 'Salinity':
             if 'PracticalSalinity' in map_:
@@ -469,6 +489,8 @@ class GraphPane(BasePane):
             return None, 9
         raw_value = val.to_float()
         wq = int(val.metadata.best_value('WorkingQuality', 0))
+        if wq == 5:
+            wq = 1
         if val.metadata.has_value('Units'):
             units = val.metadata.best_value('Units')
             if value_name not in unit_map:

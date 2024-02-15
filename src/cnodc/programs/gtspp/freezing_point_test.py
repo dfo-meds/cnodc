@@ -1,7 +1,7 @@
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest, RecordTest
 import cnodc.ocproc2.structures as ocproc2
 from cnodc.ocean_math.seawater import eos80_freezing_point_t90
-
+import cnodc.ocean_math.ocproc2int as oom
 
 class GTSPPFreezingPointTest(BaseTestSuite):
 
@@ -15,19 +15,28 @@ class GTSPPFreezingPointTest(BaseTestSuite):
         psal = self.value_in_units(record.parameters.get('PracticalSalinity'), '0.001')
         if psal is None or psal < 26 or psal > 35:
             self.skip_test()
-        pressure = self.calculate_pressure_in_dbar(
-            record.coordinates.get('Pressure'),
-            record.coordinates.get('Depth'),
-            context.top_record.coordinates.get('Latitude')
+        freezing_point, _, _ = oom.calc_freezing_point(
+            pressure=record.coordinates.get('Pressure'),
+            depth=record.coordinates.get('Depth'),
+            latitude=context.top_record.coordinates.get('Latitude'),
+            practical_salinity=record.parameters.get('PracticalSalinity'),
+            absolute_salinity=record.parameters.get('AbsoluteSalinity'),
+            units='°C',
+            temperature_scale='ITS-90'
         )
-        if pressure is None:
+        if freezing_point is None:
             self.skip_test()
-        freezing_point = eos80_freezing_point_t90(psal, pressure)
         with context.parameter_context('Temperature') as ctx2:
             self.test_all_subvalues(ctx2, self._test_freezing_point, fp=freezing_point)
 
     def _test_freezing_point(self, v: ocproc2.Value, ctx: TestContext, fp: float):
-        temp = self.value_in_units(v, '°C', temp_scale='ITS-90')
+        self.precheck_value(v)
+        temp = oom.get_temperature(
+            temperature=v,
+            units='°C',
+            temperature_scale='ITS-90',
+            obs_date=ctx.top_record.coordinates.get('Time')
+        )
         if temp > 0:
             return
         self.assert_greater_than('fp_temp_too_low', temp, fp, qc_flag=13)

@@ -9,6 +9,7 @@ from autoinject import injector
 from uncertainties import UFloat
 
 
+
 class Converter:
 
     def convert(self, input_val):
@@ -109,7 +110,7 @@ class UnitConverter:
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
         if not self._check_compatibility(dims_original, dims_output):
             raise ValueError(f"Incompatible dimensions [{self._format_dims(dims_original)}] vs [{self._format_dims(dims_output)}]")
-        return factor_output.invert().convert(factor_original.convert(decimal.Decimal(quantity)))
+        return factor_output.invert().convert(factor_original.convert(quantity))
 
     def _format_dims(self, dims: dict[str, int]):
         s = []
@@ -192,6 +193,17 @@ class UnitConverter:
             return LinearFunction(factor), {real_unit: 1}
         else:
             return self._get_converter(expr).scale(factor), self._get_dimensions(expr)
+
+
+def convert(v, from_units: str, to_units: str):
+    if from_units is None or to_units is None or from_units == to_units:
+        return v
+    return _convert(v, from_units, to_units)
+
+
+@injector.inject
+def _convert(*args, uc: UnitConverter = None, **kwargs):
+    return uc.convert(*args, **kwargs)
 
 
 class LinearFunction(Converter):
