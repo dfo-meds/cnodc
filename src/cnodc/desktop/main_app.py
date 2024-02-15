@@ -88,7 +88,8 @@ class CNODCQCAppDispatcher(threading.Thread):
                    on_success: callable,
                    on_error: callable = None,
                    job_args: list = None,
-                   job_kwargs: dict = None,):
+                   job_kwargs: dict = None):
+
         obj = dynamic_object(job_callable)
         job_id = str(uuid.uuid4())
         self.work_queue.put_nowait((job_id, job_callable, job_args, job_kwargs))
@@ -284,13 +285,16 @@ class CNODCQCApp:
             )
 
     def save_changes(self, after_save: callable = None):
-        if self.app_state.has_unsaved_changes and self.app_state.is_batch_action_available('apply_working'):
-            self.app_state.set_save_flag(True)
-            self.dispatcher.submit_job(
-                'cnodc.desktop.client.api_client.save_work',
-                on_error=self._on_save_error,
-                on_success=functools.partial(self._after_save, after_save=after_save)
-            )
+        if self.app_state.is_batch_action_available('apply_working'):
+            if self.app_state.has_unsaved_changes:
+                self.app_state.set_save_flag(True)
+                self.dispatcher.submit_job(
+                    'cnodc.desktop.client.api_client.save_work',
+                    on_error=self._on_save_error,
+                    on_success=functools.partial(self._after_save, after_save=after_save)
+                )
+            elif after_save is not None:
+                after_save(True)
 
     def quality_color(self, wq: int, ind_wq: int = None):
         if wq == 1:
@@ -331,12 +335,11 @@ class CNODCQCApp:
         else:
             self.app_state.set_save_flag(False, False)
         if after_save:
-            print(after_save)
             after_save(res)
 
     def update_user_info(self, username: t.Optional[str], access_list: dict[str, dict[str, str]]):
         if self.app_state.update_user_info(username, access_list) and username is None:
-            self.close_current_batch(QCBatchCloseOperation.LOGOUT)
+            self.force_close_current_batch()
 
     def on_close(self):
         if self._is_closing:
@@ -345,8 +348,6 @@ class CNODCQCApp:
         result = self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close)
         if result == CloseBatchResult.CANCELLED:
             self._is_closing = False
-        elif result == CloseBatchResult.ALREADY_CLOSED:
-            self._on_close()
 
     def _on_close(self):
         self.dispatcher.submit_job(
@@ -426,7 +427,16 @@ class CNODCQCApp:
         self.show_user_exception(ex)
         self.app_state.handle_batch_open_error()
 
-    def close_current_batch(self, op: QCBatchCloseOperation, load_next: bool = False, after_close: callable = None) -> CloseBatchResult:
+    def force_close_current_batch(self):
+        if self.app_state.batch_state == BatchOpenState.OPEN:
+            self.app_state.start_batch_close(QCBatchCloseOperation.FORCE_CLOSE, False)
+            self.app_state.complete_batch_close()
+            self.app_state.clear_batch()
+
+    def close_current_batch(self,
+                            op: QCBatchCloseOperation,
+                            load_next: bool = False,
+                            after_close: callable = None) -> CloseBatchResult:
         if self.app_state.batch_state == BatchOpenState.OPEN:
             if self.app_state.has_unsaved_changes:
                 result = tkmb.askyesno(
@@ -442,16 +452,18 @@ class CNODCQCApp:
                 on_error=self._close_qc_batch_error
             )
             return CloseBatchResult.CLOSING
+        elif after_close is not None:
+            after_close()
         return CloseBatchResult.ALREADY_CLOSED
 
     def _close_qc_batch_success(self, res, after_close: callable = None):
         self.app_state.complete_batch_close()
-        if after_close:
-            after_close()
-        elif self.app_state.batch_load_after_close:
+        if self.app_state.batch_load_after_close:
             self.open_qc_batch(self.app_state.batch_service_name)
         else:
             self.app_state.clear_batch()
+        if after_close is not None:
+            after_close()
 
     def _close_qc_batch_error(self, ex):
         self.show_user_exception(ex)

@@ -23,6 +23,7 @@ class QCBatchCloseOperation(enum.Enum):
     DESCALATE = 'cnodc.desktop.client.api_client.descalate_item'
     LOAD_ERROR = 'E'
     LOGOUT = 'L'
+    FORCE_CLOSE = 'F'
 
 
 class BatchOpenState(enum.Enum):
@@ -106,6 +107,13 @@ class ApplicationState:
         self.has_unsaved_changes: bool = False
         self.user_access: t.Optional[dict[str, dict[str, str]]] = None
         self.batch_record_info: t.Optional[dict[str, SimpleRecordInfo]] = None
+
+    def can_logout(self):
+        if self.username is None:
+            return False
+        if self.save_in_progress:
+            return False
+        return self.batch_state is None or self.batch_state == BatchOpenState.OPEN
 
     def has_access(self, access_name: str) -> bool:
         return self.user_access is not None and access_name in self.user_access

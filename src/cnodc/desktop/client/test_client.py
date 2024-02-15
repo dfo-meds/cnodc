@@ -42,7 +42,7 @@ class TestClient:
             return self._descalate_item(**kwargs)
         raise Exception('invalid test request')
 
-    def change_password(self, password):
+    def _change_password(self, password):
         if len(password) < 15:
             raise Exception('Password too short')
         return {'success': True}

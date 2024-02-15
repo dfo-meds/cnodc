@@ -67,7 +67,7 @@ class ButtonPane(BasePane):
             command=self._next_item,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['load_new'], 'tooltip.load_new'))
+        self.tts.append(Tooltip(self._buttons['load_new'], 'tooltip_load_new'))
         self._buttons['save'] = ttk.Button(
             button_frame,
             #text="Save",
@@ -79,7 +79,7 @@ class ButtonPane(BasePane):
             command=self.app.save_changes,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['save'], 'tooltip.save'))
+        self.tts.append(Tooltip(self._buttons['save'], 'tooltip_save'))
         self.app.root.bind('<Control-s>', self._save_event)
         self._buttons['load_next'] = ttk.Button(
             button_frame,
@@ -93,7 +93,7 @@ class ButtonPane(BasePane):
             state=tk.DISABLED
         )
         self.app.root.bind('<Control-n>', functools.partial(self._then_complete, load_next=True))
-        self.tts.append(Tooltip(self._buttons['load_next'], 'tooltip.load_next'))
+        self.tts.append(Tooltip(self._buttons['load_next'], 'tooltip_load_next'))
         self._buttons['complete'] = ttk.Button(
             button_frame,
             #text="Submit",
@@ -105,7 +105,7 @@ class ButtonPane(BasePane):
             command=self._then_complete,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['complete'], 'tooltip.complete'))
+        self.tts.append(Tooltip(self._buttons['complete'], 'tooltip_complete'))
         self._buttons['release'] = ttk.Button(
             button_frame,
             #text="Release",
@@ -117,7 +117,7 @@ class ButtonPane(BasePane):
             command=self._then_release,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['release'], 'tooltip.release'))
+        self.tts.append(Tooltip(self._buttons['release'], 'tooltip_release'))
         self._buttons['fail'] = ttk.Button(
             button_frame,
             #text="Report Error",
@@ -129,7 +129,7 @@ class ButtonPane(BasePane):
             command=self._then_fail,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['fail'], 'tooltip.fail'))
+        self.tts.append(Tooltip(self._buttons['fail'], 'tooltip_fail'))
         self._buttons['escalate'] = ttk.Button(
             button_frame,
             #text='Escalate',
@@ -141,7 +141,7 @@ class ButtonPane(BasePane):
             command=self._then_escalate,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['escalate'], 'tooltip.escalate'))
+        self.tts.append(Tooltip(self._buttons['escalate'], 'tooltip_escalate'))
         self._buttons['descalate'] = ttk.Button(
             button_frame,
             #text='De-escalate',
@@ -153,7 +153,7 @@ class ButtonPane(BasePane):
             command=self._then_descalate,
             state=tk.DISABLED
         )
-        self.tts.append(Tooltip(self._buttons['descalate'], 'tooltip.descalate'))
+        self.tts.append(Tooltip(self._buttons['descalate'], 'tooltip_descalate'))
         idx = 0
         for button in self._buttons.keys():
             self._buttons[button].grid(row=0, column=idx, ipadx=0, ipady=0, padx=0, pady=0)

@@ -185,6 +185,14 @@ class CNODCServerAPI:
         if self._access_list is None or access_key_name not in self._access_list:
             raise RemoteAPIError('access denied')
 
+    def change_password(self, password: str) -> bool:
+        self._client.make_json_request(
+            endpoint=self._api_endpoint('other:change_password'),
+            method="POST",
+            password=password
+        )
+        return True
+
     def reload_stations(self) -> bool:
         self._check_access('queue:station-failure')
         with self.local_db.cursor() as cur:
@@ -439,6 +447,11 @@ def descalate_item(client: CNODCServerAPI = None) -> bool:
 @injector.inject
 def save_work(client: CNODCServerAPI = None) -> bool:
     return client.save_work()
+
+
+@injector.inject
+def change_password(password: str, client: CNODCServerAPI = None) -> bool:
+    return client.change_password(password)
 
 
 @injector.inject
