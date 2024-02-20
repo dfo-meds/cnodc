@@ -152,7 +152,6 @@ def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, 
 @main.command
 @click.argument('process-file')
 def run(process_file: str):
-    config = {}
     with open(process_file, 'r') as h:
         config = yaml.safe_load(h.read()) or {}
     process_cls = config['process_class']
