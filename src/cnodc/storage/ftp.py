@@ -1,7 +1,10 @@
-from .base import UrlBaseHandle, StorageTier, BaseStorageHandle
+from .base import UrlBaseHandle
 
 
 class FTPHandle(UrlBaseHandle):
+    """FTP support"""
+
+    # TODO: implement me
 
     @staticmethod
     def supports(file_path: str) -> bool:

@@ -1,21 +1,26 @@
+"""Local file handle"""
 import pathlib
 import datetime
 from .base import BaseStorageHandle, local_file_error_wrap
-
 from cnodc.util import HaltFlag
 import typing as t
-
 import shutil
 
 
 class LocalHandle(BaseStorageHandle):
+    """Handle for a file stored on a local disk or accessible network drive.
+
+        The underlying functionality is based on pathlib.Path with additional
+        caching layers.
+    """
 
     def __init__(self, path: pathlib.Path, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._path = path.resolve()
+        self._path = path.expanduser().absolute()
 
     @local_file_error_wrap
     def stat(self, clear_cache: bool = False):
+        """Retrieve the stat information about the file handle."""
         return self._with_cache('stat', self._path.stat, clear_cache=clear_cache)
 
     def _exists(self) -> bool:
@@ -63,7 +68,7 @@ class LocalHandle(BaseStorageHandle):
         return LocalHandle(self._path / sub_path, halt_flag=self._halt_flag)
 
     @local_file_error_wrap
-    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable[BaseStorageHandle]:
+    def walk(self, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
         work = [self._path]
         while work:
             d = work.pop()
@@ -83,5 +88,5 @@ class LocalHandle(BaseStorageHandle):
     @classmethod
     def build(cls, file_path: str, halt_flag: HaltFlag = None) -> BaseStorageHandle:
         if file_path.startswith("file://"):
-            return cls(pathlib.Path(file_path[7:]).resolve(), halt_flag=halt_flag)
-        return cls(pathlib.Path(file_path).resolve(), halt_flag=halt_flag)
+            return cls(pathlib.Path(file_path[7:]), halt_flag=halt_flag)
+        return cls(pathlib.Path(file_path), halt_flag=halt_flag)

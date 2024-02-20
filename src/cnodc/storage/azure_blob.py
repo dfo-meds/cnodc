@@ -1,8 +1,26 @@
+"""Support for Azure Blob Storage.
+
+There are three methods of providing Azure credentials to authenticate:
+
+#1: Provide them in the Zirconium configuration file:
+
+```
+[azure.storage.STORAGE_ACCOUNT_NAME]
+connection_string = "..."
+```
+
+
+#2: Provide your credentials in a method supported by DefaultAzureCredentials
+
+#3: Include the SAS token in the URL (not recommended)
+
+
+"""
 import functools
 import datetime
 import requests
 import urllib3.exceptions
-from .base import UrlBaseHandle, StorageTier, BaseStorageHandle, StorageError
+from .base import UrlBaseHandle, StorageTier, StorageError
 from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobProperties
 from azure.identity import DefaultAzureCredential
 from cnodc.util import HaltFlag, CNODCError
@@ -14,6 +32,7 @@ from autoinject import injector
 
 
 def wrap_azure_errors(cb):
+    """Converts Azure storage errors into CNODCErrors with an appropriate is_recoverable setting."""
 
     @functools.wraps(cb)
     def _inner(*args, **kwargs):
@@ -38,6 +57,7 @@ def wrap_azure_errors(cb):
 
 
 class AzureBlobHandle(UrlBaseHandle):
+    """Handle class for Azure blobs"""
 
     config: zr.ApplicationConfig = None
 
@@ -47,12 +67,13 @@ class AzureBlobHandle(UrlBaseHandle):
         self._cached_properties['properties'] = properties
 
     def get_connection_details(self) -> dict:
+        """Get connection information from the configuration about the URL."""
         return self._with_cache("connection_details", self._get_connection_details)
 
     def _get_connection_details(self) -> dict:
         url_parts = self.parse_url()
         domain = url_parts.hostname
-        if not domain.endswith(".blob.core.gui.net"):
+        if not domain.endswith(".blob.core.windows.net"):
             raise CNODCError(f"Invalid hostname", "AZBLOB", 1001)
         path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
         if len(path_parts) < 1 or path_parts[0] == "":
@@ -67,6 +88,7 @@ class AzureBlobHandle(UrlBaseHandle):
         return kwargs
 
     def client(self) -> BlobClient:
+        """Build a blob client."""
         try:
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
@@ -81,6 +103,7 @@ class AzureBlobHandle(UrlBaseHandle):
             raise CNODCError(f"Could not create blob client", "AZBLOB", 1000) from ex
 
     def container_client(self) -> ContainerClient:
+        """Build a container client."""
         try:
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
@@ -165,22 +188,20 @@ class AzureBlobHandle(UrlBaseHandle):
         return True
 
     @wrap_azure_errors
-    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable:
+    def walk(self, recursive: bool = True) -> t.Iterable:
         client = self.container_client()
         full_name = self.full_name()
         if full_name[-1] != '/':
             full_name += '/'
         if not recursive:
             raise NotImplementedError(f"Non-recursive iteration on blobs not implemented")
-        if not files_only:
-            raise NotImplementedError(f"Returning directories while iterating on blobs not implemented")
         for blob_properties in HaltFlag.iterate(client.list_blobs(name_starts_with=full_name), self._halt_flag, True):
             # TODO: recursive=False isn't handled
-            # TODO: files_only=False isn't handled
             bc = client.get_blob_client(blob_properties.name)
             yield AzureBlobHandle(bc.url, blob_properties, halt_flag=self._halt_flag)
 
     def properties(self, clear_cache: bool = False) -> BlobProperties:
+        """Retrieve the blob properties from Azure"""
         return self._with_cache('properties', self._properties, clear_cache=clear_cache)
 
     @wrap_azure_errors

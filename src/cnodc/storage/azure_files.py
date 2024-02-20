@@ -1,5 +1,23 @@
+"""Support for Azure File Shares.
+
+
+There are three methods of providing Azure credentials to authenticate:
+
+#1: Provide them in the Zirconium configuration file:
+
+```
+[azure.storage.STORAGE_ACCOUNT_NAME]
+connection_string = "..."
+```
+
+
+#2: Provide your credentials in a method supported by DefaultAzureCredentials
+
+#3: Include the SAS token in the URL (not recommended)
+
+"""
 import datetime
-from .base import UrlBaseHandle, StorageTier, BaseStorageHandle
+from .base import UrlBaseHandle, StorageTier
 from azure.storage.fileshare import ShareFileClient, ShareDirectoryClient, FileProperties, DirectoryProperties
 from azure.identity import DefaultAzureCredential
 from azure.core.exceptions import ResourceNotFoundError
@@ -21,12 +39,13 @@ class AzureFileHandle(UrlBaseHandle):
         self._cached_properties['properties'] = properties
 
     def get_connection_details(self) -> dict:
+        """Get connection information from the configuration about the URL."""
         return self._with_cache("connection_details", self._get_connection_details)
 
     def _get_connection_details(self) -> dict:
         url_parts = self.parse_url()
         domain = url_parts.hostname
-        if not domain.endswith(".file.core.gui.net"):
+        if not domain.endswith(".file.core.windows.net"):
             raise CNODCError(f"Invalid hostname", "AZFILE", 1001)
         path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
         if len(path_parts) < 1 or path_parts[0] == "":
@@ -41,6 +60,7 @@ class AzureFileHandle(UrlBaseHandle):
         return kwargs
 
     def file_client(self) -> ShareFileClient:
+        """Build a file share client."""
         try:
             if self._is_dir():
                 raise CNODCError(f"Cannot make file client on a directory", "AZFILE", 1005)
@@ -57,6 +77,7 @@ class AzureFileHandle(UrlBaseHandle):
             raise CNODCError(f"Could not create file client", "AZFILE", 1000) from ex
 
     def directory_client(self) -> ShareDirectoryClient:
+        """Build a directory client."""
         try:
             if not self._is_dir():
                 raise CNODCError(f"Cannot make directory client on a file", "AZFILE", 1004)
@@ -146,28 +167,28 @@ class AzureFileHandle(UrlBaseHandle):
         return False
 
     @wrap_azure_errors
-    def walk(self, recursive: bool = True, files_only: bool = True) -> t.Iterable:
+    def walk(self, recursive: bool = True) -> t.Iterable:
         client = self.directory_client()
         more_work: list[AzureFileHandle] = []
         for file in HaltFlag.iterate(client.list_directories_and_files(), self._halt_flag, True):
             if isinstance(file, FileProperties):
                 yield self.child(file.name, False)
             elif isinstance(file, DirectoryProperties):
-                if recursive or not files_only:
+                if recursive:
                     dh = self.child(file.name, True)
                     if recursive:
                         more_work.append(dh)
-                    if not files_only:
-                        yield dh
             else:
                 raise CNODCError(f"Unknown type of file listing results [{file.__class__.__name__}]", "AZFILE", 1005)
         for sub_dir in more_work:
-            yield from sub_dir.walk(recursive, files_only)
+            yield from sub_dir.walk(recursive)
 
     def file_properties(self, clear_cache: bool = False) -> FileProperties:
+        """Retrieve the file properties from Azure."""
         return self._with_cache('file_properties', self._file_properties, clear_cache=clear_cache)
 
     def dir_properties(self, clear_cache: bool = False) -> DirectoryProperties:
+        """Retrieve the directory properties from Azure."""
         return self._with_cache('dir_properties', self._directory_properties, clear_cache=clear_cache)
 
     @wrap_azure_errors
