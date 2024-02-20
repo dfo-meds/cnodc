@@ -1,5 +1,9 @@
 import datetime
+import gzip
 import math
+import os
+import pathlib
+import shutil
 import struct
 
 from .exceptions import CNODCError, ConfigError
@@ -120,3 +124,49 @@ def is_close(a, sigma_a, b, sigma_b, rel_tol, abs_tol):
         return a_lower_bound < b_upper_bound or math.isclose(a_lower_bound, b_upper_bound, rel_tol=rel_tol, abs_tol=abs_tol)
 
 
+# NB:
+# Using shutil.copyfileobj() is fairly fast but doesn't have a halt flag. Therefore, a very big file
+# (e.g. tbs) may cause significant issues during halting. The below methods allow a halt_flag to be
+# passed which will halt the copy process and remove the target file. The chunk size was based on testing:
+# 2.5 MiB per read translates to about 0.5 seconds between reads. Thus, splitting the
+# file into roughly this size of chunks should allow the script to break within 0.5 seconds still.
+# Overall performance is similar to using shutil.copyfileobj().
+
+def haltable_ungzip(source_file: pathlib.Path, target_file: pathlib.Path, chunk_size=2621440, halt_flag: HaltFlag = None):
+    """Ungzip a file into the target file."""
+    try:
+        with gzip.open(source_file, 'rb') as src:
+            with open(target_file, 'wb') as dest:
+                if halt_flag is None:
+                    shutil.copyfileobj(src, dest)
+                else:
+                    halt_flag.check_continue(True)
+                    src_bytes = src.read(chunk_size)
+                    while src_bytes != b'':
+                        halt_flag.check_continue(True)
+                        dest.write(src_bytes)
+                        halt_flag.check_continue(True)
+                        src_bytes = src.read(chunk_size)
+    except HaltInterrupt as ex:
+        target_file.unlink(True)
+        raise ex from ex
+
+
+def haltable_gzip(source_file: pathlib.Path, target_file: pathlib.Path, chunk_size=2621440, halt_flag: HaltFlag = None):
+    """Gzip a file into the target file."""
+    try:
+        with open(source_file, 'rb') as src:
+            with gzip.open(target_file, 'wb') as dest:
+                if halt_flag is None:
+                    shutil.copyfileobj(src, dest)
+                else:
+                    halt_flag.check_continue(True)
+                    src_bytes = src.read(chunk_size)
+                    while src_bytes != b'':
+                        halt_flag.check_continue(True)
+                        dest.write(src_bytes)
+                        halt_flag.check_continue(True)
+                        src_bytes = src.read(chunk_size)
+    except HaltInterrupt as ex:
+        target_file.unlink(True)
+        raise ex from ex

@@ -19,7 +19,7 @@ class PayloadWorker(QueueWorker):
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
         """Handles extracting the payload and checking that it is of the correct type"""
-        payload = WorkflowPayload.build(item)
+        payload = WorkflowPayload.from_queue_item(item)
         if self._require_type is not None and not isinstance(payload, self._require_type):
             raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
         try:
@@ -53,7 +53,7 @@ class PayloadWorker(QueueWorker):
     def add_payload_metadata(self, new_payload: WorkflowPayload):
         """Add the current payload's metadata to the new payload."""
         if self.current_payload is not None:
-            new_payload.copy_details(self.current_payload)
+            new_payload.copy_details_from(self.current_payload)
         new_payload.metadata['_source_info'] = (
             self._process_name,
             self._process_version,

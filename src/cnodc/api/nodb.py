@@ -155,7 +155,7 @@ class NODBWebController:
                         enc_app_id: str):
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id, 'retry_decode')
-            payload = WorkflowPayload.build(queue_item)
+            payload = WorkflowPayload.from_queue_item(queue_item)
             payload.enqueue_followup(db)
             db.commit()
             return {
@@ -354,7 +354,7 @@ class NODBWebController:
                         wr.mark_modified('qc_metadata')
                         db.update_object(wr)
             queue_item.mark_complete(db)
-            payload = WorkflowPayload.build(queue_item)
+            payload = WorkflowPayload.from_queue_item(queue_item)
             payload.increment_priority()
             if recheck and payload.get_metadata('recheck-queue', None) is not None:
                 payload.set_followup_queue(payload.get_metadata('recheck-queue'))

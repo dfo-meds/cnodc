@@ -1,18 +1,24 @@
+"""
+    Workflows represent a series of steps that an input object (usually a file) will undergo once received.
+
+    Each step has an input and output which is represented by a payload type. These payload types are:
+
+    1. File (a physical file located on a computer). Workflows are started with a file payload
+    2. SourceFile (a physical file referenced by an entry in the database).
+    3. Batch (a set of one or more working records, referenced by their batch ID)
+    4. Observation (a specific observation, which is a working record once finalized to the DB)
+"""
 import gzip
 import hashlib
-import shutil
 import tempfile
 import uuid
 from urllib.parse import quote
-
 import zrlog
-
 from cnodc.nodb import NODBControllerInstance, NODBController, structures
-from cnodc.storage import StorageController, BaseStorageHandle
+from cnodc.storage import StorageController
 from autoinject import injector
-
 from cnodc.storage.base import StorageTier, StorageFileHandle
-from cnodc.util import CNODCError, HaltFlag, dynamic_object
+from cnodc.util import CNODCError, HaltFlag, dynamic_object, haltable_gzip
 import typing as t
 import pathlib
 import datetime
@@ -30,6 +36,11 @@ RESERVED_FILENAMES = (
 
 
 class FileInfo:
+    """Represents information about a file submitted to the workflow process.
+
+    Note that this is NOT a file in the database but a raw file on storage
+    somewhere (e.g. an Azure Blob or an Azure File Share).
+    """
 
     def __init__(self,
                  file_path: t.Optional[str] = None,
@@ -42,6 +53,7 @@ class FileInfo:
         self.last_modified_date = last_modified_date
 
     def to_map(self) -> dict:
+        """Convert the object into a map."""
         map_ = {}
         if self.file_path:
             map_['file_path'] = self.file_path
@@ -55,6 +67,7 @@ class FileInfo:
 
     @staticmethod
     def from_map(map_: dict):
+        """Build the object from a map."""
         if 'file_path' not in map_:
             raise CNODCError('Missing file path', 'PAYLOAD', 1005)
         return FileInfo(
@@ -66,6 +79,7 @@ class FileInfo:
 
 
 class WorkflowPayload:
+    """Generalized class for all workflow payloads"""
 
     def __init__(self,
                  workflow_name: t.Optional[str] = None,
@@ -78,6 +92,7 @@ class WorkflowPayload:
     def load_workflow(self,
                       db: NODBControllerInstance,
                       halt_flag: HaltFlag = None):
+        """Find the workflow associated with this payload and load the controller for it."""
         workflow_config = db.load_upload_workflow_config(self.workflow_name)
         return WorkflowController(
             workflow_name=self.workflow_name,
@@ -86,41 +101,51 @@ class WorkflowPayload:
         )
 
     def set_metadata(self, key, value):
+        """Set a metadata property (or delete it if the value is None)"""
         if value is not None:
             self.metadata[key] = value
         elif key in self.metadata:
             del self.metadata[key]
 
     def get_metadata(self, key, default=None):
+        """Retrieve a metadata property, or the default if it is not present"""
         if key in self.metadata and self.metadata[key] is not None:
             return self.metadata[key]
         return default
 
     def clone(self):
+        """Create a deep copy of the payload."""
         return WorkflowPayload.from_map(self.to_map())
 
     def set_subqueue_name(self, subqueue_name: t.Optional[str]):
+        """Set the name of the subqueue for the queue item."""
         self.set_metadata('manual-subqueue', subqueue_name)
 
     def set_unique_key(self, item_key: t.Optional[str]):
+        """Set the unique key for the queue item."""
         self.set_metadata('unique-item-key', item_key)
 
     def set_priority(self, new_priority: t.Optional[int]):
+        """Set the priority of the queue item."""
         self.set_metadata('queue-priority', new_priority)
 
     def set_followup_queue(self, queue_name: t.Optional[str]):
+        """Set the follow-up queue after a manual review cycle"""
         self.set_metadata('post-review-queue', queue_name)
 
     def increment_priority(self, increment: int = 1):
+        """Increment the priority by the given amount."""
         if 'queue-priority' in self.metadata and isinstance(self.metadata['queue-priority'], int):
             self.metadata['queue-priority'] = self.metadata['queue-priority'] + increment
         else:
             self.metadata['queue-priority'] = increment
 
     def decrement_priority(self, increment: int = 1):
+        """Decrement the priority by the given amount."""
         self.increment_priority(increment * -1)
 
     def enqueue_followup(self, db: NODBControllerInstance) -> bool:
+        """Create a queue item based on the follow-up queue name."""
         if 'post-review-queue' in self.metadata and self.metadata['post-review-queue']:
             queue_name = self.metadata['post-review-queue']
             del self.metadata['post-review-queue']
@@ -132,6 +157,7 @@ class WorkflowPayload:
                 db: NODBControllerInstance,
                 queue_name: str,
                 override_priority: t.Optional[int] = None):
+        """Enqueue this payload in the given queue."""
         if self.metadata is None:
             self.metadata = {}
         self.metadata['send_time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -149,7 +175,8 @@ class WorkflowPayload:
             kwargs['unique_item_key'] = self.metadata['unique-item-key']
         db.create_queue_item(**kwargs)
 
-    def copy_details(self, payload, next_step: bool = False):
+    def copy_details_from(self, payload, next_step: bool = False):
+        """Copy key details (workflow info and metadata) from another payload into this one."""
         self.workflow_name = payload.workflow_name
         self.current_step = payload.current_step
         if next_step:
@@ -159,6 +186,7 @@ class WorkflowPayload:
                 self.metadata[key] = payload.metadata[key]
 
     def to_map(self) -> dict:
+        """Convert this object to a map."""
         return {
             'workflow': {
                 'name': self.workflow_name,
@@ -168,11 +196,13 @@ class WorkflowPayload:
         }
 
     @staticmethod
-    def build(queue_item: structures.NODBQueueItem):
+    def from_queue_item(queue_item: structures.NODBQueueItem):
+        """Create a workflow payload from a queue item."""
         return WorkflowPayload.from_map(queue_item.data)
 
     @staticmethod
     def from_map(data: dict):
+        """Create a workflow payload from a map."""
         if 'workflow' not in data:
             raise CNODCError('Missing item.data[workflow]', 'PAYLOAD', 1000)
         if 'name' not in data['workflow']:
@@ -191,7 +221,7 @@ class WorkflowPayload:
         if 'file_info' in data:
             return FilePayload.from_map(data['file_info'], **base_kwargs)
         elif 'item_info' in data:
-            return ItemPayload.from_map(data['item_info'], **base_kwargs)
+            return ObservationPayload.from_map(data['item_info'], **base_kwargs)
         elif 'source_info' in data:
             return SourceFilePayload.from_map(data['source_info'], **base_kwargs)
         elif 'batch_info' in data:
@@ -201,6 +231,7 @@ class WorkflowPayload:
 
 
 class FilePayload(WorkflowPayload):
+    """Workflow payload for a physical file on disk."""
 
     def __init__(self,
                  file_info: FileInfo,
@@ -215,9 +246,10 @@ class FilePayload(WorkflowPayload):
 
     @injector.inject
     def download(self,
-                 temp_dir: pathlib.Path,
+                 target_dir: pathlib.Path,
                  storage: StorageController = None,
                  halt_flag: HaltFlag = None) -> pathlib.Path:
+        """Download the file to a given directory."""
         handle = storage.get_handle(self.file_info.file_path, halt_flag=halt_flag)
         if handle is None:
             raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
@@ -230,8 +262,8 @@ class FilePayload(WorkflowPayload):
                 target_name = target_name[:-3]
             else:
                 gzip_target_name = f"{target_name}.gz"
-            gzip_path = temp_dir / gzip_target_name
-            target_path = temp_dir / target_name
+            gzip_path = target_dir / gzip_target_name
+            target_path = target_dir / target_name
             handle.download(gzip_path)
             with gzip.open(gzip_path, "wb") as src:
                 with open(target_path, "rb") as dest:
@@ -245,7 +277,7 @@ class FilePayload(WorkflowPayload):
                         chunk = src.read(2097152)
             return target_path
         else:
-            file_path = temp_dir / target_name
+            file_path = target_dir / target_name
             handle.download(file_path)
             return file_path
 
@@ -258,6 +290,7 @@ class FilePayload(WorkflowPayload):
 
 
 class SourceFilePayload(WorkflowPayload):
+    """Represent a source file in the database."""
 
     def __init__(self,
                  source_file_uuid: str,
@@ -267,11 +300,12 @@ class SourceFilePayload(WorkflowPayload):
         self.source_uuid = source_file_uuid
         self.received_date = received_date
 
-    def load_source_file(self, db: NODBControllerInstance) -> structures.NODBSourceFile:
+    def load_source_file(self, db: NODBControllerInstance, **kwargs) -> structures.NODBSourceFile:
+        """Load the referenced source file from the database."""
         source_file = structures.NODBSourceFile.find_by_uuid(
             db=db,
             source_uuid=self.source_uuid,
-            received=self.received_date
+            received=self.received_date, **kwargs
         )
         if source_file is None:
             raise CNODCError('Invalid payload, no such UUID')
@@ -299,6 +333,7 @@ class SourceFilePayload(WorkflowPayload):
 
     @staticmethod
     def from_source_file(source_file: structures.NODBSourceFile):
+        """Build a source file payload from a given source file."""
         return SourceFilePayload(
             source_file_uuid=source_file.source_uuid,
             received_date=source_file.received_date
@@ -306,6 +341,7 @@ class SourceFilePayload(WorkflowPayload):
 
 
 class BatchPayload(WorkflowPayload):
+    """Represents a payload referencing an NODB batch."""
 
     def __init__(self,
                  batch_uuid: str,
@@ -320,10 +356,11 @@ class BatchPayload(WorkflowPayload):
         }
         return map_
 
-    def load_batch(self, db: NODBControllerInstance) -> structures.NODBBatch:
+    def load_batch(self, db: NODBControllerInstance, **kwargs) -> structures.NODBBatch:
+        """Load the referenced batch from the database."""
         batch = structures.NODBBatch.find_by_uuid(
             db=db,
-            batch_uuid=self.batch_uuid
+            batch_uuid=self.batch_uuid, **kwargs
         )
         if batch is None:
             raise CNODCError('Invalid batch, no such UUID')
@@ -340,29 +377,42 @@ class BatchPayload(WorkflowPayload):
 
     @staticmethod
     def from_batch(batch: structures.NODBBatch):
+        """Build a payload from a batch object"""
         return BatchPayload(batch.batch_uuid)
 
 
-class ItemPayload(WorkflowPayload):
+class ObservationPayload(WorkflowPayload):
+    """A payload referencing a specific observation in the database."""
 
     def __init__(self,
                  item_uuid: str,
                  item_received: datetime.date,
-                 source_file_uuid: t.Optional[str] = None,
                  **kwargs):
         super().__init__(**kwargs)
         self.uuid = item_uuid
         self.received_date = item_received
-        self.source_uuid = source_file_uuid
 
     def to_map(self):
         map_ = super().to_map()
         map_['item_info'] = {
             'uuid': self.uuid,
-            'source_uuid': self.source_uuid,
             'received': self.received_date.isoformat()
         }
         return map_
+
+    def load_observation(self, db, **kwargs) -> structures.NODBObservation:
+        """Find the related observation in the database"""
+        obs = structures.NODBObservation.find_by_uuid(db, self.uuid, self.received_date, **kwargs)
+        if obs is None:
+            raise CNODCError('No such observation', 'PAYLOAD', 1010, is_recoverable=False)
+        return obs
+
+    def load_observation_data(self, db, **kwargs) -> structures.NODBObservationData:
+        """Find the related observation data in the database"""
+        obs_data = structures.NODBObservationData.find_by_uuid(db, self.uuid, self.received_date, **kwargs)
+        if obs_data is None:
+            raise CNODCError('No such observation data', 'PAYLOAD', 1011, is_recoverable=False)
+        return obs_data
 
     @staticmethod
     def from_map(map_: dict, **kwargs):
@@ -370,15 +420,23 @@ class ItemPayload(WorkflowPayload):
             raise CNODCError('Missing item uuid', 'PAYLOAD', 1005)
         if 'received' not in map_:
             raise CNODCError('Missing item received date', 'PAYLOAD', 1006)
-        return ItemPayload(
+        return ObservationPayload(
             map_['uuid'],
             datetime.date.fromisoformat(map_['received']),
-            map_['source_uuid'] if 'source_uuid' in map_ else None,
             **kwargs
+        )
+
+    @staticmethod
+    def from_observation(obs: t.Union[structures.NODBObservation, structures.NODBObservationData]):
+        """Build a payload from an observation or observation data object."""
+        return ObservationPayload(
+            obs.obs_uuid,
+            obs.received_date
         )
 
 
 class WorkflowController:
+    """Manages the flow of an object through a workflow based on its configuration."""
 
     nodb: NODBController = None
     storage: StorageController = None
@@ -396,6 +454,7 @@ class WorkflowController:
         self._log = zrlog.get_logger("cnodc.workflow")
 
     def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable] = None, db: NODBControllerInstance = None):
+        """Start the workflow for a file stored on the local hard disk."""
         if db is not None:
             self._handle_incoming_file(local_path, metadata, post_hook, db)
         else:
@@ -403,9 +462,122 @@ class WorkflowController:
                 self._handle_incoming_file(local_path, metadata, post_hook, db)
                 db.commit()
 
+    def _handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance):
+        """Start the workflow for a file."""
+        self._log.debug(f"Processing file [{local_path}]")
+        file_handles = []
+        working_file = None
+        # Add the default metadata
+        self._extend_metadata(metadata)
+        # Validate the upload
+        self._validate_file_upload(local_path, metadata)
+        # Upload the file to various locations and queue the working file
+        self._upload_and_queue_file(local_path, metadata, post_hook, db)
+
+    def _extend_metadata(self, metadata: dict):
+        """Extend the input metadata with the default metadata"""
+        if 'default_metadata' in self.config:
+            for x in self.config['default_metadata']:
+                if x not in metadata:
+                    self._log.debug(f"Setting default metadata {x}={self.config['default_metadata'][x]}")
+                    metadata[x] = self.config['default_metadata'][x]
+
+    def _validate_file_upload(self, local_path: pathlib.Path, metadata: dict):
+        """Validate the uploaded file"""
+        if 'validation' in self.config:
+            self._log.info(f"Validating uploaded file")
+            dynamic_object(self.config['validation'])(local_path, metadata)
+
+    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, post_hook, db):
+        """Upload the file and queue it if all succeed."""
+        with tempfile.TemporaryDirectory() as td:
+            gzip_made = False
+            filename = self._determine_filename(metadata)
+            gzip_filename = filename + ".gz"
+            td = pathlib.Path(td)
+            gzip_file = td / "bin.gz"
+            file_handles = []
+            with_gzip = False
+            try:
+                if 'working_target' in self.config:
+                    with_gzip = 'gzip' in self.config['working_target'] and self.config['working_target']['gzip']
+                    if with_gzip:
+                        self._log.info(f"Creating gzipped version of local file")
+                        haltable_gzip(local_path, gzip_file, halt_flag=self.halt_flag)
+                        gzip_made = True
+                        working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, metadata, self.config['working_target'])
+                    else:
+                        working_file, target_tier = self._handle_file_upload(local_path, filename, metadata, self.config['working_target'])
+                    file_handles.append((working_file, target_tier))
+                if 'additional_targets' in self.config:
+                    for target in self.config['additional_targets']:
+                        if 'gzip' in target and target['gzip']:
+                            if not gzip_made:
+                                self._log.info(f"Creating gzipped version of local file")
+                                haltable_gzip(local_path, gzip_file, halt_flag=self.halt_flag)
+                                gzip_made = True
+                            file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, metadata, target))
+                        else:
+                            file_handles.append(self._handle_file_upload(local_path, filename, metadata, target))
+                # NB: these are done in the try/except so that the file handles can be removed upon failure
+                if working_file:
+                    self._queue_working_file(working_file, metadata, gzip_filename if with_gzip else filename, with_gzip, db)
+                if post_hook is not None:
+                    post_hook(db)
+                db.commit()
+                # We save setting the tier for last because setting the tier on Blobs to ARCHIVE and then deleting them
+                # comes with a cost. It is better to briefly upload them as HOT, confirm every is good, then set them
+                # to archive later. Errors are logged here and failures ignored, so the tiers may need to be manually
+                # set if there are errors setting the tier.
+                fh = file_handles
+                file_handles = []
+                self._finish_file_handles(fh)
+            except Exception as ex:
+                for fh, _ in file_handles:
+                    if fh is not None:
+                        fh.remove()
+                if isinstance(ex, CNODCError):
+                    raise ex from ex
+                else:
+                    raise CNODCError(f"Exception while processing incoming file: {ex.__class__.__name__}: {str(ex)}", "WORKFLOW", 1000) from ex
+
+    def _queue_working_file(self,
+                            working_file: StorageFileHandle,
+                            metadata: dict,
+                            filename: str,
+                            with_gzip: bool,
+                            db):
+        """Queue the working file."""
+        if self.has_more_steps(-1):
+            if 'last-modified-time' in metadata and metadata['last-modified-time']:
+                lmt = metadata['last-modified-time']
+                del metadata['last-modified-time']
+            else:
+                lmt = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            file_info = FileInfo(
+                working_file.path(),
+                filename,
+                with_gzip,
+                lmt
+            )
+            payload = FilePayload(file_info, current_step=0, metadata=metadata, workflow_name=self.name)
+            payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
+            self._queue_step(payload, db)
+
+    def _finish_file_handles(self, file_handles):
+        """Set the tier on all file handles."""
+        closing_handles = file_handles
+        for handle, tier in closing_handles:
+            if handle is not None and tier is not None:
+                try:
+                    handle.set_tier(tier)
+                except Exception as ex:
+                    self._log.exception(f"Exception setting tier on [{handle.path()}] to [{tier}]")
+
     def queue_step(self,
                         payload: WorkflowPayload,
                         db: NODBControllerInstance = None):
+        """Queue the payload for its given step."""
         if db is not None:
             self._queue_step(payload, db)
         else:
@@ -413,100 +585,28 @@ class WorkflowController:
                 self._queue_step(payload, db)
                 db.commit()
 
+    def _queue_step(self,
+                    payload: WorkflowPayload,
+                    db: NODBControllerInstance):
+        queue_info = self._get_step_info(payload.current_step)
+        priority = None
+        if 'priority' in queue_info and queue_info['priority']:
+            try:
+                priority = int(queue_info['priority'])
+            except (ValueError, TypeError):
+                self._log.exception(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
+        payload.enqueue(db, queue_info['name'], priority)
+
     def has_more_steps(self, current_idx: int):
+        """Check if there are more steps."""
         if 'processing_steps' not in self.config or not self.config['processing_steps']:
             return False
         if current_idx < -1 or current_idx >= len(self.config['processing_steps']):
             return False
         return True
 
-    def _handle_incoming_file(self, local_path: pathlib.Path, headers: dict, post_hook: t.Optional[callable], db: NODBControllerInstance):
-        self._log.debug(f"Processing file [{local_path}]")
-        file_handles = []
-        working_file = None
-        try:
-            if 'default_metadata' in self.config:
-                for x in self.config['default_metadata']:
-                    if x not in headers:
-                        self._log.debug(f"Setting default metadata {x}={self.config['default_metadata'][x]}")
-                        headers[x] = self.config['default_metadata'][x]
-            if 'validation' in self.config:
-                self._log.info(f"Validating uploaded file")
-                self._validate_file_upload(local_path, headers, self.config['validation'])
-            with_gzip = False
-            filename = self._determine_filename(headers)
-            gzip_filename = filename + ".gz"
-            with tempfile.TemporaryDirectory() as td:
-                td = pathlib.Path(td)
-                gzip_file = td / "bin.gz"
-                gzip_made = False
-                if 'working_target' in self.config:
-                    with_gzip = 'gzip' in self.config['working_target'] and self.config['working_target']['gzip']
-                    if with_gzip:
-                        self._gzip_local_file(local_path, gzip_file)
-                        gzip_made = True
-                        working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, headers, self.config['working_target'])
-                    else:
-                        working_file, target_tier = self._handle_file_upload(local_path, filename, headers, self.config['working_target'])
-                    file_handles.append((working_file, target_tier))
-                if 'additional_targets' in self.config:
-                    for target in self.config['additional_targets']:
-                        if 'gzip' in target and target['gzip']:
-                            if not gzip_made:
-                                self._gzip_local_file(local_path, gzip_file)
-                                gzip_made = True
-                            file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, headers, target))
-                        else:
-                            file_handles.append(self._handle_file_upload(local_path, filename, headers, target))
-            if working_file is not None:
-                if self.has_more_steps(-1):
-                    lmt = None
-                    if 'last-modified-time' in headers and headers['last-modified-time']:
-                        lmt = headers['last-modified-time']
-                        del headers['last-modified-time']
-                    else:
-                        lmt = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                    file_info = FileInfo(
-                        working_file.path(),
-                        gzip_filename if with_gzip else filename,
-                        with_gzip,
-                        lmt
-                    )
-                    payload = FilePayload(file_info, current_step=0, metadata=headers, workflow_name=self.name)
-                    payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
-                    self._queue_step(payload, db)
-            if post_hook is not None:
-                post_hook(db)
-            db.commit()
-            closing_handles = file_handles
-            file_handles = []
-            for handle, tier in closing_handles:
-                if handle is not None and tier is not None:
-                    handle.set_tier(tier)
-        except Exception as ex:
-            for fh, _ in file_handles:
-                if fh is not None:
-                    fh.remove()
-            if isinstance(ex, CNODCError):
-                raise ex
-            else:
-                raise CNODCError(f"Exception while processing incoming file: {ex.__class__.__name__}: {str(ex)}", "WORKFLOW", 1000)
-
-    def _gzip_local_file(self, local_path, gzip_file):
-        self._log.info(f"Creating gzipped version of local file")
-        with open(local_path, "rb") as src:
-            with gzip.open(gzip_file, "wb") as dest:
-                # NB: 2.5 MiB per read translates to about 0.5 seconds between reads in testing. Thus, splitting the
-                # file into roughly this size of chunks should allow the script to break within 0.5 seconds still.
-                # Performance is similar to using shutil.copyfileobj().
-                src_bytes = src.read(2621440)
-                while src_bytes != b'':
-                    dest.write(src_bytes)
-                    if self.halt_flag:
-                        self.halt_flag.check_continue(True)
-                    src_bytes = src.read(2621440)
-
     def _determine_filename(self, metadata: dict) -> str:
+        """Determine the filename to save the uploaded file as."""
         filename = None
         if 'filename_pattern' in self.config and self.config['filename_pattern']:
             filename = self._sanitize_filename(self._substitute_headers(self.config['filename_pattern'], metadata))
@@ -519,20 +619,24 @@ class WorkflowController:
         return filename
 
     def _get_storage_metadata(self, templates: dict[str, str], metadata: dict) -> dict:
+        """Get the necessary metadata for storage."""
         return {
             x: self._sanitize_storage_metadata(self._substitute_headers(str(templates[x]), metadata))
             for x in templates
         }
 
     def _sanitize_storage_metadata(self, s: str) -> str:
+        """Santizie data for storage."""
         return quote(str(s), safe=VALID_METADATA_CHARACTERS)
 
     def _substitute_headers(self, s: str, metadata: dict) -> str:
+        """Sanitize and substitute headers"""
         for h in metadata:
             s = s.replace("%{" + h.lower() + "}", metadata[h])
         return s.replace('${now}', datetime.datetime.now(datetime.timezone.utc).isoformat())
 
     def _sanitize_filename(self, filename: str) -> t.Optional[str]:
+        """Sanitize a filename for storage on all systems."""
         filename = ''.join([x for x in filename if x in VALID_FILENAME_CHARACTERS])
         filename = filename.rstrip(".")
         if filename == "" or len(filename) > 255:
@@ -543,6 +647,7 @@ class WorkflowController:
         return filename
 
     def _get_step_info(self, step_idx: int) -> dict:
+        """Retrieve the step information at a given step."""
         if 'processing_steps' not in self.config or not self.config['processing_steps']:
             raise CNODCError('No processing steps defined', 'WORKFLOW', 1001)
         if step_idx < 0 or step_idx >= len(self.config['processing_steps']):
@@ -552,22 +657,8 @@ class WorkflowController:
             return {'name': step_info}
         return step_info
 
-    def _queue_step(self,
-                    payload: WorkflowPayload,
-                    db: NODBControllerInstance):
-        queue_info = self._get_step_info(payload.current_step)
-        priority = None
-        if 'priority' in queue_info and queue_info['priority']:
-            try:
-                priority = int(queue_info['priority'])
-            except ValueError:
-                self._log.exception(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
-        payload.enqueue(db, queue_info['name'], priority)
-
-    def _validate_file_upload(self, local_path: pathlib.Path, metadata: dict, validation: str):
-        dynamic_object(validation)(local_path, metadata)
-
     def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict) -> tuple[StorageFileHandle, t.Optional[StorageTier]]:
+        """Upload a file to a given location."""
         if 'directory' not in upload_kwargs:
             raise CNODCError("Missing directory for workflow upload action", "WORKFLOW", 1003)
         self._log.info(f"Uploading file to {upload_kwargs['directory']}")
