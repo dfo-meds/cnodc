@@ -1,8 +1,16 @@
-import pathlib
-import random
+"""Scheduled task workers operate on a schedule.
 
+    Several schedule modes are implemented:
+
+    - from_completion delays the next run for the given number of seconds from the completion of
+      the previous run
+    - from_start delays the next run for the given number of seconds from the start of the
+      previous run
+    - cron will provide a cron-like interface (but not yet implemented)
+
+"""
+import random
 from .base import BaseWorker
-import time
 import datetime
 import typing as t
 from cnodc.util import CNODCError
@@ -22,32 +30,16 @@ class ScheduledTask(BaseWorker):
         })
 
     def _run(self):
-        self.update_next_execution_time()
+        """Implement _run() by regularly checking if it is time to run the script."""
+        self._update_next_execution_time()
         while self.continue_loop():
             now = datetime.datetime.now(datetime.timezone.utc)
-            if self.check_execution(now):
+            if self._check_execution(now):
                 now = self._run_scheduled_task(now)
-            self.responsive_sleep(self.sleep_time(now))
+            self.responsive_sleep(self._sleep_time(now))
 
-    def _run_scheduled_task(self, now) -> datetime.datetime:
-        try:
-            self._save_data['last_start'] = now.isoformat()
-            self.before_item()
-            self.execute()
-            self.after_item()
-        except CNODCError as ex:
-            if not ex.is_recoverable:
-                raise ex from ex
-            else:
-                self._log.exception(f"Recoverable error while executing scheduled task")
-        finally:
-            now = datetime.datetime.now(datetime.timezone.utc)
-            self._save_data['last_end'] = now.isoformat()
-            self._save_data.save_file()
-            self.update_next_execution_time()
-        return now
-
-    def update_next_execution_time(self):
+    def _update_next_execution_time(self):
+        """Decide on the next scheduled execution time."""
         mode = self.get_config("schedule_mode")
         if mode == "from_completion":
             last_end = self._save_data.get('last_end')
@@ -71,6 +63,7 @@ class ScheduledTask(BaseWorker):
         self._log.debug(f"Next execution: {self._next_execution.isoformat()}")
 
     def _execution_delay(self, first_run: bool = False) -> datetime.timedelta:
+        """Calculate the delay from a given time point (start or end) to the next execution."""
         try:
             delay = int(self.get_config("delay_seconds"))
         except TypeError:
@@ -85,19 +78,36 @@ class ScheduledTask(BaseWorker):
             delay += random.randint(0, fuzz) / 1000.0
         return datetime.timedelta(seconds=delay)
 
-    def check_execution(self, now: datetime.datetime) -> bool:
+    def _check_execution(self, now: datetime.datetime) -> bool:
+        """Check if the current time is after the next execution time."""
         return now >= self._next_execution
 
-    def sleep_time(self, now: datetime.datetime) -> float:
+    def _run_scheduled_task(self, now) -> datetime.datetime:
+        """Execute the scheduled task"""
+        try:
+            self._save_data['last_start'] = now.isoformat()
+            self.before_item()
+            self.execute()
+        except CNODCError as ex:
+            # We assume non-recoverable errors will continually happen and recoverable errors may not
+            # so a recoverable error isn't cause to crash the worker.
+            if not ex.is_recoverable:
+                raise ex from ex
+            else:
+                self._log.exception(f"Recoverable error while executing scheduled task")
+        finally:
+            self.after_item()
+            now = datetime.datetime.now(datetime.timezone.utc)
+            self._save_data['last_end'] = now.isoformat()
+            self._save_data.save_file()
+            self._update_next_execution_time()
+        return now
+
+    def _sleep_time(self, now: datetime.datetime) -> float:
+        """Calculate an ideal amount of time to sleep before the next execution"""
         time_diff = (self._next_execution - now).total_seconds()
-        if time_diff < 0.25:
-            return 0.05
-        elif time_diff < 1.05:
-            return 0.25
-        elif time_diff < 5.25:
-            return 1
-        else:
-            return time_diff - 5
+        return 0.05 if time_diff < 0.25 else time_diff - 0.25
 
     def execute(self):
+        """Override with logic for the scheduled task."""
         raise NotImplementedError()

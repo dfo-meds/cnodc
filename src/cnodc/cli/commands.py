@@ -148,13 +148,12 @@ def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, 
         zrlog.get_logger('').exception(f"An exception occurred while processing {config_file}")
 
 
-
 @main.command
 @click.argument('process-file')
-def run(process_file: str):
-    with open(process_file, 'r') as h:
-        config = yaml.safe_load(h.read()) or {}
-    process_cls = config['process_class']
-    process_name = config['process_name']
-    spc = SingleProcessController(process_name, process_cls, config)
-    spc.loop()
+@click.argument('process-name')
+def run(process_file: str, process_name: str):
+    spc = SingleProcessController(
+        process_name=process_name,
+        config_file=process_file
+    )
+    spc.start()
