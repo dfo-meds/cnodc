@@ -36,13 +36,9 @@ class SingleProcessController:
         self._register_halt_signal("SIGBREAK")
         self._register_halt_signal("SIGQUIT")
         process = dynamic_object(self._process_cls_name)(
-            process_name=self._process_name,
-            process_uuid=str(uuid.uuid4()),
-            halt_flag=self._halt_flag,
-            config=self._process_config
+            _process_uuid=str(uuid.uuid4()),
+            _halt_flag=self._halt_flag,
+            _end_flag=self._halt_flag,
+            _config=self._process_config
         )
-        # NB: Usually this is process.start() but
-        # since we are running a single process, we
-        # will run its run() loop in the main process
-        # instead.
         process.run()
