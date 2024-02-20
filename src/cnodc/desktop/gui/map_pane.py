@@ -31,7 +31,7 @@ class MapPane(BasePane):
     def on_init(self):
         self._map_frame = ttk.Frame(self.app.middle_left, width=500, height=500)
         self._map_frame.grid(row=0, column=0, sticky='NSEW')
-        self._rebuild_map(600, 600)
+        self._rebuild_map(300, 300)
 
     def _rebuild_map(self, width: int, height: int):
         if self._map is not None:

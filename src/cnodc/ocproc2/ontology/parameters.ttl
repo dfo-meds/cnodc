@@ -46,6 +46,10 @@ cnodc:maxValue rdf:type rdf:Property ;
   rdfs:domain skos:Concept ;
   rdfs:range skos:Literal .
 
+cnodc:ignoreInDuplicateCheck rdf:type rdf:Property ;
+  rdfs:domain skos:Cocnept ;
+  rdfs:range skos:Literal .
+
 cnodc:allowedValue rdf:type rdf:Property ;
   rdfs:domain skos:Concept ;
   rdfs:range skos:Literal .
@@ -189,7 +193,9 @@ cnodc:CNODCStation rdf:type skos:Concept ;
 cnodc:CNODCStationCandidates rdf:type skos:Concept ;
   # list of strings correspond to candidate station UUIDs
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
+
 
 cnodc:CNODCMission rdf:type skos:Concept ;
   skos:prefLabel "Mission Name"@en ;
@@ -204,6 +210,7 @@ cnodc:CNODCSource rdf:type skos:Concept ;
   skos:documentation "Identifier for the source of the data"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -212,6 +219,7 @@ cnodc:CNODCID rdf:type skos:Concept ;
   skos:documentation "Unique identifier of this record in the CNODC database"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -220,6 +228,7 @@ cnodc:CNODCInstrumentType rdf:type skos:Concept ;
   skos:documentation "Type of instrument that collected the information"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -228,6 +237,7 @@ cnodc:CNODCProgram rdf:type skos:Concept ;
   skos:documentation "Name of the program that collected the profile"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -242,6 +252,7 @@ cnodc:CNODCStatus rdf:type skos:Concept ;
   cnodc:allowedValue "VERIFIED" ;
   cnodc:allowedValue "UNVERIFIED" ;
   cnodc:allowedValue "DUBIOUS" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -258,6 +269,7 @@ cnodc:CNODCOperatorAction rdf:type skos:Concept ;
   cnodc:allowedValue "RECOMMEND_DUPLICATE" ;
   cnodc:allowedValue "RECOMMEND_ARCHIVAL" ;
   cnodc:allowedValue "RECOMMEND_DUBIOUS" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:CNODCLevel rdf:type skos:Concept ;
@@ -265,6 +277,7 @@ cnodc:CNODCLevel rdf:type skos:Concept ;
   skos:documentation "Processing level of the data record"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -281,6 +294,7 @@ cnodc:CNODCDuplicateID rdf:type skos:Concept ;
   skos:documentation "If present, the record is a duplicate of another better record and this is that records ID"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -289,6 +303,7 @@ cnodc:CNODCDuplicateDate rdf:type skos:Concept ;
   skos:documentation "If present, the record is a duplicate of another better record and this is the date the CNODC received that record"@en ;
   cnodc:dataType xsd:date ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:CNODCWorkingDuplicateID rdf:type skos:Concept ;
@@ -296,6 +311,7 @@ cnodc:CNODCWorkingDuplicateID rdf:type skos:Concept ;
   skos:documentation "If present, the record is a duplicate of another better record and this is that records ID"@en ;
   cnodc:dataType xsd:string ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -304,6 +320,7 @@ cnodc:CNODCWorkingDuplicateDate rdf:type skos:Concept ;
   skos:documentation "If present, the record is a duplicate of another better record and this is the date the CNODC received that record"@en ;
   cnodc:dataType xsd:date ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -312,6 +329,7 @@ cnodc:GTSHeader rdf:type skos:Concept ;
   skos:documentation "The header sent with this message on the GTS"@en ;
   cnodc:dataType xsd:date ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -320,6 +338,7 @@ cnodc:BUFRDescriptors rdf:type skos:Concept ;
   skos:documentation "A list of BUFR descriptors attached to this message"@en ;
   cnodc:dataType cnodc:List ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -328,6 +347,7 @@ cnodc:BUFRInferredMessageType rdf:type skos:Cocnept ;
   skos:documentation ""@en ;
   cnodc:dataType cnodc:List ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -336,6 +356,7 @@ cnodc:BUFROriginCentre rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:integer ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:BUFROriginSubcentre rdf:type skos:Concept ;
@@ -343,6 +364,7 @@ cnodc:BUFROriginSubcentre rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:integer ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:BUFRDataCategory rdf:type skos:Concept ;
@@ -350,6 +372,7 @@ cnodc:BUFRDataCategory rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:integer ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:BUFRSubsetIndex rdf:type skos:Concept ;
@@ -357,6 +380,7 @@ cnodc:BUFRSubsetIndex rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:integer ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:BUFRIsObservation rdf:type skos:Concept ;
@@ -366,6 +390,7 @@ cnodc:BUFRIsObservation rdf:type skos:Concept ;
   cnodc:maxValue 1 ;
   cnodc:minValue 0 ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 cnodc:BUFRMessageTime rdf:type skos:Concept ;
@@ -373,6 +398,7 @@ cnodc:BUFRMessageTime rdf:type skos:Concept ;
   skos:documentation ""@en ;
   cnodc:dataType xsd:dateTimeStamp ;
   cnodc:elementGroup "metadata:record" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 
@@ -443,6 +469,7 @@ cnodc:Quality rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM18-XII: Ql" ;
   cnodc:wmoCodeGroup "FM18-XII: Qt" ;
   cnodc:wmoCodeGroup "FM18-XII: Qd Qx" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:exactMatch bufr4B08:080 ;
   skos:inScheme cnodc:elements .
 
@@ -465,6 +492,7 @@ cnodc:WorkingQuality rdf:type skos:Concept ;
   cnodc:allowedValue 19 ;
   cnodc:allowedValue 20 ;
   cnodc:allowedValue 21 ;
+  cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
 

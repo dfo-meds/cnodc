@@ -17,14 +17,42 @@ import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.backend_bases as mplbb
 import tkinter as tk
 import cnodc.desktop.translations as i18n
+from cnodc.desktop.gui.ocproc_graph import OCProc2Graph
 from cnodc.ocean_math.geodesy import uhaversine
 from cnodc.ocean_math.seawater import eos80_pressure
 from cnodc.ocproc2.operations import QCSetWorkingQuality, QCAddHistory
 
 from cnodc.units import UnitConverter
+import cnodc.ocean_math.ocproc2int as oom
 
 
 class GraphPane(BasePane):
+
+    @injector.construct
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._oc2graph: t.Optional[OCProc2Graph] = None
+
+    def on_init(self):
+        self._oc2graph = OCProc2Graph(self.app.middle_right, self.app)
+        self._oc2graph.grid(row=0, column=0, sticky='NSEW')
+
+    def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
+        if change_type & (DisplayChange.RECORD | DisplayChange.BATCH):
+            self._oc2graph.clear_graph_data()
+            if app_state.batch_state == BatchOpenState.OPEN:
+                self._oc2graph.update_graph_options()
+        elif change_type & DisplayChange.ACTION:
+            if app_state.batch_state == BatchOpenState.OPEN:
+                self._oc2graph.update_graph_data()
+            else:
+                self._oc2graph.clear_graph_data()
+
+    def on_language_change(self, language: str):
+        pass
+
+
+class _GraphPane(BasePane):
 
     local_db: LocalDatabase = None
     converter: UnitConverter = None
@@ -35,7 +63,7 @@ class GraphPane(BasePane):
         self._chart_frame: t.Optional[ttk.Frame] = None
         self._figure: t.Optional[mplf.Figure] = None
         self._canvas: t.Optional[mpltk.FigureCanvasTkAgg] = None
-        self._axes: t.Optional[mpla.Axes] = None
+        self._axes: list[mpla.Axes] = []
         self._axes2: t.Optional[mpla.Axes] = None
         self._current_coordinate: t.Optional[str] = None
         self._current_parameter: t.Optional[str] = None
@@ -126,101 +154,6 @@ class GraphPane(BasePane):
                 flag
             ))
         self.app.save_operations(actions)
-
-    def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & (DisplayChange.RECORD | DisplayChange.BATCH):
-            self._clear_graph()
-            if app_state.batch_state == BatchOpenState.OPEN:
-                self._update_boxes(app_state.record)
-        elif change_type & DisplayChange.ACTION:
-            if app_state.batch_state == BatchOpenState.OPEN and self._axes is not None:
-                self._reload_recordset()
-            else:
-                self._clear_graph()
-
-    def _reload_recordset(self):
-        self._clear_graph()
-        self._current_recordset_id = None
-        self._update_variables(self._current_combobox_value(self._combo_recordset))
-
-    def _update_boxes(self, record: ocproc2.DataRecord):
-        current_choice = self._current_combobox_value(self._combo_recordset)
-        rs_choices = []
-        if self.app.app_state.batch_record_info is not None and len(self.app.app_state.batch_record_info) > 1:
-            rs_choices.append('Batch')
-        if record is not None:
-            for srt in record.subrecords:
-                for rs_idx in record.subrecords[srt]:
-                    rs_choices.append(f"{srt}#{rs_idx}")
-        self._combo_recordset.configure(values=rs_choices)
-        self._current_recordset_id = None
-        if rs_choices:
-            index = rs_choices.index(current_choice) if current_choice in rs_choices else 0
-            self._combo_recordset.current(index)
-            self._update_variables(rs_choices[index])
-        else:
-            self._update_variables(None)
-
-    def _rs_change(self, e):
-        self._update_variables(self._current_combobox_value(self._combo_recordset))
-
-    def _update_variables(self, record_set_name: t.Optional[str]):
-        if record_set_name == self._current_recordset_id:
-            return
-        if record_set_name is None:
-            self._combo_independent.configure(values=[])
-            self._combo_dependent.configure(values=[])
-            self._current_recordset_id = None
-            self._current_recordset = None
-            self._clear_graph()
-            return
-        self._current_recordset_id = record_set_name
-        last_ind = self._current_combobox_value(self._combo_independent)
-        last_dep = self._current_combobox_value(self._combo_dependent)
-        dep_vars = set()
-        ind_vars = set()
-        # TODO: method of translating record set names and variable names??
-        if record_set_name == 'Batch':
-            self._current_recordset = None
-            dep_vars.add('Speed')
-            ind_vars.add('Index')
-        else:
-            srt, rs_idx = record_set_name.split('#', maxsplit=1)
-            path = f'subrecords/{srt}/{rs_idx}'
-            self._current_recordset: ocproc2.RecordSet = self.app.app_state.record.find_child(path) if self.app.app_state is not None else None
-            if self._current_recordset:
-                for r in self._current_recordset.records:
-                    dep_vars.update(r.parameters.keys())
-                    ind_vars.update(r.coordinates.keys())
-            if 'Temperature' in dep_vars and ('PracticalSalinity' in dep_vars or 'AbsoluteSalinity' in dep_vars):
-                dep_vars.add('Temperature+Salinity')
-                if 'Pressure' in ind_vars or ('Depth' in ind_vars and self.app.app_state.record.coordinates.has_value('Latitude')):
-                    dep_vars.add('Density')
-        dep_vars = list(dep_vars)
-        dep_vars.sort()
-        ind_vars = list(ind_vars)
-        ind_vars.sort()
-        self._combo_independent.configure(values=ind_vars)
-        self._combo_dependent.configure(values=dep_vars)
-        self._current_parameter = None
-        self._current_coordinate = None
-        if ind_vars:
-            self._combo_independent.current(ind_vars.index(last_ind) if last_ind and last_ind in ind_vars else 0)
-        if dep_vars:
-            self._combo_dependent.current(dep_vars.index(last_dep) if last_dep and last_dep in dep_vars else 0)
-        if ind_vars and dep_vars:
-            self._update_graph()
-        else:
-            self._clear_graph()
-
-    def _var_change(self, e):
-        self._update_graph()
-
-    def _current_combobox_value(self, cb: ttk.Combobox):
-        curr = cb.current()
-        if curr > -1:
-            return cb['values'][curr]
-        return None
 
     def _update_graph(self):
         p = self._current_combobox_value(self._combo_dependent)
@@ -331,21 +264,21 @@ class GraphPane(BasePane):
                     max_value = v
         return min_value, max_value, data
 
-    def _build_ticks(self, min_val: float, max_val: float, num_ticks: int = 7):
-        step_size = (max_val - min_val) / (num_ticks - 1)
-        round_places = -1 * math.floor(math.log10(step_size))
-        result = [min_val]
-        for x in range(1, num_ticks - 1):
-            new_val = round(min_val + (step_size * x), round_places)
-            if new_val not in result:
-                result.append(new_val)
-        result.append(max_val)
-        return result
 
     def _calculate_x_axis_range(self, xx1: tuple[float, float], xx2: tuple[float, float]) -> tuple[float, float]:
         m = (xx2[1] - xx1[1]) / (xx2[0] - xx1[0])
         b = xx1[1] - (xx1[0] * m)
         return b, m + b
+
+    def _plot_graph(self,
+                    axes: mpla.Axes,
+                    x_values: list[float],
+                    y_values: dict[str, list[float]],
+                    min_x: t.Optional[float] = None,
+                    max_x: t.Optional[float] = None,
+                    min_x_pos: t.Optional[float] = None,
+                    max_x_pos: t.Optional[float] = None):
+        pass
 
     def _show_ts_graph(self, record_set: ocproc2.RecordSet, x_name):
         unit_map = {}
@@ -439,21 +372,8 @@ class GraphPane(BasePane):
             return key
 
     def _calculate_density(self, record: ocproc2.DataRecord, unit_map: dict) -> tuple[t.Optional[float], int]:
-        if 'Pressure' not in unit_map:
-            unit_map['Pressure'] = 'dbar'
-        if 'Depth' not in unit_map:
-            unit_map['Depth'] = 'm'
-        p, p_qc = self._extract_value(record.coordinates, 'Pressure', unit_map)
-        if p is None:
-            d, d_qc = self._extract_value(record.coordinates, 'Depth', unit_map)
-            lat, lat_qc = self._extract_value(self.app.app_state.record, 'Latitude', unit_map)
-            if d is not None and lat is not None:
-                p = eos80_pressure(d, lat)
-                p_qc = max(p_qc, d_qc)
-        if p is None:
-            return None, 9
-
-
+        v, qc, _ = oom.calc_density_record(record, self.app.app_state.record, 'kg m-3')
+        return v, qc
 
     def _extract_value(self, map_: ocproc2.ValueMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:
         # TODO: Salinity (PSAL or ASAL)

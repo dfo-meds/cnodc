@@ -2,6 +2,7 @@ import typing as t
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
 import cnodc.ocproc2.structures as ocproc2
 from cnodc.ocean_math.seawater import eos80_density_at_depth_t90
+import cnodc.ocean_math.ocproc2int as oom
 
 
 class GTSPPDensityInversionTest(BaseTestSuite):
@@ -13,28 +14,12 @@ class GTSPPDensityInversionTest(BaseTestSuite):
     def density_inversion_test(self, record_set: ocproc2.RecordSet, context: TestContext):
         if len(record_set.records) < 2:
             self.skip_test()
-        previous_density = self._calculate_density(record_set.records[0], context)
+        previous_density, _, _ = oom.calc_density_record(record_set.records[0], context.top_record)
         for i in range(1, len(record_set.records)):
             with context.subrecord_from_current_set_context(i) as ctx:
-                current_density = self._calculate_density(record_set.records[i], ctx)
+                current_density, _, _ = oom.calc_density_record(record_set.records[i], context.top_record)
                 if current_density is None:
                     continue
-                with ctx.two_parameter_context('Temperature', 'PracticalSalinity'):
+                with ctx.two_parameter_context('Temperature', 'PracticalSalinity' if 'PracticalSalinity' in record_set.records[i] else 'AbsoluteSalinity'):
                     self.assert_greater_than('density_inversion_detected', current_density, previous_density)
                 previous_density = current_density
-
-    def _calculate_density(self, record: ocproc2.DataRecord, context: TestContext) -> t.Optional[float]:
-        psal = self.value_in_units(record.parameters.get('PracticalSalinity'), '0.001')
-        if psal is None:
-            return None
-        temp = self.value_in_units(record.parameters.get('Temperature'), '°C', temp_scale='ITS-90')
-        if temp is None:
-            return None
-        pressure_dbar = self.calculate_pressure_in_dbar(
-            record.coordinates.get('Pressure'),
-            record.coordinates.get('Depth'),
-            context.top_record.coordinates.get('Latitude')
-        )
-        if pressure_dbar is None:
-            return None
-        return eos80_density_at_depth_t90(psal, temp, pressure_dbar)

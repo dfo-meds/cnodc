@@ -3,6 +3,7 @@ import cnodc.ocproc2.structures as ocproc2
 from cnodc.ocean_math.seawater import eos80_freezing_point_t90
 import cnodc.ocean_math.ocproc2int as oom
 
+
 class GTSPPFreezingPointTest(BaseTestSuite):
 
     def __init__(self, **kwargs):
@@ -15,12 +16,9 @@ class GTSPPFreezingPointTest(BaseTestSuite):
         psal = self.value_in_units(record.parameters.get('PracticalSalinity'), '0.001')
         if psal is None or psal < 26 or psal > 35:
             self.skip_test()
-        freezing_point, _, _ = oom.calc_freezing_point(
-            pressure=record.coordinates.get('Pressure'),
-            depth=record.coordinates.get('Depth'),
-            latitude=context.top_record.coordinates.get('Latitude'),
-            practical_salinity=record.parameters.get('PracticalSalinity'),
-            absolute_salinity=record.parameters.get('AbsoluteSalinity'),
+        freezing_point, _, _ = oom.calc_freezing_point_record(
+            level_record=record,
+            position_record=context.top_record,
             units='°C',
             temperature_scale='ITS-90'
         )

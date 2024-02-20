@@ -104,7 +104,7 @@ class UnitConverter:
         except ValueError as ex:
             return False
 
-    def convert(self, quantity: t.Union[float, decimal.Decimal, int, UFloat], original_units: str, output_units: str) -> decimal.Decimal:
+    def convert(self, quantity: t.Union[float, int, UFloat], original_units: str, output_units: str) -> t.Union[float, int, UFloat]:
         self._load_tables()
         factor_original, dims_original, expr_original = self._conversion_info(original_units)
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
@@ -196,7 +196,7 @@ class UnitConverter:
 
 
 def convert(v, from_units: str, to_units: str):
-    if from_units is None or to_units is None or from_units == to_units:
+    if from_units is None or to_units is None or from_units == to_units or v is None:
         return v
     return _convert(v, from_units, to_units)
 
@@ -221,7 +221,7 @@ class LinearFunction(Converter):
             return f'{self._scale}x'
 
     def convert(self, input_val):
-        return (self._scale * input_val) + self._shift
+        return (input_val * float(self._scale)) + float(self._shift)
 
     def scale(self, factor: decimal.Decimal):
         if factor == 1:

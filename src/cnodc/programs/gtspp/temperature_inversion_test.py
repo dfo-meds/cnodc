@@ -2,6 +2,7 @@ import typing as t
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
 import cnodc.ocproc2.structures as ocproc2
 import cnodc.ocean_math.umath_wrapper as umath
+import cnodc.ocean_math.ocproc2int as oom
 
 
 class GTSPPTemperatureInversionTest(BaseTestSuite):
@@ -22,7 +23,7 @@ class GTSPPTemperatureInversionTest(BaseTestSuite):
         ldt1 = None
         ldt2 = None
         ref = {'minima': [], 'maxima': []}
-        for ldt in self._get_inversion_test_points(recordset):
+        for ldt in self._get_inversion_test_points(recordset, context):
             if ldt1 is not None and ldt2 is not None:
                 if self._check_for_temperature_inversion(ldt1, ldt2, ldt, ref):
                     for i in range(ldt2[0], len(recordset.records)):
@@ -57,13 +58,24 @@ class GTSPPTemperatureInversionTest(BaseTestSuite):
                 return ref['maxima'] and any(umath.is_greater_than(x, ldt2[1]) and umath.is_less_than(x - ldt2[1], self._depth_gap) for x in ref['maxima'])
         return False
 
-    def _get_inversion_test_points(self, recordset: ocproc2.RecordSet) -> t.Iterable[tuple[int, float, list[float]]]:
+    def _get_inversion_test_points(self, recordset: ocproc2.RecordSet, context: TestContext) -> t.Iterable[tuple[int, float, list[float]]]:
         for i in range(0, len(recordset.records)):
             record = recordset.records[i]
-            depth = self.value_in_units(record.coordinates.get('Depth'), 'm')
+            if 'Depth' not in record.coordinates or 'Temperature' not in record.parameters or not record.coordinates['Depth'].is_good():
+                continue
+            depth = record.coordinates['Depth'].to_float_with_uncertainty('m')
             if depth is None or depth <= self._min_depth:
                 continue
-            temp_data = self.all_values_in_units(record.parameters.get('Temperature'), '°C', temp_scale='ITS-90')
+            temp_data = [
+                oom.get_temperature(
+                    temperature=x,
+                    obs_date=context.top_record.coordinates.get('Time'),
+                    units='°C',
+                    temperature_scale='ITS-90'
+                )
+                for x in record.parameters['Temperature'].all_values()
+                if x.is_good()
+            ]
             if (not temp_data) or all(x is None for x in temp_data):
                 continue
             if any(temp < self._min_temperature for temp in temp_data if temp is not None):
