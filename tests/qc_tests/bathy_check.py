@@ -2,7 +2,7 @@ import unittest as ut
 import typing as t
 from uncertainties import UFloat, ufloat
 from cnodc.bathymetry import BathymetryModel
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.programs.gtspp.bathymetry_test import GTSPPBathymetryTest
 
 
@@ -24,7 +24,7 @@ class MockBathymetryModel(BathymetryModel):
 class TestBathymetryCheck(ut.TestCase):
 
     def test_perfect_depth(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         z = -50
@@ -39,7 +39,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_above_water(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         z = 50
@@ -56,7 +56,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertIn('position_above_sea_level', [m.code for m in dr.qc_tests[0].messages])
 
     def test_sea_depth_within_10percent_below(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
@@ -70,7 +70,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_sea_depth_within_10percent_above(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
@@ -84,7 +84,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_sea_depth_more_than_10percent_above(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
@@ -99,7 +99,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertIn('sounding_bathymetry_mismatch', [m.code for m in dr.qc_tests[0].messages])
 
     def test_sea_depth_less_than_10percent_above(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
@@ -114,7 +114,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertIn('sounding_bathymetry_mismatch', [m.code for m in dr.qc_tests[0].messages])
 
     def test_sea_depth_exactly_10percent_below(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
@@ -128,7 +128,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_sea_depth_exactly_10percent_above(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
@@ -142,14 +142,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_depth_exact(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -50
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -158,14 +158,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_depth_below_10percent(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -60
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -176,14 +176,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertIn('depth_too_deep', [m.code for m in dr.qc_tests[0].messages])
 
     def test_depth_within_10percent_below(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -55
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -192,14 +192,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_depth_within_10percent_above(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -45
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -208,14 +208,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_depth_more_than_10percent_above(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -25
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -224,14 +224,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_depth_positive_in_range(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = 2
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): ufloat(-5, 10)})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -240,14 +240,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_reference_positive_but_in_error(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -2
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): ufloat(5, 10)})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
@@ -256,14 +256,14 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertEqual(0, len(dr.qc_tests[0].messages))
 
     def test_reference_positive_but_not_in_error(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         x = -45
         y = -50
         dr.coordinates['Latitude'] = y
         dr.coordinates['Longitude'] = x
-        sr = ocproc2.DataRecord()
+        sr = ocproc2.ChildRecord()
         sr.coordinates['Depth'] = -2
-        dr.subrecords.append_record_set('PROFILE', 0, sr)
+        dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): ufloat(15, 10)})
         suite = GTSPPBathymetryTest(bathy_model)
         outcome, is_updated = suite.run_tests(dr)

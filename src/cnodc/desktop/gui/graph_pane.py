@@ -7,7 +7,7 @@ from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, Applica
     BatchOpenState, SimpleRecordInfo
 import tkintermapview as tkmv
 import typing as t
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 from autoinject import injector
 from cnodc.desktop.client.local_db import LocalDatabase
@@ -371,7 +371,7 @@ class _GraphPane(BasePane):
         else:
             return key
 
-    def _calculate_density(self, record: ocproc2.DataRecord, unit_map: dict) -> tuple[t.Optional[float], int]:
+    def _calculate_density(self, record: ocproc2.BaseRecord, unit_map: dict) -> tuple[t.Optional[float], int]:
         v, qc, _ = oom.calc_density_record(record, self.app.app_state.record, 'kg m-3')
         return v, qc
 

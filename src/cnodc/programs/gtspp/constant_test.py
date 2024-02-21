@@ -2,7 +2,7 @@ from uncertainties import UFloat, ufloat
 
 from cnodc.bathymetry import BathymetryModel
 from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.util import dynamic_object
 
 

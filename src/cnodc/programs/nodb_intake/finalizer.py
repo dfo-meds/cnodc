@@ -1,8 +1,6 @@
 import datetime
 import uuid
-
-from cnodc.ocproc2 import DataRecord, ElementMap
-from cnodc.ocproc2.structures import AbstractValue, MultiValue, Value
+import cnodc.ocproc2 as ocproc2
 from cnodc.process.payload_worker import BatchPayloadWorker
 import cnodc.nodb.structures as structures
 import typing as t
@@ -59,7 +57,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
         self._db.commit()
 
     # TODO: the below code should probably be spun out into its own function somewhere in case it needs to be used elsewhere
-    def _finalize_record(self, record: DataRecord, is_top_level: bool = False):
+    def _finalize_record(self, record: ocproc2.ParentRecord, is_top_level: bool = False):
         # TODO: where values are MultiValued, assign a WorkingQuality to the parent MultiValue based on the best
         # value of the actual values
         for key in record.metadata:
@@ -67,15 +65,15 @@ class NODBFinalizeWorker(BatchPayloadWorker):
         for record in record.iter_subrecords():
             self._finalize_record(record)
 
-    def _finalize_value(self, value: AbstractValue):
+    def _finalize_value(self, value: ocproc2.AbstractElement):
         if 'WorkingQuality' in value.metadata:
             value.metadata['Quality'] = value.metadata['WorkingQuality'].best_value()
             del value.metadata['WorkingQuality']
-        if isinstance(value, MultiValue):
+        if isinstance(value, ocproc2.MultiElement):
             for v in value.values():
                 self._finalize_value(v)
 
-    def _populate_obs_data_from_record(self, obs_data: structures.NODBObservationData, record: DataRecord):
+    def _populate_obs_data_from_record(self, obs_data: structures.NODBObservationData, record: ocproc2.ParentRecord):
         obs_data.status = self._extract_enum_value(structures.ObservationStatus, record.metadata, 'CNODCStatus', 'VERIFIED')
         qc_test_names = set(x.test_name for x in record.qc_tests)
         qc_test_info = {}
@@ -94,7 +92,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
             except (ValueError, TypeError) as ex:
                 self._log.exception(f"Exception while processing duplicate info for {obs_data.obs_uuid}")
 
-    def _populate_obs_from_record(self, obs: structures.NODBObservation, record: DataRecord):
+    def _populate_obs_from_record(self, obs: structures.NODBObservation, record: ocproc2.ParentRecord):
         obs.program_name = record.metadata.best_value('CNODCProgram', None)
         obs.instrument_type = record.metadata.best_value('CNODCInstrumentType', None)
         obs.source_name = record.metadata.best_value('CNODCSource', None)
@@ -120,7 +118,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
         else:
             obs.observation_type = structures.ObservationType.PROFILE
 
-    def _extract_subrecord_info(self, record: DataRecord, ref_info: dict, first: bool = False):
+    def _extract_subrecord_info(self, record: ocproc2.BaseRecord, ref_info: dict, first: bool = False):
         if not first:
             ref_info['profile_params'].update(x for x in record.parameters)
         if record.coordinates.has_value('Depth'):
@@ -145,7 +143,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
             self._log.exception(f"An exception occurred while converting a value from {source_units} to {target_units}")
             return None
 
-    def _extract_observation_time(self, record: DataRecord):
+    def _extract_observation_time(self, record: ocproc2.BaseRecord):
         iso_time = self._extract_single_value(record.coordinates, 'Time')
         try:
             return datetime.datetime.fromisoformat(iso_time)
@@ -153,7 +151,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
             self._log.exception(f"An exception occurred while converting a date/time value")
             return None
 
-    def _extract_location(self, record: DataRecord):
+    def _extract_location(self, record: ocproc2.BaseRecord):
         latitude = self._extract_single_value(record.coordinates, 'Latitude')
         longitude = self._extract_single_value(record.coordinates, 'Longitude')
         if latitude is None or longitude is None:
@@ -164,19 +162,17 @@ class NODBFinalizeWorker(BatchPayloadWorker):
             return None
         return f'POINT ({round(longitude, 4)} {round(latitude, 4)})'
 
-    def _extract_single_value(self, value_map: ElementMap, value_name: str, default=None):
+    def _extract_single_value(self, value_map: ocproc2.ElementMap, value_name: str, default=None):
         if value_name not in value_map:
             return default
-        val = value_map[value_name]
-        if isinstance(val, Value):
-            if val.is_empty():
-                return default
-            if 'Quality' in val.metadata and val.metadata['Quality'].value in (4, 9):
-                return default
-            return val.value
-        return default
+        val = value_map[value_name].ideal_single_value()
+        if val.is_empty():
+            return default
+        if 'Quality' in val.metadata and val.metadata['Quality'].value in (4, 9):
+            return default
+        return val.value
 
-    def _extract_enum_value(self, enum_type, value_map: ElementMap, value_name: str, default=None, default_error=None):
+    def _extract_enum_value(self, enum_type, value_map: ocproc2.ElementMap, value_name: str, default=None, default_error=None):
         bv = value_map.best_value(value_name, None)
         if bv is None:
             return default

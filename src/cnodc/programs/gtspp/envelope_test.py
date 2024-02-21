@@ -5,7 +5,7 @@ import typing as t
 import yaml
 from uncertainties import UFloat
 from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext, ReferenceRange
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.units import UnitConverter
 from cnodc.ocean_math.seawater import eos80_pressure, eos80_freezing_point_t90, eos80_density_at_depth_t90
 
@@ -42,7 +42,7 @@ class GTSPPEnvelopeTest(BaseTestSuite):
         self._envelope_ref = EnvelopeReference(envelope_file, self.converter)
 
     @RecordTest("PROFILE")
-    def envelope_test(self, record: ocproc2.DataRecord, context: TestContext):
+    def envelope_test(self, record: ocproc2.ChildRecord, context: TestContext):
         self.precheck_value_in_map(record.coordinates, 'Depth')
         references = self._envelope_ref.find_level(
             record.coordinates['Depth'].to_float(),

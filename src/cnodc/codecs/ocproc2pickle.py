@@ -3,7 +3,7 @@ import json
 from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, EncodeResult
 import typing as t
 
-from cnodc.ocproc2 import DataRecord
+import cnodc.ocproc2 as ocproc2
 from ..util import CNODCError
 import pickle
 
@@ -17,7 +17,7 @@ class OCProc2PickleCodec(BaseCodec):
         super().__init__(*args, log_name="cnodc.codecs.pickle", is_encoder=True, is_decoder=True, **kwargs)
 
     def _encode(self,
-                record: DataRecord,
+                record: ocproc2.ParentRecord,
                 **kwargs) -> t.Iterable[bytes]:
         data = pickle.dumps(record.to_mapping())
         data_len = len(data)

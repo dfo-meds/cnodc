@@ -8,7 +8,7 @@ import tkinter.ttk as ttk
 import traceback
 
 import zrlog
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.desktop import VERSION
 from cnodc.desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
     BatchType, SimpleRecordInfo, CloseBatchResult
@@ -244,7 +244,7 @@ class CNODCQCApp:
             with self.local_db.cursor() as cur:
                 cur.execute("SELECT record_uuid, record_content FROM records WHERE record_uuid = ?", [record_uuid])
                 row = cur.fetchone()
-                record = ocproc2.DataRecord()
+                record = ocproc2.ParentRecord()
                 record.from_mapping(json.loads(row[1]))
                 cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [record_uuid])
                 actions = {}

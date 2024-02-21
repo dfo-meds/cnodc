@@ -1,11 +1,8 @@
 from cnodc.desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import typing as t
-import tkinter as tk
-import datetime
 import tkinter.ttk as ttk
 import cnodc.desktop.translations as i18n
-from cnodc.ocproc2.structures import MessageType
 
 
 class ErrorPane(BasePane):

@@ -1,12 +1,8 @@
 import datetime
-import tkinter.simpledialog
-import tkcalendar as tkc
 from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange
 from cnodc.desktop.gui.choice_dialog import ask_choice
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
-import cnodc.ocproc2.structures as ocproc2
-import cnodc.ocproc2.operations as ops
 import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
@@ -14,7 +10,7 @@ import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 
 from cnodc.desktop import VERSION
-from cnodc.ocproc2.validation import OCProc2Ontology, OCProc2ElementInfo
+import cnodc.ocproc2 as ocproc2
 from cnodc.desktop.gui.date_time_dialog import ask_date, ask_time, ask_datetime
 from autoinject import injector
 
@@ -24,11 +20,11 @@ class ParameterContextMenu:
     def __init__(self,
                  app,
                  target_path,
-                 element_info: t.Optional[OCProc2ElementInfo],
+                 element_info: t.Optional[ocproc2.OCProc2ElementInfo],
                  current_user: str,
                  current_units: t.Optional[str] = None,
                  current_value: t.Optional = None):
-        self._current_value: ocproc2.Value = current_value
+        self._current_value: ocproc2.SingleElement = current_value
         self._current_user = current_user
         self._app = app
         self._element_info = element_info
@@ -64,9 +60,9 @@ class ParameterContextMenu:
         new_value = self._edit_choice()
         if new_value is not None:
             self._app.save_operations([
-                ops.QCSetValue(self._target_path, new_value, children=[
-                    ops.QCSetWorkingQuality(self._target_path, 5),
-                    ops.QCAddHistory(
+                ocproc2.QCSetValue(self._target_path, new_value, children=[
+                    ocproc2.QCSetWorkingQuality(self._target_path, 5),
+                    ocproc2.QCAddHistory(
                         f"CHANGE [{self._target_path}] FROM [{self._current_value.to_string()}] TO [{str(new_value)}]",
                         "operator_qc",
                         VERSION,
@@ -197,7 +193,7 @@ class ParameterContextMenu:
 
 class ParameterPane(BasePane):
 
-    ontology: OCProc2Ontology = None
+    ontology: ocproc2.OCProc2Ontology = None
 
     TAG_MAP = {
         1: 'good',
@@ -217,7 +213,7 @@ class ParameterPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._parameter_list: t.Optional[ScrollableTreeview] = None
-        self._value_lookup: dict[str, ocproc2.Value] = {}
+        self._value_lookup: dict[str, ocproc2.SingleElement] = {}
 
     def on_init(self):
         param_frame = ttk.Frame(self.app.far_right)
@@ -275,7 +271,7 @@ class ParameterPane(BasePane):
         else:
             self._parameter_list.clear_items()
 
-    def show_record(self, record: ocproc2.DataRecord, path: str):
+    def show_record(self, record: ocproc2.BaseRecord, path: str):
         self._parameter_list.clear_items()
         self._value_lookup = {}
         if record.metadata:
@@ -310,14 +306,14 @@ class ParameterPane(BasePane):
                 self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
 
-    def _create_parameter_entry(self, v: ocproc2.AbstractValue, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
-        if isinstance(v, ocproc2.MultiValue):
+    def _create_parameter_entry(self, v: ocproc2.AbstractElement, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
+        if isinstance(v, ocproc2.MultiElement):
             is_alt = False
             # TODO: need a heading here (with translations)
             for idx, subv in v.values():
                 self._create_parameter_entry(subv, f'{parent_path}/{key}/{idx}', str(idx), depth + 1, is_alt)
                 is_alt = not is_alt
-        elif isinstance(v, ocproc2.Value):
+        elif isinstance(v, ocproc2.SingleElement):
             self._create_parameter_list_item(v, parent_path, key, depth, is_alt)
         if v.metadata:
             is_alt = False
@@ -327,7 +323,7 @@ class ParameterPane(BasePane):
                 self._create_parameter_entry(v.metadata[k], f'{parent_path}/{key}', k, depth + 1, is_alt)
                 is_alt = not is_alt
 
-    def _create_parameter_list_item(self, v: ocproc2.Value, parent_path: str, key: str, depth: int, is_alt: bool):
+    def _create_parameter_list_item(self, v: ocproc2.SingleElement, parent_path: str, key: str, depth: int, is_alt: bool):
         path = f'{parent_path}/{key}'
         dv, tags = self._parameter_display_value(v)
         if is_alt:
@@ -341,7 +337,7 @@ class ParameterPane(BasePane):
             return einfo.label(i18n.current_language())
         return key
 
-    def _parameter_display_value(self, v: ocproc2.AbstractValue) -> tuple[tuple, list]:
+    def _parameter_display_value(self, v: ocproc2.AbstractElement) -> tuple[tuple, list]:
         tags = []
         wq = v.metadata.best_value('WorkingQuality', 0)
         if wq is not None and not isinstance(wq, int):
@@ -377,7 +373,7 @@ class ParameterPane(BasePane):
             )
             pcm.handle_popup_click(event)
 
-    def _get_element_info(self, path: str) -> t.Optional[OCProc2ElementInfo]:
+    def _get_element_info(self, path: str) -> t.Optional[ocproc2.OCProc2ElementInfo]:
         elements = path.split('/')
         while elements[-1].isdigit():
             elements = elements[:-1]

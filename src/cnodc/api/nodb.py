@@ -9,7 +9,7 @@ from cnodc.api.auth import LoginController
 from cnodc.codecs import OCProc2BinCodec
 from cnodc.nodb import NODBController, LockType
 from cnodc.ocproc2.operations import QCOperator
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.util import CNODCError, clean_for_json, vlq_encode
 import uuid
 import cnodc.nodb.structures as structures
@@ -272,7 +272,7 @@ class NODBWebController:
                 yield vlq_encode(len(data))
                 yield data
 
-    def _apply_all_actions(self, record: ocproc2.DataRecord, actions: list[dict]):
+    def _apply_all_actions(self, record: ocproc2.ParentRecord, actions: list[dict]):
         for action_def in actions:
             action = QCOperator.from_map(action_def)
             action.apply(record)

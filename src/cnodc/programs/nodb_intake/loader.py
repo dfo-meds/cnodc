@@ -1,10 +1,9 @@
 import datetime
 import pathlib
-import statistics
 import uuid
 from cnodc.codecs.base import BaseCodec, DecodeResult
 from cnodc.nodb import LockType
-from cnodc.ocproc2 import DataRecord, MultiElementElement
+import cnodc.ocproc2 as ocproc2
 import cnodc.nodb.structures as structures
 import typing as t
 
@@ -183,7 +182,7 @@ class NODBDecodeLoadWorker(PayloadWorker):
                             source_file: structures.NODBSourceFile,
                             message_idx: int,
                             record_idx: int,
-                            record: DataRecord):
+                            record: ocproc2.ParentRecord):
         obs_data = structures.NODBWorkingRecord.find_by_source_info(
             self._db,
             source_file.source_uuid,
@@ -213,7 +212,7 @@ class NODBDecodeLoadWorker(PayloadWorker):
         self._populate_observation_data(working_record, record)
         self._db.insert_object(working_record)
 
-    def _populate_observation_data(self, working_record: structures.NODBWorkingRecord, record: DataRecord):
+    def _populate_observation_data(self, working_record: structures.NODBWorkingRecord, record: ocproc2.ParentRecord):
         for metadata_key in self._defaults:
             if metadata_key not in record.metadata:
                 record.metadata[metadata_key] = self._defaults[metadata_key]

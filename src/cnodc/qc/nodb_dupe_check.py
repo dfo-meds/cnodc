@@ -4,7 +4,7 @@ from uncertainties import UFloat
 from cnodc.nodb import NODBControllerInstance
 from cnodc.ocean_math.geodesy import uhaversine
 from cnodc.qc.base import BaseTestSuite, BatchTest, TestContext, QCSkipTest
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import cnodc.nodb.structures as structures
 import enum
 import typing as t
@@ -204,7 +204,7 @@ class NODBDuplicateCheck(BaseTestSuite):
             context_b.top_record.metadata['CNODCWorkingDuplicateID'] = context_a.working_record.working_uuid
             self.report_for_review('working_potential_duplicate_record_found')
 
-    def _check_is_duplicate(self, record_a: ocproc2.DataRecord, record_b: ocproc2.DataRecord) -> DuplicateCheckResult:
+    def _check_is_duplicate(self, record_a: ocproc2.BaseRecord, record_b: ocproc2.BaseRecord) -> DuplicateCheckResult:
         # Station check
         if record_a.metadata.best_value('CNODCStation') != record_b.metadata.best_value('CNODCStation'):
             return DuplicateCheckResult.NO_MATCH
@@ -223,7 +223,7 @@ class NODBDuplicateCheck(BaseTestSuite):
             return DuplicateCheckResult.NO_MATCH
         return self._check_record_contents(record_a, record_b)
 
-    def _check_record_contents(self, record_a: ocproc2.DataRecord, record_b: ocproc2.DataRecord) -> DuplicateCheckResult:
+    def _check_record_contents(self, record_a: ocproc2.BaseRecord, record_b: ocproc2.BaseRecord) -> DuplicateCheckResult:
         results = self._compare_records(record_a, record_b)
         identical = results[ValueCompareResult.IDENTICAL] if ValueCompareResult.IDENTICAL in results else 0
         a_better = results[ValueCompareResult.A_BETTER] if ValueCompareResult.A_BETTER in results else 0
@@ -250,7 +250,7 @@ class NODBDuplicateCheck(BaseTestSuite):
         else:
             return DuplicateCheckResult.IDENTICAL
 
-    def _compare_records(self, record_a: ocproc2.DataRecord, record_b: ocproc2.DataRecord) -> dict[ValueCompareResult, int]:
+    def _compare_records(self, record_a: ocproc2.BaseRecord, record_b: ocproc2.BaseRecord) -> dict[ValueCompareResult, int]:
         results = {}
         self._update_results(results, self._compare_vmaps(record_a.coordinates, record_b.coordinates, missing_is_compatible=False))
         self._update_results(results, self._compare_vmaps(record_a.parameters, record_b.parameters))
@@ -322,11 +322,11 @@ class NODBDuplicateCheck(BaseTestSuite):
         for idx in range(0, min_count):
             self._update_results(results, self._compare_records(rs_a.records[idx], rs_b.records[idx]))
         if a_count > b_count:
-            blank_rec = ocproc2.DataRecord()
+            blank_rec = ocproc2.baseRecord()
             for i in range(min_count, a_count):
                 self._update_results(results, self._compare_records(rs_a.records[i], blank_rec))
         elif b_count > a_count:
-            blank_rec = ocproc2.DataRecord()
+            blank_rec = ocproc2.BaseRecord()
             for i in range(min_count, b_count):
                 self._update_results(results, self._compare_records(blank_rec, rs_b.records[i]))
         return results
@@ -350,7 +350,7 @@ class NODBDuplicateCheck(BaseTestSuite):
         max_score += (max_count - min_count)
         return score / max_score
 
-    def _compare_record_coordinates(self, record_a: ocproc2.DataRecord, record_b: ocproc2.DataRecord) -> ValueCompareResult:
+    def _compare_record_coordinates(self, record_a: ocproc2.BaseRecord, record_b: ocproc2.BaseRecord) -> ValueCompareResult:
         return self._distill_compare_results(self._compare_vmaps(
             record_a.coordinates,
             record_b.coordinates,
@@ -392,7 +392,7 @@ class NODBDuplicateCheck(BaseTestSuite):
         if key not in vmap_b:
             return ValueCompareResult.A_BETTER if missing_is_compatible else ValueCompareResult.CONFLICT
         # Fast check for the most common use case (a single value, not using MultiValue)
-        if not (isinstance(vmap_a[key], ocproc2.MultiValue) or isinstance(vmap_b[key], ocproc2.MultiValue)):
+        if not (isinstance(vmap_a[key], ocproc2.MultiElement) or isinstance(vmap_b[key], ocproc2.MultiElement)):
             return self._compare_value_elements(vmap_a[key], vmap_b[key])
         # One or more is using multivalue, we will do a more complete check to try and pair
         # the values in a way that makes sense (i.e. has the best match for any given pair)
@@ -460,7 +460,7 @@ class NODBDuplicateCheck(BaseTestSuite):
                 del original_results[idx_a]
                 check_list.remove(match)
 
-    def _compare_value_elements(self, val_a: ocproc2.Value, val_b: ocproc2.Value) -> ValueCompareResult:
+    def _compare_value_elements(self, val_a: ocproc2.AbstractElement, val_b: ocproc2.AbstractElement) -> ValueCompareResult:
         is_numeric = False
         # Exactly the same value
         if val_a == val_b:

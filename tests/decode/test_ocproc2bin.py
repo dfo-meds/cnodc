@@ -1,14 +1,14 @@
 import json
 import unittest as ut
 import pathlib
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.codecs.ocproc2bin import OCProc2BinCodec
 import datetime
 
 class TestOCProc2BinaryFormat(ut.TestCase):
 
     def test_basic_encode_decode(self):
-        record = ocproc2.DataRecord()
+        record = ocproc2.ParentRecord()
         record.metadata['TInt'] = 1
         record.metadata['TFloat'] = 1.1
         record.metadata['TString'] = 'hello'

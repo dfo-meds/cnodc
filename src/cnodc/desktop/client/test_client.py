@@ -5,7 +5,7 @@ import typing as t
 import random
 from requests import HTTPError
 
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.codecs import OCProc2YamlCodec
 from cnodc.ocproc2.operations import QCOperator
 
@@ -49,7 +49,7 @@ class TestClient:
             raise Exception('Password too short')
         return {'success': True}
 
-    def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
+    def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
         if endpoint.startswith('download/') and method == 'GET':
             return self._download_station_failure(endpoint[9:], **kwargs)
         raise Exception('invalid test request')
@@ -141,7 +141,7 @@ class TestClient:
             }
         }
 
-    def _download_station_failure(self, filename: str, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
+    def _download_station_failure(self, filename: str, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
         if app_id != '67890':
             raise Exception('invalid app id')
         file_path = pathlib.Path(__file__).absolute().parent / 'ocproc2_examples' / f'{filename}.yaml'

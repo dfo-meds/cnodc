@@ -1,5 +1,5 @@
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest, RecordTest
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.ocean_math.seawater import eos80_freezing_point_t90
 import cnodc.ocean_math.ocproc2int as oom
 
@@ -10,7 +10,7 @@ class GTSPPFreezingPointTest(BaseTestSuite):
         super().__init__('gtspp_freezing', '1_0', test_tags=['GTSPP_2.6'], **kwargs)
 
     @RecordTest(subrecord_type='PROFILE')
-    def freezing_point_test(self, record: ocproc2.DataRecord, context: TestContext):
+    def freezing_point_test(self, record: ocproc2.ChildRecord, context: TestContext):
         self.precheck_value_in_map(record.parameters, 'PracticalSalinity')
         self.precheck_value_in_map(record.parameters, 'Temperature')
         psal = self.value_in_units(record.parameters.get('PracticalSalinity'), '0.001')
@@ -27,7 +27,7 @@ class GTSPPFreezingPointTest(BaseTestSuite):
         with context.parameter_context('Temperature') as ctx2:
             self.test_all_subvalues(ctx2, self._test_freezing_point, fp=freezing_point)
 
-    def _test_freezing_point(self, v: ocproc2.Value, ctx: TestContext, fp: float):
+    def _test_freezing_point(self, v: ocproc2.AbstractElement, ctx: TestContext, fp: float):
         self.precheck_value(v)
         temp = oom.get_temperature(
             temperature=v,

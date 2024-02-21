@@ -4,7 +4,7 @@ import shapely
 import zrlog
 from uncertainties import UFloat
 
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import typing as t
 import yaml
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, ReferenceRange
@@ -87,7 +87,7 @@ class GTSPPParameterRangeTest(BaseTestSuite):
         self._ref = ParameterReferences(pathlib.Path(config_file) if not isinstance(config_file, pathlib.Path) else config_file, self.converter)
 
     @RecordTest()
-    def test_parameter_ranges(self, record: ocproc2.DataRecord, context: TestContext):
+    def test_parameter_ranges(self, record: ocproc2.BaseRecord, context: TestContext):
         self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
         self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
         references, regions = self._ref.build_parameter_references(
@@ -99,6 +99,6 @@ class GTSPPParameterRangeTest(BaseTestSuite):
         self.record_note(f"Parameter regions identified as [{';'.join(regions)}]", context, False)
         self._test_against_reference_and_loop(record, context, references)
 
-    def _test_against_reference_and_loop(self, record, context: TestContext, references: dict):
+    def _test_against_reference_and_loop(self, record: ocproc2.BaseRecord, context: TestContext, references: dict):
         self.test_all_references_in_record(context, references, 'outside_parameter_ranges', 13)
         self.test_all_subrecords_without_coordinates(context, self._test_against_reference_and_loop, references=references)

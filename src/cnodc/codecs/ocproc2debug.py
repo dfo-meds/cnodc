@@ -8,8 +8,7 @@ from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, Enc
 import typing as t
 
 from ..util import HaltInterrupt, CNODCError
-from cnodc.ocproc2 import DataRecord
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 
 
 class OCProc2DebugCodec(BaseCodec):
@@ -20,11 +19,11 @@ class OCProc2DebugCodec(BaseCodec):
         super().__init__(*args, log_name="cnodc.codecs.debug", is_encoder=True, is_decoder=False, **kwargs)
 
     def _encode(self,
-                record: DataRecord,
+                record: ocproc2.ParentRecord,
                 **kwargs) -> t.Iterable[bytes]:
         yield self._record_to_text(record).encode('utf-8')
 
-    def _record_to_text(self, record: DataRecord):
+    def _record_to_text(self, record: ocproc2.ParentRecord):
         s = '--START RECORD--\n'
         if record.metadata:
             s += '\n  METADATA\n'
@@ -180,13 +179,13 @@ class OCProc2DebugCodec(BaseCodec):
                 c_sizes[x] = len(h)
         return c_headers, c_display, c_sizes, c_common
 
-    def _encode_element(self, name: str, v: ocproc2.AbstractValue, prefix='    ', ignore_parameters: t.Optional[list] = None, skip_name: bool = False):
+    def _encode_element(self, name: str, v: ocproc2.AbstractElement, prefix='    ', ignore_parameters: t.Optional[list] = None, skip_name: bool = False):
         if ignore_parameters is None:
             ignore_parameters = []
         s = f'{prefix}'
         if not skip_name:
             s += f'{name} = '
-        if isinstance(v, ocproc2.MultiValue):
+        if isinstance(v, ocproc2.MultiElement):
             s += '['
             s += '; '.join(self._encode_element(name, v2, prefix='', ignore_parameters=ignore_parameters, skip_name=True) for v2 in v.all_values())
             s += ']'

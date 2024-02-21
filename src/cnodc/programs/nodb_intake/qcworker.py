@@ -11,7 +11,7 @@ from cnodc.process.queue_worker import QueueItemResult
 from cnodc.qc.base import BaseTestSuite, QCTestRunner
 from cnodc.util import dynamic_object, CNODCError
 from cnodc.workflow.workflow import BatchPayload, WorkflowPayload, SourceFilePayload
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 
 
 class BatchOutcome(enum.Enum):
@@ -124,7 +124,7 @@ class NODBQCWorker(PayloadWorker):
 
     def _update_working_record(self,
                                working_record: structures.NODBWorkingRecord,
-                               data_record: ocproc2.DataRecord):
+                               data_record: ocproc2.ParentRecord):
         if data_record.metadata.has_value('CNODCStation'):
             working_record.station_uuid = data_record.metadata.best_value('CNODCStation')
         if data_record.coordinates.has_value('Time'):
@@ -163,7 +163,7 @@ class BaseResultBatcher:
             return BatchOutcome.REVIEW_QUEUE
         return BatchOutcome.NEXT_QUEUE
 
-    def _generate_unique_group(self, record: ocproc2.DataRecord) -> t.Optional[str]:
+    def _generate_unique_group(self, record: ocproc2.ParentRecord) -> t.Optional[str]:
         if record.metadata.has_value('CNODCStation'):
             return record.metadata.best_value('CNODCStation')
         if record.metadata.has_value('CNODCStationCandidates'):
@@ -172,7 +172,7 @@ class BaseResultBatcher:
             return record.metadata.best_value('CNODCStationString')
         return None
 
-    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.DataRecord, outcome: ocproc2.QCResult):
+    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
         raise NotImplementedError
 
     def flush_all(self):
@@ -185,7 +185,7 @@ class SimpleResultBatcher(BaseResultBatcher):
         super().__init__(**kwargs, remove_original_batch=False)
         self._batch_ids = {}
 
-    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.DataRecord, outcome: ocproc2.QCResult):
+    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
         if working.qc_batch_id is None:
             raise ValueError('missing batch id')
         batch_outcome = self._determine_batch_outcome(outcome)
@@ -211,7 +211,7 @@ class StationResultBatcher(BaseResultBatcher):
         self._result_batches = {}
         self._current_total = 0
 
-    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.DataRecord, outcome: ocproc2.QCResult):
+    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
         group_key = self._generate_unique_group(record)
         target_queue = self._determine_batch_outcome(outcome)
         batch_key = self._generate_batch_key(group_key)

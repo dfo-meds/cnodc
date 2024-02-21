@@ -1,13 +1,5 @@
-import itertools
-import pathlib
-import typing as t
-
-import yaml
-from uncertainties import UFloat
-from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext, RecordSetTest
-import cnodc.ocproc2.structures as ocproc2
-from cnodc.units import UnitConverter
-from cnodc.ocean_math.seawater import eos80_pressure, eos80_freezing_point_t90, eos80_density_at_depth_t90
+from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
+import cnodc.ocproc2 as ocproc2
 
 
 class GTSPPIncreasingProfileTest(BaseTestSuite):
@@ -23,13 +15,13 @@ class GTSPPIncreasingProfileTest(BaseTestSuite):
         }
         self.test_all_records_in_recordset(ctx, self._increasing_depth_test, data_map=data_map)
 
-    def _increasing_depth_test(self, record: ocproc2.DataRecord, ctx: TestContext, data_map: dict):
+    def _increasing_depth_test(self, record: ocproc2.ChildRecord, ctx: TestContext, data_map: dict):
         with ctx.coordinate_context('Depth'):
             self._check_depth(record, data_map)
         with ctx.coordinate_context('Pressure'):
             self._check_pressure(record, data_map)
 
-    def _check_depth(self, record: ocproc2.DataRecord, data_map: dict):
+    def _check_depth(self, record: ocproc2.ChildRecord, data_map: dict):
         self.precheck_value_in_map(record.coordinates, 'Depth')
         value = record.coordinates['Depth']
         if data_map['last_depth'][1] is None:
@@ -41,7 +33,7 @@ class GTSPPIncreasingProfileTest(BaseTestSuite):
         finally:
             data_map['last_depth'][0] = current_depth
 
-    def _check_pressure(self, record: ocproc2.DataRecord, data_map: dict):
+    def _check_pressure(self, record: ocproc2.ChildRecord, data_map: dict):
         self.precheck_value_in_map(record.coordinates, 'Pressure')
         value = record.coordinates['Pressure']
         if data_map['last_pressure'][1] is None:

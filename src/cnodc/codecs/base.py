@@ -3,7 +3,7 @@ import typing as t
 
 import zrlog
 
-from cnodc.ocproc2 import DataRecord
+from cnodc.ocproc2 import ParentRecord
 import os
 
 from cnodc.util import CNODCError, vlq_decode
@@ -253,12 +253,12 @@ class Writable(t.Protocol):
 class DecodeResult:
 
     def __init__(self,
-                 records: t.Optional[list[DataRecord]] = None,
+                 records: t.Optional[list[ParentRecord]] = None,
                  exc: t.Optional[Exception] = None,
                  message_idx: int = 0,
                  original: t.Union[bytes, bytearray, None] = None,
                  skipped: bool = False):
-        self.records: t.Optional[list[DataRecord]] = records
+        self.records: t.Optional[list[ParentRecord]] = records
         self.success = exc is None and records is not None
         self.from_exception: t.Optional[Exception] = exc
         self.message_idx: int = message_idx
@@ -271,10 +271,10 @@ class EncodeResult:
     def __init__(self,
                  data_stream: t.Optional[ByteIterable] = None,
                  exc: t.Optional[Exception] = None,
-                 original: t.Optional[DataRecord] = None):
+                 original: t.Optional[ParentRecord] = None):
         self.data_stream: t.Optional[ByteIterable] = data_stream
         self.from_exception: t.Optional[Exception] = exc
-        self.original: t.Optional[DataRecord] = original
+        self.original: t.Optional[ParentRecord] = original
         self.success: bool = self.from_exception is None and self.data_stream is not None
 
 
@@ -297,7 +297,7 @@ class BaseCodec:
 
     def dump(self,
              output_file: t.Union[Writable, str, os.PathLike],
-             record_set: t.Iterable[DataRecord],
+             record_set: t.Iterable[ParentRecord],
              **kwargs):
         if hasattr(output_file, 'write'):
             self._write_in_chunks(output_file, self.encode_records(record_set, **kwargs))
@@ -308,7 +308,7 @@ class BaseCodec:
     def load_all(self,
                  file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
                  chunk_size: int = 16384,
-                 **kwargs) -> t.Iterable[DataRecord]:
+                 **kwargs) -> t.Iterable[ParentRecord]:
         if hasattr(file, 'read'):
             yield from self.decode_messages(self._read_in_chunks(file, chunk_size), **kwargs)
         elif isinstance(file, (bytes, bytearray)):
@@ -324,7 +324,7 @@ class BaseCodec:
         yield b
 
     def encode_records(self,
-                       data: t.Iterable[DataRecord],
+                       data: t.Iterable[ParentRecord],
                        **kwargs) -> ByteIterable:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
         on_first = True
@@ -347,7 +347,7 @@ class BaseCodec:
         yield b''
 
     def _encode_record(self,
-                       record: DataRecord,
+                       record: ParentRecord,
                        **kwargs) -> EncodeResult:
         try:
             return EncodeResult(
@@ -361,7 +361,7 @@ class BaseCodec:
             )
 
     def _encode(self,
-                record: DataRecord,
+                record: ParentRecord,
                 **kwargs) -> t.Iterable[bytes]:
         raise NotImplementedError()
 
@@ -376,7 +376,7 @@ class BaseCodec:
 
     def decode_messages(self,
                         data: ByteIterable,
-                        **kwargs) -> t.Iterable[DataRecord]:
+                        **kwargs) -> t.Iterable[ParentRecord]:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
         for result in HaltFlag.iterate(self.decode_to_results(data, **kwargs), self._halt_flag, True):
             if result.success:
@@ -418,13 +418,13 @@ class BaseCodec:
             chunk = file_handle.read(chunk_size)
 
     @staticmethod
-    def map_to_record(record_map: dict) -> DataRecord:
-        dr = DataRecord()
+    def map_to_record(record_map: dict) -> ParentRecord:
+        dr = ParentRecord()
         dr.from_mapping(BaseCodec.uncompress_record_map(record_map))
         return dr
 
     @staticmethod
-    def record_to_map(record: DataRecord) -> dict:
+    def record_to_map(record: ParentRecord) -> dict:
         return BaseCodec.compress_record_map(record.to_mapping())
 
     @staticmethod

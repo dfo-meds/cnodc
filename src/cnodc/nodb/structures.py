@@ -11,7 +11,7 @@ import zrlog
 from autoinject import injector
 
 from cnodc.codecs.ocproc2bin import OCProc2BinCodec
-from cnodc.ocproc2 import DataRecord
+import cnodc.ocproc2 as ocproc2
 from cnodc.storage import StorageController
 from cnodc.storage.base import StorageTier
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
@@ -816,7 +816,7 @@ class NODBObservationData(_NODBBaseObject):
             }, *args, **kwargs)
 
     @property
-    def record(self) -> t.Optional[DataRecord]:
+    def record(self) -> t.Optional[ocproc2.ParentRecord]:
         if self.data_record is None:
             return None
         if not self.in_cache('loaded_record') is None:
@@ -829,7 +829,7 @@ class NODBObservationData(_NODBBaseObject):
         return self.get_cached('loaded_record')
 
     @record.setter
-    def record(self, data_record: DataRecord):
+    def record(self, data_record: ocproc2.ParentRecord):
         self.set_cached('loaded_record', data_record)
         if data_record is None:
             self.data_record = None
@@ -969,7 +969,7 @@ class NODBWorkingRecord(_NODBBaseObject):
             }, *args, **kwargs)
 
     @property
-    def record(self) -> t.Optional[DataRecord]:
+    def record(self) -> t.Optional[ocproc2.ParentRecord]:
         if self.data_record is None:
             return None
         if not self.in_cache('loaded_record') is None:
@@ -982,7 +982,7 @@ class NODBWorkingRecord(_NODBBaseObject):
         return self.get_cached('loaded_record')
 
     @record.setter
-    def record(self, data_record: DataRecord):
+    def record(self, data_record: ocproc2.ParentRecord):
         self.set_cached('loaded_record', data_record)
         self._update_from_data_record(data_record)
         if data_record is None:
@@ -1000,7 +1000,7 @@ class NODBWorkingRecord(_NODBBaseObject):
             self.data_record = ba
             self.mark_modified('data_record')
 
-    def _update_from_data_record(self, data_record: DataRecord):
+    def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
         if data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
             self.obs_time = data_record.coordinates['Time'].to_datetime()
         if data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():

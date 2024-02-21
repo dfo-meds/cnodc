@@ -1,6 +1,6 @@
 import typing as t
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import cnodc.ocean_math.umath_wrapper as umath
 import cnodc.ocean_math.ocproc2int as oom
 

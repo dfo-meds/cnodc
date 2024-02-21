@@ -6,7 +6,7 @@ from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, Enc
 import typing as t
 
 from ..util import HaltInterrupt, CNODCError
-from cnodc.ocproc2 import DataRecord
+import cnodc.ocproc2 as ocproc2
 
 
 class OCProc2YamlCodec(BaseCodec):
@@ -22,7 +22,7 @@ class OCProc2YamlCodec(BaseCodec):
         yield b'%YAML 1.1\n'
 
     def _encode(self,
-                record: DataRecord,
+                record: ocproc2.ParentRecord,
                 **kwargs) -> EncodeResult:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
         yield '---\n'.encode(encoding)

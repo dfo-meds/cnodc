@@ -5,7 +5,7 @@ import tkinter
 from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, BatchOpenState
 import tkintermapview as tkmv
 import typing as t
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 from autoinject import injector
 from cnodc.desktop.client.local_db import LocalDatabase

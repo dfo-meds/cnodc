@@ -7,7 +7,7 @@ from autoinject import injector
 import typing as t
 from cnodc.desktop.gui.scrollable import ScrollableTreeview
 import cnodc.desktop.translations as i18n
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.desktop.util import StopAction
 from cnodc.ocproc2.operations import QCOperator
 import tkinter.messagebox as tkmb
@@ -110,7 +110,7 @@ class RecordListPane(BasePane):
             return f"{sr.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
         return f'{sr.record_uuid}'
 
-    def _build_subrecord_list(self, record: ocproc2.DataRecord, parent_text: str = '', depth: int = 0):
+    def _build_subrecord_list(self, record: ocproc2.BaseRecord, parent_text: str = '', depth: int = 0):
         for srt in record.subrecords:
             srt_text = f'{parent_text}/subrecords/{srt}' if parent_text else f'subrecords/{srt}'
             for rs_idx in record.subrecords[srt]:
@@ -130,7 +130,7 @@ class RecordListPane(BasePane):
             name = einfo.label(i18n.current_language())
         return f'{(" " * (depth * 2))}{name}#{record_set_idx}'
 
-    def _build_record_display(self, record: ocproc2.DataRecord, srt: str, idx: int, depth: int):
+    def _build_record_display(self, record: ocproc2.BaseRecord, srt: str, idx: int, depth: int):
         display = i18n.get_text(f"record_label", index=str(idx))
         einfo = self.ontology.recordset_info(srt)
         if einfo and einfo.coordinates:

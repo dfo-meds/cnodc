@@ -1,15 +1,10 @@
 import contextlib
 import datetime
-import enum
-import functools
-import itertools
-import math
-import sys
 import typing as t
 
 import zrlog
 
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.nodb import NODBController, NODBControllerInstance
 from cnodc.ocean_math.seawater import eos80_pressure
 from cnodc.units import UnitConverter
@@ -58,18 +53,18 @@ class ReferenceRange:
 class TestContext:
 
     def __init__(self,
-                 record: ocproc2.DataRecord,
+                 record: ocproc2.ParentRecord,
                  batch_context: dict,
                  working_record: structures.NODBWorkingRecord = None):
         self.batch_context: dict = batch_context
         self.qc_messages: list[ocproc2.QCMessage] = []
-        self.top_record: ocproc2.DataRecord = record
-        self.current_record: ocproc2.DataRecord = record
+        self.top_record: ocproc2.ParentRecord = record
+        self.current_record: ocproc2.BaseRecord = record
         self.current_subrecord_type: t.Optional[str] = None
         self.current_path: list[str] = []
         self.current_recordset: t.Optional[ocproc2.RecordSet] = None
-        self.current_value: t.Optional[ocproc2.AbstractValue] = None
-        self.other_current_value: t.Optional[ocproc2.AbstractValue] = None
+        self.current_value: t.Optional[ocproc2.AbstractElement] = None
+        self.other_current_value: t.Optional[ocproc2.AbstractElement] = None
         self.result = ocproc2.QCResult.PASS
         self.working_record = working_record
         self.test_tags = set()
@@ -402,7 +397,7 @@ class _ValueTest(_TestWrapper):
         self.skip_bad = skip_bad
         self.skip_dubious = skip_dubious
 
-    def execute_on_value(self, obj, value: ocproc2.Value, ctx: TestContext):
+    def execute_on_value(self, obj, value: ocproc2.SingleElement, ctx: TestContext):
         current_qc_quality = value.metadata.best_value('WorkingQuality', 0)
         if self.skip_empty and (value.is_empty() or current_qc_quality == 9):
             return
@@ -523,9 +518,9 @@ class BaseTestSuite:
         return []
 
     def calculate_pressure_in_dbar(self,
-                                   pressure_val: t.Optional[ocproc2.Value],
-                                   depth_val: t.Optional[ocproc2.Value],
-                                   latitude_val: t.Optional[ocproc2.Value]) -> t.Optional[umath.FLOAT]:
+                                   pressure_val: t.Optional[ocproc2.SingleElement],
+                                   depth_val: t.Optional[ocproc2.SingleElement],
+                                   latitude_val: t.Optional[ocproc2.SingleElement]) -> t.Optional[umath.FLOAT]:
         if pressure_val is not None:
             pressure_dbar = self.value_in_units(pressure_val, 'dbar')
             if pressure_dbar is not None:
@@ -602,7 +597,7 @@ class BaseTestSuite:
         return self.precheck_value(value_map.get(key), raise_ex=raise_ex, **kwargs)
 
     def precheck_value(self,
-                       value: ocproc2.AbstractValue,
+                       value: ocproc2.AbstractElement,
                        /,
                        raise_ex: bool = True,
                        allow_dubious: bool = False,
@@ -611,7 +606,7 @@ class BaseTestSuite:
             if raise_ex:
                 raise QCSkipTest()
             return False
-        if isinstance(value, ocproc2.MultiValue):
+        if isinstance(value, ocproc2.MultiElement):
             result = any(self.precheck_value(v) for v in value.values())
             if raise_ex and not result:
                 raise QCSkipTest()
@@ -626,23 +621,23 @@ class BaseTestSuite:
         if not v:
             self.report_for_review(error_code, qc_flag, ref_value)
 
-    def assert_not_empty(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 19):
+    def assert_not_empty(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 19):
         if value.is_empty():
             self.report_for_review(error_code, qc_flag)
 
-    def assert_empty(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_empty(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
         if not value.is_empty():
             self.report_for_review(error_code, qc_flag)
 
-    def assert_not_multi(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 20):
-        if isinstance(value, ocproc2.MultiValue):
+    def assert_not_multi(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 20):
+        if isinstance(value, ocproc2.MultiElement):
             self.report_for_review(error_code, qc_flag)
 
-    def assert_iso_datetime(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_iso_datetime(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
         if not value.is_iso_datetime():
             self.report_for_review(error_code, qc_flag)
 
-    def assert_numeric(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_numeric(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
         if not value.is_numeric():
             self.report_for_review(error_code, qc_flag)
 
@@ -661,11 +656,11 @@ class BaseTestSuite:
                     qc_flag=qc_flag
                 )
 
-    def _ref_check_with_context(self, value: ocproc2.Value, context, ref, error_code, qc_flag):
+    def _ref_check_with_context(self, value: ocproc2.SingleElement, context, ref, error_code, qc_flag):
         self.precheck_value(value)
         self.assert_in_reference_range(value, ref, error_code, qc_flag)
 
-    def assert_in_reference_range(self, value: ocproc2.AbstractValue, ref: ReferenceRange, error_code: str, qc_flag: t.Optional[int] = 13):
+    def assert_in_reference_range(self, value: ocproc2.AbstractElement, ref: ReferenceRange, error_code: str, qc_flag: t.Optional[int] = 13):
         self.precheck_value(value)
         raw_value = self.value_in_units(value, ref.units, **ref.value_kwargs)
         if ref.maximum is not None:
@@ -673,7 +668,7 @@ class BaseTestSuite:
         if ref.minimum is not None:
             self.assert_greater_than(error_code, raw_value, ref.minimum, qc_flag=qc_flag)
 
-    def assert_integer(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_integer(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
         if not value.is_integer():
             self.report_for_review(error_code, qc_flag)
 
@@ -681,26 +676,26 @@ class BaseTestSuite:
         if value not in items:
             self.report_for_review(error_code, qc_flag, ref_value=items)
 
-    def assert_string_like(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_string_like(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
         if isinstance(value.value, (dict, list, tuple, set)):
             self.report_for_review(error_code, qc_flag)
 
-    def assert_list_like(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_list_like(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
         if not isinstance(value.value, (list, tuple, set)):
             self.report_for_review(error_code, qc_flag)
 
-    def assert_between(self, value: ocproc2.AbstractValue, error_code: str, qc_flag: t.Optional[int] = 14, min_val=None, max_val=None):
+    def assert_between(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14, min_val=None, max_val=None):
         if not value.in_range(min_value=min_val, max_value=max_val):
             self.report_for_review(error_code, qc_flag)
 
-    def assert_in_past(self, value: ocproc2.Value, error_code: str, qc_flag: t.Optional[int] = 14):
+    def assert_in_past(self, value: ocproc2.SingleElement, error_code: str, qc_flag: t.Optional[int] = 14):
         now = datetime.datetime.now(datetime.timezone.utc)
         dt_value = datetime.datetime.fromisoformat(value.value)
         if dt_value > now:
             self.report_for_review(error_code, qc_flag)
 
     def assert_compatible_units(self,
-                                v: ocproc2.AbstractValue,
+                                v: ocproc2.AbstractElement,
                                 compatible_units: str,
                                 error_code: str,
                                 qc_flag: t.Optional[int] = 21,
@@ -718,7 +713,7 @@ class BaseTestSuite:
         if not self.converter.is_valid_unit(unit_str):
             self.report_for_review(error_code, qc_flag)
 
-    def assert_has_coordinate(self, record: ocproc2.DataRecord, coordinate_name: str, error_code: str, qc_flag: t.Optional[int] = 19):
+    def assert_has_coordinate(self, record: ocproc2.BaseRecord, coordinate_name: str, error_code: str, qc_flag: t.Optional[int] = 19):
         if coordinate_name not in record.coordinates or record.coordinates[coordinate_name].is_empty():
             self.report_for_review(error_code, qc_flag)
 
@@ -836,8 +831,8 @@ class BaseTestSuite:
             with ctx.self_context() as ctx:
                 cb(subrecord, ctx, *args, **kwargs)
 
-    def iterate_on_subvalues(self, context: TestContext) -> t.Iterable[ocproc2.Value, TestContext]:
-        if isinstance(context.current_value, ocproc2.MultiValue):
+    def iterate_on_subvalues(self, context: TestContext) -> t.Iterable[ocproc2.SingleElement, TestContext]:
+        if isinstance(context.current_value, ocproc2.MultiElement):
             for idx, subv in enumerate(context.current_value.values()):
                 with context.multivalue_context(idx) as ctx:
                     yield subv, ctx
@@ -851,7 +846,7 @@ class BaseTestSuite:
                 with context.subrecordset_context(srt, srs_idx) as ctx:
                     yield context.current_record.subrecords[srt][srs_idx], ctx
 
-    def iterate_on_subrecords(self, context: TestContext) -> t.Iterable[tuple[ocproc2.DataRecord, TestContext]]:
+    def iterate_on_subrecords(self, context: TestContext) -> t.Iterable[tuple[ocproc2.ChildRecord, TestContext]]:
         for srt in context.current_record.subrecords:
             for srs_idx in context.current_record.subrecords[srt]:
                 for sr_idx, sr in enumerate(context.current_record.subrecords[srt][srs_idx].records):
@@ -859,7 +854,7 @@ class BaseTestSuite:
                         yield sr, ctx
 
     def all_values_in_units(self,
-                            value: t.Optional[ocproc2.AbstractValue],
+                            value: t.Optional[ocproc2.AbstractElement],
                             *args,
                             **kwargs) -> list[t.Union[umath.FLOAT, None]]:
         results = []
@@ -869,7 +864,7 @@ class BaseTestSuite:
         return results
 
     def value_in_units(self,
-                       value: t.Optional[ocproc2.AbstractValue],
+                       value: t.Optional[ocproc2.AbstractElement],
                        expected_units: t.Optional[str] = None,
                        temp_scale: str = None,
                        allow_dubious: bool = False) -> t.Optional[umath.FLOAT]:
@@ -897,10 +892,10 @@ class BaseTestSuite:
                 return v.value
         return None
 
-    def copy_original_quality(self, value: ocproc2.Value):
+    def copy_original_quality(self, value: ocproc2.Element):
         value.metadata['WorkingQuality'] = value.metadata.best_value('Quality', 1)
 
-    def ufloat_to_float(self, float_: umath.FLOAT) -> float:
+    def ufloat_to_float(self, float_: umath.FLOAT) -> t.Optional[float]:
         if float_ is None:
             return None
         return float_.nominal_value if isinstance(float_, umath.UFloat) else float_
@@ -931,10 +926,10 @@ class QCTestRunner:
     def test_names(self):
         return [t.test_name for t in self._qc_tests]
 
-    def process_batch(self, batch: t.Iterable[structures.NODBWorkingRecord]) -> t.Iterable[tuple[structures.NODBWorkingRecord, ocproc2.DataRecord, ocproc2.QCResult, bool]]:
+    def process_batch(self, batch: t.Iterable[structures.NODBWorkingRecord]) -> t.Iterable[tuple[structures.NODBWorkingRecord, ocproc2.ParentRecord, ocproc2.QCResult, bool]]:
         batch_context = {}
         if self._has_batch_tests:
-            working_batch: dict[str, tuple[structures.NODBWorkingRecord, ocproc2.DataRecord]] = {}
+            working_batch: dict[str, tuple[structures.NODBWorkingRecord, ocproc2.ParentRecord]] = {}
             for wr in batch:
                 record = wr.record
                 skip_result = self._check_skip_all(wr, record)
@@ -979,7 +974,7 @@ class QCTestRunner:
                     results[record_uuid][1] = True
         return results
 
-    def _check_skip_all(self, wr: structures.NODBWorkingRecord, record: ocproc2.DataRecord) -> t.Optional[tuple[ocproc2.QCResult, bool]]:
+    def _check_skip_all(self, wr: structures.NODBWorkingRecord, record: ocproc2.ParentRecord) -> t.Optional[tuple[ocproc2.QCResult, bool]]:
         return None
 
     def set_db_instance(self, db: NODBControllerInstance):

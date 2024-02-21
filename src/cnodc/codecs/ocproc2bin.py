@@ -1,5 +1,5 @@
 import typing as t
-from cnodc.ocproc2 import DataRecord
+import cnodc.ocproc2 as ocproc2
 from .base import BaseCodec, ByteIterable, ByteSequenceReader
 from ..util import CNODCError, vlq_encode, vlq_decode
 
@@ -20,7 +20,7 @@ class OCProc2BinCodec(BaseCodec):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.bin", is_encoder=True, is_decoder=True, **kwargs)
 
-    def encode_records(self, data: t.Iterable[DataRecord], **kwargs) -> ByteIterable:
+    def encode_records(self, data: t.Iterable[ocproc2.ParentRecord], **kwargs) -> ByteIterable:
         bin_args, ds_args = self._separate_kwargs(kwargs)
         codec = self._get_codec(bin_args['codec'])
         wrappers = self._get_wrappers(bin_args['compression'], bin_args['correction'])
@@ -41,7 +41,7 @@ class OCProc2BinCodec(BaseCodec):
 
     def decode_messages(self,
                         data: ByteIterable,
-                        **kwargs) -> t.Iterable[DataRecord]:
+                        **kwargs) -> t.Iterable[ocproc2.ParentRecord]:
         stream = ByteSequenceReader(data)
         leading_bytes = stream.consume(2)
         if not len(leading_bytes) == 2:

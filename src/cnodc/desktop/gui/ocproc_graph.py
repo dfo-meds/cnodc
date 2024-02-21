@@ -15,7 +15,7 @@ from cnodc.ocean_math.geodesy import uhaversine
 
 if t.TYPE_CHECKING:
     from cnodc.desktop.main_app import CNODCQCApp
-    import cnodc.ocproc2.structures as ocproc2
+    import cnodc.ocproc2 as ocproc2
 
 
 TICK_INTERVALS = [
@@ -423,7 +423,7 @@ class OCProc2Graph(ttk.Frame):
             graph_options.update(self._record_graph_options(self.app.app_state.record))
         return graph_options
 
-    def _record_graph_options(self, record: ocproc2.DataRecord) -> dict[str, str]:
+    def _record_graph_options(self, record: ocproc2.BaseRecord) -> dict[str, str]:
         options = {}
         for srt in record.subrecords:
             for rs_idx in record.subrecords[srt]:

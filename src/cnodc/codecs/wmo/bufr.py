@@ -11,14 +11,12 @@ import math
 import yaml
 from pybufrkit.tables import TableGroupCacheManager, TableGroupKey
 from pybufrkit.renderer import NestedTextRenderer
-from cnodc.ocproc2 import DataRecord, RecordSet
+import cnodc.ocproc2 as ocproc2
 import pathlib
 from pybufrkit.decoder import Decoder
 from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
     ValueDataNode, NoValueDataNode
 from autoinject import injector
-
-from cnodc.ocproc2.structures import AbstractValue, Value, MultiValue
 from cnodc.util import CNODCError
 
 
@@ -113,7 +111,8 @@ class _Bufr4DecoderContext:
     def __init__(self, subset_no=None):
         self.subset = subset_no
         self.hierarchy = []
-        self.target: t.Optional[DataRecord] = None
+        self.top: t.Optional[ocproc2.ParentRecord] = None
+        self.target: t.Optional[ocproc2.BaseRecord] = None
         self.parent_target = None
         self.var_metadata = {}
         self.record_metadata = {}
@@ -122,7 +121,7 @@ class _Bufr4DecoderContext:
         self.skip = None
         self.child_record_type = None
         self.scale_factor = None
-        self.target_subset: t.Optional[RecordSet] = None
+        self.target_subset: t.Optional[ocproc2.RecordSet] = None
 
     def copy(self):
         new = _Bufr4DecoderContext(self.subset)
@@ -186,7 +185,7 @@ class _Bufr4Decoder:
                             header=self.header,
                             hierarchy='>'.join(str(x) for x in ctx.hierarchy) if ctx else ''
         ))
-        ctx.target.report_error(message, 'bufr_decode', '1_0', '')
+        ctx.top.report_error(message, 'bufr_decode', '1_0', '')
 
     def warn(self, message, ctx: _Bufr4DecoderContext = None):
         self.log.warning("{txt} [{hierarchy}] [{header}]".format(
@@ -194,9 +193,9 @@ class _Bufr4Decoder:
                             header=self.header,
                             hierarchy='>'.join(str(x) for x in ctx.hierarchy) if ctx else ''
         ))
-        ctx.target.report_warning(message, 'bufr_decode', '1_0', '')
+        ctx.top.report_warning(message, 'bufr_decode', '1_0', '')
 
-    def convert_to_records(self) -> t.Iterable[DataRecord]:
+    def convert_to_records(self) -> t.Iterable[ocproc2.ParentRecord]:
         pieces = self.header.split(' ')
         if len(pieces) > 3 and pieces[3][0] in ('C', 'A', 'P'):
             raise CNODCError("BUFR decoder not configured to properly handle CCx AAx or Pxx messages", "BUFR_DECODE", 1000)
@@ -283,9 +282,10 @@ class _Bufr4Decoder:
             current_idx = best_idx + 1
         return gaps
 
-    def _convert_subset_to_record(self, subset_number, common_metadata: dict) -> DataRecord:
+    def _convert_subset_to_record(self, subset_number, common_metadata: dict) -> ocproc2.ParentRecord:
         ctx = _Bufr4DecoderContext(subset_number)
-        ctx.target = DataRecord()
+        ctx.target = ocproc2.ParentRecord()
+        ctx.top = ctx.target
         ctx.target.metadata.update(common_metadata)
         ctx.target.metadata['BUFRSubsetIndex'] = subset_number
         ctx.hierarchy = []
@@ -398,7 +398,7 @@ class _Bufr4Decoder:
     def _start_new_record(self, ctx: _Bufr4DecoderContext):
         if ctx.target is not None:
             self._close_subrecord(ctx)
-        ctx.target = DataRecord()
+        ctx.target = ocproc2.ChildRecord()
 
     def _close_subrecord(self, ctx: _Bufr4DecoderContext):
         if ctx.record_metadata:
@@ -437,8 +437,8 @@ class _Bufr4Decoder:
     def _apply_instruction(self, instruction, value, ctx, node=None):
         if 'value' in instruction:
             value = instruction['value']
-        if not isinstance(value, Value):
-            value = Value(value)
+        if not isinstance(value, ocproc2.AbstractElement):
+            value = ocproc2.SingleElement(value)
         instruction = self._clean_instruction(instruction, ctx)
         if instruction is None:
             return
@@ -489,8 +489,8 @@ class _Bufr4Decoder:
                 self._iterate_on_nodes(node.members, ctx)
 
     def _set_record_property(self, property_type, property_map, property_name, value, ctx, instruction, set_var_metadata: bool = False):
-        if not isinstance(value, Value):
-            value = Value(value)
+        if not isinstance(value, ocproc2.AbstractElement):
+            value = ocproc2.SingleElement(value)
         if value.value is None:
             return
         if set_var_metadata and ctx.var_metadata:
@@ -501,14 +501,14 @@ class _Bufr4Decoder:
             value.metadata.update(instruction['metadata'])
         if property_name in property_map:
             current_val = property_map[property_name]
-            if isinstance(current_val, MultiValue):
+            if isinstance(current_val, ocproc2.MultiElement):
                 current_val.append(value)
             elif current_val.value is None:
                 property_map[property_name] = value
             elif current_val == value:
                 pass
             else:
-                new_val = MultiValue()
+                new_val = ocproc2.MultiElement()
                 new_val.append(current_val)
                 new_val.append(value)
                 property_map[property_name] = new_val
@@ -525,16 +525,16 @@ class _Bufr4Decoder:
         self._set_record_property("variable", ctx.target.parameters, property_name, value, ctx, instruction, True)
 
     def _add_future_variable_metadata(self, property_name, value, ctx, instruction):
-        if not isinstance(value, Value):
-            value = Value(value)
+        if not isinstance(value, ocproc2.AbstractElement):
+            value = ocproc2.SingleElement(value)
         if value.value is not None:
             ctx.var_metadata[property_name] = (value, instruction['filter'] if 'filter' in instruction else None)
         elif property_name in ctx.var_metadata:
             del ctx.var_metadata[property_name]
 
     def _add_future_subrecord_metadata(self, property_name, value, ctx, instruction):
-        if not isinstance(value, Value):
-            value = Value(value)
+        if not isinstance(value, ocproc2.AbstractElement):
+            value = ocproc2.SingleElement(value)
         if value.value is not None:
             ctx.record_metadata[property_name] = (value, instruction['filter'] if 'filter' in instruction else None)
         elif property_name in ctx.record_metadata:
@@ -560,7 +560,7 @@ class _Bufr4Decoder:
                 metadata['Units'] = units
         if hasattr(node.descriptor, 'scale') and units is not None:
             metadata['Uncertainty'] = math.pow(10, (-1 * node.descriptor.scale)) / 2
-        return Value(value, metadata=metadata)
+        return ocproc2.SingleElement(value, metadata=metadata)
 
     def _parse_node_301011(self, node, ctx: _Bufr4DecoderContext):
         self._apply_instruction({
@@ -856,7 +856,7 @@ class _Bufr4Decoder:
         if nxt and nxt.descriptor.id == node.descriptor.id:
             val = [val, self._get_timedelta_value(nxt, ctx)]
             ctx.skip += 1
-        val = Value(val)
+        val = ocproc2.SingleElement(val)
         if ctx.child_record_type == "TSERIES" and "Time" not in ctx.target.coordinates:
             if "TimeOffset" in ctx.target.coordinates and val.value != ctx.target.coordinates["TimeOffset"].value:
                 self._start_new_record(ctx)

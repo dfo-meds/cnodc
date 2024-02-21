@@ -5,13 +5,13 @@ import typing as t
 import enum
 
 from cnodc.ocproc2.operations import QCOperator
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import cnodc.desktop.translations as i18n
 
 
 if t.TYPE_CHECKING:
     from cnodc.desktop.main_app import CNODCQCApp
-    import cnodc.ocproc2.structures as ocproc2
+    import cnodc.ocproc2 as ocproc2
 
 
 class QCBatchCloseOperation(enum.Enum):
@@ -96,10 +96,10 @@ class ApplicationState:
         self.batch_close_op: t.Optional[QCBatchCloseOperation] = None
         self.batch_load_after_close = None
         self.batch_test_names: t.Optional[list[str]] = None
-        self.record: t.Optional[ocproc2.DataRecord] = None
+        self.record: t.Optional[ocproc2.ParentRecord] = None
         self.record_uuid: t.Optional[str] = None
         self.subrecord_path: t.Optional[str] = None
-        self.child_record: t.Optional[ocproc2.DataRecord] = None
+        self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
         self.actions: t.Optional[list[QCOperator]] = None
         self.save_in_progress: bool = False
@@ -233,7 +233,7 @@ class ApplicationState:
             self.has_unsaved_changes = has_unsaved_changes
         self.refresh_display(DisplayChange.OP_ONGOING)
 
-    def set_record_info(self, record_uuid: str, record: ocproc2.DataRecord, subrecord_path: t.Optional[str], actions):
+    def set_record_info(self, record_uuid: str, record: ocproc2.ParentRecord, subrecord_path: t.Optional[str], actions):
         self.record = record
         self.record_uuid = record_uuid
         self.actions = actions
@@ -263,7 +263,7 @@ class ApplicationState:
     def _set_child_item(self):
         if self.record_uuid is not None and self.subrecord_path is not None:
             child = self.record.find_child(self.subrecord_path)
-            if isinstance(child, ocproc2.DataRecord):
+            if isinstance(child, ocproc2.ChildRecord):
                 self.child_record = child
                 self.child_recordset = None
             elif isinstance(child, ocproc2.RecordSet):

@@ -5,7 +5,7 @@ import tkinter as tk
 import datetime
 import tkinter.ttk as ttk
 import cnodc.desktop.translations as i18n
-from cnodc.ocproc2.structures import MessageType
+from cnodc.ocproc2 import MessageType
 
 
 class HistoryPane(BasePane):

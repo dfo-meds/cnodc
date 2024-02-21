@@ -1,10 +1,10 @@
 import datetime
-from cnodc.ocproc2 import DataRecord
+from cnodc.ocproc2 import ParentRecord
 import cnodc.nodb.structures as structures
 import typing as t
 from cnodc.nodb import NODBControllerInstance
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 
 
 class NODBStationCheck(BaseTestSuite):
@@ -19,12 +19,12 @@ class NODBStationCheck(BaseTestSuite):
         )
 
     @RecordTest(top_only=True)
-    def test_top_record(self, record: ocproc2.DataRecord, context: TestContext):
+    def test_top_record(self, record: ocproc2.ParentRecord, context: TestContext):
         # Skip station check if WorkingQuality=9
         if 'CNODCStation' in context.current_record.metadata:
             if context.current_record.metadata['CNODCStation'].best_value('WorkingQuality', 0) == 9:
                 return
-        station_options = self._find_station_matches(context.current_record)
+        station_options = self._find_station_matches(context.top_record)
         if not station_options:
             if context.current_record.metadata.has_value('CNODCStation'):
                 context.report_for_review('station_bad_uuid')
@@ -32,7 +32,7 @@ class NODBStationCheck(BaseTestSuite):
                     del context.current_record.metadata['CNOCDStationString']
                 if 'CNODCStationCandidates' in context.current_record.metadata:
                     del context.current_record.metadata['CNODCStationCandidates']
-            elif self._has_station_id_candidate(context.current_record):
+            elif self._has_station_id_candidate(context.top_record):
                 context.report_for_review('station_no_record')
                 if 'CNODCStationCandidates' in context.current_record.metadata:
                     del context.current_record.metadata['CNODCStationCandidates']
@@ -67,10 +67,10 @@ class NODBStationCheck(BaseTestSuite):
             station_ids.sort()
             context.current_record.metadata['CNODCStationCandidates'] = station_ids
 
-    def _has_station_id_candidate(self, record: DataRecord) -> bool:
+    def _has_station_id_candidate(self, record: ParentRecord) -> bool:
         return any(record.metadata.has_value(x) for x in ('WMOID', 'StationName', 'WIGOSID', 'StationID'))
 
-    def _find_station_matches(self, record: DataRecord) -> t.Optional[list[structures.NODBStation]]:
+    def _find_station_matches(self, record: ParentRecord) -> t.Optional[list[structures.NODBStation]]:
         with self.nodb as db:
             if record.metadata.has_value('CNODCStation'):
                 station = structures.NODBStation.find_by_uuid(db, record.metadata.best_value('CNODCStation'))

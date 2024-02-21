@@ -2,7 +2,7 @@ import datetime
 import math
 
 from cnodc.ocean_math.geodesy import uhaversine
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import typing as t
 from uncertainties import ufloat
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, QCSkipTest, QCAssertionError, BatchTest
@@ -20,7 +20,7 @@ class GTSPPSpeedTest(BaseTestSuite):
         )
 
     @RecordTest(top_only=True)
-    def test_inter_record_speed(self, record: ocproc2.DataRecord, context: TestContext):
+    def test_inter_record_speed(self, record: ocproc2.ParentRecord, context: TestContext):
         self.precheck_value_in_map(record.metadata, 'CNODCStation', allow_dubious=False)
         self.precheck_value_in_map(record.coordinates, 'Time', allow_dubious=False)
         self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=False)

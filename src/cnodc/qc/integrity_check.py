@@ -1,6 +1,4 @@
-from cnodc import ocproc2
-from cnodc.ocproc2.structures import AbstractValue, MultiValue
-from cnodc.ocproc2.validation import OCProc2Ontology
+import cnodc.ocproc2 as ocproc2
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, MetadataTest, QCAssertionError, QCSkipTest
 from autoinject import injector
 import typing as t
@@ -8,7 +6,7 @@ import typing as t
 
 class NODBIntegrityCheck(BaseTestSuite):
 
-    ontology: OCProc2Ontology = None
+    ontology: ocproc2.OCProc2Ontology = None
 
     @injector.construct
     def __init__(self, strict_mode: bool = False, **kwargs):
@@ -21,7 +19,7 @@ class NODBIntegrityCheck(BaseTestSuite):
         self._strict = strict_mode
 
     @MetadataTest('Units')
-    def units_check(self, value: AbstractValue, context: TestContext):
+    def units_check(self, value: ocproc2.AbstractElement, context: TestContext):
         for v, v_ctx in self.iterate_on_subvalues(context):
             with v_ctx.self_context() as ctx:
                 if v.is_empty():
@@ -74,7 +72,7 @@ class NODBIntegrityCheck(BaseTestSuite):
             if self._strict:
                 self.assert_true(self.ontology.is_defined_recordset_type(record_type), 'ontology_invalid_recordset_type')
 
-    def _verify_element(self, context: TestContext, element_group: str, element_name: str, element_value: AbstractValue):
+    def _verify_element(self, context: TestContext, element_group: str, element_name: str, element_value: ocproc2.AbstractElement):
         # Check if the element is a defined parameter type in the scheme
         if not self.ontology.is_defined_parameter(element_name):
             if self._strict:

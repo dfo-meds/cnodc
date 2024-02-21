@@ -1,13 +1,13 @@
 import datetime
 import unittest as ut
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import typing as t
 
 
 class TestOCProc2ValueMap(ut.TestCase):
 
     def test_metadata_setting(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         self.assertFalse('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata.has_value('TestValue'))
         dr.metadata['TestValue'] = 'one'
@@ -15,14 +15,14 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue(dr.metadata.has_value('TestValue'))
         by_getitem = dr.metadata['TestValue']
         by_get = dr.metadata.get('TestValue')
-        self.assertIsInstance(by_getitem, ocproc2.Value)
-        self.assertIsInstance(by_get, ocproc2.Value)
+        self.assertIsInstance(by_getitem, ocproc2.SingleElement)
+        self.assertIsInstance(by_get, ocproc2.SingleElement)
         self.assertEqual(by_get, by_getitem)
         self.assertEqual(by_get.value, 'one')
         self.assertEqual(by_get.best_value(), 'one')
 
     def test_parameter_setting(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         self.assertFalse('TestValue' in dr.parameters)
         self.assertFalse(dr.parameters.has_value('TestValue'))
         dr.parameters['TestValue'] = 'one'
@@ -30,14 +30,14 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue(dr.parameters.has_value('TestValue'))
         by_getitem = dr.parameters['TestValue']
         by_get = dr.parameters.get('TestValue')
-        self.assertIsInstance(by_getitem, ocproc2.Value)
-        self.assertIsInstance(by_get, ocproc2.Value)
+        self.assertIsInstance(by_getitem, ocproc2.SingleElement)
+        self.assertIsInstance(by_get, ocproc2.SingleElement)
         self.assertEqual(by_get, by_getitem)
         self.assertEqual(by_get.value, 'one')
         self.assertEqual(by_get.best_value(), 'one')
 
     def test_coordinate_setting(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         self.assertFalse('TestValue' in dr.coordinates)
         self.assertFalse(dr.coordinates.has_value('TestValue'))
         dr.coordinates['TestValue'] = 'one'
@@ -45,16 +45,16 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue(dr.coordinates.has_value('TestValue'))
         by_getitem = dr.coordinates['TestValue']
         by_get = dr.coordinates.get('TestValue')
-        self.assertIsInstance(by_getitem, ocproc2.Value)
-        self.assertIsInstance(by_get, ocproc2.Value)
+        self.assertIsInstance(by_getitem, ocproc2.SingleElement)
+        self.assertIsInstance(by_get, ocproc2.SingleElement)
         self.assertEqual(by_get, by_getitem)
         self.assertEqual(by_get.value, 'one')
         self.assertEqual(by_get.best_value(), 'one')
 
     def test_set_string(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         self.assertFalse('TestValue' in dr.metadata)
-        dr.metadata['TestValue'] = ocproc2.Value('test')
+        dr.metadata['TestValue'] = ocproc2.SingleElement('test')
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
@@ -62,7 +62,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, 'test')
 
     def test_set_datetime(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = datetime.datetime(2024, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
@@ -71,7 +71,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, '2024-01-01T00:00:00+00:00')
 
     def test_set_date(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = datetime.date(2024, 1, 1)
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
@@ -80,7 +80,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, '2024-01-01')
 
     def test_set_float(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = 12.3
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
@@ -89,7 +89,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, 12.3)
 
     def test_set_integer(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = 123
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
@@ -98,7 +98,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, 123)
 
     def test_set_string_int(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = '123'
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
@@ -107,7 +107,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, '123')
 
     def test_set_bool(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = True
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
@@ -116,7 +116,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, True)
 
     def test_set_null(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = None
         self.assertTrue('TestValue' in dr.metadata)
         self.assertTrue(dr.metadata['TestValue'].is_empty())
@@ -125,7 +125,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertIsNone(dr.metadata['TestValue'].value)
 
     def test_set_empty_str(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['TestValue'] = ''
         self.assertTrue('TestValue' in dr.metadata)
         self.assertTrue(dr.metadata['TestValue'].is_empty())
@@ -134,8 +134,8 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].value, '')
 
     def test_set_multi_value(self):
-        dr = ocproc2.DataRecord()
-        dr.metadata['TestValue'] = ocproc2.MultiValue([5, 6, 7])
+        dr = ocproc2.ParentRecord()
+        dr.metadata['TestValue'] = ocproc2.MultiElement([5, 6, 7])
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertTrue(dr.metadata['TestValue'].is_numeric())
@@ -144,8 +144,8 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
 
     def test_set_multi_value_combo(self):
-        dr = ocproc2.DataRecord()
-        dr.metadata['TestValue'] = ocproc2.MultiValue(['', 5, '6', 7, ''])
+        dr = ocproc2.ParentRecord()
+        dr.metadata['TestValue'] = ocproc2.MultiElement(['', 5, '6', 7, ''])
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_numeric())
@@ -154,8 +154,8 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
 
     def test_set_multi_numeric(self):
-        dr = ocproc2.DataRecord()
-        dr.metadata['TestValue'] = ocproc2.MultiValue(['', 5, 6, 7, 8])
+        dr = ocproc2.ParentRecord()
+        dr.metadata['TestValue'] = ocproc2.MultiElement(['', 5, 6, 7, 8])
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertTrue(dr.metadata['TestValue'].is_numeric())
@@ -163,8 +163,8 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
 
     def test_set_multi_date(self):
-        dr = ocproc2.DataRecord()
-        dr.metadata['TestValue'] = ocproc2.MultiValue([
+        dr = ocproc2.ParentRecord()
+        dr.metadata['TestValue'] = ocproc2.MultiElement([
             '',
             datetime.datetime(2023, 1, 1, 0, 0, 0),
             datetime.datetime(2024, 1, 1, 0, 0, 0),
@@ -178,8 +178,8 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue'].best_value(), '2023-01-01T00:00:00')
 
     def test_set_multi_empty(self):
-        dr = ocproc2.DataRecord()
-        dr.metadata['TestValue'] = ocproc2.MultiValue(['', '', None, '', None])
+        dr = ocproc2.ParentRecord()
+        dr.metadata['TestValue'] = ocproc2.MultiElement(['', '', None, '', None])
         self.assertTrue('TestValue' in dr.metadata)
         self.assertTrue(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_numeric())
@@ -187,14 +187,14 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertIsNone(dr.metadata['TestValue'].best_value())
 
     def test_value_metadata(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata.set('TestValue', 5, {'Units': 'm s-1'})
         self.assertTrue('TestValue' in dr.metadata)
         self.assertTrue('Units' in dr.metadata['TestValue'].metadata)
         self.assertEqual(dr.metadata['TestValue'].metadata['Units'].value, 'm s-1')
 
     def test_update_value_map(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata.update({
             'TestValue': 5,
             'TestValue2': 10
@@ -205,7 +205,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertEqual(dr.metadata['TestValue2'].value, 10)
 
     def test_set_multiple(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata.set_multiple(
             'TestValue',
             values=['', 5, 6],
@@ -214,7 +214,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         )
         self.assertTrue('TestValue' in dr.metadata)
         values = ['', 5, 6]
-        self.assertIsInstance(dr.metadata['TestValue'], ocproc2.MultiValue)
+        self.assertIsInstance(dr.metadata['TestValue'], ocproc2.MultiElement)
         for i in range(0, len(values)):
             with self.subTest(index=i, value=values[i]):
                 self.assertIn('Units', dr.metadata['TestValue'][i].metadata)
@@ -261,7 +261,7 @@ class TestOCProc2ImportExport(ut.TestCase):
             self.assertEqual(actual, ref)
 
     def test_full_to_mapping(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.metadata['M1'] = 'abc'
         dr.metadata['M2'] = datetime.datetime(2023, 1, 1, 1, 2, 3)
         dr.metadata['M3'] = datetime.date(2023, 12, 31)
@@ -271,10 +271,10 @@ class TestOCProc2ImportExport(ut.TestCase):
         dr.metadata['M7'] = 123.34
         dr.metadata['M8'] = True
         dr.metadata['M9'] = False
-        dr.coordinates['C1'] = ocproc2.Value(123.45, Units="degree")
-        dr.coordinates['C2'] = ocproc2.Value(12.34, Units="degree")
-        dr.parameters['P1'] = ocproc2.Value(12.34, Units='0.001', Uncertainty=0.01)
-        dr.parameters['P2'] = ocproc2.Value(5, Units='m s-1', Uncertainty=0.1, SensorHeight=ocproc2.Value(1, Units='m'))
+        dr.coordinates['C1'] = ocproc2.SingleElement(123.45, Units="degree")
+        dr.coordinates['C2'] = ocproc2.SingleElement(12.34, Units="degree")
+        dr.parameters['P1'] = ocproc2.SingleElement(12.34, Units='0.001', Uncertainty=0.01)
+        dr.parameters['P2'] = ocproc2.SingleElement(5, Units='m s-1', Uncertainty=0.1, SensorHeight=ocproc2.SingleElement(1, Units='m'))
         dr.history.append(ocproc2.HistoryEntry(
             'hello world',
             '2023-01-01T00:00:00+00:00',
@@ -304,8 +304,8 @@ class TestOCProc2ImportExport(ut.TestCase):
         ))
         profile1 = dr.subrecords.new_recordset('PROFILE')
         for i in range(0, 5):
-            sr = ocproc2.DataRecord()
-            sr.coordinates['C3'] = ocproc2.Value(10 + (i * 10), Units="m", Uncertainty=5)
+            sr = ocproc2.ParentRecord()
+            sr.coordinates['C3'] = ocproc2.SingleElement(10 + (i * 10), Units="m", Uncertainty=5)
             profile1.records.append(sr)
         map_ = dr.to_mapping()
         self.assertIsInstance(map_, dict)
@@ -457,7 +457,7 @@ class TestOCProc2ImportExport(ut.TestCase):
         })
 
     def test_load_from_map(self):
-        dr = ocproc2.DataRecord()
+        dr = ocproc2.ParentRecord()
         dr.from_mapping({
             '_parameters': {
                 'P1': {
@@ -605,40 +605,40 @@ class TestOCProc2ImportExport(ut.TestCase):
             ]
         })
         self.assertIn('M1', dr.metadata)
-        self.assertEqual(dr.metadata['M1'], ocproc2.Value('abc'))
+        self.assertEqual(dr.metadata['M1'], ocproc2.SingleElement('abc'))
         self.assertIn('M2', dr.metadata)
-        self.assertEqual(dr.metadata['M2'], ocproc2.Value(datetime.datetime(2023, 1, 1, 1, 2, 3)))
+        self.assertEqual(dr.metadata['M2'], ocproc2.SingleElement(datetime.datetime(2023, 1, 1, 1, 2, 3)))
         self.assertIn('M3', dr.metadata)
-        self.assertEqual(dr.metadata['M3'], ocproc2.Value(datetime.date(2023, 12, 31)))
+        self.assertEqual(dr.metadata['M3'], ocproc2.SingleElement(datetime.date(2023, 12, 31)))
         self.assertIn('M4', dr.metadata)
-        self.assertEqual(dr.metadata['M4'], ocproc2.Value(123))
+        self.assertEqual(dr.metadata['M4'], ocproc2.SingleElement(123))
         self.assertIn('M5', dr.metadata)
-        self.assertEqual(dr.metadata['M5'], ocproc2.Value(''))
+        self.assertEqual(dr.metadata['M5'], ocproc2.SingleElement(''))
         self.assertIn('M6', dr.metadata)
-        self.assertEqual(dr.metadata['M6'], ocproc2.Value(None))
+        self.assertEqual(dr.metadata['M6'], ocproc2.SingleElement(None))
         self.assertIn('M7', dr.metadata)
-        self.assertEqual(dr.metadata['M7'], ocproc2.Value(123.34))
+        self.assertEqual(dr.metadata['M7'], ocproc2.SingleElement(123.34))
         self.assertIn('M8', dr.metadata)
-        self.assertEqual(dr.metadata['M8'], ocproc2.Value(True))
+        self.assertEqual(dr.metadata['M8'], ocproc2.SingleElement(True))
         self.assertIn('M9', dr.metadata)
-        self.assertEqual(dr.metadata['M9'], ocproc2.Value(False))
+        self.assertEqual(dr.metadata['M9'], ocproc2.SingleElement(False))
         self.assertIn('C1', dr.coordinates)
-        self.assertEqual(dr.coordinates['C1'], ocproc2.Value(123.45, Units="degree"))
-        self.assertNotEqual(dr.coordinates['C1'], ocproc2.Value(123.45))
+        self.assertEqual(dr.coordinates['C1'], ocproc2.SingleElement(123.45, Units="degree"))
+        self.assertNotEqual(dr.coordinates['C1'], ocproc2.SingleElement(123.45))
         self.assertIn('C2', dr.coordinates)
-        self.assertEqual(dr.coordinates['C2'], ocproc2.Value(12.34, Units="degree"))
+        self.assertEqual(dr.coordinates['C2'], ocproc2.SingleElement(12.34, Units="degree"))
         self.assertIn('P1', dr.parameters)
-        self.assertEqual(dr.parameters['P1'], ocproc2.Value(12.34, Units="0.001", Uncertainty=0.01))
+        self.assertEqual(dr.parameters['P1'], ocproc2.SingleElement(12.34, Units="0.001", Uncertainty=0.01))
         self.assertIn('P2', dr.parameters)
-        self.assertEqual(dr.parameters['P2'], ocproc2.Value(5, Units='m s-1', Uncertainty=0.1, SensorHeight=ocproc2.Value(1, Units='m')))
-        self.assertNotEqual(dr.parameters['P2'], ocproc2.Value(5, Units='m s-1', Uncertainty=0.1, SensorHeight=1))
+        self.assertEqual(dr.parameters['P2'], ocproc2.SingleElement(5, Units='m s-1', Uncertainty=0.1, SensorHeight=ocproc2.SingleElement(1, Units='m')))
+        self.assertNotEqual(dr.parameters['P2'], ocproc2.SingleElement(5, Units='m s-1', Uncertainty=0.1, SensorHeight=1))
         self.assertIn('PROFILE', dr.subrecords)
         self.assertIn(0, dr.subrecords['PROFILE'])
         self.assertEqual(5, len(dr.subrecords['PROFILE'][0].records))
         for idx, record in enumerate(dr.subrecords['PROFILE'][0].records):
             with self.subTest(subrecord_index=idx):
                 self.assertIn('C3', record.coordinates)
-                self.assertEqual(record.coordinates['C3'], ocproc2.Value(10 + (10 * idx), Units="m", Uncertainty=5))
+                self.assertEqual(record.coordinates['C3'], ocproc2.SingleElement(10 + (10 * idx), Units="m", Uncertainty=5))
         self.assertEqual(2, len(dr.history))
         # TODO: check history in more depth
         self.assertEqual(1, len(dr.qc_tests))

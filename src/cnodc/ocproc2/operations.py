@@ -1,6 +1,6 @@
 import datetime
 import typing as t
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 
 
 class QCOperator:
@@ -36,12 +36,12 @@ class QCOperator:
     def _extend_map(self, map_):
         pass
 
-    def apply(self, record: ocproc2.DataRecord, working_record):
+    def apply(self, record: ocproc2.ParentRecord, working_record):
         self._apply(record, working_record)
         for child in self._children:
             child.apply(record, working_record)
 
-    def _apply(self, record: ocproc2.DataRecord, working_record):
+    def _apply(self, record: ocproc2.ParentRecord, working_record):
         pass
 
     @staticmethod
@@ -101,7 +101,7 @@ class QCAddHistory(QCOperator):
             'change_time': self._datetime.isoformat()
         })
 
-    def apply(self, record: ocproc2.DataRecord, working_record):
+    def apply(self, record: ocproc2.ParentRecord, working_record):
         record.add_history_entry(
             message=self._message,
             source_name=self._name,
@@ -153,12 +153,13 @@ class QCSetValue(QCOperator):
     def _get_path(self):
         return self._value_path.split('/')
 
-    def apply(self, record: ocproc2.DataRecord, working_record):
+    def apply(self, record: ocproc2.ParentRecord, working_record):
         path = self._get_path()
-        v: ocproc2.Value = record.find_child(path)
-        if isinstance(v, ocproc2.Value):
+        v: ocproc2.AbstractElement = record.find_child(path)
+        if isinstance(v, ocproc2.SingleElement):
             v.value = self._new_value
             return
+        # TODO: multi-element?
         parent = record.find_child(path[:-1])
         if isinstance(parent, ocproc2.ElementMap):
             parent[path[-1]] = self._new_value

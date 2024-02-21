@@ -1,6 +1,6 @@
 import datetime
 
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import typing as t
 import cnodc.ocean_math.umath_wrapper as umath
 import cnodc.ocean_math.seawater as seawater_sub
@@ -23,9 +23,9 @@ except ModuleNotFoundError:
     seawater = None
 
 
-def get_temperature(temperature: t.Optional[ocproc2.Value],
+def get_temperature(temperature: t.Optional[ocproc2.SingleElement],
                     units: str,
-                    obs_date: t.Optional[ocproc2.Value] = None,
+                    obs_date: t.Optional[ocproc2.SingleElement] = None,
                     temperature_scale: str = "ITS-90"):
     if temperature is None or temperature.is_empty():
         return None
@@ -45,8 +45,8 @@ def get_temperature(temperature: t.Optional[ocproc2.Value],
     return convert_temperature_scale(temp_val, c_temp_scale, temperature_scale)
 
 
-def calc_freezing_point_record(level_record: ocproc2.DataRecord,
-                               position_record: t.Optional[ocproc2.DataRecord] = None,
+def calc_freezing_point_record(level_record: ocproc2.BaseRecord,
+                               position_record: t.Optional[ocproc2.BaseRecord] = None,
                                units: t.Optional[str] = None,
                                temperature_scale: t.Optional[str] = None) -> VAL_QC_UNITS:
     return calc_freezing_point(
@@ -61,12 +61,12 @@ def calc_freezing_point_record(level_record: ocproc2.DataRecord,
     )
 
 
-def calc_freezing_point(pressure: t.Optional[ocproc2.Value] = None,
-                        depth: t.Optional[ocproc2.Value] = None,
-                        latitude: t.Optional[ocproc2.Value] = None,
-                        longitude: t.Optional[ocproc2.Value] = None,
-                        practical_salinity: t.Optional[ocproc2.Value] = None,
-                        absolute_salinity: t.Optional[ocproc2.Value] = None,
+def calc_freezing_point(pressure: t.Optional[ocproc2.SingleElement] = None,
+                        depth: t.Optional[ocproc2.SingleElement] = None,
+                        latitude: t.Optional[ocproc2.SingleElement] = None,
+                        longitude: t.Optional[ocproc2.SingleElement] = None,
+                        practical_salinity: t.Optional[ocproc2.SingleElement] = None,
+                        absolute_salinity: t.Optional[ocproc2.SingleElement] = None,
                         units: t.Optional[str] = None,
                         temperature_scale: t.Optional[str] = None) -> VAL_QC_UNITS:
     p_val, p_qual, _ = calc_pressure(pressure, depth, latitude)
@@ -100,8 +100,8 @@ def calc_freezing_point(pressure: t.Optional[ocproc2.Value] = None,
     return None, 9, None
 
 
-def calc_pressure_record(level_record: ocproc2.DataRecord,
-                         position_record: t.Optional[ocproc2.DataRecord],
+def calc_pressure_record(level_record: ocproc2.BaseRecord,
+                         position_record: t.Optional[ocproc2.BaseRecord],
                          units: t.Optional[str] = None) -> VAL_QC_UNITS:
     return calc_pressure(
         pressure=level_record.coordinates.get('Pressure'),
@@ -111,9 +111,9 @@ def calc_pressure_record(level_record: ocproc2.DataRecord,
     )
 
 
-def calc_pressure(pressure: t.Optional[ocproc2.Value] = None,
-             depth: t.Optional[ocproc2.Value] = None,
-             latitude: t.Optional[ocproc2.Value] = None,
+def calc_pressure(pressure: t.Optional[ocproc2.SingleElement] = None,
+             depth: t.Optional[ocproc2.SingleElement] = None,
+             latitude: t.Optional[ocproc2.SingleElement] = None,
              units: t.Optional[str] = None) -> VAL_QC_UNITS:
     if pressure is not None and not pressure.is_empty():
         return (
@@ -132,8 +132,8 @@ def calc_pressure(pressure: t.Optional[ocproc2.Value] = None,
     return None, 9, None
 
 
-def calc_density_record(level_record: ocproc2.DataRecord,
-                        position_record: t.Optional[ocproc2.DataRecord] = None,
+def calc_density_record(level_record: ocproc2.BaseRecord,
+                        position_record: t.Optional[ocproc2.BaseRecord] = None,
                         units: t.Optional[str] = None) -> VAL_QC_UNITS:
     return calc_density(
         temperature=level_record.parameters.get('Temperature'),
@@ -147,13 +147,13 @@ def calc_density_record(level_record: ocproc2.DataRecord,
     )
 
 
-def calc_density(temperature: ocproc2.Value,
-                 pressure: t.Optional[ocproc2.Value] = None,
-                 depth: t.Optional[ocproc2.Value] = None,
-                 absolute_salinity: t.Optional[ocproc2.Value] = None,
-                 practical_salinity: t.Optional[ocproc2.Value] = None,
-                 latitude: t.Optional[ocproc2.Value] = None,
-                 longitude: t.Optional[ocproc2.Value] = None,
+def calc_density(temperature: ocproc2.SingleElement,
+                 pressure: t.Optional[ocproc2.SingleElement] = None,
+                 depth: t.Optional[ocproc2.SingleElement] = None,
+                 absolute_salinity: t.Optional[ocproc2.SingleElement] = None,
+                 practical_salinity: t.Optional[ocproc2.SingleElement] = None,
+                 latitude: t.Optional[ocproc2.SingleElement] = None,
+                 longitude: t.Optional[ocproc2.SingleElement] = None,
                  units: t.Optional[str] = None) -> VAL_QC_UNITS:
     p, p_q, _ = calc_pressure(pressure, depth, latitude, 'dbar')
     t90 = get_temperature(temperature, '°C', temperature_scale='ITS-90')
@@ -331,15 +331,3 @@ def _to_float(f: umath.FLOAT):
         return f.nominal_value
     else:
         return f
-
-
-
-
-
-
-
-
-
-
-
-

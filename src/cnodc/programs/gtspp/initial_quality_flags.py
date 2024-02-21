@@ -1,5 +1,5 @@
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 
 
 class GTSPPInitialQualityFlagsCheck(BaseTestSuite):
@@ -13,7 +13,7 @@ class GTSPPInitialQualityFlagsCheck(BaseTestSuite):
         use_qc = station.get_metadata('keep_external_qc', False) if station is not None else False
         self.set_all_quality_flags(record, context, use_qc=use_qc)
 
-    def set_all_quality_flags(self, record: ocproc2.DataRecord, context: TestContext, **kwargs):
+    def set_all_quality_flags(self, record: ocproc2.BaseRecord, context: TestContext, **kwargs):
         for key in record.parameters:
             with context.parameter_context(key) as ctx2:
                 self.test_all_subvalues(ctx2, self._set_flags_on_element, **kwargs)
@@ -25,7 +25,7 @@ class GTSPPInitialQualityFlagsCheck(BaseTestSuite):
                 self.test_all_subvalues(ctx2, self._set_flags_on_element, **kwargs)
         self.test_all_subrecords(context, self.set_all_quality_flags, **kwargs)
 
-    def _set_flags_on_element(self, v: ocproc2.Value, context: TestContext, use_qc: bool):
+    def _set_flags_on_element(self, v: ocproc2.AbstractElement, context: TestContext, use_qc: bool):
         if use_qc:
             qual = v.metadata.best_value('Quality', None)
             if qual is not None and int(qual) > 0:

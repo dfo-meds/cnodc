@@ -69,7 +69,11 @@ class BaseRecord:
         self.subrecords.update_hash(h)
 
 
-class DataRecord(BaseRecord):
+class ChildRecord(BaseRecord):
+    pass
+
+
+class ParentRecord(BaseRecord):
 
     def __init__(self):
         super().__init__()
@@ -196,7 +200,7 @@ class RecordSet:
 
     def __init__(self):
         self.metadata = ElementMap()
-        self.records: list[BaseRecord] = []
+        self.records: list[ChildRecord] = []
 
     def update_hash(self, h):
         self.metadata.update_hash(h)
@@ -219,7 +223,7 @@ class RecordSet:
             map_ = map_['records']
         self.records = []
         for r in map_:
-            record = DataRecord()
+            record = ChildRecord()
             record.from_mapping(r)
             self.records.append(record)
 
@@ -307,12 +311,9 @@ class RecordMap:
             self.record_sets[record_set_type] = {}
         self.record_sets[record_set_type][record_set_index] = record_set
 
-    def append_record_set(self, record_set_type: str, record_set_index: int, record: DataRecord):
+    def append_to_record_set(self, record_set_type: str, record_set_index: int, record: ChildRecord):
         if record_set_type not in self.record_sets:
             self.record_sets[record_set_type] = {}
         if record_set_index not in self.record_sets[record_set_type]:
             self.record_sets[record_set_type][record_set_index] = RecordSet()
         self.record_sets[record_set_type][record_set_index].records.append(record)
-
-
-

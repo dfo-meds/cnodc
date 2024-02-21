@@ -3,7 +3,7 @@ import json
 from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, EncodeResult
 import typing as t
 
-from cnodc.ocproc2 import DataRecord
+import cnodc.ocproc2 as ocproc2
 from ..util import CNODCError
 
 
@@ -19,7 +19,7 @@ class OCProc2JsonCodec(BaseCodec):
         yield b'['
 
     def _encode(self,
-                record: DataRecord,
+                record: ocproc2.ParentRecord,
                 **kwargs) -> t.Iterable[bytes]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
         yield json.dumps(BaseCodec.record_to_map(record)).encode(encoding)

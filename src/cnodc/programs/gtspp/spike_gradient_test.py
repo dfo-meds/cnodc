@@ -2,7 +2,7 @@ import pathlib
 import typing as t
 import yaml
 from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 import cnodc.ocean_math.umath_wrapper as umath
 
 
@@ -83,7 +83,7 @@ class GTSPPSpikeGradientTest(BaseTestSuite):
         if len(recordset.records) >= 3 and (self.run_spike_test or self.run_gradient_test):
             self._run_at_level_spike_tests(recordset, context)
 
-    def check_has_depth_coordinate(self, record: ocproc2.DataRecord, raise_ex: bool = True) -> bool:
+    def check_has_depth_coordinate(self, record: ocproc2.BaseRecord, raise_ex: bool = True) -> bool:
         if self.precheck_value_in_map(record.coordinates, 'Pressure', raise_ex=False):
             return True
         return self.precheck_value_in_map(record.coordinates, 'Depth', raise_ex=raise_ex)
@@ -216,7 +216,7 @@ class GTSPPSpikeGradientTest(BaseTestSuite):
             self.skip_test()
         return ref[target_level]
 
-    def _get_spike_test_values(self, recordset: ocproc2.RecordSet, target_level: int, parameter_name: str, *args, **kwargs) -> t.Union[float, list[float]]:
+    def _get_spike_test_values(self, recordset: ocproc2.RecordSet, target_level: int, parameter_name: str, *args, **kwargs) -> t.Union[float, list[float], None]:
         record = recordset.records[target_level]
         if parameter_name in record.coordinates:
             return self.all_values_in_units(record.coordinates[parameter_name], *args, **kwargs) or None

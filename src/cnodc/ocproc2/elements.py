@@ -144,7 +144,7 @@ class AbstractElement:
     @staticmethod
     def value_from_mapping(map_: t.Any):
         if isinstance(map_, list) or (isinstance(map_, dict) and '_value' not in map_):
-            dv = MultiElementElement()
+            dv = MultiElement()
             dv.from_mapping(map_)
             return dv
         else:
@@ -238,7 +238,7 @@ class SingleElement(AbstractElement):
     def __eq__(self, other):
         if isinstance(other, SingleElement):
             return self._value == other._value and self.metadata == other.metadata
-        elif isinstance(other, MultiElementElement):
+        elif isinstance(other, MultiElement):
             if len(other) == 1:
                 return self.__eq__(other[0])
             return False
@@ -295,7 +295,7 @@ OCProcValue = t.Union[SupportedValue, AbstractElement]
 DefaultValueDict = dict[str, OCProcValue]
 
 
-class MultiElementElement(AbstractElement):
+class MultiElement(AbstractElement):
     """Represents a set of multiple values."""
 
     def __init__(self,
@@ -318,14 +318,28 @@ class MultiElementElement(AbstractElement):
             if len(self._value) == 1:
                 return other == self._value[0]
             return False
-        elif isinstance(other, MultiElementElement):
+        elif isinstance(other, MultiElement):
             return len(other) == len(self) and all(other[x] == self[x] for x in range(0, len(self)))
         else:
             return False
 
     def ideal_single_value(self) -> t.Optional[SingleElement]:
         # TODO: do we need to handle the case where there are no values? seems unlikely
-        return self._value[0]
+        best_value, best_wq = None, 9
+        for v in self.all_values():
+            wq = v.metadata.best_value('WorkingQuality', 0)
+            if (
+                best_value is None
+                or (best_wq == 4 and wq == 9)
+                or (best_wq == 3 and wq in (4, 9))
+                or (best_wq == 2 and wq in (3, 4, 9))
+                or (best_wq == 0 and wq in (2, 3, 4, 9))
+                or (best_wq in (1, 5) and wq in (0, 2, 3, 4, 9))
+            ):
+                best_value, best_wq = v, wq
+                if best_wq in (1, 5):
+                    break
+        return best_value
 
     def is_multivalue(self) -> bool:
         return True
@@ -481,7 +495,7 @@ class ElementMap:
                 actual_values.append(values[i])
             else:
                 actual_values.append(SingleElement(values[i], value_metadata))
-        self._map[parameter_code] = MultiElementElement(actual_values)
+        self._map[parameter_code] = MultiElement(actual_values)
 
     def update(self, d: t.Optional[DefaultValueDict]):
         """Update the element map with the given elements."""

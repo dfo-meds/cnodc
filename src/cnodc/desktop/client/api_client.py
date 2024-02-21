@@ -15,7 +15,7 @@ from cnodc.ocproc2.operations import QCOperator
 from cnodc.util import clean_for_json, vlq_decode
 import zirconium as zr
 import requests
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 
 
 class RemoteAPIError(TranslatableException):
@@ -55,7 +55,7 @@ class _WebAPIClient:
             raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
         return json_body
 
-    def make_working_records_request(self, *args, **kwargs) -> t.Iterable[tuple[str, str, ocproc2.DataRecord, list[dict]]]:
+    def make_working_records_request(self, *args, **kwargs) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
         response = self._make_raw_request(*args, **kwargs)
         codec = OCProc2BinCodec()
         stream = ByteSequenceReader(response.iter_content(10240, False))
@@ -373,7 +373,7 @@ class CNODCServerAPI:
                 })
         cur.commit()
 
-    def _build_display(self, record: ocproc2.DataRecord, working_id: str):
+    def _build_display(self, record: ocproc2.ParentRecord, working_id: str):
         s = []
         if record.coordinates.has_value('Time'):
             s.append(f'T:{record.coordinates.best_value("Time")}')

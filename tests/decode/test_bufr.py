@@ -1,7 +1,7 @@
 import json
 import unittest as ut
 import pathlib
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.codecs.gts import GtsCodec
 
 
@@ -12,7 +12,7 @@ class TestBufrParsing(ut.TestCase):
         codec = GtsCodec()
         records = [x for x in codec.load_all(f)]
         self.assertEqual(len(records), 1)
-        self.assertIsInstance(records[0], ocproc2.DataRecord)
+        self.assertIsInstance(records[0], ocproc2.ParentRecord)
         r = records[0]
         self.assertEqual(r.metadata.best_value('BUFRDescriptors'), [315004])
         self.assertEqual(r.metadata.best_value('CNODCInstrumentType'), 'XBT')

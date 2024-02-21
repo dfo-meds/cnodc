@@ -2,7 +2,7 @@ from uncertainties import UFloat, ufloat
 
 from cnodc.bathymetry import BathymetryModel
 from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext
-import cnodc.ocproc2.structures as ocproc2
+import cnodc.ocproc2 as ocproc2
 from cnodc.util import dynamic_object
 
 
@@ -33,7 +33,7 @@ class GTSPPBathymetryTest(BaseTestSuite):
         self.run_bottom_test = run_bottom_test
 
     @RecordTest()
-    def check_position(self, record: ocproc2.DataRecord, context: TestContext):
+    def check_position(self, record: ocproc2.BaseRecord, context: TestContext):
         self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
         self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
         station = self.load_station(context)
@@ -61,7 +61,7 @@ class GTSPPBathymetryTest(BaseTestSuite):
                 z = ufloat(z, self._min_uncertainty * abs(z))
             self._check_for_soundings(record, context, z)
 
-    def _check_for_soundings(self, record: ocproc2.DataRecord, context, z: UFloat):
+    def _check_for_soundings(self, record: ocproc2.BaseRecord, context, z: UFloat):
         if self.run_sounding_test and 'SeaDepth' in record.parameters:
             with context.parameter_context('SeaDepth') as ctx:
                 self.test_all_subvalues(ctx, self._check_sounding, z=z)
@@ -70,10 +70,10 @@ class GTSPPBathymetryTest(BaseTestSuite):
                 self.test_all_subvalues(ctx, self._check_depth, z=z)
         self.test_all_subrecords_without_coordinates(context, self._check_for_soundings, z=z)
 
-    def _check_sounding(self, v: ocproc2.Value, ctx: TestContext, z: UFloat):
+    def _check_sounding(self, v: ocproc2.Element, ctx: TestContext, z: UFloat):
         self.precheck_value(v)
         self.assert_close_to('sounding_bathymetry_mismatch', self.value_in_units(v, 'm'), z)
 
-    def _check_depth(self, v: ocproc2.Value, ctx: TestContext, z: UFloat):
+    def _check_depth(self, v: ocproc2.Element, ctx: TestContext, z: UFloat):
         self.precheck_value(v)
         self.assert_greater_than('depth_too_deep', self.value_in_units(v), z)
