@@ -48,12 +48,8 @@ class OCProc2JsonCodec(BaseCodec):
         # Skip the initial byte, its a square bracket
         depth = 0
         buffer = bytearray()
-        last_offset = None
-        while not stream.at_eof():
-            if last_offset is not None and last_offset == stream.offset():
-                raise CNODCError(f"Stream reading error detected, infinite loop", "OCPROC2JSON", 1000)
-            last_offset = stream.offset()
-            buffer.extend(stream.consume_until([b"[", b"]", b"{", b"}"], True))
+        for chunk in stream.split_and_iterate([b"[", b"]", b"{", b"}"], True):
+            buffer.extend(chunk)
             end_c = buffer[-1]
             if end_c in (91, 123):
                 depth += 1

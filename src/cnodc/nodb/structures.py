@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 import datetime
 import enum
@@ -6,42 +7,45 @@ import hashlib
 import json
 import typing as t
 import secrets
-
 import zrlog
 from autoinject import injector
-
 from cnodc.codecs.ocproc2bin import OCProc2BinCodec
 import cnodc.ocproc2 as ocproc2
-from cnodc.storage import StorageController
-from cnodc.storage.base import StorageTier
+from cnodc.storage import StorageController, StorageTier
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
 if t.TYPE_CHECKING:
-    from cnodc.nodb import NODBControllerInstance, LockType
+    from cnodc.nodb import NODBControllerInstance, LockType, NODBController
     import cnodc.storage.core
 
 
 def parse_received_date(rdate: t.Union[str, datetime.date]) -> datetime.date:
+    """Convert a date string or date object into a date object."""
     if isinstance(rdate, str):
         try:
             return datetime.date.fromisoformat(rdate)
-        except ValueError as ex:
-            raise CNODCError(f"Invalid received date [{rdate}]", "NODB", 1000)
+        except (TypeError, ValueError) as ex:
+            raise CNODCError(f"Invalid received date [{rdate}]", "NODB", 1000) from ex
     else:
         return rdate
 
 
 class NODBValidationError(CNODCError):
-    pass
+    """Base exception for validation issues."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, code_space="NODBV", **kwargs)
 
 
 class UserStatus(enum.Enum):
+    """Status of a user in the database."""
 
     ACTIVE = 'ACTIVE'
     INACTIVE = 'INACTIVE'
 
 
 class SourceFileStatus(enum.Enum):
+    """Status of a source file in the database."""
 
     NEW = 'NEW'
     QUEUED = 'QUEUED'
@@ -51,6 +55,7 @@ class SourceFileStatus(enum.Enum):
 
 
 class ObservationStatus(enum.Enum):
+    """Status of an archived observation in the database."""
 
     UNVERIFIED = 'UNVERIFIED'
     VERIFIED = 'VERIFIED'
@@ -61,6 +66,7 @@ class ObservationStatus(enum.Enum):
 
 
 class ObservationType(enum.Enum):
+    """Type of observation (i.e. profile vs. surface vs. measurement at depth)."""
 
     SURFACE = 'SURFACE'
     AT_DEPTH = 'AT_DEPTH'
@@ -69,6 +75,7 @@ class ObservationType(enum.Enum):
 
 
 class BatchStatus(enum.Enum):
+    """Status of a batch in the database."""
 
     NEW = 'NEW'
     QUEUED = 'QUEUED'
@@ -78,19 +85,8 @@ class BatchStatus(enum.Enum):
     ERRORED = 'ERRORED'
 
 
-class ObservationWorkingStatus(enum.Enum):
-
-    NEW = 'NEW'
-    AUTO_QUEUED = 'AUTO_QUEUED'
-    AUTO_IN_PROGRESS = 'AUTO_IN_PROGRESS'
-    USER_QUEUED = 'USER_QUEUED'
-    USER_IN_PROGRESS = 'USER_IN_PROGRESS'
-    USER_CHECKED = 'USER_CHECKED'
-    QUEUE_ERROR = 'QUEUE_ERROR'
-    ERROR = 'ERROR'
-
-
 class StationStatus(enum.Enum):
+    """Status of a station in the database."""
 
     ACTIVE = 'ACTIVE'
     INCOMPLETE = 'INCOMPLETE'
@@ -98,6 +94,7 @@ class StationStatus(enum.Enum):
 
 
 class QueueStatus(enum.Enum):
+    """Status of a queue item in the database."""
 
     UNLOCKED = 'UNLOCKED'
     LOCKED = 'LOCKED'
@@ -107,6 +104,7 @@ class QueueStatus(enum.Enum):
 
 
 class ProcessingLevel(enum.Enum):
+    """Processing level of a record in the database."""
 
     RAW = 'RAW'
     ADJUSTED = 'ADJUSTED'
@@ -115,6 +113,10 @@ class ProcessingLevel(enum.Enum):
 
 
 class _NODBBaseObject:
+    """Base class for all NODB objects.
+
+        This provides a lot of tools for building database classes.
+    """
 
     def __init__(self, *, is_new: bool = True, **kwargs):
         self._data = {}
@@ -134,15 +136,6 @@ class _NODBBaseObject:
         self._allow_set_readonly = False
         self._cache = {}
 
-    def in_cache(self, key):
-        return key in self._cache
-
-    def get_cached(self, key):
-        return self._cache[key]
-
-    def set_cached(self, key, value):
-        self._cache[key] = value
-
     def __str__(self):
         s = f"{self.__class__.__name__}: "
         s += "; ".join(f"{x}={self._data[x]}" for x in self._data)
@@ -154,12 +147,29 @@ class _NODBBaseObject:
     def __getitem__(self, item):
         return self.get(item)
 
+    def __setitem__(self, item, value):
+        self.set(item, value)
+
+    def in_cache(self, key: str) -> bool:
+        """Check if the key exists in the cache."""
+        return key in self._cache
+
+    def get_cached(self, key: str):
+        """Retrieve a value from the cache."""
+        return self._cache[key]
+
+    def set_cached(self, key: str, value):
+        """Set a value in the cache."""
+        self._cache[key] = value
+
     def get(self, item, default=None):
+        """Get an item from the data dictionary."""
         if item in self._data and self._data[item] is not None:
             return self._data[item]
         return default
 
     def get_for_db(self, item, default=None):
+        """Get an item from the data dictionary for insertion into the database."""
         retval = default
         if item in self._data and self._data[item] is not None:
             retval = self._data[item]
@@ -169,10 +179,8 @@ class _NODBBaseObject:
             return json.dumps(retval)
         return retval
 
-    def __setitem__(self, item, value):
-        self.set(item, value)
-
     def set(self, value, item, coerce=None, readonly: bool = False):
+        """Set a value on the data dictionary."""
         if readonly and not self._allow_set_readonly:
             raise AttributeError(f"{item} is read-only")
         if coerce is not None and value is not None:
@@ -182,6 +190,7 @@ class _NODBBaseObject:
             self.mark_modified(item)
 
     def _value_equal(self, item, value) -> bool:
+        """Check if the value of an item is equal to the given value."""
         # No item means can't be equal
         if item not in self._data:
             return False
@@ -196,54 +205,54 @@ class _NODBBaseObject:
             return self._data[item] == value
 
     def mark_modified(self, item):
+        """Mark an item as modified"""
         self.modified_values.add(item)
 
     def clear_modified(self):
+        """Clear the set of modified values."""
         self.modified_values.clear()
 
     @classmethod
     def get_table_name(cls):
+        """Get the name of the table."""
         if hasattr(cls, 'TABLE_NAME'):
             return cls.TABLE_NAME
         return cls.__name__
 
     @classmethod
     def get_primary_keys(cls) -> t.Sequence:
+        """Get the list of primary keys."""
         if hasattr(cls, 'PRIMARY_KEYS'):
             return cls.PRIMARY_KEYS
         return tuple()
 
     @classmethod
-    def make_property(cls, item: str, coerce=None, readonly: bool = False, primary_key: bool = False):
-        if primary_key:
-            cls.register_primary_key(item)
+    def make_property(cls, item: str, coerce=None, readonly: bool = False):
+        """Create a property."""
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
             functools.partial(_NODBBaseObject.set, item=item, coerce=coerce, readonly=readonly)
         )
 
     @classmethod
-    def make_datetime_property(cls, item: str, readonly: bool = False, primary_key: bool = False):
-        if primary_key:
-            cls.register_primary_key(item)
+    def make_datetime_property(cls, item: str, readonly: bool = False):
+        """Create a datetime property"""
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
             functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_datetime, readonly=readonly)
         )
 
     @classmethod
-    def make_date_property(cls, item: str, readonly: bool = False, primary_key: bool = False):
-        if primary_key:
-            cls.register_primary_key(item)
+    def make_date_property(cls, item: str, readonly: bool = False):
+        """Create a date property."""
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
             functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_date, readonly=readonly)
         )
 
     @classmethod
-    def make_enum_property(cls, item: str, enum_cls: type, readonly: bool = False, primary_key: bool = False):
-        if primary_key:
-            cls.register_primary_key(item)
+    def make_enum_property(cls, item: str, enum_cls: type, readonly: bool = False):
+        """Create an enum property"""
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
             functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_enum(enum_cls), readonly=readonly)
@@ -251,6 +260,7 @@ class _NODBBaseObject:
 
     @classmethod
     def make_wkt_property(cls, item: str, readonly: bool = False):
+        """Create a text property that will contain a WKT element."""
         # TODO: currently a string but could add better validation
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
@@ -259,6 +269,7 @@ class _NODBBaseObject:
 
     @classmethod
     def make_json_property(cls, item: str):
+        """Create a property that will contain a JSON list or object."""
         return property(
             functools.partial(_NODBBaseObject.get, item=item),
             functools.partial(_NODBBaseObject.set, item=item, coerce=_NODBBaseObject.to_json)
@@ -266,18 +277,14 @@ class _NODBBaseObject:
 
     @staticmethod
     def to_json(x):
+        """Convert a string to JSON."""
         if isinstance(x, str) and x[0] in ('[', '{'):
             return json.loads(x)
         return x
 
-    @classmethod
-    def register_primary_key(cls, item_name: str):
-        if not hasattr(cls, '_primary_keys'):
-            setattr(cls, '_primary_keys', set())
-        getattr(cls, '_primary_keys').add(item_name)
-
     @staticmethod
     def to_enum(enum_cls):
+        """Convert a value to an enum."""
         def _coerce(x):
             if isinstance(x, str):
                 return enum_cls(x)
@@ -286,6 +293,7 @@ class _NODBBaseObject:
 
     @staticmethod
     def to_datetime(dt):
+        """Convert a value to a datetime object."""
         if isinstance(dt, str):
             return datetime.datetime.fromisoformat(dt)
         else:
@@ -293,102 +301,84 @@ class _NODBBaseObject:
 
     @staticmethod
     def to_date(dt):
+        """Convert a value to a date object."""
         if isinstance(dt, str):
             return datetime.date.fromisoformat(dt)
         else:
             return dt
 
     def validate_in_list(self, value: t.Any, valid_options: t.Sequence[t.Any], allow_none: bool = False, message: str = None) -> bool:
+        """Validate that the given value is in the list of options."""
         if value is None:
             if not allow_none:
-                raise NODBValidationError(message or f"Expected not-None found None for [{self.identifier()}]")
+                raise NODBValidationError(message or f"Expected not-None found None for [{self.identifier()}]", 1000)
         elif value not in valid_options:
             opts = ','.join(str(x) for x in valid_options)
-            raise NODBValidationError(message or f"Expected one of [{opts}] found [{value}] for [{self.identifier()}]")
+            raise NODBValidationError(message or f"Expected one of [{opts}] found [{value}] for [{self.identifier()}]", 1001)
         return True
 
     def identifier(self) -> str:
+        """Return the identifier for this object."""
         return f"{self.__class__.__name__}"
 
 
-class _NODBWithMetadata:
-
-    metadata: t.Optional[dict] = _NODBBaseObject.make_property("metadata")
-
-    def set_metadata(self, key, value):
-        if self.metadata is None:
-            self.metadata = {key: value}
-            self.modified_values.add("metadata")
-        else:
-            self.metadata[key] = value
-            self.modified_values.add("metadata")
-
-    def clear_metadata(self, key):
-        if self.metadata is None:
-            return
-        if key not in self.metadata:
-            return
-        del self.metadata[key]
-        self.modified_values.add("metadata")
-        if not self.metadata:
-            self.metadata = None
-
-    def get_metadata(self, key, default=None):
-        if self.metadata is None or key not in self.metadata:
-            return default
-        return self.metadata[key]
-
-    def add_to_metadata(self, key, value):
-        if self.metadata is None:
-            self.metadata = {key: [value]}
-            self.modified_values.add("metadata")
-        elif key not in self.metadata:
-            self.metadata[key] = [value]
-            self.modified_values.add("metadata")
-        elif value not in self.metadata[key]:
-            self.metadata[key].append(value)
-            self.modified_values.add("metadata")
+IntColumn = functools.partial(_NODBBaseObject.make_property, coerce=int)
+BooleanColumn = functools.partial(_NODBBaseObject.make_property, coerce=bool)
+StringColumn = functools.partial(_NODBBaseObject.make_property, coerce=str)
+FloatColumn = functools.partial(_NODBBaseObject.make_property, coerce=float)
+UUIDColumn = StringColumn
+ByteColumn = _NODBBaseObject.make_property
+DateTimeColumn = _NODBBaseObject.make_datetime_property
+DateColumn = _NODBBaseObject.make_date_property
+EnumColumn = _NODBBaseObject.make_enum_property
+JsonColumn = _NODBBaseObject.make_json_property
+WKTColumn = _NODBBaseObject.make_wkt_property
 
 
 class NODBQueueItem(_NODBBaseObject):
+    """Queue item in the database."""
 
     TABLE_NAME: str = "nodb_queues"
     PRIMARY_KEYS: tuple[str] = ("queue_uuid",)
 
-    queue_uuid: str = _NODBBaseObject.make_property("queue_uuid", coerce=str)
-    created_date: datetime.datetime = _NODBBaseObject.make_datetime_property("created_date", readonly=True)
-    modified_date: datetime.datetime = _NODBBaseObject.make_datetime_property("modified_date", readonly=True)
-    status: QueueStatus = _NODBBaseObject.make_enum_property("status", QueueStatus)
-    locked_by: t.Optional[str] = _NODBBaseObject.make_property("locked_by", coerce=str, readonly=True)
-    locked_since: t.Optional[datetime.datetime] = _NODBBaseObject.make_datetime_property("locked_since", readonly=True)
-    queue_name: str = _NODBBaseObject.make_property("queue_name", readonly=True, coerce=str)
-    escalation_level: int = _NODBBaseObject.make_property("escalation_level", coerce=int)
-    subqueue_name: str = _NODBBaseObject.make_property("subqueue_name", readonly=True, coerce=str)
-    unique_item_name: t.Optional[str] = _NODBBaseObject.make_property("unique_item_name", readonly=True, coerce=str)
-    priority: t.Optional[int] = _NODBBaseObject.make_property("priority", readonly=True, coerce=int)
-    data: dict = _NODBBaseObject.make_json_property("data")
+    queue_uuid: str = UUIDColumn("queue_uuid")
+    created_date: datetime.datetime = DateTimeColumn("created_date", readonly=True)
+    modified_date: datetime.datetime = DateTimeColumn("modified_date", readonly=True)
+    status: QueueStatus = EnumColumn("status", QueueStatus)
+    locked_by: t.Optional[str] = StringColumn("locked_by", readonly=True)
+    locked_since: t.Optional[datetime.datetime] = DateTimeColumn("locked_since", readonly=True)
+    queue_name: str = StringColumn("queue_name", readonly=True)
+    escalation_level: int = IntColumn("escalation_level")
+    subqueue_name: str = StringColumn("subqueue_name", readonly=True)
+    unique_item_name: t.Optional[str] = StringColumn("unique_item_name", readonly=True)
+    priority: t.Optional[int] = IntColumn('priority', readonly=True)
+    data: dict = JsonColumn("data")
 
     def mark_complete(self, db: NODBControllerInstance):
-        self.set_queue_status(db, QueueStatus.COMPLETE)
+        """Mark the queue item as complete."""
+        self.set_queue_status(db=db, new_status=QueueStatus.COMPLETE)
 
     def mark_failed(self, db: NODBControllerInstance):
-        self.set_queue_status(db, QueueStatus.ERROR)
+        """Mark the queue item as failed."""
+        self.set_queue_status(db=db, new_status=QueueStatus.ERROR)
 
     def release(self,
                 db: NODBControllerInstance,
                 release_in_seconds: t.Optional[int] = None,
                 **kwargs):
+        """Release the queue item, optionally delaying for a number of seconds."""
         if release_in_seconds is None or release_in_seconds <= 0:
-            self.set_queue_status(db, QueueStatus.UNLOCKED, **kwargs)
+            self.set_queue_status(db=db, new_status=QueueStatus.UNLOCKED, **kwargs)
         else:
             self.set_queue_status(
-                db,
-                QueueStatus.DELAYED_RELEASE,
-                datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds),
+                db=db,
+                new_status=QueueStatus.DELAYED_RELEASE,
+                release_at=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds),
                 **kwargs
             )
 
     def renew(self, db: NODBControllerInstance):
+        """Renew a lock on the queue item"""
         if self.status == QueueStatus.LOCKED:
             with db.cursor() as cur:
                 cur.execute(f"""
@@ -409,6 +399,7 @@ class NODBQueueItem(_NODBBaseObject):
                          release_at: t.Optional[datetime.datetime] = None,
                          reduce_priority: bool = False,
                          escalation_level: t.Optional[int] = None):
+        """Set the queue status from LOCKED to a new status."""
         if self.status == QueueStatus.LOCKED:
             with db.cursor() as cur:
                 cur.execute(f"""
@@ -434,31 +425,74 @@ class NODBQueueItem(_NODBBaseObject):
                 self.status = new_status
 
 
-class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
+class NODBSourceFile(_NODBBaseObject):
 
     TABLE_NAME: str = "nodb_source_files"
     PRIMARY_KEYS: tuple[str] = ("source_uuid", "received_date",)
 
-    source_uuid: str = _NODBBaseObject.make_property("source_uuid", coerce=str)
-    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
+    source_uuid: str = UUIDColumn("source_uuid")
+    received_date: datetime.date = DateColumn("received_date")
 
-    source_path: str = _NODBBaseObject.make_property("source_path", coerce=str)
-    file_name: str = _NODBBaseObject.make_property("file_name", coerce=str)
+    source_path: str = StringColumn("source_path")
+    file_name: str = StringColumn("file_name")
 
-    original_uuid: str = _NODBBaseObject.make_property("original_uuid", coerce=str)
-    original_idx: int = _NODBBaseObject.make_property("original_idx", coerce=int)
+    original_uuid: str = StringColumn("original_uuid")
+    original_idx: int = IntColumn("original_idx", coerce=int)
 
-    status: SourceFileStatus = _NODBBaseObject.make_enum_property("status", SourceFileStatus)
+    status: SourceFileStatus = EnumColumn("status", SourceFileStatus)
 
-    history: list = _NODBBaseObject.make_property("history")
+    history: list = JsonColumn("history")
+
+    metadata: t.Optional[dict] = JsonColumn("metadata")
+
+    def set_metadata(self, key, value):
+        """Set a metadata property."""
+        if self.metadata is None:
+            self.metadata = {key: value}
+            self.modified_values.add("metadata")
+        else:
+            self.metadata[key] = value
+            self.modified_values.add("metadata")
+
+    def clear_metadata(self, key):
+        """Clear a metadata property."""
+        if self.metadata is None:
+            return
+        if key not in self.metadata:
+            return
+        del self.metadata[key]
+        self.modified_values.add("metadata")
+        if not self.metadata:
+            self.metadata = None
+
+    def get_metadata(self, key, default=None):
+        """Get a metadata property."""
+        if self.metadata is None or key not in self.metadata:
+            return default
+        return self.metadata[key]
+
+    def add_to_metadata(self, key, value):
+        """Add a value to a metadata set if not in that set already."""
+        if self.metadata is None:
+            self.metadata = {key: [value]}
+            self.modified_values.add("metadata")
+        elif key not in self.metadata:
+            self.metadata[key] = [value]
+            self.modified_values.add("metadata")
+        elif value not in self.metadata[key]:
+            self.metadata[key].append(value)
+            self.modified_values.add("metadata")
 
     def report_error(self, message, name, version, instance):
+        """Add an error to the file history."""
         self.add_history(message, name, version, instance, 'ERROR')
 
     def report_warning(self, message, name, version, instance):
+        """Add a warning to the file history."""
         self.add_history(message, name, version, instance, 'WARNING')
 
     def add_history(self, message, name, version, instance, level='INFO'):
+        """Add a history entry to this file."""
         if self.history is None:
             self.history = []
         self.history.append({
@@ -472,6 +506,7 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
         self.modified_values.add('history')
 
     def stream_observation_data(self, db: NODBControllerInstance, lock_type: LockType = None) -> t.Iterable[NODBObservationData]:
+        """Find all observations associated with this source file."""
         with db.cursor() as cur:
             query = f"""
                 SELECT * 
@@ -489,6 +524,7 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
                 )
 
     def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None, order_by: t.Optional[str] = None) -> t.Iterable[NODBWorkingRecord]:
+        """Find a working record associated with this source file."""
         with db.cursor() as cur:
             query = f"""
                    SELECT * 
@@ -507,12 +543,14 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
     @classmethod
     def find_by_source_path(cls, db: NODBControllerInstance, source_path: str, **kwargs):
+        """Locate a source file by the source path."""
         return db.load_object(cls, {
             'source_path': source_path
         }, **kwargs)
 
     @classmethod
     def find_by_original_info(cls, db: NODBControllerInstance, original_uuid: str, received_date: t.Union[datetime.date, str], message_idx: int, **kwargs):
+        """Locate a source file that was a part of another source file by the original file info."""
         return db.load_object(cls, {
             'original_idx': message_idx,
             'received_date': parse_received_date(received_date),
@@ -521,6 +559,7 @@ class NODBSourceFile(_NODBWithMetadata, _NODBBaseObject):
 
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, source_uuid: str, received: t.Union[datetime.date, str], **kwargs):
+        """Locate a source file by UUID."""
         return db.load_object(cls, {
             'source_uuid': source_uuid,
             'received_date': parse_received_date(received)
@@ -532,16 +571,17 @@ class NODBUser(_NODBBaseObject):
     TABLE_NAME = "nodb_users"
     PRIMARY_KEYS: tuple[str] = ("username",)
 
-    username: str = _NODBBaseObject.make_property("username", coerce=str)
-    phash: bytes = _NODBBaseObject.make_property("phash")
-    salt: bytes = _NODBBaseObject.make_property("salt")
-    old_phash: bytes = _NODBBaseObject.make_property("old_phash")
-    old_salt: bytes = _NODBBaseObject.make_property("old_salt")
-    old_expiry: datetime = _NODBBaseObject.make_datetime_property("old_expiry")
-    status: UserStatus = _NODBBaseObject.make_enum_property("status", UserStatus)
-    roles: list = _NODBBaseObject.make_property("roles")
+    username: str = StringColumn("username")
+    phash: bytes = ByteColumn("phash")
+    salt: bytes = ByteColumn("salt")
+    old_phash: t.Optional[bytes] = ByteColumn("old_phash")
+    old_salt: t.Optional[bytes] = ByteColumn("old_salt")
+    old_expiry: t.Optional[datetime] = DateTimeColumn("old_expiry")
+    status: UserStatus = EnumColumn("status", UserStatus)
+    roles: list = JsonColumn("roles")
 
     def assign_role(self, role_name):
+        """Assign a role to the user."""
         if self.roles is None:
             self.roles = [role_name]
             self.modified_values.add('roles')
@@ -550,11 +590,13 @@ class NODBUser(_NODBBaseObject):
             self.modified_values.add('roles')
 
     def unassign_role(self, role_name):
+        """Unassign a role from the user."""
         if self.roles is not None and role_name in self.roles:
             self.roles.remove(role_name)
             self.modified_values.add('roles')
 
     def set_password(self, new_password, salt_length: int = 16, old_expiry_seconds: int = 0):
+        """Set the users password."""
         if not isinstance(new_password, str):
             raise CNODCError("Invalid type for new password", "USERCHECK", 1002)
         if len(new_password) > 1024:
@@ -569,6 +611,7 @@ class NODBUser(_NODBBaseObject):
         self.phash = NODBUser.hash_password(new_password, self.salt)
 
     def check_password(self, password):
+        """Check a password to see if it is the correct one."""
         check_hash = NODBUser.hash_password(password, self.salt)
         if secrets.compare_digest(check_hash, self.phash):
             return True
@@ -581,12 +624,14 @@ class NODBUser(_NODBBaseObject):
         return False
 
     def cleanup(self):
+        """Cleanup a user's password entry."""
         if self.old_expiry is not None and self.old_expiry <= datetime.datetime.now(datetime.timezone.utc):
             self.old_phash = None
             self.old_salt = None
             self.old_expiry = None
 
     def permissions(self, db: NODBControllerInstance) -> set:
+        """Retrieve a user's permissions."""
         if not self.in_cache('permissions'):
             permissions = set()
             if self.roles:
@@ -602,12 +647,14 @@ class NODBUser(_NODBBaseObject):
 
     @staticmethod
     def hash_password(password: str, salt: bytes, iterations=752123) -> bytes:
+        """Hash a password."""
         if not isinstance(password, str):
             raise CNODCError("Invalid password", "USERCHECK", 1000)
         return hashlib.pbkdf2_hmac('sha512', password.encode('utf-8', errors="replace"), salt, iterations)
 
     @classmethod
     def find_by_username(cls, db, username: str, **kwargs):
+        """Locate a user by their username."""
         return db.load_object(cls, {"username": username}, **kwargs)
 
 
@@ -616,25 +663,29 @@ class NODBSession(_NODBBaseObject):
     TABLE_NAME: str = "nodb_sessions"
     PRIMARY_KEYS: tuple[str] = ("session_id",)
 
-    session_id: str = _NODBBaseObject.make_property("session_id", coerce=str)
-    start_time: datetime = _NODBBaseObject.make_datetime_property("start_time")
-    expiry_time: datetime = _NODBBaseObject.make_datetime_property("expiry_time")
-    username: str = _NODBBaseObject.make_property("username", coerce=str)
-    session_data: dict = _NODBBaseObject.make_property("session_data")
+    session_id: str = StringColumn("session_id")
+    start_time: datetime = DateTimeColumn("start_time")
+    expiry_time: datetime = DateTimeColumn("expiry_time")
+    username: str = StringColumn("username")
+    session_data: dict = JsonColumn("session_data")
 
     def set_session_value(self, key, value):
+        """Set a session value"""
         if self.session_data is None:
             self.session_data = {}
         self.session_data[key] = value
 
     def get_session_value(self, key, default=None):
+        """Get a session value"""
         return self.session_data[key] if self.session_data and key in self.session_data else default
 
     def is_expired(self) -> bool:
+        """Check if the session is expired."""
         return self.expiry_time < datetime.datetime.now(datetime.timezone.utc)
 
     @classmethod
     def find_by_session_id(cls, db, session_id: str, **kwargs):
+        """Locate a session by its ID."""
         return db.load_object(cls, {"session_id": session_id}, **kwargs)
 
 
@@ -643,28 +694,30 @@ class NODBUploadWorkflow(_NODBBaseObject):
     TABLE_NAME = "nodb_upload_workflows"
     PRIMARY_KEYS = ("workflow_name",)
 
-    workflow_name: str = _NODBBaseObject.make_property("workflow_name", coerce=str)
-    configuration: dict[str, t.Any] = _NODBBaseObject.make_property("configuration")
-    is_active: bool = _NODBBaseObject.make_property('is_active', coerce=bool)
+    workflow_name: str = StringColumn("workflow_name")
+    configuration: dict[str, t.Any] = JsonColumn("configuration")
+    is_active: bool = BooleanColumn('is_active')
 
     def permissions(self):
+        """Retrieve the permissions associated with this workflow."""
         return self.get_config('permission', default=None)
 
     def get_config(self, config_key: str, default=None):
+        """Get a configuration value for this workflow."""
         if self.configuration and config_key in self.configuration:
             return self.configuration[config_key]
         return default
 
     @injector.inject
     def check_config(self, files: cnodc.storage.core.StorageController):
+        """Validate the configuration for this workflow."""
         if 'validation' in self.configuration and self.configuration['validation'] is not None:
             try:
                 x = dynamic_object(self.configuration['validation'])
                 if not callable(x):
-                    raise CNODCError(
-                        f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python callable', 'WFCHECK', 1001)
+                    raise NODBValidationError(f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python callable', 2000)
             except DynamicObjectLoadError:
-                raise CNODCError(f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python object', 'WFCHECK', 1002)
+                raise NODBValidationError(f'Invalid value for [validation]: {self.configuration["validation"]}, must be a Python object', 2001)
         has_upload = False
         if 'working_target' in self.configuration and self.configuration['working_target']:
             has_upload = True
@@ -674,45 +727,37 @@ class NODBUploadWorkflow(_NODBBaseObject):
             for idx, target in enumerate(self.configuration['additional_targets']):
                 self._check_upload_target_config(target, files, f'additional{idx}')
         if not has_upload:
-            raise CNODCError(f"Workflow missing either upload or archive URL", "WFCHECK", 1008)
-        if 'upload_tier' in self.configuration and self.configuration['upload_tier']:
-            if not ('upload' in self.configuration and self.configuration['upload']):
-                raise CNODCError('Workflow specifies an [upload_tier] without an [upload]', 'WFCHECK', 1009)
-            if self.configuration['upload_tier'] not in ('frequent', 'infrequent', 'archival'):
-                raise CNODCError(f'Invalid value for [upload_tier]: {self.configuration["upload_tier"]}, expecting (frequent|infrequent|archival)', "WFCHECK", 1010)
-        if 'archive_tier' in self.configuration and self.configuration['archive_tier']:
-            if not ('archive' in self.configuration and self.configuration['archive']):
-                raise CNODCError('Workflow specifies an [archive_tier] without an [archive]', 'WFCHECK', 1011)
-            if self.configuration['archive_tier'] not in ('frequent', 'infrequent', 'archival'):
-                raise CNODCError(f'Invalid value for [archive_tier]: {self.configuration["archive_tier"]}, expecting (frequent|infrequent|archival)', "WFCHECK", 1012)
+            raise NODBValidationError(f"Workflow missing either upload or archive URL", 2002)
         # TODO: check default_headers is a dict[str, str]
         # TODO: check filename_pattern is a string or missing
         # TODO: check processing steps
 
     def _check_upload_target_config(self, config: dict, files: StorageController, tn: str):
+        """Validate an upload target."""
         if 'directory' not in config:
-            raise CNODCError(f'Target directory missing in [{tn}]', 'WFCHECK', 1006)
+            raise NODBValidationError(f'Target directory missing in [{tn}]', 2007)
         try:
             _ = files.get_handle(config['directory'])
         except Exception as ex:
-            raise CNODCError(f'Target directory is not supported by storage subsystem in [{tn}]', 'WFCHECK', 1007) from ex
+            raise NODBValidationError(f'Target directory is not supported by storage subsystem in [{tn}]', 2008) from ex
         if 'allow_overwrite' in config and config['allow_overwrite'] not in ('user', 'always', 'never'):
-            raise CNODCError(f'Overwrite setting must be one of [user|always|never] in [{tn}]', 'WFCHECK', 1000)
+            raise NODBValidationError(f'Overwrite setting must be one of [user|always|never] in [{tn}]', 2009)
         if 'tier' in config:
             try:
                 _ = StorageTier(config['tier'])
             except Exception as ex:
-                raise CNODCError(f'Tier value [{config["tier"]} is not supported in [{tn}]', 'WFCHECK', 1015) from ex
+                raise NODBValidationError(f'Tier value [{config["tier"]} is not supported in [{tn}]', 2006) from ex
         if 'metadata' in config and config['metadata']:
             if not isinstance(config['metadata'], dict):
-                raise CNODCError(f"Invalid value for [metadata] in [{tn}]: must be a dictionary", "WFCHECK", 1003)
+                raise NODBValidationError(f"Invalid value for [metadata] in [{tn}]: must be a dictionary", 2005)
             for x in self.configuration['metadata'].keys():
                 if not isinstance(x, str):
-                    raise CNODCError(f"Invalid key for [metadata] in [{tn}]: {x}, must be a string", "WFCHECK", 1004)
+                    raise NODBValidationError(f"Invalid key for [metadata] in [{tn}]: {x}, must be a string", 2004)
                 if not isinstance(self.configuration['metadata'][x], str):
-                    raise CNODCError(f'Invalid value for [metadata.{x}] in [{tn}]: {self.configuration["metadata"][x]}, must be a string', 'WFCHECK', 1005)
+                    raise NODBValidationError(f'Invalid value for [metadata.{x}] in [{tn}]: {self.configuration["metadata"][x]}, must be a string', 2003)
 
-    def check_access(self, user_permissions: t.Union[list, set, tuple]):
+    def check_access(self, user_permissions: t.Union[list, set, tuple]) -> bool:
+        """Check if a user has access to this workflow based on their permissions."""
         if '__admin__' in user_permissions:
             return True
         needed_permissions = self.permissions()
@@ -722,42 +767,49 @@ class NODBUploadWorkflow(_NODBBaseObject):
 
     @classmethod
     def find_by_name(cls, db, workflow_name: str, **kwargs):
+        """Find a workflow by name."""
         return db.load_object(cls, {"workflow_name": workflow_name},  **kwargs)
 
     @classmethod
     def find_all(cls, db, **kwargs):
+        """Find all workflows."""
         with db.cursor() as cur:
             cur.execute(f'SELECT * FROM {NODBUploadWorkflow.TABLE_NAME}')
             for row in cur.fetch_stream():
                 yield NODBUploadWorkflow(**row, is_new=False)
 
 
-
 class NODBObservation(_NODBBaseObject):
+    """Represents an archived observation in the database.
+
+        In particular, this table/class represents the characteristics of data records
+        that are usually searchable. The actual record is stored as an NODBObservationData.
+    """
 
     TABLE_NAME = "nodb_obs"
     PRIMARY_KEYS = ("obs_uuid", "received_date")
 
-    obs_uuid: str = _NODBBaseObject.make_property("obs_uuid", coerce=str)
-    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
+    obs_uuid: str = UUIDColumn("obs_uuid")
+    received_date: datetime.date = DateColumn("received_date")
 
-    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
-    mission_name: str = _NODBBaseObject.make_property("mission_name", coerce=str)
-    source_name: str = _NODBBaseObject.make_property("source_name", coerce=str)
-    instrument_type: str = _NODBBaseObject.make_property("instrument_type", coerce=str)
-    program_name: str = _NODBBaseObject.make_property("program_name", coerce=str)
-    obs_time: datetime.datetime = _NODBBaseObject.make_datetime_property("obs_time")
-    min_depth: float = _NODBBaseObject.make_property("min_depth", coerce=float)
-    max_depth: float = _NODBBaseObject.make_property("max_depth", coerce=float)
-    location: str = _NODBBaseObject.make_wkt_property("location")
-    observation_type: ObservationType = _NODBBaseObject.make_enum_property("observation_type", ObservationType)
-    surface_parameters: list = _NODBBaseObject.make_property("surface_parameters")
-    profile_parameters: list = _NODBBaseObject.make_property("profile_parameters")
-    processing_level: ProcessingLevel = _NODBBaseObject.make_enum_property("processing_level", ProcessingLevel)
-    embargo_date: datetime.datetime = _NODBBaseObject.make_datetime_property("embargo_date")
+    station_uuid: str = UUIDColumn("station_uuid")
+    mission_name: str = StringColumn("mission_name")
+    source_name: str = StringColumn("source_name")
+    instrument_type: str = StringColumn("instrument_type")
+    program_name: str = StringColumn("program_name")
+    obs_time: datetime.datetime = DateTimeColumn("obs_time")
+    min_depth: float = FloatColumn("min_depth")
+    max_depth: float = FloatColumn("max_depth")
+    location: str = WKTColumn("location")
+    observation_type: ObservationType = EnumColumn("observation_type", ObservationType)
+    surface_parameters: list = JsonColumn("surface_parameters")
+    profile_parameters: list = JsonColumn("profile_parameters")
+    processing_level: ProcessingLevel = EnumColumn("processing_level", ProcessingLevel)
+    embargo_date: datetime.datetime = DateTimeColumn("embargo_date")
 
     @classmethod
     def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], **kwargs):
+        """Find an observation by UUID and received date."""
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
             "received_date": parse_received_date(received_date)
@@ -765,28 +817,31 @@ class NODBObservation(_NODBBaseObject):
 
 
 class NODBObservationData(_NODBBaseObject):
+    """Represents the 'meat' of an archived observation; the full record and associated metadata."""
 
     TABLE_NAME = "nodb_obs_data"
     PRIMARY_KEYS = ("obs_uuid", "received_date")
 
-    obs_uuid: str = _NODBBaseObject.make_property("obs_uuid", coerce=str)
-    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
-    source_file_uuid: str = _NODBBaseObject.make_property("source_file_uuid", coerce=str)
-    message_idx: int = _NODBBaseObject.make_property("message_idx", coerce=int)
-    record_idx: int = _NODBBaseObject.make_property("record_idx", coerce=int)
-    data_record: t.Optional[bytes] = _NODBBaseObject.make_property("data_record")
-    process_metadata: dict = _NODBBaseObject.make_property("process_metadata")
-    qc_tests: dict = _NODBBaseObject.make_property("qc_tests")
-    duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
-    duplicate_received_date: datetime.date = _NODBBaseObject.make_date_property("duplicate_received_date")
-    status: ObservationStatus = _NODBBaseObject.make_enum_property("status", ObservationStatus)
+    obs_uuid: str = UUIDColumn("obs_uuid")
+    received_date: datetime.date = DateColumn("received_date")
+    source_file_uuid: str = StringColumn("source_file_uuid")
+    message_idx: int = IntColumn("message_idx")
+    record_idx: int = IntColumn("record_idx")
+    data_record: t.Optional[bytes] = ByteColumn("data_record")
+    process_metadata: dict = JsonColumn("process_metadata")
+    qc_tests: dict = JsonColumn("qc_tests")
+    duplicate_uuid: str = UUIDColumn("duplicate_uuid")
+    duplicate_received_date: datetime.date = DateColumn("duplicate_received_date")
+    status: ObservationStatus = EnumColumn("status", ObservationStatus)
 
     def get_process_metadata(self, key, default=None):
+        """Retrieve metadata information about the record."""
         if self.process_metadata and key in self.process_metadata:
             return self.process_metadata[key]
         return default
 
     def set_process_metadata(self, key, value):
+        """Set metadata about the record."""
         if self.process_metadata is None:
             self.process_metadata = {}
         self.process_metadata[key] = value
@@ -794,6 +849,7 @@ class NODBObservationData(_NODBBaseObject):
 
     @classmethod
     def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
+        """Locate a record by UUID."""
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
             "received_date": parse_received_date(received_date)
@@ -807,7 +863,7 @@ class NODBObservationData(_NODBBaseObject):
                             message_idx: int,
                             record_idx: int,
                             *args, **kwargs):
-
+        """Locate a record by information about it in the source file."""
         return db.load_object(cls, {
                 "received_date": parse_received_date(source_received_date),
                 "source_file_uuid": source_file_uuid,
@@ -817,6 +873,7 @@ class NODBObservationData(_NODBBaseObject):
 
     @property
     def record(self) -> t.Optional[ocproc2.ParentRecord]:
+        """Extract the data record."""
         if self.data_record is None:
             return None
         if not self.in_cache('loaded_record') is None:
@@ -830,6 +887,7 @@ class NODBObservationData(_NODBBaseObject):
 
     @record.setter
     def record(self, data_record: ocproc2.ParentRecord):
+        """Set the data record."""
         self.set_cached('loaded_record', data_record)
         if data_record is None:
             self.data_record = None
@@ -840,7 +898,7 @@ class NODBObservationData(_NODBBaseObject):
             for byte_ in decoder.encode_records(
                     [data_record],
                     codec='JSON',
-                    compression='LZMA6CRC4',
+                    compression='LZMA9CRC4',
                     correction=None):
                 ba.extend(byte_)
             self.data_record = ba
@@ -852,21 +910,22 @@ class NODBStation(_NODBBaseObject):
     TABLE_NAME = 'nodb_stations'
     PRIMARY_KEYS = ('station_uuid', )
 
-    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
-    wmo_id: str = _NODBBaseObject.make_property("wmo_id", coerce=str)
-    wigos_id: str = _NODBBaseObject.make_property("wigos_id", coerce=str)
-    station_name: str = _NODBBaseObject.make_property("station_name", coerce=str)
-    station_id: str = _NODBBaseObject.make_property("station_id", coerce=str)
-    station_type: str = _NODBBaseObject.make_property("station_type", coerce=str)
-    service_start_date: datetime.datetime = _NODBBaseObject.make_datetime_property("service_start_date")
-    service_end_date: datetime.datetime = _NODBBaseObject.make_datetime_property("service_end_date")
-    instrumentation: dict = _NODBBaseObject.make_property('instrumentation')
-    metadata: dict = _NODBBaseObject.make_property('metadata')
-    map_to_uuid: str = _NODBBaseObject.make_property("map_to_uuid", coerce=str)
-    status: StationStatus = _NODBBaseObject.make_enum_property("status", StationStatus)
-    embargo_data_days: int = _NODBBaseObject.make_property('embargo_data_days', coerce=int)
+    station_uuid: str = UUIDColumn("station_uuid")
+    wmo_id: str = StringColumn("wmo_id")
+    wigos_id: str = StringColumn("wigos_id")
+    station_name: str = StringColumn("station_name")
+    station_id: str = StringColumn("station_id")
+    station_type: str = StringColumn("station_type")
+    service_start_date: datetime.datetime = DateTimeColumn("service_start_date")
+    service_end_date: datetime.datetime = DateTimeColumn("service_end_date")
+    instrumentation: dict = JsonColumn('instrumentation')
+    metadata: dict = JsonColumn('metadata')
+    map_to_uuid: str = UUIDColumn("map_to_uuid")
+    status: StationStatus = EnumColumn("status", StationStatus)
+    embargo_data_days: int = IntColumn('embargo_data_days')
 
     def get_metadata(self, metadata_key, default=None):
+        """Retrieve metadata abotu a station."""
         if self.metadata is not None and metadata_key in self.metadata:
             return self.metadata[metadata_key] or default
         return None
@@ -879,6 +938,7 @@ class NODBStation(_NODBBaseObject):
                wigos_id: t.Optional[str] = None,
                station_id: t.Optional[str] = None,
                station_name: t.Optional[str] = None) -> list[NODBStation]:
+        """Search for a station by various identifiers."""
         with db.cursor() as cur:
             args = []
             clauses = []
@@ -905,12 +965,14 @@ class NODBStation(_NODBBaseObject):
 
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, station_uuid: str, **kwargs):
+        """Locate a station by its unique identifier."""
         return db.load_object(cls, {
             'station_uuid': station_uuid
         }, **kwargs)
 
     @classmethod
-    def find_all_raw(cls, db: NODBControllerInstance):
+    def find_all_raw(cls, db: NODBControllerInstance) -> t.Iterable[dict]:
+        """Retrieve all stations in a raw (i.e. database dictionary) format."""
         with db.cursor() as cur:
             cur.execute(f"SELECT * FROM {NODBStation.TABLE_NAME}")
             for row in cur.fetch_stream():
@@ -918,36 +980,40 @@ class NODBStation(_NODBBaseObject):
 
 
 class NODBWorkingRecord(_NODBBaseObject):
+    """Represents a record currently being processed in the database."""
 
     TABLE_NAME = "nodb_working"
     PRIMARY_KEYS = ("working_uuid",)
 
-    working_uuid: str = _NODBBaseObject.make_property("working_uuid", coerce=str)
-    received_date: datetime.date = _NODBBaseObject.make_date_property("received_date")
-    source_file_uuid: str = _NODBBaseObject.make_property("source_file_uuid", coerce=str)
-    message_idx: int = _NODBBaseObject.make_property("message_idx", coerce=int)
-    record_idx: int = _NODBBaseObject.make_property("record_idx", coerce=int)
-    data_record: t.Optional[bytes] = _NODBBaseObject.make_property("data_record")
-    qc_metadata: dict = _NODBBaseObject.make_property("qc_metadata")
-    qc_batch_id: str = _NODBBaseObject.make_property("qc_batch_id", coerce=str)
-    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
-    obs_time: datetime.datetime = _NODBBaseObject.make_datetime_property("obs_time")
-    location: str = _NODBBaseObject.make_wkt_property("location")
-    record_uuid: str = _NODBBaseObject.make_property("record_uuid", coerce=str)
+    working_uuid: str = UUIDColumn("working_uuid")
+    record_uuid: t.Optional[str] = UUIDColumn("record_uuid")
+    received_date: datetime.date = DateColumn("received_date")
+    source_file_uuid: str = UUIDColumn("source_file_uuid")
+    message_idx: int = IntColumn("message_idx")
+    record_idx: int = IntColumn("record_idx")
+    data_record: t.Optional[bytes] = ByteColumn("data_record")
+    qc_metadata: dict = JsonColumn("qc_metadata")
+    qc_batch_id: str = UUIDColumn("qc_batch_id")
+    station_uuid: str = UUIDColumn("station_uuid")
+    obs_time: datetime.datetime = DateTimeColumn("obs_time")
+    location: str = WKTColumn("location")
 
     def set_metadata(self, key, value):
+        """Set metadata on the working record"""
         if self.qc_metadata is None:
             self.qc_metadata = {}
         self.qc_metadata[key] = value
         self.mark_modified('qc_metadata')
 
     def get_metadata(self, key, default=None):
+        """Retrieve metadata on the working record."""
         if self.qc_metadata is None or key not in self.qc_metadata:
             return default
         return self.qc_metadata[key]
 
     @classmethod
-    def find_by_uuid(cls, db, obs_uuid: str,*args, **kwargs):
+    def find_by_uuid(cls, db, obs_uuid: str, *args, **kwargs):
+        """Find a working record by its identifier"""
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
         }, *args, **kwargs)
@@ -960,7 +1026,7 @@ class NODBWorkingRecord(_NODBBaseObject):
                             message_idx: int,
                             record_idx: int,
                             *args, **kwargs):
-
+        """Find a working record by its source information"""
         return db.load_object(cls, {
                 "received_date": parse_received_date(source_received_date),
                 "source_file_uuid": source_file_uuid,
@@ -970,6 +1036,7 @@ class NODBWorkingRecord(_NODBBaseObject):
 
     @property
     def record(self) -> t.Optional[ocproc2.ParentRecord]:
+        """Extract the OCProc2 record."""
         if self.data_record is None:
             return None
         if not self.in_cache('loaded_record') is None:
@@ -983,6 +1050,7 @@ class NODBWorkingRecord(_NODBBaseObject):
 
     @record.setter
     def record(self, data_record: ocproc2.ParentRecord):
+        """Set the OCProc2 record."""
         self.set_cached('loaded_record', data_record)
         self._update_from_data_record(data_record)
         if data_record is None:
@@ -994,13 +1062,14 @@ class NODBWorkingRecord(_NODBBaseObject):
             for byte_ in decoder.encode_records(
                     [data_record],
                     codec='JSON',
-                    compression='LZMA6CRC4',
+                    compression='',
                     correction=None):
                 ba.extend(byte_)
             self.data_record = ba
             self.mark_modified('data_record')
 
     def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
+
         if data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
             self.obs_time = data_record.coordinates['Time'].to_datetime()
         if data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
@@ -1039,12 +1108,11 @@ class NODBWorkingRecord(_NODBBaseObject):
         return extras
 
 
-
 class NODBBatch(_NODBBaseObject):
 
     batch_uuid: str = _NODBBaseObject.make_property("batch_uuid", coerce=str)
     qc_metadata: dict = _NODBBaseObject.make_property("qc_metadata")
-    status: BatchStatus = _NODBBaseObject.make_enum_property("status", BatchStatus)
+    status: BatchStatus = EnumColumn("status", BatchStatus)
 
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, batch_uuid: str, **kwargs):
@@ -1074,324 +1142,3 @@ class NODBBatch(_NODBBaseObject):
                     is_new=False,
                     **{x: row[x] for x in row.keys()}
                 )
-
-
-
-
-
-
-"""
-
-
-
-class _NODBWithQCMetdata(_NODBWithMetadata):
-
-    qc_metadata: t.Optional[dict] = _NODBBaseObject.make_property("qc_metadata")
-
-    def set_qc_metadata(self, key, value):
-        if self.qc_metadata is None:
-            self.qc_metadata = {key: value}
-            self.modified_values.add("qc_metadata")
-        else:
-            self.qc_metadata[key] = value
-            self.modified_values.add("qc_metadata")
-
-    def clear_qc_metadata(self, key):
-        if self.qc_metadata is None:
-            return
-        if key not in self.qc_metadata:
-            return
-        del self.qc_metadata[key]
-        self.modified_values.add("qc_metadata")
-        if not self.qc_metadata:
-            self.qc_metadata = None
-
-    def get_qc_metadata(self, key, default=None):
-        if self.qc_metadata is None or key not in self.qc_metadata:
-            return default
-        return self.qc_metadata[key]
-
-    def add_to_qc_metadata(self, key, value):
-        if self.qc_metadata is None:
-            self.qc_metadata = {key: [value]}
-            self.modified_values.add("qc_metadata")
-        elif key not in self.qc_metadata:
-            self.qc_metadata[key] = [value]
-            self.modified_values.add("qc_metadata")
-        elif value not in self.qc_metadata[key]:
-            self.qc_metadata[key].append(value)
-            self.modified_values.add("qc_metadata")
-
-    def apply_qc_code(self, qc_message_code):
-        self.add_to_qc_metadata("qc_codes", qc_message_code)
-
-    def has_qc_code(self, qc_message_code):
-        return self.qc_metadata and 'qc_codes' in self.qc_metadata and qc_message_code in self.qc_metadata['qc_codes']
-
-    def has_any_qc_code(self):
-        return self.qc_metadata and 'qc_codes' in self.qc_metadata and self.qc_metadata['qc_codes']
-
-    def clear_qc_codes(self):
-        if self.qc_metadata and 'qc_codes' in self.qc_metadata:
-            del self.qc_metadata['qc_codes']
-
-
-class _NODBWithQCProperties(_NODBWithQCMetdata):
-
-    qc_test_status: QualityControlStatus = _NODBBaseObject.make_enum_property("qc_test_status", QualityControlStatus)
-    qc_process_name: str = _NODBBaseObject.make_property("qc_process_name", coerce=str)
-    qc_current_step: int = _NODBBaseObject.make_property("qc_current_step", coerce=int)
-    working_status: ObservationWorkingStatus = _NODBBaseObject.make_enum_property("working_status", ObservationWorkingStatus)
-
-
-class _NODBWithDataRecord:
-
-    data_record: t.Union[bytes, bytearray] = _NODBBaseObject.make_property("data_record")
-    _data_record_cache: t.Optional[DataRecord] = None
-
-    def extract_data_record(self) -> DataRecord:
-        if self._data_record_cache is None:
-            if self.data_record is not None:
-                codec = OCProc2BinaryCodec()
-                self._data_record_cache = codec.decode([self.data_record])
-        return self._data_record_cache
-
-    def store_data_record(self, dr: DataRecord, **kwargs):
-        self._data_record_cache = dr
-        codec = OCProc2BinaryCodec()
-        new_data = bytearray()
-        for bytes_ in codec.encode(dr, **kwargs):
-            new_data.extend(bytes_)
-        self.data_record = new_data
-
-    def clear_data_record_cache(self):
-        self._data_record_cache = None
-
-
-
-class NODBQCBatch(_NODBWithQCProperties, _NODBBaseObject):
-    pass
-
-
-class NODBQCProcess(_NODBBaseObject):
-
-    version_no: int = _NODBBaseObject.make_property("version_no", coerce=int)
-    rt_qc_steps: list = _NODBBaseObject.make_property("rt_qc_steps")
-    dm_qc_steps: list = _NODBBaseObject.make_property("dm_qc_steps")
-    dm_qc_freq_days: int = _NODBBaseObject.make_property("dm_qc_freq_days", coerce=int)
-    dm_qc_delay_days: int = _NODBBaseObject.make_property("dm_qc_delay_days", coerce=int)
-
-    def has_rt_qc(self) -> bool:
-        return bool(self.rt_qc_steps)
-
-
-class NODBWorkingObservation(_NODBWithDataRecord, _NODBWithQCProperties, _NODBBaseObject):
-
-    qc_batch_id: str = _NODBBaseObject.make_property("qc_batch_id", coerce=str)
-
-    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
-
-    def mark_qc_test_complete(self, qc_test_name):
-        self.add_to_metadata("qc_tests", qc_test_name)
-
-    def qc_test_completed(self, qc_test_name):
-        return self.metadata and "qc_tests" in self.metadata and qc_test_name in self.metadata["qc_tests"]
-
-    @staticmethod
-    def create_from_primary(primary_obs):
-        working_obs = NODBWorkingObservation(primary_obs.pkey)
-        working_obs.data_record = primary_obs.data_record
-        working_obs._data_record_cache = primary_obs._data_record_cache
-        working_obs.station_uuid = primary_obs.station_uuid
-        working_obs.metadata = primary_obs.metadata
-        return working_obs
-
-
-class NODBObservation(_NODBWithDataRecord, _NODBWithMetadata, _NODBBaseObject):
-
-    source_file_uuid: str = _NODBBaseObject.make_property("source_file_uuid", coerce=str)
-    message_idx: int = _NODBBaseObject.make_property("message_idx", coerce=int)
-    record_idx: int = _NODBBaseObject.make_property("record_idx", coerce=int)
-
-    station_uuid: str = _NODBBaseObject.make_property("station_uuid", coerce=str)
-    mission_name: str = _NODBBaseObject.make_property("mission_name", coerce=str)
-
-    obs_time: t.Optional[datetime.datetime] = _NODBBaseObject.make_datetime_property("obs_time")
-    latitude: t.Optional[float] = _NODBBaseObject.make_property("latitude", coerce=float)
-    longitude: t.Optional[float] = _NODBBaseObject.make_property("longitude", coerce=float)
-
-    status: ObservationStatus = _NODBBaseObject.make_enum_property("status", ObservationStatus)
-    duplicate_uuid: str = _NODBBaseObject.make_property("duplicate_uuid", coerce=str)
-
-    search_data: dict = _NODBBaseObject.make_property("search_data")
-
-    def update_from_working(self, working_record: NODBWorkingObservation):
-        self.station_uuid = working_record.station_uuid
-        self.metadata = working_record.metadata
-        self.data_record = working_record.data_record
-        self.data_record_cache = working_record._data_record_cache
-        self.update_from_data_record(working_record.extract_data_record())
-
-    def update_from_data_record(self, data_record: DataRecord):
-        search_data_agg = _SearchDataAggregator(data_record)
-        self.latitude = search_data_agg.statistics['_rpr_lat']
-        self.longitude = search_data_agg.statistics['_rpr_lon']
-        self.obs_time = search_data_agg.statistics['_rpr_time']
-        # Underscore attributes are for other purposes
-        self.search_data = {
-            x: search_data_agg.statistics[x]
-            for x in search_data_agg.statistics
-            if x[0] != '_'
-        }
-
-
-def searchable_time(t: str):
-    if t is None:
-        return None
-    # TODO: ensure UTC
-    dt = datetime.datetime.fromisoformat(t)
-    return int(dt.strftime("%Y%m%d%H%M%S"))
-
-
-class _SearchDataAggregator:
-
-    def __init__(self, data_record: DataRecord):
-        self.statistics: dict[str, t.Union[str, set, list, float, int, None]] = {
-            'record_type': self._detect_geometry(data_record),
-            '_rpr_lat': None,
-            '_rpr_lon': None,
-            '_rpr_time': None
-        }
-        self._internals = {
-            'coordinates': [],
-            'time': []
-        }
-        self._consider_record(data_record)
-        if (data_record.coordinates.has_value('LAT')
-                and data_record.coordinates.has_value('LON')
-                and data_record.coordinates['LAT'].nodb_flag != NODBQCFlag.BAD
-                and data_record.coordinates['LON'].value != NODBQCFlag.BAD):
-            self.statistics['_rpr_lat'] = data_record.coordinates.get_value('LAT')
-            self.statistics['_rpr_lon'] = data_record.coordinates.get_value('LON')
-        if data_record.coordinates.has_value('TIME') and data_record.coordinates['TIME'].nodb_flag != NODBQCFlag.BAD:
-            self.statistics['_rpr_time'] = data_record.coordinates['TIME'].as_datetime()
-        if self.statistics['_rpr_lat'] is None or self.statistics['_rpr_lon'] is None or self.statistics['_rpr_time'] is None:
-            rlat, rlon, rtime = self._estimate_best_position()
-            if self.statistics['_rpr_lat'] is None:
-                self.statistics['_rpr_lat'] = rlat
-            if self.statistics['_rpr_lon'] is None:
-                self.statistics['_rpr_lon'] = rlon
-            if self.statistics['_rpr_time'] is None:
-                self.statistics['_rpr_time'] = rtime
-        for x in self.statistics:
-            if isinstance(self.statistics[x], set):
-                self.statistics[x] = list(self.statistics[x])
-
-    def _estimate_best_position(self) -> tuple[t.Optional[float], t.Optional[float], t.Optional[float]]:
-        # No entries, no position
-        if not self._internals['coordinates']:
-            return None, None, self._estimate_best_time()
-        # One entry, one position
-        if len(self._internals['coordinates']) == 1:
-            return self._internals['coordinates'][0][0], self._internals['coordinates'][0][1], self._estimate_best_time()
-        # Use a geodetic mean of the coordinates. This is slow but coordinates is usually going to be small in size
-        mean = ocean_math.mean_vector(self._internals['coordinates'])
-        return mean[0], mean[1], self._estimate_best_time()
-
-    def _estimate_best_time(self) -> t.Optional[float]:
-        # No entries, no time
-        if not self._internals['time']:
-            return None
-        # One entry, one time
-        if len(self._internals['time']) == 1:
-            return self._internals['time'][0]
-        # Find the first time
-        min_time = min(x for x in self._internals['time'])
-        # Calculate the average number of seconds since the earliest time for all records
-        total_diff = 0
-        entries = 0
-        for x in self._internals['time']:
-            total_diff += (x - min_time).total_seconds()
-            entries += 1
-        # Calculate an average
-        return min_time + datetime.timedelta(seconds=(total_diff / entries))
-
-    def _consider_record(self, record: DataRecord):
-        lat = self._add_coordinate_statistics(record, 'LAT')
-        lon = self._add_coordinate_statistics(record, 'LON')
-        if lat is not None and lon is not None:
-            self._internals['coordinates'].append((lon, lat))
-        self._add_coordinate_statistics(record, 'DEPTH')
-        self._add_coordinate_statistics(record, 'PRESSURE')
-        time = self._add_coordinate_statistics(record, 'TIME', coerce=searchable_time)
-        if time is not None:
-            self._internals['time'].append(datetime.datetime.strptime(str(time), "%Y%m%d%H%M%S"))
-        if 'vars' not in self.statistics:
-            self.statistics['vars'] = set()
-        self.statistics['vars'].update(vname for vname in record.variables)
-        self.statistics['vars'].update(vname for vname in record.coordinates)
-        if record.subrecords:
-            if 'child_types' not in self.statistics:
-                self.statistics['child_types'] = set()
-            for srs_name in record.subrecords:
-                # Omit last component since it is the index
-                self.statistics['child_types'].add(srs_name[:srs_name.rfind("_")])
-                for sr in record.subrecords[srs_name]:
-                    self._consider_record(sr)
-
-    def _detect_geometry(self, parent_record: DataRecord):
-
-        # Level 1
-        parent_coords = set(x for x in parent_record.coordinates if parent_record.coordinates[x].value() is not None)
-
-        # Level 2
-        subrecord_types = parent_record.subrecords.record_types()
-
-        # Level 3
-        subsubrecord_types = set()
-        for srt in parent_record.subrecords:
-            for record in parent_record.subrecords[srt]:
-                subsubrecord_types.update(record.subrecords.record_types())
-
-        # X, Y, T specified (point or profile)
-        if 'LAT' in parent_coords and 'LON' in parent_coords and 'TIME' in parent_coords:
-
-            # Profiles
-            if 'PROFILE' in subrecord_types:
-                return 'profile'
-
-            # At-depth observation
-            elif 'DEPTH' in parent_coords or 'PRESSURE' in parent_coords:
-                return 'at_depth'
-
-            # Surface observation
-            elif 'TSERIES' not in subrecord_types and 'TRAJ' not in subrecord_types:
-                return 'surface'
-
-        # No TIME specified, but has TIMESERIES means it is a time series at a fixed station
-        elif 'LAT' in parent_coords and 'LON' in parent_coords and 'TSERIES' in subrecord_types:
-            return 'time_series_profile' if 'PROFILE' in subsubrecord_types else 'time_series'
-
-        # No LAT, LON, or TIME means a trajectory
-        elif 'LAT' not in parent_coords and 'LON' not in parent_coords and 'TIME' not in parent_coords and 'TRAJ' in subrecord_types:
-            return 'trajectory_profile' if 'PROFILE' in subsubrecord_types else 'trajectory'
-
-        return 'other'
-
-    def _add_coordinate_statistics(self, record: DataRecord, coordinate_name: str, coerce: callable = None):
-        if record.coordinates.has_value(coordinate_name):
-            coord = record.coordinates[coordinate_name]
-            if coord.nodb_flag == NODBQCFlag.BAD:
-                return None
-            key = coordinate_name.lower()
-            val = coerce(coord.value()) if coerce is not None else coord.value()
-            if f"min_{key}" not in self.statistics or self.statistics[f"min_{key}"] > val:
-                self.statistics[f"min_{key}"] = val
-            if f"max_{key}" not in self.statistics or self.statistics[f"max_{key}"] < val:
-                self.statistics[f"max_{key}"] = val
-            return val
-        return None
-
-
-
-"""

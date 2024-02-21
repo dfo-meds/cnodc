@@ -15,9 +15,8 @@ import uuid
 from urllib.parse import quote
 import zrlog
 from cnodc.nodb import NODBControllerInstance, NODBController, structures
-from cnodc.storage import StorageController
+from cnodc.storage import StorageController, StorageTier, BaseStorageHandle
 from autoinject import injector
-from cnodc.storage.base import StorageTier, StorageFileHandle
 from cnodc.util import CNODCError, HaltFlag, dynamic_object, haltable_gzip
 import typing as t
 import pathlib
@@ -93,7 +92,7 @@ class WorkflowPayload:
                       db: NODBControllerInstance,
                       halt_flag: HaltFlag = None):
         """Find the workflow associated with this payload and load the controller for it."""
-        workflow_config = db.load_upload_workflow_config(self.workflow_name)
+        workflow_config = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
         return WorkflowController(
             workflow_name=self.workflow_name,
             config=workflow_config.configuration,
@@ -542,7 +541,7 @@ class WorkflowController:
                     raise CNODCError(f"Exception while processing incoming file: {ex.__class__.__name__}: {str(ex)}", "WORKFLOW", 1000) from ex
 
     def _queue_working_file(self,
-                            working_file: StorageFileHandle,
+                            working_file: BaseStorageHandle,
                             metadata: dict,
                             filename: str,
                             with_gzip: bool,
@@ -657,7 +656,7 @@ class WorkflowController:
             return {'name': step_info}
         return step_info
 
-    def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict) -> tuple[StorageFileHandle, t.Optional[StorageTier]]:
+    def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict) -> tuple[BaseStorageHandle, t.Optional[StorageTier]]:
         """Upload a file to a given location."""
         if 'directory' not in upload_kwargs:
             raise CNODCError("Missing directory for workflow upload action", "WORKFLOW", 1003)

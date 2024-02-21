@@ -1,22 +1,19 @@
+"""Wrapper around psycopg2 that provides additional functionality
+    to support the NODB."""
 import contextlib
 import datetime
 import functools
 import json
 import tempfile
 import enum
-import uuid
-
 import psycopg2
 import zrlog
-
 import psycopg2 as pg
 import psycopg2.extras as pge
 import zirconium as zr
 from autoinject import injector
 import typing as t
-
 from psycopg2._psycopg import cursor as PGCursor
-
 import cnodc.nodb.structures as structures
 from cnodc.util import CNODCError
 
@@ -35,6 +32,7 @@ RECOVERABLE_ERRORS: list[str] = [
 
 
 class ScannedFileStatus(enum.Enum):
+    """The status of a scanned file"""
 
     NOT_PRESENT = "0"
     UNPROCESSED = "1"
@@ -42,6 +40,7 @@ class ScannedFileStatus(enum.Enum):
 
 
 class LockType(enum.Enum):
+    """The type of lock to take on the row when performing a select."""
 
     NONE = "1"
     FOR_UPDATE = "2"
@@ -51,6 +50,7 @@ class LockType(enum.Enum):
 
 
 class SqlState(enum.Enum):
+    """Specific postgresql SQL state codes that are used to properly handle errors."""
 
     UNIQUE_VIOLATION = '23505'
     FOREIGN_KEY_VIOLATION = '23503'
@@ -61,6 +61,7 @@ class SqlState(enum.Enum):
 
 
 class NODBError(CNODCError):
+    """Wrapper for NODB-related errors."""
 
     def __init__(self, msg, code, pgcode: str):
         super().__init__(
@@ -84,7 +85,8 @@ class NODBError(CNODCError):
             return None
 
 
-def with_nodb_execptions(cb: callable):
+def wrap_nodb_exceptions(cb: callable):
+    """Wrap postgres errors into NODB errors."""
 
     @functools.wraps(cb)
     def _inner(*args, **kwargs):
@@ -96,68 +98,83 @@ def with_nodb_execptions(cb: callable):
 
 
 class _PGCursor:
+    """Cursor class for postgresql."""
 
     def __init__(self, cursor, pg_conn):
         self._cursor = cursor
         self._conn = pg_conn
         self._log = zrlog.get_logger("cnodc.nodb")
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def execute(self, query: str, args: t.Union[list, dict, tuple, None] = None):
+        """Execute a query against the database."""
         self._log.debug(f"SQL Query: {query}")
         return self._cursor.execute(query, args)
 
-    @with_nodb_execptions
-    def commit(self):
-        self._conn.commit()
-
-    @with_nodb_execptions
-    def rollback(self):
-        self._conn.rollback()
-
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def executemany(self, query: str, args_list: t.Iterable[t.Union[list, dict, tuple, None]] = None):
+        """Execute a query multiple times."""
         return self._cursor.executemany(query, args_list)
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def callproc(self, procname: str, parameters: t.Union[list, tuple, None] = None):
+        """Call a stored procedure."""
         return self._cursor.callproc(procname, parameters)
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def copy_expert(self, *args, **kwargs):
+        """Copy records."""
         self._cursor.copy_expert(*args, **kwargs)
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def fetchone(self):
+        """Fetch a single record"""
         return self._cursor.fetchone()
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def fetchall(self):
+        """Fetch all records"""
         return self._cursor.fetchall()
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def fetchmany(self, size=PGCursor.arraysize):
+        """Fetch many records."""
         return self._cursor.fetchmany(size)
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def fetch_stream(self, size=PGCursor.arraysize):
+        """Fetch records in a stream using fetchmany() repeatedly."""
         res = self.fetchmany(size)
         while res:
             yield from res
             res = self.fetchmany(size)
 
+    @wrap_nodb_exceptions
+    def commit(self):
+        """Commit the current transaction."""
+        self._conn.commit()
+
+    @wrap_nodb_exceptions
+    def rollback(self):
+        """Rollback the current transaction."""
+        self._conn.rollback()
+
     def create_savepoint(self, name):
+        """Create a save point."""
         # TODO: save point names should be validated?
         self._cursor.execute(f"SAVEPOINT {name}")
 
     def rollback_to_savepoint(self, name):
+        """Rollback to a save point."""
         self._cursor.execute(f"ROLLBACK TO SAVEPOINT {name}")
 
     def release_savepoint(self, name):
+        """Release a save point."""
         self._cursor.execute(f"RELEASE SAVEPOINT {name}")
 
 
 class NODBControllerInstance:
+    """Wrapper around a postgresql connection with NODB support"""
 
     def __init__(self, conn):
         self._conn = conn
@@ -167,32 +184,39 @@ class NODBControllerInstance:
 
     @contextlib.contextmanager
     def cursor(self) -> _PGCursor:
+        """Get a cursor and close it when done."""
         try:
             with self._conn.cursor() as cur:
                 yield _PGCursor(cur, self._conn)
         finally:
             pass
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def commit(self):
+        """Commit the transaction."""
         self._conn.commit()
 
-    @with_nodb_execptions
+    @wrap_nodb_exceptions
     def rollback(self):
+        """Rollback the transaction."""
         self._conn.rollback()
 
     def close(self):
+        """Close the connection"""
         pass
 
     def create_savepoint(self, name):
+        """Create a savepoint"""
         with self.cursor() as cur:
             cur.create_savepoint(name)
 
     def rollback_to_savepoint(self, name):
+        """Rollback to a savepoint"""
         with self.cursor() as cur:
             cur.rollback_to_savepoint(name)
 
     def release_savepoint(self, name):
+        """Release a savepoint."""
         with self.cursor() as cur:
             cur.release_savepoint(name)
 
@@ -202,6 +226,7 @@ class NODBControllerInstance:
                      mem_size: int = 80000,
                      column_sep: str = "\t",
                      row_sep: str = "\n"):
+        """Build and execute a copy query from an iterable sequence of values."""
         mem_file = tempfile.SpooledTemporaryFile(mem_size, mode="w+", encoding="utf-8")
         for value_list in values:
             s = column_sep.join(NODBControllerInstance.escape_copy_value(v) for v in value_list) + row_sep
@@ -213,6 +238,7 @@ class NODBControllerInstance:
 
     @staticmethod
     def escape_copy_value(v):
+        """Escape a value to use in a COPY statement."""
         if v is None:
             return "\\N"
         elif isinstance(v, str):
@@ -241,6 +267,7 @@ class NODBControllerInstance:
             return str(v)
 
     def scanned_file_status(self, file_path: str) -> ScannedFileStatus:
+        """Get the status of a scanned file."""
         with self.cursor() as cur:
             cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path])
             row = cur.fetchone()
@@ -252,14 +279,17 @@ class NODBControllerInstance:
                 return ScannedFileStatus.UNPROCESSED
 
     def note_scanned_file(self, file_path):
+        """Mark a scanned file as visited."""
         with self.cursor() as cur:
             cur.execute("INSERT INTO nodb_scanned_files (file_path) VALUES (%s)", [file_path])
 
     def mark_scanned_item_success(self, file_path):
+        """Mark a scanned file as a success."""
         with self.cursor() as cur:
             cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s", [file_path])
 
     def mark_scanned_item_failed(self, file_path):
+        """Mark a scanned file as failing."""
         with self.cursor() as cur:
             cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
 
@@ -269,6 +299,7 @@ class NODBControllerInstance:
                           priority: t.Optional[int] = None,
                           unique_item_key: t.Optional[str] = None,
                           subqueue_name: t.Optional[str] = None):
+        """Create a new queue item."""
         with self.cursor() as cur:
             cur.execute("""
                 INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) 
@@ -281,6 +312,7 @@ class NODBControllerInstance:
             ])
 
     def batch_create_queue_item(self, values: t.Iterable[t.Sequence]):
+        """Batch create queue items."""
         with self.cursor() as cur:
             cur.spooled_copy(
                 copy_query="COPY nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) FROM STDIN",
@@ -295,6 +327,7 @@ class NODBControllerInstance:
             )
 
     def chunk_for_in(self, values: list) -> t.Iterable[list]:
+        """Separate a list of values into manageable lists for an IN clause."""
         x = 0
         l_values = len(values)
         if l_values == 0:
@@ -305,6 +338,7 @@ class NODBControllerInstance:
                 x += self._max_in_size
 
     def load_queue_item(self, queue_uuid) -> t.Optional[structures.NODBQueueItem]:
+        """Find a queue item."""
         return self.load_object(
             obj_cls=structures.NODBQueueItem,
             filters={"queue_uuid": queue_uuid}
@@ -315,6 +349,7 @@ class NODBControllerInstance:
                               app_id: str,
                               subqueue_name: t.Optional[str] = None,
                               retries: int = 1) -> t.Optional[structures.NODBQueueItem]:
+        """Get the next queue item."""
         with self.cursor() as cur:
             while retries > 0:
                 item_uuid = self._attempt_fetch_queue_item(queue_name, subqueue_name, app_id, cur)
@@ -324,6 +359,7 @@ class NODBControllerInstance:
             return None
 
     def _attempt_fetch_queue_item(self, queue_name: str, subqueue_name: t.Optional[str], app_id: str, cur: _PGCursor) -> t.Optional[str]:
+        """Make a single attempt to get a queue item."""
         try:
             cur.create_savepoint("fetch_queue_item")
             if subqueue_name:
@@ -348,8 +384,8 @@ class NODBControllerInstance:
             cur.rollback_to_savepoint("fetch_queue_item")
             raise ex
 
-    def delete_object(self,
-                      obj: structures._NODBBaseObject):
+    def delete_object(self, obj: structures._NODBBaseObject):
+        """Delete an object."""
         query = f'DELETE FROM {obj.get_table_name()} WHERE '
         key_names = obj.get_primary_keys()
         query += ' AND '.join(f'{x} = %s' for x in key_names)
@@ -364,7 +400,8 @@ class NODBControllerInstance:
                     filters: dict[str, str],
                     limit_fields: t.Optional[list[str]] = None,
                     lock_type: LockType = LockType.NONE,
-                    key_only: bool = False):
+                    key_only: bool = False) -> t.Optional[object]:
+        """Load an object."""
         key_names = list(x for x in filters.keys())
         if limit_fields:
             limit_fields = set(limit_fields)
@@ -389,7 +426,8 @@ class NODBControllerInstance:
                 )
         return None
 
-    def build_lock_type_clause(self, lock_type: t.Optional[LockType] = None):
+    def build_lock_type_clause(self, lock_type: t.Optional[LockType] = None) -> str:
+        """Build a clause to add on to a SELECT statement to get a row lock."""
         if lock_type == LockType.FOR_SHARE:
             return " FOR SHARE"
         elif lock_type == LockType.FOR_UPDATE:
@@ -400,12 +438,17 @@ class NODBControllerInstance:
             return " FOR KEY SHARE"
         return ""
 
-    def upsert_object(self, obj: structures._NODBBaseObject, force_update: bool = False):
-        if not(force_update or obj.is_new or obj.modified_values):
+    def upsert_object(self, obj: structures._NODBBaseObject) -> bool:
+        """Upsert an object, if necessary."""
+        if obj.is_new:
+            return self.insert_object(obj)
+        elif obj.modified_values:
+            return self.update_object(obj)
+        else:
             return True
-        return self.insert_object(obj) if obj.is_new else self.update_object(obj)
 
     def update_object(self, obj: structures._NODBBaseObject):
+        """Update an object, if necessary."""
         if not obj.modified_values:
             return True
         primary_keys = obj.get_primary_keys()
@@ -426,6 +469,7 @@ class NODBControllerInstance:
         return True
 
     def insert_object(self, obj: structures._NODBBaseObject):
+        """Insert an object into its table."""
         args = []
         primary_keys = obj.get_primary_keys()
         insert_values = list(obj.modified_values)
@@ -454,18 +498,8 @@ class NODBControllerInstance:
         obj.clear_modified()
         return True
 
-    def load_upload_workflow_config(self, workflow_name: str, lock_type: LockType = LockType.NONE) -> t.Optional[
-        structures.NODBUploadWorkflow]:
-        return self.load_object(
-            obj_cls=structures.NODBUploadWorkflow,
-            filters={"workflow_name": workflow_name},
-            lock_type=lock_type
-        )
-
-    def save_upload_workflow_config(self, config: structures.NODBUploadWorkflow):
-        self.upsert_object(obj=config)
-
     def grant_permission(self, role_name, permission_name):
+        """Grant a permission to a role."""
         with self.cursor() as cur:
             cur.execute("SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s", [
                 role_name,
@@ -479,6 +513,7 @@ class NODBControllerInstance:
                 ])
 
     def remove_permission(self, role_name, permission_name):
+        """Remove a permission from a role."""
         with self.cursor() as cur:
             cur.execute("DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s", [
                 role_name,
@@ -486,6 +521,7 @@ class NODBControllerInstance:
             ])
 
     def delete_session(self, session_id: str):
+        """Delete a user session."""
         with self.cursor() as cur:
             cur.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
 
@@ -493,6 +529,7 @@ class NODBControllerInstance:
                      username: str,
                      ip_address: str,
                      instance_name: str):
+        """Record a user logging in."""
         with self.cursor() as cur:
             cur.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP, %s, %s)", [
                 username,
@@ -502,6 +539,7 @@ class NODBControllerInstance:
 
 
 class NODBControllerBase:
+    """Base class for controller objects."""
 
     def __init__(self):
         self._instance: t.Optional[NODBControllerInstance] = None
@@ -529,6 +567,7 @@ class NODBControllerBase:
 
 @injector.injectable_global
 class NODBController(NODBControllerBase):
+    """Postgresql-linked instance of the controller object."""
 
     config: zr.ApplicationConfig = None
 

@@ -1,6 +1,9 @@
+from __future__ import annotations
 import datetime
 import typing as t
-import cnodc.ocproc2 as ocproc2
+
+if t.TYPE_CHECKING:
+    import cnodc.ocproc2 as ocproc2
 
 
 class QCOperator:

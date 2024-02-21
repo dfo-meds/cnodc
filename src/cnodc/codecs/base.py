@@ -1,3 +1,4 @@
+import array
 import pathlib
 import typing as t
 
@@ -12,7 +13,6 @@ from cnodc.util import HaltFlag, HaltInterrupt
 ByteIterable = t.Iterable[t.Union[bytes, bytearray]]
 
 
-# TODO: Investigate using mmap here?
 class ByteSequenceReader:
 
     def __init__(self, raw_bytes: ByteIterable, halt_flag: HaltFlag = None):
@@ -21,6 +21,7 @@ class ByteSequenceReader:
         self._iterator = None
         self._buffer = bytearray()
         self._buffer_length = 0
+        self._last_check = 0
         self._offset = 0
         self._complete = False
 
@@ -41,8 +42,11 @@ class ByteSequenceReader:
             self._complete = True
 
     def check_continue(self):
-        if self._halt_flag:
-            self._halt_flag.check_continue(True)
+        if self._halt_flag is not None:
+            self._last_check += 1
+            if self._last_check > 50:
+                self._halt_flag.check_continue(True)
+                self._last_check = 0
 
     def offset(self):
         return self._offset
@@ -78,15 +82,10 @@ class ByteSequenceReader:
     def at_eof(self):
         if self._buffer_length > 0:
             return False
-        if self._complete:
-            return True
-        while self._buffer_length == 0:
-            if not self._read_next():
-                break
-        return self._buffer_length == 0
+        return not self._read_next()
 
     def _read_up_to(self, actual_index: int) -> bool:
-        while not(self.at_eof() or actual_index < self._buffer_length):
+        while actual_index >= self._buffer_length:
             self.check_continue()
             if not self._read_next():
                 break
@@ -100,7 +99,7 @@ class ByteSequenceReader:
         else:
             self._offset += length
             self._buffer = self._buffer[length:]
-            self._buffer_length = len(self._buffer)
+            self._buffer_length -= length
 
     def consume_vlq_int(self) -> t.Optional[int]:
         idx = 0
@@ -113,23 +112,11 @@ class ByteSequenceReader:
         return vlq_decode(self.consume(idx + 1))[0]
 
     def peek(self, length: int) -> bytes:
-        self._read_up_to(length - 1)
-        return self._buffer[0:length]
+        self._read_up_to(length + 1)
+        return self._buffer[0:length+1]
 
     def peek_line(self, exclude_line_endings: bool = True) -> bytes:
-        while not (b"\n" in self._buffer or b"\r" in self._buffer):
-            self.check_continue()
-            if not self._read_next():
-                break
-        next_n = self._buffer.find(b"\n")
-        next_r = self._buffer.find(b"\r")
-        index = None
-        if next_n is not None and next_r is not None:
-            index = min(next_n, next_r)
-        elif next_n is not None:
-            index = next_n
-        elif next_r is not None:
-            index = next_r
+        n_or_r, index = self._find_first_match_fast([b"\r"[0], b"\n"[0]], 1, 1)
         if index is None:
             return self._buffer
         if not exclude_line_endings:
@@ -169,7 +156,7 @@ class ByteSequenceReader:
         else:
             return self.consume(actual_offset + (len(matching) if include_target else 0))
 
-    def consume(self, length: int) -> bytearray:
+    def consume(self, length: int) -> t.Union[bytes, bytearray]:
         self._read_up_to(length)
         res = self._buffer[0:length]
         self._discard_leading(length)
@@ -188,7 +175,7 @@ class ByteSequenceReader:
         if idx > 0:
             self._discard_leading(idx)
 
-    def find_first_match(self, matches: list[bytes]) -> tuple[t.Optional[bytes], t.Optional[int]]:
+    def _build_option_list(self, matches: list[bytes]) -> tuple[set, int, int, callable]:
         options = set()
         min_length = None
         max_length = None
@@ -200,25 +187,63 @@ class ByteSequenceReader:
                 if max_length is None or o_len > max_length:
                     max_length = o_len
                 options.add((o, o_len))
+        checker = self._find_first_match
+        if max_length == 1:
+            checker = self._find_first_match_fast
+            options = [x[0] for x, l in options]
+        return options, min_length, max_length, checker
+
+    def find_first_match(self, matches: list[bytes]) -> tuple[t.Optional[bytes], t.Optional[int]]:
+        options, min_length, max_length, checker = self._build_option_list(matches)
         if not options:
             return None, None
+        return checker(options, min_length, max_length)
+
+    def _find_first_match(self, options, min_length, max_length) -> tuple[t.Optional[bytes], t.Optional[int]]:
         curr_idx = 0
-        checker = self._check_any_at
-        if max_length == 1:
-            checker = self._fast_check_any_at
-            options = [x[0] for x, l in options]
         while True:
-            self.check_continue()
             if not self._read_up_to(curr_idx + min_length):
                 return None, None
-            opt = checker(options, curr_idx, max_length)
+            opt = self._check_any_at(options, curr_idx, max_length)
             if opt is not None:
                 return opt, curr_idx
             curr_idx += 1
 
-    def _fast_check_any_at(self, options: list[int], start_idx: int, max_length: int) -> t.Optional[bytes]:
-        first = self._buffer[start_idx]
-        return first.to_bytes(1, 'little') if first in options else None
+    def _find_first_match_fast(self, options: list[int], min_l: int, max_l: int):
+        """ Find the first match when all the options are single characters.
+
+            This method relies on the built-in index() method which is much faster."""
+        curr_idx = 0
+        while True:
+            best_opt, best_pos = None, None
+            for opt in options:
+                try:
+                    pos = self._buffer.index(opt, curr_idx)
+                    if best_pos is None or pos < best_pos:
+                        best_opt = opt
+                        best_pos = pos
+                except ValueError:
+                    continue
+            if best_pos is not None:
+                return best_opt.to_bytes(1, 'little'), best_pos
+            if self.at_eof():
+                return None, None
+            curr_idx = self._buffer_length
+            self._read_next()
+
+    def split_and_iterate(self, matches: t.Union[list, bytes], include_target: bool = False):
+        options, min_length, max_length, checker = self._build_option_list(
+            [matches] if isinstance(matches, (bytes, bytearray)) else matches
+        )
+        if not options:
+            raise ValueError('invalid matches')
+        while not self.at_eof():
+            matching, actual_offset = checker(options, min_length, max_length)
+            if actual_offset is None:
+                yield self.consume_all()
+                break
+            else:
+                yield self.consume(actual_offset + (len(matching) if include_target else 0))
 
     def _check_any_at(self, options: set[tuple[bytes, int]], start_idx: int, max_length: int) -> t.Optional[bytes]:
         self._read_up_to(start_idx + max_length)
@@ -307,14 +332,14 @@ class BaseCodec:
 
     def load_all(self,
                  file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
-                 chunk_size: int = 16384,
+                 chunk_size: int = 1024,
                  **kwargs) -> t.Iterable[ParentRecord]:
         if hasattr(file, 'read'):
             yield from self.decode_messages(self._read_in_chunks(file, chunk_size), **kwargs)
         elif isinstance(file, (bytes, bytearray)):
             yield from self.decode_messages(BaseCodec._yield_bytes(file), **kwargs)
         elif isinstance(file, (str, os.PathLike, pathlib.Path)):
-            with open(file, "rb") as h:
+            with open(file, "rb", buffering=0) as h:
                 yield from self.decode_messages(self._read_in_chunks(h, chunk_size), **kwargs)
         else:
             yield from self.decode_messages(file, **kwargs)

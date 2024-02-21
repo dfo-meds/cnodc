@@ -34,4 +34,4 @@
     call to determine if something is a directory or a file.
 """
 from .core import StorageController
-from .base import BaseStorageHandle
+from .base import BaseStorageHandle, StorageTier

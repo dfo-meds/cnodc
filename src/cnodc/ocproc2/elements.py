@@ -58,8 +58,7 @@ class AbstractElement:
 
     def __init__(self, metadata: t.Optional[dict] = None, **kwargs):
         self.metadata: ElementMap = ElementMap(metadata)
-        if kwargs:
-            self.metadata.update(kwargs)
+        self.metadata.update(kwargs)
         self._value = None
 
     def __repr__(self):
@@ -143,14 +142,12 @@ class AbstractElement:
 
     @staticmethod
     def value_from_mapping(map_: t.Any):
-        if isinstance(map_, list) or (isinstance(map_, dict) and '_value' not in map_):
-            dv = MultiElement()
-            dv.from_mapping(map_)
-            return dv
+        if isinstance(map_, dict):
+            return SingleElement.build_from_dict(map_) if '_value' in map_ else MultiElement.build_from_dict(map_)
+        elif isinstance(map_, list):
+            return MultiElement.build_from_list(map_)
         else:
-            dv = SingleElement()
-            dv.from_mapping(map_)
-            return dv
+            return SingleElement(map_)
 
     def update_hash(self, h):
         """Update a hash with the unique value of this value."""
@@ -235,15 +232,13 @@ class SingleElement(AbstractElement):
     def __contains__(self, item):
         return False
 
-    def __eq__(self, other):
-        if isinstance(other, SingleElement):
-            return self._value == other._value and self.metadata == other.metadata
-        elif isinstance(other, MultiElement):
-            if len(other) == 1:
-                return self.__eq__(other[0])
+    def __eq__(self, other: AbstractElement):
+        if other.is_multivalue():
+            if len(other.value) == 1:
+                return self.__eq__(other.value[0])
             return False
         else:
-            return False
+            return self.value == other.value and self.metadata == other.metadata
 
     def __str__(self):
         return str(self._value)
@@ -272,23 +267,24 @@ class SingleElement(AbstractElement):
 
     def to_mapping(self):
         md = self.metadata.to_mapping()
-        if not (md or isinstance(self._value, (list, dict))):
-            return self._value
-        else:
-            map_ = {
+        if md:
+            return {
+                '_value': self._value,
+                '_metadata': md
+            }
+        elif isinstance(self._value, list) or isinstance(self._value, dict):
+            return {
                 '_value': self._value
             }
-            if md:
-                map_['_metadata'] = md
-            return map_
-
-    def from_mapping(self, map_: t.Any):
-        if isinstance(map_, dict):
-            if '_metadata' in map_:
-                self.metadata.from_mapping(map_['_metadata'])
-            self._value = map_['_value']
         else:
-            self._value = map_
+            return self._value
+
+    @staticmethod
+    def build_from_dict(map_: dict):
+        v = SingleElement(map_['_value'])
+        if '_metadata' in map_:
+            v.metadata.from_mapping(map_['_metadata'])
+        return v
 
 
 OCProcValue = t.Union[SupportedValue, AbstractElement]
@@ -372,24 +368,26 @@ class MultiElement(AbstractElement):
         self._value.append(value)
 
     def to_mapping(self):
-        if len(self._value) == 0:
-            return {
-                '_value': None,
-            }
-        elif len(self._value) == 1:
-            return self._value[0].to_mapping()
-        else:
-            return {
-                '_values': [v.to_mapping() for v in self._value]
-            }
+        map_ = {
+            '_values': [v.to_mapping() for v in self._value]
+        }
+        if self.metadata:
+            map_['_metadata'] = self.metadata.to_mapping()
 
-    def from_mapping(self, map_: t.Any):
-        if isinstance(map_, dict):
-            if '_metadata' in map_:
-                self.metadata.from_mapping(map_['_metadata'])
-            self._value = [AbstractElement.value_from_mapping(v) for v in map_['values']]
-        else:
-            self._value = [AbstractElement.value_from_mapping(v) for v in map_]
+    @staticmethod
+    def build_from_list(map_: list):
+        return MultiElement(
+            [AbstractElement.value_from_mapping(x) for x in map_],
+        )
+
+    @staticmethod
+    def build_from_dict(map_: dict):
+        me = MultiElement(
+            [AbstractElement.value_from_mapping(x) for x in map_['_values']],
+        )
+        if '_metadata' in map_:
+            me.metadata.from_mapping(map_)
+        return me
 
 
 class ElementMap:
@@ -397,8 +395,7 @@ class ElementMap:
 
     def __init__(self, defaults: t.Optional[DefaultValueDict] = None):
         self._map: dict[str, AbstractElement] = {}
-        if defaults:
-            self.update(defaults)
+        self.update(defaults)
 
     def __contains__(self, item):
         return item in self._map
@@ -499,8 +496,9 @@ class ElementMap:
 
     def update(self, d: t.Optional[DefaultValueDict]):
         """Update the element map with the given elements."""
-        for key in d:
-            self.set(key, d[key])
+        if d:
+            for key in d:
+                self.set(key, d[key])
 
     def to_mapping(self):
         """Convert the map to a dictionary."""

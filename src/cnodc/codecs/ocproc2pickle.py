@@ -22,7 +22,6 @@ class OCProc2PickleCodec(BaseCodec):
         data = pickle.dumps(record.to_mapping())
         data_len = len(data)
         if data_len > 0:
-            print(data_len)
             buf = bytearray()
             while True:
                 chunk = data_len & 0x7f

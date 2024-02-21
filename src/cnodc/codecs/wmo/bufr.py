@@ -1,10 +1,7 @@
 import datetime
-import itertools
 import typing as t
-
 import pybufrkit.descriptors
 import zrlog
-
 from cnodc.codecs.gts import GtsSubDecoder
 from cnodc.codecs.base import DecodeResult
 import math
@@ -127,6 +124,7 @@ class _Bufr4DecoderContext:
         new = _Bufr4DecoderContext(self.subset)
         new.hierarchy = [x for x in self.hierarchy]
         new.target = self.target
+        new.top = self.top
         new.var_metadata = {x: self.var_metadata[x] for x in self.var_metadata}
         new.record_metadata = {x: self.record_metadata[x] for x in self.record_metadata}
         return new
@@ -204,17 +202,17 @@ class _Bufr4Decoder:
             'GTSHeader': self.header,
             'BUFRDescriptors': descriptors,
             'BUFRInferredMessageType': self._identify_bufr_message_type(descriptors),
-            'BUFROriginCentre': self.message.originating_centre,
-            'BUFROriginSubcentre': self.message.originating_subcentre,
-            'BUFRDataCategory': self.message.data_category,
-            'BUFRIsObservation': 1 if self.message.is_observation else 0,
+            'BUFROriginCentre': self.message.originating_centre.value,
+            'BUFROriginSubcentre': self.message.originating_subcentre.value,
+            'BUFRDataCategory': self.message.data_category.value,
+            'BUFRIsObservation': 1 if self.message.is_observation.value else 0,
             'BUFRMessageTime': datetime.datetime(
-                year=self.message.year,
-                month=self.message.month,
-                day=self.message.day,
-                hour=self.message.hour,
-                minute=self.message.minute,
-                second=self.message.second,
+                year=self.message.year.value,
+                month=self.message.month.value,
+                day=self.message.day.value,
+                hour=self.message.hour.value,
+                minute=self.message.minute.value,
+                second=self.message.second.value,
                 tzinfo=datetime.timezone.utc
             ).isoformat()
         }

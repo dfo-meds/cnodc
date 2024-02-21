@@ -128,14 +128,14 @@ class OCProc2BinCodec(BaseCodec):
                 raise CNODCError(f'Invalid LZMA compression {og_compression}', 'OCPROC2BIN', 1001)
             stream_wrappers.append(_LZMACompression(check, level))
         elif compression.startswith('ZLIB'):
-            preset = -1
+            preset = None
             if len(compression) == 5 and compression[4].isdigit():
                 preset = int(compression[4])
             elif compression != 'ZLIB':
                 raise CNODCError(f'Invalid ZLIB compression {og_compression}', 'OCPROC2BIN', 1002)
             stream_wrappers.append(_ZlibCompression(preset))
         elif compression.startswith('BZ2'):
-            preset = -1
+            preset = None
             if len(compression) == 4 and compression[3].isdigit():
                 preset = int(compression[3])
             elif compression != 'BZ2':
@@ -155,7 +155,7 @@ class OCProc2BinCodec(BaseCodec):
 class _Bz2Compression(StreamWrapper):
 
     def __init__(self, preset=None):
-        self._preset = preset
+        self._preset = preset or 6
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
         import bz2
@@ -176,7 +176,7 @@ class _Bz2Compression(StreamWrapper):
 class _ZlibCompression(StreamWrapper):
 
     def __init__(self, preset=None):
-        self._preset = preset
+        self._preset = preset or 6
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
         import zlib
@@ -197,7 +197,7 @@ class _LZMACompression(StreamWrapper):
 
     def __init__(self, crc_check=None, preset=None):
         self._crc_check = crc_check
-        self._preset = preset
+        self._preset = preset or 6
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
         import lzma
