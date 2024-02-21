@@ -375,7 +375,7 @@ class _GraphPane(BasePane):
         v, qc, _ = oom.calc_density_record(record, self.app.app_state.record, 'kg m-3')
         return v, qc
 
-    def _extract_value(self, map_: ocproc2.ValueMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:
+    def _extract_value(self, map_: ocproc2.ElementMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:
         # TODO: Salinity (PSAL or ASAL)
         if value_name == 'Salinity':
             if 'PracticalSalinity' in map_:

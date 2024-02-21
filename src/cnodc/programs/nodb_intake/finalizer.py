@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from cnodc.ocproc2 import DataRecord, ValueMap
+from cnodc.ocproc2 import DataRecord, ElementMap
 from cnodc.ocproc2.structures import AbstractValue, MultiValue, Value
 from cnodc.process.payload_worker import BatchPayloadWorker
 import cnodc.nodb.structures as structures
@@ -164,7 +164,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
             return None
         return f'POINT ({round(longitude, 4)} {round(latitude, 4)})'
 
-    def _extract_single_value(self, value_map: ValueMap, value_name: str, default=None):
+    def _extract_single_value(self, value_map: ElementMap, value_name: str, default=None):
         if value_name not in value_map:
             return default
         val = value_map[value_name]
@@ -176,7 +176,7 @@ class NODBFinalizeWorker(BatchPayloadWorker):
             return val.value
         return default
 
-    def _extract_enum_value(self, enum_type, value_map: ValueMap, value_name: str, default=None, default_error=None):
+    def _extract_enum_value(self, enum_type, value_map: ElementMap, value_name: str, default=None, default_error=None):
         bv = value_map.best_value(value_name, None)
         if bv is None:
             return default

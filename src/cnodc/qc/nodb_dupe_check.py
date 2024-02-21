@@ -365,8 +365,8 @@ class NODBDuplicateCheck(BaseTestSuite):
                 original[k] += new[k]
 
     def _compare_vmaps(self,
-                       vmap_a: ocproc2.ValueMap,
-                       vmap_b: ocproc2.ValueMap,
+                       vmap_a: ocproc2.ElementMap,
+                       vmap_b: ocproc2.ElementMap,
                        skip_keys: t.Optional[list[str]] = None,
                        missing_is_compatible: bool = True) -> dict[ValueCompareResult, int]:
         results = {}
@@ -380,8 +380,8 @@ class NODBDuplicateCheck(BaseTestSuite):
         return results
 
     def _compare_values(self,
-                        vmap_a: ocproc2.ValueMap,
-                        vmap_b: ocproc2.ValueMap,
+                        vmap_a: ocproc2.ElementMap,
+                        vmap_b: ocproc2.ElementMap,
                         key: str,
                         missing_is_compatible: bool = True) -> ValueCompareResult:
         # Finds the best possible comparison between values for a given value map key

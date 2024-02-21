@@ -598,7 +598,7 @@ class BaseTestSuite:
     def report_for_review(self, error_code: str, qc_flag: t.Optional[int] = None, ref_value=None):
         raise QCAssertionError(error_code, qc_flag, ref_value)
 
-    def precheck_value_in_map(self, value_map: ocproc2.ValueMap, key: str, /, raise_ex: bool = True, **kwargs) -> bool:
+    def precheck_value_in_map(self, value_map: ocproc2.ElementMap, key: str, /, raise_ex: bool = True, **kwargs) -> bool:
         return self.precheck_value(value_map.get(key), raise_ex=raise_ex, **kwargs)
 
     def precheck_value(self,

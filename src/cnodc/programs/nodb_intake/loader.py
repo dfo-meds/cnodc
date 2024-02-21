@@ -4,7 +4,7 @@ import statistics
 import uuid
 from cnodc.codecs.base import BaseCodec, DecodeResult
 from cnodc.nodb import LockType
-from cnodc.ocproc2 import DataRecord, MultiValue
+from cnodc.ocproc2 import DataRecord, MultiElementElement
 import cnodc.nodb.structures as structures
 import typing as t
 

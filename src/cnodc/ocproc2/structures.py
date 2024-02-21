@@ -2,16 +2,16 @@
 import hashlib
 import typing as t
 import datetime
-from cnodc.ocproc2.values import ValueMap
+from cnodc.ocproc2.elements import ElementMap
 from cnodc.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 
 
 class BaseRecord:
 
     def __init__(self):
-        self.metadata = ValueMap()
-        self.parameters = ValueMap()
-        self.coordinates = ValueMap()
+        self.metadata = ElementMap()
+        self.parameters = ElementMap()
+        self.coordinates = ElementMap()
         self.subrecords = RecordMap()
 
     def find_child(self, object_path: t.Union[str, list[str]]):
@@ -195,7 +195,7 @@ class DataRecord(BaseRecord):
 class RecordSet:
 
     def __init__(self):
-        self.metadata = ValueMap()
+        self.metadata = ElementMap()
         self.records: list[BaseRecord] = []
 
     def update_hash(self, h):

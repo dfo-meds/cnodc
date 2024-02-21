@@ -160,7 +160,7 @@ class QCSetValue(QCOperator):
             v.value = self._new_value
             return
         parent = record.find_child(path[:-1])
-        if isinstance(parent, ocproc2.ValueMap):
+        if isinstance(parent, ocproc2.ElementMap):
             parent[path[-1]] = self._new_value
             return
         raise ValueError('cannot find a value to set')

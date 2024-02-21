@@ -113,7 +113,7 @@ class NODBIntegrityCheck(BaseTestSuite):
                 self._verify_element(context, "metadata:element", key, element_value.metadata[key])
 
     def _test_element_value(self,
-                            value: ocproc2.Value,
+                            value: ocproc2.SingleElement,
                             ctx: TestContext,
                             preferred_unit: t.Optional[str],
                             data_type: t.Optional[str],

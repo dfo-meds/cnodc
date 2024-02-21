@@ -2,7 +2,7 @@
 import typing as t
 import datetime
 import enum
-from cnodc.ocproc2.values import SupportedValue
+from cnodc.ocproc2.elements import SupportedValue
 
 
 class MessageType(enum.Enum):
