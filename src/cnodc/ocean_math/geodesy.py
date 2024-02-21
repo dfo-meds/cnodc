@@ -1,6 +1,10 @@
+"""Geodesy related functions.
+
+    Note that we re-implement some functions here to properly account for uncertainty in the
+    measurement value using the uncertainties library.
+"""
 import cnodc.ocean_math.umath_wrapper as umath
 from uncertainties import ufloat
-import typing as t
 import shapely
 
 
@@ -9,7 +13,9 @@ _EARTH_RADIUS = ufloat(6371000, 10000)
 
 def uhaversine(yx1: tuple[umath.FLOAT, umath.FLOAT],
                yx2: tuple[umath.FLOAT, umath.FLOAT]) -> umath.FLOAT:
-    """Points are [lat, lon]"""
+    """Calculate the distance between two points using the haversine function, maintaining
+        the uncertainty associated with the coordinates.
+    """
     lat1 = umath.radians(yx1[0])
     lon1 = umath.radians(yx1[1])
     lat2 = umath.radians(yx2[0])
@@ -25,6 +31,7 @@ def upoint_to_geometry(
         latitude: umath.FLOAT,
         longitude: umath.FLOAT
         ) -> shapely.Geometry:
+    """Convert a point to a sensible geometry that depends on the uncertainty."""
     lat_no_d = isinstance(latitude, float) or latitude.std_dev == 0
     lon_no_d = isinstance(longitude, float) or longitude.std_dev == 0
     if lat_no_d and lon_no_d:

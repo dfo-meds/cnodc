@@ -1,11 +1,6 @@
 import functools
-import math
-
 from matplotlib.lines import Line2D
-
-from cnodc.desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange, \
-    BatchOpenState, SimpleRecordInfo
-import tkintermapview as tkmv
+from cnodc.desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchOpenState, SimpleRecordInfo
 import typing as t
 import cnodc.ocproc2 as ocproc2
 import tkinter.ttk as ttk
@@ -19,9 +14,6 @@ import tkinter as tk
 import cnodc.desktop.translations as i18n
 from cnodc.desktop.gui.ocproc_graph import OCProc2Graph
 from cnodc.ocean_math.geodesy import uhaversine
-from cnodc.ocean_math.seawater import eos80_pressure
-from cnodc.ocproc2.operations import QCSetWorkingQuality, QCAddHistory
-
 from cnodc.units import UnitConverter
 import cnodc.ocean_math.ocproc2int as oom
 
@@ -263,7 +255,6 @@ class _GraphPane(BasePane):
                 if max_value is None or max_value < v:
                     max_value = v
         return min_value, max_value, data
-
 
     def _calculate_x_axis_range(self, xx1: tuple[float, float], xx2: tuple[float, float]) -> tuple[float, float]:
         m = (xx2[1] - xx1[1]) / (xx2[0] - xx1[0])
