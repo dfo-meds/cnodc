@@ -1,3 +1,4 @@
+"""Integration with ERDDAP to reload a dataset."""
 import requests
 import zirconium as zr
 import zrlog
@@ -9,6 +10,7 @@ from cnodc.util import CNODCError
 
 
 class ReloadFlag(enum.Enum):
+    """Flags to send to ERDDAPUtil."""
 
     SOFT = 0
     BAD_FILES = 1
@@ -17,6 +19,7 @@ class ReloadFlag(enum.Enum):
 
 @injector.injectable
 class ErddapController:
+    """Controller class for interacting with ERDDAP"""
 
     app_config: zr.ApplicationConfig = None
 
@@ -27,6 +30,7 @@ class ErddapController:
         self._log = zrlog.get_logger("cnodc.erddap")
 
     def _get_config(self, cluster_name: t.Optional[str] = None):
+        """Retrieve the configuration for the given cluster name."""
         cluster_name = cluster_name or "__default"
         if cluster_name not in self._valid_configs:
             self._valid_configs[cluster_name] = None
@@ -63,6 +67,7 @@ class ErddapController:
                        dataset_id: str,
                        flag: ReloadFlag = ReloadFlag.SOFT,
                        cluster_name: str = None) -> bool:
+        """Reload a given dataset."""
         try:
             resp = self._make_authenticated_request(
                 endpoint="datasets/reload",
@@ -82,6 +87,7 @@ class ErddapController:
             return False
 
     def _make_authenticated_request(self, endpoint: str, method: str, json_data: dict, cluster_name: str = None):
+        """Make an HTTP call to the endpoint with appropriate authentication."""
         config = self._get_config(cluster_name)
         if config is None:
             raise CNODCError(f"Invalid ERDDAP configuration, see logs for more details", "ERDDAPUTIL", 1000)
