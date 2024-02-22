@@ -23,6 +23,8 @@ SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
 
 class _BaseInfo:
 
+    __slots__ = ('name', '_label', '_documentation')
+
     def __init__(self, name):
         self.name = name
         self._label = {}
@@ -75,6 +77,8 @@ class _BaseInfo:
 
 class OCProc2ChildRecordTypeInfo(_BaseInfo):
 
+    __slots__ = ('name', '_label', '_documentation', 'coordinates')
+
     def __init__(self,
                  name: str,
                  relevant_coordinates: t.Optional[list[str]] = None):
@@ -89,6 +93,8 @@ class OCProc2ChildRecordTypeInfo(_BaseInfo):
 
 
 class OCProc2ElementInfo(_BaseInfo):
+
+    __slots__ = ('name', '_label', '_documentation', 'allow_multi', 'groups', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values')
 
     def __init__(self,
                  name: str,

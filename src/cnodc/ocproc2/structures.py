@@ -8,40 +8,66 @@ from cnodc.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessa
 
 class BaseRecord:
 
+    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords')
+
     def __init__(self):
-        self.metadata = ElementMap()
-        self.parameters = ElementMap()
-        self.coordinates = ElementMap()
-        self.subrecords = RecordMap()
+        self._metadata: t.Optional[ElementMap] = None
+        self._parameters: t.Optional[ElementMap] = None
+        self._coordinates: t.Optional[ElementMap] = None
+        self._subrecords = None
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = ElementMap()
+        return self._metadata
+
+    @property
+    def parameters(self):
+        if self._parameters is None:
+            self._parameters = ElementMap()
+        return self._parameters
+
+    @property
+    def coordinates(self):
+        if self._coordinates is None:
+            self._coordinates = ElementMap()
+        return self._coordinates
+
+    @property
+    def subrecords(self):
+        if self._subrecords is None:
+            self._subrecords = RecordMap()
+        return self._subrecords
 
     def find_child(self, object_path: t.Union[str, list[str]]):
         if not object_path:
             return self
         if isinstance(object_path, str):
             object_path = [x for x in object_path.split('/') if x != '']
-        if object_path[0] == 'metadata':
+        if object_path[0] == 'metadata' and self._metadata is not None:
             return self.metadata.find_child(object_path[1:])
-        elif object_path[0] == 'parameters':
+        elif object_path[0] == 'parameters' and self._parameters is not None:
             return self.parameters.find_child(object_path[1:])
-        elif object_path[0] == 'coordinates':
+        elif object_path[0] == 'coordinates' and self._coordinates is not None:
             return self.coordinates.find_child(object_path[1:])
-        elif object_path[0] == 'subrecords':
+        elif object_path[0] == 'subrecords' and self._subrecords is not None:
             return self.subrecords.find_child(object_path[1:])
         else:
             return None
 
     def to_mapping(self):
         map_ = {}
-        md = self.metadata.to_mapping()
+        md = self._metadata.to_mapping() if self._metadata is not None else None
         if md:
             map_['_metadata'] = md
-        pm = self.parameters.to_mapping()
+        pm = self._parameters.to_mapping() if self._parameters is not None else None
         if pm:
             map_['_parameters'] = pm
-        cm = self.coordinates.to_mapping()
+        cm = self._coordinates.to_mapping() if self._coordinates is not None else None
         if cm:
             map_['_coordinates'] = cm
-        sm = self.subrecords.to_mapping()
+        sm = self._subrecords.to_mapping() if self._subrecords is not None else None
         if sm:
             map_['_subrecords'] = sm
         return map_
@@ -57,28 +83,81 @@ class BaseRecord:
             self.subrecords.from_mapping(map_['_subrecords'])
 
     def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable:
-        for record_type in self.subrecords:
-            if subrecord_type is None or subrecord_type == record_type:
-                for record_set_key in self.subrecords[record_type]:
-                    yield from self.subrecords[record_type][record_set_key].records
+        if self._subrecords is not None:
+            yield from self._subrecords.iter_subrecords(subrecord_type)
 
     def update_hash(self, h):
-        self.metadata.update_hash(h)
-        self.parameters.update_hash(h)
-        self.coordinates.update_hash(h)
-        self.subrecords.update_hash(h)
+        if self._metadata is not None:
+            self._metadata.update_hash(h)
+        if self._parameters is not None:
+            self._parameters.update_hash(h)
+        if self._coordinates is not None:
+            self._coordinates.update_hash(h)
+        if self._subrecords is not None:
+            self._subrecords.update_hash(h)
 
 
 class ChildRecord(BaseRecord):
-    pass
+
+    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords')
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = ElementMap()
+        return self._metadata
+
+    @property
+    def parameters(self):
+        if self._parameters is None:
+            self._parameters = ElementMap()
+        return self._parameters
+
+    @property
+    def coordinates(self):
+        if self._coordinates is None:
+            self._coordinates = ElementMap()
+        return self._coordinates
+
+    @property
+    def subrecords(self):
+        if self._subrecords is None:
+            self._subrecords = RecordMap()
+        return self._subrecords
 
 
 class ParentRecord(BaseRecord):
+
+    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', 'history', 'qc_tests')
 
     def __init__(self):
         super().__init__()
         self.history: list[HistoryEntry] = []
         self.qc_tests: list[QCTestRunInfo] = []
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = ElementMap()
+        return self._metadata
+
+    @property
+    def parameters(self):
+        if self._parameters is None:
+            self._parameters = ElementMap()
+        return self._parameters
+
+    @property
+    def coordinates(self):
+        if self._coordinates is None:
+            self._coordinates = ElementMap()
+        return self._coordinates
+
+    @property
+    def subrecords(self):
+        if self._subrecords is None:
+            self._subrecords = RecordMap()
+        return self._subrecords
 
     def to_mapping(self):
         map_ = super().to_mapping()
@@ -198,34 +277,43 @@ class ParentRecord(BaseRecord):
 
 class RecordSet:
 
+    __slots__ = ('_metadata', 'records')
+
     def __init__(self):
-        self.metadata = ElementMap()
+        self._metadata = None
         self.records: list[ChildRecord] = []
 
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = ElementMap()
+        return self._metadata
+
     def update_hash(self, h):
-        self.metadata.update_hash(h)
+        if self._metadata is not None:
+            self.metadata.update_hash(h)
         for r in self.records:
             r.update_hash(h)
 
     def to_mapping(self):
-        md = self.metadata.to_mapping()
+        md = self._metadata.to_mapping() if self._metadata is not None else None
         if md:
             return {
                 '_records': [x.to_mapping() for x in self.records],
                 '_metadata': md
             }
-        return [x.to_mapping() for x in self.records]
+        else:
+            return {
+                '_records': [x.to_mapping() for x in self.records]
+            }
 
     def from_mapping(self, map_):
-        if isinstance(map_, dict):
-            if '_metadata' in map_:
-                self.metadata.from_mapping(map_['_metadata'])
-            map_ = map_['records']
-        self.records = []
-        for r in map_:
+        for r in map_['_records']:
             record = ChildRecord()
             record.from_mapping(r)
             self.records.append(record)
+        if '_metadata' in map_:
+            self.metadata.from_mapping(map_['_metadata'])
 
     def find_child(self, path: list[str]):
         if not path:
@@ -242,6 +330,8 @@ class RecordSet:
 
 class RecordMap:
 
+    __slots__ = ('record_sets', )
+
     def __init__(self):
         self.record_sets: dict[str, dict[int, RecordSet]] = {}
 
@@ -253,6 +343,18 @@ class RecordMap:
 
     def __contains__(self, key):
         return key in self.record_sets
+
+    def iter_subrecords(self, srt: t.Optional[str] = None):
+        if srt is not None:
+            try:
+                for rs_idx in self.record_sets[srt]:
+                    yield from self.record_sets[srt][rs_idx].records
+            except KeyError:
+                pass
+        else:
+            for srt in self.record_sets:
+                for rs_idx in self.record_sets[srt]:
+                    yield from self.record_sets[srt][rs_idx].records
 
     def find_child(self, path: list[str]):
         if not path:
@@ -287,14 +389,13 @@ class RecordMap:
     def to_mapping(self):
         return {
             x: {
-                y: self.record_sets[x][y].to_mapping()
+                str(y): self.record_sets[x][y].to_mapping()
                 for y in self.record_sets[x]
             }
             for x in self.record_sets
         }
 
     def from_mapping(self, map_):
-        self.record_sets = {}
         for x in map_:
             self.record_sets[x] = {}
             for y in map_[x]:

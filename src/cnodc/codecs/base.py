@@ -1,4 +1,5 @@
 import array
+import mmap
 import pathlib
 import typing as t
 
@@ -11,6 +12,10 @@ from cnodc.util import CNODCError, vlq_decode
 from cnodc.util import HaltFlag, HaltInterrupt
 
 ByteIterable = t.Iterable[t.Union[bytes, bytearray]]
+
+
+class NotSupported(Exception):
+    pass
 
 
 class ByteSequenceReader:
@@ -266,13 +271,13 @@ class ByteSequenceReader:
 class Readable(t.Protocol):
 
     def read(self, chunk_size: t.Optional[int] = None) -> bytes:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Writable(t.Protocol):
 
     def write(self, data: bytes):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class DecodeResult:
@@ -305,9 +310,10 @@ class EncodeResult:
 
 class BaseCodec:
 
-    def __init__(self, log_name: str, is_encoder: bool = False, is_decoder: bool = False, halt_flag: HaltFlag = None):
+    def __init__(self, log_name: str, is_encoder: bool = False, is_decoder: bool = False, support_single: bool = False, halt_flag: HaltFlag = None):
         self.is_encoder = is_encoder
         self.is_decoder = is_decoder
+        self.support_single_record = support_single
         self._halt_flag = halt_flag
         self.log = zrlog.get_logger(log_name)
 
@@ -327,20 +333,25 @@ class BaseCodec:
         if hasattr(output_file, 'write'):
             self._write_in_chunks(output_file, self.encode_records(record_set, **kwargs))
         else:
-            with open(output_file, "wb") as h:
+            with open(output_file, "wb", buffering=524288) as h:
                 self._write_in_chunks(h, self.encode_records(record_set, **kwargs))
 
     def load_all(self,
                  file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
-                 chunk_size: int = 1024,
+                 chunk_size: int = 524288,
+                 use_mmap: bool = True,
                  **kwargs) -> t.Iterable[ParentRecord]:
         if hasattr(file, 'read'):
             yield from self.decode_messages(self._read_in_chunks(file, chunk_size), **kwargs)
         elif isinstance(file, (bytes, bytearray)):
             yield from self.decode_messages(BaseCodec._yield_bytes(file), **kwargs)
         elif isinstance(file, (str, os.PathLike, pathlib.Path)):
-            with open(file, "rb", buffering=0) as h:
-                yield from self.decode_messages(self._read_in_chunks(h, chunk_size), **kwargs)
+            with open(file, "rb") as h:
+                if use_mmap:
+                    with mmap.mmap(h.fileno(), length=0, access=mmap.ACCESS_READ) as hm:
+                        yield from self.decode_messages(self._read_in_chunks(hm, chunk_size), **kwargs)
+                else:
+                    yield from self.decode_messages(self._read_in_chunks(h, chunk_size), **kwargs)
         else:
             yield from self.decode_messages(file, **kwargs)
 
@@ -353,23 +364,29 @@ class BaseCodec:
                        **kwargs) -> ByteIterable:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
         on_first = True
-        yield from self._encode_start(**kwargs)
+        st = self._encode_start(**kwargs)
+        sep = self._encode_separator(**kwargs)
+        en = self._encode_end(**kwargs)
+        if st:
+            yield st
         for record_idx, record in enumerate(HaltFlag.iterate(data, self._halt_flag, True)):
             result = self._encode_record(record)
             if result.success:
-                if not on_first:
-                    yield from self._encode_separator(**kwargs)
+                if sep and not on_first:
+                    yield sep
                 yield from result.data_stream
                 on_first = False
             elif fail_on_error:
+                print('here')
                 if result.from_exception:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1000) from result.from_exception
                 else:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1001)
-        yield from self._encode_end(**kwargs)
+        if en:
+            yield en
 
-    def _encode_start(self, **kwargs) -> ByteIterable:
-        yield b''
+    def _encode_start(self, **kwargs) -> t.Union[bytes, bytearray, None]:
+        pass
 
     def _encode_record(self,
                        record: ParentRecord,
@@ -377,7 +394,7 @@ class BaseCodec:
         try:
             return EncodeResult(
                 original=record,
-                data_stream=self._encode(record, **kwargs)
+                data_stream=self.encode_single_record_for_decode(record, **kwargs)
             )
         except Exception as ex:
             return EncodeResult(
@@ -385,16 +402,17 @@ class BaseCodec:
                 exc=ex
             )
 
-    def _encode(self,
-                record: ParentRecord,
-                **kwargs) -> t.Iterable[bytes]:
-        raise NotImplementedError()
+    def encode_single_record_for_decode(self, record: ParentRecord, **kwargs) -> ByteIterable:
+        yield self.encode_single_record(record, **kwargs)
 
-    def _encode_separator(self, **kwargs) -> ByteIterable:
-        yield b''
+    def encode_single_record(self, record: ParentRecord, **kwargs) -> t.Union[bytes, bytearray]:
+        raise NotSupported
 
-    def _encode_end(self, **kwargs) -> ByteIterable:
-        yield b''
+    def _encode_separator(self, **kwargs) -> t.Union[bytes, bytearray, None]:
+        pass
+
+    def _encode_end(self, **kwargs) -> t.Union[bytes, bytearray, None]:
+        pass
 
     def _as_byte_sequence(self, bytes_: ByteIterable) -> ByteSequenceReader:
         return ByteSequenceReader(bytes_, self._halt_flag)
@@ -420,6 +438,8 @@ class BaseCodec:
     def decode_to_results(self, data: ByteIterable, include_skipped: bool = True, **kwargs) -> t.Iterable[DecodeResult]:
         idx = 0
         for result in self._decode(data, **kwargs):
+            if result is None:
+                continue
             result.message_idx = idx
             idx += 1
             if include_skipped or not result.skipped:
@@ -427,8 +447,26 @@ class BaseCodec:
 
     def _decode(self,
                 data: ByteIterable,
-                **kwargs) -> t.Iterable[DecodeResult]:
-        raise NotImplementedError()
+                **kwargs) -> t.Iterable[t.Optional[DecodeResult]]:
+        raise NotSupported
+
+    def decode_single_record(self, data: t.Union[bytes, bytearray], *args, **kwargs) -> t.Optional[DecodeResult]:
+        try:
+            res = self._decode_single_record(data, *args, **kwargs)
+            if res is None:
+                return None
+            return DecodeResult(
+                records=[res],
+                original=data
+            )
+        except Exception as ex:
+            return DecodeResult(
+                exc=ex,
+                original=data
+            )
+
+    def _decode_single_record(self, data: t.Union[bytes, bytearray], *args, **kwargs) -> ParentRecord:
+        raise NotSupported
 
     def _write_in_chunks(self, file_handle: Writable, output: ByteIterable):
         for bytes_ in HaltFlag.iterate(output, self._halt_flag, True):

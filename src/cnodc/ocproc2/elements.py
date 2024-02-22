@@ -56,10 +56,11 @@ def duck_type_catch(cb: callable):
 class AbstractElement:
     """Base class for Value and MultiValue."""
 
-    def __init__(self, metadata: t.Optional[dict] = None, **kwargs):
-        self.metadata: ElementMap = ElementMap(metadata)
-        self.metadata.update(kwargs)
-        self._value = None
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = ElementMap()
+        return self._metadata
 
     def __repr__(self):
         s = f'{self.__class__.__name__}({str(self)})'
@@ -142,12 +143,22 @@ class AbstractElement:
 
     @staticmethod
     def value_from_mapping(map_: t.Any):
-        if isinstance(map_, dict):
-            return SingleElement.build_from_dict(map_) if '_value' in map_ else MultiElement.build_from_dict(map_)
-        elif isinstance(map_, list):
-            return MultiElement.build_from_list(map_)
+        if not isinstance(map_, dict):
+            return SingleElement(map_, _skip_normalization=True)
         else:
-            return SingleElement(map_)
+            try:
+                element = SingleElement(map_['_value'], _skip_normalization=True)
+            except KeyError:
+                element = MultiElement(
+                    (AbstractElement.value_from_mapping(x) for x in map_['_values']),
+                    _skip_normalization=True
+                )
+            # NB: metadata is assumed to be present on all of the values
+            # if we get here.
+            md = map_['_metadata']
+            if md:
+                element.metadata.from_mapping(md)
+            return element
 
     def update_hash(self, h):
         """Update a hash with the unique value of this value."""
@@ -222,12 +233,11 @@ class AbstractElement:
 class SingleElement(AbstractElement):
     """Represents a single value with a single set of metadata."""
 
-    def __init__(self,
-                 value: SupportedValue = None,
-                 metadata: t.Optional[dict] = None,
-                 **kwargs):
-        super().__init__(metadata, **kwargs)
-        self._value = normalize_data_value(value)
+    __slots__ = ('_metadata', '_value')
+
+    def __init__(self, value: SupportedValue = None, _skip_normalization: bool = False):
+        self._value = value if _skip_normalization else normalize_data_value(value)
+        self._metadata = None
 
     def __contains__(self, item):
         return False
@@ -266,24 +276,25 @@ class SingleElement(AbstractElement):
         self._value = normalize_data_value(value)
 
     def to_mapping(self):
-        md = self.metadata.to_mapping()
+        md = self._metadata.to_mapping() if self._metadata else None
         if md:
             return {
                 '_value': self._value,
                 '_metadata': md
             }
-        elif isinstance(self._value, list) or isinstance(self._value, dict):
+        elif isinstance(self._value, dict):
             return {
-                '_value': self._value
+                '_value': self._value,
+                '_metadata': {}
             }
         else:
             return self._value
 
     @staticmethod
-    def build_from_dict(map_: dict):
-        v = SingleElement(map_['_value'])
-        if '_metadata' in map_:
-            v.metadata.from_mapping(map_['_metadata'])
+    def build(v: t.Any, metadata: dict = None):
+        v = SingleElement(v)
+        if metadata is not None:
+            v.metadata.update(metadata)
         return v
 
 
@@ -294,11 +305,11 @@ DefaultValueDict = dict[str, OCProcValue]
 class MultiElement(AbstractElement):
     """Represents a set of multiple values."""
 
-    def __init__(self,
-                 values: t.Sequence[OCProcValue] = None,
-                 **kwargs):
-        super().__init__(None, **kwargs)
-        self._value = [v if isinstance(v, AbstractElement) else SingleElement(v) for v in values] if values else []
+    __slots__ = ('_value', '_metadata')
+
+    def __init__(self, values = None, _skip_normalization: bool = False):
+        self._value = [v if _skip_normalization or isinstance(v, AbstractElement) else SingleElement(v) for v in values] if values else []
+        self._metadata = None
 
     def __str__(self):
         return '\n'.join(str(x) for x in self._value)
@@ -368,96 +379,86 @@ class MultiElement(AbstractElement):
         self._value.append(value)
 
     def to_mapping(self):
-        map_ = {
-            '_values': [v.to_mapping() for v in self._value]
+        return {
+            '_values': [v.to_mapping() for v in self._value],
+            '_metadata': self._metadata.to_mapping() if self._metadata else {}
         }
-        if self.metadata:
-            map_['_metadata'] = self.metadata.to_mapping()
-
-    @staticmethod
-    def build_from_list(map_: list):
-        return MultiElement(
-            [AbstractElement.value_from_mapping(x) for x in map_],
-        )
-
-    @staticmethod
-    def build_from_dict(map_: dict):
-        me = MultiElement(
-            [AbstractElement.value_from_mapping(x) for x in map_['_values']],
-        )
-        if '_metadata' in map_:
-            me.metadata.from_mapping(map_)
-        return me
 
 
 class ElementMap:
     """Represents a map of element names to values"""
 
-    def __init__(self, defaults: t.Optional[DefaultValueDict] = None):
-        self._map: dict[str, AbstractElement] = {}
-        self.update(defaults)
+    __slots__ = ('map',)
 
-    def __contains__(self, item):
-        return item in self._map
+    def __init__(self):
+        self.map = {}
+
+    def __getitem__(self, item):
+        return self.map[item]
+
+    def __setitem__(self, key, value):
+        self.set(key, value)
+
+    def __iter__(self):
+        return iter(self.map)
 
     def __eq__(self, other):
         if not isinstance(other, ElementMap):
             return False
-        keys1 = list(self._map.keys())
-        keys2 = list(other._map.keys())
+        keys1 = list(self.map.keys())
+        keys2 = list(other.map.keys())
         if keys1 != keys2:
             return False
-        return all(self._map[k] == other._map[k] for k in keys1)
-
-    def __delitem__(self, key):
-        del self._map[key]
-
-    def __iter__(self) -> t.Iterable[str]:
-        yield from self._map.keys()
-
-    def __bool__(self):
-        return bool(self._map)
-
-    def __getitem__(self, item: str):
-        return self._map[item]
-
-    def __setitem__(self, key: str, value: OCProcValue):
-        self.set(key, value)
+        return all(self.map[k] == other.map[k] for k in keys1)
 
     def find_child(self, path: list[str]):
         """Locate an element using an OCPROC2 path expression."""
         if not path:
             return self
-        elif path[0] in self._map:
-            return self._map[path[0]].find_child(path[1:])
-        else:
+        try:
+            return self.map[path[0]].find_child(path[1:])
+        except KeyError:
             return None
 
     def update_hash(self, h):
         """Update a hash with all the values of this map"""
-        for k in sorted(self._map.keys()):
+        for k in sorted(self.map.keys()):
             h.update(k.encode('utf-8', 'replace'))
-            self._map[k].update_hash(h)
-
-    def keys(self):
-        """Get all the element keys."""
-        return self._map.keys()
+            self.map[k].update_hash(h)
 
     def best_value(self, item, default=None, coerce=None):
         """Find the best value for the given element name, or the default if it is not set."""
-        if item not in self._map:
+        try:
+            return self.map[item].best_value(coerce=coerce)
+        except KeyError:
             return default
-        return self._map[item].best_value(coerce=coerce)
 
-    def has_value(self, item):
+    def has_value(self, item: str):
         """Check if the item exists in the map and has a non-empty value."""
-        return item in self._map and not self._map[item].is_empty()
+        try:
+            return not self.map[item].is_empty()
+        except KeyError:
+            return False
 
-    def get(self, parameter_code: str) -> t.Optional[AbstractElement]:
-        """Retrieve the value of an element from the map, or None if it is not set."""
-        if parameter_code in self._map:
-            return self._map[parameter_code]
-        return None
+    def set_or_append(self,
+                      element_name: str,
+                      element: SingleElement):
+        m = self.map
+        if element_name not in m:
+            m[element_name] = element
+        else:
+            e = m[element_name]
+            if isinstance(e, MultiElement):
+                e.append(element)
+            elif e.value != element.value:
+                ne = MultiElement((e, element))
+                m[element_name] = ne
+
+    def get(self, element_name: str):
+        try:
+            return self.map[element_name]
+        except KeyError:
+            return None
 
     def set(self,
             element_name: str,
@@ -466,12 +467,12 @@ class ElementMap:
             **kwargs):
         """Set an element to the given value and metadata."""
         if not isinstance(value, AbstractElement):
-            value = SingleElement(value, metadata)
-        elif metadata:
+            value = SingleElement(value)
+        if metadata:
             value.metadata.update(metadata)
         if kwargs:
             value.metadata.update(kwargs)
-        self._map[element_name] = value
+        self.map[element_name] = value
 
     def set_multiple(self,
                      parameter_code: str,
@@ -491,20 +492,25 @@ class ElementMap:
                 values[i].metadata.update(value_metadata)
                 actual_values.append(values[i])
             else:
-                actual_values.append(SingleElement(values[i], value_metadata))
-        self._map[parameter_code] = MultiElement(actual_values)
+                val = SingleElement(values[i])
+                if value_metadata:
+                    val.metadata.update(value_metadata)
+                actual_values.append(val)
+        self.map[parameter_code] = MultiElement(actual_values)
 
-    def update(self, d: t.Optional[DefaultValueDict]):
-        """Update the element map with the given elements."""
-        if d:
-            for key in d:
-                self.set(key, d[key])
+    def update(self, map_: dict = None, **kwargs):
+        if map_ is not None:
+            for key in map_:
+                self.set(key, map_[key])
+        if kwargs:
+            for key in kwargs:
+                self.set(key, kwargs[key])
 
     def to_mapping(self):
         """Convert the map to a dictionary."""
-        return {x: self._map[x].to_mapping() for x in self._map}
+        return {x: self.map[x].to_mapping() for x in self.map}
 
     def from_mapping(self, map_: dict):
         """Rebuild the map from a dictionary."""
         for x in map_:
-            self._map[x] = AbstractElement.value_from_mapping(map_[x])
+            self.map[x] = AbstractElement.value_from_mapping(map_[x])

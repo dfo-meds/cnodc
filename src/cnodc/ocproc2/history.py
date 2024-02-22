@@ -26,6 +26,8 @@ class QCResult(enum.Enum):
 class HistoryEntry:
     """An entry in the history of the record."""
 
+    __slots__ = ('message', 'timestamp', 'source_name', 'source_version', 'source_instance', 'message_type')
+
     def __init__(self,
                  message: str,
                  timestamp: t.Union[datetime.datetime, str],
@@ -84,6 +86,8 @@ def normalize_qc_path(path: t.Union[None, str, list[str]]) -> str:
 class QCMessage:
     """Records the failure of a QC test for an individual element."""
 
+    __slots__ = ('code', 'record_path', 'ref_value')
+
     def __init__(self,
                  code: str,
                  record_path: t.Union[str, list[str]],
@@ -119,6 +123,8 @@ class QCMessage:
 
 class QCTestRunInfo:
     """Records the outcome of a QC test run."""
+
+    __slots__ = ('test_name', 'test_tags', 'test_version', 'test_date', 'result', 'messages', 'notes', 'is_stale')
 
     def __init__(self,
                  test_name: str,

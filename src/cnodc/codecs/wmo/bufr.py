@@ -497,21 +497,7 @@ class _Bufr4Decoder:
                     value.metadata[x] = ctx.var_metadata[x][0]
         if 'metadata' in instruction and instruction['metadata']:
             value.metadata.update(instruction['metadata'])
-        if property_name in property_map:
-            current_val = property_map[property_name]
-            if isinstance(current_val, ocproc2.MultiElement):
-                current_val.append(value)
-            elif current_val.value is None:
-                property_map[property_name] = value
-            elif current_val == value:
-                pass
-            else:
-                new_val = ocproc2.MultiElement()
-                new_val.append(current_val)
-                new_val.append(value)
-                property_map[property_name] = new_val
-        else:
-            property_map[property_name] = value
+        property_map.set_or_append(property_name, value)
 
     def _add_record_metadata(self, property_name, value, ctx, instruction):
         self._set_record_property("metadata", ctx.target.metadata, property_name, value, ctx, instruction, False)
@@ -558,7 +544,7 @@ class _Bufr4Decoder:
                 metadata['Units'] = units
         if hasattr(node.descriptor, 'scale') and units is not None:
             metadata['Uncertainty'] = math.pow(10, (-1 * node.descriptor.scale)) / 2
-        return ocproc2.SingleElement(value, metadata=metadata)
+        return ocproc2.SingleElement.build(value, metadata=metadata)
 
     def _parse_node_301011(self, node, ctx: _Bufr4DecoderContext):
         self._apply_instruction({

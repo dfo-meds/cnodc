@@ -1,12 +1,57 @@
-import json
-
 import yaml
-
-from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, EncodeResult
+from cnodc.codecs.base import BaseCodec, ByteIterable, DecodeResult
 import typing as t
-
-from ..util import HaltInterrupt, CNODCError
+from cnodc.util import CNODCError
 import cnodc.ocproc2 as ocproc2
+
+try:
+    from yaml import CSafeLoader as Loader, Dumper as Dumper
+except:
+    from yaml import SafeLoader as Loader, Dumper as Dumper
+
+
+# TODO: there is an issue somewhere in the YAML codec that is leading to invalid
+# outputs or issues with reading.
+
+def _yaml_dump_dict(obj: dict, prefix: str = '') -> str:
+    s = ''
+    for x in obj.keys():
+        s += f'{prefix}{x}: '
+        if isinstance(obj[x], dict):
+            s += '\n' + _yaml_dump_dict(obj[x], prefix + '  ')
+        elif isinstance(obj[x], list) or isinstance(obj[x], tuple) or isinstance(obj[x], set):
+            s += '\n' + _yaml_dump_list(obj[x], prefix + '  ')
+        else:
+            s += _yaml_dump_value(obj[x])
+        if s[-1] != "\n":
+            s += "\n"
+    return s
+
+
+def _yaml_dump_list(obj: t.Iterable, prefix: str = '') -> str:
+    s = ''
+    for item in obj:
+        s += f'{prefix}- '
+        if isinstance(item, dict):
+            s += '\n' + _yaml_dump_dict(item, prefix + '  ')
+        elif isinstance(item, list) or isinstance(item, tuple) or isinstance(item, set):
+            s += '\n' + _yaml_dump_list(item, prefix + '  ')
+        else:
+            s += _yaml_dump_value(item)
+        if s[-1] != "\n":
+            s += "\n"
+    return s
+
+
+def _yaml_dump_value(obj) -> str:
+    if obj is None:
+        return '~'
+    elif isinstance(obj, bool):
+        return 'true' if obj else 'false'
+    elif isinstance(obj, float) or isinstance(obj, int):
+        return str(obj)
+    val = str(obj).replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace('"', '\\u0022')
+    return f"\"{val}\""
 
 
 class OCProc2YamlCodec(BaseCodec):
@@ -16,18 +61,19 @@ class OCProc2YamlCodec(BaseCodec):
     FILE_EXTENSION = ('yaml',)
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, log_name="cnodc.codecs.yaml", is_encoder=True, is_decoder=True, **kwargs)
+        super().__init__(*args, log_name="cnodc.codecs.yaml", is_encoder=True, is_decoder=True, support_single=True, **kwargs)
 
-    def _encode_start(self, **kwargs) -> ByteIterable:
-        yield b'%YAML 1.1\n'
+    def _encode_start(self, **kwargs) -> t.Union[None, bytes, bytearray]:
+        return b'%YAML 1.1\n---\n'
 
-    def _encode(self,
-                record: ocproc2.ParentRecord,
-                **kwargs) -> EncodeResult:
-        encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        yield '---\n'.encode(encoding)
-        yield yaml.safe_dump(BaseCodec.record_to_map(record)).encode(encoding)
-        yield '\n...\n'.encode(encoding)
+    def encode_single_record(self, record: ocproc2.ParentRecord, encoding='utf-8', **kwargs) -> t.Union[bytes, bytearray]:
+        return yaml.dump(BaseCodec.record_to_map(record), Dumper=Dumper).encode(encoding or 'utf-8')
+
+    def _encode_separator(self, encoding='utf-8', **kwargs) -> t.Union[None, bytes, bytearray]:
+        return b'\n...\n---\n'
+
+    def _encode_end(self, encoding='utf-8', **kwargs) -> t.Union[None, bytes, bytearray]:
+        return b'\n...\n'
 
     def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
@@ -61,3 +107,9 @@ class OCProc2YamlCodec(BaseCodec):
                     exc=ex,
                     original=data
                 )
+
+    def _decode_single_record(self, data: t.Union[bytes, bytearray], encoding='utf-8', **kwargs) -> t.Optional[ocproc2.ParentRecord]:
+        doc = yaml.load(data.decode(encoding or 'utf-8'), Loader=Loader)
+        if doc:
+            return BaseCodec.map_to_record(doc)
+        return None

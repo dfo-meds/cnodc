@@ -1,4 +1,15 @@
-import json
+try:
+    import orjson
+    json_dumps = orjson.dumps
+    json_loads = orjson.loads
+except ModuleNotFoundError:
+    import json
+
+    def json_dumps(o):
+        return json.dumps(o).encode('utf-8')
+
+    def json_loads(s):
+        return json.loads(s.decode('utf-8'))
 
 from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, EncodeResult
 import typing as t
@@ -12,23 +23,20 @@ class OCProc2JsonCodec(BaseCodec):
     JSON_WHITESPACE = b" \r\n\t"
     FILE_EXTENSION = ('.json',)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, log_name="cnodc.codecs.json", is_encoder=True, is_decoder=True, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(log_name="cnodc.codecs.json", support_single=True, is_encoder=True, is_decoder=True, **kwargs)
 
-    def _encode_start(self, **kwargs) -> ByteIterable:
-        yield b'['
+    def _encode_start(self, **kwargs) -> t.Union[None, bytes, bytearray]:
+        return b'['
 
-    def _encode(self,
-                record: ocproc2.ParentRecord,
-                **kwargs) -> t.Iterable[bytes]:
-        encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
-        yield json.dumps(BaseCodec.record_to_map(record)).encode(encoding)
+    def encode_single_record(self, record: ocproc2.ParentRecord, encoding='utf-8', **kwargs) -> t.Union[bytes, bytearray]:
+        return json_dumps(BaseCodec.record_to_map(record))
 
-    def _encode_separator(self, **kwargs) -> ByteIterable:
-        yield b','
+    def _encode_separator(self, **kwargs) -> t.Union[None, bytes, bytearray]:
+        return b','
 
-    def _encode_end(self, **kwargs) -> ByteIterable:
-        yield b']'
+    def _encode_end(self, **kwargs) -> t.Union[None, bytes, bytearray]:
+        return b']'
 
     def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
         encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
@@ -39,10 +47,7 @@ class OCProc2JsonCodec(BaseCodec):
         elif stream[0] == b'[':
             yield from self._decode_streaming_records(stream, encoding)
         else:
-            yield self._decode_single_message(stream, encoding)
-
-    def _decode_single_message(self, stream: ByteSequenceReader, encoding: str) -> DecodeResult:
-        return self._decode_message(stream.consume_all(), encoding)
+            yield self.decode_single_record(stream.consume_all(), encoding)
 
     def _decode_streaming_records(self, stream: ByteSequenceReader, encoding: str) -> t.Iterable[DecodeResult]:
         # Skip the initial byte, its a square bracket
@@ -61,7 +66,7 @@ class OCProc2JsonCodec(BaseCodec):
                 depth -= 1
                 if depth == 1:
                     # First character is either a comma or a square bracket that isn't closed, so finish it
-                    yield self._decode_message(buffer[1:], encoding)
+                    yield self.decode_single_record(buffer[1:], encoding=encoding)
                     buffer = bytearray()
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
         # TODO: handle this better
@@ -73,15 +78,5 @@ class OCProc2JsonCodec(BaseCodec):
             print("warning, buffer not empty")
             print(buffer)
 
-    def _decode_message(self, stream: t.Union[bytes, bytearray], encoding: str):
-        try:
-            data = stream.decode(encoding)
-            return DecodeResult(
-                records=[BaseCodec.map_to_record(json.loads(data))],
-                original=stream
-            )
-        except Exception as ex:
-            return DecodeResult(
-                exc=ex,
-                original=stream
-            )
+    def _decode_single_record(self, stream: t.Union[bytes, bytearray], encoding: str = 'utf-8', *args, **kwargs) -> t.Optional[ocproc2.ParentRecord]:
+        return BaseCodec.map_to_record(json_loads(stream))

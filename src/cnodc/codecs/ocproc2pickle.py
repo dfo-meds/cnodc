@@ -4,7 +4,7 @@ from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, Enc
 import typing as t
 
 import cnodc.ocproc2 as ocproc2
-from ..util import CNODCError
+from ..util import CNODCError, vlq_encode
 import pickle
 
 
@@ -14,27 +14,15 @@ class OCProc2PickleCodec(BaseCodec):
     FILE_EXTENSION = ('.pickle',)
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, log_name="cnodc.codecs.pickle", is_encoder=True, is_decoder=True, **kwargs)
+        super().__init__(*args, log_name="cnodc.codecs.pickle", is_encoder=True, is_decoder=True, support_single=True, **kwargs)
 
-    def _encode(self,
-                record: ocproc2.ParentRecord,
-                **kwargs) -> t.Iterable[bytes]:
-        data = pickle.dumps(record.to_mapping())
-        data_len = len(data)
-        if data_len > 0:
-            buf = bytearray()
-            while True:
-                chunk = data_len & 0x7f
-                data_len >>= 7
-                if data_len:
-                    buf.append(chunk + 128)
-                else:
-                    buf.append(chunk)
-                    break
-            yield buf
-            yield data
-        else:
-            print('error nothing to pickle')
+    def encode_single_record_for_decode(self, record: ocproc2.ParentRecord, **kwargs) -> t.Union[bytes, bytearray]:
+        data = self.encode_single_record(record, **kwargs)
+        yield vlq_encode(len(data))
+        yield data
+
+    def encode_single_record(self, record: ocproc2.ParentRecord, **kwargs) -> t.Union[bytes, bytearray]:
+        return pickle.dumps(record.to_mapping())
 
     def _decode(self,
                 data: ByteIterable,
@@ -52,14 +40,7 @@ class OCProc2PickleCodec(BaseCodec):
                     read_more = False
                 record_length |= i << shift
                 shift += 7
-            content = stream.consume(record_length)
-            try:
-                yield DecodeResult(
-                    records=[BaseCodec.map_to_record(pickle.loads(content))],
-                    original=content
-                )
-            except Exception as ex:
-                yield DecodeResult(
-                    original=content,
-                    exc=ex
-                )
+            yield self.decode_single_record(stream.consume(record_length), **kwargs)
+
+    def _decode_single_record(self, data: t.Union[bytes, bytearray], **kwargs) -> t.Optional[ocproc2.ParentRecord]:
+        return BaseCodec.map_to_record(pickle.loads(data))
