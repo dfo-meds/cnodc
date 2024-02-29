@@ -5,6 +5,8 @@ import functools
 import typing as t
 import datetime
 from uncertainties import ufloat, UFloat
+
+from cnodc.ocproc2.lazy_load import LazyLoadDict
 from cnodc.units.units import convert
 
 
@@ -142,7 +144,7 @@ class AbstractElement:
         return str(self.ideal_single_value().value)
 
     @staticmethod
-    def value_from_mapping(map_: t.Any):
+    def build_from_mapping(map_: t.Any):
         if not isinstance(map_, dict):
             return SingleElement(map_, _skip_normalization=True)
         else:
@@ -150,7 +152,7 @@ class AbstractElement:
                 element = SingleElement(map_['_value'], _skip_normalization=True)
             except KeyError:
                 element = MultiElement(
-                    (AbstractElement.value_from_mapping(x) for x in map_['_values']),
+                    (AbstractElement.build_from_mapping(x) for x in map_['_values']),
                     _skip_normalization=True
                 )
             # NB: metadata is assumed to be present on all of the values
@@ -385,86 +387,60 @@ class MultiElement(AbstractElement):
         }
 
 
-class ElementMap:
+class ElementMap(LazyLoadDict[AbstractElement]):
     """Represents a map of element names to values"""
 
-    __slots__ = ('map',)
+    __slots__ = ('map', '_lazy')
 
     def __init__(self):
-        self.map = {}
-
-    def __getitem__(self, item):
-        return self.map[item]
-
-    def __setitem__(self, key, value):
-        self.set(key, value)
-
-    def __iter__(self):
-        return iter(self.map)
-
-    def __eq__(self, other):
-        if not isinstance(other, ElementMap):
-            return False
-        keys1 = list(self.map.keys())
-        keys2 = list(other.map.keys())
-        if keys1 != keys2:
-            return False
-        return all(self.map[k] == other.map[k] for k in keys1)
+        super().__init__(AbstractElement.build_from_mapping)
 
     def find_child(self, path: list[str]):
         """Locate an element using an OCPROC2 path expression."""
         if not path:
             return self
         try:
-            return self.map[path[0]].find_child(path[1:])
+            return self.load(path[0]).find_child(path[1:])
         except KeyError:
             return None
 
     def update_hash(self, h):
         """Update a hash with all the values of this map"""
-        for k in sorted(self.map.keys()):
+        for k in sorted(self.keys()):
             h.update(k.encode('utf-8', 'replace'))
-            self.map[k].update_hash(h)
+            self.load(k).update_hash(h)
 
     def best_value(self, item, default=None, coerce=None):
         """Find the best value for the given element name, or the default if it is not set."""
         try:
-            return self.map[item].best_value(coerce=coerce)
+            return self.load(item).best_value(coerce=coerce)
         except KeyError:
             return default
 
     def has_value(self, item: str):
         """Check if the item exists in the map and has a non-empty value."""
-        try:
-            return not self.map[item].is_empty()
-        except KeyError:
+        if item not in self:
             return False
+        return not self.load(item).is_empty()
 
     def set_or_append(self,
                       element_name: str,
                       element: SingleElement):
-        m = self.map
-        if element_name not in m:
-            m[element_name] = element
+        if element_name not in self:
+            self.set(element_name, element)
         else:
-            e = m[element_name]
+            e = self.load(element_name)
             if isinstance(e, MultiElement):
                 e.append(element)
             elif e.value != element.value:
                 ne = MultiElement((e, element))
-                m[element_name] = ne
+                self.set(element_name, ne)
 
-    def get(self, element_name: str):
-        try:
-            return self.map[element_name]
-        except KeyError:
-            return None
-
-    def set(self,
-            element_name: str,
-            value: OCProcValue,
-            metadata: t.Optional[DefaultValueDict] = None,
-            **kwargs):
+    def set_element(self,
+                    element_name: str,
+                    value: OCProcValue,
+                    metadata: t.Optional[DefaultValueDict] = None,
+                    **kwargs):
         """Set an element to the given value and metadata."""
         if not isinstance(value, AbstractElement):
             value = SingleElement(value)
@@ -472,10 +448,10 @@ class ElementMap:
             value.metadata.update(metadata)
         if kwargs:
             value.metadata.update(kwargs)
-        self.map[element_name] = value
+        self.set(element_name, value)
 
     def set_multiple(self,
-                     parameter_code: str,
+                     element_name: str,
                      values: t.Sequence[OCProcValue],
                      common_metadata: t.Optional[DefaultValueDict] = None,
                      specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None
@@ -496,21 +472,12 @@ class ElementMap:
                 if value_metadata:
                     val.metadata.update(value_metadata)
                 actual_values.append(val)
-        self.map[parameter_code] = MultiElement(actual_values)
+        self.set(element_name, MultiElement(actual_values))
 
     def update(self, map_: dict = None, **kwargs):
         if map_ is not None:
             for key in map_:
-                self.set(key, map_[key])
+                self.set_element(key, map_[key])
         if kwargs:
             for key in kwargs:
-                self.set(key, kwargs[key])
-
-    def to_mapping(self):
-        """Convert the map to a dictionary."""
-        return {x: self.map[x].to_mapping() for x in self.map}
-
-    def from_mapping(self, map_: dict):
-        """Rebuild the map from a dictionary."""
-        for x in map_:
-            self.map[x] = AbstractElement.value_from_mapping(map_[x])
+                self.set_element(key, kwargs[key])

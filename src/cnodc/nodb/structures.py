@@ -898,7 +898,7 @@ class NODBObservationData(_NODBBaseObject):
             for byte_ in decoder.encode_records(
                     [data_record],
                     codec='JSON',
-                    compression='LZMA9CRC4',
+                    compression='LZMA2CRC4',
                     correction=None):
                 ba.extend(byte_)
             self.data_record = ba
@@ -1061,8 +1061,8 @@ class NODBWorkingRecord(_NODBBaseObject):
             ba = bytearray()
             for byte_ in decoder.encode_records(
                     [data_record],
-                    codec='JSON',
-                    compression='',
+                    codec='PICKLE',
+                    compression='LZMA2',
                     correction=None):
                 ba.extend(byte_)
             self.data_record = ba

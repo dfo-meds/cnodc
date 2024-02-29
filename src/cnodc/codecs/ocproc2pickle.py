@@ -29,17 +29,7 @@ class OCProc2PickleCodec(BaseCodec):
                 **kwargs) -> t.Iterable[DecodeResult]:
         stream = self._as_byte_sequence(data)
         while not stream.at_eof():
-            record_length = 0
-            shift = 0
-            read_more = True
-            while read_more:
-                i = stream.consume(1)[0]
-                if i > 127:
-                    i -= 128
-                else:
-                    read_more = False
-                record_length |= i << shift
-                shift += 7
+            record_length = stream.consume_vlq_int()
             yield self.decode_single_record(stream.consume(record_length), **kwargs)
 
     def _decode_single_record(self, data: t.Union[bytes, bytearray], **kwargs) -> t.Optional[ocproc2.ParentRecord]:

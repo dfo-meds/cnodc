@@ -199,6 +199,7 @@ class _LZMACompression(StreamWrapper):
 
 
 class _ReedSoloCorrection(StreamWrapper):
+    """Not working well at the moment!"""
 
     def __init__(self, nsym=10, nsize=255, batch_size=5):
         import reedsolo
@@ -223,3 +224,4 @@ class _ReedSoloCorrection(StreamWrapper):
             while len(buffer) >= self._in_chunk_size:
                 results = self.rsc.decode(buffer[0:self._in_chunk_size])
                 yield results[0]
+        print(buffer)

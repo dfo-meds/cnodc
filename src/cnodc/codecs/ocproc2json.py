@@ -2,8 +2,10 @@ try:
     import orjson
     json_dumps = orjson.dumps
     json_loads = orjson.loads
+    json_name = 'orjson'
 except ModuleNotFoundError:
     import json
+    json_name = 'json'
 
     def json_dumps(o):
         return json.dumps(o).encode('utf-8')

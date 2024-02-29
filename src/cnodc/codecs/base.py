@@ -460,6 +460,7 @@ class BaseCodec:
                 original=data
             )
         except Exception as ex:
+            self.log.exception(f"An exception occurred while decoding")
             return DecodeResult(
                 exc=ex,
                 original=data

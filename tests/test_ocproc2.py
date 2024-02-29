@@ -188,7 +188,7 @@ class TestOCProc2ValueMap(ut.TestCase):
 
     def test_value_metadata(self):
         dr = ocproc2.ParentRecord()
-        dr.metadata.set('TestValue', 5, {'Units': 'm s-1'})
+        dr.metadata.set_element('TestValue', 5, {'Units': 'm s-1'})
         self.assertTrue('TestValue' in dr.metadata)
         self.assertTrue('Units' in dr.metadata['TestValue'].metadata)
         self.assertEqual(dr.metadata['TestValue'].metadata['Units'].value, 'm s-1')

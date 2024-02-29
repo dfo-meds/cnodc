@@ -4,6 +4,7 @@ import typing as t
 import datetime
 from cnodc.ocproc2.elements import ElementMap
 from cnodc.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
+from cnodc.ocproc2.lazy_load import LazyLoadList
 
 
 class BaseRecord:
@@ -125,6 +126,12 @@ class ChildRecord(BaseRecord):
             self._subrecords = RecordMap()
         return self._subrecords
 
+    @staticmethod
+    def build_from_mapping(map_: dict):
+        r = ChildRecord()
+        r.from_mapping(map_)
+        return r
+
 
 class ParentRecord(BaseRecord):
 
@@ -132,8 +139,8 @@ class ParentRecord(BaseRecord):
 
     def __init__(self):
         super().__init__()
-        self.history: list[HistoryEntry] = []
-        self.qc_tests: list[QCTestRunInfo] = []
+        self.history: LazyLoadList[HistoryEntry] = LazyLoadList(HistoryEntry.from_mapping)
+        self.qc_tests: LazyLoadList[QCTestRunInfo] = LazyLoadList(QCTestRunInfo.from_mapping)
 
     @property
     def metadata(self):
@@ -162,21 +169,17 @@ class ParentRecord(BaseRecord):
     def to_mapping(self):
         map_ = super().to_mapping()
         if self.history:
-            map_['_history'] = [h.to_mapping() for h in self.history]
+            map_['_history'] = self.history.to_mapping()
         if self.qc_tests:
-            map_['_qc_tests'] = [qc.to_mapping() for qc in self.qc_tests]
+            map_['_qc_tests'] = self.qc_tests.to_mapping()
         return map_
 
     def from_mapping(self, map_: dict):
         super().from_mapping(map_)
         if '_history' in map_:
-            self.history = [
-                HistoryEntry.from_mapping(x) for x in map_['_history']
-            ]
+            self.history.from_mapping(map_['_history'])
         if '_qc_tests' in map_:
-            self.qc_tests = [
-                QCTestRunInfo.from_mapping(x) for x in map_['_qc_tests']
-            ]
+            self.qc_tests.from_mapping(map_['_qc_tests'])
 
     def test_already_run(self, test_name: str, include_stale: bool = False) -> bool:
         if include_stale:
@@ -281,7 +284,7 @@ class RecordSet:
 
     def __init__(self):
         self._metadata = None
-        self.records: list[ChildRecord] = []
+        self.records: LazyLoadList[ChildRecord] = LazyLoadList(ChildRecord.build_from_mapping)
 
     @property
     def metadata(self):
@@ -299,19 +302,16 @@ class RecordSet:
         md = self._metadata.to_mapping() if self._metadata is not None else None
         if md:
             return {
-                '_records': [x.to_mapping() for x in self.records],
+                '_records': self.records.to_mapping(),
                 '_metadata': md
             }
         else:
             return {
-                '_records': [x.to_mapping() for x in self.records]
+                '_records': self.records.to_mapping()
             }
 
     def from_mapping(self, map_):
-        for r in map_['_records']:
-            record = ChildRecord()
-            record.from_mapping(r)
-            self.records.append(record)
+        self.records.from_mapping(map_['_records'])
         if '_metadata' in map_:
             self.metadata.from_mapping(map_['_metadata'])
 
