@@ -12,3 +12,6 @@ pyyaml
 toml
 netCDF4
 azure-identity
+uncertainties
+shapely
+rdflib
