@@ -7,6 +7,128 @@ import datetime
 MultiLanguageString = t.Union[str, dict[str, str]]
 
 
+class GCAudience(enum.Enum):
+
+    AboriginalPeoples = "aboriginal_peoples"
+    Business = "business"
+    Children = "children"
+    Educators = "educators"
+    Employers = "employers"
+    FundingApplicants = "funding_applications"
+    GeneralPublic = "general_public"
+    Government = "government"
+    Immigrants = "immigrants"
+    JobSeekers = "job_seekers"
+    Media = "media"
+    NonCanadians = "noncanadians"
+    NGOs = "nongovernmental_organizations"
+    Parents = "parents"
+    PersonsWithDisabilities = "persons_with_disabilities"
+    RuralCommunity = "rural_community"
+    Seniors = "seniors"
+    Scientists = "scientists"
+    Students = "students"
+    Travellers = "travellers"
+    Veterans = "veterans"
+    Visitors = "visitors_to_canada"
+    Women = "women"
+    Youth = "youth"
+
+
+class GCCollectionType(enum.Enum):
+    NonSpatial = "primary"
+    Geospatial = "geogratis"
+    OpenMaps = "fgp"
+    Publications = "publication"
+
+
+class GCSubject(enum.Enum):
+    Oceanography = "oceanography"
+
+
+
+class GCPlace(enum.Enum):
+    Canada = "canada"  # General
+    Burlington = "ontario_-_halton"  # CCIW
+    Ottawa = "ontario_-_ottawa"  # NCR
+    Dartmouth = "nova_scotia_-_halifax"  # BIO
+    Moncton = "nova_scotia_-_westmorland"  # GFC
+    Montjoli = "quebec_-_la_mitis"  # IML
+    Nanaimo = "british_columbia_-_nanaimo"  # PBS
+    Sidney = "british_columbia_-_capital"  # IOS
+    StJohns = "newfoundland_and_labrador_-_division_no._1"  # NAFC
+
+
+
+
+class ERDDAPDatasetType(enum.Enum):
+
+    DSGTable = "EDDTableFromNcCFFiles"  # Use this one for files following CF's DSG conventions
+    MultiDimDSGMTable = "EDDTableFromMultidimNcFile"  # Multi-dimensional CF DSG files
+    OtherNetCDFTable = "EDDTableFromNcFiles"  # All other netcdf formats
+    ASCIITable = "EDDTableFromAsciiFiles"  # ASCII files
+    NetCDFGrid = "EDDGridFromNcFiles"  # Gridded NetCDF files
+
+
+class CommonDataModelType(enum.Enum):
+    Point = "Point"  # (x, y, t[, d])
+    Profile = "Profile"  # (x, y, t) and (d)
+    TimeSeries = "TimeSeries"  # station:(x, y[, d]) and (t)
+    TimeSeriesProfile = "TimeSeriesProfile"  # station:(x, y) and (t, d)
+    Trajectory = "Trajectory"  # station: () and (x, y, t[, d])
+    TrajectoryProfile = "TrajectoryProfile"  # station: () and (x, y, t) and (d)
+    Grid = "Grid"  # fixed (x, y[, t][, d]) grid
+    MovingGrid = "MovingGrid"  # grid but (x,y[,d]) may vary over time
+    RadialSweep = "RadialSweep"  # e.g. radial / gate, azimuth/distance, etc
+    Swath = "Swath"
+    Other = "Other"  # data that does not have geographical coordinates
+
+
+class StandardName(enum.Enum):
+
+    AirPressure = "air_pressure"
+
+
+class EssentialOceanVariable(enum.Enum):
+
+    Oxygen = "oxygen"
+    Nutrients = "nutrients"
+    InorganicCarbon = "inorganicCarbon"
+    DissolvedOrganicCarbon = "dissolvedOrganicCarbon"
+    TransientTracers = "transientTracers"
+    ParticulateMatter = "particulateMatter"
+    NitrousOxide = "nitrousOxide"
+    StableCarbonIsotopes = "stableCarbonIsotopes"
+    PhytoplanktonBiomassAndDiversity = "phytoplanktonBiomassAndDiversity"
+    ZooplanktonBiomassAndDiversity = "zooplanktonBiomassAndDiversity"
+    FishAbundanceAndDistribution = "fishAbundanceAndDistribution"
+    MarineTurtlesBirdsMammalsAbundanceAndDistribution = "marineTurtlesBirdsMammalsAbundanceAndDistribution"
+    HardCoralCoverAndComposition = "hardCoralCoverAndComposition"
+    SeagrassCoverAndComposition = "seagrassCoverAndComposition"
+    MacroalgalCanopyCoverAndComposition = "macroalgalCanopyCoverAndComposition"
+    InvertebrateAbundanceAndDistribution = "invertebrateAbundanceAndDistribution"
+    MicrobeBiomassAndDiversity = "microbeBiomassAndDiversity"
+
+    OceanColour = "oceanColour"
+    OceanSound = "oceanSound"
+    MarineDebris = "marineDebris"
+
+    SurfaceHeight = "seaSurfaceHeight"
+    Ice = "seaIce"
+    State = "seaState"
+    SurfaceSalinity = "seaSurfaceSalinity"
+    SurfaceTemperature = "seaSurfaceTemperature"
+    SurfaceCurrents = "surfaceCurrents"
+    SubSurfaceSalinity = "subSurfaceSalinity"
+    SubSurfaceTemperature = "subSurfaceTemperature"
+    SubSurfaceCurrents = "subSurfaceCurrents"
+    HeatFlux = "oceanSurfaceHeatFlux"
+    SurfaceStress = "oceanSurfaceStress"
+    BottomPressure = "oceanBottomPressure"
+    Other = "other"
+
+
+
 class MaintenanceFrequency(enum.Enum):
 
     Annually = "annually"
@@ -248,7 +370,23 @@ class DatasetMetadata:
         """
         self._metadata['conventions'] = ','.join(conventions)
 
-    # standard name vocab
+    def add_cf_standard_name(self, keyword: t.Union[str, StandardName]):
+        """
+        :param keyword: A keyword to add
+        """
+        if hasattr(keyword, 'value'):
+            keyword = keyword.value
+        if 'cf_standard_names' not in self._metadata:
+            self._metadata['cf_standard_names'] = list()
+        if keyword not in self._metadata['cf_standard_names']:
+            self._metadata['cf_standard_names'].append(keyword)
+
+    def set_feature_type(self, feature_type: CommonDataModelType):
+        """
+        :param feature_type: The type of data that is contained in this dataset. Only set it if using a NetCDF format
+                             recognized by the CF Conventions that is compatible with the feature type.
+        """
+        self._metadata['feature_type'] = feature_type.value
 
     # Combined stuff
 
@@ -408,8 +546,18 @@ class DatasetMetadata:
         self._metadata['spatial_representation_type'] = spatial_rep.value
 
 
-
     # CNODC stuff
+
+    def add_essential_ocean_variable(self, keyword: t.Union[str, EssentialOceanVariable]):
+        """
+        :param keyword: The essential ocean variable to add to this dataset.
+        """
+        if hasattr(keyword, 'value'):
+            keyword = keyword.value
+        if 'cioos_eovs' not in self._metadata:
+            self._metadata['cioos_eovs'] = list()
+        if keyword not in self._metadata['cioos_eovs']:
+            self._metadata['cioos_eovs'].append(keyword)
 
     def set_file_storage_location(self, storage_path: MultiLanguageString):
         """
@@ -429,10 +577,25 @@ class DatasetMetadata:
         """
         self._metadata['via_meds_request_form'] = not not val
 
+    def set_government_metadata(self,
+                                publication_places: t.Union[GCPlace, list[GCPlace], set[GCPlace]] = GCPlace.Ottawa,
+                                subject: GCSubject = GCSubject.Oceanography,
+                                collection: GCCollectionType = GCCollectionType.Geospatial,
+                                audiences: t.Union[GCAudience, list[GCAudience], set[GCAudience]] = GCAudience.Scientists):
+        """
+        :param publication_places: The place(s) this dataset was published from (defaults to Ottawa)
+        :param subject: The subject of this dataset (defaults to Oceanography)
+        :param collection: The collection of this dataset (defaults to Geospatial data)
+        :param audiences: The audience(s) this dataset is intended for (defaults to Scientists)
+        """
+        self._metadata['goc_audience'] = [audiences.value] if isinstance(audiences, GCAudience) else [x.value for x in audiences]
+        self._metadata['goc_subject'] = subject.value
+        self._metadata['goc_collection_type'] = collection.value
+        self._metadata['goc_publication_place'] = [publication_places.value] if isinstance(publication_places, GCPlace) else [x.value for x in publication_places]
 
     # ERDDAP stuff
 
-    def set_erddap_info(self, dataset_id: str, file_path: t.Optional[str] = None, file_pattern: t.Optional[str] = None):
+    def set_erddap_info(self, dataset_id: str, dataset_type: ERDDAPDatasetType, file_path: t.Optional[str] = None, file_pattern: t.Optional[str] = None):
         """
         :param dataset_id: The ID of the dataset as it should be used in ERDDAP (must be unique)
         :param file_path: The path of the files on the ERDDAP server
@@ -442,7 +605,7 @@ class DatasetMetadata:
         self._metadata['erddap_data_file_path'] = file_path
         self._metadata['erddap_data_file_pattern'] = file_pattern
         self._metadata['erddap_dataset_id'] = dataset_id
-
+        self._metadata['erddap_dataset_type'] = dataset_type.value
 
 
     def build_request_body(self) -> dict:
