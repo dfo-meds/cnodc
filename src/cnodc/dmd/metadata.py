@@ -2,7 +2,7 @@ import decimal
 import enum
 import typing as t
 import datetime
-
+from xml.dom.minidom import Entity
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -489,12 +489,169 @@ class CoordinateReferenceSystem(enum.Enum):
     }
 
 
+class MaintenanceScope(enum.Enum):
+
+    Dataset = "dataset"
+    Metadata = "metadata"
+
+
+class ResourceType(enum.Enum):
+
+    Auto = "_autodetect"
+    File = "file"
+    WebPage = "http"
+    SecureWebPage = "https"
+    FTP = "ftp"
+    ERDDAPGrid = "ERDDAP:griddap"
+    ERDDAPTable = "ERDDAP:tabledap"
+    Git = "GIT"
+
+
+
+class GCContentFormat(enum.Enum):
+
+    Auto = "_autodetect"
+
+    VideoAVI = "AVI"
+    VideoMOV = "MOV"
+    VideoMPEG = "MPEG"
+
+    AudioMP3 = "MP3"
+
+    ImageBMP = "BMP"
+    ImageGIF = "GIF"
+    ImageJPG = "JPG"
+    ImagePNG = "PNG"
+    ImageSVG = "SVG"
+    ImageTIFF = "TIFF"
+
+    DataCSV = "CSV"
+    DataJSON = "JSON"
+    DataNetCDF = "NetCDF"
+    DataXLS = "XLS"
+    DataXLSX = "XLSX"
+    DataXML = "XML"
+
+    DocumentDOC = "DOC"
+    DocumentDOCX = "DOCX"
+    DocumentPDF = "PDF"
+    DocumentPDFA1 = "PDF/A-1"
+    DocumentPDFA2 = "PDF/A-2"
+
+    SlidesPPT = "PPT"
+    SlidesPPTX = "PPTX"
+
+    Hypertext = "HTML"
+
+    WebApplication = "Web App"
+
+    OGCWFS = "WFS"
+    OGCWMS = "WMS"
+    OGCWMTS = "WMTS"
+
+    ArchiveZIP = "ZIP"
+    ArchiveTAR = "TAR"
+    ArchiveGZIP = "GZIP"
+    ArchiveTARGZIP = "TAR.GZ"
+
+class ResourcePurpose(enum.Enum):
+
+    Information = "information"
+
+    BrowseText = "browsing"
+    BrowseGraphic = "browseGraphic"
+    Search = "search"
+
+    Upload = "upload"
+
+    CompleteMetadata = "completeMetadata"
+
+    EmailRequest = "emailService"
+    Download = "download"
+    FileAccess = "fileAccess"
+    OfflineAccess = "offlineAccess"
+    OnlineOrder = "order"
+
+
+class GCContentType(enum.Enum):
+
+    Dataset = "dataset"
+    WebService = "web_service"
+    API = "api"
+    SupportingDocumentation = "support_doc"
+    Application = "application"
+
+
+class GCLanguage(enum.Enum):
+
+    NoLanguage = []
+    English = ["ENG"]
+    French = ["FRA"]
+    Bilingual = ["ENG", "FRA"]
+
+class ContactRole(enum.Enum):
+
+    Author = "author"
+    CoAuthor = "coAuthor"
+    Collaborator = "collaborator"
+    Contributor = "contributor"
+    Custodian = "custodian"
+    Distributor = "distributor"
+    Editor = "editor"
+    Funder = "funder"
+    Mediator = "mediator"
+    Originator = "originator"
+    Owner = "owner"
+    ContactPoint = "pointOfContact"
+    PrincipalInvestigator = "principalInvestigator"
+    Processor = "processor"
+    Publisher = "publisher"
+    ResourceProvider = "resourceProvider"
+    RightsHolder = "rightsHolder"
+    Sponsor = "sponsor"
+    Stakeholder = "stakeholder"
+    User = "user"
+
+
+class IDSystem:
+
+    DOI = {
+        "_guid": "DOI",
+        "_display_name": {"und": "DOI"},
+        "code_space": 'https://doi.org/',
+        "version": '',
+    }
+
+    ROR = {
+        "_guid": "ROR",
+        "_display_name": {"und": "ROR"},
+        "code_space": "https://ror.org/",
+        "version": "",
+    }
+
+    ORCID = {
+        "_guid": "ORCID",
+        "_display_name": {"und": "ORCID"},
+        "code_space": "https://orcid.org/",
+        "version": "",
+    }
+
+    VesselIMO = {
+        "_guid": "IMONumber",
+        "_display_name": {"und": "IMO"},
+        "code_space": "",
+        "version": "",
+    }
+
+
+
 class EntityRef:
 
     def __init__(self):
         self._guid = None
         self._display_name = {}
         self._metadata = {}
+        self._children: dict[str, t.Union[t.Optional[EntityRef], list[EntityRef]]] = {}
 
     def set_guid(self, guid):
         """
@@ -531,7 +688,32 @@ class EntityRef:
             '_display_name': self._display_name
         }
         d.update(self._metadata)
+        for key in self._children.keys():
+            if self._children[key] is None:
+                continue
+            elif isinstance(self._children[key], EntityRef):
+                d[key] = self._children[key].build_request_body()
+            else:
+                d[key] = [
+                    x.build_request_body()
+                    for x in self._children[key]
+                    if x is not None
+                ]
         return d
+
+    @staticmethod
+    def format_multilingual_text(text: t.Optional[MultiLanguageString]):
+        if text is None:
+            return None
+        if isinstance(text, dict):
+            return text
+        return {'und': text}
+
+    @staticmethod
+    def format_date(d: t.Optional[t.Union[datetime.date, datetime.datetime]]):
+        if d is None:
+            return None
+        return d.isoformat('T')
 
 
 class Variable(EntityRef):
@@ -581,7 +763,7 @@ class Variable(EntityRef):
         """
         :param long_name: A string or multilanguage dict with the long name of the variable
         """
-        self._metadata['long_name'] = {'und': long_name} if isinstance(long_name, str) else long_name
+        self._metadata['long_name'] = EntityRef.format_multilingual_text(long_name)
 
     def set_standard_name(self, standard_name: StandardName):
         """
@@ -605,7 +787,6 @@ class Variable(EntityRef):
         :param time_precision: The precision of the time variable (e.g. is it every hour, every day, etc.)
         """
         self._metadata['time_precision'] = time_precision.value
-
 
     def set_calendar(self, calendar: Calendar = Calendar.Standard):
         """
@@ -699,7 +880,7 @@ class Variable(EntityRef):
         """
         :param content_type: Information about what the variable represents
         """
-        self._metadata['coverage_content_type'] = content_type
+        self._metadata['coverage_content_type'] = content_type.value
 
     def set_variable_order(self, order: int):
         """
@@ -720,6 +901,232 @@ class Variable(EntityRef):
         self._metadata['altitude_proxy'] = not not is_proxy
 
 
+class MaintenanceRecord(EntityRef):
+
+    def __init__(self, date: datetime, notes: str, scope: MaintenanceScope = MaintenanceScope.Dataset):
+        super().__init__()
+        self.set_date(date)
+        self.set_scope(scope)
+        self.set_notes(notes)
+
+    def set_date(self, date: datetime):
+        """
+        :param date: The date the change was made
+        """
+        self._metadata['date'] = EntityRef.format_date(date)
+
+    def set_notes(self, notes: MultiLanguageString):
+        """
+        :param notes: Describe what was changed about the dataset or metadata
+        """
+        self._metadata['notes'] = EntityRef.format_multilingual_text(notes)
+
+    def set_scope(self, scope: MaintenanceScope):
+        """
+        :param scope: Whether this is a maintenance record for the dataset or the metadata
+        """
+        self._metadata['scope'] = scope.value
+
+
+class Resource(EntityRef):
+
+    def __init__(self, url):
+        super().__init__()
+        self.set_url(url)
+
+    def set_url(self, url: str):
+        """
+        :param url: The URL of the resource
+        """
+        self._metadata['url'] = url or ""
+        if url:
+            if 'protocol' not in self._metadata or not self._metadata['protocol']:
+                self.set_resource_type()
+            if 'goc_formats' not in self._metadata or not self._metadata['goc_formats']:
+                self.set_gc_content_format()
+
+    def set_resource_type(self, res_type: ResourceType = ResourceType.Auto):
+        """
+        :param res_type: The type of resource (i.e. the protocol used to access it)
+        """
+        url = self._metadata['url']
+        if res_type != ResourceType.Auto:
+            self._metadata['protocol'] = res_type.value
+        elif url.startswith("https://"):
+            self._metadata['protocol'] = "https"
+        elif url.startswith("http://"):
+            self._metadata['protocol'] = "http"
+        elif url.startswith("ftp://"):
+            self._metadata['protocol'] = "ftp"
+        elif url.startswith("git://"):
+            self._metadata['protocol'] = 'git'
+        elif url.startswith("file://"):
+            self._metadata['protocol'] = 'file'
+
+    def set_gc_content_format(self, content_format: GCContentFormat = GCContentFormat.Auto):
+        """
+        :param content_format: The format of the content according to GC
+        """
+        url = self._metadata['url']
+        if content_format != GCContentFormat.Auto:
+            self._metadata['goc_formats'] = [content_format.value]
+        elif url.upper().endswith(".TAR.GZ"):
+            self._metadata['goc_formats'] = [GCContentFormat.ArchiveTARGZIP.value]
+        else:
+            pos = None
+            if "/" in url:
+                pos = url.rfind("/")
+            if "\\" in url:
+                pos = url.rfind("\\") if pos is None else max(pos, url.rfind("\\"))
+            filename = url if pos is None else url[pos+1:]
+            if "." in filename:
+                extension = filename[filename.rfind(".")+1:].upper()
+                if any(x.value == extension for x in GCContentFormat):
+                    self._metadata['goc_formats'] = [extension]
+
+    def set_name(self, name: MultiLanguageString):
+        """
+        :param name: The name of the resource
+        """
+        self._metadata['name'] = EntityRef.format_multilingual_text(name)
+
+    def set_description(self, desc: MultiLanguageString):
+        """
+        :param desc: A description of the resource
+        """
+        self._metadata['description'] = EntityRef.format_multilingual_text(desc)
+
+    def set_additional_request_info(self, info: MultiLanguageString):
+        """
+        :param info: Any additional information needed to make requests
+        """
+        self._metadata['protocol_request'] = EntityRef.format_multilingual_text(info)
+
+    def set_additional_app_info(self, info: MultiLanguageString):
+        """
+        :param info: Any additional information needed to open the URL
+        """
+        self._metadata['app_profile'] = EntityRef.format_multilingual_text(info)
+
+    def set_link_purpose(self, purpose: ResourcePurpose):
+        """
+        :param purpose:  Why would somebody want to use this resource?
+        """
+        self._metadata['function'] = purpose.value
+
+    def set_gc_content_type(self, content_type: GCContentType):
+        """
+        :param content_type: Why would somebody want to use this resource, but more complicated
+        """
+        self._metadata['goc_content_type'] = content_type.value
+
+    def set_gc_language(self, language: GCLanguage):
+        """
+        :param language: What languages is this resource available in?
+        """
+        self._metadata['goc_languages'] = language.value
+
+
+class Contact(EntityRef):
+    pass
+
+
+class _ResponsibleParty(EntityRef):
+
+    def __init__(self, role: ContactRole, contact: Contact):
+        super().__init__()
+        self._metadata['role'] = role
+        self._children['contact'] = contact
+
+
+class Citation(EntityRef):
+
+    def __init__(self, title: MultiLanguageString):
+        super().__init__()
+        self._children['responsibles'] = []
+        self._children['resource'] = None
+        self.set_title(title)
+
+    def add_responsible_party(self, role: ContactRole, contact: Contact):
+        """
+        :param role: The role the person plays for this citation
+        :param contact: Their contact information
+        """
+        self._children['responsibles'].append(_ResponsibleParty(role, contact))
+
+    def set_title(self, title: MultiLanguageString):
+        """
+        :param title: The title of the citation
+        """
+        self._metadata['title'] = EntityRef.format_multilingual_text(title)
+
+    def set_alt_title(self, alt_title: MultiLanguageString):
+        """
+        :param alt_title: The alternative title of the citation
+        """
+        self._metadata['alt_title'] = EntityRef.format_multilingual_text(alt_title)
+
+    def set_publication_date(self, pub_date: datetime.date):
+        """
+        :param pub_date: The date the citation was published
+        """
+        self._metadata['publication_date'] = EntityRef.format_date(pub_date)
+
+    def set_revision_date(self, revision_date: datetime.date):
+        """
+        :param revision_date: The date the citation was last revised
+        """
+        self._metadata['revision_date'] = EntityRef.format_date(revision_date)
+
+    def set_creation_date(self, creation_date: datetime.date):
+        """
+        :param creation_date: The date the citation was published
+        """
+        self._metadata['creation_date'] = EntityRef.format_date(creation_date)
+
+    def set_edition_info(self, ed_name: t.Optional[MultiLanguageString] = None, ed_date: t.Optional[datetime.date] = None):
+        """
+        :param ed_name: The name of the edition
+        :param ed_date: The date the citation was published
+        """
+        self._metadata['edition'] = EntityRef.format_multilingual_text(ed_name)
+        self._metadata['publication_date'] = EntityRef.format_date(ed_date)
+
+    def set_details(self, details: MultiLanguageString):
+        """
+        :param details: More details about this citation
+        """
+        self._metadata['details'] = EntityRef.format_multilingual_text(details)
+
+    def set_isbn(self, isbn: str):
+        self._metadata['isbn'] = isbn
+
+    def set_issn(self, issn: str):
+        self._metadata['issn'] = issn
+
+    def set_resource(self, resource: Resource):
+        """
+        :param resource: A resource which the citation is in reference to (e.g. a web link to it)
+        """
+        self._children['resource'] = resource
+
+    def set_identifier(self, code: str, id_system: IDSystem, description: t.Optional[MultiLanguageString] = None):
+        """
+        :param code: A unique identifier for this citation, e.g. a DOI
+        :param id_system: The system used for the code (e.g. the DOI system)
+        :param description: Optionally a description of what the ID code represents
+        """
+        self._metadata['id_code'] = code
+        self._metadata['id_system'] = id_system
+        self._metadata['description'] = EntityRef.format_multilingual_text(description)
+
+
+
+
+
+
+
+
 class DatasetMetadata:
 
     def __init__(self):
@@ -731,13 +1138,58 @@ class DatasetMetadata:
         self._display_name: dict[str, str] = {}
         self._users: set[str] = set()
         self._profiles: set[str] = set('cnodc')
-        self._variables: list[Variable] = []
+        self._children: dict[str, t.Union[EntityRef, list[EntityRef]]] = {
+            'iso_maintenance': [],
+            'variables': [],
+            'canon_urls': [],
+            'additional_docs': [],
+            'metadata_profiles': [],
+            'metadata_standards': [],
+            'alt_metadata': [],
+            'parent_metadata': None,
+            'publisher': None,
+            'metadata_owner': None,
+            'responsibles': [],
+        }
+
+    def add_responsible_party(self, role: ContactRole, contact: Contact):
+        self._children['responsibles'].append(_ResponsibleParty(role, contact))
+
+    def set_metadata_owner(self, contact: Contact):
+        self._children['metadata_owner'] = contact
+
+    def set_publisher(self, publisher: Contact):
+        self._children['publisher'] = publisher
+
+    def set_parent_metadata(self, citation: Citation):
+        self._children['parent_metadata'] = citation
+
+    def add_alt_metadata(self, citation: Citation):
+        self._children['alt_metadata'].append(citation)
+
+    def add_metadata_standard(self, citation: Citation):
+        self._children['metadata_standards'].append(citation)
+
+    def add_metadata_profile(self, citation: Citation):
+        self._children['metadata_profiles'].append(citation)
+
+    def add_additional_documentation(self, citation: Citation):
+        self._children['additional_docs'].append(citation)
+
+    def add_record(self, record: MaintenanceRecord):
+        """
+        :param record: A maintenance record to add
+        """
+        self._children['iso_maintenance'].append(record)
 
     def add_variable(self, var: Variable):
         """
         :param var: A variable to add to the dataset
         """
-        self._variables.append(var)
+        self._children['variables'].append(var)
+
+    def add_canon_url(self, canon_url: Resource):
+        self._children['canon_urls'].append(canon_url)
 
     def add_profile(self, profile_name):
         """
@@ -773,12 +1225,7 @@ class DatasetMetadata:
         """
         :param display_name: A string or multi-language dict containing the internal display name of the dataset.
         """
-        if isinstance(display_name, str):
-            self._display_name = {
-                'und': display_name,
-            }
-        else:
-            self._display_name = display_name
+        self._display_name = EntityRef.format_multilingual_text(display_name)
 
     def set_english_display_name(self,display_name: str):
         """
@@ -796,12 +1243,7 @@ class DatasetMetadata:
         """
         :param title: A string or multi-language dict containing the title of the dataset as displayed to the public/
         """
-        if isinstance(title, str):
-            self._metadata['title'] = {
-                'und': title,
-            }
-        else:
-            self._metadata['title'] = title
+        self._metadata['title'] = EntityRef.format_multilingual_text(title)
 
     def set_english_title(self, title: str):
         """
@@ -863,13 +1305,13 @@ class DatasetMetadata:
         """
         :param credit: A string or multi-language dict providing acknowledgement of contributions, extra work done, etc.
         """
-        self._metadata['acknowledgement'] = credit
+        self._metadata['acknowledgement'] = EntityRef.format_multilingual_text(credit)
 
     def set_comment(self, comment: MultiLanguageString):
         """
         :param comment: A string or multi-language dict with additional less-important information on the dataset.
         """
-        self._metadata['comment'] = comment
+        self._metadata['comment'] = EntityRef.format_multilingual_text(comment)
 
     def set_doi(self, doi: str):
         """
@@ -881,46 +1323,47 @@ class DatasetMetadata:
             doi = doi[15:]
         elif doi.startswith("doi:"):
             doi = doi[4:]
-        self._metadata['dataset_id_code'] = doi
-        self._metadata['dataset_id_system'] = {
-            '_guid': 'doi',
-            'code_space': 'https://doi.org/',
-            'version': '',
-        }
+        self.set_identifier(doi, IDSystem.DOI)
 
-    def set_processing_info(self, processing_level: t.Optional[str] = None, processing_desc: t.Optional[MultiLanguageString] = None, processing_environment: t.Optional[MultiLanguageString] = None):
+    def set_identifier(self, code: str, id_system: IDSystem, desc: t.Optional[MultiLanguageString] = None):
+        self._metadata['dataset_id_code'] = code
+        self._metadata['dataset_id_system'] = id_system
+        self._metadata['dataset_id_description'] = EntityRef.format_multilingual_text(desc)
+
+    def set_processing_info(self, processing_level: t.Optional[str] = None, processing_desc: t.Optional[MultiLanguageString] = None, processing_environment: t.Optional[MultiLanguageString] = None, processing_system: t.Optional[IDSystem] = None):
         """
         :param processing_level: A short code indicating the processing level of the  data.
         :param processing_desc: A string or multi-language dict describing the processing done on this dataset.
         :param processing_environment: A string or multi-language dict describing the environment in which the processing was done.
         """
         self._metadata['processing_level'] = processing_level
-        self._metadata['processing_description'] = processing_desc
-        self._metadata['processing_environment'] = processing_environment
+        self._metadata['processing_description'] = EntityRef.format_multilingual_text(processing_desc)
+        self._metadata['processing_environment'] = EntityRef.format_multilingual_text(processing_environment)
+        self._metadata['processing_system'] = processing_system if processing_system is not None else None
 
     def set_purpose(self, purpose: MultiLanguageString):
         """
         :param purpose: A string or multi-language dict describing the purpose of the dataset
         """
-        self._metadata['purpose'] = purpose
+        self._metadata['purpose'] = EntityRef.format_multilingual_text(purpose)
 
     def set_references(self, references: MultiLanguageString):
         """
         :param references: A string or multi-language dict describing any relevant references for the dataset.
         """
-        self._metadata['references'] = references
+        self._metadata['references'] = EntityRef.format_multilingual_text(references)
 
     def set_source(self, source: MultiLanguageString):
         """
         :param source: A string or multi-language dict describing the source of the data.
         """
-        self._metadata['source'] = source
+        self._metadata['source'] = EntityRef.format_multilingual_text(source)
 
     def set_abstract(self, abstract: MultiLanguageString):
         """
         :param abstract: A string or multi-language dict with a short summary or abstract of the dataset.
         """
-        self._metadata['summary'] = abstract
+        self._metadata['summary'] = EntityRef.format_multilingual_text(abstract)
 
     def set_horizontal_bounds(self, lat_min: decimal.Decimal, lat_max: decimal.Decimal, lon_min: decimal.Decimal, lon_max: decimal.Decimal, boundary_wkt: t.Optional[str] = None, ref_system: CoordinateReferenceSystem = CoordinateReferenceSystem.WGS84):
         """
@@ -955,9 +1398,9 @@ class DatasetMetadata:
         :param end_time: The end time for the dataset. Include timezone. Optional; if not provided, dataset is flagged as "ongoing".
         :param calendar: The temporal coordinate reference system used, defaults to Gregorian calendar.
         """
-        self._metadata['time_coverage_start'] = start_time.isoformat("T")
+        self._metadata['time_coverage_start'] = EntityRef.format_date(start_time)
         if end_time is not None:
-            self._metadata['time_coverage_end'] = end_time.isoformat("T")
+            self._metadata['time_coverage_end'] = EntityRef.format_date(end_time)
             self._metadata['is_ongoing'] = False
         else:
             self._metadata['is_ongoing'] = True
@@ -967,19 +1410,19 @@ class DatasetMetadata:
         """
         :param date: The date the dataset was first made available to the public.
         """
-        self._metadata['date_issued'] = date.isoformat()
+        self._metadata['date_issued'] = EntityRef.format_date(date)
 
     def set_date_created(self, date: datetime.date):
         """
         :param date: The date the dataset was first created.
         """
-        self._metadata['date_created'] = date.isoformat()
+        self._metadata['date_created'] = EntityRef.format_date(date)
 
     def set_date_modified(self, date: datetime.date):
         """
         :param date: The date the dataset was last modified.
         """
-        self._metadata['date_modified'] = date.isoformat()
+        self._metadata['date_modified'] = EntityRef.format_date(date)
 
 
     # ISO stuff
@@ -1032,13 +1475,13 @@ class DatasetMetadata:
         """
         :param storage_path: A string or multi-language dict describing the location where the files are stored.
         """
-        self._metadata['file_storage_location'] = storage_path
+        self._metadata['file_storage_location'] = EntityRef.format_multilingual_text(storage_path)
 
     def set_internal_notes(self, notes: MultiLanguageString):
         """
         :param notes: A string or multi-language dict with internal notes (not published).
         """
-        self._metadata['internal_notes'] = notes
+        self._metadata['internal_notes'] = EntityRef.format_multilingual_text(notes)
 
     def set_is_available_via_request_form(self, val: bool):
         """
@@ -1088,9 +1531,15 @@ class DatasetMetadata:
             'publication_workflow': self._pub_workflow,
             'security_level': self._security_level,
         }
-        body['metadata']['variables'] = [
-            x.build_request_body()
-            for x in self._variables
-        ]
+        for key in self._children.keys():
+            if self._children[key] is None:
+                continue
+            elif isinstance(self._children[key], EntityRef):
+                body['metadata'][key] = self._children[key].build_request_body()
+            else:
+                body['metadata'][key] = [
+                    x.build_request_body()
+                    for x in self._children[key]
+                ]
         return body
 
