@@ -1,8 +1,8 @@
 import decimal
 import enum
+import math
 import typing as t
 import datetime
-from xml.dom.minidom import Entity
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -219,6 +219,7 @@ class ERDDAPVariableRole(enum.Enum):
     TimeseriesExtra = "timeseries_extra"
     TrajectoryExtra = "trajectory_extra"
 
+
 class CFVariableRole(enum.Enum):
 
     ProfileID = "profile_id"
@@ -236,7 +237,6 @@ class CoverageContentType(enum.Enum):
     QualityInformation = "qualityInformation"
     ReferenceInformation = "referenceInformation"
     ThematicClassification = "thematicClassification"
-
 
 
 class GCAudience(enum.Enum):
@@ -278,7 +278,6 @@ class GCSubject(enum.Enum):
     Oceanography = "oceanography"
 
 
-
 class GCPlace(enum.Enum):
     Canada = "canada"  # General
     Burlington = "ontario_-_halton"  # CCIW
@@ -289,8 +288,6 @@ class GCPlace(enum.Enum):
     Nanaimo = "british_columbia_-_nanaimo"  # PBS
     Sidney = "british_columbia_-_capital"  # IOS
     StJohns = "newfoundland_and_labrador_-_division_no._1"  # NAFC
-
-
 
 
 class ERDDAPDatasetType(enum.Enum):
@@ -360,7 +357,6 @@ class EssentialOceanVariable(enum.Enum):
     Other = "other"
 
 
-
 class MaintenanceFrequency(enum.Enum):
 
     Annually = "annually"
@@ -420,23 +416,58 @@ class SpatialRepresentation(enum.Enum):
 class StatusCode(enum.Enum):
 
     Accepted = "accepted"
+    """ The dataset has been accepted but not formalized. """
+
     Completed = "completed"
+    """ The dataset is completed. """
+
     Deprecated = "deprecated"
+    """ The dataset is deprecated. """
+
     Final = "final"
+    """ The dataset is final and shouldn't be changed. """
+
     Historical = "historicalArchive"
+    """ The dataset is a historical archive. """
+
     NotAccepted = "notAccepted"
+    """ The dataset was not accepted. """
+
     Obsolete = "obsolete"
+    """ The dataset is considered obsolete. """
+
     OnGoing = "onGoing"
+    """ The dataset is ongoing, new data is still being added. """
+
     Pending = "pending"
+    """ The dataset is pending. """
+
     Planned = "planned"
+    """ The dataset is planned, but not yet being collected. """
+
     Proposed = "proposed"
+    """ The dataset has been proposed but is not yet accepted. """
+
     Required = "required"
+    """ The dataset is required. """
+
     Retired = "retired"
+    """ The dataset is retired. """
+
     Superseded = "superseded"
+    """ The dataset has been superseded by another. """
+
     Tentative = "tentative"
+    """ The dataset is tentative and subject to further review. """
+
     UnderDevelopment = "underDevelopment"
+    """ The dataset is under development. """
+
     Valid = "valid"
+    """ The dataset is valid. """
+
     Withdrawn = "withdrawn"
+    """ The dataset has been withdrawn. """
 
 
 class CoordinateReferenceSystem(enum.Enum):
@@ -507,7 +538,6 @@ class ResourceType(enum.Enum):
     Git = "GIT"
 
 
-
 class GCContentFormat(enum.Enum):
 
     Auto = "_autodetect"
@@ -554,66 +584,139 @@ class GCContentFormat(enum.Enum):
     ArchiveGZIP = "GZIP"
     ArchiveTARGZIP = "TAR.GZ"
 
+
 class ResourcePurpose(enum.Enum):
 
     Information = "information"
+    """ The resource provides more information about the object. """
 
     BrowseText = "browsing"
+    """ The resource is text data to be browsed. """
+
     BrowseGraphic = "browseGraphic"
+    """ The resource is graphical data to be browsed. """
+
     Search = "search"
+    """ The resource is a search function for data. """
 
     Upload = "upload"
+    """ The resource is for people to upload data. """
 
     CompleteMetadata = "completeMetadata"
+    """ The resource is a complete metadata record for the data. """
 
     EmailRequest = "emailService"
+    """ The resource is an email address to make requests for data to. """
+
     Download = "download"
+    """ The resource is a location to download data from. """
+
     FileAccess = "fileAccess"
+    """ The resource is access to data files to browse/download. """
+
     OfflineAccess = "offlineAccess"
+    """ The resource is a method to access data offline. """
+
     OnlineOrder = "order"
+    """ The resource is a website where you can order data. """
 
 
 class GCContentType(enum.Enum):
 
     Dataset = "dataset"
+    """ The resource is a dataset. """
+
     WebService = "web_service"
+    """ The resource is a web service. """
+
     API = "api"
+    """ The resource is an API that is not a web service. """
+
     SupportingDocumentation = "support_doc"
+    """ The resource is supporting documentation. """
+
     Application = "application"
+    """ The resource is an application other than a web service or API. """
 
 
 class GCLanguage(enum.Enum):
 
     NoLanguage = []
+    """ The resource has no language component. """
+
     English = ["ENG"]
+    """ The resource is provided in English. """
+
     French = ["FRA"]
+    """ The resource is provided in French. """
+
     Bilingual = ["ENG", "FRA"]
+    """ The resource is provided in both language. """
+
 
 class ContactRole(enum.Enum):
 
     Author = "author"
+    """ A person who solely wrote the document."""
+
     CoAuthor = "coAuthor"
+    """ A person who wrote the document in collaboration with others. """
+
     Collaborator = "collaborator"
+    """ A person who helped make the document in some other way. """
+
     Contributor = "contributor"
+    """ A person who contributed to the document in some way. """
+
     Custodian = "custodian"
+    """ A person who is responsible for safeguarding the document. """
+
     Distributor = "distributor"
+    """ A person who is responsible for distributing the document. """
+
     Editor = "editor"
+    """ A person who helped edit the document. """
+
     Funder = "funder"
+    """ A person who helped fund the creation of the document. """
+
     Mediator = "mediator"
+
     Originator = "originator"
+    """ A person who originated data to support building the document. """
+
     Owner = "owner"
+    """ A person who owns the document. """
+
     ContactPoint = "pointOfContact"
+    """ A person who is the point of contact for the document and can answer questions. """
+
     PrincipalInvestigator = "principalInvestigator"
+    """ A person who is the principal investigator of a research project. """
+
     Processor = "processor"
+    """ A person who processed the data. """
+
     Publisher = "publisher"
+    """ A person who published the data. """
+
     ResourceProvider = "resourceProvider"
+    """ A person who provides the resource to others. """
+
     RightsHolder = "rightsHolder"
+    """ A person who owns the rights to the document. """
+
     Sponsor = "sponsor"
+    """ A person who sponsored the creation of the document. """
+
     Stakeholder = "stakeholder"
+    """ A person who is a stakeholder in the creation of the document. """
+
     User = "user"
+    """ A person who uses the data. """
 
 
-class IDSystem:
+class IDSystem(enum.Enum):
 
     DOI = {
         "_guid": "DOI",
@@ -621,6 +724,7 @@ class IDSystem:
         "code_space": 'https://doi.org/',
         "version": '',
     }
+    """ Digital Object Identifier system - codes should just be the DOI without any prefix. """
 
     ROR = {
         "_guid": "ROR",
@@ -628,6 +732,7 @@ class IDSystem:
         "code_space": "https://ror.org/",
         "version": "",
     }
+    """ Research Organization Registry system - codes should just be the ROR without any prefix. """
 
     ORCID = {
         "_guid": "ORCID",
@@ -635,6 +740,7 @@ class IDSystem:
         "code_space": "https://orcid.org/",
         "version": "",
     }
+    """ Open Researcher and Contributor ID system - codes should just be the ORCID without any prefix. """
 
     VesselIMO = {
         "_guid": "IMONumber",
@@ -642,7 +748,169 @@ class IDSystem:
         "code_space": "",
         "version": "",
     }
+    """ IMO vessel numbers. """
 
+
+class TelephoneType(enum.Enum):
+
+    Fax = "fax"
+    Cell = "cell"
+    Voice = "voice"
+
+
+class Country(enum.Enum):
+
+    Canada = "CAN"
+    UnitedStates = "USA"
+
+
+class Locale(enum.Enum):
+
+    CanadianEnglish = {
+        "language": "eng",
+        "a2_language": "en",
+        "country": Country.Canada.value,
+        "encoding": Encoding.UTF8.value,
+        "ietf_bcp47": "en-CA",
+    }
+    """ Canadian English using UTF-8 text encoding. """
+
+    CanadianFrench = {
+        "language": "fra",
+        "a2_language": "fr",
+        "country": Country.Canada.value,
+        "encoding": Encoding.UTF8.value,
+        "ietf_bcp47": "fr-CA",
+    }
+    """ Canadian French using UTF-8 text encoding. """
+
+
+class DistanceUnit(enum.Enum):
+
+    Meters = "m"
+    Kilometers ="km"
+
+
+class AngularUnit(enum.Enum):
+
+    Radians = "radian"
+    ArcDegrees = "arc_degree"
+    ArcMinutes = "arc_minute"
+    ArcSeconds = "arc_second"
+
+
+class RestrictionCode(enum.Enum):
+
+    Unrestricted = "unrestricted"
+    """ Material is not covered by a license, copyright, patent, trademark, or any other restrictions. 
+        It may be freely used and distributed by all. Use for public domain works. 
+    """
+
+    Copyright = "copyright"
+    """ Material is covered by a copyright and requires permission from the rightsholder. """
+
+    Patent = "patent"
+    """ Material is covered under an existing patent. """
+
+    PatentPending = "patentPending"
+    """ Material is covered under a patent that is pending approval. """
+
+    Trademark = "trademark"
+    """ Material is covered under a trademark. """
+
+    License = "licence"
+    """ Material requires the acceptance of a formal license. """
+
+    LicenseToDistribute = "licenceDistributor"
+    """ Material requires a formal license to sell or distribute. """
+
+    LicenseEndUser = "licenseEndUser"
+    """ Material requires a formal license to use. """
+
+    LicenseUnrestricted = "licenseUnrestricted"
+    """ Material is covered under a license, but no formal permission required (e.g. the Open Canada License). """
+
+    Restricted = "restricted"
+    """ Material includes sensitive information and should not be distributed, but not classified or protected. """
+
+    Confidential = "confidential"
+    """ Material includes sensitive information. Use if the data is classified or protected and add a SecurityConstraint as well. """
+
+    Statutory = "statutory"
+    """ Access, use, or distribution is restricted by law. """
+
+    Other = "otherRestrictions"
+    """ Material is covered under other restrictions or conditions, as detailed in the use constraint (add a description or citation at least). """
+
+
+class ClassificationCode(enum.Enum):
+
+    Unclassified = "unclassified"
+    """ Material is not protected or classified. """
+
+    LimitedDistribution = "limitedDistribution"
+    """ Material is not widely distributed, but not specifically protected or classified. """
+
+    OfficialUseOnly = "forOfficialUseOnly"
+    """ Material is not protected or classified, but should not be used except for official purposes. """
+
+    Protected = "protected"
+    """ Material is Protected A, B, or C. """
+
+    Confidential = "confidential"
+    """ Material is classified as Confidential"""
+
+    Secret = "secret"
+    """ Material is classified as Secret. """
+
+    TopSecret = "topSecret"
+    """ Material is classified as Top Secret. """
+
+
+class GCPublisher(enum.Enum):
+
+    MEDS = {
+        "_guid": "meds",
+        "_display_name": {
+            "en": "MEDS",
+            "fr": "SDMM",
+        },
+        "section_name": {
+            "en": "Marine Environmental Data Section",
+            "fr": "Section des données sur le milieu marine",
+        },
+        "publisher": {
+            "_guid": "dfo",
+            "_display_name": {
+                "en": "DFO",
+                "fr": "MPO",
+            },
+            "publisher_name": {
+                "en": "Fisheries and Oceans Canada",
+                "fr": "Pêches et Océans Canada",
+            },
+            "publisher_code": "DFO"
+        }
+    }
+
+
+class KeywordType(enum.Enum):
+
+    DataCenter = "dataCentre"
+    Discipline = "discipline"
+    FeatureType = "featureType"
+    Instrument = "instrument"
+    Place = "place"
+    Platform = "platform"
+    Process = "process"
+    Product = "product"
+    Project = "project"
+    Service = "service"
+    Stratum = "stratum"
+    SubTheme = "subTopicCategory"
+    Taxon = "taxon"
+    Temporal = "temporal"
+    Theme = "theme"
 
 
 class EntityRef:
@@ -938,7 +1206,7 @@ class Resource(EntityRef):
         """
         :param url: The URL of the resource
         """
-        self._metadata['url'] = url or ""
+        self._metadata['url'] = EntityRef.format_multilingual_text(url or "")
         if url:
             if 'protocol' not in self._metadata or not self._metadata['protocol']:
                 self.set_resource_type()
@@ -949,29 +1217,60 @@ class Resource(EntityRef):
         """
         :param res_type: The type of resource (i.e. the protocol used to access it)
         """
-        url = self._metadata['url']
         if res_type != ResourceType.Auto:
             self._metadata['protocol'] = res_type.value
-        elif url.startswith("https://"):
-            self._metadata['protocol'] = "https"
+        else:
+            self._metadata['protocol'] = Resource.autodetect_resource_type(self._metadata['url'])
+
+    @staticmethod
+    def autodetect_resource_type(full_url: t.Optional[dict]):
+        if full_url is None:
+            return None
+        url = ""
+        if 'und' in full_url:
+            url = full_url['und']
+        elif 'en' in full_url:
+            url = full_url['und']
+        else:
+            for key in full_url.keys():
+                url = full_url[key]
+                break
+        if url.startswith("https://"):
+            return "https"
         elif url.startswith("http://"):
-            self._metadata['protocol'] = "http"
+            return "http"
         elif url.startswith("ftp://"):
-            self._metadata['protocol'] = "ftp"
+            return "ftp"
         elif url.startswith("git://"):
-            self._metadata['protocol'] = 'git'
+            return 'git'
         elif url.startswith("file://"):
-            self._metadata['protocol'] = 'file'
+            return 'file'
+        return None
 
     def set_gc_content_format(self, content_format: GCContentFormat = GCContentFormat.Auto):
         """
         :param content_format: The format of the content according to GC
         """
-        url = self._metadata['url']
         if content_format != GCContentFormat.Auto:
             self._metadata['goc_formats'] = [content_format.value]
-        elif url.upper().endswith(".TAR.GZ"):
-            self._metadata['goc_formats'] = [GCContentFormat.ArchiveTARGZIP.value]
+        else:
+            self._metadata['goc_formats'] = [Resource.autodetect_gc_content_format(self._metadata['url'])]
+
+    @staticmethod
+    def autodetect_gc_content_format(full_url: t.Optional[dict]):
+        if full_url is None:
+            return None
+        url = ""
+        if 'und' in full_url:
+            url = full_url['und']
+        elif 'en' in full_url:
+            url = full_url['und']
+        else:
+            for key in full_url.keys():
+                url = full_url[key]
+                break
+        if url.upper().endswith(".TAR.GZ"):
+            return GCContentFormat.ArchiveTARGZIP.value
         else:
             pos = None
             if "/" in url:
@@ -982,7 +1281,10 @@ class Resource(EntityRef):
             if "." in filename:
                 extension = filename[filename.rfind(".")+1:].upper()
                 if any(x.value == extension for x in GCContentFormat):
-                    self._metadata['goc_formats'] = [extension]
+                    return extension
+            if url.startswith("https://") or url.startswith("http://"):
+                return "html"
+        return None
 
     def set_name(self, name: MultiLanguageString):
         """
@@ -1027,13 +1329,176 @@ class Resource(EntityRef):
         self._metadata['goc_languages'] = language.value
 
 
-class Contact(EntityRef):
-    pass
+class _Contact(EntityRef):
+
+    def __init__(self, email: t.Optional[str] = None):
+        super().__init__()
+        self._metadata['phone'] = []
+        self._children['web_resources'] = []
+        self.set_email(email)
+
+    def add_resource(self, resource: Resource):
+        """
+        :param resource: A resource (e.g. a web page) with more information about the contact.
+        """
+        self._children['web_resources'].append(resource)
+
+    def add_telephone_number(self, tel_type: TelephoneType, tel_num: str):
+        """
+        :param tel_type: The type of telephone number
+        :param tel_num: The telephone number where this contact can be reached
+        """
+        self._metadata['phone'].append({
+            'phone_number_type': tel_type.value,
+            'phone_number': tel_num,
+        })
+
+    def set_address(self, address_line: MultiLanguageString, city: str, province_state: MultiLanguageString, country: Country):
+        """
+        :param address_line: Typically the street name and number along with any other additional information that would appear before the city. Use the new line character ("\n") to separate lines
+        :param city: The city where the address is located
+        :param province_state: The province, state, or other administrative area within a country where the city is located
+        :param country: The country where the cityi s located
+        """
+        self._metadata.update({
+            'delivery_point': EntityRef.format_multilingual_text(address_line),
+            'city': city,
+            'admin_area': EntityRef.format_multilingual_text(province_state),
+            'country': country.value
+        })
+
+    def set_email(self, email_address: MultiLanguageString):
+        """
+        :param email_address: The email address to reach the contact.
+        """
+        self._metadata['email'] = email_address
+
+    def set_web_page(self,
+                     url: MultiLanguageString,
+                     name: t.Optional[MultiLanguageString] = None,
+                     description: t.Optional[MultiLanguageString] = None,
+                     purpose: ResourcePurpose = ResourcePurpose.Information,
+                     res_type: ResourceType = ResourceType.Auto):
+        """
+        :param url: The main URL where you can find out more information about the contact
+        :param name: The name of the web page
+        :param description: A description of the web page
+        :param purpose: The purpose of the web page (defaults to Information)
+        :param res_type: The type of resource (defaults to Auto to detect a web page or secure web page as appropriate - only change if you're using a weird protocol)
+        """
+        actual_url = EntityRef.format_multilingual_text(url)
+        self._metadata['web_page'] = {
+            'url': actual_url,
+            'name': EntityRef.format_multilingual_text(name),
+            'description': EntityRef.format_multilingual_text(description),
+            'function': purpose.value,
+            'protocol': res_type.value if res_type != ResourceType.Auto else Resource.autodetect_resource_type(actual_url)
+        }
+
+    def set_service_hours(self, txt: MultiLanguageString):
+        """
+        :param txt: A description of the hours when the contact is available to be contacted.
+        """
+        self._metadata['service_hours'] = EntityRef.format_multilingual_text(txt)
+
+    def set_instructions(self, txt: MultiLanguageString):
+        """
+        :param txt: Any additional instructions on contacting this person or organization.
+        """
+        self._metadata['instructions'] = EntityRef.format_multilingual_text(txt)
+
+    def set_identifier(self, code: str, system: t.Optional[IDSystem] = None, desc: t.Optional[MultiLanguageString] = None):
+        """
+        :param code: A unique identifier for this contact
+        :param system: The system of unique identifiers used (e.g. ROR or ORCID)
+        :param desc: An additional description of the identifier, if needed.
+        :return:
+        """
+        self._metadata['id_code'] = code
+        self._metadata['id_system'] = system.value if system is not None else None
+        self._metadata['id_description'] = EntityRef.format_multilingual_text(desc)
+
+
+class Individual(_Contact):
+
+    def __init__(self, name: str, email: str):
+        """
+        :param name: The full name of the person
+        :param email: The email address where the person can be reached
+        """
+        super().__init__(email=email)
+        self.set_name(name)
+
+    def set_name(self, name: str):
+        """
+        :param name: The full name of the eperson
+        """
+        self._metadata['individual_name'] = name
+
+    def set_orcid(self, orcid: str, desc: t.Optional[MultiLanguageString] = None):
+        """
+        :param orcid: The Open Researcher and Contributor ID of the individual. Do not include the https://orcid.org/ prefix.
+        :param desc: Any additional description to attach to it.
+        """
+        if orcid.startswith("https://orcid.org/"):
+            orcid = orcid[18:]
+        elif orcid.startswith("http://orcid.org/"):
+            orcid = orcid[17:]
+        self.set_identifier(orcid, IDSystem.ORCID, desc)
+
+
+class Organization(_Contact):
+
+    def __init__(self, name: MultiLanguageString, email: t.Optional[str] = None):
+        """
+        :param name: The name of the organization
+        :param email: A generic email for the organization, if applicable
+        """
+        super().__init__(email=email)
+        self._children['individuals'] = []
+        self.set_name(name)
+
+    def add_individual(self, individual: Individual):
+        """
+        :param individual: An individual who can be contacted on behalf of the organization
+        """
+        self._children['individuals'].append(individual)
+
+    def set_name(self, name: MultiLanguageString):
+        """
+        :param name: The name of the organization
+        """
+        self._metadata['organization_name'] = EntityRef.format_multilingual_text(name)
+
+    def set_ror(self, ror: str, desc: t.Optional[MultiLanguageString] = None):
+        """
+        :param ror: The Research Organization Registry ID belonging to the organization. Do not include the https://ror.org/ prefix.
+        :param desc: Any additional description to provide alongside the ROR
+        """
+        if ror.startswith("https://ror.org/"):
+            ror = ror[16:]
+        elif ror.startswith("http://ror.org/"):
+            ror = ror[15:]
+        self.set_identifier(ror, IDSystem.ROR, desc)
+
+
+class Position(_Contact):
+
+    def __init__(self, name: MultiLanguageString, email: t.Optional[str] = None):
+        """
+        :param name: The name of the position
+        :param email: A generic email address for the position, if applicable.
+        """
+        super().__init__(email=email)
+        self.set_name(name)
+
+    def set_name(self, name: MultiLanguageString):
+        self._metadata['position_name'] = EntityRef.format_multilingual_text(name)
 
 
 class _ResponsibleParty(EntityRef):
 
-    def __init__(self, role: ContactRole, contact: Contact):
+    def __init__(self, role: ContactRole, contact: _Contact):
         super().__init__()
         self._metadata['role'] = role
         self._children['contact'] = contact
@@ -1047,7 +1512,7 @@ class Citation(EntityRef):
         self._children['resource'] = None
         self.set_title(title)
 
-    def add_responsible_party(self, role: ContactRole, contact: Contact):
+    def add_responsible_party(self, role: ContactRole, contact: _Contact):
         """
         :param role: The role the person plays for this citation
         :param contact: Their contact information
@@ -1121,10 +1586,156 @@ class Citation(EntityRef):
         self._metadata['description'] = EntityRef.format_multilingual_text(description)
 
 
+class GeneralUseConstraint(EntityRef):
+
+    def __init__(self):
+        super().__init__()
+        self._children['reference'] = []
+        self._children['responsibles'] = []
+
+    def add_reference(self, ref: Citation):
+        """
+        :param ref: A citation with more information about the use constraint (e.g. a link to the license)
+        """
+        self._children['reference'].append(ref)
+
+    def set_description(self, text: MultiLanguageString):
+        """
+        :param text: Additional information about the UseConstraint
+        """
+        self._metadata['description'] = EntityRef.format_multilingual_text(text)
+
+    def add_contact(self, role: ContactRole, contact: _Contact):
+        """
+        :param role: The role the contact plays for this use constraint.
+        :param contact: The contact information
+        """
+        self._children['responsibles'].append(_ResponsibleParty(role, contact))
+
+    def set_plain_text_version(self, txt: MultiLanguageString):
+        """
+        :param txt: The plain text version of the license, for use in NetCDF files.
+        """
+        self._metadata['plain_text'] = EntityRef.format_multilingual_text(txt)
 
 
+class LegalConstraint(GeneralUseConstraint):
+
+    def set_access_constraint(self, constraint: t.Union[RestrictionCode, list[RestrictionCode]]):
+        """
+        :param constraint: Limits on who can access the data (e.g. is it classified / protected) - may be a list of values instead.
+        """
+        self._metadata['access_constraints'] = constraint.value if isinstance(constraint, RestrictionCode) else [x.value for x in constraint]
+
+    def set_use_constraint(self, constraint: t.Union[RestrictionCode, list[RestrictionCode]]):
+        """
+        :param constraint: Limits on who can use the data (e.g. is it classified / protected) - may be a list of values instead.
+        """
+        self._metadata['use_constraints'] = constraint.value if isinstance(constraint, RestrictionCode) else [x.value for x in constraint]
+
+    def set_other_constraints(self, constraint_info: MultiLanguageString):
+        """
+        :param constraint_info: Additional information on the constraints. You should use RestrictionCode.Other in the access or use constraints.
+        """
+        self._metadata['other_constraints'] = EntityRef.format_multilingual_text(constraint_info)
 
 
+class SecurityConstraint(GeneralUseConstraint):
+
+    def __init__(self, classification: ClassificationCode):
+        super().__init__()
+        self.set_classification(classification)
+
+    def set_classification(self, classification: ClassificationCode):
+        """
+        :param classification: The classification of the data.
+        """
+        self._metadata['classification'] = classification.value
+
+    def set_user_notes(self, notes: MultiLanguageString):
+        """
+        :param notes: Notes about how the data can be used.
+        """
+        self._metadata['user_notes'] = EntityRef.format_multilingual_text(notes)
+
+    def set_handling_notes(self, notes: MultiLanguageString):
+        """
+        :param notes: Notes about how the data must be handled.
+        """
+        self._metadata['handling_description'] = EntityRef.format_multilingual_text(notes)
+
+    def set_classification_system(self, sys: MultiLanguageString):
+        """
+        :param sys: A description of the classification system used.
+        """
+        self._metadata['classification_system'] = EntityRef.format_multilingual_text(sys)
+
+
+class ERDDAPServer(EntityRef):
+
+    def __init__(self, base_url: str):
+        super().__init__()
+        self.set_base_url(base_url)
+        self._children['responsibles'] = []
+
+    def set_base_url(self, base_url: str):
+        """
+            :param base_url: The base URL of the ERDDAP server.
+        """
+        self._metadata['base_url'] = base_url
+
+    def add_contact(self, role: ContactRole, contact: _Contact):
+        """
+        :param role: The role the contact plays
+        :param contact: The contact
+        """
+        self._children['responsibles'].append(_ResponsibleParty(role, contact))
+
+
+class Thesaurus(EntityRef):
+
+    def __init__(self):
+        super().__init__()
+
+    def set_citation(self, citation: Citation):
+        """
+        :param citation: A citation for the thesaurus.
+        """
+        self._children['citation'] = citation
+
+    def set_type(self, keyword_type: KeywordType):
+        """
+        :param keyword_type: The type of keywords associated with this thesaurus.
+        """
+        self._metadata['type'] = keyword_type.value
+
+    def set_prefix(self, prefix: str):
+        """
+        :param prefix: The prefix used in NetCDF files for keywords from this thesaurus.
+        """
+
+
+class Keyword(EntityRef):
+
+    def __init__(self, thesaurus: Thesaurus, text: MultiLanguageString, description: t.Optional[MultiLanguageString] = None):
+        """
+        :param thesaurus: The thesaurus that the keyword is from.
+        :param text: The keyword text. If the keyword has a "programmatic value" use "und" for this value. You may also add internationalized versions for display purposes.
+        :param description: The description of the keyword.
+        """
+        super().__init__()
+        self.set_thesaurus(thesaurus)
+        self.set_text(text)
+        self.set_description(description)
+
+    def set_thesaurus(self, t: Thesaurus):
+        self._children['thesaurus'] = t
+
+    def set_text(self, t: MultiLanguageString):
+        self._metadata['keyword'] = EntityRef.format_multilingual_text(t)
+
+    def set_description(self, d: t.Optional[MultiLanguageString]):
+        self._metadata['description'] = EntityRef.format_multilingual_text(d)
 
 
 class DatasetMetadata:
@@ -1146,34 +1757,84 @@ class DatasetMetadata:
             'metadata_profiles': [],
             'metadata_standards': [],
             'alt_metadata': [],
-            'parent_metadata': None,
-            'publisher': None,
-            'metadata_owner': None,
             'responsibles': [],
+            'licenses': [],
+            'metadata_licenses': [],
+            'erddap_servers': [],
+            'custom_keywords': [],
         }
 
-    def add_responsible_party(self, role: ContactRole, contact: Contact):
+    def add_custom_keyword(self, keyword: Keyword):
+        """
+        :param keyword: The keyword to add.
+        """
+        self._children['custom_keywords'].append(keyword)
+
+    def set_goc_publisher(self, publisher: GCPublisher):
+        """
+        :param publisher: The group responsible for publishing this data on GC Data.
+        """
+        self._metadata['goc_publisher'] = publisher.value
+
+    def add_data_constraint(self, constraint: GeneralUseConstraint):
+        """
+        :param constraint: A use constraint that applies to the dataset described.
+        """
+        self._children['licenses'].append(constraint)
+
+    def add_metadata_constraint(self, constraint: GeneralUseConstraint):
+        """
+        :param constraint: A use constraint that applies to the metadata itself.
+        """
+        self._children['metadata_licenses'].append(constraint)
+
+    def add_responsible_party(self, role: ContactRole, contact: _Contact):
+        """
+        :param role: The nature of the relationship
+        :param contact: A person who has some relationship to this dataset
+        """
         self._children['responsibles'].append(_ResponsibleParty(role, contact))
 
-    def set_metadata_owner(self, contact: Contact):
+    def set_metadata_owner(self, contact: _Contact):
+        """
+        :param contact: The contact information of the person who owns the metadata.
+        """
         self._children['metadata_owner'] = contact
 
-    def set_publisher(self, publisher: Contact):
+    def set_publisher(self, publisher: _Contact):
+        """
+        :param publisher: The contact information of the person who publishes the metadata.
+        """
         self._children['publisher'] = publisher
 
     def set_parent_metadata(self, citation: Citation):
+        """
+        :param citation: If this dataset is a subset of another dataset, where can the parent metadata be found?
+        """
         self._children['parent_metadata'] = citation
 
     def add_alt_metadata(self, citation: Citation):
+        """
+        :param citation: An alternative location of the metadata.
+        """
         self._children['alt_metadata'].append(citation)
 
     def add_metadata_standard(self, citation: Citation):
+        """
+        :param citation: A citation for a metadata standard that this dataset follows.
+        """
         self._children['metadata_standards'].append(citation)
 
     def add_metadata_profile(self, citation: Citation):
+        """
+        :param citation: A citation for a metadata profile that this dataset follows.
+        """
         self._children['metadata_profiles'].append(citation)
 
     def add_additional_documentation(self, citation: Citation):
+        """
+        :param citation: An additional piece of documentation you'd like to provide with more information about the dataset.
+        """
         self._children['additional_docs'].append(citation)
 
     def add_record(self, record: MaintenanceRecord):
@@ -1313,9 +1974,10 @@ class DatasetMetadata:
         """
         self._metadata['comment'] = EntityRef.format_multilingual_text(comment)
 
-    def set_doi(self, doi: str):
+    def set_doi(self, doi: str, desc: t.Optional[MultiLanguageString] = None):
         """
         :param doi: The DOI, ideally without a prefix like "https://doi.org" or "doi:"
+        :param desc: Any additional information about the DOI you'd like to provide.
         """
         if doi.startswith("https://doi.org/"):
             doi = doi[16:]
@@ -1323,9 +1985,14 @@ class DatasetMetadata:
             doi = doi[15:]
         elif doi.startswith("doi:"):
             doi = doi[4:]
-        self.set_identifier(doi, IDSystem.DOI)
+        self.set_identifier(doi, IDSystem.DOI, desc)
 
     def set_identifier(self, code: str, id_system: IDSystem, desc: t.Optional[MultiLanguageString] = None):
+        """
+        :param code: The identifier for the dataset (e.g. the DOI)
+        :param id_system: The system of unique identifiers used (e.g. the DOI system)
+        :param desc: Any additional description to be added
+        """
         self._metadata['dataset_id_code'] = code
         self._metadata['dataset_id_system'] = id_system
         self._metadata['dataset_id_description'] = EntityRef.format_multilingual_text(desc)
@@ -1424,6 +2091,75 @@ class DatasetMetadata:
         """
         self._metadata['date_modified'] = EntityRef.format_date(date)
 
+    def set_data_locales(self, primary_locale: Locale, secondary_locales: t.Optional[list[Locale]] = None):
+        """
+        :param primary_locale: The locale that the majority of the data was provided in (if applicable)
+        :param secondary_locales: Any additional locales that the data is provided in or will be after translation.
+        """
+        self._metadata['data_locale'] = primary_locale.value
+        if secondary_locales:
+            self._metadata['data_extra_locales'] = [x.value for x in secondary_locales]
+
+    def set_metadata_locales(self, primary_locale: Locale, secondary_locales: t.Optional[list[Locale]] = None):
+        """
+        :param primary_locale: The locale that the majority of the metadata was originally written in.
+        :param secondary_locales: Any additional locales that the metadata provides or will provide after translation.
+        """
+        self._metadata['metadata_locale'] = primary_locale.value
+        if secondary_locales:
+            self._metadata['metadata_extra_locales'] = [x.value for x in secondary_locales]
+
+    def set_spatial_resolution(self,
+                               scale: t.Optional[int] = None,
+                               level_of_detail: t.Optional[MultiLanguageString] = None,
+                               horizontal: t.Optional[NumberLike] = None,
+                               vertical: t.Optional[NumberLike] = None,
+                               angular: t.Optional[NumberLike] = None,
+                               horizontal_units: DistanceUnit = DistanceUnit.Meters,
+                               vertical_units: DistanceUnit = DistanceUnit.Meters,
+                               angular_units: AngularUnit = AngularUnit.ArcDegrees,
+                               ):
+        """
+        :param scale: The spatial resolution in 1:[SCALE] format (e.g. use 10000 for a 1:10000 scale)
+        :param level_of_detail: A text description of the level of detail
+        :param horizontal: The horizontal resolution of the dataset in the given units
+        :param vertical: The vertical resolution of the dataset in the given units
+        :param angular: The angular resolution of the dataset in the given units
+        :param horizontal_units: Units for horizontal resolution (defaults to metres)
+        :param vertical_units: Units for the vertical resolution (defaults to metres)
+        :param angular_units: Units for the angular resolution (defaults to arc degrees)
+        """
+        if 'spatial_resolution' not in self._metadata:
+            self._metadata['spatial_resolution'] = {}
+        if scale is not None:
+            self._metadata['spatial_resolution']['scale'] = scale
+        if level_of_detail is not None:
+            self._metadata['spatial_resolution']['level_of_detail'] = EntityRef.format_multilingual_text(level_of_detail)
+        if horizontal is not None:
+            self._metadata['spatial_resolution']['distance'] = str(horizontal)
+            self._metadata['spatial_resolution']['distance_units'] = horizontal_units.value
+        if vertical is not None:
+            self._metadata['spatial_resolution']['vertical'] = str(vertical)
+            self._metadata['spatial_resolution']['vertical_units'] = vertical_units.value
+        if angular is not None:
+            self._metadata['spatial_resolution']['angular'] = str(angular)
+            self._metadata['spatial_resolution']['angular_units'] = angular_units.value
+
+    def set_time_resolution(self, time_amount: int, time_units: NumericTimeUnits):
+        """
+        :param time_amount: An amount of time as an integer (round up) in the given units.
+        :param time_units: The units that the time is given in. Note that milliseconds will be converted to seconds and rounded up to the next second.
+        """
+        if time_units == NumericTimeUnits.Weeks:
+            time_amount *= 7
+            time_units = NumericTimeUnits.Days
+        elif time_units == NumericTimeUnits.Seconds:
+            time_amount = int(math.ceil(time_amount / 1000))
+            time_units = NumericTimeUnits.Seconds
+        self._metadata['temporal_resolution'] = {
+            time_units.value: time_amount
+        }
+
 
     # ISO stuff
 
@@ -1507,13 +2243,18 @@ class DatasetMetadata:
 
     # ERDDAP stuff
 
-    def set_erddap_info(self, dataset_id: str, dataset_type: ERDDAPDatasetType, file_path: t.Optional[str] = None, file_pattern: t.Optional[str] = None):
+    def set_erddap_info(self, server: t.Union[ERDDAPServer, list[ERDDAPServer]], dataset_id: str, dataset_type: ERDDAPDatasetType, file_path: t.Optional[str] = None, file_pattern: t.Optional[str] = None):
         """
+        :param server: The server(s) that will host the dataset
         :param dataset_id: The ID of the dataset as it should be used in ERDDAP (must be unique)
         :param file_path: The path of the files on the ERDDAP server
         :param file_pattern: If multiple files are stored in that path, the file pattern to match (otherwise all files are used)
         """
         self.add_profile('erddap')
+        if isinstance(server, ERDDAPServer):
+            self._children['erddap_servers'].append(server)
+        else:
+            self._children['erddap_servers'].extend(server)
         self._metadata['erddap_data_file_path'] = file_path
         self._metadata['erddap_data_file_pattern'] = file_pattern
         self._metadata['erddap_dataset_id'] = dataset_id
