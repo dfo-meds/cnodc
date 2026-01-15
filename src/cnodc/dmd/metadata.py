@@ -7,6 +7,16 @@ import datetime
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
 
+def mltext(*, english: t.Optional[str] = None, french: t.Optional[str] = None, generic: t.Optional[str] = None) -> dict[str, str]:
+    txt = {}
+    if english is not None:
+        txt['en'] = english
+    if french is not None:
+        txt['fr'] = french
+    if generic is not None:
+        txt['und'] = generic
+    return txt
+
 
 class Encoding(enum.Enum):
 
@@ -474,49 +484,18 @@ class CoordinateReferenceSystem(enum.Enum):
 
     WGS84 = {
         "_guid": "wgs84",
-        "code": "4326",
-        "description": "WGS84 - World Geodetic System 1984",
-        "system_type": "geodeticGeographic2D",
-        "id_system": {
-            "_guid": "epsg",
-            "code_space": "EPSG:",
-            "version": "",
-        }
-    }
-
-    NAD27 = {
-        "_guid": "nad27",
-        "code": "4267",
-        "description": "NAD27 - North American Datum 1927",
-        "system_type": "geodeticGeographic2D",
-        "id_system": {
-            "_guid": "epsg",
-            "code_space": "EPSG:",
-            "version": "",
-        }
     }
 
     MSL_Depth = {
         "_guid": "msl_depth",
-        "code": "5715",
-        "description": "Depth (positive down) below mean sea level without specified datum",
-        "system_type": "vertical",
-        "id_system": {
-            "_guid": "epsg",
-            "code_space": "EPSG:",
-            "version": "",
-        }
+    }
+
+    MSL_Heights = {
+        "_guid": "msl_height",
     }
 
     Gregorian = {
         "_guid": "gregorian",
-        "system_type": "temporal",
-        "code": "gregorian",
-        "description": "ISO timestamp in a given timezone",
-        "id_system": {
-            "_guid": "standard_calendars",
-            "description": "Standard calendars"
-        },
     }
 
 
@@ -720,35 +699,27 @@ class IDSystem(enum.Enum):
 
     DOI = {
         "_guid": "DOI",
-        "_display_name": {"und": "DOI"},
-        "code_space": 'https://doi.org/',
-        "version": '',
     }
     """ Digital Object Identifier system - codes should just be the DOI without any prefix. """
 
     ROR = {
         "_guid": "ROR",
-        "_display_name": {"und": "ROR"},
-        "code_space": "https://ror.org/",
-        "version": "",
     }
     """ Research Organization Registry system - codes should just be the ROR without any prefix. """
 
     ORCID = {
         "_guid": "ORCID",
-        "_display_name": {"und": "ORCID"},
-        "code_space": "https://orcid.org/",
-        "version": "",
     }
     """ Open Researcher and Contributor ID system - codes should just be the ORCID without any prefix. """
 
     VesselIMO = {
         "_guid": "IMONumber",
-        "_display_name": {"und": "IMO"},
-        "code_space": "",
-        "version": "",
     }
     """ IMO vessel numbers. """
+
+    EPSG = {
+        "_guid": "EPSG",
+    }
 
 
 class TelephoneType(enum.Enum):
@@ -767,20 +738,12 @@ class Country(enum.Enum):
 class Locale(enum.Enum):
 
     CanadianEnglish = {
-        "language": "eng",
-        "a2_language": "en",
-        "country": Country.Canada.value,
-        "encoding": Encoding.UTF8.value,
-        "ietf_bcp47": "en-CA",
+        '_guid': 'canadian_english_utf8',
     }
     """ Canadian English using UTF-8 text encoding. """
 
     CanadianFrench = {
-        "language": "fra",
-        "a2_language": "fr",
-        "country": Country.Canada.value,
-        "encoding": Encoding.UTF8.value,
-        "ietf_bcp47": "fr-CA",
+        '_guid': 'canadian_french_utf8',
     }
     """ Canadian French using UTF-8 text encoding. """
 
@@ -915,11 +878,13 @@ class KeywordType(enum.Enum):
 
 class EntityRef:
 
-    def __init__(self):
+    def __init__(self, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
         self._guid = None
         self._display_name = {}
         self._metadata = {}
         self._children: dict[str, t.Union[t.Optional[EntityRef], list[EntityRef]]] = {}
+        self.set_guid(guid)
+        self.set_display_name(display_names)
 
     def set_guid(self, guid):
         """
@@ -931,24 +896,7 @@ class EntityRef:
         """
         :param display_name: A string or multi-language dict containing the internal display name of the entity.
         """
-        if isinstance(display_name, str):
-            self._display_name = {
-                'und': display_name,
-            }
-        else:
-            self._display_name = display_name
-
-    def set_english_display_name(self, display_name: str):
-        """
-        :param display_name: The English display name
-        """
-        self._display_name['en'] = display_name
-
-    def set_french_display_name(self, display_name: str):
-        """
-        :param display_name: The French display name
-        """
-        self._display_name['fr'] = display_name
+        self._display_name = EntityRef.format_multilingual_text(display_name)
 
     def build_request_body(self):
         d = {
@@ -986,10 +934,131 @@ class EntityRef:
 
 class Variable(EntityRef):
 
-    def __init__(self, var_name: str, var_data_type: NetCDFDataType):
-        super().__init__()
+    def __init__(self,
+                 var_name: str,
+                 var_data_type: NetCDFDataType,
+                 *,
+                 destination_name: t.Optional[str] = None,
+                 destination_type: t.Optional[NetCDFDataType] = None,
+                 dimensions: t.Optional[list[str]] = None,
+                 long_name: t.Optional[MultiLanguageString] = None,
+                 standard_name: t.Optional[StandardName] = None,
+                 units: t.Optional[Unit] = None,
+                 time_precision: t.Optional[TimePrecision] = None,
+                 calendar: t.Optional[Calendar] = None,
+                 time_zone: t.Optional[TimeZone] = None,
+                 unit_epoch: t.Optional[datetime.datetime] = None,
+                 numeric_time_units: t.Optional[NumericTimeUnits] = None,
+                 missing_value: t.Optional[str] = None,
+                 scale_factor: t.Optional[NumberLike] = None,
+                 ioos_category: t.Optional[IOOSCategory] = None,
+                 actual_min: t.Optional[NumberLike] = None,
+                 actual_max: t.Optional[NumberLike] = None,
+                 valid_min: t.Optional[NumberLike] = None,
+                 valid_max: t.Optional[NumberLike] = None,
+                 add_offset: t.Optional[NumberLike] = None,
+                 encoding: t.Optional[Encoding] = None,
+                 allow_subsets: t.Optional[bool] = None,
+                 role: t.Optional[t.Union[ERDDAPVariableRole, CFVariableRole]] = None,
+                 comment: t.Optional[str] = None,
+                 references: t.Optional[str] = None,
+                 sources: t.Optional[str] = None,
+                 coverage_content_type: t.Optional[CoverageContentType] = None,
+                 order: t.Optional[int] = None,
+                 is_axis: t.Optional[bool] = None,
+                 is_altitude_proxy: t.Optional[bool] = None,
+                 guid: t.Optional[str] = None,
+                 display_names: t.Optional[MultiLanguageString] = None):
+        """
+        :param var_name: The name of the variable
+        :param var_data_type: The datatype of the variable
+        :param destination_name: If the variable is renamed in ERDDAP, the name of the destination variable
+        :param destination_type: If the variables type changes because it is unpacked, the data type of the unpacked variable.
+        :param dimensions: A list of the dimensions for this variable
+        :param long_name: The long name of the variable
+        :param standard_name: The standard name of the variable
+        :param units: The units of the variable
+        :param time_precision: The time precision of the variable
+        :param calendar: The calendar of the variable
+        :param time_zone: The time zone of the variable
+        :param unit_epoch: If the units are of the format "[time_units] since [epoch]" this is the epoch
+        :param numeric_time_units: If the units are of the format [time_units] since [epoch] this is the time_units
+        :param missing_value: The value to consider a value as "missing" in the dataset
+        :param scale_factor:  The scale factor to scale all the data by.
+        :param ioos_category: The IOOS category of the variable
+        :param actual_min: The actual minimum value of the variable
+        :param actual_max: The actual maximum value of the variable
+        :param valid_min: The minimum valid value of the variable
+        :param valid_max: The maximum valid value of the variable
+        :param add_offset: An offset to add to all the data
+        :param encoding: The encoding of a String variable
+        :param allow_subsets: Whether to allow ERDDAP to make subsets with this variable
+        :param role: The CF or ERDDAP role that this variable plays.
+        :param comment: A comment about the variable
+        :param references: References for the variable
+        :param sources: Sources for the variable
+        :param coverage_content_type: The coverage content type of the variable
+        :param order: The order of the variable in ERDDAP
+        :param is_axis: True if the variable is an axis in a gridded data file
+        :param is_altitude_proxy: True if the variable is a proxy for altitude (but not altitude or depth itself)
+        :param guid: The GUID of the variable
+        :param display_names: The display name of the variable.
+        """
+        super().__init__(guid=guid, display_names=display_names)
         self.set_source_name(var_name)
         self.set_source_data_type(var_data_type)
+        if encoding is not None:
+            self.set_encoding(encoding)
+        if destination_name is not None:
+            self.set_destination_name(destination_name)
+        if destination_type is not None:
+            self.set_destination_data_type(destination_type)
+        if dimensions is not None:
+            self.set_dimensions(dimensions)
+        if long_name is not None:
+            self.set_long_name(long_name)
+        if standard_name is not None:
+            self.set_standard_name(standard_name)
+        if time_precision is not None:
+            self.set_time_precision(time_precision)
+        if calendar is not None:
+            self.set_calendar(calendar)
+        if time_zone is not None:
+            self.set_time_zone(time_zone)
+        if units is not None:
+            self.set_units(units)
+        elif unit_epoch is not None and numeric_time_units is not None:
+            self.set_numeric_time_units(numeric_time_units, unit_epoch)
+        if missing_value is not None:
+            self.set_missing_value(missing_value)
+        if scale_factor is not None or add_offset is not None:
+            self.set_conversion(scale_factor, add_offset)
+        if ioos_category is not None:
+            self.set_ioos_category(ioos_category)
+        if actual_min is not None or actual_max is not None:
+            self.set_actual_range(actual_min, actual_max)
+        if valid_min is not None or valid_max is not None:
+            self.set_valid_range(valid_min, valid_max)
+        if allow_subsets is not None:
+            self.set_allow_subsets(allow_subsets)
+        if role is not None:
+            self.set_role(role)
+        if comment is not None:
+            self.set_comment(comment)
+        if references is not None:
+            self.set_references(references)
+        if sources is not None:
+            self.set_source(sources)
+        if coverage_content_type is not None:
+            self.set_coverage_content_type(coverage_content_type)
+        if order is not None:
+            self.set_variable_order(order)
+        if is_axis is not None:
+            self.set_is_axis(is_axis)
+        if is_altitude_proxy is not None:
+            self.set_is_altitude_proxy(is_altitude_proxy)
+
+
 
     def set_encoding(self, enc: Encoding):
         """
@@ -1198,9 +1267,54 @@ class MaintenanceRecord(EntityRef):
 
 class Resource(EntityRef):
 
-    def __init__(self, url):
-        super().__init__()
+    def __init__(self,
+                 url: str,
+                 *,
+                 resource_type: t.Optional[ResourceType] = None,
+                 gc_content_format: t.Optional[GCContentFormat] = None,
+                 name: t.Optional[MultiLanguageString] = None,
+                 description: t.Optional[MultiLanguageString] = None,
+                 request_info: t.Optional[MultiLanguageString] = None,
+                 app_info: t.Optional[MultiLanguageString] = None,
+                 purpose: t.Optional[ResourcePurpose] = None,
+                 gc_content_type: t.Optional[GCContentType] = None,
+                 gc_language: t.Optional[GCLanguage] = None,
+                 guid: t.Optional[str] = None,
+                 display_name: t.Optional[MultiLanguageString] = None):
+        """
+        :param url: The URL for the resource
+        :param resource_type: The type of resource
+        :param purpose: The purpose of the resource
+        :param name: The name of the resource
+        :param description: The description of the resource
+        :param request_info: Additional information about how to make a request to the URL
+        :param app_info: Additional information about an application required to make a request to the URL
+        :param gc_content_format: The content format of the resource
+        :param gc_content_type: The content type of the resource
+        :param gc_language: The language of the resource
+        :param guid: A unique identifier for the resource
+        :param display_name: The display name of the resource
+        """
+        super().__init__(guid=guid, display_names=display_name)
         self.set_url(url)
+        if resource_type is not None:
+            self.set_resource_type(resource_type)
+        if gc_content_format is not None:
+            self.set_gc_content_format(gc_content_format)
+        if name is not None:
+            self.set_name(name)
+        if description is not None:
+            self.set_description(description)
+        if request_info is not None:
+            self.set_additional_request_info(request_info)
+        if app_info is not None:
+            self.set_additional_app_info(app_info)
+        if purpose is not None:
+            self.set_link_purpose(purpose)
+        if gc_content_type is not None:
+            self.set_gc_content_type(gc_content_type)
+        if gc_language is not None:
+            self.set_gc_language(gc_language)
 
     def set_url(self, url: str):
         """
@@ -1331,11 +1445,68 @@ class Resource(EntityRef):
 
 class _Contact(EntityRef):
 
-    def __init__(self, email: t.Optional[str] = None):
-        super().__init__()
+    def __init__(self,
+                 *,
+                 email: t.Optional[str] = None,
+                 phone_numbers: t.Optional[t.Iterable[tuple[TelephoneType, str]]] = None,
+                 address_line: t.Optional[MultiLanguageString] = None,
+                 city: t.Optional[str] = None,
+                 province_state: t.Optional[MultiLanguageString] = None,
+                 country: t.Optional[Country] = None,
+                 service_hours: t.Optional[MultiLanguageString] = None,
+                 instructions: t.Optional[MultiLanguageString] = None,
+                 website_url: t.Optional[MultiLanguageString] = None,
+                 website_name: t.Optional[MultiLanguageString] = None,
+                 website_desc: t.Optional[MultiLanguageString] = None,
+                 resources: t.Optional[t.Union[Resource, t.Iterable[Resource]]] = None,
+                 id_code: t.Optional[str] = None,
+                 id_system: t.Optional[IDSystem] = None,
+                 id_desc: t.Optional[MultiLanguageString] = None,
+                 guid: t.Optional[str] = None,
+                 display_name: t.Optional[MultiLanguageString] = None):
+        """
+        :param email: The email address for the contact
+        :param phone_numbers: A list of phone numbers for the contact
+        :param address_line: The street address for the contact's mailing address
+        :param city: The city for the contact's mailing address
+        :param province_state: The state/province for the contact's mailing address
+        :param country: The country for the contact's mailing address
+        :param service_hours: The hours the contact can be contacted between
+        :param instructions: Additional instructions for the contact
+        :param website_url: The URL of the contact's website
+        :param website_name: The name of the contact's website
+        :param website_desc: A description of the contact's website
+        :param resources: A resource or a list of resources related to the contact
+        :param id_code: The contact's unique identifier (e.g. ROR or ORCID)
+        :param id_system: The system of unique identifiers that the ID code comes from
+        :param id_desc: A description of the ID code
+        :param guid: A unique identifier for the contact
+        :param display_name: The display name for the contact
+        """
+        super().__init__(guid=guid, display_names=display_name)
         self._metadata['phone'] = []
         self._children['web_resources'] = []
-        self.set_email(email)
+        if email is not None:
+            self.set_email(email)
+        if resources is not None:
+            if isinstance(resources, Resource):
+                self.add_resource(resources)
+            else:
+                for x in resources:
+                    self.add_resource(x)
+        if website_url is not None:
+            self.set_web_page(website_url, website_name, website_desc)
+        if phone_numbers is not None:
+            for phone_type, phone in phone_numbers:
+                self.add_telephone_number(phone_type, phone)
+        if address_line is not None or city is not None or province_state is not None or country is not None:
+            self.set_address(address_line, city, province_state, country)
+        if service_hours is not None:
+            self.set_service_hours(service_hours)
+        if instructions is not None:
+            self.set_instructions(instructions)
+        if id_code is not None or id_system is not None or id_desc is not None:
+            self.set_identifier(id_code, id_system, id_desc)
 
     def add_resource(self, resource: Resource):
         """
@@ -1421,13 +1592,17 @@ class _Contact(EntityRef):
 
 class Individual(_Contact):
 
-    def __init__(self, name: str, email: str):
+    def __init__(self, name: t.Optional[str] = None, email: t.Optional[str] = None, orcid: t.Optional[str] = None, orcid_desc: t.Optional[MultiLanguageString] = None, **kwargs):
         """
         :param name: The full name of the person
         :param email: The email address where the person can be reached
+        :param kwargs: See _Contact class for full details
         """
-        super().__init__(email=email)
-        self.set_name(name)
+        super().__init__(email=email, **kwargs)
+        if name is not None:
+            self.set_name(name)
+        if orcid is not None:
+            self.set_orcid(orcid, orcid_desc)
 
     def set_name(self, name: str):
         """
@@ -1449,14 +1624,20 @@ class Individual(_Contact):
 
 class Organization(_Contact):
 
-    def __init__(self, name: MultiLanguageString, email: t.Optional[str] = None):
+    def __init__(self, name: t.Optional[MultiLanguageString] = None, email: t.Optional[str] = None, ror_id: t.Optional[str] = None, ror_desc: t.Optional[MultiLanguageString] = None, individuals: t.Optional[t.Iterable[Individual]] = None, **kwargs):
         """
         :param name: The name of the organization
         :param email: A generic email for the organization, if applicable
         """
-        super().__init__(email=email)
+        super().__init__(email=email, **kwargs)
         self._children['individuals'] = []
-        self.set_name(name)
+        if name is not None:
+            self.set_name(name)
+        if ror_id is not None:
+            self.set_ror(ror_id, ror_desc)
+        if individuals is not None:
+            for x in individuals:
+                self.add_individual(x)
 
     def add_individual(self, individual: Individual):
         """
@@ -1484,13 +1665,14 @@ class Organization(_Contact):
 
 class Position(_Contact):
 
-    def __init__(self, name: MultiLanguageString, email: t.Optional[str] = None):
+    def __init__(self, name: t.Optional[MultiLanguageString] = None, email: t.Optional[str] = None, **kwargs):
         """
         :param name: The name of the position
         :param email: A generic email address for the position, if applicable.
         """
-        super().__init__(email=email)
-        self.set_name(name)
+        super().__init__(email=email, **kwargs)
+        if name is not None:
+            self.set_name(name)
 
     def set_name(self, name: MultiLanguageString):
         self._metadata['position_name'] = EntityRef.format_multilingual_text(name)
@@ -1506,11 +1688,12 @@ class _ResponsibleParty(EntityRef):
 
 class Citation(EntityRef):
 
-    def __init__(self, title: MultiLanguageString):
-        super().__init__()
+    def __init__(self, title: t.Optional[MultiLanguageString] = None, *, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
+        super().__init__(guid=guid, display_names=display_names)
         self._children['responsibles'] = []
         self._children['resource'] = None
-        self.set_title(title)
+        if title is not None:
+            self.set_title(title)
 
     def add_responsible_party(self, role: ContactRole, contact: _Contact):
         """
@@ -1588,8 +1771,11 @@ class Citation(EntityRef):
 
 class GeneralUseConstraint(EntityRef):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self,
+                 *,
+                 guid: t.Optional[str] = None,
+                 display_names: t.Optional[MultiLanguageString] = None):
+        super().__init__(guid=guid, display_names=display_names)
         self._children['reference'] = []
         self._children['responsibles'] = []
 
@@ -1642,9 +1828,10 @@ class LegalConstraint(GeneralUseConstraint):
 
 class SecurityConstraint(GeneralUseConstraint):
 
-    def __init__(self, classification: ClassificationCode):
-        super().__init__()
-        self.set_classification(classification)
+    def __init__(self, classification: t.Optional[ClassificationCode] = None, *, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
+        super().__init__(guid=guid, display_names=display_names)
+        if classification is not None:
+            self.set_classification(classification)
 
     def set_classification(self, classification: ClassificationCode):
         """
@@ -1673,9 +1860,10 @@ class SecurityConstraint(GeneralUseConstraint):
 
 class ERDDAPServer(EntityRef):
 
-    def __init__(self, base_url: str):
-        super().__init__()
-        self.set_base_url(base_url)
+    def __init__(self, base_url: t.Optional[str] = None, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
+        super().__init__(guid=guid, display_names=display_names)
+        if base_url is not None:
+            self.set_base_url(base_url)
         self._children['responsibles'] = []
 
     def set_base_url(self, base_url: str):
@@ -2283,4 +2471,23 @@ class DatasetMetadata:
                     for x in self._children[key]
                 ]
         return body
+
+
+class Common:
+
+    Constraint_OpenGovernmentLicense = LegalConstraint(guid="open_government_license")
+    Constraint_Unclassified = SecurityConstraint(guid="unclassified_data")
+
+    Contact_CNODC = Organization(guid="cnodc")
+    Contact_DFO = Organization(guid="dfo")
+
+    ERDDAP_Primary = ERDDAPServer(guid="cnodc_primary")
+
+    MetadataStandard_ISO19115 = Citation(guid="metadata_standard_iso19115")
+    MetadataStandard_ISO191151 = Citation(guid="metadata_standard_iso19115-1")
+
+    MetadataProfile_CIOOS = Citation(guid="metadata_profile_cioos")
+
+
+
 
