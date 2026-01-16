@@ -65,7 +65,6 @@ class NODBQCWorker(WorkflowWorker):
             payload.set_metadata('current-qc-test', None)
         payload.set_unique_key(group_key)
         payload.enqueue(self._db, queue_name)
-        self._db.commit()
 
     def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
         batch = structures.NODBBatch()
