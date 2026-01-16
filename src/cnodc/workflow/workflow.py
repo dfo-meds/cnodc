@@ -323,7 +323,7 @@ class SourceFilePayload(WorkflowPayload):
         if 'source_uuid' not in map_:
             raise CNODCError('Missing source_uuid', 'PAYLOAD', 1007)
         if 'received' not in map_:
-            raise CNODCError('Missing recieved date', 'PAYLOAD', 1008)
+            raise CNODCError('Missing received date', 'PAYLOAD', 1008)
         return SourceFilePayload(
             map_['source_uuid'],
             datetime.date.fromisoformat(map_['received']),
