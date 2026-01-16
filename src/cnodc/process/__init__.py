@@ -22,6 +22,6 @@
 from .base import BaseWorker
 from .scheduled_task import ScheduledTask
 from .queue_worker import QueueWorker, QueueItemResult
-from .payload_worker import PayloadWorker, SourcePayloadWorker, FilePayloadWorker, BatchPayloadWorker
+from .payload_worker import WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker, BatchWorkflowWorker
 from .single import SingleProcessController
 from .multiprocess import ProcessController

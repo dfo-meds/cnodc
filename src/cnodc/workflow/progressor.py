@@ -1,11 +1,11 @@
-from cnodc.process.payload_worker import PayloadWorker
+from cnodc.process.payload_worker import WorkflowWorker
 from cnodc.process.queue_worker import QueueItemResult
 from cnodc.workflow.workflow import WorkflowPayload
 import typing as t
 from cnodc.nodb import structures
 
 
-class NODBProgressWorker(PayloadWorker):
+class WorkflowProgressWorker(WorkflowWorker):
 
     def __init__(self, **kwargs):
         super().__init__(

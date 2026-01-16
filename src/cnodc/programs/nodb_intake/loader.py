@@ -7,7 +7,7 @@ import cnodc.ocproc2 as ocproc2
 import cnodc.nodb.structures as structures
 import typing as t
 
-from cnodc.process.payload_worker import PayloadWorker
+from cnodc.process.payload_worker import WorkflowWorker
 from cnodc.storage import StorageController
 from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 
@@ -15,7 +15,7 @@ from cnodc.workflow.workflow import FilePayload, WorkflowPayload, SourceFilePayl
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 
 
-class NODBDecodeLoadWorker(PayloadWorker):
+class NODBDecodeLoadWorker(WorkflowWorker):
 
     storage: StorageController = None
 

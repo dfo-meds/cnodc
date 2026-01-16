@@ -2,7 +2,7 @@ import gzip
 import shutil
 
 from cnodc.nodb import NODBControllerInstance, structures
-from cnodc.process.payload_worker import FilePayloadWorker
+from cnodc.process.payload_worker import FileWorkflowWorker
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 from autoinject import injector
@@ -72,7 +72,7 @@ PROCESSED_VARIABLES = {
 }
 
 
-class CastawayIntakeWorker(FilePayloadWorker):
+class CastawayIntakeWorker(FileWorkflowWorker):
 
     storage: StorageController = None
     erddap: ErddapController = None

@@ -1,7 +1,7 @@
 import datetime
 import uuid
 import cnodc.ocproc2 as ocproc2
-from cnodc.process.payload_worker import BatchPayloadWorker
+from cnodc.process.payload_worker import BatchWorkflowWorker
 import cnodc.nodb.structures as structures
 import typing as t
 
@@ -10,7 +10,7 @@ from cnodc.units import UnitConverter
 from cnodc.workflow.workflow import BatchPayload
 
 
-class NODBFinalizeWorker(BatchPayloadWorker):
+class NODBFinalizeWorker(BatchWorkflowWorker):
 
     converter: UnitConverter = None
 

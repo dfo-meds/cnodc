@@ -9,7 +9,7 @@ from cnodc.util import CNODCError
 from cnodc.workflow.workflow import WorkflowPayload, BatchPayload, SourceFilePayload, FilePayload
 
 
-class PayloadWorker(QueueWorker):
+class WorkflowWorker(QueueWorker):
     """Generic payload worker for any payload type."""
 
     def __init__(self, process_name: str, process_version: str, require_type: t.Optional = None, **kwargs):
@@ -67,7 +67,7 @@ class PayloadWorker(QueueWorker):
         return payload_copy
 
 
-class BatchPayloadWorker(PayloadWorker):
+class BatchWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to Batch types."""
 
     def __init__(self, *args, **kwargs):
@@ -77,7 +77,7 @@ class BatchPayloadWorker(PayloadWorker):
         raise NotImplementedError
 
 
-class SourcePayloadWorker(PayloadWorker):
+class SourceWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to SourceFile types."""
 
     def __init__(self, *args, **kwargs):
@@ -87,7 +87,7 @@ class SourcePayloadWorker(PayloadWorker):
         raise NotImplementedError
 
 
-class FilePayloadWorker(PayloadWorker):
+class FileWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to File types."""
 
     def __init__(self, *args, **kwargs):

@@ -3,8 +3,8 @@ import enum
 import hashlib
 import uuid
 
-from cnodc.nodb import LockType, NODBControllerInstance
-from cnodc.process.payload_worker import PayloadWorker
+from cnodc.nodb import LockType
+from cnodc.process.payload_worker import WorkflowWorker
 import typing as t
 import cnodc.nodb.structures as structures
 from cnodc.process.queue_worker import QueueItemResult
@@ -20,7 +20,7 @@ class BatchOutcome(enum.Enum):
     REVIEW_QUEUE = 'R'
 
 
-class NODBQCWorker(PayloadWorker):
+class NODBQCWorker(WorkflowWorker):
 
     def __init__(self, **kwargs):
         super().__init__(
