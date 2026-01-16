@@ -12,7 +12,7 @@ class WorkflowProgressWorker(WorkflowWorker):
             process_name="progressor",
             process_version="1_0",
             defaults={
-                'queue_name': 'nodb_continue'
+                'queue_name': 'workflow_continue'
             },
             **kwargs
         )
@@ -24,7 +24,7 @@ class WorkflowProgressWorker(WorkflowWorker):
             pass
         elif workflow.has_more_steps(payload.current_step):
             next_payload = self.copy_payload(payload)
-            next_payload.current_step += 1
+            next_payload.current_step_done = True
             workflow.queue_step(
                 next_payload,
                 db=self._db

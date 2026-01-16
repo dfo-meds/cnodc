@@ -25,7 +25,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             process_version='1.0',
             defaults={
                 'queue_name': None,
-                'next_queue': 'nodb_station_check',
+                'next_queue': 'workflow_continue',
                 'failure_queue': 'nodb_decode_failure',
                 'error_directory': None,
                 'default_metadata': {},

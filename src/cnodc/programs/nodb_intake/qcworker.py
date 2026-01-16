@@ -31,8 +31,8 @@ class NODBQCWorker(WorkflowWorker):
                 'max_batch_size': None,
                 'max_buffer_size': None,
                 'target_buffer_size': None,
-                'next_queue': "nodb_continue",
                 'recheck_queue': None,
+                'next_queue': "workflow_continue",
                 'review_queue': 'nodb_manual_review',
             },
             **kwargs
