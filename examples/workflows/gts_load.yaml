@@ -20,7 +20,16 @@ additional_targets:
     # tier: "frequent"
     # metadata:
 processing_steps:
-  - gts_load
-  - nodb_speed_check
-  - gebco2023_bathy_check
-  - nodb_finalize
+  step1:
+    name: gts_load
+    order: 1
+    priority: 10
+  step2:
+    name: nodb_speed_check
+    order: 2
+  step3:
+    name: gebco2023_bathy_check
+    order: 3
+  step4:
+    name: nodb_finalize
+    order: 4

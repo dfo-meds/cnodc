@@ -14,7 +14,7 @@ import tempfile
 import uuid
 from urllib.parse import quote
 import zrlog
-from cnodc.nodb import NODBControllerInstance, NODBController, structures
+from cnodc.nodb import NODBControllerInstance, NODBController, structures, NODBUploadWorkflow
 from cnodc.storage import StorageController, StorageTier, BaseStorageHandle
 from autoinject import injector
 from cnodc.util import CNODCError, HaltFlag, dynamic_object, haltable_gzip
@@ -82,10 +82,12 @@ class WorkflowPayload:
 
     def __init__(self,
                  workflow_name: t.Optional[str] = None,
-                 current_step: t.Optional[int] = None,
-                 metadata: t.Optional[dict] = None):
+                 current_step: t.Optional[str] = None,
+                 metadata: t.Optional[dict] = None,
+                 current_step_done: bool = False):
         self.workflow_name = workflow_name
         self.current_step = current_step
+        self.current_step_done = current_step_done
         self.metadata = metadata or {}
 
     def load_workflow(self,
@@ -179,7 +181,7 @@ class WorkflowPayload:
         self.workflow_name = payload.workflow_name
         self.current_step = payload.current_step
         if next_step:
-            self.current_step += 1
+            self.current_step_done = True
         for key in payload.metadata:
             if key not in self.metadata:
                 self.metadata[key] = payload.metadata[key]
@@ -189,7 +191,8 @@ class WorkflowPayload:
         return {
             'workflow': {
                 'name': self.workflow_name,
-                'step': self.current_step
+                'step': self.current_step,
+                'step_done': self.current_step_done,
             },
             'metadata': self.metadata
         }
@@ -208,13 +211,12 @@ class WorkflowPayload:
             raise CNODCError('Missing item.data[workflow][name]', 'PAYLOAD', 1001)
         if 'step' not in data['workflow']:
             raise CNODCError('Missing item.data[workflow][step]', 'PAYLOAD', 1002)
-        try:
-            step_no = int(data['workflow']['step'])
-        except ValueError as ex:
-            raise CNODCError('Invalid step number', 'PAYLOAD', 1004) from ex
+        if 'step_done' not in data['workflow']:
+            raise CNODCError('Missing item.data[workflow][step_done]', 'PAYLOAD', 1004)
         base_kwargs = {
                 'workflow_name': data['workflow']['name'],
-                'current_step': step_no,
+                'current_step': data['workflow']['step'],
+                'current_step_done': data['workflow']['step_done'],
                 'metadata': data['_metadata'] if '_metadata' in data else {}
         }
         if 'file_info' in data:
@@ -362,7 +364,7 @@ class BatchPayload(WorkflowPayload):
             batch_uuid=self.batch_uuid, **kwargs
         )
         if batch is None:
-            raise CNODCError('Invalid batch, no such UUID')
+            raise CNODCError('Invalid batch, no such UUID', 'PAYLOAD', 1013)
         return batch
 
     @staticmethod
@@ -436,10 +438,7 @@ class ObservationPayload(WorkflowPayload):
 
 class WorkflowController:
     """Manages the flow of an object through a workflow based on its configuration.
-
-        TODO: Noted that there may be an issue when a workflow is modified to have a different number of steps
-              while items are still being processed. This should be addressed later.
-    """
+     """
 
     nodb: NODBController = None
     storage: StorageController = None
@@ -451,6 +450,7 @@ class WorkflowController:
                  process_metadata: t.Optional[dict] = None,
                  halt_flag: HaltFlag = None):
         self._process_metadata = process_metadata or {}
+        self._step_list = None
         self.name: str = workflow_name
         self.config = config
         self.halt_flag = halt_flag
@@ -551,7 +551,7 @@ class WorkflowController:
                             with_gzip: bool,
                             db):
         """Queue the working file."""
-        if self.has_more_steps(-1):
+        if self.has_more_steps(None):
             if 'last-modified-time' in metadata and metadata['last-modified-time']:
                 lmt = metadata['last-modified-time']
                 del metadata['last-modified-time']
@@ -563,7 +563,7 @@ class WorkflowController:
                 with_gzip,
                 lmt
             )
-            payload = FilePayload(file_info, current_step=0, metadata=metadata, workflow_name=self.name)
+            payload = FilePayload(file_info, current_step=None, current_step_done=True, metadata=metadata, workflow_name=self.name)
             payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
             self._queue_step(payload, db)
 
@@ -591,6 +591,13 @@ class WorkflowController:
     def _queue_step(self,
                     payload: WorkflowPayload,
                     db: NODBControllerInstance):
+        if payload.current_step_done:
+            payload.current_step = self._get_next_step(payload.current_step)
+        # Check if we are all done
+        if payload.current_step is not None:
+            payload.current_step_done = False
+        else:
+            return
         queue_info = self._get_step_info(payload.current_step)
         priority = None
         if 'priority' in queue_info and queue_info['priority']:
@@ -600,13 +607,37 @@ class WorkflowController:
                 self._log.exception(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
         payload.enqueue(db, queue_info['name'], priority)
 
-    def has_more_steps(self, current_idx: int):
+    def step_list(self) -> list[str]:
+        if self._step_list is None:
+            if 'processing_steps' in self.config and self.config['processing_steps']:
+                self._step_list = NODBUploadWorkflow.build_ordered_processing_steps(self.config['processing_steps'])
+            self._step_list = []
+        return self._step_list
+
+    def _validate_step(self, step_name: t.Optional[str]) -> tuple[int, bool]:
+        steps = self.step_list()
+        if step_name is None:
+            return -1, len(steps) > 0
+        if step_name not in steps:
+            raise CNODCError(f"Invalid step name [{step_name}]", "WORKFLOW", 1002)
+        step_idx = steps.index(step_name)
+        return step_idx, step_idx < (len(steps) - 1)
+
+    def _get_next_step(self, current_step: t.Optional[str]):
+        steps = self.step_list()
+        current_idx, has_more = self._validate_step(current_step)
+        if not has_more:
+            raise CNODCError(f"No more steps for workflow [{self.name}] after [{current_step}]", "WORKFLOW", 1004)
+        return steps[current_idx + 1]
+
+    def _get_step_info(self, step_name: str) -> dict:
+        self._validate_step(step_name)
+        return self.config['processing_steps'][step_name]
+
+    def has_more_steps(self, current_step: t.Optional[str]):
         """Check if there are more steps."""
-        if 'processing_steps' not in self.config or not self.config['processing_steps']:
-            return False
-        if current_idx < -1 or current_idx >= len(self.config['processing_steps']):
-            return False
-        return True
+        _, has_more = self._validate_step(current_step)
+        return has_more
 
     def _determine_filename(self, metadata: dict) -> str:
         """Determine the filename to save the uploaded file as."""
@@ -652,17 +683,6 @@ class WorkflowController:
         if check in RESERVED_FILENAMES:
             return None
         return filename
-
-    def _get_step_info(self, step_idx: int) -> dict:
-        """Retrieve the step information at a given step."""
-        if 'processing_steps' not in self.config or not self.config['processing_steps']:
-            raise CNODCError('No processing steps defined', 'WORKFLOW', 1001)
-        if step_idx < 0 or step_idx >= len(self.config['processing_steps']):
-            raise CNODCError(f"Invalid step index [{step_idx}]", 'WORKFLOW', 1002)
-        step_info = self.config['processing_steps'][step_idx]
-        if isinstance(step_info, str):
-            return {'name': step_info}
-        return step_info
 
     def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict) -> tuple[BaseStorageHandle, t.Optional[StorageTier]]:
         """Upload a file to a given location."""

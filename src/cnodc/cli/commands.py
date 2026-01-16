@@ -133,14 +133,14 @@ def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, 
             config = yaml.safe_load(h) or {}
         existing = structures.NODBUploadWorkflow.find_by_name(db, workflow_name, lock_type=LockType.FOR_NO_KEY_UPDATE)
         if existing:
-            existing.configuration = config
+            existing.update_config(config)
             db.update_object(existing)
             db.commit()
         else:
             existing = structures.NODBUploadWorkflow()
             existing.workflow_name = workflow_name
             existing.is_active = True
-            existing.configuration = config
+            existing.update_config(config)
             existing.check_config()
             db.insert_object(existing)
             db.commit()
