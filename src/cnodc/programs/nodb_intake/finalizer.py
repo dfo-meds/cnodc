@@ -19,16 +19,22 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
             process_name="finalizer",
             process_version="1_0",
             defaults={
-                'queue_name': 'nodb_finalize'
+                'queue_name': 'nodb_finalize',
+                'next_queue': 'workflow_continue',
             },
             **kwargs
         )
 
     def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]:
         batch = payload.load_batch(self._db)
-        for record in batch.stream_working_records(self._db):
-            self._complete_record(record)
-        self._db.delete_object(batch)
+        if batch.status != structures.BatchStatus.COMPLETE:
+            for record in batch.stream_working_records(self._db):
+                self._complete_record(record)
+            batch.status = structures.BatchStatus.COMPLETE
+            self._db.update_object(batch)
+            next_payload = self.copy_payload(payload)
+            next_payload.current_step_done = True
+            next_payload.enqueue(self._db, self.get_config('next_queue'))
         self._current_item.mark_complete(self._db)
         self._db.commit()
         return QueueItemResult.HANDLED
