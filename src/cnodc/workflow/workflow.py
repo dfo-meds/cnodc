@@ -435,7 +435,11 @@ class ObservationPayload(WorkflowPayload):
 
 
 class WorkflowController:
-    """Manages the flow of an object through a workflow based on its configuration."""
+    """Manages the flow of an object through a workflow based on its configuration.
+
+        TODO: Noted that there may be an issue when a workflow is modified to have a different number of steps
+              while items are still being processed. This should be addressed later.
+    """
 
     nodb: NODBController = None
     storage: StorageController = None
@@ -608,33 +612,37 @@ class WorkflowController:
         """Determine the filename to save the uploaded file as."""
         filename = None
         if 'filename_pattern' in self.config and self.config['filename_pattern']:
-            filename = self._sanitize_filename(self._substitute_headers(self.config['filename_pattern'], metadata))
+            filename = WorkflowController._sanitize_filename(WorkflowController._substitute_headers(self.config['filename_pattern'], metadata))
         if filename is None and 'filename' in metadata and 'accept_user_filename' in self.config and self.config['accept_user_filename']:
-            filename = self._sanitize_filename(metadata['filename'])
+            filename = WorkflowController._sanitize_filename(metadata['filename'])
         if filename is None and 'default-filename' in metadata:
-            filename = self._sanitize_filename(metadata['default-filename'])
+            filename = WorkflowController._sanitize_filename(metadata['default-filename'])
         if filename is None:
             filename = str(uuid.uuid4())
         return filename
 
+    @staticmethod
     def _get_storage_metadata(self, templates: dict[str, str], metadata: dict) -> dict:
         """Get the necessary metadata for storage."""
         return {
-            x: self._sanitize_storage_metadata(self._substitute_headers(str(templates[x]), metadata))
+            x: WorkflowController._sanitize_storage_metadata(WorkflowController._substitute_headers(str(templates[x]), metadata))
             for x in templates
         }
 
-    def _sanitize_storage_metadata(self, s: str) -> str:
+    @staticmethod
+    def _sanitize_storage_metadata(s: str) -> str:
         """Santizie data for storage."""
         return quote(str(s), safe=VALID_METADATA_CHARACTERS)
 
-    def _substitute_headers(self, s: str, metadata: dict) -> str:
+    @staticmethod
+    def _substitute_headers(s: str, metadata: dict) -> str:
         """Sanitize and substitute headers"""
         for h in metadata:
             s = s.replace("%{" + h.lower() + "}", metadata[h])
         return s.replace('${now}', datetime.datetime.now(datetime.timezone.utc).isoformat())
 
-    def _sanitize_filename(self, filename: str) -> t.Optional[str]:
+    @staticmethod
+    def _sanitize_filename(filename: str) -> t.Optional[str]:
         """Sanitize a filename for storage on all systems."""
         filename = ''.join([x for x in filename if x in VALID_FILENAME_CHARACTERS])
         filename = filename.rstrip(".")
@@ -661,7 +669,7 @@ class WorkflowController:
         if 'directory' not in upload_kwargs:
             raise CNODCError("Missing directory for workflow upload action", "WORKFLOW", 1003)
         self._log.info(f"Uploading file to {upload_kwargs['directory']}")
-        storage_metadata = self._get_storage_metadata(
+        storage_metadata = WorkflowController._get_storage_metadata(
             upload_kwargs['metadata'] if 'metadata' in upload_kwargs and upload_kwargs['metadata'] else {},
             metadata
         )
