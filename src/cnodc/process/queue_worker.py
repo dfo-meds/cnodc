@@ -75,8 +75,8 @@ class QueueWorker(BaseWorker):
                 app_id=self._app_id
             )
             # Run the process on the item
-            self.before_item()
             if self._current_item is not None:
+                self.before_item()
                 self._current_delay_time = self.get_config("delay_time_seconds")
                 self._process_result(self._current_item, self.process_queue_item(self._current_item))
                 return True
@@ -159,7 +159,7 @@ class QueueWorker(BaseWorker):
         """Calculate the delay time"""
         curr_time = self._current_delay_time
         self._current_delay_time *= self.get_config("delay_factor")
-        _max_time = self.get_config("max_delay_time_seconds")
+        _max_time = self.get_config("delay_max_time_seconds")
         if self._current_delay_time >= _max_time:
             self._current_delay_time = _max_time
         return curr_time
