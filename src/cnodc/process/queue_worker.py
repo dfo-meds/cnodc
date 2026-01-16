@@ -44,7 +44,7 @@ class QueueWorker(BaseWorker):
             "retry_delay_seconds": 0,
             "delay_factor": 2,
             "max_delay_time_seconds": 128,
-            'deprioritize_failures': True
+            'deprioritize_failures': False
         })
         self._db: t.Optional[NODBControllerInstance] = None
 
