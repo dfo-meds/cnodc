@@ -1,6 +1,7 @@
 from cnodc.process.payload_worker import WorkflowWorker
 from cnodc.process.queue_worker import QueueItemResult
 from cnodc.workflow.workflow import WorkflowPayload
+from cnodc.util.exceptions import CNODCError
 import typing as t
 from cnodc.nodb import structures
 
@@ -20,8 +21,7 @@ class WorkflowProgressWorker(WorkflowWorker):
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         workflow = payload.load_workflow(self._db, self._halt_flag)
         if workflow is None:
-            # TODO: error
-            pass
+            raise CNODCError(f"Invalid workflow", "PROGRESSOR", 1000, is_recoverable=False)
         elif workflow.has_more_steps(payload.current_step):
             next_payload = self.copy_payload(payload)
             next_payload.current_step_done = True
