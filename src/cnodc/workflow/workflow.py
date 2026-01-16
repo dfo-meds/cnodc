@@ -307,7 +307,7 @@ class SourceFilePayload(WorkflowPayload):
             received=self.received_date, **kwargs
         )
         if source_file is None:
-            raise CNODCError('Invalid payload, no such UUID')
+            raise CNODCError('Invalid payload, no such UUID', 'PAYLOAD', 1012, is_recoverable=False)
         return source_file
 
     def to_map(self):
