@@ -150,12 +150,11 @@ class BaseResultBatcher:
                  max_buffer_size: int = None,
                  target_buffer_size: int = None,
                  remove_original_batch: bool = False):
-        self.remove_original_batch = not remove_original_batch
+        self.remove_original_batch = remove_original_batch
         self._submitter = batch_submitter
         self._max_batch_size = max_batch_size if max_batch_size is not None and max_batch_size > 0 else None
         self._max_total_size = max_buffer_size if max_buffer_size is not None and max_buffer_size > 0 else None
         self._target_total_size = target_buffer_size if target_buffer_size is not None and target_buffer_size > 0 else self._max_total_size
-        self.remove_original_batch = True
 
     def _determine_batch_outcome(self, outcome: ocproc2.QCResult) -> BatchOutcome:
         if outcome == ocproc2.QCResult.MANUAL_REVIEW:
