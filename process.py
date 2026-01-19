@@ -13,8 +13,9 @@ init_cnodc("process")
 def run_processor(app_config: zr.ApplicationConfig = None):
     from cnodc.process.multiprocess import ProcessController
     pc = ProcessController(
-        config_file=app_config.as_path(("cnodc", "process_definition_file")),
-        flag_file=app_config.as_path(("cnodc", "flag_file"))
+        config_file=app_config.as_path(("cnodc", "process_definition_file"), default=None),
+        config_file_dir=app_config.as_path(("cnodc", "process_definition_directory"), default=None),
+        flag_file=app_config.as_path(("cnodc", "flag_file"), default=None)
     )
     pc.start()
 

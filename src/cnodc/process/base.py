@@ -1,4 +1,5 @@
 """Provides base tools for process workers"""
+import os
 import signal
 import tempfile
 import threading
@@ -39,12 +40,14 @@ class BaseController:
     def __init__(self,
                  log_name: str,
                  halt_flag,
-                 config_file: pathlib.Path,
-                 flag_file: t.Optional[pathlib.Path]):
+                 config_file: t.Optional[pathlib.Path] = None,
+                 config_file_dir: t.Optional[pathlib.Path] = None,
+                 flag_file: t.Optional[pathlib.Path] = None):
         self._log = zrlog.get_logger(log_name)
         self._break_count = 0
         self._halt_flag = halt_flag
         self._config_file = config_file
+        self._config_dir = config_file_dir
         self._flag_file = flag_file
         self._loaded = False
 
@@ -89,59 +92,85 @@ class BaseController:
         """Unregister an existing process."""
         raise NotImplementedError
 
+    def _populate_config_from_file(self, config: dict, file: t.Union[str, pathlib.Path]):
+        data = yaml.safe_load(file)
+        if isinstance(data, dict):
+            config.update(data)
+        else:
+            self._log.error(f"Process configuration file [{file}] does not contain a YAML dictionary")
+
+    def _load_config(self):
+        self._log.notice(f"Reading configuration from disk")
+        config = {}
+        if self._config_dir is not None:
+            if not self._config_dir.exists():
+                self._log.error(f"Config directory specified but does not exist")
+            elif not self._config_dir.is_dir():
+                self._log.error(f"Config directory is not a directory")
+            else:
+                work_dirs = [self._config_dir]
+                while work_dirs:
+                    for file in os.scandir(work_dirs.pop()):
+                        if file.name.lower().endswith(".yaml"):
+                            self._populate_config_from_file(config, file.path)
+                        elif file.is_dir():
+                            work_dirs.append(file.path)
+        if self._config_file is not None:
+            if not self._config_file.exists():
+                self._log.error('Config file specified but does not exist')
+            else:
+                self._populate_config_from_file(config, self._config_file)
+        if not config:
+            raise CNODCError("No processes specified", "PROCESSCTRL", 1001)
+        return config
+
     def _reload_config(self):
         """Reload configuration from disk."""
-        self._log.notice(f"Reloading configuration from disk")
-        with open(self._config_file, "r") as h:
-            config = yaml.safe_load(h) or {}
-            # Ensure we have a dictionary to work with, otherwise the configuration is bad
-            if not isinstance(config, dict):
-                self._log.error(f"Config file [{self._config_file}] does not contain a yaml dictionary")
-                return
-            # We will remove keys from this list as we see them and deregister all the ones we didn't see
-            deregister_list = self._registered_process_names()
-            for process_name in config:
-                # Remove the process name immediately, so we don't stop them if there is an error processing the definition
-                if process_name in deregister_list:
-                    deregister_list.remove(process_name)
-                # Validate class name
-                if 'class_name' not in config[process_name]:
-                    self._log.error(f"Process [{process_name}] is missing a class name")
+        config = self._load_config()
+        # We will remove keys from this list as we see them and deregister all the ones we didn't see
+        deregister_list = self._registered_process_names()
+        for process_name in config:
+            # Remove the process name immediately, so we don't stop them if there is an error processing the definition
+            if process_name in deregister_list:
+                deregister_list.remove(process_name)
+            # Validate class name
+            if 'class_name' not in config[process_name]:
+                self._log.error(f"Process [{process_name}] is missing a class name")
+                continue
+            try:
+                cls = dynamic_object(config[process_name]['class_name'])
+                if not hasattr(cls, 'run'):
+                    raise CNODCError('Invalid worker class, no run method', 'PROCESSCTRL', 1000)
+            except Exception as ex:
+                self._log.exception(f'Process [{process_name}] has an invalid class name')
+                continue
+            # Validate configuration
+            config = {}
+            if 'config' in config[process_name] and config[process_name]['config']:
+                if isinstance(config[process_name]['config'], dict):
+                    config = config[process_name]['config']
+                else:
+                    self._log.error(f"Process [{process_name}] does not define a dictionary for its configuration")
                     continue
+            # Validate count
+            count = 1
+            if 'count' in config[process_name] and config[process_name]['count']:
                 try:
-                    cls = dynamic_object(config[process_name]['class_name'])
-                    if not hasattr(cls, 'run'):
-                        raise CNODCError('Invalid worker class, no run method', 'PROCESSCTRL', 1000)
-                except Exception as ex:
-                    self._log.exception(f'Process [{process_name}] has an invalid class name')
-                    continue
-                # Validate configuration
-                config = {}
-                if 'config' in config[process_name] and config[process_name]['config']:
-                    if isinstance(config[process_name]['config'], dict):
-                        config = config[process_name]['config']
-                    else:
-                        self._log.error(f"Process [{process_name}] does not define a dictionary for its configuration")
-                        continue
-                # Validate count
-                count = 1
-                if 'count' in config[process_name] and config[process_name]['count']:
-                    try:
-                        count = max(int(config[process_name]['count']), 1)
-                    except (TypeError, ValueError):
-                        self._log.warning(
-                            f"Processing [{process_name}] has a non-integer value for the quota [{config[process_name]['count']}], defaulting to 1")
-                # Register the process
-                self._register_process(
-                    process_name,
-                    config[process_name]['class_name'],
-                    count,
-                    config,
-                )
-            # Deregister processes not found in current list
-            for process_name in deregister_list:
-                self._deregister_process(process_name)
-            self._loaded = True
+                    count = max(int(config[process_name]['count']), 1)
+                except (TypeError, ValueError):
+                    self._log.warning(
+                        f"Processing [{process_name}] has a non-integer value for the quota [{config[process_name]['count']}], defaulting to 1")
+            # Register the process
+            self._register_process(
+                process_name,
+                config[process_name]['class_name'],
+                count,
+                config,
+            )
+        # Deregister processes not found in current list
+        for process_name in deregister_list:
+            self._deregister_process(process_name)
+        self._loaded = True
 
     def reload_check(self):
         if self._check_reload():
