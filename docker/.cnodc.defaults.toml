@@ -4,7 +4,7 @@ UPLOAD_FOLDER = "/cnodc-data/uploads"
 PERMANENT_SESSION_LIFETIME = 604800  # 1 week
 
 [cnodc]
-process_definition_file = "/cnodc-config/processes.yaml"
+process_definition_directory = "/cnodc-config/processes"
 flag_file = "/cnodc-config/reload_flag"
 
 [logging]
