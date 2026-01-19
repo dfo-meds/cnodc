@@ -14,7 +14,6 @@ from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 from cnodc.workflow import WorkflowController
 from cnodc.storage import StorageController
 import cnodc.nodb.structures as structures
-from cnodc.storage.base import StorageFileHandle
 from cnodc.util import CNODCError, HaltFlag
 from autoinject import injector
 
@@ -32,7 +31,7 @@ class FileScanTask(ScheduledTask):
             defaults={
                 'scan_target': None,
                 'workflow_name': None,
-                'queue_name': 'nodb_download',
+                'queue_name': 'file_download',
                 'pattern': '*',
                 'recursive': False,
                 'remove_downloaded_files': False,
@@ -121,7 +120,7 @@ class FileDownloadWorker(QueueWorker):
             process_name='file_downloader',
             process_version='1.0',
             defaults={
-                'queue_name': 'nodb_download',
+                'queue_name': 'file_download',
                 'allow_file_deletes': False,
             },
             **kwargs
