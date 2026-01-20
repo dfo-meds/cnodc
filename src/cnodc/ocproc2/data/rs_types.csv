@@ -1,0 +1,5 @@
+Short Name,English Label,French Label,Required Coordinate
+TSERIES,Time Series,,TimeOffset;Time
+PROFILE,Profile,,Depth;Pressure
+WAVE_SENSORS,Wave Sensors,,WaveSensor
+SPEC_WAVE,Wave Spectra,,CentralFrequency

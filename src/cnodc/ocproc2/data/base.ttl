@@ -1,0 +1,92 @@
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#> .
+@prefix p01: <http://vocab.nerc.ac.uk/collection/P01/current/> .
+@prefix p07: <http://vocab.nerc.ac.uk/collection/P07/current/> .
+@prefix p09: <http://vocab.nerc.ac.uk/collection/P09/current/> .
+@prefix bufr4B01: <https://codes.wmo.int/bufr4/b/01/> .
+@prefix bufr4B02: <https://codes.wmo.int/bufr4/b/02/> .
+@prefix bufr4B03: <https://codes.wmo.int/bufr4/b/03/> .
+@prefix bufr4B04: <https://codes.wmo.int/bufr4/b/04/> .
+@prefix bufr4B05: <https://codes.wmo.int/bufr4/b/05/> .
+@prefix bufr4B06: <https://codes.wmo.int/bufr4/b/06/> .
+@prefix bufr4B07: <https://codes.wmo.int/bufr4/b/07/> .
+@prefix bufr4B08: <https://codes.wmo.int/bufr4/b/08/> .
+@prefix bufr4B09: <https://codes.wmo.int/bufr4/b/09/> .
+@prefix bufr4B10: <https://codes.wmo.int/bufr4/b/10/> .
+@prefix bufr4B11: <https://codes.wmo.int/bufr4/b/11/> .
+@prefix bufr4B12: <https://codes.wmo.int/bufr4/b/12/> .
+@prefix bufr4B13: <https://codes.wmo.int/bufr4/b/13/> .
+@prefix bufr4B14: <https://codes.wmo.int/bufr4/b/14/> .
+@prefix bufr4B20: <https://codes.wmo.int/bufr4/b/20/> .
+@prefix bufr4B22: <https://codes.wmo.int/bufr4/b/22/> .
+@prefix bufr4B25: <https://codes.wmo.int/bufr4/b/25/> .
+@prefix bufr4B33: <https://codes.wmo.int/bufr4/b/33/> .
+@prefix bufr4B42: <https://codes.wmo.int/bufr4/b/42/> .
+@prefix pcode: <https://www.isdm.gc.ca/isdm-gdsi/diction/code_search-eng.asp?code=> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+cnodc:dataType rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range rdfs:Resource .
+
+cnodc:allowMulti rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:minValue rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:maxValue rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:ignoreInDuplicateCheck rdf:type rdf:Property ;
+  rdfs:domain skos:Cocnept ;
+  rdfs:range skos:Literal .
+
+cnodc:allowedValue rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:requireCoordinate rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Concept .
+
+cnodc:preferredUnit rdf:type rdf:Property ;
+  rdfs:subClassOf cnodc:acceptsUnit .
+
+cnodc:elementGroup rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:wmoCodeGroup rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:standardName rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:variableName rdf:type rdf:Property ;
+  rdfs:domain skos:Concept ;
+  rdfs:range skos:Literal .
+
+cnodc:List rdf:type skos:Concept ;
+  skos:prefLabel "List"@en ;
+  skos:documentation "List of values" .
+
+cnodc:ioosCategories rdf:type skos:ConceptScheme .
+
+cnodc:ioosCategory rdf:type rdf:Property ;
+    rdfs:domain skos:Concept ;
+    rdfs:range cnodc:ioosCategories .
+
+cnodc:elements rdf:type skos:ConceptScheme .
+
+
+cnodc:recordSetTypes rdf:type skos:ConceptScheme .
+

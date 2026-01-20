@@ -1,0 +1,343 @@
+Element Short Name,Type,Vocabulary,Code
+AggregationMethod,Narrower,BUFR v4,B08021
+AirPressure,Exact,WMO Codes,FM18-XII: P0 P0 P0 P0
+AirPressure,Exact,BUFR v4,B10004
+AirPressure,Exact,MEDS PCODE,ATMP
+AirPressureAtSeaLevel,Exact,WMO Codes,FM18-XII: P P P P
+AirPressureAtSeaLevel,Exact,BUFR v4,B10051
+AirPressureAtSeaLevel,Exact,MEDS PCODE,ATMS
+AirPressureChange24Hour,Exact,WMO Codes,FM18-XII: a
+AirPressureChange24Hour,Exact,BUFR v4,B10062
+AirPressureChange3Hour,Exact,WMO Codes,FM18-XII: p p p
+AirPressureChange3Hour,Exact,BUFR v4,B10061
+AirTemperature,Exact,WMO Codes,FM18-XII: sn T T T
+AirTemperature,Exact,WMO Codes,FM63-XI: sn T T T
+AirTemperature,Exact,WMO Codes,FM64-X: sn T T T
+AirTemperature,Exact,BUFR v4,B12101
+AirTemperature,Exact,MEDS PCODE,DRYT
+BarometerHeight,Exact,BUFR v4,B07031
+BatteryVoltage,Exact,MEDS PCODE,PBV%24
+BatteryVoltage,Exact,BUFR v4,B25025
+BatteryVoltage,Exact,BUFR v4,B25026
+CentralFrequency,Exact,BUFR v4,B22080
+CruiseID,Exact,BUFR v4,B01115
+CurrentDirection,Exact,WMO Codes,FM18-XII: dn dn
+CurrentDirection,Exact,WMO Codes,FM62-VIII: d0 d0
+CurrentDirection,Exact,WMO Codes,FM63-XI: Dc Dc
+CurrentDirection,Exact,WMO Codes,FM64-X: dn dn
+CurrentDirection,Exact,BUFR v4,B22004
+CurrentDirection,Exact,BUFR v4,B22005
+CurrentDirection,Exact,CF Standard Names,5D4D7YMF
+CurrentDirection,Exact,MEDS PCODE,SCDT
+CurrentDirection,Exact,MEDS PCODE,HCDT
+CurrentSpeed,Exact,WMO Codes,FM18-XII: cn cn cn
+CurrentSpeed,Exact,WMO Codes,FM62-VIII: c0 c0
+CurrentSpeed,Exact,WMO Codes,FM63-XI: Vc Vc
+CurrentSpeed,Exact,WMO Codes,FM64-X: cn cn cn
+CurrentSpeed,Exact,BUFR v4,B22031
+CurrentSpeed,Exact,BUFR v4,B22032
+CurrentSpeed,Exact,MEDS PCODE,SCSP
+CurrentSpeed,Exact,MEDS PCODE,HCSP
+CurrentSpeed,Exact,CF Standard Names,CFSN0334
+Depth,Exact,WMO Codes,FM18-XII: zn zn zn zn
+Depth,Exact,WMO Codes,FM63-XI: zn zn
+Depth,Exact,WMO Codes,FM64-X: zn zn zn zn
+Depth,Exact,BUFR v4,B07062
+Depth,Exact,BUFR v4,B07063
+DewpointTemperature,Exact,WMO Codes,FM18-XII: sn Td Td Td
+DewpointTemperature,Exact,BUFR v4,B12103
+DewpointTemperature,Exact,MEDS PCODE,DEWT
+DiffuseSolarRadiation,Exact,BUFR v4,B14029
+DirectSolarRadiation,Exact,BUFR v4,B14030
+DissolvedOxygen,Exact,BUFR v4,B22188
+DissolvedOxygen,Exact,MEDS PCODE,OXYG
+DissolvedOxygenMolar,Exact,BUFR v4,B22188
+DissolvedOxygenMolar,Exact,MEDS PCODE,OXYG
+DrogueDepth,Exact,BUFR v4,B07070
+DrogueDepth,Exact,MEDS PCODE,DRDP
+FloatCycleNumber,Exact,BUFR v4,B22055
+FourierA1,Exact,BUFR v4,B42011
+FourierA2,Exact,BUFR v4,B42013
+FourierB1,Exact,BUFR v4,B42012
+FourierB2,Exact,BUFR v4,B42014
+FourierK,Exact,BUFR v4,B42015
+GlobalSolarRadiation,Exact,BUFR v4,B14028
+HorizontalVisibility,Exact,BUFR v4,B20001
+HorizontalVisibility,Exact,MEDS PCODE,VISB
+IMONumber,Exact,BUFR v4,B01103
+IMONumber,Exact,MEDS PCODE,LYD%24
+IceThickness,Exact,BUFR v4,B13115
+IceThickness,Exact,MEDS PCODE,ICT%24
+InstrumentManufacturingDate,Related,BUFR v4,B08041
+InstrumentManufacturingDate,Narrower,BUFR v4,B04001
+InstrumentManufacturingDate,Narrower,BUFR v4,B04002
+InstrumentManufacturingDate,Narrower,BUFR v4,B04003
+InstrumentManufacturingDate,Narrower,BUFR v4,B04004
+InstrumentManufacturingDate,Narrower,BUFR v4,B04005
+InstrumentManufacturingDate,Narrower,BUFR v4,B04006
+InstrumentManufacturingDate,Narrower,BUFR v4,B04007
+LastKnownPositionTime,Exact,WMO Codes,FM18-XII Buoy: Y Y M M J G G g g / (Second Group)
+LastKnownPositionTime,Related,BUFR v4,B08021
+LastKnownPositionTime,Narrower,BUFR v4,B04001
+LastKnownPositionTime,Narrower,BUFR v4,B04002
+LastKnownPositionTime,Narrower,BUFR v4,B04003
+LastKnownPositionTime,Narrower,BUFR v4,B04004
+LastKnownPositionTime,Narrower,BUFR v4,B04005
+LastKnownPositionTime,Narrower,BUFR v4,B04006
+LastKnownPositionTime,Narrower,BUFR v4,B04007
+LastKnownPositionTime,Narrower,MEDS PCODE,PDT%24
+LastKnownPositionTime,Narrower,MEDS PCODE,PTM%24
+Latitude,Exact,WMO Codes,FM18-XII: Qc La La La La La
+Latitude,Exact,WMO Codes,FM62-VIII: Qc La La La La
+Latitude,Exact,WMO Codes,FM63-XI: Qc La La La La
+Latitude,Exact,WMO Codes,FM64-X: Qc La La La La La
+Latitude,Exact,BUFR v4,B05001
+Latitude,Exact,BUFR v4,B05002
+Latitude,Exact,CF Standard Names,CFSN0600
+Longitude,Exact,WMO Codes,FM18-XII: Qc + Lo Lo Lo Lo Lo Lo
+Longitude,Exact,WMO Codes,FM62-VIII: Qc + Lo Lo Lo Lo Lo
+Longitude,Exact,WMO Codes,FM63-XI: Qc + Lo Lo Lo Lo Lo
+Longitude,Exact,WMO Codes,FM64-X: Qc + Lo Lo Lo Lo Lo Lo
+Longitude,Exact,BUFR v4,B06001
+Longitude,Exact,BUFR v4,B06002
+Longitude,Exact,CF Standard Names,CFSN0554
+LongwaveRadiation,Exact,BUFR v4,B14002
+NetRadiation,Exact,BUFR v4,B14016
+ObservationPeriod,Exact,WMO Codes,FM62-VIII: mT
+ObservationPeriod,Exact,WMO Codes,FM62-VIII: mS
+ObservationPeriod,Exact,WMO Codes,FM62-VIII: mc
+ObservationPeriod,Narrower,BUFR v4,B04021
+ObservationPeriod,Narrower,BUFR v4,B04022
+ObservationPeriod,Narrower,BUFR v4,B04023
+ObservationPeriod,Narrower,BUFR v4,B04024
+ObservationPeriod,Narrower,BUFR v4,B04025
+ObservationPeriod,Narrower,BUFR v4,B04026
+PlatformDirection,Exact,BUFR v4,B01012
+PlatformDirection,Exact,MEDS PCODE,HEAD
+PlatformModel,Exact,BUFR v4,B01085
+PlatformSerialNumber,Exact,BUFR v4,B01086
+PlatformSpeed,Exact,BUFR v4,B01013
+PlatformSpeed,Exact,BUFR v4,B01014
+PlatformSpeed,Exact,MEDS PCODE,SPDR
+PracticalSalinity,Exact,WMO Codes,FM18-XII: Sn Sn Sn Sn
+PracticalSalinity,Exact,WMO Codes,FM62-VIII: S0 S0 S0 S0
+PracticalSalinity,Exact,WMO Codes,FM64-X: Sn Sn Sn Sn
+PracticalSalinity,Exact,BUFR v4,B22062
+PracticalSalinity,Exact,BUFR v4,B22064
+PracticalSalinity,Exact,MEDS PCODE,SSPS
+PracticalSalinity,Exact,MEDS PCODE,PSAL
+PracticalSalinity,Exact,CF Standard Names,IADIHDIJ
+PracticalSalinity,Broader,CF Standard Names,KFHXV8N9
+PracticalSalinity,Broader,CF Standard Names,CFSN0331
+PracticalSalinity,Narrower,CF Standard Names,Z13QZFM
+Pressure,Exact,CF Standard Names,CFSN0330
+Pressure,Exact,BUFR v4,B07065
+Pressure,Narrower,CF Standard Names,CF12N583
+Pressure,Narrower,CF Standard Names,CF12N584
+Pressure,Narrower,CF Standard Names,CIEIIDJF
+ProfileDirection,Exact,BUFR v4,B22056
+ProfileDirection,Exact,MEDS PCODE,PDR%24
+ProfileID,Exact,BUFR v4,B01079
+ProfilerSerialNumber,Exact,BUFR v4,B02171
+ProfilerSerialNumber,Exact,MEDS PCODE,SER1
+Quality,Exact,WMO Codes,FM18-XII: Ql
+Quality,Exact,WMO Codes,FM18-XII: Qt
+Quality,Exact,WMO Codes,FM18-XII: Qd Qx
+Quality,Exact,BUFR v4,B08080
+RelativeHumidity,Exact,WMO Codes,FM18-XII: U U U
+RelativeHumidity,Exact,BUFR v4,B13003
+RelativeHumidity,Exact,MEDS PCODE,RELH
+SeaDepth,Exact,WMO Codes,FM63-XI: Zd Zd Zd Zd
+SeaDepth,Exact,WMO Codes,FM64-X: Zd Zd Zd Zd
+SeaDepth,Exact,BUFR v4,B22063
+SeaDepth,Exact,MEDS PCODE,BATH
+SeaIceConcentration,Exact,BUFR v4,B20034
+SensorDepth,Exact,BUFR v4,B07063
+SensorDepth,Exact,MEDS PCODE,DEPH
+SensorHeightAboveWater,Exact,WMO Codes,FM18-XII: Ah Ah Ah
+SensorHeightAboveWater,Exact,BUFR v4,B07033
+SensorHeightLocal,Exact,BUFR v4,B07032
+SequenceNumber,Exact,BUFR v4,B01023
+ShipLineNumber,Exact,BUFR v4,B01080
+ShipTransectNumber,Exact,BUFR v4,B05036
+ShortwaveRadiation,Exact,BUFR v4,B14004
+SoftwareID,Exact,BUFR v4,B25061
+SoundVelocity,Exact,MEDS PCODE,SVEL
+SpectralWaveBandCount,Exact,BUFR v4,B22094
+SpectralWaveBandWidth,Exact,BUFR v4,B22096
+SpectralWaveDensity,Exact,BUFR v4,B22069
+SpectralWaveDensityByFrequency,Exact,BUFR v4,B22104
+SpectralWaveDensityRatio,Exact,BUFR v4,B22108
+SpectralWaveDirDensityByFrequency,Exact,BUFR v4,B22106
+SpectralWaveFourier1,Exact,BUFR v4,B22088
+SpectralWaveFourier2,Exact,BUFR v4,B22089
+SpectralWaveMaxDensityByFrequency,Exact,BUFR v4,B22082
+SpectralWaveMaxDensityByFrequency,Exact,BUFR v4,B22102
+SpectralWaveMaxWaveBand,Exact,BUFR v4,B22084
+SpectralWavePeakPeriod,Exact,BUFR v4,B22071
+StationHeight,Exact,BUFR v4,B07030
+StationID,Exact,WMO Codes,FM62-VIII: D....D
+StationID,Exact,WMO Codes,FM63-XI: D....D
+StationID,Exact,WMO Codes,FM64-X: D....D
+StationID,Exact,BUFR v4,B01011
+StationID,Exact,MEDS PCODE,CCLL
+StationName,Exact,BUFR v4,B01015
+StationName,Exact,BUFR v4,B01019
+StationName,Exact,MEDS PCODE,PLTN
+StationName,Exact,MEDS PCODE,PNM1
+StationName,Exact,MEDS PCODE,SHP%23
+SubmergenceTime,Exact,BUFR v4,B02190
+SurfaceType,Exact,BUFR v4,B08029
+Temperature,Exact,WMO Codes,FM18-XII: Tw Tw Tw
+Temperature,Exact,WMO Codes,FM18-XII: Tn Tn Tn Tn
+Temperature,Exact,WMO Codes,FM62-VIII: sn Tw Tw Tw
+Temperature,Exact,WMO Codes,FM63-XI: Tn Tn Tn
+Temperature,Exact,WMO Codes,FM64-X: Tn Tn Tn Tn
+Temperature,Exact,BUFR v4,B22042
+Temperature,Exact,BUFR v4,B22043
+Temperature,Exact,BUFR v4,B22045
+Temperature,Exact,BUFR v4,B22049
+Temperature,Exact,MEDS PCODE,TEMP
+Temperature,Exact,MEDS PCODE,SSTP
+Time,Exact,WMO Codes,FM18-XII: Y Y M M J + G G g g
+Time,Exact,WMO Codes,FM62-VIII: Y Y M M J + G G g g
+Time,Exact,WMO Codes,FM63-XI: Y Y M M J + G G g g
+Time,Exact,WMO Codes,FM64-X: Y Y M M J + G G g g
+Time,Exact,CF Standard Names,CFSN0115
+Time,Narrower,BUFR v4,B04001
+Time,Narrower,BUFR v4,B04002
+Time,Narrower,BUFR v4,B04003
+Time,Narrower,BUFR v4,B04004
+Time,Narrower,BUFR v4,B04005
+Time,Narrower,BUFR v4,B04006
+Time,Narrower,BUFR v4,B04007
+TimeOffset,Narrower,BUFR v4,B04021
+TimeOffset,Narrower,BUFR v4,B04022
+TimeOffset,Narrower,BUFR v4,B04023
+TimeOffset,Narrower,BUFR v4,B04024
+TimeOffset,Narrower,BUFR v4,B04025
+TimeOffset,Narrower,BUFR v4,B04026
+TotalPrecipitation,Exact,BUFR v4,B13011
+TotalPrecipitation24Hour,Exact,BUFR v4,B13023
+TransmitterID,Exact,BUFR v4,B01051
+Uncertainty,Related,BUFR v4,B02005
+WIGOSID,Narrower,BUFR v4,B01125
+WIGOSID,Narrower,BUFR v4,B01126
+WIGOSID,Narrower,BUFR v4,B01127
+WIGOSID,Narrower,BUFR v4,B01128
+WMOAgencyCode,Exact,BUFR v4,B01036
+WMOAirPressureCharacteristic,Exact,BUFR v4,B10063
+WMOAirPressureCharacteristic,Exact,MEDS PCODE,GPT%24
+WMOAnemometerType,Exact,BUFR v4,B02169
+WMOBuoyType,Exact,BUFR v4,B02036
+WMOCurrentMeasurementDuration,Exact,WMO Codes,FM64-X: k3
+WMOCurrentMeasurementDuration,Exact,BUFR v4,B02031
+WMOCurrentMeasurementDuration,Exact,MEDS PCODE,GGEC
+WMOCurrentMeasurementMethod,Exact,WMO Codes,FM63-XI: k5
+WMOCurrentMeasurementMethod,Exact,BUFR v4,B02030
+WMOCurrentMeasurementMethod,Exact,MEDS PCODE,GGCM
+WMOCurrentMeasurementMethod2,Exact,BUFR v4,B03010
+WMODataBuoyType,Exact,WMO Codes,FM18-XII: Bt Bt
+WMODataBuoyType,Exact,BUFR v4,B02149
+WMODataBuoyType,Exact,MEDS PCODE,BTP%24
+WMODataSystem,Exact,BUFR v4,B02148
+WMODepthMethod,Exact,BUFR v4,B03011
+WMODigitization,Exact,WMO Codes,FM63-XI: k1
+WMODigitization,Exact,WMO Codes,FM64-X: k1
+WMODigitization,Exact,BUFR v4,B02032
+WMODigitization,Exact,MEDS PCODE,GGDI
+WMODissolvedOxygenSensorType,Exact,BUFR v4,B03012
+WMODrogueStatus,Exact,BUFR v4,B22060
+WMODrogueType,Exact,WMO Codes,FM18-XII: Xt Xt
+WMODrogueType,Exact,BUFR v4,B02034
+WMODrogueType,Exact,MEDS PCODE,DRT%24
+WMOID,Exact,WMO Codes,FM18-XII: A1 bw nb nb nb
+WMOID,Exact,WMO Codes,FM63-XI: A1 bw nb nb nb
+WMOID,Exact,WMO Codes,FM64-X: A1 bw nb nb nb
+WMOID,Exact,BUFR v4,B01087
+WMOID,Exact,MEDS PCODE,WMO%24
+WMOID,Narrower,BUFR v4,B01001
+WMOID,Narrower,BUFR v4,B01002
+WMOID,Narrower,BUFR v4,B01003
+WMOID,Narrower,BUFR v4,B01004
+WMOID,Narrower,BUFR v4,B01005
+WMOID,Narrower,BUFR v4,B01020
+WMOPlatformMotionRemovalMethod,Exact,WMO Codes,FM64-X: k6
+WMOPlatformMotionRemovalMethod,Exact,BUFR v4,B02040
+WMOPlatformMotionRemovalMethod,Exact,MEDS PCODE,GGK6
+WMOPlatformType,Exact,BUFR v4,B02045
+WMOProfileInstrumentType,Exact,WMO Codes,FM63-XI: IX IX IX
+WMOProfileInstrumentType,Exact,WMO Codes,FM64-X: IX IX IX
+WMOProfileInstrumentType,Exact,MEDS PCODE,PEQ%24
+WMOProfileInstrumentType,Exact,MEDS PCODE,RCT%24
+WMOProfileInstrumentType,Exact,BUFR v4,B22067
+WMOProfileInstrumentType,Broader,MEDS PCODE,PFR%24
+WMOProfileRecorderType,Exact,WMO Codes,FM63-XI: XR XR
+WMOProfileRecorderType,Exact,WMO Codes,FM64-X: XR XR
+WMOProfileRecorderType,Exact,BUFR v4,B22068
+WMOProfileRecorderType,Exact,MEDS PCODE,PRT%24
+WMOProfileRecorderType,Exact,MEDS PCODE,SYS%24
+WMOProfileRecorderType,Broader,MEDS PCODE,PFR%24
+WMOQualityLocation,Exact,WMO Codes,FM18-XII: QL
+WMOQualityLocation,Exact,WMO Codes,FM18-XII: QA
+WMOQualityLocation,Exact,BUFR v4,B33023
+WMOQualityLocation,Exact,MEDS PCODE,GGLC
+WMOQualityLocation,Broader,MEDS PCODE,GGST
+WMOQualityLocationClass,Exact,WMO Codes,FM18-XII: QA
+WMOQualityLocationClass,Exact,BUFR v4,B33027
+WMOQualityLocationClass,Exact,MEDS PCODE,BQA%24
+WMOQualityLocationClass,Broader,MEDS PCODE,GGST
+WMOQualitySatellite,Exact,WMO Codes,FM18-XII: QN
+WMOQualitySatellite,Exact,BUFR v4,B33022
+WMOQualitySatellite,Broader,MEDS PCODE,GGST
+WMOSalinityDepthMeasurementMethod,Exact,WMO Codes,FM64-X: k2
+WMOSalinityDepthMeasurementMethod,Exact,BUFR v4,B02033
+WMOSalinityDepthMeasurementMethod,Exact,MEDS PCODE,GGSL
+WMOSatelliteIdentifier,Exact,BUFR v4,B01007
+WMOSpectralWaveMethod,Exact,BUFR v4,B02044
+WMOStationType,Exact,BUFR v4,B02001
+WMOTemperatureSalinityMeasurementMethod,Exact,BUFR v4,B02038
+WMOTemperatureSalinityQualifier,Exact,BUFR v4,B08034
+WMOWetBulbMeasurementMethod,Exact,BUFR v4,B02039
+WMOWindInstrumentType,Exact,WMO Codes,FM18-XII: An
+WMOWindInstrumentType,Exact,WMO Codes,FM63-XI: iu
+WMOWindInstrumentType,Exact,WMO Codes,FM64-X: iu
+WMOWindInstrumentType,Exact,BUFR v4,B02002
+WMOWindInstrumentType,Exact,MEDS PCODE,GGWI
+WMOWindInstrumentType,Exact,MEDS PCODE,ANT%24
+WMOXBTType,Exact,BUFR v4,B22178
+WaveAveragePeriod,Exact,BUFR v4,B22074
+WaveDirection,Exact,BUFR v4,B22186
+WaveDominantDirection,Exact,BUFR v4,B22076
+WaveDominantSpread,Exact,BUFR v4,B22077
+WaveHeight,Exact,WMO Codes,FM18-XII: Hwa Hwa
+WaveHeight,Exact,WMO Codes,FM18-XII: Hwa Hwa Hwa
+WaveHeight,Exact,BUFR v4,B22021
+WaveMaximumHeight,Exact,BUFR v4,B22073
+WaveMeanDirection,Exact,BUFR v4,B22086
+WavePeriod,Exact,WMO Codes,FM18-XII: Pwa Pwa
+WavePeriod,Exact,WMO Codes,FM18-XII: Pwa Pwa Pwa
+WavePeriod,Exact,BUFR v4,B22011
+WavePrincipalDirection,Exact,BUFR v4,B22087
+WaveSamplingTime,Exact,BUFR v4,B25043
+WaveSensor,Exact,BUFR v4,B02046
+WaveSignificantHeight,Exact,BUFR v4,B22070
+WaveSpread,Exact,BUFR v4,B22187
+WetBulbTemperature,Exact,MEDS PCODE,WETT
+WetBulbTemperature,Exact,BUFR v4,B12102
+WindDirection,Exact,WMO Codes,FM18-XII: d d
+WindDirection,Exact,WMO Codes,FM63-XI: d d
+WindDirection,Exact,WMO Codes,FM64-X: dd
+WindDirection,Exact,BUFR v4,B11001
+WindDirection,Exact,MEDS PCODE,WDIR
+WindGustMaxDirection,Exact,BUFR v4,B11043
+WindGustMaxDirection,Exact,MEDS PCODE,GDIR
+WindGustMaxSpeed,Exact,BUFR v4,B11041
+WindGustMaxSpeed,Exact,MEDS PCODE,GSPD
+WindSpeed,Exact,WMO Codes,FM18-XII: f f
+WindSpeed,Exact,WMO Codes,FM63-XI: f f
+WindSpeed,Exact,WMO Codes,FM64-X: f f
+WindSpeed,Exact,BUFR v4,B11002
+WindSpeed,Exact,MEDS PCODE,WSPD
+XBTHeight,Exact,BUFR v4,B22177
+XBTHeight,Exact,MEDS PCODE,HTL%24
