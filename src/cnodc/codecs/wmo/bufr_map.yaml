@@ -39,6 +39,15 @@
   type: metadata
   name: WMOCurrentMeasurementMethod
   apply_to: following
+  value_map:
+    0: 0
+    1: 1
+    2: 2
+    3: 3
+    4: 4
+    5: 5
+    6: 6
+    7: 15
   filter:
     - CurrentDirection
     - CurrentSpeed
@@ -115,7 +124,7 @@
 
 3010:
   type: metadata
-  name: WMOCurrentMeasurementMethod2
+  name: WMOCurrentMeasurementMethod
   apply_to: following
   filter:
     - CurrentDirection
