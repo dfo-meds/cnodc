@@ -2,6 +2,8 @@
     A payload worker is a queue worker where the queue data structure
     follows one of the workflow payload types (e.g. Batch, SourceFile, File, etc.).
 """
+import pathlib
+
 from cnodc.nodb import structures
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 import typing as t
@@ -95,3 +97,6 @@ class FileWorkflowWorker(WorkflowWorker):
 
     def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError
+
+    def download_to_temp_file(self) -> pathlib.Path:
+        return self.current_payload.download(self.temp_dir(), halt_flag=self._halt_flag)
