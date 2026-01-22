@@ -306,6 +306,10 @@ class BaseWorker:
             'process_version': self._process_version,
         })
 
+    def breakpoint(self):
+        """ Check if we need to break. """
+        self._halt_flag.breakpoint()
+
     def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
         """Sleep for a given amount of time, with regular wake-ups to check the halt/end flags."""
         if time_seconds < (2 * max_delay):
