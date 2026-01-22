@@ -1,144 +1,87 @@
-Short Name,English Label,French Label,English Description,French Description,Element Group,Data Type,Preferred Units,Standard Name,Variable Name,IOOS Category,Minimum Value,Maximum Value,Allowed Values,Ignore For Duplicate Check,Allow Multiple Values
-AbsoluteSalinity,Absolute Salinity,,,,Parameters,decimal,g kg-1,,,,,,,N,N
-AggregationMethod,Aggregation Method,,,,Metadata,text,,,,,,,,N,N
-AirPressure,Air Pressure,,,,Parameters,decimal,Pa,,,,,,,N,N
-AirPressureAtSeaLevel,Air Pressure At Sea Level,,,,Parameters,decimal,Pa,,,,,,,N,N
-AirPressureChange24Hour,Air Pressure Change 24 Hour,,,,Parameters,decimal,Pa,,,,,,,N,N
-AirPressureChange3Hour,Air Pressure Change 3 Hour,,,,Parameters,decimal,Pa,,,,,,,N,N
-AirTemperature,Air Temperature,,,,Parameters,decimal,K,,,,,,,N,N
-AlkalinityMolar,Alkalinity Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-AmmoniaMolar,Ammonia Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-BUFRDataCategory,BUFR Data Category,,,,Metadata (Record Only),integer,,,,,,,,Y,N
-BUFRDescriptors,BUFR descriptors,,A list of BUFR descriptors attached to this message,,Metadata (Record Only),list,,,,,,,,Y,N
-BUFRInferredMessageType,BUFR Inferred Message Type,,,,Metadata (Record Only),list,,,,,,,,Y,N
-BUFRIsObservation,BUFR Is Observation,,,,Metadata (Record Only),integer,,,,,0,1,,Y,N
-BUFRMessageTime,BUFR Message Time,,,,Metadata (Record Only),datetime,,,,,,,,Y,N
-BUFROriginCentre,BUFR Origin Centre,,,,Metadata (Record Only),integer,,,,,,,,Y,N
-BUFROriginSubcentre,BUFR Origin Subcentre,,,,Metadata (Record Only),integer,,,,,,,,Y,N
-BUFRSubsetIndex,BUFR Subset Index,,,,Metadata (Record Only),integer,,,,,,,,Y,N
-BarometerHeight,Barometer Height,,,,Metadata,decimal,m,,,,,,,N,N
+﻿Short Name,English Label,French Label,English Description,French Description,Element Group,Data Type,Preferred Units,Standard Name,Variable Name,IOOS Category,Minimum Value,Maximum Value,Allowed Values,Ignore For Duplicate Check,Allow Multiple Values
+AirPressure,Air Pressure,Pression atmosphérique,,,Parameters,decimal,Pa,air_pressure,air_pressure__pression_air,Meteorology,0,,,N,N
+AirPressureAtSeaLevel,Air Pressure (At Sea Level),Pression atmosphérique (au niveau de la mer),,,Parameters,decimal,Pa,air_pressure_at_mean_sea_level,msl_air_pressure__pression_air_nmm,Meteorology,0,,,N,N
+AirTemperature,Dry Bulb Temperature,Température de bulbe sec,Dry bulb air temperature,,Parameters,decimal,K,air_temperature,air_temperature,Meteorology,0,,,N,N
+Depth,Depth,Profondeur,Depth in distance units beneath the ocean surface,,Coordinates,decimal,m,depth,depth,Bathymetry,0,11000,,N,N
+DewPointTemperature,Dew Point Temperature,Température du point de rosée,Dewpoint temperature of the air,,Parameters,decimal,K,dew_point_temperature,dew_point__point_rosee,Meteorology,0,,,N,N
+Latitude,Latitude,Latitude,Decimal degrees [-90 to 90] north of the equator,,Coordinates,decimal,degree_north,latitude,latitude,Location,-90,90,,N,N
+Longitude,Longitude,Longitude,Decimal degrees [-180 to 180] east of the prime meridian,,Coordinates,decimal,degree_east,longitude,longitude,Location,-180,180,,N,N
+ChlorophyllA,Chlorophyll a,Chlorophylle a,,,Parameters,decimal,mg m-3,mass_concentration_of_chlorophyll_a_in_sea_water,chlorophyll_a,Biology,0,,,N,N
+ChlorophyllB,Chlorophyll b,Chlorophylle b,,,Parameters,decimal,mg m-3,mass_concentration_of_chlorophyll_b_in_sea_water,chlorophyll_b,Biology,0,,,N,N
+ChlorophyllC,Chlorophyll c,Chlorophylle c,,,Parameters,decimal,mg m-3,mass_concentration_of_chlorophyll_c_in_sea_water,chlorophyll_c,Biology,0,,,N,N
+DissolvedOxygenMolar,Dissolved Oxygen (Molarity),Oxygène dissous (molarité),,,Parameters,decimal,umol m-3,mole_concentration_of_dissolved_molecular_oxygen_in_sea_water,molar_dissolved_o2__o2_dissous_molaire,DissolvedO2,0,,,N,N
+TotalNitrogenMolar,Total Nitrogen (Molarity),Azote total (molarité),,,Parameters,decimal,mmol m-3,mole_concentration_of_dissolved_nitrogen_in_sea_water,molar_total_nitrogen__azote_total_molaire,DissolvedNutrients,0,,,N,N
+NitrateMolar,Nitrate (Molarity),,,,Parameters,decimal,umol L-1,mole_concentration_of_nitrate_in_sea_water,molar_nitrate__nitrate_molaire,DissolvedNutrients,0,,,N,N
+NitriteMolar,Nitrite (Molarity),,,,Parameters,decimal,umol L-1,mole_concentration_of_nitrite_in_sea_water,molar_nitrite__nitrite_molaire,DissolvedNutrients,0,,,N,N
+TotalPhosphorousMolar,Total Phosphorous (Molarity),Phosphore total (molarité),,,Parameters,decimal,mmol m-3,mole_concentration_of_phosphate_in_sea_water,molar_total_phosphorous__phosphore_total_molaire,DissolvedNutrients,0,,,N,N
+DissolvedOxygen,Dissolved Oxygen,Oxygène dissous,,,Parameters,decimal,umol kg-1,moles_of_oxygen_per_unit_mass_in_sea_water,dissolved_o2__o2_dissous,DissolvedO2,0,,,N,N
+PlatformDirection,Platform Direction,,Direction the platform is moving in degrees from north,,Metadata,decimal,degree,platform_course,platform_direction__direction_platforme,,0,360,,N,N
+PlatformSpeed,Platform Speed,,,,Metadata,decimal,m s-1,platform_speed_wrt_sea_water,platform_speed__vitesse_plateforme,,0,,,N,N
+TotalPrecipitation,Total Precipitation,Précipitations totales,Total precipitation that has fallen in a given reporting period,,Parameters,decimal,kg m-2,precipitation_amount,,Meteorology,0,,,N,N
+Quality,Quality Flag,,GTSPP compatible quality flag,,Metadata (Element Only),integer,,quality_flag,,Quality,,,0;1;2;3;4;5;6;7;8;9,Y,N
+RelativeHumidity,Relative Humidity,Humidité relative,Fraction of maximum possible humidity contained in the air,,Parameters,decimal,0.01,relative_humidity,relative_humidity__humidite_relative,Meteorology,0,100,,N,N
+SeaDepth,Sea Floor Depth,Profondeur du fond marin,Depth of the sea floor below the sea surface,,Parameters,decimal,m,sea_floor_depth_below_sea_surface,,Bathymetry,0,11000,,N,N
+WaveDirection,Wave Direction (From),,Direction the waves are coming from in degrees from north,,Parameters,decimal,degree,sea_surface_wave_from_direction,wave_direction__direction_vagues,SurfaceWaves,0,360,,N,N
+WaveMaximumHeight,Wave Maximum Height,,,,Parameters,decimal,m,sea_surface_wave_maximum_height,,SurfaceWaves,0,,,N,N
+WavePrincipalDirection,Wave Principal Direction (From),,,,Parameters,decimal,degree,sea_surface_wave_principal_from_direction,,SurfaceWaves,0,360,,N,N
+WaveSignificantHeight,Wave Significant Height,,,,Parameters,decimal,m,sea_surface_wave_significant_height,,SurfaceWaves,0,,,N,N
+AbsoluteSalinity,Absolute Salinity,Salinité absolue,Mass fraction of dissolved salts in water,,Parameters,decimal,g kg-1,sea_water_absolute_salinity,,Salinity,0,,,N,N
+AlkalinityMolar,Alkalinity (Molarity),,,,Parameters,decimal,umol L-1,sea_water_alkalinity_expressed_as_mole_equivalent,,Acidity,0,,,N,N
+Density,Water Density,Densité de l'eau,Density of water,,Parameters,decimal,kg m-3,sea_water_density,,,0,,,N,N
+Conductivity,Conductivity,Conductivité,,,Parameters,decimal,S m-1,sea_water_electrical_conductivity,conductivity__conductivite,,0,,,N,N
+SpecificConductance,Specific Conductance,Conductivité spécifique,,,Parameters,decimal,S m-1,sea_water_electrical_conductivity_at_reference_temperature,specific_conductivity__conductivite_specifique,,0,,,N,N
+PH,pH,pH,Acidity or basicity of the water on the pH scale,,Parameters,decimal,1,sea_water_ph_reported_on_total_scale,,Acidity,0,14,,N,N
+PracticalSalinity,Practical Salinity,Salinité pratique,Salinity measured using the Practical Salinity Scale of 1978,,Parameters,decimal,0.001,sea_water_practical_salinity,salinity__salinite,Salinity,0,,,N,N
+Pressure,Pressure,Pression,Hydrostatic pressure measured in pressure units,,Coordinates,decimal,Pa,sea_water_pressure,pressure__pression,Pressure,0,,,N,N
+CurrentSpeed,Current Speed,Vitesse du courant,Speed of sea water current,,Parameters,decimal,m s-1,sea_water_speed,,Currents,0,,,N,N
+Temperature,Water Temperature,Température de l'eau,Water temperature,,Parameters,decimal,K,sea_water_temperature,temperature,Temperature,0,,,N,N
+Turbidity,Turbidity,Turbidité,Turbidity as mesasured in Nephelometric Turbidity Units (NTUs),,Parameters,decimal,1,sea_water_turbidity,turbidity__turbidite,,0,,,,
+CurrentDirection,Current Direction (To),Direction du courant (à),Direction to which the water current is moving,,Parameters,decimal,degrees,sea_water_velocity_to_direction,,Currents,0,360,,N,N
+CentralFrequency,Central Frequency,Fréquence centrale,Central band frequency of a spectral bin,,Coordinates,decimal,Hz,sensor_band_central_radiation_frequency,central_frequency__frequence_centrale,Identifier,0,,,N,N
+SoundVelocity,Speed of Sound,Vitesse du son,,,Parameters,decimal,m s-1,speed_of_sound_in_sea_water,,,0,,,N,N
+Time,Time,Heure,Time in ISO 8601 format (e.g. YYYY-MM-DDTHH:MM:SS) with optional timezone (default UTC),,Coordinates,datetime,,time,time__heure,Time,,,,N,N
+WetBulbTemperature,Wet Bulb Temperature,Température de bulbe humide,Wet bulb air temperature,,Parameters,decimal,K,wet_bulb_temperature,wet_bulb_temperature__temperature_bulbe_humide,Meteorology,0,,,N,N
+WindDirection,Wind Direction (From),Direction du vent (de),Direction the wind is coming from,,Parameters,decimal,degree,wind_from_direction,wind_direction__direction_vents,Wind,0,360,,N,N
+WindGustMaxDirection,Wind Gust Max Direction (From),Direction des rafales de vent (de),Direction the maximum speed wind gusts are coming from,,Parameters,decimal,degree,wind_gust_from_direction,,Wind,0,360,,N,N
+WindSpeed,Wind Speed,Vitesse du vent,,,Parameters,decimal,m s-1,wind_speed,wind_speed__vitesse_vents,Wind,0,,,N,N
+WindGustMaxSpeed,Wind Gust Max Speed,Vitesse maximale des rafales de vent,,,Parameters,decimal,m s-1,wind_speed_of_gust,,Wind,0,,,N,N
+TimeOffset,Time Offset,Décalage horaire,Observation offset from parent record,,Coordinates,decimal,,,time_offset__decalage_horaire,Time,,,,N,N
+WaveSensor,Wave Sensor Type,Type de capteur de vague,Heave (1) or Slope (2) sensor,,Coordinates,text,,,wave_sensor__capteur_vague,,,,,N,N
+SubmergenceTime,Submergence Time,,,,Metadata,decimal,0.01,,,Time,0,100,,N,N
+BarometerHeight,Barometer Height,,,,Metadata,decimal,m,,,Location,,,,N,N
+DrogueDepth,Drogue Depth,,,,Metadata,decimal,m,,,Location,,,,N,N
+SensorDepth,Sensor Depth,,,,Metadata,decimal,m,,,Location,,,,N,N
+SensorHeightAboveWater,Sensor Height (Above Water),,,,Metadata,decimal,m,,,Location,,,,N,N
+SensorHeightLocal,Sensor Height (Above Local Ground),,,,Metadata,decimal,m,,,Location,,,,N,N
+StationHeight,Station Height,,,,Metadata,decimal,m,,,Location,,,,N,N
+WaveSamplingTime,Wave Sampling Time,,,,Metadata,decimal,s,,,SurfaceWaves,,,,N,N
 BatteryVoltage,Battery Voltage,,,,Metadata,decimal,V,,,,,,,N,N
-CNODCDuplicateDate,CNODC Duplicate Date,,"If present, the record is a duplicate of another better record and this is the date the CNODC received that record",,Metadata (Record Only),date,,,,,,,,Y,N
-CNODCDuplicateID,CNODC Duplicate ID,,"If present, the record is a duplicate of another better record and this is that records ID",,Metadata (Record Only),text,,,,,,,,Y,N
-CNODCEmbargoUntil,CNODC Embargo Until Date,,"If present, the record may not be released to the public until the given date has passed.",,Metadata (Record Only),datetime,,,,,,,,N,N
-CNODCID,CNODC ID,,Unique identifier of this record in the CNODC database,,Metadata (Record Only),text,,,,Identifier,,,,Y,N
-CNODCInstrumentType,Instrument Type,,Type of instrument that collected the information,,Metadata (Record Only),text,,,,,,,,Y,N
-CNODCLevel,CNODC Processing Level,,Processing level of the data record,,Metadata (Record Only),text,,,,,,,,Y,N
-CNODCMission,Mission Name,,Name of the originating mission,,Metadata (Record Only),text,,,,Identifier,,,,N,N
-CNODCOperatorAction,CNODC Record Status (Working),,Working status of the data record,,Metadata (Record Only),text,,,,,,,DISCARD;MARK_DUPLICATE;ARCHIVE;MARK_DUBIOUS;RECOMMEND_DISCARD;RECOMMEND_DUPLICATE;RECOMMEND_ARCHIVAL;RECOMMEND_DUBIOUS,Y,N
-CNODCProgram,Program Name,,Name of the program that collected the profile,,Metadata (Record Only),text,,,,Identifier,,,,Y,N
-CNODCSource,Source Name,,Identifier for the source of the data,,Metadata (Record Only),text,,,,,,,,Y,N
-CNODCStation,Station UUID,,UUID of the originating station,,Metadata (Record Only),text,,,,Identifier,,,,N,N
-CNODCStationCandidates,CNODC Station Candidates,,,,Metadata (Record Only),list,,,,,,,,Y,N
-CNODCStatus,CNODC Record Status,,Status of the data record,,Metadata (Record Only),text,,,,,,,DISCARDED;DUPLICATE;ARCHIVED;VERIFIED;UNVERIFIED;DUBIOUS,Y,N
-CNODCWorkingDuplicateDate,CNODC Duplicate Date,,"If present, the record is a duplicate of another better record and this is the date the CNODC received that record",,Metadata (Record Only),date,,,,,,,,Y,N
-CNODCWorkingDuplicateID,CNODC Duplicate ID,,"If present, the record is a duplicate of another better record and this is that records ID",,Metadata (Record Only),text,,,,,,,,Y,N
-CarbonateAlkalinityMolar,Carbonate Alkalinity Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-CentralFrequency,Central Frequency,,,,Coordinates,decimal,Hz,,,,,,,N,N
-ChlorophyllA,Chlorophyll A,,,,Parameters,decimal,mg m-3,,,,,,,N,N
-ChlorophyllB,Chlorophyll B,,,,Parameters,decimal,mg m-3,,,,,,,N,N
-ChlorophyllC,Chlorophyll C,,,,Parameters,decimal,mg m-3,,,,,,,N,N
-Conductivity,Conductivity,,,,Parameters,decimal,S m-1,,conductivity_conductivite,,,,,N,N
-CruiseID,Cruise I D,,,,Metadata,text,,,,,,,,N,N
-CurrentDirection,Current Direction (To),,Direction to which sea water current is moving,,parameter,decimal,degrees,sea_water_velocity_to_direction,,Currents,0,360,,N,N
-CurrentSpeed,Current Speed,,Speed of sea water current,,parameter,decimal,m s-1,sea_water_speed,,Currents,,,,N,N
-Density,Density,,,,Parameters,decimal,kg m-3,,,,,,,N,N
-Depth,Depth,,Depth in distance units beneath the ocean surface,,Coordinates,decimal,m,depth,depth,Bathymetry,,,,N,N
-DeviceID,Device I D,,,,Metadata,text,,,,,,,,N,N
-DewpointTemperature,Dewpoint Temperature,,,,Parameters,decimal,K,,,,,,,N,N
-DiffuseSolarRadiation,Diffuse Solar Radiation,,,,Parameters,decimal,J m-2,,,,,,,N,N
-DirectSolarRadiation,Direct Solar Radiation,,,,Parameters,decimal,J m-2,,,,,,,N,N
-DissolvedOxygen,Dissolved Oxygen,,,,Parameters,decimal,umol kg-1,,dissolved_o2__o2_dissous,,,,,N,N
-DissolvedOxygenMolar,Dissolved Oxygen Molar,,,,Parameters,decimal,umol m-3,,molar_dissolved_o2__o2_dissous_molaire,,,,,N,N
-DrogueDepth,Drogue Depth,,,,Metadata,decimal,m,,,,,,,N,N
-FloatCycleNumber,Float Cycle Number,,,,Metadata,integer,,,,,,,,N,N
-Fluorescence,Fluorescence,,,,Parameters,decimal,kg L-1,,,,,,,N,N
-FluorescenceFraction,Fluorescence Fraction,,,,Parameters,decimal,0.01,,,,0,100,,N,N
-FluorescencePotential,Fluorescence Potential,,,,Parameters,decimal,V,,,,,,,N,N
-Fluoride,Fluoride,,,,Parameters,decimal,mg L-1,,,,,,,N,N
-FourierA1,Fourier A 1,,,,Parameters,decimal,,,,,,,,N,N
-FourierA2,Fourier A 2,,,,Parameters,decimal,,,,,,,,N,N
-FourierB1,Fourier B 1,,,,Parameters,decimal,,,,,,,,N,N
-FourierB2,Fourier B 2,,,,Parameters,decimal,,,,,,,,N,N
-FourierK,Fourier K,,,,Parameters,decimal,,,,,,,,N,N
-GTSHeader,GTS Header,,The header sent with this message on the GTS,,Metadata (Record Only),date,,,,,,,,Y,N
-GlobalSolarRadiation,Global Solar Radiation,,,,Parameters,decimal,J m-2,,,,,,,N,N
-HorizontalVisibility,Horizontal Visibility,,,,Parameters,decimal,m,,,,,,,N,N
-IMONumber,IMO Number,,,,Metadata,text,,,,,,,,N,N
-IceThickness,Ice Thickness,,,,Parameters,decimal,m,,,,,,,N,N
+AggregationMethod,Aggregation Method,,,,Metadata,text,,,,,,,,N,N
+CruiseID,Cruise ID,,,,Metadata,text,,,,Identifier,,,,N,N
+DeviceID,Device ID,,,,Metadata,text,,,,Identifier,,,,N,N
+FloatCycleNumber,Float Cycle Number,,,,Metadata,integer,,,,Identifier,,,,N,N
+IMONumber,IMO Number,,,,Metadata,text,,,,Identifier,,,,N,N
 InstrumentManufacturingDate,Instrument Manufacturing Date,,,,Metadata,datetime,,,,,,,,N,N
-LastKnownPositionTime,Time of Last Known Position,,,,Metadata,datetime,,,,,,,,N,N
-Latitude,Latitude,Latitude,Decimal degrees north of the equator,,Coordinates,decimal,degree_north,latitude,latitude,Location,-90,90,,N,N
-LightTransmission,Light Transmission,,,,Parameters,decimal,0.01,,,,0,100,,N,N
-Longitude,Longitude,,Decimal degrees [-180 to 180] east of the prime meridian,,Coordinates,decimal,degree_east,longitude,longitude,Location,-180,180,,N,N
-LongwaveRadiation,Longwave Radiation,,,,Parameters,decimal,J m-2,,,,,,,N,N
-NetRadiation,Net Radiation,,,,Parameters,decimal,J m-2,,,,,,,N,N
-NitrateMolar,Nitrate Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-NitriteMolar,Nitrite Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-ObservationPeriod,Observation Period,,Time over which a measurement was taken,,Metadata,text,,,,,,,,N,N
-PH,P H,,,,Parameters,decimal,1,,,,,,,N,N
-ParticulateCarbon,Particulate Carbon,,,,Parameters,decimal,mg L-1,,,,,,,N,N
-Phaeophytin,Phaeophytin,,,,Parameters,decimal,mg m-3,,,,,,,N,N
-PhosphateMolar,Phosphate Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-PlatformDirection,Platform Direction,,,,Metadata,decimal,degree,,,,,,,N,N
-PlatformModel,Platform Model,,,,Metadata,text,,,,,,,,N,N
-PlatformSerialNumber,Platform Serial Number,,,,Metadata,text,,,,,,,,N,N
-PlatformSpeed,Platform Speed,,,,Metadata,decimal,m s-1,,,,,,,N,N
-PracticalSalinity,Sea Water Practical Salinity,,Practical salinity of sea water,,parameter,decimal,0.001,sea_water_practical_salinity,salinity__salinite,Salinity,,,,N,N
-Pressure,Pressure,,Hydrostatic pressure measured in pressure units,,Coordinates,decimal,Pa,sea_water_pressure,pressure__pression,Pressure,,,,N,N
-ProfileDirection,Profile Direction,,,,Metadata,text,,,,,,,,N,N
-ProfileID,Profile I D,,,,Metadata,text,,,,,,,,N,N
-ProfilerSerialNumber,Profiler Serial Number,,,,Metadata,text,,,,,,,,N,N
-Quality,Quality,,GTSPP compatible quality flag,,Metadata (Element Only),integer,,,,Quality,,,0;1;2;3;4;5;6;7;8;9,Y,N
-RelativeHumidity,Relative Humidity,,,,Parameters,decimal,0.01,,,,,,,N,N
-SeaDepth,Sea Floor Depth,,Depth of the sea floor,,parameter,decimal,m,,,Bathymetry,,,,N,N
-SeaIceConcentration,Sea Ice Concentration,,,,Parameters,text,,,,,,,,N,N
-SensorDepth,Sensor Depth,,,,Metadata,decimal,m,,,,,,,N,N
-SensorHeightAboveWater,Sensor Height Above Water,,,,Metadata,decimal,m,,,,,,,N,N
-SensorHeightLocal,Sensor Height Local,,,,Metadata,decimal,m,,,,,,,N,N
-SequenceNumber,Sequence Number,,,,Metadata,integer,,,,,,,,N,N
-ShipLineNumber,Ship Line Number,,,,Metadata,text,,,,,,,,N,N
-ShipTransectNumber,Ship Transect Number,,,,Metadata,text,,,,,,,,N,N
-ShortwaveRadiation,Shortwave Radiation,,,,Parameters,decimal,J m-2,,,,,,,N,N
-SilicateMolar,Silicate Molar,,,,Parameters,decimal,umol L-1,,,,,,,N,N
-SoftwareID,Software I D,,,,Metadata,text,,,,,,,,N,N
-SoundVelocity,Sound Velocity,,,,Parameters,decimal,m s-1,,,,,,,N,N
-SpecificConductance,Specific Conductance,,,,Parameters,decimal,S m-1,,,,,,,N,N
-SpectralWaveBandCount,Spectral Wave Band Count,,,,Parameters,integer,,,,,,,,N,N
-SpectralWaveBandWidth,Spectral Wave Band Width,,,,Parameters,decimal,s-1,,,,,,,N,N
-SpectralWaveDensity,Spectral Wave Density,,,,Parameters,decimal,m2 Hz-1,,,,,,,N,N
-SpectralWaveDensityByFrequency,Spectral Wave Density By Frequency,,,,Parameters,decimal,m2 s,,,,,,,N,N
-SpectralWaveDensityRatio,Spectral Wave Density Ratio,,,,Parameters,decimal,0.01,,,,,,,N,N
-SpectralWaveDirDensityByFrequency,Spectral Wave Dir Density By Frequency,,,,Parameters,decimal,m2 s rad-1,,,,,,,N,N
-SpectralWaveFourier1,Spectral Wave Fourier 1,,,,Parameters,decimal,,,,,,,,N,N
-SpectralWaveFourier2,Spectral Wave Fourier 2,,,,Parameters,decimal,,,,,,,,N,N
-SpectralWaveMaxDensityByFrequency,Spectral Wave Max Density By Frequency,,,,Parameters,decimal,m2 s,,,,,,,N,N
-SpectralWaveMaxWaveBand,Spectral Wave Max Wave Band,,,,Parameters,integer,,,,,,,,N,N
-SpectralWavePeakPeriod,Spectral Wave Peak Period,,,,Parameters,decimal,s,,,,,,,N,N
-StationHeight,Station Height,,,,Metadata,decimal,m,,,,,,,N,N
-StationID,Station I D,,,,Metadata,text,,,,,,,,N,N
-StationName,Station Name,,,,Metadata,decimal,,,,,,,,N,N
-SubmergenceTime,Submergence Time,,,,Metadata,decimal,0.01,,,,,,,N,N
+LastKnownPositionTime,Time of Last Known Position,,,,Metadata,datetime,,,,Time,,,,N,N
+ObservationPeriod,Observation Period,,Time over which a measurement was taken,,Metadata,integer,s,,,Time,,,,N,N
+PlatformModel,Platform Model,,,,Metadata,text,,,,Identifier,,,,N,N
+PlatformSerialNumber,Platform Serial Number,,,,Metadata,text,,,,Identifier,,,,N,N
+ProfileDirection,Profile Direction,,,,Metadata,text,,,,Identifier,,,,N,N
+ProfileID,Profile ID,,,,Metadata,text,,,,Identifier,,,,N,N
+ProfilerSerialNumber,Profiler Serial Number,,,,Metadata,text,,,,Identifier,,,,N,N
+SequenceNumber,Sequence Number,,,,Metadata,integer,,,,Identifier,,,,N,N
+ShipLineNumber,Ship Line Number,,,,Metadata,text,,,,Identifier,,,,N,N
+ShipTransectNumber,Ship Transect Number,,,,Metadata,text,,,,Identifier,,,,N,N
+SoftwareID,Software ID,,,,Metadata,text,,,,Identifier,,,,N,N
+StationID,Station ID,,,,Metadata,text,,,,Identifier,,,,N,N
+StationName,Station Name,,,,Metadata,text,,,,Identifier,,,,N,N
 SurfaceType,Surface Type,,,,Metadata,text,,,,,,,,N,N
-Temperature,Sea Water Temperature,Température de l'eau de mer,,,parameter,decimal,K,,temperature,Temperature,,,,N,N
-TemperatureScale,Temperature Scale,,,,Metadata (Element Only),text,,,,,,,ITS-90;IPTS-68;IPTS-48,N,N
-Time,Time,,Time in ISO 8601 format (e.g. YYYY-MM-DDTHH:MM:SS) with optional timezone (default UTC),,Coordinates,datetime,,time,time__heure,Time,,,,N,N
-TimeOffset,Time Offset,,Observation offset from parent record,,Coordinates,decimal,,,,,,,,N,N
-TotalNitrogenMolar,Total Nitrogen Molar,,,,Parameters,decimal,mmol m-3,,,,,,,N,N
-TotalPhosphorousMolar,Total Phosphorous Molar,,,,Parameters,decimal,mmol m-3,,,,,,,N,N
-TotalPrecipitation,Total Precipitation,,,,Parameters,decimal,kg m-2,,,,,,,N,N
-TotalPrecipitation24Hour,Total Precipitation 24 Hour,,,,Parameters,decimal,kg m-2,,,,,,,N,N
-TransmitterID,Transmitter I D,,,,Metadata,text,,,,,,,,N,N
-Uncertainty,Uncertainty,,"Absolute uncertainty of a measurement, in the same units as the value",,Metadata (Element Only),decimal,,,,,,,,N,N
-Units,Units,,Units relevant to a value,,Metadata (Element Only),text,,,,,,,,N,N
-WIGOSID,WIGOS Identifier,,WIGOS identifier as assigned by the WMO,,Metadata (Record Only),text,,,,Identifier,,,,N,N
+TransmitterID,Transmitter ID,,,,Metadata,text,,,,Identifier,,,,N,N
 WMOAgencyCode,WMO Agency Code,,,,Metadata,text,,,,,,,,N,N
-WMOAirPressureCharacteristic,WMO Air Pressure Characteristic,,,,Parameters,text,,,,,,,,N,N
 WMOAnemometerType,WMO Anemometer Type,,,,Metadata,text,,,,,,,,N,N
 WMOBuoyType,WMO Buoy Type,,,,Metadata,text,,,,,,,,N,N
 WMOCurrentMeasurementDuration,WMO Current Measurement Duration,,,,Metadata,text,,,,,,,,N,N
 WMOCurrentMeasurementMethod,WMO Current Measurement Method,,,,Metadata,text,,,,,,,,N,N
-WMOCurrentMeasurementMethod2,WMO Current Measurement Method 2,,,,Metadata,text,,,,,,,,N,N
 WMODataBuoyType,WMO Data Buoy Type,,,,Metadata,text,,,,,,,,N,N
 WMODataSystem,WMO Data System,,,,Metadata,text,,,,,,,,N,N
 WMODepthMethod,WMO Depth Method,,,,Metadata,text,,,,,,,,N,N
@@ -146,40 +89,98 @@ WMODigitization,WMO Digitization,,,,Metadata,text,,,,,,,,N,N
 WMODissolvedOxygenSensorType,WMO Dissolved Oxygen Sensor Type,,,,Metadata,text,,,,,,,,N,N
 WMODrogueStatus,WMO Drogue Status,,,,Metadata,text,,,,,,,,N,N
 WMODrogueType,WMO Drogue Type,,,,Metadata,text,,,,,,,,N,N
-WMOID,WMO Identifier,,WMO identifier as assigned by the WMO,,Metadata (Record Only),text,,,,Identifier,,,,N,N
 WMOPlatformMotionRemovalMethod,WMO Platform Motion Removal Method,,,,Metadata,text,,,,,,,,N,N
 WMOPlatformType,WMO Platform Type,,,,Metadata,text,,,,,,,,N,N
 WMOProfileInstrumentType,WMO Profile Instrument Type,,,,Metadata,text,,,,,,,,N,N
 WMOProfileRecorderType,WMO Profile Recorder Type,,,,Metadata,text,,,,,,,,N,N
-WMOQualityLocation,WMO Quality Location,,,,Metadata,text,,,,,,,,N,N
-WMOQualityLocationClass,WMO Quality Location Class,,,,Metadata,text,,,,,,,,N,N
-WMOQualitySatellite,WMO Quality Satellite,,,,Metadata,text,,,,,,,,N,N
+WMOQualityLocation,WMO Quality Location,,,,Metadata,text,,,,Quality,,,,N,N
+WMOQualityLocationClass,WMO Quality Location Class,,,,Metadata,text,,,,Quality,,,,N,N
+WMOQualitySatellite,WMO Quality Satellite,,,,Metadata,text,,,,Quality,,,,N,N
 WMOSalinityDepthMeasurementMethod,WMO Salinity Depth Measurement Method,,,,Metadata,text,,,,,,,,N,N
-WMOSatelliteIdentifier,WMO Satellite Identifier,,,,Metadata,text,,,,,,,,N,N
+WMOSatelliteIdentifier,WMO Satellite Identifier,,,,Metadata,text,,,,Identifier,,,,N,N
 WMOSpectralWaveMethod,WMO Spectral Wave Method,,,,Metadata,text,,,,,,,,N,N
 WMOStationType,WMO Station Type,,,,Metadata,text,,,,,,,,N,N
 WMOTemperatureSalinityMeasurementMethod,WMO Temperature Salinity Measurement Method,,,,Metadata,text,,,,,,,,N,N
 WMOTemperatureSalinityQualifier,WMO Temperature Salinity Qualifier,,,,Metadata,text,,,,,,,,N,N
 WMOWetBulbMeasurementMethod,WMO Wet Bulb Measurement Method,,,,Metadata,text,,,,,,,,N,N
 WMOWindInstrumentType,WMO Wind Instrument Type,,,,Metadata,text,,,,,,,,N,N
-WMOXBTType,WMOXBT Type,,,,Parameters,text,,,,,,,,N,N
-WaveAveragePeriod,Wave Average Period,,,,Parameters,decimal,s,,,,,,,N,N
-WaveDirection,Wave Direction,,,,Parameters,decimal,degree,,,,,,,N,N
-WaveDominantDirection,Wave Dominant Direction,,,,Parameters,decimal,degree,,,,,,,N,N
-WaveDominantSpread,Wave Dominant Spread,,,,Parameters,decimal,degree,,,,,,,N,N
-WaveHeight,Wave Height,,,,Parameters,decimal,m,,,,,,,N,N
-WaveMaximumHeight,Wave Maximum Height,,,,Parameters,decimal,m,,,,,,,N,N
-WaveMeanDirection,Wave Mean Direction,,,,Parameters,decimal,degree,,,,,,,N,N
-WavePeriod,Wave Period,,,,Parameters,decimal,s,,,,,,,N,N
-WavePrincipalDirection,Wave Principal Direction,,,,Parameters,decimal,degree,,,,,,,N,N
-WaveSamplingTime,Wave Sampling Time,,,,Metadata,decimal,s,,,,,,,N,N
-WaveSensor,Wave Sensor,,,,Coordinates,text,,,,,,,,N,N
-WaveSignificantHeight,Wave Significant Height,,,,Parameters,decimal,m,,,,,,,N,N
-WaveSpread,Wave Spread,,,,Parameters,decimal,degree,,,,,,,N,N
-WetBulbTemperature,Wet Bulb Temperature,,,,Parameters,decimal,K,,,,,,,N,N
-WindDirection,Wind Direction,,,,Parameters,decimal,degree,,,,0,360,,N,N
-WindGustMaxDirection,Wind Gust Max Direction,,,,Parameters,decimal,degree,,,,,,,N,N
-WindGustMaxSpeed,Wind Gust Max Speed,,,,Parameters,decimal,m s-1,,,,,,,N,N
-WindSpeed,Wind Speed,,,,Parameters,decimal,m s-1,,,,,,,N,N
-WorkingQuality,Quality (Working),,Internally proposed quality flag,,Metadata (Element Only),integer,,,,,,,0;1;2;3;4;5;9;13;14;15;19;20;21,Y,N
-XBTHeight,XBT Height,,,,Parameters,decimal,m,,,,,,,N,N
+TemperatureScale,Temperature Scale,,,,Metadata (Element Only),text,,,,,,,ITS-90;IPTS-68;IPTS-48,N,N
+Uncertainty,Uncertainty,,"Absolute uncertainty of a measurement, in the same units as the value",,Metadata (Element Only),decimal,,,,Statistics,0,,,N,N
+Units,Units,,Units relevant to a value,,Metadata (Element Only),text,,,,,,,,N,N
+WorkingQuality,Quality (Working),,Internally proposed quality flag,,Metadata (Element Only),integer,,,,Quality,,,0;1;2;3;4;5;9;13;14;15;19;20;21,Y,N
+BUFRDataCategory,BUFR Data Category,,,,Metadata (Record Only),integer,,,,,,,,Y,N
+BUFRDescriptors,BUFR Descriptors,,A list of BUFR descriptors attached to this message,,Metadata (Record Only),list,,,,,,,,Y,N
+BUFRInferredMessageType,BUFR Inferred Message Type,,,,Metadata (Record Only),list,,,,,,,,Y,N
+BUFRIsObservation,BUFR Is Observation,,,,Metadata (Record Only),integer,,,,,0,1,,Y,N
+BUFRMessageTime,BUFR Message Time,,,,Metadata (Record Only),datetime,,,,,,,,Y,N
+BUFROriginCentre,BUFR Origin Centre,,,,Metadata (Record Only),integer,,,,,,,,Y,N
+BUFROriginSubcentre,BUFR Origin Subcentre,,,,Metadata (Record Only),integer,,,,,,,,Y,N
+BUFRSubsetIndex,BUFR Subset Index,,,,Metadata (Record Only),integer,,,,,,,,Y,N
+CNODCDuplicateDate,CNODC Duplicate Date,,"If present, the record is a duplicate of another better record and this is the date the CNODC received that record",,Metadata (Record Only),date,,,,,,,,Y,N
+CNODCDuplicateID,CNODC Duplicate ID,,"If present, the record is a duplicate of another better record and this is that records ID",,Metadata (Record Only),text,,,,,,,,Y,N
+CNODCEmbargoUntil,Embargo Date,,"If present, the record may not be released to the public until the given date has passed.",,Metadata (Record Only),datetime,,,,,,,,N,N
+CNODCID,CNODC ID,,Unique identifier of this record in the CNODC database,,Metadata (Record Only),text,,,,Identifier,,,,Y,N
+CNODCInstrumentType,CNODC Instrument Type,,Type of instrument that collected the information,,Metadata (Record Only),text,,,,,,,,Y,N
+CNODCLevel,CNODC Processing Level,,Processing level of the data record,,Metadata (Record Only),text,,,,,,,,Y,N
+CNODCMission,CNODC Mission Name,,Name of the originating mission,,Metadata (Record Only),text,,,,Identifier,,,,N,N
+CNODCOperatorAction,CNODC Record Status (Working),,Working status of the data record,,Metadata (Record Only),text,,,,,,,DISCARD;MARK_DUPLICATE;ARCHIVE;MARK_DUBIOUS;RECOMMEND_DISCARD;RECOMMEND_DUPLICATE;RECOMMEND_ARCHIVAL;RECOMMEND_DUBIOUS,Y,N
+CNODCProgram,CNODC Program Name,,Name of the program that collected the profile,,Metadata (Record Only),text,,,,Identifier,,,,Y,N
+CNODCSource,CNODC Source Name,,Identifier for the source of the data,,Metadata (Record Only),text,,,,Identifier,,,,Y,N
+CNODCPlatform,CNODC Platform UUID,,UUID of the originating platform,,Metadata (Record Only),text,,,,Identifier,,,,N,N
+CNODCPlatformCandidates,CNODC Platform Candidates,,,,Metadata (Record Only),list,,,,,,,,Y,N
+CNODCStatus,CNODC Record Status,,Status of the data record,,Metadata (Record Only),text,,,,,,,DISCARDED;DUPLICATE;ARCHIVED;VERIFIED;UNVERIFIED;DUBIOUS,Y,N
+CNODCWorkingDuplicateDate,CNODC Duplicate Date (Working),,"If present, the record is a duplicate of another better record and this is the date the CNODC received that record",,Metadata (Record Only),date,,,,,,,,Y,N
+CNODCWorkingDuplicateID,CNODC Duplicate ID (Working),,"If present, the record is a duplicate of another better record and this is that records ID",,Metadata (Record Only),text,,,,,,,,Y,N
+GTSHeader,GTS Header,,The header sent with this message on the GTS,,Metadata (Record Only),date,,,,Identifier,,,,Y,N
+WIGOSID,WIGOS Identifier,,WIGOS identifier as assigned by the WMO,,Metadata (Record Only),text,,,,Identifier,,,,N,N
+WMOID,WMO Identifier,,WMO identifier as assigned by the WMO,,Metadata (Record Only),text,,,,Identifier,,,,N,N
+FluorescenceFraction,Fluorescence (Fraction),Fluorescence (Fraction),,,Parameters,decimal,0.01,,fluoresence_fraction,Biology,0,100,,N,N
+LightTransmission,Light Transmission,Transmission de la lumière,,,Parameters,decimal,0.01,,transmissivity__transmissivite,OpticalProperties,0,100,,N,N
+SpectralWaveDensityRatio,Spectral Wave Density Ratio,,,,Parameters,decimal,0.01,,,SurfaceWaves,,,,N,N
+WaveDominantDirection,Wave Dominant Direction (From),,,,Parameters,decimal,degree,,,SurfaceWaves,0,360,,N,N
+WaveDominantSpread,Wave Dominant Spread,,,,Parameters,decimal,degree,,,SurfaceWaves,0,360,,N,N
+WaveMeanDirection,Wave Mean Direction (From),,Average direction that waves are coming from in degrees from north,,Parameters,decimal,degree,,,SurfaceWaves,0,360,,N,N
+WaveSpread,Wave Spread,,,,Parameters,decimal,degree,,,SurfaceWaves,0,360,,N,N
+DiffuseSolarRadiation,Diffuse Solar Radiation,Rayonnement solaire diffus,,,Parameters,decimal,J m-2,,,HeatFlux,,,,N,N
+DirectSolarRadiation,Direct Solar Radiation,Rayonnement solaire direct,,,Parameters,decimal,J m-2,,,Meteorology,,,,N,N
+GlobalSolarRadiation,Global Solar Radiation,Rayonnement solaire global,,,Parameters,decimal,J m-2,,,Meteorology,,,,N,N
+LongwaveRadiation,Longwave Radiation,Rayonnement solaire à ondes longues,,,Parameters,decimal,J m-2,,,Meteorology,,,,N,N
+NetRadiation,Net Radiation,Rayonnement net,,,Parameters,decimal,J m-2,,,Meteorology,,,,N,N
+ShortwaveRadiation,Shortwave Radiation,Rayonnement solaire à ondes courtes,,,Parameters,decimal,J m-2,,,Meteorology,,,,N,N
+Fluorescence,Fluorescence (Mass Concentration),Fluorescence (concentration massique),,,Parameters,decimal,kg L-1,,,Biology,0,,,N,N
+HorizontalVisibility,Horizontal Visibility,Visibilité horizontale,,,Parameters,decimal,m,,,Meteorology,0,,,N,N
+IceThickness,Ice Thickness,Épaisseur de glace,,,Parameters,decimal,m,,,IceDistribution,0,,,N,N
+WaveHeight,Wave Height,,,,Parameters,decimal,m,,,SurfaceWaves,0,,,N,N
+XBTHeight,XBT Height,,,,Parameters,decimal,m,,,Location,,,,N,N
+SpectralWaveDensity,Spectral Wave Density,,,,Parameters,decimal,m2 Hz-1,,,SurfaceWaves,,,,N,N
+SpectralWaveDensityByFrequency,Spectral Wave Density By Frequency,,,,Parameters,decimal,m2 s,,,SurfaceWaves,,,,N,N
+SpectralWaveMaxDensityByFrequency,Spectral Wave Maximuim Density By Frequency,,,,Parameters,decimal,m2 s,,,SurfaceWaves,,,,N,N
+SpectralWaveDirDensityByFrequency,Spectral Wave Direction Density By Frequency,,,,Parameters,decimal,m2 s rad-1,,,SurfaceWaves,,,,N,N
+Fluoride,Fluoride,Fluorure,,,Parameters,decimal,mg L-1,,,Contaminants,0,,,N,N
+ParticulateCarbon,Particulate Carbon,Carbone particulaire,,,Parameters,decimal,mg L-1,,,,0,,,N,N
+ChlorophyllAFluorescence,Chlorophyll a Fluorescence,Flourescence de chlorophylle a,,,Parameters,decimal,1,,chlorophyll_a_fluorescence,Biology,0,,,,
+Pheophytin,Pheophytin,Phéophytine,,,Parameters,decimal,mg m-3,,,Biology,0,,,N,N
+AirPressureChange,Air Pressure (Change),Pression atmosphérique (variation),,,Parameters,decimal,Pa,,,Meteorology,,,,N,N
+SpectralWavePeakPeriod,Spectral Wave Peak Period,,,,Parameters,decimal,s,,,SurfaceWaves,0,,,N,N
+WaveAveragePeriod,Wave Average Period,,,,Parameters,decimal,s,,,SurfaceWaves,0,,,N,N
+WavePeriod,Wave Period,,,,Parameters,decimal,s,,,SurfaceWaves,0,,,N,N
+SpectralWaveBandWidth,Spectral Wave Band Width,,,,Parameters,decimal,s-1,,,SurfaceWaves,,,,N,N
+AmmoniaMolar,Ammonia (Molarity),,,,Parameters,decimal,umol L-1,,,DissolvedNutrients,0,,,N,N
+CarbonateAlkalinityMolar,Carbonate Alkalinity (Molarity),,,,Parameters,decimal,umol L-1,,,Acidity,0,,,N,N
+PhosphateMolar,Phosphate (Molarity),,,,Parameters,decimal,umol L-1,,,DissolvedNutrients,0,,,N,N
+SilicateMolar,Silicate (Molarity),,,,Parameters,decimal,umol L-1,,,DissolvedNutrients,0,,,N,N
+FluorescencePotential,Fluorescence Potential,,,,Parameters,decimal,V,,,Biology,,,,N,N
+FourierA1,Fourier A1 Parameter,,,,Parameters,decimal,,,,Statistics,,,,N,N
+FourierA2,Fourier A2 Parameter,,,,Parameters,decimal,,,,Statistics,,,,N,N
+FourierB1,Fourier B1 Parameter,,,,Parameters,decimal,,,,Statistics,,,,N,N
+FourierB2,Fourier B2 Parameter,,,,Parameters,decimal,,,,Statistics,,,,N,N
+FourierK,Fourier K Parameter,,,,Parameters,decimal,,,,Statistics,,,,N,N
+SeaIceConcentration,Sea Ice Concentration,,,,Parameters,text,,,,IceDistribution,,,,N,N
+SpectralWaveBandCount,Spectral Wave Band Count,,,,Parameters,integer,,,,SurfaceWaves,,,,N,N
+SpectralWaveFourier1,Spectral Wave Fourier 1,,,,Parameters,decimal,,,,SurfaceWaves,,,,N,N
+SpectralWaveFourier2,Spectral Wave Fourier 2,,,,Parameters,decimal,,,,SurfaceWaves,,,,N,N
+SpectralWaveMaxWaveBand,Spectral Wave Maximum Wave Band,,,,Parameters,integer,,,,SurfaceWaves,,,,N,N
+WMOAirPressureCharacteristic,WMO Air Pressure Characteristic,,,,Parameters,text,,,,Meteorology,,,,N,N
+WMOXBTType,WMO XBT Type,,,,Parameters,text,,,,,,,,N,N
+SensorFrequency,Sensor Frequency,Fréquence du capteur,,,Metadata (Element Only),decimal,s-1,,,,,,,N,N
+Unadjusted,Unadjusted Value,Valeur non ajustée,,,Metadata (Element Only),element,,,,,,,,Y,N

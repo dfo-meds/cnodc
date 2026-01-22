@@ -215,8 +215,19 @@
 10004: "variables:AirPressure"
 10009: noop
 10051: "variables:AirPressureAtSeaLevel"
-10061: "variables:AirPressureChange3Hour"
-10062: "variables:AirPressureChange24Hour"
+10061:
+  apply_to: target
+  type: variables
+  name: AirPressureDelta
+  metadata:
+    ObservationPeriod: 10800
+10062:
+  apply_to: target
+  type: variables
+  name: AirPressureDelta
+  metadata:
+    ObservationPeriod: 86400
+
 10063: "variables:WMOAirPressureCharacteristic"
 
 11001: "variables:WindDirection"
@@ -245,7 +256,12 @@
 
 13003: "variables:RelativeHumidity"
 13011: "variables:TotalPrecipitation"
-13023: "variables:TotalPrecipitation24Hour"
+13023:
+  type: variables
+  apply_to: target
+  name: TotalPrecipitation
+  metadata:
+    ObservationPeriod: 86400
 13115: "variables:IceThickness"
 
 14002: "variables:LongwaveRadiation"

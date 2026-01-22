@@ -4,7 +4,7 @@ import shutil
 
 maps = {}
 
-with open('./code_mappings.csv', 'r', encoding='utf-8') as code_maps:
+with open('./code_mappings.csv', 'r', encoding='utf-8-sig') as code_maps:
     for line in code_maps.readlines():
         line = line.strip()
         if line == '':
@@ -55,6 +55,8 @@ def map_data_type(dtype: str):
         return 'cnodc:List'
     elif dtype == 'text':
         return 'xsd:string'
+    elif dtype == 'element':
+        return 'cnodc:Element'
     elif dtype in ('decimal', 'integer', 'date'):
         return f'xsd:{dtype.lower()}'
     else:
@@ -64,7 +66,7 @@ def map_data_type(dtype: str):
 with open('./parameters.ttl', 'w', encoding='utf-8') as output:
     with open('./base.ttl', 'r', encoding='utf-8') as base:
         output.write(base.read())
-    with open('./ioos_categories.csv', 'r', encoding='utf-8') as ioos:
+    with open('./ioos_categories.csv', 'r', encoding='utf-8-sig') as ioos:
         for line in ioos.readlines():
             line = line.strip()
             if line == '':
@@ -84,7 +86,7 @@ with open('./parameters.ttl', 'w', encoding='utf-8') as output:
             if len(pieces) > 4 and pieces[4]:
                 output.write(f'  skos:documentation "{pieces[4]}"@fr ;\n')
             output.write(f'  skos:inScheme cnodc:ioos_categories .\n')
-    with open('./elements.csv', 'r', encoding='utf-8') as elements:
+    with open('./elements.csv', 'r', encoding='utf-8-sig') as elements:
         reader = csv.reader(elements)
         for line in reader:
             if not line:
@@ -131,11 +133,12 @@ with open('./parameters.ttl', 'w', encoding='utf-8') as output:
                         prefix = map_vocab(vocab_name)
                         for mapping in maps[line[0]][vocab_name]:
                             if prefix == 'bufr4':
-                                prefix = f"{prefix}{mapping[1][0:3]}"
+                                actual_prefix = f"{prefix}{mapping[1][0:3]}"
                                 code = mapping[1][3:]
                             else:
                                 code = mapping[1]
-                            output.write(f'  skos:{map_map_type(mapping[0])} {prefix}:{code} ;\n')
+                                actual_prefix = prefix
+                            output.write(f'  skos:{map_map_type(mapping[0])} {actual_prefix}:{code} ;\n')
 
 
 

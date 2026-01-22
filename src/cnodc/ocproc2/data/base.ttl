@@ -79,6 +79,10 @@ cnodc:List rdf:type skos:Concept ;
   skos:prefLabel "List"@en ;
   skos:documentation "List of values" .
 
+cnodc:Element rdf:type skos:Concept ;
+    skos:prefLabel "Element"@en ;
+    skos:documentation "Another element" .
+
 cnodc:ioosCategories rdf:type skos:ConceptScheme .
 
 cnodc:ioosCategory rdf:type rdf:Property ;
