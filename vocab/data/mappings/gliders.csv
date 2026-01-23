@@ -1,0 +1,13 @@
+Element Short Name,Type,Vocabulary,Code
+Time,Exact,Ocean Gliders,TIME
+Latitude,Exact,Ocean Gliders,LAT
+Longitude,Exact,Ocean Gliders,LON
+PracticalSalinity,Exact,Ocean Gliders,PSAL
+Temperature,Exact,Ocean Gliders,TEMP
+Conductivity,Exact,Ocean Gliders,CNDC
+Pressure,Exact,Ocean Gliders,PRES
+DissolvedOxygen,Exact,Ocean Gliders,DOXY
+ChlorophyllA,Exact,Ocean Gliders,CHLA
+Turbidity,Exact,Ocean Gliders,TURB
+GliderPhaseCode,Exact,Ocean Gliders,GLCOMPH
+ColoredDissolvedOrganicMatter,Exact,Ocean Gliders,CDOM

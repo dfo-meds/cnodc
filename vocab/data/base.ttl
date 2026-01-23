@@ -6,6 +6,7 @@
 @prefix p01: <http://vocab.nerc.ac.uk/collection/P01/current/> .
 @prefix p07: <http://vocab.nerc.ac.uk/collection/P07/current/> .
 @prefix p09: <http://vocab.nerc.ac.uk/collection/P09/current/> .
+@prefix og1: <https://vocab.nerc.ac.uk/collection/OG1/current/> .
 @prefix bufr4B01: <https://codes.wmo.int/bufr4/b/01/> .
 @prefix bufr4B02: <https://codes.wmo.int/bufr4/b/02/> .
 @prefix bufr4B03: <https://codes.wmo.int/bufr4/b/03/> .
