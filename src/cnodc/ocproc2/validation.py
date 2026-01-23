@@ -166,7 +166,7 @@ class OCProc2ElementInfo(_BaseInfo):
 class OCProc2Ontology:
 
     def __init__(self, ontology_file: pathlib.Path = None):
-        self._onto_file = ontology_file or pathlib.Path(__file__).absolute().parent / 'ontology' / 'parameters.ttl'
+        self._onto_file = ontology_file or pathlib.Path(__file__).absolute().parent.parent.parent.parent / 'vocab' / 'cnodc.ttl'
         self._parameters: t.Optional[dict[str, OCProc2ElementInfo]] = None
         self._recordset_types: t.Optional[dict, str, OCProc2ChildRecordTypeInfo] = None
         self._load_lock = threading.Lock()

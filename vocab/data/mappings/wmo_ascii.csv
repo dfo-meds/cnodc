@@ -1,0 +1,86 @@
+﻿Element Short Name,Type,Vocabulary,Code
+AirPressure,Exact,WMO Codes,FM18-XII: P0 P0 P0 P0
+AirPressureAtSeaLevel,Exact,WMO Codes,FM18-XII: P P P P
+AirPressureChange24Hour,Exact,WMO Codes,FM18-XII: a
+AirPressureChange3Hour,Exact,WMO Codes,FM18-XII: p p p
+AirTemperature,Exact,WMO Codes,FM18-XII: sn T T T
+AirTemperature,Exact,WMO Codes,FM63-XI: sn T T T
+AirTemperature,Exact,WMO Codes,FM64-X: sn T T T
+CurrentDirection,Exact,WMO Codes,FM18-XII: dn dn
+CurrentDirection,Exact,WMO Codes,FM62-VIII: d0 d0
+CurrentDirection,Exact,WMO Codes,FM63-XI: Dc Dc
+CurrentDirection,Exact,WMO Codes,FM64-X: dn dn
+CurrentSpeed,Exact,WMO Codes,FM18-XII: cn cn cn
+CurrentSpeed,Exact,WMO Codes,FM62-VIII: c0 c0
+CurrentSpeed,Exact,WMO Codes,FM63-XI: Vc Vc
+CurrentSpeed,Exact,WMO Codes,FM64-X: cn cn cn
+Depth,Exact,WMO Codes,FM18-XII: zn zn zn zn
+Depth,Exact,WMO Codes,FM63-XI: zn zn
+Depth,Exact,WMO Codes,FM64-X: zn zn zn zn
+DewpointTemperature,Exact,WMO Codes,FM18-XII: sn Td Td Td
+LastKnownPositionTime,Exact,WMO Codes,FM18-XII Buoy: Y Y M M J G G g g / (Second Group)
+Latitude,Exact,WMO Codes,FM18-XII: Qc La La La La La
+Latitude,Exact,WMO Codes,FM62-VIII: Qc La La La La
+Latitude,Exact,WMO Codes,FM63-XI: Qc La La La La
+Latitude,Exact,WMO Codes,FM64-X: Qc La La La La La
+Longitude,Exact,WMO Codes,FM18-XII: Qc + Lo Lo Lo Lo Lo Lo
+Longitude,Exact,WMO Codes,FM62-VIII: Qc + Lo Lo Lo Lo Lo
+Longitude,Exact,WMO Codes,FM63-XI: Qc + Lo Lo Lo Lo Lo
+Longitude,Exact,WMO Codes,FM64-X: Qc + Lo Lo Lo Lo Lo Lo
+ObservationPeriod,Exact,WMO Codes,FM62-VIII: mT
+ObservationPeriod,Exact,WMO Codes,FM62-VIII: mS
+ObservationPeriod,Exact,WMO Codes,FM62-VIII: mc
+PracticalSalinity,Exact,WMO Codes,FM18-XII: Sn Sn Sn Sn
+PracticalSalinity,Exact,WMO Codes,FM62-VIII: S0 S0 S0 S0
+PracticalSalinity,Exact,WMO Codes,FM64-X: Sn Sn Sn Sn
+Quality,Exact,WMO Codes,FM18-XII: Ql
+Quality,Exact,WMO Codes,FM18-XII: Qt
+Quality,Exact,WMO Codes,FM18-XII: Qd Qx
+RelativeHumidity,Exact,WMO Codes,FM18-XII: U U U
+SeaDepth,Exact,WMO Codes,FM63-XI: Zd Zd Zd Zd
+SeaDepth,Exact,WMO Codes,FM64-X: Zd Zd Zd Zd
+SensorHeightAboveWater,Exact,WMO Codes,FM18-XII: Ah Ah Ah
+StationID,Exact,WMO Codes,FM62-VIII: D....D
+StationID,Exact,WMO Codes,FM63-XI: D....D
+StationID,Exact,WMO Codes,FM64-X: D....D
+Temperature,Exact,WMO Codes,FM18-XII: Tw Tw Tw
+Temperature,Exact,WMO Codes,FM18-XII: Tn Tn Tn Tn
+Temperature,Exact,WMO Codes,FM62-VIII: sn Tw Tw Tw
+Temperature,Exact,WMO Codes,FM63-XI: Tn Tn Tn
+Temperature,Exact,WMO Codes,FM64-X: Tn Tn Tn Tn
+Time,Exact,WMO Codes,FM18-XII: Y Y M M J + G G g g
+Time,Exact,WMO Codes,FM62-VIII: Y Y M M J + G G g g
+Time,Exact,WMO Codes,FM63-XI: Y Y M M J + G G g g
+Time,Exact,WMO Codes,FM64-X: Y Y M M J + G G g g
+WMOCurrentMeasurementDuration,Exact,WMO Codes,FM64-X: k3
+WMOCurrentMeasurementMethod,Exact,WMO Codes,FM63-XI: k5
+WMODataBuoyType,Exact,WMO Codes,FM18-XII: Bt Bt
+WMODigitization,Exact,WMO Codes,FM63-XI: k1
+WMODigitization,Exact,WMO Codes,FM64-X: k1
+WMODrogueType,Exact,WMO Codes,FM18-XII: Xt Xt
+WMOID,Exact,WMO Codes,FM18-XII: A1 bw nb nb nb
+WMOID,Exact,WMO Codes,FM63-XI: A1 bw nb nb nb
+WMOID,Exact,WMO Codes,FM64-X: A1 bw nb nb nb
+WMOPlatformMotionRemovalMethod,Exact,WMO Codes,FM64-X: k6
+WMOProfileInstrumentType,Exact,WMO Codes,FM63-XI: IX IX IX
+WMOProfileInstrumentType,Exact,WMO Codes,FM64-X: IX IX IX
+WMOProfileRecorderType,Exact,WMO Codes,FM63-XI: XR XR
+WMOProfileRecorderType,Exact,WMO Codes,FM64-X: XR XR
+WMOQualityLocation,Exact,WMO Codes,FM18-XII: QL
+WMOQualityLocation,Exact,WMO Codes,FM18-XII: QA
+WMOQualityLocationClass,Exact,WMO Codes,FM18-XII: QA
+WMOQualitySatellite,Exact,WMO Codes,FM18-XII: QN
+WMOSalinityDepthMeasurementMethod,Exact,WMO Codes,FM64-X: k2
+WMOWindInstrumentType,Exact,WMO Codes,FM18-XII: An
+WMOWindInstrumentType,Exact,WMO Codes,FM63-XI: iu
+WMOWindInstrumentType,Exact,WMO Codes,FM64-X: iu
+WaveHeight,Exact,WMO Codes,FM18-XII: Hwa Hwa
+WaveHeight,Exact,WMO Codes,FM18-XII: Hwa Hwa Hwa
+WavePeriod,Exact,WMO Codes,FM18-XII: Pwa Pwa
+WavePeriod,Exact,WMO Codes,FM18-XII: Pwa Pwa Pwa
+WindDirection,Exact,WMO Codes,FM18-XII: d d
+WindDirection,Exact,WMO Codes,FM63-XI: d d
+WindDirection,Exact,WMO Codes,FM64-X: dd
+WindSpeed,Exact,WMO Codes,FM18-XII: f f
+WindSpeed,Exact,WMO Codes,FM63-XI: f f
+WindSpeed,Exact,WMO Codes,FM64-X: f f

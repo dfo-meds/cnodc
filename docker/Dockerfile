@@ -34,6 +34,7 @@ RUN chmod +x start.sh
 COPY docker/gunicorn_conf.py gunicorn_conf.py
 
 COPY src app/src
+COPY vocab app/vocab
 COPY app.py app/app.py
 COPY process.py app/process.py
 COPY docker/.cnodc.processor.defaults.toml app/.cnodc.processor.defaults.toml
