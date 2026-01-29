@@ -93,6 +93,23 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         output.write(f'cnodc:{row[0]} rdf:type skos:Concept ;\n')
         # English & French labels
         output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
+        if row[3]:
+            output.write(f'  skos:prefLabel "{row[3]}"@fr ;\n')
+        # Additional documentation
+        if row[2]:
+            output.write(f'  skos:documentation "{row[2]}"@en ;\n')
+        if row[4]:
+            output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
+        # Add it to the scheme
+        output.write(f'  skos:inScheme cnodc:ioos_categories .\n')
+
+    # Write out all the IOOS categories
+    for row in read_lines_csv(DIR / 'data' / 'cioos_eovs.csv', 'Short Name'):
+        output.write("\n")
+        # Concept name
+        output.write(f'cnodc:{row[0]} rdf:type skos:Concept ;\n')
+        # English & French labels
+        output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
         if row[2]:
             output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
         # Additional documentation
@@ -101,8 +118,8 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         if row[4]:
             output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
         # Add it to the scheme
-        output.write(f'  skos:inScheme cnodc:ioos_categories .\n')
-        
+        output.write(f'  skos:inScheme cnodc:essentialOceanVariables .\n')
+
     # Write out all the element names
     for row in read_lines_csv(DIR / 'data' / 'elements.csv', 'Short Name'):
         output.write("\n")
@@ -134,6 +151,10 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         # IOOS category
         if row[10]:
             output.write(f'  cnodc:ioosCategory cnodc:{row[10]} ; \n')
+        # CIOOS EOVs
+        if row[16]:
+            for eov in row[16].split(';'):
+                output.write(f'  cnodc:essentialOceanVariable cnodc:{eov} ; \n')
         # Minimum valid value
         if row[11]:
             output.write(f'  cnodc:minValue {row[11]} ; \n')

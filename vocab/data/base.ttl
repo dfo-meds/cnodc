@@ -90,6 +90,12 @@ cnodc:ioosCategory rdf:type rdf:Property ;
     rdfs:domain skos:Concept ;
     rdfs:range cnodc:ioosCategories .
 
+cnodc:essentialOceanVariables rdf:type skos:ConceptScheme .
+
+cnodc:essentialOceanVariable rdf:type rdf:Property ;
+    rdfs:domain skos:Concept ;
+    rdfs:range cnodc:ioosCategories .
+
 cnodc:elements rdf:type skos:ConceptScheme .
 
 
