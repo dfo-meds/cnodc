@@ -3,6 +3,7 @@ import os
 import shutil
 import pathlib
 import typing as t
+from urllib.parse import quote
 
 DIR = pathlib.Path(__file__).absolute().parent
 
@@ -63,6 +64,9 @@ def read_lines_csv(file_path, header0: str) -> t.Iterable[tuple]:
                 continue
             yield row
 
+def sanitize(s):
+    return quote(s)
+
 
 # Load all the mapping files (they're sorted by vocabulary)
 maps = {}
@@ -90,7 +94,7 @@ with open(temp_file, 'w', encoding='utf-8') as output:
     for row in read_lines_csv(DIR / 'data' / 'ioos_categories.csv', 'Short Name'):
         output.write("\n")
         # Concept name
-        output.write(f'cnodc:{row[0]} rdf:type skos:Concept ;\n')
+        output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
         # English & French labels
         output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
         if row[3]:
@@ -107,7 +111,7 @@ with open(temp_file, 'w', encoding='utf-8') as output:
     for row in read_lines_csv(DIR / 'data' / 'cioos_eovs.csv', 'Short Name'):
         output.write("\n")
         # Concept name
-        output.write(f'cnodc:{row[0]} rdf:type skos:Concept ;\n')
+        output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
         # English & French labels
         output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
         if row[2]:
@@ -124,7 +128,7 @@ with open(temp_file, 'w', encoding='utf-8') as output:
     for row in read_lines_csv(DIR / 'data' / 'elements.csv', 'Short Name'):
         output.write("\n")
         # Concept name
-        output.write(f'cnodc:{row[0]} rdf:type skos:Concept ;\n')
+        output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
         # Labels
         if row[1]:
             output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
@@ -150,11 +154,11 @@ with open(temp_file, 'w', encoding='utf-8') as output:
             output.write(f'  cnodc:variableName "{row[9]}" ;\n')
         # IOOS category
         if row[10]:
-            output.write(f'  cnodc:ioosCategory cnodc:{row[10]} ; \n')
+            output.write(f'  cnodc:ioosCategory cnodc:{sanitize(row[10])} ; \n')
         # CIOOS EOVs
         if row[16]:
             for eov in row[16].split(';'):
-                output.write(f'  cnodc:essentialOceanVariable cnodc:{eov} ; \n')
+                output.write(f'  cnodc:essentialOceanVariable cnodc:{sanitize(eov)} ; \n')
         # Minimum valid value
         if row[11]:
             output.write(f'  cnodc:minValue {row[11]} ; \n')
@@ -186,14 +190,14 @@ with open(temp_file, 'w', encoding='utf-8') as output:
                         else:
                             code = mapping[1]
                             actual_prefix = prefix
-                        output.write(f'  skos:{map_map_type(mapping[0])} {actual_prefix}:{code} ;\n')
+                        output.write(f'  skos:{map_map_type(mapping[0])} {actual_prefix}:{sanitize(code)} ;\n')
         # The scheme
         output.write('  skos:inScheme cnodc:elements .\n')
 
     for row in read_lines_csv(DIR / 'data' / 'rs_types.csv', 'Short Name'):
         output.write('\n')
         # element name
-        output.write(f'cnodc:{row[0]}  rdf:type skos:Concept ;\n')
+        output.write(f'cnodc:{sanitize(row[0])}  rdf:type skos:Concept ;\n')
         # labels
         if row[1]:
             output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
@@ -202,7 +206,7 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         # if present, at least one of these coordinates is required for it to make sense.
         if row[3]:
             for coordinate_name in row[3].split(';'):
-                output.write(f'  cnodc:requireCoordinate cnodc:{coordinate_name} ;\n')
+                output.write(f'  cnodc:requireCoordinate cnodc:{sanitize(coordinate_name)} ;\n')
         # scheme
         output.write(f'  skos:inScheme cnodc:recordSetTypes .\n')
 

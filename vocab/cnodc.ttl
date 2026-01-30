@@ -251,7 +251,7 @@ cnodc:Ecology rdf:type skos:Concept ;
   skos:prefLabel "Ecology"@en ;
   skos:inScheme cnodc:ioos_categories .
 
-cnodc:Fish  rdf:type skos:Concept ;
+cnodc:Fish%20 rdf:type skos:Concept ;
   skos:prefLabel "Fish "@en ;
   skos:inScheme cnodc:ioos_categories .
 
@@ -857,7 +857,7 @@ cnodc:IceThickness rdf:type skos:Concept ;
   cnodc:essentialOceanVariable cnodc:seaIce ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B13:115 ;
-  skos:exactMatch pcode:ICT$ ;
+  skos:exactMatch pcode:ICT%24 ;
   skos:inScheme cnodc:elements .
 
 cnodc:SeaIceConcentration rdf:type skos:Concept ;
@@ -964,7 +964,7 @@ cnodc:IMONumber rdf:type skos:Concept ;
   cnodc:dataType xsd:string ;
   cnodc:ioosCategory cnodc:Identifier ; 
   skos:exactMatch bufr4B01:103 ;
-  skos:exactMatch pcode:LYD$ ;
+  skos:exactMatch pcode:LYD%24 ;
   skos:inScheme cnodc:elements .
 
 cnodc:PlatformModel rdf:type skos:Concept ;
@@ -989,7 +989,7 @@ cnodc:ProfileDirection rdf:type skos:Concept ;
   cnodc:dataType xsd:string ;
   cnodc:ioosCategory cnodc:Identifier ; 
   skos:exactMatch bufr4B22:056 ;
-  skos:exactMatch pcode:PDR$ ;
+  skos:exactMatch pcode:PDR%24 ;
   skos:inScheme cnodc:elements .
 
 cnodc:ProfileID rdf:type skos:Concept ;
@@ -1062,7 +1062,7 @@ cnodc:StationName rdf:type skos:Concept ;
   skos:exactMatch bufr4B01:019 ;
   skos:exactMatch pcode:PLTN ;
   skos:exactMatch pcode:PNM1 ;
-  skos:exactMatch pcode:SHP%23 ;
+  skos:exactMatch pcode:SHP%2523 ;
   skos:inScheme cnodc:elements .
 
 cnodc:TransmitterID rdf:type skos:Concept ;
@@ -1098,7 +1098,7 @@ cnodc:WMOID rdf:type skos:Concept ;
   skos:narrowerMatch bufr4B01:004 ;
   skos:narrowerMatch bufr4B01:005 ;
   skos:narrowerMatch bufr4B01:020 ;
-  skos:exactMatch pcode:WMO$ ;
+  skos:exactMatch pcode:WMO%24 ;
   cnodc:wmoCodeGroup "FM18-XII: A1 bw nb nb nb" ; 
   cnodc:wmoCodeGroup "FM63-XI: A1 bw nb nb nb" ; 
   cnodc:wmoCodeGroup "FM64-X: A1 bw nb nb nb" ; 
@@ -1218,7 +1218,7 @@ cnodc:XBTHeight rdf:type skos:Concept ;
   cnodc:preferredUnit "m" ;
   cnodc:ioosCategory cnodc:Location ; 
   skos:exactMatch bufr4B22:177 ;
-  skos:exactMatch pcode:HTL$ ;
+  skos:exactMatch pcode:HTL%24 ;
   skos:inScheme cnodc:elements .
 
 cnodc:AirPressure rdf:type skos:Concept ;
@@ -1404,7 +1404,7 @@ cnodc:WMOAirPressureCharacteristic rdf:type skos:Concept ;
   cnodc:dataType xsd:string ;
   cnodc:ioosCategory cnodc:Meteorology ; 
   skos:exactMatch bufr4B10:063 ;
-  skos:exactMatch pcode:GPT$ ;
+  skos:exactMatch pcode:GPT%24 ;
   skos:inScheme cnodc:elements .
 
 cnodc:LightTransmission rdf:type skos:Concept ;
@@ -1476,7 +1476,7 @@ cnodc:WMOQualityLocationClass rdf:type skos:Concept ;
   cnodc:dataType xsd:string ;
   cnodc:ioosCategory cnodc:Quality ; 
   skos:exactMatch bufr4B33:027 ;
-  skos:exactMatch pcode:BQA$ ;
+  skos:exactMatch pcode:BQA%24 ;
   skos:broaderMatch pcode:GGST ;
   cnodc:wmoCodeGroup "FM18-XII: QA" ; 
   skos:inScheme cnodc:elements .
@@ -1896,8 +1896,8 @@ cnodc:LastKnownPositionTime rdf:type skos:Concept ;
   skos:narrowerMatch bufr4B04:005 ;
   skos:narrowerMatch bufr4B04:006 ;
   skos:narrowerMatch bufr4B04:007 ;
-  skos:narrowerMatch pcode:PDT$ ;
-  skos:narrowerMatch pcode:PTM$ ;
+  skos:narrowerMatch pcode:PDT%24 ;
+  skos:narrowerMatch pcode:PTM%24 ;
   cnodc:wmoCodeGroup "FM18-XII Buoy: Y Y M M J G G g g / (Second Group)" ; 
   skos:inScheme cnodc:elements .
 
@@ -2047,7 +2047,7 @@ cnodc:BatteryVoltage rdf:type skos:Concept ;
   cnodc:preferredUnit "V" ;
   skos:exactMatch bufr4B25:025 ;
   skos:exactMatch bufr4B25:026 ;
-  skos:exactMatch pcode:PBV$ ;
+  skos:exactMatch pcode:PBV%24 ;
   skos:inScheme cnodc:elements .
 
 cnodc:BUFRDataCategory rdf:type skos:Concept ;
@@ -2414,7 +2414,7 @@ cnodc:WMODataBuoyType rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
   skos:exactMatch bufr4B02:149 ;
-  skos:exactMatch pcode:BTP$ ;
+  skos:exactMatch pcode:BTP%24 ;
   cnodc:wmoCodeGroup "FM18-XII: Bt Bt" ; 
   skos:inScheme cnodc:elements .
 
@@ -2461,7 +2461,7 @@ cnodc:WMODrogueType rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
   skos:exactMatch bufr4B02:034 ;
-  skos:exactMatch pcode:DRT$ ;
+  skos:exactMatch pcode:DRT%24 ;
   cnodc:wmoCodeGroup "FM18-XII: Xt Xt" ; 
   skos:inScheme cnodc:elements .
 
@@ -2486,9 +2486,9 @@ cnodc:WMOProfileInstrumentType rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
   skos:exactMatch bufr4B22:067 ;
-  skos:exactMatch pcode:PEQ$ ;
-  skos:exactMatch pcode:RCT$ ;
-  skos:broaderMatch pcode:PFR$ ;
+  skos:exactMatch pcode:PEQ%24 ;
+  skos:exactMatch pcode:RCT%24 ;
+  skos:broaderMatch pcode:PFR%24 ;
   cnodc:wmoCodeGroup "FM63-XI: IX IX IX" ; 
   cnodc:wmoCodeGroup "FM64-X: IX IX IX" ; 
   skos:inScheme cnodc:elements .
@@ -2498,9 +2498,9 @@ cnodc:WMOProfileRecorderType rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
   skos:exactMatch bufr4B22:068 ;
-  skos:exactMatch pcode:PRT$ ;
-  skos:exactMatch pcode:SYS$ ;
-  skos:broaderMatch pcode:PFR$ ;
+  skos:exactMatch pcode:PRT%24 ;
+  skos:exactMatch pcode:SYS%24 ;
+  skos:broaderMatch pcode:PFR%24 ;
   cnodc:wmoCodeGroup "FM63-XI: XR XR" ; 
   cnodc:wmoCodeGroup "FM64-X: XR XR" ; 
   skos:inScheme cnodc:elements .
@@ -2555,7 +2555,7 @@ cnodc:WMOWindInstrumentType rdf:type skos:Concept ;
   cnodc:dataType xsd:string ;
   skos:exactMatch bufr4B02:002 ;
   skos:exactMatch pcode:GGWI ;
-  skos:exactMatch pcode:ANT$ ;
+  skos:exactMatch pcode:ANT%24 ;
   cnodc:wmoCodeGroup "FM18-XII: An" ; 
   cnodc:wmoCodeGroup "FM63-XI: iu" ; 
   cnodc:wmoCodeGroup "FM64-X: iu" ; 
