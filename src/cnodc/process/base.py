@@ -1,4 +1,5 @@
 """Provides base tools for process workers"""
+import gzip
 import os
 import signal
 import tempfile
@@ -10,7 +11,7 @@ import yaml
 import zrlog
 import pathlib
 from zrlog.logger import ImprovedLogger
-from cnodc.util import HaltFlag, dynamic_object, CNODCError
+from cnodc.util import HaltFlag, dynamic_object, CNODCError, haltable_gzip
 import json
 
 
@@ -385,3 +386,8 @@ class BaseWorker:
         if self._temp_dir is not None:
             self._temp_dir.cleanup()
             self._temp_dir = None
+
+    def gzip_local_file(self, source_file, destination_file):
+        haltable_gzip(source_file, destination_file, halt_flag=self._halt_flag)
+
+
