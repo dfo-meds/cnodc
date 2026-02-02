@@ -1,8 +1,16 @@
+from __future__ import annotations
 import decimal
 import enum
 import math
 import typing as t
 import datetime
+
+import netCDF4
+import numpy as np
+
+from cnodc.netcdf.wrapper import Dataset, _Variable
+from autoinject import injector
+
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -18,12 +26,51 @@ def mltext(*, english: t.Optional[str] = None, french: t.Optional[str] = None, g
     return txt
 
 
+def unnumpy(numpy_val):
+    if numpy_val is None:
+        return None
+    elif isinstance(numpy_val, decimal.Decimal):
+        return str(numpy_val)
+    elif isinstance(numpy_val, str):
+        return numpy_val
+    elif isinstance(numpy_val, (int, float)):
+        return numpy_val if not math.isnan(numpy_val) else None
+    elif np.isscalar(numpy_val):
+        item = numpy_val.item()
+        return None if math.isnan(item) else item
+    elif isinstance(numpy_val, np.ndarray):
+        if isinstance(numpy_val.dtype, np.dtypes.Int8DType):
+            if numpy_val.ndim == 0:
+                val = int(numpy_val)
+                return None if math.isnan(val) else val
+            return [None if math.isnan(int(x)) else int(x) for x in numpy_val]
+        elif isinstance(numpy_val.dtype, np.dtypes.Float64DType):
+            if numpy_val.ndim == 0:
+                val = float(numpy_val)
+                return None if math.isnan(val) else val
+            return [None if math.isnan(float(x)) else float(x) for x in numpy_val]
+    else:
+        return numpy_val
+
+
 class Encoding(enum.Enum):
 
     UTF8 = "utf8"  # strongly recommended
     ISO_8859_1 = "iso-8859-1"
     UTF16 = "utf16"
 
+    @staticmethod
+    def get_encoding(encoding: str):
+        if encoding == 'utf-8':
+            return Encoding.UTF8
+        return Encoding(encoding)
+
+
+class Axis(enum.Enum):
+    Time = 'T'
+    Longitude = 'X'
+    Latitude = 'Y'
+    Depth = 'Z'
 
 class NetCDFDataType(enum.Enum):
     String = "String"
@@ -39,6 +86,34 @@ class NetCDFDataType(enum.Enum):
     Byte = "byte"
     ByteUnsigned = "ubyte"
 
+    @staticmethod
+    def from_netcdf_file(name):
+        if name == 'float64':
+            return NetCDFDataType.Double
+        elif name == 'float32':
+            return NetCDFDataType.Float
+        elif name == 'int8':
+            return NetCDFDataType.Long
+        elif name == 'int4':
+            return NetCDFDataType.Integer
+        elif name == 'int2':
+            return NetCDFDataType.Short
+        elif name == 'int1':
+            return NetCDFDataType.Byte
+        elif name == 'uint8':
+            return NetCDFDataType.LongUnsigned
+        elif name == 'uint4':
+            return NetCDFDataType.IntegerUnsigned
+        elif name == 'uint2':
+            return NetCDFDataType.ShortUnsigned
+        elif name == 'uint1':
+            return NetCDFDataType.ByteUnsigned
+        elif name == 'S1':
+            return NetCDFDataType.Character
+        elif isinstance(name, netCDF4.VLType):
+            return NetCDFDataType.String
+        else:
+            raise ValueError(f'Unknown NetCDF data type [{name}]')
 
 class Unit(enum.Enum):
 
@@ -316,11 +391,42 @@ class CommonDataModelType(enum.Enum):
     TimeSeriesProfile = "TimeSeriesProfile"  # station:(x, y) and (t, d)
     Trajectory = "Trajectory"  # station: () and (x, y, t[, d])
     TrajectoryProfile = "TrajectoryProfile"  # station: () and (x, y, t) and (d)
+
+    # These are non-standard but recognized by ERDDAP
     Grid = "Grid"  # fixed (x, y[, t][, d]) grid
     MovingGrid = "MovingGrid"  # grid but (x,y[,d]) may vary over time
     RadialSweep = "RadialSweep"  # e.g. radial / gate, azimuth/distance, etc
     Swath = "Swath"
+
     Other = "Other"  # data that does not have geographical coordinates
+
+    @staticmethod
+    def from_netcdf(attr_value):
+        if not attr_value:
+            return None
+        lower_attr = attr_value.lower()
+        if lower_attr == 'point':
+            return CommonDataModelType.Point
+        elif lower_attr == 'timeseries':
+            return CommonDataModelType.TimeSeries
+        elif lower_attr == 'trajectory':
+            return CommonDataModelType.Trajectory
+        elif lower_attr == 'profile':
+            return CommonDataModelType.Profile
+        elif lower_attr == 'timeseriesprofile':
+            return CommonDataModelType.TimeSeriesProfile
+        elif lower_attr == 'trajectoryprofile':
+            return CommonDataModelType.TrajectoryProfile
+        elif lower_attr == 'grid':
+            return CommonDataModelType.Grid
+        elif lower_attr == 'movinggrid':
+            return CommonDataModelType.MovingGrid
+        elif lower_attr == 'radialsweep':
+            return CommonDataModelType.RadialSweep
+        elif lower_attr == 'swath':
+            return CommonDataModelType.Swath
+        else:
+            return CommonDataModelType.Other
 
 
 class StandardName(enum.Enum):
@@ -1059,12 +1165,39 @@ class Variable(EntityRef):
             self.set_is_altitude_proxy(is_altitude_proxy)
 
 
+    def get_cnodc_name(self):
+        if 'cnodc_name' in self._metadata:
+            return self._metadata['cnodc_name']
+
+    def set_cnodc_name(self, name: str):
+        self._metadata['cnodc_name'] = name
+
+    def get_axis(self):
+        if 'axis' in self._metadata:
+            return self._metadata['axis']
+
+    def get_units(self):
+        if 'units' in self._metadata:
+            return self._metadata['units']
+
+    def get_range(self):
+        return (self._metadata['actual_min'] if 'actual_min' in self._metadata else None), (self._metadata['actual_max'] if 'actual_max' in self._metadata else None)
+
+    def set_positive_direction(self, dir: Direction):
+        """
+        :param dir: The direction of positive values.
+        """
+        self._metadata['positive'] = dir.value
 
     def set_encoding(self, enc: Encoding):
         """
         :param enc: The text encoding for this text field
         """
         self._metadata['encoding'] = enc.value
+
+    def get_source_name(self) -> t.Optional[str]:
+        if 'source_name' in self._metadata:
+            return self._metadata['source_name']
 
     def set_source_name(self, name: str):
         """
@@ -1102,22 +1235,22 @@ class Variable(EntityRef):
         """
         self._metadata['long_name'] = EntityRef.format_multilingual_text(long_name)
 
-    def set_standard_name(self, standard_name: StandardName):
+    def set_standard_name(self, standard_name: t.Union[StandardName, str]):
         """
         :param standard_name: The standard name of the variable
         """
-        self._metadata['standard_name'] = standard_name.value
+        self._metadata['standard_name'] = standard_name.value if isinstance(standard_name, StandardName) else standard_name
 
     def get_standard_name(self) -> t.Optional[str]:
         if 'standard_name' in self._metadata:
             return self._metadata['standard_name']
         return None
 
-    def set_units(self, units: Unit):
+    def set_units(self, units: t.Union[Unit, str]):
         """
         :param units: The units for this variable
         """
-        self._metadata['units'] = units.value
+        self._metadata['units'] = units.value if isinstance(units, Unit) else units
 
     def set_time_precision(self,time_precision: TimePrecision):
         """
@@ -1144,19 +1277,19 @@ class Variable(EntityRef):
         """
         self._metadata['units'] = f"{base_units.value} since {epoch.isoformat("T")}"
 
-    def set_missing_value(self, missing_value: str):
+    def set_missing_value(self, missing_value: NumberLike):
         """
         :param missing_value: What should null values look like in the NetCDF file
         """
-        self._metadata['missing_value'] = missing_value
+        self._metadata['missing_value'] = unnumpy(missing_value)
 
     def set_conversion(self, scale_factor: t.Optional[NumberLike] = "", add_offset: t.Optional[NumberLike] = ""):
         """
         :param scale_factor: The value to multiply the stored value by (default 1)
         :param add_offset: The value to add to the stored value (default 0)
         """
-        self._metadata['scale_factor'] = scale_factor
-        self._metadata['add_offset'] = add_offset
+        self._metadata['scale_factor'] = unnumpy(scale_factor)
+        self._metadata['add_offset'] = unnumpy(add_offset)
 
     def set_ioos_category(self, category: IOOSCategory):
         """
@@ -1169,16 +1302,16 @@ class Variable(EntityRef):
         :param min_val: The actual minimum value in the dataset
         :param max_val: The actual maximum value in the dataset
         """
-        self._metadata['actual_min'] = min_val
-        self._metadata['actual_max'] = max_val
+        self._metadata['actual_min'] = unnumpy(min_val)
+        self._metadata['actual_max'] = unnumpy(max_val)
 
     def set_valid_range(self, min_val: t.Optional[NumberLike] = None, max_val: t.Optional[NumberLike] = None):
         """
         :param min_val: The minimum possible valid value in the dataset
         :param max_val: The maximum possible valid value in the dataset
         """
-        self._metadata['valid_min'] = min_val
-        self._metadata['valid_max'] = max_val
+        self._metadata['valid_min'] = unnumpy(min_val)
+        self._metadata['valid_max'] = unnumpy(max_val)
 
     def set_allow_subsets(self, subsets: bool):
         """
@@ -1237,6 +1370,93 @@ class Variable(EntityRef):
         """
         self._metadata['altitude_proxy'] = not not is_proxy
 
+    def set_axis(self, axis: Axis):
+        self._metadata['axis'] = axis.value
+
+    def set_additional_properties(self, properties: dict):
+        if 'custom_metadata' not in self._metadata:
+            self._metadata['custom_metadata'] = {}
+        for key in properties:
+            self._metadata['custom_metadata'][key] = unnumpy(properties[key])
+
+    @staticmethod
+    def build_from_netcdf(ds_var: _Variable, locale_map) -> Variable:
+        var_attributes = {x: v for x, v in ds_var.attributes()}
+        dtype = NetCDFDataType.from_netcdf_file(ds_var.data_type)
+        var = Variable(
+            var_name=ds_var.name,
+            var_data_type=dtype,
+            dimensions=ds_var.dimensions,
+            long_name=get_bilingual_attribute(var_attributes, 'long_name', locale_map),
+        )
+        if 'comment' in var_attributes:
+            var.set_comment(var_attributes.pop('comment'))
+        if 'references' in var_attributes:
+            var.set_references(var_attributes.pop('references'))
+        if 'source' in var_attributes:
+            var.set_source(var_attributes.pop('source'))
+        if 'coverage_content_type' in var_attributes:
+            var.set_coverage_content_type(var_attributes.pop('coverage_content_type'))
+        if 'units' in var_attributes:
+            var.set_units(var_attributes.pop('units'))
+        if 'missing_value' in var_attributes:
+            var.set_missing_value(var_attributes.pop('missing_value'))
+            var_attributes.pop("_FillValue", "")
+        elif '_FillValue' in var_attributes:
+            var.set_missing_value(var_attributes.pop('_FillValue'))
+        if '_Encoding' in var_attributes:
+            var.set_encoding(Encoding.get_encoding(var_attributes.pop('_Encoding')))
+        elif ds_var.data_type == "S1":
+            var.set_encoding(Encoding.UTF8)
+        valid_min, valid_max = None, None
+        if 'valid_min' in var_attributes:
+            valid_min = var_attributes.pop('valid_min')
+        if 'valid_max' in var_attributes:
+            valid_max = var_attributes.pop('valid_max')
+        if valid_min is not None or valid_max is not None:
+            var.set_valid_range(valid_min, valid_max)
+        if 'standard_name' in var_attributes:
+            var.set_standard_name(var_attributes.pop('standard_name'))
+        if 'calendar' in var_attributes:
+            cal_name = var_attributes.pop('calendar')
+            if cal_name == 'gregorian':
+                var.set_calendar(Calendar.Standard)
+            else:
+                var.set_calendar(Calendar(var_attributes.pop('calendar')))
+        if 'positive' in var_attributes:
+            var.set_positive_direction(Direction(var_attributes.pop('positive')))
+        scale_factor, add_offset = None, None
+        if 'scale_factor' in var_attributes:
+            scale_factor = var_attributes.pop('scale_factor')
+        if 'add_offset' in var_attributes:
+            add_offset = var_attributes.pop('add_offset')
+        if scale_factor is not None or add_offset is not None:
+            var.set_conversion(scale_factor, add_offset)
+        if 'time_precision' in var_attributes:
+            var.set_time_precision(var_attributes.pop('time_precision'))
+        if 'time_zone' in var_attributes:
+            var.set_time_zone(var_attributes.pop('time_zone'))
+        if 'cf_role' in var_attributes:
+            var.set_role(CFVariableRole(var_attributes.pop('cf_role')))
+        if 'axis' in var_attributes:
+            var.set_axis(Axis(var_attributes.pop('axis')))
+        if 'cnodc_standard_name' in var_attributes:
+            var.set_cnodc_name(var_attributes.pop('cnodc_standard_name'))
+        if dtype != NetCDFDataType.Character and dtype != NetCDFDataType.String:
+            var.set_actual_range(*ds_var.range())
+            if 'actual_min' in var_attributes:
+                var_attributes.pop('actual_min')
+            if 'actual_max' in var_attributes:
+                var_attributes.pop('actual_max')
+        var.set_additional_properties(var_attributes)
+        return var
+
+def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
+    attr = {}
+    for suffix in locale_map.keys():
+        if f"{attribute_name}{suffix}" in attribute_dict:
+            attr[locale_map[suffix]] = attribute_dict.pop(f"{attribute_name}{suffix}")
+    return attr
 
 class MaintenanceRecord(EntityRef):
 
@@ -1928,7 +2148,25 @@ class Keyword(EntityRef):
 
 class DatasetMetadata:
 
+    ontology: cnodc.ocproc2.ontology.OCProc2Ontology = None
+
+    REPRESENTATION_MAP = {
+        CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
+        CommonDataModelType.Profile: SpatialRepresentation.TextTable,
+        CommonDataModelType.TimeSeries: SpatialRepresentation.TextTable,
+        CommonDataModelType.Trajectory: SpatialRepresentation.TextTable,
+        CommonDataModelType.TimeSeriesProfile: SpatialRepresentation.TextTable,
+        CommonDataModelType.Point: SpatialRepresentation.TextTable,
+        CommonDataModelType.Grid: SpatialRepresentation.Grid,
+        CommonDataModelType.MovingGrid: SpatialRepresentation.Grid,
+
+    }
+
+
+    @injector.construct
     def __init__(self):
+        self._guid: t.Optional[str] = None
+        self._authority: t.Optional[str] = None
         self._metadata: dict[str, t.Any] = {}
         self._act_workflow: t.Optional[str] = None
         self._pub_workflow: t.Optional[str] = None
@@ -1936,7 +2174,8 @@ class DatasetMetadata:
         self._org_name: t.Optional[str] = None
         self._display_name: dict[str, str] = {}
         self._users: set[str] = set()
-        self._profiles: set[str] = set('cnodc')
+        self._profiles: set[str] = set()
+        self._profiles.add('cnodc')
         self._children: dict[str, t.Union[EntityRef, list[EntityRef]]] = {
             'iso_maintenance': [],
             'variables': [],
@@ -1951,6 +2190,108 @@ class DatasetMetadata:
             'erddap_servers': [],
             'custom_keywords': [],
         }
+
+    def get_variables(self):
+        return self._children['variables']
+
+    def set_meds_defaults(self):
+        self.add_metadata_constraint(Common.Constraint_Unclassified)
+        self.add_metadata_constraint(Common.Constraint_OpenGovernmentLicense)
+        self.add_data_constraint(Common.Constraint_Unclassified)
+        self.add_data_constraint(Common.Constraint_OpenGovernmentLicense)
+        self.add_metadata_profile(Common.MetadataProfile_CIOOS)
+        self.add_metadata_standard(Common.MetadataStandard_ISO19115)
+        self.add_metadata_standard(Common.MetadataStandard_ISO191151)
+        self.set_topic_category(TopicCategory.Oceans)
+        self.set_activation_workflow("cnodc_activation")
+        self.set_publication_workflow("cnodc_publish")
+        self._security_level = 'unclassified'
+        self.set_goc_publisher(GCPublisher.MEDS)
+        self.set_government_metadata(
+            GCPlace.Ottawa,
+            GCSubject.Oceanography,
+            GCCollectionType.Geospatial,
+            GCAudience.Scientists
+        )
+
+    def set_from_netcdf_file(self, dataset: Dataset, default_lang: str = 'en'):
+        attrs = { x: v for x, v in dataset.attributes()}
+        locale_map = {}
+        primary_locale = Locale.CanadianEnglish
+        secondary_locales = []
+        if 'default_locale' in attrs:
+            default_locale = attrs.pop('default_locale')
+            if '-' in default_locale:
+                default_locale = default_locale[:default_locale.find('-')]
+            locale_map[''] = default_locale
+            if default_locale.startswith("fr"):
+                primary_locale = Locale.CanadianFrench
+                secondary_locales.append(Locale.CanadianEnglish)
+            else:
+                secondary_locales.append(Locale.CanadianFrench)
+        else:
+            locale_map[''] = default_lang
+            if default_lang == 'fr':
+                primary_locale = Locale.CanadianFrench
+                secondary_locales.append(Locale.CanadianEnglish)
+            else:
+                secondary_locales.append(Locale.CanadianFrench)
+        self.set_data_locales(primary_locale, secondary_locales)
+        self.set_metadata_locales(primary_locale, secondary_locales)
+        if 'locales' in attrs:
+            for locale in attrs.pop('locales').split(','):
+                suffix, bcptag = locale.split(':', maxsplit=1)
+                if '-' in bcptag:
+                    bcptag, _ = bcptag.split('-', maxsplit=1)
+                locale_map[suffix.strip()] = bcptag.strip()
+        else:
+            locale_map['_en'] = 'en'
+            locale_map['_fr'] = 'fr'
+        depths = ['seaSurface']
+        for ds_var in dataset.variables():
+            if ds_var.has_attribute('axis') and ds_var.attribute('axis') == 'Z':
+
+                min_z, max_z = ds_var.range()
+                if ds_var.has_attribute('positive') and ds_var.attribute('positive') == 'up':
+                    if min_z < 0:
+                        depths = ['subSurface']
+                    elif max_z < 0:
+                        depths.append('subSurface')
+                else:
+                    if min_z > 0:
+                        depths = ['subSurface']
+                    elif max_z > 0:
+                        depths.append('subSurface')
+                break
+        for ds_var in dataset.variables():
+            self.add_variable(Variable.build_from_netcdf(ds_var, locale_map), depths)
+        self.set_title(get_bilingual_attribute(attrs, 'title', locale_map))
+        self.set_program(attrs.pop('program', ""))
+        self.set_project(attrs.pop('project', ""))
+        self.set_conventions(attrs.pop('Conventions', "").split(","))
+        self.set_institution(attrs.pop('institution', ""))
+        self.set_guid(attrs.pop('id', ""), attrs.pop('naming_authority', ""))
+        self.set_credit(get_bilingual_attribute(attrs, 'acknowledgement', locale_map))
+        self.set_comment(get_bilingual_attribute(attrs, 'comment', locale_map))
+        self.set_references(get_bilingual_attribute(attrs, 'references', locale_map))
+        self.set_source(get_bilingual_attribute(attrs, 'source', locale_map))
+        self.set_abstract(get_bilingual_attribute(attrs, 'summary', locale_map))
+        if 'date_created' in attrs:
+            self.set_date_issued(datetime.datetime.fromisoformat(attrs.pop('date_created')))
+        if 'date_issued' in attrs:
+            self.set_date_created(datetime.datetime.fromisoformat(attrs.pop('date_issued')))
+        if 'date_modified' in attrs:
+            self.set_date_modified(datetime.datetime.fromisoformat(attrs.pop('date_modified')))
+        if 'featureType' in attrs:
+            self.set_feature_type(CommonDataModelType.from_netcdf(attrs.pop('featureType', "")))
+        if 'processing_level' in attrs:
+            self.set_processing_info(
+                attrs.pop('processing_level')
+            )
+
+    def set_guid(self, guid: str, authority: t.Optional[str] = None):
+        self._guid = guid
+        self._authority = authority
 
     def add_custom_keyword(self, keyword: Keyword):
         """
@@ -2031,11 +2372,67 @@ class DatasetMetadata:
         """
         self._children['iso_maintenance'].append(record)
 
-    def add_variable(self, var: Variable):
+    def add_variable(self, var: Variable, eov_prefixes: t.Optional[list[str]] = None):
         """
         :param var: A variable to add to the dataset
+        :param eov_prefixes: Provide either or both of "seaSurface" or "subSurface" to set the EOVs properly. Otherwise you'll need to set the EOVs manually depending on the depths sampled.
         """
         self._children['variables'].append(var)
+        cnodc_name = var.get_cnodc_name()
+        if cnodc_name:
+            if ':' in cnodc_name:
+                _, cnodc_name = cnodc_name.rsplit(":", maxsplit=1)
+            if self.ontology.is_defined_element(cnodc_name):
+                element = self.ontology.element_info(cnodc_name)
+                if element.ioos_category is None:
+                    ioos_cat = IOOSCategory.Other
+                else:
+                    ioos_cat = IOOSCategory(element.ioos_category)
+                var.set_ioos_category(ioos_cat)
+                if element.essential_ocean_vars:
+                    if len(element.essential_ocean_vars) == 1:
+                        self.add_essential_ocean_variable(EssentialOceanVariable(list(element.essential_ocean_vars)[0]))
+                    elif eov_prefixes:
+                        for eov in element.essential_ocean_vars:
+                            if any(eov.startswith(x) for x in eov_prefixes):
+                                self.add_essential_ocean_variable(EssentialOceanVariable(eov))
+            else:
+                var.set_ioos_category(IOOSCategory.Other)
+
+        sn = var.get_standard_name()
+        if sn is not None:
+            self.add_cf_standard_name(sn)
+        axis = var.get_axis()
+        if axis == 'X':
+            var_min, var_max = var.get_range()
+            self._metadata['geospatial_lon_min'] = unnumpy(var_min)
+            self._metadata['geospatial_lon_max'] = unnumpy(var_max)
+        elif axis == 'Y':
+            var_min, var_max = var.get_range()
+            self._metadata['geospatial_lat_min'] = unnumpy(var_min)
+            self._metadata['geospatial_lat_max'] = unnumpy(var_max)
+        elif axis == 'Z':
+            var_min, var_max = var.get_range()
+            self._metadata['geospatial_vertical_min'] = unnumpy(var_min)
+            self._metadata['geospatial_vertical_max'] = unnumpy(var_max)
+        elif axis == 'T':
+            units = var.get_units()
+            if ' since ' in units.lower():
+                pieces = units.lower().split(' ')
+                epoch = datetime.datetime.fromisoformat(pieces[2].upper())
+                var_min, var_max = var.get_range()
+                if pieces[0] == "seconds":
+                    self.set_temporal_bounds(epoch + datetime.timedelta(seconds=unnumpy(var_min)), epoch + datetime.timedelta(seconds=unnumpy(var_max)))
+                elif pieces[0] == "minutes":
+                    self.set_temporal_bounds(epoch + datetime.timedelta(minutes=unnumpy(var_min)), epoch + datetime.timedelta(minutes=unnumpy(var_max)))
+                elif pieces[0] == "hours":
+                    self.set_temporal_bounds(epoch + datetime.timedelta(hours=unnumpy(var_min)), epoch + datetime.timedelta(hours=unnumpy(var_max)))
+                elif pieces[0] == "days":
+                    self.set_temporal_bounds(epoch + datetime.timedelta(days=unnumpy(var_min)), epoch + datetime.timedelta(days=unnumpy(var_max)))
+                elif pieces[0] == "months":
+                    pass # TODO
+                elif pieces[0] == "years":
+                    pass # TODO
 
     def add_canon_url(self, canon_url: Resource):
         self._children['canon_urls'].append(canon_url)
@@ -2122,7 +2519,10 @@ class DatasetMetadata:
         """
         :param program: The name of the program that collected the data (NetCDF only)
         """
-        self._metadata['program' ] = program
+        self._metadata['program'] = program
+
+    def set_project(self, project: str):
+        self._metadata['project'] = project
 
     def set_conventions(self, conventions: list[str]):
         """
@@ -2147,6 +2547,8 @@ class DatasetMetadata:
                              recognized by the CF Conventions that is compatible with the feature type.
         """
         self._metadata['feature_type'] = feature_type.value
+        if feature_type in DatasetMetadata.REPRESENTATION_MAP:
+            self.set_spatial_representation(DatasetMetadata.REPRESENTATION_MAP[feature_type])
 
     # Combined stuff
 
@@ -2229,10 +2631,10 @@ class DatasetMetadata:
         :param boundary_wkt: The WKT polygon shape of the dataset, if available
         :param ref_system: The coordinate reference system used, defaults to WGS84
         """
-        self._metadata["geospatial_lat_min"] = str(lat_min)
-        self._metadata["geospatial_lat_max"] = str(lat_max)
-        self._metadata["geospatial_lon_min"] = str(lon_min)
-        self._metadata["geospatial_lon_max"] = str(lon_max)
+        self._metadata["geospatial_lat_min"] = unnumpy(lat_min)
+        self._metadata["geospatial_lat_max"] = unnumpy(lat_max)
+        self._metadata["geospatial_lon_min"] = unnumpy(lon_min)
+        self._metadata["geospatial_lon_max"] = unnumpy(lon_max)
         self._metadata["geospatial_bounds"] = boundary_wkt
         self._metadata["geospatial_bounds_crs"] = ref_system.value
 
@@ -2243,8 +2645,8 @@ class DatasetMetadata:
         :param vertical_max: The maximum depth of the dataset
         :param ref_system: The vertical coordinate reference system used, defaults to MSL_Depth (positive values from an unspecified MSL reference datum)
         """
-        self._metadata['geospatial_vertical_min'] = str(vertical_min)
-        self._metadata['geospatial_vertical_max'] = str(vertical_max)
+        self._metadata['geospatial_vertical_min'] = unnumpy(vertical_min)
+        self._metadata['geospatial_vertical_max'] = unnumpy(vertical_max)
         self._metadata['geospatial_bounds_vertical_crs'] = ref_system.value
 
     def set_temporal_bounds(self, start_time: datetime.datetime, end_time: t.Optional[datetime.datetime] = None, calendar: CoordinateReferenceSystem = CoordinateReferenceSystem.Gregorian):
@@ -2253,13 +2655,18 @@ class DatasetMetadata:
         :param end_time: The end time for the dataset. Include timezone. Optional; if not provided, dataset is flagged as "ongoing".
         :param calendar: The temporal coordinate reference system used, defaults to Gregorian calendar.
         """
-        self._metadata['time_coverage_start'] = EntityRef.format_date(start_time)
+        self._metadata['time_coverage_start'] = EntityRef.format_date(unnumpy(start_time))
         if end_time is not None:
-            self._metadata['time_coverage_end'] = EntityRef.format_date(end_time)
+            self._metadata['time_coverage_end'] = EntityRef.format_date(unnumpy(end_time))
             self._metadata['is_ongoing'] = False
         else:
             self._metadata['is_ongoing'] = True
         self._metadata['temporal_crs'] = calendar.value
+
+    def mark_as_ongoing(self):
+        if 'time_coverage_end' in self._metadata:
+            self._metadata['time_coverage_end'] = None
+        self._metadata['is_ongoing'] = True
 
     def set_date_issued(self, date: datetime.date):
         """
@@ -2451,6 +2858,8 @@ class DatasetMetadata:
 
     def build_request_body(self) -> dict:
         body = {
+            'guid': self._guid,
+            'authority': self._authority,
             'profiles': list(self._profiles),
             'org_name': self._org_name,
             'display_names': self._display_name,
