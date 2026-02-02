@@ -138,7 +138,10 @@ def haltable_ungzip(source_file: pathlib.Path, target_file: pathlib.Path, chunk_
         with gzip.open(source_file, 'rb') as src:
             with open(target_file, 'wb') as dest:
                 if halt_flag is None:
-                    shutil.copyfileobj(src, dest)
+                    src_bytes = src.read(chunk_size)
+                    while src_bytes != b'':
+                        dest.write(src_bytes)
+                        src_bytes = src.read(chunk_size)
                 else:
                     halt_flag.check_continue(True)
                     src_bytes = src.read(chunk_size)
@@ -158,7 +161,10 @@ def haltable_gzip(source_file: pathlib.Path, target_file: pathlib.Path, chunk_si
         with open(source_file, 'rb') as src:
             with gzip.open(target_file, 'wb') as dest:
                 if halt_flag is None:
-                    shutil.copyfileobj(src, dest)
+                    src_bytes = src.read(chunk_size)
+                    while src_bytes != b'':
+                        dest.write(src_bytes)
+                        src_bytes = src.read(chunk_size)
                 else:
                     halt_flag.check_continue(True)
                     src_bytes = src.read(chunk_size)
