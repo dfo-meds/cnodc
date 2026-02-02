@@ -146,10 +146,10 @@ class BaseController:
                 self._log.exception(f'Process [{process_name}] has an invalid class name')
                 continue
             # Validate configuration
-            config = {}
+            proc_config = {}
             if 'config' in config[process_name] and config[process_name]['config']:
                 if isinstance(config[process_name]['config'], dict):
-                    config = config[process_name]['config']
+                    proc_config = config[process_name]['config']
                 else:
                     self._log.error(f"Process [{process_name}] does not define a dictionary for its configuration")
                     continue
@@ -166,7 +166,7 @@ class BaseController:
                 process_name,
                 config[process_name]['class_name'],
                 count,
-                config,
+                proc_config,
             )
         # Deregister processes not found in current list
         for process_name in deregister_list:
