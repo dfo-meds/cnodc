@@ -88,4 +88,4 @@ from .operations import QCOperator, QCSetValue, QCAddHistory, QCSetWorkingQualit
 from .structures import BaseRecord, ParentRecord, ChildRecord, RecordSet, RecordMap, ElementMap
 from .elements import MultiElement, AbstractElement, SingleElement, ElementMap
 from .history import HistoryEntry, QCResult, QCMessage, normalize_qc_path, MessageType, QCTestRunInfo
-from .validation import OCProc2Ontology, OCProc2ElementInfo, OCProc2ChildRecordTypeInfo
+from .ontology import OCProc2Ontology, OCProc2ElementInfo, OCProc2ChildRecordTypeInfo
