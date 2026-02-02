@@ -508,7 +508,7 @@ class WorkflowController:
                         self._log.info(f"Creating gzipped version of local file")
                         haltable_gzip(local_path, gzip_file, halt_flag=self.halt_flag)
                         gzip_made = True
-                        working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, metadata, self.config['working_target'])
+                        working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, metadata, self.config['working_target'], gzip=True)
                     else:
                         working_file, target_tier = self._handle_file_upload(local_path, filename, metadata, self.config['working_target'])
                     file_handles.append((working_file, target_tier))
@@ -519,7 +519,7 @@ class WorkflowController:
                                 self._log.info(f"Creating gzipped version of local file")
                                 haltable_gzip(local_path, gzip_file, halt_flag=self.halt_flag)
                                 gzip_made = True
-                            file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, metadata, target))
+                            file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, metadata, target, gzip=True))
                         else:
                             file_handles.append(self._handle_file_upload(local_path, filename, metadata, target))
                 # NB: these are done in the try/except so that the file handles can be removed upon failure
@@ -657,7 +657,7 @@ class WorkflowController:
         return filename
 
     @staticmethod
-    def _get_storage_metadata(self, templates: dict[str, str], metadata: dict) -> dict:
+    def _get_storage_metadata(templates: dict[str, str], metadata: dict) -> dict:
         """Get the necessary metadata for storage."""
         return {
             x: WorkflowController._sanitize_storage_metadata(WorkflowController._substitute_headers(str(templates[x]), metadata))
@@ -688,31 +688,42 @@ class WorkflowController:
             return None
         return filename
 
-    def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict) -> tuple[BaseStorageHandle, t.Optional[StorageTier]]:
+    def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict, gzip: bool = False) -> tuple[BaseStorageHandle, t.Optional[StorageTier]]:
         """Upload a file to a given location."""
         if 'directory' not in upload_kwargs:
             raise CNODCError("Missing directory for workflow upload action", "WORKFLOW", 1003)
         self._log.info(f"Uploading file to {upload_kwargs['directory']}")
-        storage_metadata = WorkflowController._get_storage_metadata(
+        target_dir_handle = self.storage.get_handle(upload_kwargs['directory'], halt_flag=self.halt_flag)
+        file_handle = target_dir_handle.child(filename)
+
+        storage_tier = StorageTier(upload_kwargs['tier']) if 'tier' in upload_kwargs and upload_kwargs['tier'] else None
+        if not file_handle.supports_tiering():
+            storage_tier = None
+
+        storage_metadata = self.storage.build_metadata(
+            gzip=gzip,
+            storage_tier=storage_tier,
+        )
+        storage_metadata.update(WorkflowController._get_storage_metadata(
             upload_kwargs['metadata'] if 'metadata' in upload_kwargs and upload_kwargs['metadata'] else {},
             metadata
-        )
-        storage_tier = StorageTier(upload_kwargs['tier']) if 'tier' in upload_kwargs and upload_kwargs['tier'] else None
-        target_dir_handle = self.storage.get_handle(upload_kwargs['directory'], halt_flag=self.halt_flag)
+        ))
+
         allow_overwrite = metadata['allow-overwrite'] == '1' if 'allow-overwrite' in metadata else False
         if 'allow_overwrite' in upload_kwargs:
             if upload_kwargs['allow_overwrite'] == 'never':
                 allow_overwrite = False
             elif upload_kwargs['allow_overwrite'] == 'always':
                 allow_overwrite = True
-        file_handle = target_dir_handle.child(filename)
+
         file_handle.upload(
             local_path,
             allow_overwrite=allow_overwrite,
             storage_tier=StorageTier.FREQUENT,
             metadata=storage_metadata
         )
-        if storage_tier is None or (not file_handle.supports_tiering()) or storage_tier == StorageTier.FREQUENT:
+
+        if storage_tier is None or storage_tier == StorageTier.FREQUENT:
             return file_handle, None
         else:
             return file_handle, storage_tier
