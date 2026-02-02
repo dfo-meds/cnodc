@@ -6,9 +6,12 @@ from autoinject import injector
 
 
 SKOS_IN_SCHEME = 'http://www.w3.org/2004/02/skos/core#inScheme'
-CNODC_PREFIX = 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#'
+CNODC_PREFIX = 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#'
+IOOS_PREFIX = 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#'
+EOV_PREFIX = 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#'
+RS_PREFIX = 'http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#'
 CNODC_ELEMENTS = f'{CNODC_PREFIX}elements'
-CNODC_RECORDSET_TYPES = f'{CNODC_PREFIX}recordSetTypes'
+CNODC_RECORDSET_TYPES = f'{RS_PREFIX}recordSetTypes'
 CNODC_PREF_UNIT = f'{CNODC_PREFIX}preferredUnit'
 CNODC_DATA_TYPE = f'{CNODC_PREFIX}dataType'
 CNODC_GROUP = f'{CNODC_PREFIX}elementGroup'
@@ -16,7 +19,9 @@ CNODC_ALLOW_MULTI = f'{CNODC_PREFIX}allowMulti'
 CNODC_MIN = f'{CNODC_PREFIX}minValue'
 CNODC_MAX = f'{CNODC_PREFIX}maxValue'
 CNODC_ALLOW = f'{CNODC_PREFIX}allowedValue'
-CNODC_COORDINATE = f'{CNODC_PREFIX}requireCoordinate'
+CNODC_COORDINATE = f'{RS_PREFIX}requireCoordinate'
+CNODC_IOOS_CATEGORY = f'{CNODC_PREFIX}ioosCategory'
+CNODC_EOV = f'{CNODC_PREFIX}essentialOceanVariable'
 SKOS_LABEL = f'http://www.w3.org/2004/02/skos/core#prefLabel'
 SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
 
@@ -94,7 +99,7 @@ class OCProc2ChildRecordTypeInfo(_BaseInfo):
 
 class OCProc2ElementInfo(_BaseInfo):
 
-    __slots__ = ('name', '_label', '_documentation', 'allow_multi', 'groups', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values')
+    __slots__ = ('ioos_category', 'essential_ocean_vars', 'name', '_label', '_documentation', 'allow_multi', 'groups', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values')
 
     def __init__(self,
                  name: str,
@@ -104,7 +109,9 @@ class OCProc2ElementInfo(_BaseInfo):
                  data_type: t.Optional[str] = None,
                  preferred_unit: t.Optional[str] = None,
                  groups: t.Optional[set[str]] = None,
-                 allowed_values: t.Optional[set[t.Union[int, str]]] = None):
+                 allowed_values: t.Optional[set[t.Union[int, str]]] = None,
+                 ioos_category: t.Optional[str] = None,
+                 essential_ocean_variables: t.Optional[set[str]] = None):
         self.groups = groups or set()
         self.preferred_unit = preferred_unit
         self.data_type = data_type
@@ -112,7 +119,20 @@ class OCProc2ElementInfo(_BaseInfo):
         self.min_value = min_value
         self.max_value = max_value
         self.allowed_values = allowed_values or set()
+        self.ioos_category = ioos_category or None
+        self.essential_ocean_vars = essential_ocean_variables or set()
         super().__init__(name)
+
+    def set_ioos_category(self, ioos_category: t.Union[set, str]):
+        if isinstance(ioos_category, set):
+            ioos_category = list(ioos_category)[0]
+        self.ioos_category = self._remove_prefix(ioos_category)
+
+    def update_essential_ocean_vars(self, ocean_var: t.Union[str, set]):
+        if isinstance(ocean_var, set):
+            self.essential_ocean_vars.update(self._remove_prefix(ocean_var))
+        else:
+            self.essential_ocean_vars.add(self._remove_prefix(ocean_var))
 
     def set_preferred_unit(self, unit: t.Union[set, str]):
         if isinstance(unit, set):
@@ -218,6 +238,10 @@ class OCProc2Ontology:
                                 self._parameters[e_name].set_max_value(graph_dict[key][CNODC_MAX])
                             if CNODC_ALLOW in graph_dict[key]:
                                 self._parameters[e_name].update_allowed_values(graph_dict[key][CNODC_ALLOW])
+                            if CNODC_EOV in graph_dict[key]:
+                                self._parameters[e_name].update_essential_ocean_vars(graph_dict[key][CNODC_EOV])
+                            if CNODC_IOOS_CATEGORY in graph_dict[key]:
+                                self._parameters[e_name].set_ioos_category(graph_dict[key][CNODC_IOOS_CATEGORY])
                         elif str(graph_dict[key][SKOS_IN_SCHEME]) == CNODC_RECORDSET_TYPES:
                             e_name = key[key.rfind('#')+1:]
                             self._recordset_types[e_name] = OCProc2ChildRecordTypeInfo(key)

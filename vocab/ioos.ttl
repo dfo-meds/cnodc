@@ -1,0 +1,186 @@
+@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+cnodc:ioosCategories rdf:type skos:ConceptScheme .
+
+
+ioos:Location rdf:type skos:Concept ;
+  skos:prefLabel "Location"@en ;
+  skos:documentation "Where is the observation"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Salinity rdf:type skos:Concept ;
+  skos:prefLabel "Salinity"@en ;
+  skos:documentation "Measurements of dissolved salts"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Time rdf:type skos:Concept ;
+  skos:prefLabel "Time"@en ;
+  skos:documentation "When is the observation"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Currents rdf:type skos:Concept ;
+  skos:prefLabel "Currents"@en ;
+  skos:documentation "Measurements of ocean currents"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:OceanColor rdf:type skos:Concept ;
+  skos:prefLabel "Ocean Color"@en ;
+  skos:documentation "Measurements of the colour of the ocean"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Temperature rdf:type skos:Concept ;
+  skos:prefLabel "Temperature"@en ;
+  skos:documentation "Measurements of sea water temperature"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Pressure rdf:type skos:Concept ;
+  skos:prefLabel "Pressure"@en ;
+  skos:documentation "Measurements of sea water pressure"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:OpticalProperties rdf:type skos:Concept ;
+  skos:prefLabel "Optical Properties"@en ;
+  skos:documentation "Optical properties of sea water other than colour"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Bathymetry rdf:type skos:Concept ;
+  skos:prefLabel "Bathymetry"@en ;
+  skos:documentation "How deep is the water"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Identifier rdf:type skos:Concept ;
+  skos:prefLabel "Identifier"@en ;
+  skos:documentation "What made the observation"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Quality rdf:type skos:Concept ;
+  skos:prefLabel "Quality"@en ;
+  skos:documentation "How good is the observation"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Acidity rdf:type skos:Concept ;
+  skos:prefLabel "Acidity"@en ;
+  skos:documentation "Acidity or basicity of the water"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Biology rdf:type skos:Concept ;
+  skos:prefLabel "Biology"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:CO2 rdf:type skos:Concept ;
+  skos:prefLabel "Carbon Dioxide"@en ;
+  skos:documentation "Carbon dioxide content of sea water"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:ColoredDissolvedOrganicMatter rdf:type skos:Concept ;
+  skos:prefLabel "Colored Dissolved Organic Matter"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:DissolvedNutrients rdf:type skos:Concept ;
+  skos:prefLabel "Dissolved Nutrients"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:DissolvedO2 rdf:type skos:Concept ;
+  skos:prefLabel "Dissolved O2"@en ;
+  skos:documentation "Oxygen content of sea water"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:HeatFlux rdf:type skos:Concept ;
+  skos:prefLabel "Heat Flux"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Hydrology rdf:type skos:Concept ;
+  skos:prefLabel "Hydrology"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:IceDistribution rdf:type skos:Concept ;
+  skos:prefLabel "Ice Distribution"@en ;
+  skos:documentation "Distribution and concentration of sea ice"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Meteorology rdf:type skos:Concept ;
+  skos:prefLabel "Meteorology"@en ;
+  skos:documentation "Weather observations that aren't of the ocean directly or wind"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:PhytoplanktonSpecies rdf:type skos:Concept ;
+  skos:prefLabel "Phytoplankton Species"@en ;
+  skos:documentation "Information about phytoplankton"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:SeaLevel rdf:type skos:Concept ;
+  skos:prefLabel "Sea Level"@en ;
+  skos:documentation "Information about tides"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Statistics rdf:type skos:Concept ;
+  skos:prefLabel "Statistics"@en ;
+  skos:documentation "General statistical information"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:SurfaceWaves rdf:type skos:Concept ;
+  skos:prefLabel "Surface Waves"@en ;
+  skos:documentation "Information about sea water waves"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:TotalSuspendedMatter rdf:type skos:Concept ;
+  skos:prefLabel "Total Suspended Matter"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Wind rdf:type skos:Concept ;
+  skos:prefLabel "Wind"@en ;
+  skos:documentation "Information about wind"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:ZooplanktonSpecies rdf:type skos:Concept ;
+  skos:prefLabel "Zooplankton Species"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:ZooplanktonAbundance rdf:type skos:Concept ;
+  skos:prefLabel "Zooplankton Abundance"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:BottomCharacter rdf:type skos:Concept ;
+  skos:prefLabel "Bottom Character"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Contaminants rdf:type skos:Concept ;
+  skos:prefLabel "Contaminants"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Ecology rdf:type skos:Concept ;
+  skos:prefLabel "Ecology"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Fish%20 rdf:type skos:Concept ;
+  skos:prefLabel "Fish "@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:FishAbundance rdf:type skos:Concept ;
+  skos:prefLabel "Fish Abundance"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:FishSpecies rdf:type skos:Concept ;
+  skos:prefLabel "Fish Species"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Pathogens rdf:type skos:Concept ;
+  skos:prefLabel "Pathogens"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Productivity rdf:type skos:Concept ;
+  skos:prefLabel "Productivity"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:StreamFlow rdf:type skos:Concept ;
+  skos:prefLabel "Stream Flow"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Taxonomy rdf:type skos:Concept ;
+  skos:prefLabel "Taxonomy"@en ;
+  skos:inScheme ioos:ioos_categories .
+
+ioos:Unknown rdf:type skos:Concept ;
+  skos:prefLabel "Unknown"@en ;
+  skos:inScheme ioos:ioos_categories .

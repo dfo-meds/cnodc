@@ -84,17 +84,25 @@ for file in os.scandir(DIR / "data" / "mappings"):
 
 # We'll write to a temporary file to make sure we don't overwrite the good file with one with an error in it.
 temp_file = DIR / 'cnodc.ttl.temp'
-with open(temp_file, 'w', encoding='utf-8') as output:
-    
-    # Copy the base turtle file
-    with open(DIR / 'data' / 'base.ttl', 'r', encoding='utf-8') as base:
-        output.write(base.read())
-        
+temp_eov = DIR / 'eov.ttl.temp'
+temp_ioos = DIR / 'ioos.ttl.temp'
+temp_rs =  DIR / 'rstypes.ttl.temp'
+
+
+with open(temp_ioos, 'w', encoding='utf-8') as output:
+
+    output.write("""@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+cnodc:ioosCategories rdf:type skos:ConceptScheme .
+
+""")
+
     # Write out all the IOOS categories
     for row in read_lines_csv(DIR / 'data' / 'ioos_categories.csv', 'Short Name'):
         output.write("\n")
         # Concept name
-        output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
+        output.write(f'ioos:{sanitize(row[0])} rdf:type skos:Concept ;\n')
         # English & French labels
         output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
         if row[3]:
@@ -105,13 +113,20 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         if row[4]:
             output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
         # Add it to the scheme
-        output.write(f'  skos:inScheme cnodc:ioos_categories .\n')
+        output.write(f'  skos:inScheme ioos:ioos_categories .\n')
 
-    # Write out all the IOOS categories
+with open(temp_eov, 'w', encoding='utf-8') as output:
+    output.write("""@prefix eov: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+eov:essentialOceanVariables rdf:type skos:ConceptScheme .
+
+""")
+    # Write out all the EOVs
     for row in read_lines_csv(DIR / 'data' / 'cioos_eovs.csv', 'Short Name'):
         output.write("\n")
         # Concept name
-        output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
+        output.write(f'eov:{sanitize(row[0])} rdf:type skos:Concept ;\n')
         # English & French labels
         output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
         if row[2]:
@@ -122,7 +137,41 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         if row[4]:
             output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
         # Add it to the scheme
-        output.write(f'  skos:inScheme cnodc:essentialOceanVariables .\n')
+        output.write(f'  skos:inScheme eov:essentialOceanVariables .\n')
+
+with open(temp_rs, 'w', encoding='utf-8') as output:
+    output.write("""@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .
+
+rstypes:recordSetTypes rdf:type skos:ConceptScheme .
+
+rstypes:requireCoordinate rdf:type rdf:Property ;
+  rdfs:domain rstypes:recordSetTypes ;
+  rdfs:range cnodc:elements .
+
+""")
+    for row in read_lines_csv(DIR / 'data' / 'rs_types.csv', 'Short Name'):
+        output.write('\n')
+        # element name
+        output.write(f'rstypes:{sanitize(row[0])}  rdf:type skos:Concept ;\n')
+        # labels
+        if row[1]:
+            output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
+        if row[2]:
+            output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
+        # if present, at least one of these coordinates is required for it to make sense.
+        if row[3]:
+            for coordinate_name in row[3].split(';'):
+                output.write(f'  rstypes:requireCoordinate cnodc:{sanitize(coordinate_name)} ;\n')
+        # scheme
+        output.write(f'  skos:inScheme rstypes:recordSetTypes .\n')
+
+with open(temp_file, 'w', encoding='utf-8') as output:
+    
+    # Copy the base turtle file
+    with open(DIR / 'data' / 'base.ttl', 'r', encoding='utf-8') as base:
+        output.write(base.read())
 
     # Write out all the element names
     for row in read_lines_csv(DIR / 'data' / 'elements.csv', 'Short Name'):
@@ -154,11 +203,11 @@ with open(temp_file, 'w', encoding='utf-8') as output:
             output.write(f'  cnodc:variableName "{row[9]}" ;\n')
         # IOOS category
         if row[10]:
-            output.write(f'  cnodc:ioosCategory cnodc:{sanitize(row[10])} ; \n')
+            output.write(f'  cnodc:ioosCategory ioos:{sanitize(row[10])} ; \n')
         # CIOOS EOVs
         if row[16]:
             for eov in row[16].split(';'):
-                output.write(f'  cnodc:essentialOceanVariable cnodc:{sanitize(eov)} ; \n')
+                output.write(f'  cnodc:essentialOceanVariable eov:{sanitize(eov)} ; \n')
         # Minimum valid value
         if row[11]:
             output.write(f'  cnodc:minValue {row[11]} ; \n')
@@ -194,21 +243,13 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         # The scheme
         output.write('  skos:inScheme cnodc:elements .\n')
 
-    for row in read_lines_csv(DIR / 'data' / 'rs_types.csv', 'Short Name'):
-        output.write('\n')
-        # element name
-        output.write(f'cnodc:{sanitize(row[0])}  rdf:type skos:Concept ;\n')
-        # labels
-        if row[1]:
-            output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
-        if row[2]:
-            output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
-        # if present, at least one of these coordinates is required for it to make sense.
-        if row[3]:
-            for coordinate_name in row[3].split(';'):
-                output.write(f'  cnodc:requireCoordinate cnodc:{sanitize(coordinate_name)} ;\n')
-        # scheme
-        output.write(f'  skos:inScheme cnodc:recordSetTypes .\n')
 
 shutil.copy(temp_file, DIR / "cnodc.ttl")
+shutil.copy(temp_rs, DIR / 'rstypes.ttl')
+shutil.copy(temp_eov, DIR / 'eov.ttl')
+shutil.copy(temp_ioos, DIR / 'ioos.ttl')
 os.remove(temp_file)
+os.remove(temp_rs)
+os.remove(temp_eov)
+os.remove(temp_ioos)
+# TODO: better temp file location?

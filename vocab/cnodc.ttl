@@ -2,7 +2,10 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#> .
+@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .
+@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
+@prefix eov: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#> .
+@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .
 @prefix p01: <http://vocab.nerc.ac.uk/collection/P01/current/> .
 @prefix p07: <http://vocab.nerc.ac.uk/collection/P07/current/> .
 @prefix p09: <http://vocab.nerc.ac.uk/collection/P09/current/> .
@@ -53,10 +56,6 @@ cnodc:allowedValue rdf:type rdf:Property ;
   rdfs:domain skos:Concept ;
   rdfs:range skos:Literal .
 
-cnodc:requireCoordinate rdf:type rdf:Property ;
-  rdfs:domain skos:Concept ;
-  rdfs:range skos:Concept .
-
 cnodc:preferredUnit rdf:type rdf:Property ;
   rdfs:subClassOf cnodc:acceptsUnit .
 
@@ -84,427 +83,15 @@ cnodc:Element rdf:type skos:Concept ;
     skos:prefLabel "Element"@en ;
     skos:documentation "Another element" .
 
-cnodc:ioosCategories rdf:type skos:ConceptScheme .
-
 cnodc:ioosCategory rdf:type rdf:Property ;
     rdfs:domain skos:Concept ;
-    rdfs:range cnodc:ioosCategories .
-
-cnodc:essentialOceanVariables rdf:type skos:ConceptScheme .
+    rdfs:range ioos:ioosCategories .
 
 cnodc:essentialOceanVariable rdf:type rdf:Property ;
     rdfs:domain skos:Concept ;
-    rdfs:range cnodc:ioosCategories .
+    rdfs:range eov:essentialOceanVariables .
 
 cnodc:elements rdf:type skos:ConceptScheme .
-
-
-cnodc:recordSetTypes rdf:type skos:ConceptScheme .
-
-
-cnodc:Location rdf:type skos:Concept ;
-  skos:prefLabel "Location"@en ;
-  skos:documentation "Where is the observation"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Salinity rdf:type skos:Concept ;
-  skos:prefLabel "Salinity"@en ;
-  skos:documentation "Measurements of dissolved salts"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Time rdf:type skos:Concept ;
-  skos:prefLabel "Time"@en ;
-  skos:documentation "When is the observation"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Currents rdf:type skos:Concept ;
-  skos:prefLabel "Currents"@en ;
-  skos:documentation "Measurements of ocean currents"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:OceanColor rdf:type skos:Concept ;
-  skos:prefLabel "Ocean Color"@en ;
-  skos:documentation "Measurements of the colour of the ocean"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Temperature rdf:type skos:Concept ;
-  skos:prefLabel "Temperature"@en ;
-  skos:documentation "Measurements of sea water temperature"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Pressure rdf:type skos:Concept ;
-  skos:prefLabel "Pressure"@en ;
-  skos:documentation "Measurements of sea water pressure"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:OpticalProperties rdf:type skos:Concept ;
-  skos:prefLabel "Optical Properties"@en ;
-  skos:documentation "Optical properties of sea water other than colour"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Bathymetry rdf:type skos:Concept ;
-  skos:prefLabel "Bathymetry"@en ;
-  skos:documentation "How deep is the water"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Identifier rdf:type skos:Concept ;
-  skos:prefLabel "Identifier"@en ;
-  skos:documentation "What made the observation"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Quality rdf:type skos:Concept ;
-  skos:prefLabel "Quality"@en ;
-  skos:documentation "How good is the observation"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Acidity rdf:type skos:Concept ;
-  skos:prefLabel "Acidity"@en ;
-  skos:documentation "Acidity or basicity of the water"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Biology rdf:type skos:Concept ;
-  skos:prefLabel "Biology"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:CO2 rdf:type skos:Concept ;
-  skos:prefLabel "Carbon Dioxide"@en ;
-  skos:documentation "Carbon dioxide content of sea water"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:ColoredDissolvedOrganicMatter rdf:type skos:Concept ;
-  skos:prefLabel "Colored Dissolved Organic Matter"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:DissolvedNutrients rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved Nutrients"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:DissolvedO2 rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved O2"@en ;
-  skos:documentation "Oxygen content of sea water"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:HeatFlux rdf:type skos:Concept ;
-  skos:prefLabel "Heat Flux"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Hydrology rdf:type skos:Concept ;
-  skos:prefLabel "Hydrology"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:IceDistribution rdf:type skos:Concept ;
-  skos:prefLabel "Ice Distribution"@en ;
-  skos:documentation "Distribution and concentration of sea ice"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Meteorology rdf:type skos:Concept ;
-  skos:prefLabel "Meteorology"@en ;
-  skos:documentation "Weather observations that aren't of the ocean directly or wind"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:PhytoplanktonSpecies rdf:type skos:Concept ;
-  skos:prefLabel "Phytoplankton Species"@en ;
-  skos:documentation "Information about phytoplankton"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:SeaLevel rdf:type skos:Concept ;
-  skos:prefLabel "Sea Level"@en ;
-  skos:documentation "Information about tides"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Statistics rdf:type skos:Concept ;
-  skos:prefLabel "Statistics"@en ;
-  skos:documentation "General statistical information"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:SurfaceWaves rdf:type skos:Concept ;
-  skos:prefLabel "Surface Waves"@en ;
-  skos:documentation "Information about sea water waves"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:TotalSuspendedMatter rdf:type skos:Concept ;
-  skos:prefLabel "Total Suspended Matter"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Wind rdf:type skos:Concept ;
-  skos:prefLabel "Wind"@en ;
-  skos:documentation "Information about wind"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:ZooplanktonSpecies rdf:type skos:Concept ;
-  skos:prefLabel "Zooplankton Species"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:ZooplanktonAbundance rdf:type skos:Concept ;
-  skos:prefLabel "Zooplankton Abundance"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:BottomCharacter rdf:type skos:Concept ;
-  skos:prefLabel "Bottom Character"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Contaminants rdf:type skos:Concept ;
-  skos:prefLabel "Contaminants"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Ecology rdf:type skos:Concept ;
-  skos:prefLabel "Ecology"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Fish%20 rdf:type skos:Concept ;
-  skos:prefLabel "Fish "@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:FishAbundance rdf:type skos:Concept ;
-  skos:prefLabel "Fish Abundance"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:FishSpecies rdf:type skos:Concept ;
-  skos:prefLabel "Fish Species"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Pathogens rdf:type skos:Concept ;
-  skos:prefLabel "Pathogens"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Productivity rdf:type skos:Concept ;
-  skos:prefLabel "Productivity"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:StreamFlow rdf:type skos:Concept ;
-  skos:prefLabel "Stream Flow"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Taxonomy rdf:type skos:Concept ;
-  skos:prefLabel "Taxonomy"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:Unknown rdf:type skos:Concept ;
-  skos:prefLabel "Unknown"@en ;
-  skos:inScheme cnodc:ioos_categories .
-
-cnodc:oxygen rdf:type skos:Concept ;
-  skos:prefLabel "Oxygen"@en ;
-  skos:prefLabel "Oxygène"@fr ;
-  skos:documentation "The amount of dissolved oxygen in seawater."@en ;
-  skos:documentation "Concentration d'oxygène dissous dans l'eau de mer"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:nutrients rdf:type skos:Concept ;
-  skos:prefLabel "Nutrients"@en ;
-  skos:prefLabel "Nutriments"@fr ;
-  skos:documentation "The amount of inorganic nutrients in seawater [NO₃, NO₂, PO₄, NH₄, Si(OH)₄]"@en ;
-  skos:documentation "Concentration des nutriments inorganiques dissous dans l'eau de mer [NO₃, NO₂, PO₄, NH₄, Si(OH)₄]"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:inorganicCarbon rdf:type skos:Concept ;
-  skos:prefLabel "Inorganic carbon"@en ;
-  skos:prefLabel "Carbone inorganique"@fr ;
-  skos:documentation "Total amount of inorganic carbon dissolved in sea water [CO₂, HCO₃-, CO₃²-]"@en ;
-  skos:documentation "Quantité totale de carbone inorganique dissous dans l'eau de mer [CO₂, HCO₃-, CO₃²-]"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:dissolvedOrganicCarbon rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved organic carbon"@en ;
-  skos:prefLabel "Carbone organique dissous"@fr ;
-  skos:documentation "The amount of dissolved carbon dioxide in seawater"@en ;
-  skos:documentation "Concentration de carbone organique dissous dans l'eau de mer"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:seaSurfaceHeight rdf:type skos:Concept ;
-  skos:prefLabel "Sea surface height"@en ;
-  skos:prefLabel "Niveau de l'eau"@fr ;
-  skos:documentation "The altitude of mean sea level relative to the Earth's geode."@en ;
-  skos:documentation "Correspond au niveau d'eau mesuré. Les niveaux sont variables en fonction des saisons et des évènements climatique"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:seaIce rdf:type skos:Concept ;
-  skos:prefLabel "Sea ice"@en ;
-  skos:prefLabel "Glace de mer"@fr ;
-  skos:documentation "The concentration of ice cover over a specified area and extent"@en ;
-  skos:documentation "La concentration en couverture de glace sur une zone et une étendue spécifiées"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:seaState rdf:type skos:Concept ;
-  skos:prefLabel "Sea state"@en ;
-  skos:prefLabel "État de la mer"@fr ;
-  skos:documentation "Sea State is the characterization of wave and swell, typically in terms of height, wavelength, period, and directional wave energy flux."@en ;
-  skos:documentation "L'état de la mer est la caractérisation des vagues et de la houle, généralement en termes de hauteur, de longueur d'onde, de période, et le flux d'énergie des ondes directionnelles"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:seaSurfaceSalinity rdf:type skos:Concept ;
-  skos:prefLabel "Sea surface salinity"@en ;
-  skos:prefLabel "Salinité de surface"@fr ;
-  skos:documentation "The concentration of dissolved salts in surface seawater."@en ;
-  skos:documentation "La concentration de sel dissous dans l'eau de mer de surface"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:seaSurfaceTemperature rdf:type skos:Concept ;
-  skos:prefLabel "Sea surface temperature"@en ;
-  skos:prefLabel "Température de surface"@fr ;
-  skos:documentation "The temperature of surface seawater."@en ;
-  skos:documentation "La température de l'eau de mer en surface"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:subSurfaceSalinity rdf:type skos:Concept ;
-  skos:prefLabel "Subsurface salinity"@en ;
-  skos:prefLabel "Salinité sous la surface"@fr ;
-  skos:documentation "The concentration of dissolved salts in subsurface seawater."@en ;
-  skos:documentation "La concentration de sel dissous dans l'eau de mer sous la surface"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:subSurfaceTemperature rdf:type skos:Concept ;
-  skos:prefLabel "Subsurface temperature"@en ;
-  skos:prefLabel "Température sous la surface"@fr ;
-  skos:documentation "The temperature of subsurface seawater."@en ;
-  skos:documentation "La température de l'eau de mer sous la surface"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:surfaceCurrents rdf:type skos:Concept ;
-  skos:prefLabel "Surface currents"@en ;
-  skos:prefLabel "Courants de surface"@fr ;
-  skos:documentation "The velocity of sea water in surface"@en ;
-  skos:documentation "Vitesse et débit de l'eau en surface"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:subSurfaceCurrents rdf:type skos:Concept ;
-  skos:prefLabel "Subsurface currents"@en ;
-  skos:prefLabel "Courants sous-marins"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:other rdf:type skos:Concept ;
-  skos:prefLabel "Other"@en ;
-  skos:prefLabel "Autre"@fr ;
-  skos:documentation "All data that does not correspond to the current EOVs."@en ;
-  skos:documentation "Toutes les données qui ne correspondent pas aux EOVs actuels."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:transientTracers rdf:type skos:Concept ;
-  skos:prefLabel "Transient tracers"@en ;
-  skos:prefLabel "Traceurs transitoires"@fr ;
-  skos:documentation "Transient tracers are man-made chemical compounds released to the atmosphere at known quantities that can be used in the ocean to quantify ventilation, transit time distribution and transport time-scales"@en ;
-  skos:documentation "Les traceurs transitoires sont des composés chimiques artificiels rejetés dans l'atmosphère en quantités connues qui peuvent être utilisés dans l'océan pour quantifier la ventilation, la distribution des temps de transit et les échelles de temps de transport."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:particulateMatter rdf:type skos:Concept ;
-  skos:prefLabel "Particulate matter"@en ;
-  skos:prefLabel "Matière particulaire"@fr ;
-  skos:documentation "Total amount of particles (organic & inorganic) suspended in sea water"@en ;
-  skos:documentation "Quantité totale de particules (organiques et inorganiques) en suspension dans l'eau de mer"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:nitrousOxide rdf:type skos:Concept ;
-  skos:prefLabel "Nitrous oxide"@en ;
-  skos:prefLabel "Protoxyde d'azote"@fr ;
-  skos:documentation "Nitrous oxide (N2O) is an important climate-relevant trace gas in the Earth’s atmosphere. The ocean-including its coastal areassuch as continental shelves, estuaries and upwelling areas is a major source of N2O and contributesabout 30% to the atmospheric N2O budget."@en ;
-  skos:documentation "Le protoxyde d'azote ou azote nitreux (N2O) est un important gaz traceur du climat dans l'atmosphère terrestre. L'océan, y compris ses zones côtières telles que les plateaux continentaux, les estuaires et les zones d'upwelling, est une source majeure de N2O. Elle contribue à environ 30 % du bilan atmosphérique en protoxyde d'azote."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:stableCarbonIsotopes rdf:type skos:Concept ;
-  skos:prefLabel "Stable carbon isotopes"@en ;
-  skos:prefLabel "Isotopes stables du carbone"@fr ;
-  skos:documentation "The utility of carbon-13 isotope (δ13C, the carbon-13 to carbon-12 isotope ratio; 13C/12C) as a tracer of the ocean’s carbon cycle."@en ;
-  skos:documentation "L’utilité de l’isotope du carbone-13 (δ13C, le rapport des isotopes du carbone-13 au carbone-12; 13C/12C) comme traceur du cycle du carbone de l’océan."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:phytoplanktonBiomassAndDiversity rdf:type skos:Concept ;
-  skos:prefLabel "Phytoplankton biomass and diversity"@en ;
-  skos:prefLabel "Biomasse et diversité de phytoplancton"@fr ;
-  skos:documentation "Characterization of the biological diversity of phytoplankton, their phenology, vertical distribution, and community composition, and their role in ocean biogeochemistry and ecosystem services."@en ;
-  skos:documentation "Caractérisation de la diversité biologique du phytoplancton, de sa phénologie, de sa distribution verticale et de sa composition communautaire, ainsi que le rôle dans la biogéochimie des océans et les services écosystémiques."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:zooplanktonBiomassAndDiversity rdf:type skos:Concept ;
-  skos:prefLabel "Zooplankton biomass and diversity"@en ;
-  skos:prefLabel "Biomasse et diversité de zooplancton"@fr ;
-  skos:documentation "Zooplankton diversity refers to the number of zooplankton species, taxonomic composition, or community structure within a region. Zooplankton diversity influences ecosystem health and productivity through trophic links."@en ;
-  skos:documentation "La diversité du zooplancton fait référence au nombre d'espèces de zooplancton, à la composition taxonomique ou à la structure communautaire au sein d'une région. La diversité du zooplancton influence la santé et la productivité de l'écosystème par le biais de liens trophiques."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:fishAbundanceAndDistribution rdf:type skos:Concept ;
-  skos:prefLabel "Fish abundance and distribution"@en ;
-  skos:prefLabel "Abondance et distribution de poissons"@fr ;
-  skos:documentation "Fish abundance describes the biomass or numbers of fish in the ocean. It can be reported in terms of species or taxonomic or functional groups (e.g., small pelagic fish, mesopelagic fish, and tunalike species) in an assemblage, population, stock or area, or globally"@en ;
-  skos:documentation "L'abondance des poissons décrit la biomasse ou le nombre de poissons dans l'océan. Il peut être rapporté en termes d'espèces ou de groupes taxonomiques ou fonctionnels (par exemple, petits poissons pélagiques, poissons mésopélagiques et espèces tunal) dans un assemblage, une population, un stock ou une zone, ou à l'échelle mondiale"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:marineTurtlesBirdsMammalsAbundanceAndDistribution rdf:type skos:Concept ;
-  skos:prefLabel "Marine turtles, birds, mammals abundance and distribution"@en ;
-  skos:prefLabel "Abondance et distribution de tortues marines, oiseaux et mammifères"@fr ;
-  skos:documentation "Abundance refers to the number of individuals (turtles, birds or marine mammals) within a population while distribution refers to\nthe geographic or spatial extent of habitats used by individuals in the population."@en ;
-  skos:documentation "L'abondance se réfère au nombre d'individus (tortues, oiseaux ou mammifères marins) au sein d'une population tandis que la distribution se réfère à\nl'étendue géographique ou spatiale des habitats utilisés par les individus de la population."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:hardCoralCoverAndComposition rdf:type skos:Concept ;
-  skos:prefLabel "Hard coral cover and composition"@en ;
-  skos:prefLabel "Composition et couverture des coraux durs"@fr ;
-  skos:documentation "Live hard coral cover and the areal extent of a reef are the most important indicators of whether a reef is in a coral-dominated state or not; the composition and diversity of coral taxa is an important index of reef health; coral condition (e.g. bleaching, disease) gives fundamental information on the health of a reef; the size class structure (and recruitment) of hard corals gives fundamental information on the resilience, disturbance history and recovery potential of a reef."@en ;
-  skos:documentation "La couverture de coraux durs vivants et l'étendue spatiale des récifs sont les indicateurs les plus importants pour savoir si le récif est ou non dominé par les coraux.  La composition et la diversité des taxons coralliens sont un indice important de la santé du récif ; l'état des coraux (par exemple le blanchissement, les maladies) donne des informations fondamentales sur la santé du récif ; la structure des classes de taille (et le recrutement) des coraux durs donne des informations fondamentales sur la résilience, l'historique des perturbations et le potentiel de récupération du récif."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:seagrassCoverAndComposition rdf:type skos:Concept ;
-  skos:prefLabel "Seagrass cover and composition"@en ;
-  skos:prefLabel "Composition et couverture des herbiers marins"@fr ;
-  skos:documentation "Characterization of seagrass beds according to species and their cover linked to a spatial distribution."@en ;
-  skos:documentation "Caractérisation des herbiers marins en fonction des espèces et de leur couverture selon une distribution spatiale."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:macroalgalCanopyCoverAndComposition rdf:type skos:Concept ;
-  skos:prefLabel "Macroalgal canopy cover and composition"@en ;
-  skos:prefLabel "Composition et couverture de la canopée de macroalgues"@fr ;
-  skos:documentation "Characterization of macroalgal forest according to species and their cover linked to a spatial distribution."@en ;
-  skos:documentation "Caractérisation des macroalgues en fonction des espèces et de leur couvert selon une distribution spatiale."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:invertebrateAbundanceAndDistribution rdf:type skos:Concept ;
-  skos:prefLabel "Invertebrate abundance and distribution"@en ;
-  skos:prefLabel "Abondance et distribution d'invertébrés"@fr ;
-  skos:documentation "The abundance of invertebrate species describes the biomass or number of individuals in an assemblage and according to a spatial distribution."@en ;
-  skos:documentation "L'abondance d'espèces invertébrées décrit la biomasse ou le nombre d'individus dans un assemblage et selon une distribution spatiale."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:microbeBiomassAndDiversity rdf:type skos:Concept ;
-  skos:prefLabel "Microbe biomass and diversity"@en ;
-  skos:prefLabel "Biomasse et diversité microbienne"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:oceanColour rdf:type skos:Concept ;
-  skos:prefLabel "Ocean colour"@en ;
-  skos:prefLabel "Couleur des océans"@fr ;
-  skos:documentation "The term 'ocean colour' refers to the result of absorption and scattering of spectral radiation emanating from the sun. Light interacts with water and suspended or dissolved matter and encompasses a multitude of biological, biogeochemical and ecological factors that form the colour of water."@en ;
-  skos:documentation "Le terme «couleur de l'océan» se réfère au résultat de l'absorption et de la diffusion du rayonnement spectral émanant du soleil. La lumière interagit avec l'eau et les matières en suspension ou dissoutes et englobe une multitude de facteurs biologiques, biogéochimiques et écologiques qui forment la couleur de l'eau."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:oceanSound rdf:type skos:Concept ;
-  skos:prefLabel "Ocean sound"@en ;
-  skos:prefLabel "Paysage acoustique des océans"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:marineDebris rdf:type skos:Concept ;
-  skos:prefLabel "Marine debris"@en ;
-  skos:prefLabel "Débris marins"@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:oceanSurfaceHeatFlux rdf:type skos:Concept ;
-  skos:prefLabel "Ocean surface heat flux"@en ;
-  skos:prefLabel "Flux de chaleur océanique de surface"@fr ;
-  skos:documentation "Surface heat flux is the rate of heat exchange, per unit area, passing through the sea surface to the atmosphere. The net heat flux is the sum of the turbulent fluxes (latent and sensitive) and the radiative flux (short and long waves)."@en ;
-  skos:documentation "Le flux de chaleur de surface est le taux d'échange de chaleur, par unité de surface, traversant la surface de la mer jusqu'à l'atmosphère. Le flux de chaleur net est la somme des flux turbulents (latents et sensibles) et du flux radiatif (ondes courtes et longues)."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:oceanSurfaceStress rdf:type skos:Concept ;
-  skos:prefLabel "Ocean surface stress"@en ;
-  skos:prefLabel "Contraintes sur la surface océanique"@fr ;
-  skos:documentation "Ocean stress is related to lower atmosphere drag and ocean surface dynamics. The magnitude of the stress influences the exchange of energy between the ocean and the atmosphere (evaporation, oxygen, carbon dioxide and other gases)."@en ;
-  skos:documentation "Le stress océanique est lié à la trainée de la basse atmosphère et à la dynamique de surface de l'océan. L'ampleur du stress influence l'échange d'énergie entre l'océan et l'atmosphère (évaporation, oxygène, dioxyde de carbon et gaz autres)."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
-
-cnodc:oceanBottomPressure rdf:type skos:Concept ;
-  skos:prefLabel "Ocean Bottom Pressure"@en ;
-  skos:prefLabel "Pression au fond de l'océan"@fr ;
-  skos:documentation "Ocean bottom pressure is the total pressure resulting from the weight or mass of the column of seawater and the overlaying atmosphere."@en ;
-  skos:documentation "La pression au fond de l'océan est la pression totale résultant du poids ou de la masse de la colonne d'eau de mer et de l'atmosphère qui la recouvre."@fr ;
-  skos:inScheme cnodc:essentialOceanVariables .
 
 cnodc:AlkalinityMolar rdf:type skos:Concept ;
   skos:prefLabel "Alkalinity (Molarity)"@en ;
@@ -512,7 +99,7 @@ cnodc:AlkalinityMolar rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "umol L-1" ;
   cnodc:standardName "sea_water_alkalinity_expressed_as_mole_equivalent" ;
-  cnodc:ioosCategory cnodc:Acidity ; 
+  cnodc:ioosCategory ioos:Acidity ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -521,7 +108,7 @@ cnodc:CarbonateAlkalinityMolar rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory cnodc:Acidity ; 
+  cnodc:ioosCategory ioos:Acidity ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -533,7 +120,7 @@ cnodc:PH rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "1" ;
   cnodc:standardName "sea_water_ph_reported_on_total_scale" ;
-  cnodc:ioosCategory cnodc:Acidity ; 
+  cnodc:ioosCategory ioos:Acidity ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 14 ; 
   skos:inScheme cnodc:elements .
@@ -547,7 +134,7 @@ cnodc:Depth rdf:type skos:Concept ;
   cnodc:preferredUnit "m" ;
   cnodc:standardName "depth" ;
   cnodc:variableName "depth" ;
-  cnodc:ioosCategory cnodc:Bathymetry ; 
+  cnodc:ioosCategory ioos:Bathymetry ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 11000 ; 
   skos:exactMatch bufr4B07:062 ;
@@ -565,7 +152,7 @@ cnodc:SeaDepth rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
   cnodc:standardName "sea_floor_depth_below_sea_surface" ;
-  cnodc:ioosCategory cnodc:Bathymetry ; 
+  cnodc:ioosCategory ioos:Bathymetry ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 11000 ; 
   skos:exactMatch bufr4B22:063 ;
@@ -582,7 +169,7 @@ cnodc:ChlorophyllA rdf:type skos:Concept ;
   cnodc:preferredUnit "mg m-3" ;
   cnodc:standardName "mass_concentration_of_chlorophyll_a_in_sea_water" ;
   cnodc:variableName "chlorophyll_a" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch og1:CHLA ;
   skos:inScheme cnodc:elements .
@@ -594,7 +181,7 @@ cnodc:ChlorophyllAFluorescence rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "1" ;
   cnodc:variableName "chlorophyll_a_fluorescence" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -606,7 +193,7 @@ cnodc:ChlorophyllB rdf:type skos:Concept ;
   cnodc:preferredUnit "mg m-3" ;
   cnodc:standardName "mass_concentration_of_chlorophyll_b_in_sea_water" ;
   cnodc:variableName "chlorophyll_b" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -618,7 +205,7 @@ cnodc:ChlorophyllC rdf:type skos:Concept ;
   cnodc:preferredUnit "mg m-3" ;
   cnodc:standardName "mass_concentration_of_chlorophyll_c_in_sea_water" ;
   cnodc:variableName "chlorophyll_c" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -628,7 +215,7 @@ cnodc:Fluorescence rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "kg L-1" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -639,7 +226,7 @@ cnodc:FluorescenceFraction rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "0.01" ;
   cnodc:variableName "fluoresence_fraction" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 100 ; 
   skos:inScheme cnodc:elements .
@@ -649,7 +236,7 @@ cnodc:FluorescencePotential rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "V" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   skos:inScheme cnodc:elements .
 
 cnodc:Pheophytin rdf:type skos:Concept ;
@@ -658,7 +245,7 @@ cnodc:Pheophytin rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "mg m-3" ;
-  cnodc:ioosCategory cnodc:Biology ; 
+  cnodc:ioosCategory ioos:Biology ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -668,7 +255,7 @@ cnodc:Fluoride rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "mg L-1" ;
-  cnodc:ioosCategory cnodc:Contaminants ; 
+  cnodc:ioosCategory ioos:Contaminants ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -680,9 +267,9 @@ cnodc:CurrentDirection rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degrees" ;
   cnodc:standardName "sea_water_velocity_to_direction" ;
-  cnodc:ioosCategory cnodc:Currents ; 
-  cnodc:essentialOceanVariable cnodc:surfaceCurrents ; 
-  cnodc:essentialOceanVariable cnodc:subSurfaceCurrents ; 
+  cnodc:ioosCategory ioos:Currents ; 
+  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
+  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:004 ;
@@ -703,9 +290,9 @@ cnodc:CurrentSpeed rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m s-1" ;
   cnodc:standardName "sea_water_speed" ;
-  cnodc:ioosCategory cnodc:Currents ; 
-  cnodc:essentialOceanVariable cnodc:surfaceCurrents ; 
-  cnodc:essentialOceanVariable cnodc:subSurfaceCurrents ; 
+  cnodc:ioosCategory ioos:Currents ; 
+  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
+  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:031 ;
   skos:exactMatch bufr4B22:032 ;
@@ -722,8 +309,8 @@ cnodc:AmmoniaMolar rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -734,8 +321,8 @@ cnodc:NitrateMolar rdf:type skos:Concept ;
   cnodc:preferredUnit "umol L-1" ;
   cnodc:standardName "mole_concentration_of_nitrate_in_sea_water" ;
   cnodc:variableName "molar_nitrate__nitrate_molaire" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -746,8 +333,8 @@ cnodc:NitriteMolar rdf:type skos:Concept ;
   cnodc:preferredUnit "umol L-1" ;
   cnodc:standardName "mole_concentration_of_nitrite_in_sea_water" ;
   cnodc:variableName "molar_nitrite__nitrite_molaire" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -756,8 +343,8 @@ cnodc:PhosphateMolar rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -766,8 +353,8 @@ cnodc:SilicateMolar rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -779,8 +366,8 @@ cnodc:TotalNitrogenMolar rdf:type skos:Concept ;
   cnodc:preferredUnit "mmol m-3" ;
   cnodc:standardName "mole_concentration_of_dissolved_nitrogen_in_sea_water" ;
   cnodc:variableName "molar_total_nitrogen__azote_total_molaire" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -792,8 +379,8 @@ cnodc:TotalPhosphorousMolar rdf:type skos:Concept ;
   cnodc:preferredUnit "mmol m-3" ;
   cnodc:standardName "mole_concentration_of_phosphate_in_sea_water" ;
   cnodc:variableName "molar_total_phosphorous__phosphore_total_molaire" ;
-  cnodc:ioosCategory cnodc:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable cnodc:nutrients ; 
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -805,8 +392,8 @@ cnodc:DissolvedOxygen rdf:type skos:Concept ;
   cnodc:preferredUnit "umol kg-1" ;
   cnodc:standardName "moles_of_oxygen_per_unit_mass_in_sea_water" ;
   cnodc:variableName "dissolved_o2__o2_dissous" ;
-  cnodc:ioosCategory cnodc:DissolvedO2 ; 
-  cnodc:essentialOceanVariable cnodc:oxygen ; 
+  cnodc:ioosCategory ioos:DissolvedO2 ; 
+  cnodc:essentialOceanVariable eov:oxygen ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:188 ;
   skos:exactMatch og1:DOXY ;
@@ -821,8 +408,8 @@ cnodc:DissolvedOxygenMolar rdf:type skos:Concept ;
   cnodc:preferredUnit "umol m-3" ;
   cnodc:standardName "mole_concentration_of_dissolved_molecular_oxygen_in_sea_water" ;
   cnodc:variableName "molar_dissolved_o2__o2_dissous_molaire" ;
-  cnodc:ioosCategory cnodc:DissolvedO2 ; 
-  cnodc:essentialOceanVariable cnodc:oxygen ; 
+  cnodc:ioosCategory ioos:DissolvedO2 ; 
+  cnodc:essentialOceanVariable eov:oxygen ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:188 ;
   skos:exactMatch pcode:OXYG ;
@@ -834,8 +421,8 @@ cnodc:DissolvedOxygenFrequency rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "Hz" ;
   cnodc:variableName "freq_dissolved_o2__o2_dissous_freq" ;
-  cnodc:ioosCategory cnodc:DissolvedO2 ; 
-  cnodc:essentialOceanVariable cnodc:oxygen ; 
+  cnodc:ioosCategory ioos:DissolvedO2 ; 
+  cnodc:essentialOceanVariable eov:oxygen ; 
   skos:inScheme cnodc:elements .
 
 cnodc:DiffuseSolarRadiation rdf:type skos:Concept ;
@@ -853,8 +440,8 @@ cnodc:IceThickness rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:IceDistribution ; 
-  cnodc:essentialOceanVariable cnodc:seaIce ; 
+  cnodc:ioosCategory ioos:IceDistribution ; 
+  cnodc:essentialOceanVariable eov:seaIce ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B13:115 ;
   skos:exactMatch pcode:ICT%24 ;
@@ -864,8 +451,8 @@ cnodc:SeaIceConcentration rdf:type skos:Concept ;
   skos:prefLabel "Sea Ice Concentration"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:IceDistribution ; 
-  cnodc:essentialOceanVariable cnodc:seaIce ; 
+  cnodc:ioosCategory ioos:IceDistribution ; 
+  cnodc:essentialOceanVariable eov:seaIce ; 
   skos:exactMatch bufr4B20:034 ;
   skos:inScheme cnodc:elements .
 
@@ -878,7 +465,7 @@ cnodc:CentralFrequency rdf:type skos:Concept ;
   cnodc:preferredUnit "Hz" ;
   cnodc:standardName "sensor_band_central_radiation_frequency" ;
   cnodc:variableName "central_frequency__frequence_centrale" ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:080 ;
   skos:inScheme cnodc:elements .
@@ -888,7 +475,7 @@ cnodc:CNODCID rdf:type skos:Concept ;
   skos:documentation "Unique identifier of this record in the CNODC database"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
@@ -897,7 +484,7 @@ cnodc:CNODCMission rdf:type skos:Concept ;
   skos:documentation "Name of the originating mission"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:inScheme cnodc:elements .
 
 cnodc:CNODCPlatform rdf:type skos:Concept ;
@@ -905,7 +492,7 @@ cnodc:CNODCPlatform rdf:type skos:Concept ;
   skos:documentation "UUID of the originating platform"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:inScheme cnodc:elements .
 
 cnodc:CNODCProgram rdf:type skos:Concept ;
@@ -913,7 +500,7 @@ cnodc:CNODCProgram rdf:type skos:Concept ;
   skos:documentation "Name of the program that collected the profile"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
@@ -922,7 +509,7 @@ cnodc:CNODCSource rdf:type skos:Concept ;
   skos:documentation "Identifier for the source of the data"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
@@ -930,7 +517,7 @@ cnodc:CruiseID rdf:type skos:Concept ;
   skos:prefLabel "Cruise ID"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:115 ;
   skos:inScheme cnodc:elements .
 
@@ -938,14 +525,14 @@ cnodc:DeviceID rdf:type skos:Concept ;
   skos:prefLabel "Device ID"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:inScheme cnodc:elements .
 
 cnodc:FloatCycleNumber rdf:type skos:Concept ;
   skos:prefLabel "Float Cycle Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B22:055 ;
   skos:inScheme cnodc:elements .
 
@@ -954,7 +541,7 @@ cnodc:GTSHeader rdf:type skos:Concept ;
   skos:documentation "The header sent with this message on the GTS"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:date ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   cnodc:ignoreInDuplicateCheck "True" ;
   skos:inScheme cnodc:elements .
 
@@ -962,7 +549,7 @@ cnodc:IMONumber rdf:type skos:Concept ;
   skos:prefLabel "IMO Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:103 ;
   skos:exactMatch pcode:LYD%24 ;
   skos:inScheme cnodc:elements .
@@ -971,7 +558,7 @@ cnodc:PlatformModel rdf:type skos:Concept ;
   skos:prefLabel "Platform Model"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:085 ;
   skos:inScheme cnodc:elements .
 
@@ -979,7 +566,7 @@ cnodc:PlatformSerialNumber rdf:type skos:Concept ;
   skos:prefLabel "Platform Serial Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:086 ;
   skos:inScheme cnodc:elements .
 
@@ -987,7 +574,7 @@ cnodc:ProfileDirection rdf:type skos:Concept ;
   skos:prefLabel "Profile Direction"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B22:056 ;
   skos:exactMatch pcode:PDR%24 ;
   skos:inScheme cnodc:elements .
@@ -996,7 +583,7 @@ cnodc:ProfileID rdf:type skos:Concept ;
   skos:prefLabel "Profile ID"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:079 ;
   skos:inScheme cnodc:elements .
 
@@ -1004,7 +591,7 @@ cnodc:ProfilerSerialNumber rdf:type skos:Concept ;
   skos:prefLabel "Profiler Serial Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B02:171 ;
   skos:exactMatch pcode:SER1 ;
   skos:inScheme cnodc:elements .
@@ -1013,7 +600,7 @@ cnodc:SequenceNumber rdf:type skos:Concept ;
   skos:prefLabel "Sequence Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:023 ;
   skos:inScheme cnodc:elements .
 
@@ -1021,7 +608,7 @@ cnodc:ShipLineNumber rdf:type skos:Concept ;
   skos:prefLabel "Ship Line Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:080 ;
   skos:inScheme cnodc:elements .
 
@@ -1029,7 +616,7 @@ cnodc:ShipTransectNumber rdf:type skos:Concept ;
   skos:prefLabel "Ship Transect Number"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B05:036 ;
   skos:inScheme cnodc:elements .
 
@@ -1037,7 +624,7 @@ cnodc:SoftwareID rdf:type skos:Concept ;
   skos:prefLabel "Software ID"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B25:061 ;
   skos:inScheme cnodc:elements .
 
@@ -1045,7 +632,7 @@ cnodc:StationID rdf:type skos:Concept ;
   skos:prefLabel "Station ID"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:011 ;
   skos:exactMatch pcode:CCLL ;
   cnodc:wmoCodeGroup "FM62-VIII: D....D" ; 
@@ -1057,7 +644,7 @@ cnodc:StationName rdf:type skos:Concept ;
   skos:prefLabel "Station Name"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:015 ;
   skos:exactMatch bufr4B01:019 ;
   skos:exactMatch pcode:PLTN ;
@@ -1069,7 +656,7 @@ cnodc:TransmitterID rdf:type skos:Concept ;
   skos:prefLabel "Transmitter ID"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:051 ;
   skos:inScheme cnodc:elements .
 
@@ -1078,7 +665,7 @@ cnodc:WIGOSID rdf:type skos:Concept ;
   skos:documentation "WIGOS identifier as assigned by the WMO"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:narrowerMatch bufr4B01:125 ;
   skos:narrowerMatch bufr4B01:126 ;
   skos:narrowerMatch bufr4B01:127 ;
@@ -1090,7 +677,7 @@ cnodc:WMOID rdf:type skos:Concept ;
   skos:documentation "WMO identifier as assigned by the WMO"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:087 ;
   skos:narrowerMatch bufr4B01:001 ;
   skos:narrowerMatch bufr4B01:002 ;
@@ -1108,7 +695,7 @@ cnodc:WMOSatelliteIdentifier rdf:type skos:Concept ;
   skos:prefLabel "WMO Satellite Identifier"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Identifier ; 
+  cnodc:ioosCategory ioos:Identifier ; 
   skos:exactMatch bufr4B01:007 ;
   skos:inScheme cnodc:elements .
 
@@ -1117,7 +704,7 @@ cnodc:BarometerHeight rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B07:031 ;
   skos:inScheme cnodc:elements .
 
@@ -1126,7 +713,7 @@ cnodc:DrogueDepth rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B07:070 ;
   skos:exactMatch pcode:DRDP ;
   skos:inScheme cnodc:elements .
@@ -1140,7 +727,7 @@ cnodc:Latitude rdf:type skos:Concept ;
   cnodc:preferredUnit "degree_north" ;
   cnodc:standardName "latitude" ;
   cnodc:variableName "latitude" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   cnodc:minValue -90 ; 
   cnodc:maxValue 90 ; 
   skos:exactMatch bufr4B05:001 ;
@@ -1161,7 +748,7 @@ cnodc:Longitude rdf:type skos:Concept ;
   cnodc:preferredUnit "degree_east" ;
   cnodc:standardName "longitude" ;
   cnodc:variableName "longitude" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   cnodc:minValue -180 ; 
   cnodc:maxValue 180 ; 
   skos:exactMatch bufr4B06:001 ;
@@ -1178,7 +765,7 @@ cnodc:SensorDepth rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B07:063 ;
   skos:exactMatch pcode:DEPH ;
   skos:inScheme cnodc:elements .
@@ -1188,7 +775,7 @@ cnodc:SensorHeightAboveWater rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B07:033 ;
   cnodc:wmoCodeGroup "FM18-XII: Ah Ah Ah" ; 
   skos:inScheme cnodc:elements .
@@ -1198,7 +785,7 @@ cnodc:SensorHeightLocal rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B07:032 ;
   skos:inScheme cnodc:elements .
 
@@ -1207,7 +794,7 @@ cnodc:StationHeight rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B07:030 ;
   skos:inScheme cnodc:elements .
 
@@ -1216,7 +803,7 @@ cnodc:XBTHeight rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Location ; 
+  cnodc:ioosCategory ioos:Location ; 
   skos:exactMatch bufr4B22:177 ;
   skos:exactMatch pcode:HTL%24 ;
   skos:inScheme cnodc:elements .
@@ -1229,7 +816,7 @@ cnodc:AirPressure rdf:type skos:Concept ;
   cnodc:preferredUnit "Pa" ;
   cnodc:standardName "air_pressure" ;
   cnodc:variableName "air_pressure__pression_air" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B10:004 ;
   skos:exactMatch pcode:ATMP ;
@@ -1244,7 +831,7 @@ cnodc:AirPressureAtSeaLevel rdf:type skos:Concept ;
   cnodc:preferredUnit "Pa" ;
   cnodc:standardName "air_pressure_at_mean_sea_level" ;
   cnodc:variableName "msl_air_pressure__pression_air_nmm" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B10:051 ;
   skos:exactMatch pcode:ATMS ;
@@ -1257,7 +844,7 @@ cnodc:AirPressureChange rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "Pa" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:inScheme cnodc:elements .
 
 cnodc:AirTemperature rdf:type skos:Concept ;
@@ -1269,7 +856,7 @@ cnodc:AirTemperature rdf:type skos:Concept ;
   cnodc:preferredUnit "K" ;
   cnodc:standardName "air_temperature" ;
   cnodc:variableName "air_temperature" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B12:101 ;
   skos:exactMatch pcode:DRYT ;
@@ -1287,7 +874,7 @@ cnodc:DewPointTemperature rdf:type skos:Concept ;
   cnodc:preferredUnit "K" ;
   cnodc:standardName "dew_point_temperature" ;
   cnodc:variableName "dew_point__point_rosee" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -1297,7 +884,7 @@ cnodc:DirectSolarRadiation rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:exactMatch bufr4B14:030 ;
   skos:inScheme cnodc:elements .
 
@@ -1307,7 +894,7 @@ cnodc:GlobalSolarRadiation rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:exactMatch bufr4B14:028 ;
   skos:inScheme cnodc:elements .
 
@@ -1317,7 +904,7 @@ cnodc:HorizontalVisibility rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B20:001 ;
   skos:exactMatch pcode:VISB ;
@@ -1329,7 +916,7 @@ cnodc:LongwaveRadiation rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:exactMatch bufr4B14:002 ;
   skos:inScheme cnodc:elements .
 
@@ -1339,7 +926,7 @@ cnodc:NetRadiation rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:exactMatch bufr4B14:016 ;
   skos:inScheme cnodc:elements .
 
@@ -1352,7 +939,7 @@ cnodc:RelativeHumidity rdf:type skos:Concept ;
   cnodc:preferredUnit "0.01" ;
   cnodc:standardName "relative_humidity" ;
   cnodc:variableName "relative_humidity__humidite_relative" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 100 ; 
   skos:exactMatch bufr4B13:003 ;
@@ -1366,7 +953,7 @@ cnodc:ShortwaveRadiation rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:exactMatch bufr4B14:004 ;
   skos:inScheme cnodc:elements .
 
@@ -1378,7 +965,7 @@ cnodc:TotalPrecipitation rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "kg m-2" ;
   cnodc:standardName "precipitation_amount" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B13:011 ;
   skos:inScheme cnodc:elements .
@@ -1392,7 +979,7 @@ cnodc:WetBulbTemperature rdf:type skos:Concept ;
   cnodc:preferredUnit "K" ;
   cnodc:standardName "wet_bulb_temperature" ;
   cnodc:variableName "wet_bulb_temperature__temperature_bulbe_humide" ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B12:102 ;
   skos:exactMatch pcode:WETT ;
@@ -1402,7 +989,7 @@ cnodc:WMOAirPressureCharacteristic rdf:type skos:Concept ;
   skos:prefLabel "WMO Air Pressure Characteristic"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Meteorology ; 
+  cnodc:ioosCategory ioos:Meteorology ; 
   skos:exactMatch bufr4B10:063 ;
   skos:exactMatch pcode:GPT%24 ;
   skos:inScheme cnodc:elements .
@@ -1414,7 +1001,7 @@ cnodc:LightTransmission rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "0.01" ;
   cnodc:variableName "transmissivity__transmissivite" ;
-  cnodc:ioosCategory cnodc:OpticalProperties ; 
+  cnodc:ioosCategory ioos:OpticalProperties ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 100 ; 
   skos:inScheme cnodc:elements .
@@ -1428,7 +1015,7 @@ cnodc:Pressure rdf:type skos:Concept ;
   cnodc:preferredUnit "Pa" ;
   cnodc:standardName "sea_water_pressure" ;
   cnodc:variableName "pressure__pression" ;
-  cnodc:ioosCategory cnodc:Pressure ; 
+  cnodc:ioosCategory ioos:Pressure ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B07:065 ;
   skos:exactMatch og1:PRES ;
@@ -1440,7 +1027,7 @@ cnodc:Quality rdf:type skos:Concept ;
   cnodc:elementGroup "metadata:element" ;
   cnodc:dataType xsd:integer ;
   cnodc:standardName "quality_flag" ;
-  cnodc:ioosCategory cnodc:Quality ; 
+  cnodc:ioosCategory ioos:Quality ; 
   cnodc:allowedValue "0" ;
   cnodc:allowedValue "1" ;
   cnodc:allowedValue "2" ;
@@ -1462,7 +1049,7 @@ cnodc:WMOQualityLocation rdf:type skos:Concept ;
   skos:prefLabel "WMO Quality Location"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Quality ; 
+  cnodc:ioosCategory ioos:Quality ; 
   skos:exactMatch bufr4B33:023 ;
   skos:exactMatch pcode:GGLC ;
   skos:broaderMatch pcode:GGST ;
@@ -1474,7 +1061,7 @@ cnodc:WMOQualityLocationClass rdf:type skos:Concept ;
   skos:prefLabel "WMO Quality Location Class"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Quality ; 
+  cnodc:ioosCategory ioos:Quality ; 
   skos:exactMatch bufr4B33:027 ;
   skos:exactMatch pcode:BQA%24 ;
   skos:broaderMatch pcode:GGST ;
@@ -1485,7 +1072,7 @@ cnodc:WMOQualitySatellite rdf:type skos:Concept ;
   skos:prefLabel "WMO Quality Satellite"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
-  cnodc:ioosCategory cnodc:Quality ; 
+  cnodc:ioosCategory ioos:Quality ; 
   skos:exactMatch bufr4B33:022 ;
   skos:broaderMatch pcode:GGST ;
   cnodc:wmoCodeGroup "FM18-XII: QN" ; 
@@ -1496,7 +1083,7 @@ cnodc:WorkingQuality rdf:type skos:Concept ;
   skos:documentation "Internally proposed quality flag"@en ;
   cnodc:elementGroup "metadata:element" ;
   cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory cnodc:Quality ; 
+  cnodc:ioosCategory ioos:Quality ; 
   cnodc:allowedValue "0" ;
   cnodc:allowedValue "1" ;
   cnodc:allowedValue "2" ;
@@ -1521,9 +1108,9 @@ cnodc:AbsoluteSalinity rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "g kg-1" ;
   cnodc:standardName "sea_water_absolute_salinity" ;
-  cnodc:ioosCategory cnodc:Salinity ; 
-  cnodc:essentialOceanVariable cnodc:seaSurfaceSalinity ; 
-  cnodc:essentialOceanVariable cnodc:subSurfaceSalinity ; 
+  cnodc:ioosCategory ioos:Salinity ; 
+  cnodc:essentialOceanVariable eov:seaSurfaceSalinity ; 
+  cnodc:essentialOceanVariable eov:subSurfaceSalinity ; 
   cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
@@ -1536,9 +1123,9 @@ cnodc:PracticalSalinity rdf:type skos:Concept ;
   cnodc:preferredUnit "0.001" ;
   cnodc:standardName "sea_water_practical_salinity" ;
   cnodc:variableName "salinity__salinite" ;
-  cnodc:ioosCategory cnodc:Salinity ; 
-  cnodc:essentialOceanVariable cnodc:seaSurfaceSalinity ; 
-  cnodc:essentialOceanVariable cnodc:subSurfaceSalinity ; 
+  cnodc:ioosCategory ioos:Salinity ; 
+  cnodc:essentialOceanVariable eov:seaSurfaceSalinity ; 
+  cnodc:essentialOceanVariable eov:subSurfaceSalinity ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:062 ;
   skos:exactMatch bufr4B22:064 ;
@@ -1554,7 +1141,7 @@ cnodc:FourierA1 rdf:type skos:Concept ;
   skos:prefLabel "Fourier A1 Parameter"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:Statistics ; 
+  cnodc:ioosCategory ioos:Statistics ; 
   skos:exactMatch bufr4B42:011 ;
   skos:inScheme cnodc:elements .
 
@@ -1562,7 +1149,7 @@ cnodc:FourierA2 rdf:type skos:Concept ;
   skos:prefLabel "Fourier A2 Parameter"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:Statistics ; 
+  cnodc:ioosCategory ioos:Statistics ; 
   skos:exactMatch bufr4B42:013 ;
   skos:inScheme cnodc:elements .
 
@@ -1570,7 +1157,7 @@ cnodc:FourierB1 rdf:type skos:Concept ;
   skos:prefLabel "Fourier B1 Parameter"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:Statistics ; 
+  cnodc:ioosCategory ioos:Statistics ; 
   skos:exactMatch bufr4B42:012 ;
   skos:inScheme cnodc:elements .
 
@@ -1578,7 +1165,7 @@ cnodc:FourierB2 rdf:type skos:Concept ;
   skos:prefLabel "Fourier B2 Parameter"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:Statistics ; 
+  cnodc:ioosCategory ioos:Statistics ; 
   skos:exactMatch bufr4B42:014 ;
   skos:inScheme cnodc:elements .
 
@@ -1586,7 +1173,7 @@ cnodc:FourierK rdf:type skos:Concept ;
   skos:prefLabel "Fourier K Parameter"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:Statistics ; 
+  cnodc:ioosCategory ioos:Statistics ; 
   skos:exactMatch bufr4B42:015 ;
   skos:inScheme cnodc:elements .
 
@@ -1595,7 +1182,7 @@ cnodc:Uncertainty rdf:type skos:Concept ;
   skos:documentation "Absolute uncertainty of a measurement, in the same units as the value"@en ;
   cnodc:elementGroup "metadata:element" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:Statistics ; 
+  cnodc:ioosCategory ioos:Statistics ; 
   cnodc:minValue 0 ; 
   skos:relatedMatch bufr4B02:005 ;
   skos:inScheme cnodc:elements .
@@ -1604,8 +1191,8 @@ cnodc:SpectralWaveBandCount rdf:type skos:Concept ;
   skos:prefLabel "Spectral Wave Band Count"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:094 ;
   skos:inScheme cnodc:elements .
 
@@ -1614,8 +1201,8 @@ cnodc:SpectralWaveBandWidth rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "s-1" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:096 ;
   skos:inScheme cnodc:elements .
 
@@ -1624,8 +1211,8 @@ cnodc:SpectralWaveDensity rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m2 Hz-1" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:069 ;
   skos:inScheme cnodc:elements .
 
@@ -1634,8 +1221,8 @@ cnodc:SpectralWaveDensityByFrequency rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m2 s" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:104 ;
   skos:inScheme cnodc:elements .
 
@@ -1644,8 +1231,8 @@ cnodc:SpectralWaveDensityRatio rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "0.01" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:108 ;
   skos:inScheme cnodc:elements .
 
@@ -1654,8 +1241,8 @@ cnodc:SpectralWaveDirDensityByFrequency rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m2 s rad-1" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:106 ;
   skos:inScheme cnodc:elements .
 
@@ -1663,8 +1250,8 @@ cnodc:SpectralWaveFourier1 rdf:type skos:Concept ;
   skos:prefLabel "Spectral Wave Fourier 1"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:088 ;
   skos:inScheme cnodc:elements .
 
@@ -1672,8 +1259,8 @@ cnodc:SpectralWaveFourier2 rdf:type skos:Concept ;
   skos:prefLabel "Spectral Wave Fourier 2"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:089 ;
   skos:inScheme cnodc:elements .
 
@@ -1682,8 +1269,8 @@ cnodc:SpectralWaveMaxDensityByFrequency rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m2 s" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:082 ;
   skos:exactMatch bufr4B22:102 ;
   skos:inScheme cnodc:elements .
@@ -1692,8 +1279,8 @@ cnodc:SpectralWaveMaxWaveBand rdf:type skos:Concept ;
   skos:prefLabel "Spectral Wave Maximum Wave Band"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B22:084 ;
   skos:inScheme cnodc:elements .
 
@@ -1702,8 +1289,8 @@ cnodc:SpectralWavePeakPeriod rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:071 ;
   skos:inScheme cnodc:elements .
@@ -1713,8 +1300,8 @@ cnodc:WaveAveragePeriod rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:074 ;
   skos:inScheme cnodc:elements .
@@ -1727,8 +1314,8 @@ cnodc:WaveDirection rdf:type skos:Concept ;
   cnodc:preferredUnit "degree" ;
   cnodc:standardName "sea_surface_wave_from_direction" ;
   cnodc:variableName "wave_direction__direction_vagues" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:186 ;
@@ -1739,8 +1326,8 @@ cnodc:WaveDominantDirection rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:076 ;
@@ -1751,8 +1338,8 @@ cnodc:WaveDominantSpread rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:077 ;
@@ -1763,8 +1350,8 @@ cnodc:WaveHeight rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:021 ;
   cnodc:wmoCodeGroup "FM18-XII: Hwa Hwa" ; 
@@ -1777,8 +1364,8 @@ cnodc:WaveMaximumHeight rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
   cnodc:standardName "sea_surface_wave_maximum_height" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:073 ;
   skos:inScheme cnodc:elements .
@@ -1789,8 +1376,8 @@ cnodc:WaveMeanDirection rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:086 ;
@@ -1801,8 +1388,8 @@ cnodc:WavePeriod rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:011 ;
   cnodc:wmoCodeGroup "FM18-XII: Pwa Pwa" ; 
@@ -1815,8 +1402,8 @@ cnodc:WavePrincipalDirection rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degree" ;
   cnodc:standardName "sea_surface_wave_principal_from_direction" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:087 ;
@@ -1827,8 +1414,8 @@ cnodc:WaveSamplingTime rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   skos:exactMatch bufr4B25:043 ;
   skos:inScheme cnodc:elements .
 
@@ -1838,8 +1425,8 @@ cnodc:WaveSignificantHeight rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
   cnodc:standardName "sea_surface_wave_significant_height" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:070 ;
   skos:inScheme cnodc:elements .
@@ -1849,8 +1436,8 @@ cnodc:WaveSpread rdf:type skos:Concept ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory cnodc:SurfaceWaves ; 
-  cnodc:essentialOceanVariable cnodc:seaState ; 
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B22:187 ;
@@ -1865,9 +1452,9 @@ cnodc:Temperature rdf:type skos:Concept ;
   cnodc:preferredUnit "K" ;
   cnodc:standardName "sea_water_temperature" ;
   cnodc:variableName "temperature" ;
-  cnodc:ioosCategory cnodc:Temperature ; 
-  cnodc:essentialOceanVariable cnodc:seaSurfaceTemperature ; 
-  cnodc:essentialOceanVariable cnodc:subSurfaceTemperature ; 
+  cnodc:ioosCategory ioos:Temperature ; 
+  cnodc:essentialOceanVariable eov:seaSurfaceTemperature ; 
+  cnodc:essentialOceanVariable eov:subSurfaceTemperature ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B22:042 ;
   skos:exactMatch bufr4B22:043 ;
@@ -1887,7 +1474,7 @@ cnodc:LastKnownPositionTime rdf:type skos:Concept ;
   skos:prefLabel "Time of Last Known Position"@en ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:dateTimeStamp ;
-  cnodc:ioosCategory cnodc:Time ; 
+  cnodc:ioosCategory ioos:Time ; 
   skos:relatedMatch bufr4B08:021 ;
   skos:narrowerMatch bufr4B04:001 ;
   skos:narrowerMatch bufr4B04:002 ;
@@ -1907,7 +1494,7 @@ cnodc:ObservationPeriod rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:integer ;
   cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory cnodc:Time ; 
+  cnodc:ioosCategory ioos:Time ; 
   skos:narrowerMatch bufr4B04:021 ;
   skos:narrowerMatch bufr4B04:022 ;
   skos:narrowerMatch bufr4B04:023 ;
@@ -1924,7 +1511,7 @@ cnodc:SubmergenceTime rdf:type skos:Concept ;
   cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "0.01" ;
-  cnodc:ioosCategory cnodc:Time ; 
+  cnodc:ioosCategory ioos:Time ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 100 ; 
   skos:exactMatch bufr4B02:190 ;
@@ -1938,7 +1525,7 @@ cnodc:Time rdf:type skos:Concept ;
   cnodc:dataType xsd:dateTimeStamp ;
   cnodc:standardName "time" ;
   cnodc:variableName "time__heure" ;
-  cnodc:ioosCategory cnodc:Time ; 
+  cnodc:ioosCategory ioos:Time ; 
   skos:narrowerMatch bufr4B04:001 ;
   skos:narrowerMatch bufr4B04:002 ;
   skos:narrowerMatch bufr4B04:003 ;
@@ -1960,7 +1547,7 @@ cnodc:TimeOffset rdf:type skos:Concept ;
   cnodc:elementGroup "coordinates" ;
   cnodc:dataType xsd:decimal ;
   cnodc:variableName "time_offset__decalage_horaire" ;
-  cnodc:ioosCategory cnodc:Time ; 
+  cnodc:ioosCategory ioos:Time ; 
   skos:narrowerMatch bufr4B04:021 ;
   skos:narrowerMatch bufr4B04:022 ;
   skos:narrowerMatch bufr4B04:023 ;
@@ -1978,7 +1565,7 @@ cnodc:WindDirection rdf:type skos:Concept ;
   cnodc:preferredUnit "degree" ;
   cnodc:standardName "wind_from_direction" ;
   cnodc:variableName "wind_direction__direction_vents" ;
-  cnodc:ioosCategory cnodc:Wind ; 
+  cnodc:ioosCategory ioos:Wind ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B11:001 ;
@@ -1996,7 +1583,7 @@ cnodc:WindGustMaxDirection rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "degree" ;
   cnodc:standardName "wind_gust_from_direction" ;
-  cnodc:ioosCategory cnodc:Wind ; 
+  cnodc:ioosCategory ioos:Wind ; 
   cnodc:minValue 0 ; 
   cnodc:maxValue 360 ; 
   skos:exactMatch bufr4B11:043 ;
@@ -2010,7 +1597,7 @@ cnodc:WindGustMaxSpeed rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m s-1" ;
   cnodc:standardName "wind_speed_of_gust" ;
-  cnodc:ioosCategory cnodc:Wind ; 
+  cnodc:ioosCategory ioos:Wind ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B11:041 ;
   skos:exactMatch pcode:GSPD ;
@@ -2024,7 +1611,7 @@ cnodc:WindSpeed rdf:type skos:Concept ;
   cnodc:preferredUnit "m s-1" ;
   cnodc:standardName "wind_speed" ;
   cnodc:variableName "wind_speed__vitesse_vents" ;
-  cnodc:ioosCategory cnodc:Wind ; 
+  cnodc:ioosCategory ioos:Wind ; 
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B11:002 ;
   skos:exactMatch pcode:WSPD ;
@@ -2588,7 +2175,7 @@ cnodc:ColoredDissolvedOrganicMatter rdf:type skos:Concept ;
   cnodc:elementGroup "parameter" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "1e-9" ;
-  cnodc:essentialOceanVariable cnodc:dissolvedOrganicCarbon ; 
+  cnodc:essentialOceanVariable eov:dissolvedOrganicCarbon ; 
   skos:exactMatch og1:CDOM ;
   skos:inScheme cnodc:elements .
 
@@ -2611,25 +2198,3 @@ cnodc:SensorTemperature rdf:type skos:Concept ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "K" ;
   skos:inScheme cnodc:elements .
-
-cnodc:TSERIES  rdf:type skos:Concept ;
-  skos:prefLabel "Time Series"@en ;
-  cnodc:requireCoordinate cnodc:TimeOffset ;
-  cnodc:requireCoordinate cnodc:Time ;
-  skos:inScheme cnodc:recordSetTypes .
-
-cnodc:PROFILE  rdf:type skos:Concept ;
-  skos:prefLabel "Profile"@en ;
-  cnodc:requireCoordinate cnodc:Depth ;
-  cnodc:requireCoordinate cnodc:Pressure ;
-  skos:inScheme cnodc:recordSetTypes .
-
-cnodc:WAVE_SENSORS  rdf:type skos:Concept ;
-  skos:prefLabel "Wave Sensors"@en ;
-  cnodc:requireCoordinate cnodc:WaveSensor ;
-  skos:inScheme cnodc:recordSetTypes .
-
-cnodc:SPEC_WAVE  rdf:type skos:Concept ;
-  skos:prefLabel "Wave Spectra"@en ;
-  cnodc:requireCoordinate cnodc:CentralFrequency ;
-  skos:inScheme cnodc:recordSetTypes .

@@ -1,0 +1,32 @@
+@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .
+
+rstypes:recordSetTypes rdf:type skos:ConceptScheme .
+
+rstypes:requireCoordinate rdf:type rdf:Property ;
+  rdfs:domain rstypes:recordSetTypes ;
+  rdfs:range cnodc:elements .
+
+
+rstypes:TSERIES  rdf:type skos:Concept ;
+  skos:prefLabel "Time Series"@en ;
+  rstypes:requireCoordinate cnodc:TimeOffset ;
+  rstypes:requireCoordinate cnodc:Time ;
+  skos:inScheme rstypes:recordSetTypes .
+
+rstypes:PROFILE  rdf:type skos:Concept ;
+  skos:prefLabel "Profile"@en ;
+  rstypes:requireCoordinate cnodc:Depth ;
+  rstypes:requireCoordinate cnodc:Pressure ;
+  skos:inScheme rstypes:recordSetTypes .
+
+rstypes:WAVE_SENSORS  rdf:type skos:Concept ;
+  skos:prefLabel "Wave Sensors"@en ;
+  rstypes:requireCoordinate cnodc:WaveSensor ;
+  skos:inScheme rstypes:recordSetTypes .
+
+rstypes:SPEC_WAVE  rdf:type skos:Concept ;
+  skos:prefLabel "Wave Spectra"@en ;
+  rstypes:requireCoordinate cnodc:CentralFrequency ;
+  skos:inScheme rstypes:recordSetTypes .

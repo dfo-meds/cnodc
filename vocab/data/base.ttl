@@ -2,7 +2,10 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2#> .
+@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .
+@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
+@prefix eov: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#> .
+@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .
 @prefix p01: <http://vocab.nerc.ac.uk/collection/P01/current/> .
 @prefix p07: <http://vocab.nerc.ac.uk/collection/P07/current/> .
 @prefix p09: <http://vocab.nerc.ac.uk/collection/P09/current/> .
@@ -53,10 +56,6 @@ cnodc:allowedValue rdf:type rdf:Property ;
   rdfs:domain skos:Concept ;
   rdfs:range skos:Literal .
 
-cnodc:requireCoordinate rdf:type rdf:Property ;
-  rdfs:domain skos:Concept ;
-  rdfs:range skos:Concept .
-
 cnodc:preferredUnit rdf:type rdf:Property ;
   rdfs:subClassOf cnodc:acceptsUnit .
 
@@ -84,20 +83,12 @@ cnodc:Element rdf:type skos:Concept ;
     skos:prefLabel "Element"@en ;
     skos:documentation "Another element" .
 
-cnodc:ioosCategories rdf:type skos:ConceptScheme .
-
 cnodc:ioosCategory rdf:type rdf:Property ;
     rdfs:domain skos:Concept ;
-    rdfs:range cnodc:ioosCategories .
-
-cnodc:essentialOceanVariables rdf:type skos:ConceptScheme .
+    rdfs:range ioos:ioosCategories .
 
 cnodc:essentialOceanVariable rdf:type rdf:Property ;
     rdfs:domain skos:Concept ;
-    rdfs:range cnodc:ioosCategories .
+    rdfs:range eov:essentialOceanVariables .
 
 cnodc:elements rdf:type skos:ConceptScheme .
-
-
-cnodc:recordSetTypes rdf:type skos:ConceptScheme .
-
