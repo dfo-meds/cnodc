@@ -154,23 +154,26 @@ PI = AccurateDecimal("3.1415926535898", "0.00000000000001")
 AnyNumber = t.Union[AccurateDecimal, NonAccurateNumber]
 
 
-def sin(radians: AnyNumber) -> AccurateDecimal:
+def sin(radians: AnyNumber) -> AnyNumber:
     if isinstance(radians, AccurateDecimal):
         adecimal = AccurateDecimal(math.sin(radians.num) * math.cos(radians.accuracy), math.cos(radians.num) * math.sin(radians.accuracy))
+        adecimal.set_minimum_accuracy(TRIG_FLOAT_ACCURACY)
+        return adecimal
     else:
-        adecimal = AccurateDecimal.from_float(math.sin(radians))
-    adecimal.set_minimum_accuracy(TRIG_FLOAT_ACCURACY)
-    return adecimal
+        return math.sin(radians)
 
-def cos(radians: AnyNumber) -> AccurateDecimal:
+def cos(radians: AnyNumber) -> AnyNumber:
     if isinstance(radians, AccurateDecimal):
         adecimal = AccurateDecimal(math.cos(radians.num) * math.cos(radians.accuracy), math.sin(radians.num) * math.sin(radians.accuracy))
+        adecimal.set_minimum_accuracy(TRIG_FLOAT_ACCURACY)
+        return adecimal
     else:
-        adecimal = AccurateDecimal.from_float(math.cos(radians))
-    adecimal.set_minimum_accuracy(TRIG_FLOAT_ACCURACY)
-    return adecimal
+        return math.cos(radians)
 
-def radians(degrees: AnyNumber) -> AccurateDecimal:
-    res = degrees * (PI * (1/ 180))
-    res.set_minimum_accuracy("5e-14")
-    return res
+def radians(degrees: AnyNumber) -> AnyNumber:
+    if isinstance(degrees, AccurateDecimal):
+        res = degrees * (PI * (1/ 180))
+        res.set_minimum_accuracy("5e-14")
+        return res
+    else:
+        return math.radians(degrees)
