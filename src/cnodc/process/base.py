@@ -343,19 +343,19 @@ class BaseWorker:
 
     def run(self) -> None:
         """Run the worker process with appropriate error handling."""
-        ex = None
+        exc = None
         try:
             self._log.debug(f'Starting process {self._process_uuid}')
             self.on_start()
             self._log.debug(f'Process {self._process_uuid} is running')
             self._run()
         except Exception as ex:
-            ex = ex
+            exc = ex
             self._log.error(f"{ex.__class__.__name__}: {str(ex)}")
             self._log.exception(ex)
         finally:
             self._log.debug(f'Cleaning up {self._process_uuid}')
-            self.on_complete(ex)
+            self.on_complete(exc)
             self._save_data.save_file()
             self._log.debug(f'Process {self._process_uuid} complete')
 
