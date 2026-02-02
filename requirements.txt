@@ -15,3 +15,5 @@ azure-identity
 uncertainties
 shapely
 rdflib
+azure-storage-file-share
+azure-storage-blob
