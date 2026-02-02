@@ -1,4 +1,5 @@
 """Controller for multiple processes based on the multiprocessing library."""
+import json
 import uuid
 import multiprocessing as mp
 import time
@@ -20,12 +21,12 @@ class _SubprocessHaltFlag(HaltFlag):
 class _ProcessRunner(mp.Process):
     """Implementation of a process that runs a worker class."""
 
-    def __init__(self, worker_cls: str, process_uuid: str, halt_flag: mp.Event, config: dict, *args, **kwargs):
+    def __init__(self, worker_cls: str, process_uuid: str, halt_flag: mp.Event, config_json: str, *args, **kwargs):
         self._worker_cls = worker_cls
         self._process_uuid = process_uuid
         self._halt_flag = halt_flag
         self._end_flag = mp.Event()
-        self._config = config
+        self._config_json = config_json
         self.is_working = mp.Event()
         super().__init__(*args, **kwargs)
 
@@ -37,7 +38,7 @@ class _ProcessRunner(mp.Process):
         """Create and run the worker."""
         worker = dynamic_object(self._worker_cls)(
             _process_uuid=self._process_uuid,
-            _config=self._config,
+            _config=json.loads(self._config_json),
             _halt_flag=_SubprocessHaltFlag(self._halt_flag),
             _end_flag=_SubprocessHaltFlag(self._end_flag)
         )
@@ -108,7 +109,7 @@ class _ProcessSet:
                     worker_cls=self._worker_cls,
                     process_uuid=proc_id,
                     halt_flag=self._halt_flag,
-                    config=self._config
+                    config_json=json.dumps(self._config)
                 )
                 self._active_processes[proc_id].start()
                 current += 1
