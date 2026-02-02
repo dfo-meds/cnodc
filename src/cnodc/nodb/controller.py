@@ -266,10 +266,13 @@ class NODBControllerInstance:
         else:
             return str(v)
 
-    def scanned_file_status(self, file_path: str) -> ScannedFileStatus:
+    def scanned_file_status(self, file_path: str, mod_time: t.Optional[datetime.datetime]) -> ScannedFileStatus:
         """Get the status of a scanned file."""
         with self.cursor() as cur:
-            cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s", [file_path])
+            if mod_time is None:
+                cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL", [file_path])
+            else:
+                cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_time.isoformat()])
             row = cur.fetchone()
             if row is None:
                 return ScannedFileStatus.NOT_PRESENT
@@ -278,20 +281,30 @@ class NODBControllerInstance:
             else:
                 return ScannedFileStatus.UNPROCESSED
 
-    def note_scanned_file(self, file_path):
+    def note_scanned_file(self, file_path, mod_time: t.Optional[datetime.datetime]):
         """Mark a scanned file as visited."""
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_scanned_files (file_path) VALUES (%s)", [file_path])
+            cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_time.isoformat() if mod_time is not None else None])
 
-    def mark_scanned_item_success(self, file_path):
+    def mark_scanned_item_success(self, file_path, mod_date: t.Optional[datetime.datetime]):
         """Mark a scanned file as a success."""
         with self.cursor() as cur:
-            cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s", [file_path])
+            if mod_date is None:
+                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date IS NULL AND was_processed = FALSE", [file_path])
+            else:
+                cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_date.isoformat()])
+                row = cur.fetchone()
+                if row is None:
+                    cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_date.isoformat()])
+                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date <= %s AND was_processed = FALSE", [file_path, mod_date.isoformat()])
 
-    def mark_scanned_item_failed(self, file_path):
+    def mark_scanned_item_failed(self, file_path, mod_date: t.Optional[datetime.datetime]):
         """Mark a scanned file as failing."""
         with self.cursor() as cur:
-            cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
+            if mod_date is None:
+                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND mod_date IS NULL", [file_path])
+            else:
+                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND mod_date = %s", [file_path, mod_date.isoformat()])
 
     def create_queue_item(self,
                           queue_name: str,
