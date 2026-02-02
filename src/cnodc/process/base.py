@@ -93,11 +93,12 @@ class BaseController:
         raise NotImplementedError
 
     def _populate_config_from_file(self, config: dict, file: t.Union[str, pathlib.Path]):
-        data = yaml.safe_load(file)
-        if isinstance(data, dict):
-            config.update(data)
-        else:
-            self._log.error(f"Process configuration file [{file}] does not contain a YAML dictionary")
+        with open(file, "r", encoding="utf-8") as h:
+            data = yaml.safe_load(h)
+            if isinstance(data, dict):
+                config.update(data)
+            else:
+                self._log.error(f"Process configuration file [{file}] does not contain a YAML dictionary")
 
     def _load_config(self):
         self._log.notice(f"Reading configuration from disk")
