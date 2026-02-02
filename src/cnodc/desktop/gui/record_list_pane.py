@@ -13,7 +13,7 @@ from cnodc.ocproc2.operations import QCOperator
 import tkinter.messagebox as tkmb
 import tkinter.ttk as ttk
 
-from cnodc.ocproc2.validation import OCProc2Ontology
+from cnodc.ocproc2.ontology import OCProc2Ontology
 
 
 class RecordListPane(BasePane):
