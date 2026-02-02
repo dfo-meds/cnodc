@@ -456,16 +456,16 @@ class WorkflowController:
         self.halt_flag = halt_flag
         self._log = zrlog.get_logger("cnodc.workflow")
 
-    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable] = None, db: NODBControllerInstance = None):
+    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable] = None, db: NODBControllerInstance = None, unique_queue_id: t.Optional[str] = None):
         """Start the workflow for a file stored on the local hard disk."""
         if db is not None:
-            self._handle_incoming_file(local_path, metadata, post_hook, db)
+            self._handle_incoming_file(local_path, metadata, post_hook, db, unique_queue_id)
         else:
             with self.nodb as db:
-                self._handle_incoming_file(local_path, metadata, post_hook, db)
+                self._handle_incoming_file(local_path, metadata, post_hook, db, unique_queue_id)
                 db.commit()
 
-    def _handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance):
+    def _handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance, unique_queue_id: t.Optional[str] = None):
         """Start the workflow for a file."""
         self._log.debug(f"Processing file [{local_path}]")
         file_handles = []
@@ -475,7 +475,7 @@ class WorkflowController:
         # Validate the upload
         self._validate_file_upload(local_path, metadata)
         # Upload the file to various locations and queue the working file
-        self._upload_and_queue_file(local_path, metadata, post_hook, db)
+        self._upload_and_queue_file(local_path, metadata, post_hook, db, unique_queue_id)
 
     def _extend_metadata(self, metadata: dict):
         """Extend the input metadata with the default metadata"""
@@ -491,7 +491,7 @@ class WorkflowController:
             self._log.info(f"Validating uploaded file")
             dynamic_object(self.config['validation'])(local_path, metadata)
 
-    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, post_hook, db):
+    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, post_hook, db, unique_queue_id: t.Optional[str] = None):
         """Upload the file and queue it if all succeed."""
         with tempfile.TemporaryDirectory() as td:
             gzip_made = False
@@ -524,7 +524,7 @@ class WorkflowController:
                             file_handles.append(self._handle_file_upload(local_path, filename, metadata, target))
                 # NB: these are done in the try/except so that the file handles can be removed upon failure
                 if working_file:
-                    self._queue_working_file(working_file, metadata, gzip_filename if with_gzip else filename, with_gzip, db)
+                    self._queue_working_file(working_file, metadata, gzip_filename if with_gzip else filename, with_gzip, db, unique_queue_id)
                 if post_hook is not None:
                     post_hook(db)
                 db.commit()
@@ -549,7 +549,8 @@ class WorkflowController:
                             metadata: dict,
                             filename: str,
                             with_gzip: bool,
-                            db):
+                            db,
+                            unique_file_key: t.Optional[str] = None):
         """Queue the working file."""
         if self.has_more_steps(None):
             if 'last-modified-time' in metadata and metadata['last-modified-time']:
@@ -564,7 +565,10 @@ class WorkflowController:
                 lmt
             )
             payload = FilePayload(file_info, current_step=None, current_step_done=True, metadata=metadata, workflow_name=self.name)
-            payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
+            if unique_file_key:
+                payload.set_unique_key(hashlib.md5(unique_file_key.encode('utf-8', errors='replace')).hexdigest())
+            else:
+                payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
             self._queue_step(payload, db)
 
     def _finish_file_handles(self, file_handles):

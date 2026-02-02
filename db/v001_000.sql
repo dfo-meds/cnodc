@@ -138,10 +138,12 @@ CREATE TABLE IF NOT EXISTS nodb_upload_workflows (
 
 
 CREATE TABLE IF NOT EXISTS nodb_scanned_files (
-    file_path           TEXT            NOT NULL    PRIMARY KEY,
+    file_path           TEXT            NOT NULL,
+    modified_date       TIMESTAMPTZ                 DEFAULT NULL,
     scanned_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    was_processed       BOOLEAN         DEFAULT FALSE
+    was_processed       BOOLEAN                     DEFAULT FALSE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_scanned_files_unique ON nodb_scanned_files(file_path, modified_date);
 
 
 -- Source Files Table

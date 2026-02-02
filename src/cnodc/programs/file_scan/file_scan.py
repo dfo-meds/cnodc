@@ -1,4 +1,5 @@
 import datetime
+import functools
 import hashlib
 import pathlib
 import tempfile
@@ -7,6 +8,7 @@ import typing as t
 
 import zrlog
 
+import cnodc.storage
 from cnodc.nodb import NODBController
 from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus, NODBControllerInstance
 from cnodc.process.scheduled_task import ScheduledTask
@@ -35,12 +37,14 @@ class FileScanTask(ScheduledTask):
                 'pattern': '*',
                 'recursive': False,
                 'remove_downloaded_files': False,
+                'reprocess_updated_files': False,
                 'metadata': None
             },
             **kwargs
         )
+        self._scan_target: t.Optional[cnodc.storage.BaseStorageHandle] = None
 
-    def execute(self):
+    def on_start(self):
         scan_target = self.get_config('scan_target')
         if scan_target is None:
             raise CNODCError(f'Scan target is not configured', 'FILE_SCAN', 1000)
@@ -50,37 +54,42 @@ class FileScanTask(ScheduledTask):
         queue_name = self.get_config('queue_name')
         if queue_name is None:
             raise CNODCError(f'Queue name is not configured', 'FILE_SCAN', 1003)
-        handle = self.storage.get_handle(scan_target, halt_flag=self._halt_flag)
-        if handle is None:
+        self._scan_target = self.storage.get_handle(scan_target, halt_flag=self._halt_flag)
+        if self._scan_target is None:
             raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILE_SCAN', 1001)
-        self._log.debug(f'Scanning {scan_target}')
+
+    def execute(self):
+        self._log.debug(f'Scanning {self._scan_target.path()}')
         batch_id = str(uuid.uuid4())
-        remove_when_complete = bool(self.get_config("remove_scanned_files"))
+        remove_when_complete = bool(self.get_config("remove_downloaded_files"))
+        reprocess_updated_files = bool(self.get_config("reprocess_updated_files"))
         headers = self.get_config("metadata", {})
         with self.nodb as db:
-            for file in handle.search(
+            for file in self._scan_target.search(
                     self.get_config('pattern'),
                     self.get_config('recursive')):
                 try:
                     full_path = file.path()
-                    status = db.scanned_file_status(full_path)
+                    mod_time = file.modified_datetime() if reprocess_updated_files else None
+                    status = db.scanned_file_status(full_path, mod_time)
                     if status == ScannedFileStatus.NOT_PRESENT:
-                        self._log.info(f"Found new file {full_path}")
-                        db.note_scanned_file(full_path)
+                        self._log.info(f"Found new file {full_path} [{mod_time.isoformat() if mod_time else 'no-date'}]")
+                        db.note_scanned_file(full_path, mod_time)
                         payload = {
                             'target_file': full_path,
-                            'workflow_name': workflow_name,
+                            'modified_time': mod_time.isoformat() if mod_time is not None else None,
+                            'workflow_name': self.get_config('workflow_name'),
                             'remove_on_completion': remove_when_complete,
                             'metadata': headers,
                         }
                         payload['metadata'].update({
                             '_source_info': (self._process_name, self._process_version, self._process_uuid),
-                            'scan_target': scan_target,
+                            'scan_target': self._scan_target.path(),
                             'correlation_id': batch_id,
                             'scanned_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
                         })
                         db.create_queue_item(
-                            queue_name=queue_name,
+                            queue_name=self.get_config('queue_name'),
                             data=payload,
                             unique_item_key=hashlib.md5(full_path.encode('utf-8', 'replace')).hexdigest()
                         )
@@ -134,6 +143,7 @@ class FileDownloadWorker(QueueWorker):
         self.handle_queued_file(
             item.data['workflow_name'],
             item.data['target_file'],
+            item.data['modified_time'] if 'modified_time' in item.data else None,
             item.data['metadata'] if 'metadata' in item.data else {},
             (self.get_config('allow_file_deletes') and bool(item.data['remove_on_completion'])) if 'remove_on_completion' in item.data else False
         )
@@ -141,19 +151,19 @@ class FileDownloadWorker(QueueWorker):
 
     def after_failure(self, item: structures.NODBQueueItem):
         if 'target_file' in item.data and item.data['target_file']:
-            self._db.mark_scanned_item_failed(item.data['target_file'])
+            self._db.mark_scanned_item_failed(item.data['target_file'], datetime.datetime.fromisoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
             self._db.commit()
-
-    def on_success(self, item: structures.NODBQueueItem):
-        self._db.mark_scanned_item_success(item.data['target_file'])
 
     def handle_queued_file(self,
                            workflow_name: str,
                            file_path: str,
+                           modified_time: t.Optional[str],
                            metadata: dict,
                            remove_when_finished: bool = False):
+        if modified_time:
+            modified_time = datetime.datetime.fromisoformat(modified_time)
         with self.nodb as db:
-            current_status = db.scanned_file_status(file_path)
+            current_status = db.scanned_file_status(file_path, modified_time)
             if current_status == ScannedFileStatus.UNPROCESSED:
                 handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
                 if not metadata:
@@ -166,10 +176,12 @@ class FileDownloadWorker(QueueWorker):
                 temp_dir = self.temp_dir()
                 local_path = temp_dir / "file"
                 handle.download(local_path)
+                mod_time = handle.modified_datetime()
                 wf_controller.handle_incoming_file(
                     local_path=local_path,
                     metadata=metadata,
-                    post_hook=self.on_complete,
+                    post_hook=functools.partial(self._db.mark_scanned_item_success, file_path, mod_time),
+                    unique_queue_id=file_path,
                     db=db
                 )
                 if remove_when_finished:
