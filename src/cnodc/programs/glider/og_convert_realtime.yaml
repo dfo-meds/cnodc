@@ -1,0 +1,487 @@
+static_metadata:
+    Conventions: 'CF-1.0,ACDD-1.3,OG-1.0,CNODC-1.0'
+    featureType: 'trajectory'
+    naming_authority: 'ca.dfo-mpo.cnodc-cndoc'
+    platform_vocabulary: 'https://vocab.nerc.ac.uk/collection/L06/current/27/'
+    standard_name_vocab: CF 1.13
+    platform: 'sub-surface gliders'
+    institution: 'DFO-MPO'
+    contributor_role_vocabulary: 'https://standards.iso.org/iso/19115/resources/Codelists/cat/codelists.xml#CI_RoleCode'
+    default_locale: en-CA
+    locales: "_fr: fr-CA"
+    geospatial_bounds_crs: "EPSG:4326"
+    geospatial_bounds_vertical_crs: "EPSG:5831"
+    geospatial_vertical_positive: down
+copy_metadata:
+    internal_mission_identifier: deployment_code
+    program: program
+    project: project
+    comment: comment
+variables:
+  TIME:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: 'time of measurement'
+      long_name_fr: 'moment de la mesure'
+      units: 'seconds since 1970-01-01T00:00:00Z'
+      standard_name: 'time'
+      calendar: 'gregorian'
+      valid_min: 1000000000.0
+      valid_max: 4000000000.0
+      axis: T
+      ancillary_variables: 'TIME_QC'
+      _FillValue: -1.0
+      cnodc_standard_name: Time
+  TIME_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: TIME_QC
+    attributes:
+      long_name: 'Quality flag for time of measurement'
+      long_name_fr: 'Drapeau de qualité pour moment de la mesure'
+      rtqc_methodology: "Coriolis MATLAB toolbox"
+      rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
+      cnodc_standard_name: Time:Quality
+    copy_attributes:
+      - flag_values
+      - flag_meanings
+  LATITUDE:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: LATITUDE
+    attributes:
+      long_name: "latitude of each measurements and GPS location"
+      long_name_fr: "latitude de chaque mesure et localisation GPS"
+      standard_name: "latitude"
+      units: "degrees_north"
+      _FillValue: -9999.9
+      valid_min: -90.0
+      valid_max: 90.0
+      axis: Y
+      ancillary_variables: 'LATITUDE_QC'
+      cnodc_standard_name: Latitude
+      crs: "EPSG:4326"
+  LATITUDE_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: POSITION_QC
+    attributes:
+      long_name: 'Quality flag for latitude of each measurements and GPS location'
+      long_name_fr: 'Drapeau de qualité pour latitude de chaque mesure et localisation GPS'
+      rtqc_methodology: "Coriolis MATLAB toolbox"
+      rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
+      cnodc_standard_name: Latitude:Quality
+    copy_attributes:
+      - flag_values
+      - flag_meanings
+  LONGITUDE:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: LONGITUDE
+    attributes:
+      long_name: "longitude of each measurements and GPS location"
+      long_name_fr: "longitude de chaque mesure et localisation GPS"
+      standard_name: "longitude"
+      units: "degrees_east"
+      _FillValue: -9999.9
+      valid_min: -180.0
+      valid_max: 180.0
+      axis: X
+      ancillary_variables: 'LONGITUDE_QC'
+      cnodc_standard_name: Longitude
+      crs: "EPSG:4326"
+  LONGITUDE_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: POSITION_QC
+    attributes:
+      long_name: 'Quality flag for longitude of each measurements and GPS location'
+      long_name_fr: 'Drapeau de qualité pour longitude de chaque mesure et localisation GPS'
+      coordinates: "TIME,LONGITUDE,LATITUDE,DEPTH"
+      rtqc_methodology: "Coriolis MATLAB toolbox"
+      rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
+      cnodc_standard_name: Longitude:Quality
+    copy_attributes:
+      - flag_values
+      - flag_meanings
+  DEPTH:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: "Depth below surface of the water body by unknown instrument and correction to zero at sea level using unspecified algorithm"
+      long_name_fr: "Profondeur sous la surface du plan d'eau mesurée par un instrument inconnu et correction à zéro au niveau de la mer à l'aide d'un algorithme non spécifié"
+      units: "m"
+      _FillValue: -9999.9
+      valid_min: 0.0
+      valid_max: 10000.0
+      axis: Z
+      positive: down
+      standard_name: "depth"
+      comment: "EOS80 conversion from pressure and latitude variables"
+      comment_fr: "Conversion EOS80 à partir des variables de pression et de latitude"
+      cnodc_standard_name: Depth
+      crs: "EPSG:5831"
+  TIME_GPS:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: "time of each GPS location"
+      long_name_fr: "heure de chaque position GPS"
+      calendar: "gregorian"
+      units: "seconds since 1970-01-01T00:00:00Z"
+      _FillValue: -1.0
+      valid_min: 1000000000.0
+      valid_max: 4000000000.0
+      ancillary_variables: "TIME_GPS_QC"
+      standard_name: "time"
+  TIME_GPS_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: 'Quality flag for time of each GPS location'
+      long_name_fr: "Drapeau de qualité pour l'heure de chaque position GPS"
+      rtqc_methodology: "Coriolis MATLAB toolbox"
+      rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
+  LONGITUDE_GPS:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: "longitude of each GPS location"
+      long_name_fr: "longitude de chaque position GPS"
+      units: "degrees_east"
+      _FillValue: -9999.9
+      valid_min: -180.0
+      valid_max: 180.0
+      ancillary_variables: "LONGITUDE_GPS_QC"
+      standard_name: "longitude"
+      crs: "EPSG:4326"
+  LONGITUDE_GPS_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: 'Quality flag for longitude of each GPS location'
+      long_name_fr: 'Drapeau de qualité pour longitude de chaque position GPS'
+      rtqc_methodology: "Coriolis MATLAB toolbox"
+      rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
+  LATITUDE_GPS:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: "latitude of each GPS location"
+      long_name_fr: "latitude de chaque position GPS"
+      units: "degrees_north"
+      _FillValue: -9999.9
+      valid_min: -90.0
+      valid_max: 90.0
+      ancillary_variables: "LATITUDE_GPS_QC"
+      standard_name: "latitude"
+      crs: "EPSG:4326"
+  LATITUDE_GPS_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: 'Quality flag for latitude of each GPS location'
+      long_name_fr: 'Drapeau de qualité pour latitude de chaque position GPS'
+      rtqc_methodology: "Coriolis MATLAB toolbox"
+      rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
+  TRAJECTORY:
+    type: str
+    attributes:
+      long_name: 'trajectory name'
+      long_name_fr: 'nom de trajectoire'
+      _Encoding: 'utf-8'
+      cf_role: 'trajectory_id'
+  DEPLOYMENT_TIME:
+    type: f8
+    attributes:
+      long_name: 'date of deployment'
+      long_name_fr: 'date de déploiement'
+      calendar: gregorian
+      units: "seconds since 1970-01-01T00:00:00Z"
+  DEPLOYMENT_LATITUDE:
+    type: f8
+    copy_data_from: DEPLOYMENT_START_LATITUDE
+    attributes:
+      long_name: 'latitude of deployment'
+      long_name_fr: 'latitude de déploiement'
+      units: degrees_north
+  DEPLOYMENT_LONGITUDE:
+    type: f8
+    copy_data_from: DEPLOYMENT_START_LONGITUDE
+    attributes:
+      long_name: 'longitude of deployment'
+      long_name_fr: "longitude de déploiement"
+      units: degrees_east
+  WMO_IDENTIFIER:
+    type: str
+    attributes:
+      long_name: 'wmo id'
+      long_name_fr: "identifiant wmo"
+  PLATFORM_MODEL:
+    type: str
+    attributes:
+      long_name: "model of the glider"
+      long_name_fr: "modèle du planeur"
+      platform_model_vocabulary: "https://vocab.nerc.ac.uk/collection/B76/current/"
+  PLATFORM_SERIAL_NUMBER:
+    type: str
+    attributes:
+      long_name: "glider serial number"
+      long_name_fr: "numéro de série du planeur"
+  PLATFORM_NAME:
+    type: str
+    attributes:
+      long_name: "glider name"
+      long_name_fr: "nom du planeur"
+  PLATFORM_MAKER:
+    type: str
+    attributes:
+      long_name: "glider manufacturer"
+      long_name_fr: "fabricant de planeurs"
+  BATTERY_TYPE:
+    type: str
+    attributes:
+      long_name: "battery type"
+      long_name_fr: "type de batterie"
+      battery_type_vocabulary: "https://github.com/OceanGlidersCommunity/OG-format-user-manual/blob/main/vocabularyCollection/battery_type.md#"
+  TELECOM_TYPE:
+    type: str
+    attributes:
+      long_name: "telecommunication system type(s)"
+      long_name_fr: "type(s) de système de télécommunication"
+      telecom_type_vocabulary: "https://github.com/OceanGlidersCommunity/OG-format-user-manual/blob/main/vocabularyCollection/telecom_type.md#"
+  TRACKING_SYSTEM:
+    type: str
+    attributes:
+      long_name: "tracking system type(s)"
+      long_name_fr: "type(s) de système de suivi"
+      tracking_system_vocabulary: "https://github.com/OceanGlidersCommunity/OG-format-user-manual/blob/main/vocabularyCollection/tracking_system.md#"
+  PHASE:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: "glider behavior"
+      long_name_fr: "comportement du planeur"
+      phase_vocabulary: "https://github.com/OceanGlidersCommunity/OG-format-user-manual/blob/main/vocabularyCollection/phase.md#"
+      ancillary_variables: "PHASE_QC"
+      missing_value: -1
+  PHASE_QC:
+    type: i1
+    dimensions:
+      - N_MEASUREMENTS
+    attributes:
+      long_name: "Quality flag for glider behavior"
+      long_name_fr: "Drapeau de qualité pour comportement du planeur"
+      missing_value: -1
+
+parameters:
+  PRES:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: PRES
+    attributes:
+      long_name: "Pressure"
+      long_name_fr: "Pression"
+      standard_name: sea_water_pressure
+      valid_min: 0.0
+      valid_max: 12000.0
+      _FillValue: -9999.9
+      cnodc_standard_name: Pressure
+    copy_attributes:
+      - units
+  PSAL:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: PSAL
+    attributes:
+      long_name: "Sea Water Practical Salinity"
+      long_name_fr: "Salinité pratique de l'eau de mer"
+      standard_name: "sea_water_practical_salinity"
+      units: "0.001"
+      valid_min: 2.0
+      valid_max: 41.0
+      _FillValue: -9999.9
+      cnodc_standard_name: PracticalSalinity
+  TEMP:
+    type: "f8"
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: TEMP
+    attributes:
+      valid_min: -2.5
+      valid_max: 40.0
+      _FillValue: -9999.9
+      long_name: "Sea water temperature in-situ ITS-90 scale"
+      long_name_fr: "Température de l'eau de mer in situ sur l'échelle ITS-90"
+      standard_name: sea_water_temperature
+      reference_scale: "ITS-90"
+      units: "degree_C"
+      cnodc_standard_name: Temperature
+  CNDC:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: CNDC
+    attributes:
+      valid_min: 0.0
+      valid_max: 8.5
+      _FillValue: -9999.9
+      units: S m-1
+      long_name: "Conductivity"
+      long_name_fr: "Conductivité"
+      standard_name: "sea_water_electrical_conductivity"
+      cnodc_standard_name: Conductivity
+  MOLDOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: MOLAR_DOXY
+    attributes:
+      valid_min: 0.0
+      valid_max: 650.0
+      _FillValue: -9999.9
+      units: "umol L-1"
+      long_name: "Dissolved oxygen, molarity"
+      long_name_fr: "Oxygène dissous, molarité"
+      standard_name: "mole_concentration_of_dissolved_molecular_oxygen_in_sea_water"
+      cnodc_standard_name: DissolvedOxygenMolar
+  FREQDOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: FREQUENCY_DOXY
+    attributes:
+      valid_min: 0.0
+      valid_max: 25000.0
+      _FillValue: -9999.9
+      units: "Hz"
+      long_name: "Frequency reported by the oxygen sensor"
+      long_name_fr: "Fréquence signalée par le capteur d'oxygène"
+      standard_name: "frequency_output_of_sensor_for_oxygen_in_water"
+      cnodc_standard_name: DissolvedOxygenFrequency
+  DOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: DOXY
+    attributes:
+      valid_min: -5.0
+      valid_max: 600.0
+      _FillValue: -9999.9
+      units: "umol kg-1"
+      long_name: "Dissolved oxygen"
+      long_name_fr: "Oxygène dissous"
+      standard_name: "moles_of_oxygen_per_unit_mass_in_sea_water"
+      cnodc_standard_name: DissolvedOxygen
+  FLUOCHLA:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: FLUORESCENCE_CHLA
+    attributes:
+      units: "1"
+      long_name: "Chlorophyll-A raw signal count"
+      long_name_fr: "Nombre brut de signaux de chlorophylle-A"
+      valid_min: 0
+      _FillValue: -9999.9
+      cnodc_standard_name: ChlorophyllAFluorescence
+  CHLA:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: CHLA
+    attributes:
+      standard_name: "mass_concentration_of_cholorphyll_a_in_sea_water"
+      units: mg m-3
+      long_name: "Chlorophyll-A"
+      long_name_fr: "Chlorophylle-A"
+      valid_min: 0
+      _FillValue: -9999.9
+      cnodc_standard_name: ChlorophyllA
+  TURB:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: TURBIDITY
+    attributes:
+      standard_name: "sea_water_turbidity"
+      units: "1"
+      long_name: "Sea water turbidity (NTUs)"
+      long_name_fr: "Turbidité de l'eau de mer (NTUs)"
+      valid_min: 0
+      _FillValue: -9999.9
+      cnodc_standard_name: Turbidity
+  BBP700:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: BBP700
+    attributes:
+      long_name: "Particle backscattering at 700 nm"
+      long_name_fr: "Rétro-dispersion des particules à 700 nm"
+      units: "m-1"
+      valid_min: 0
+      _FillValue: -9999.9
+      cnodc_standard_name: ParticleBackscatter
+  CDOM:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: CDOM
+    attributes:
+      long_name: "Colored dissolved organic matter concentration"
+      long_name_fr: "Concentration en matière organique dissoute colorée"
+      units: "0.000000001"
+      valid_min: 0
+      _FillValue: -9999.9
+      cnodc_standard_name: ColoredDissolvedOrganicMatter
+
+contact_info:
+
+glider_model_map:
+  SLOCUM_SG2:
+    model: Teledyne Webb Research Slocum G2 glider
+    prefix: 'unit_'
+    maker: "Teledyne Web Research"
+  SEAEXPLORER:
+    model: "Alseamar SeaExplorer X2 glider"
+    prefix: "sea"
+    maker: "Alseamar"
+
+battery_type_map:
+  LithiumION: lithium
+
+trans_system_type_map:
+  Iridium: iridium
+
+track_system_type_map:
+  GPS: gps
+  IRIDIUM: iridium
+  ARGOS: argos
+
+phase_map:
+  0: 4
+  1: 2
+  2: 4
+  3: 5
+  4: 2
+  5: 0
+  6: 0
+

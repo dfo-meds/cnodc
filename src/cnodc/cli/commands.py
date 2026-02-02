@@ -5,16 +5,39 @@ import click
 import secrets
 
 import yaml
+import pathlib
 import zrlog
 from autoinject import injector
 from cnodc.nodb import NODBController, NODBControllerInstance, LockType
 from cnodc.process.single import SingleProcessController
+import json
 
 
 @click.group
 def main():
     pass
     # TODO: missing the sys logging information?
+
+@main.group
+def gliders():
+    pass
+
+
+@gliders.command
+@click.argument("original_file")
+@click.argument("output_file")
+def convert_file(original_file, output_file):
+    from cnodc.programs.glider.convert import OpenGliderConverter
+    OpenGliderConverter.build().convert(original_file, output_file)
+
+
+@main.command
+@click.argument("original_file")
+@click.argument("output_file")
+def output_netcdf_metadata(original_file, output_file):
+    from cnodc.programs.glider.convert import OpenGliderConverter
+    with open(output_file, "w", encoding="utf-8") as h:
+        json.dump(OpenGliderConverter.build().build_metadata(original_file).build_request_body(), h, indent=2)
 
 
 @main.command
