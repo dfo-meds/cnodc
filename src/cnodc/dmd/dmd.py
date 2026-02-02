@@ -28,7 +28,23 @@ class DataManagerController:
                 headers=headers
             )
             result.raise_for_status()
-            return json.loads(result.content.decode('utf-'))['guid']
+            return json.loads(result.content.decode('utf-8'))['guid']
+        except Exception as ex:
+            self._log.exception("An exception occurred while creating a new dataset")
+            return None
+
+    def upsert_dataset(self, metadata: DatasetMetadata):
+        try:
+            headers = {
+                'Authorization' : self._get_auth_header()
+            }
+            result = requests.post(
+                self._get_api_endpoint("api/upsert-dataset"),
+                json=metadata.build_request_body(),
+                headers=headers
+            )
+            result.raise_for_status()
+            return json.loads(result.content.decode('utf-8'))['guid']
         except Exception as ex:
             self._log.exception("An exception occurred while creating a new dataset")
             return None
