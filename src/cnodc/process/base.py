@@ -296,16 +296,16 @@ class BaseWorker:
         self._process_name = process_name
         self._process_version = process_version
         self._config = _config or {}
-        self._log: t.Optional[ImprovedLogger] = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
-        self._save_data = SaveData(self.get_config('save_file'))
-        self._save_data.load_file()
         self._defaults = defaults or {}
-        self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
+        self._log: t.Optional[ImprovedLogger] = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
         zrlog.set_extras({
             'process_uuid': self._process_uuid,
             'process_name': self._process_name,
             'process_version': self._process_version,
         })
+        self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
+        self._save_data = SaveData(self.get_config('save_file'))
+        self._save_data.load_file()
 
     def breakpoint(self):
         """ Check if we need to break. """
