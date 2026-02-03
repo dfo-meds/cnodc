@@ -159,7 +159,7 @@ class QueueWorker(BaseWorker):
         """Calculate the delay time"""
         curr_time = self._current_delay_time
         self._current_delay_time *= self.get_config("delay_factor")
-        _max_time = self.get_config("delay_max_time_seconds")
+        _max_time = self.get_config("max_delay_time_seconds")
         if self._current_delay_time >= _max_time:
             self._current_delay_time = _max_time
         return curr_time
