@@ -449,7 +449,7 @@ parameters:
       long_name: "Colored dissolved organic matter concentration"
       long_name_fr: "Concentration en matière organique dissoute colorée"
       units: "0.000000001"
-      valid_min: 0
+      valid_min: 0.0
       _FillValue: -9999.9
       cnodc_standard_name: ColoredDissolvedOrganicMatter
   DPHDOXY:
