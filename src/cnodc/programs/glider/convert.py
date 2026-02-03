@@ -379,6 +379,9 @@ class OpenGliderConverter:
         min_time = None
         max_time = None
         for d in times:
+            if math.isnan(d):
+                seconds.append(None)
+                continue
             actual_time = datetime.datetime.fromisoformat("1950-01-01T00:00:00Z")
             actual_time += datetime.timedelta(days=d)
             time_delta = actual_time - self._base_time
