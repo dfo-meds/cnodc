@@ -518,6 +518,7 @@ class WorkflowController:
             gzip_file = td / "bin.gz"
             file_handles = []
             with_gzip = False
+            working_file = None
             try:
                 if 'working_target' in self.config:
                     with_gzip = 'gzip' in self.config['working_target'] and self.config['working_target']['gzip']
@@ -571,10 +572,10 @@ class WorkflowController:
         """Queue the working file."""
         if self.has_more_steps(None):
             if 'last-modified-time' in metadata and metadata['last-modified-time']:
-                lmt = metadata['last-modified-time']
-                del metadata['last-modified-time']
+                lmt = datetime.datetime.fromisoformat(metadata['last-modified-time'])
             else:
-                lmt = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                lmt = datetime.datetime.now(datetime.timezone.utc)
+                metadata['last-modified-time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             file_info = FileInfo(
                 working_file.path(),
                 filename,
@@ -630,9 +631,9 @@ class WorkflowController:
 
     def step_list(self) -> list[str]:
         if self._step_list is None:
+            self._step_list = []
             if 'processing_steps' in self.config and self.config['processing_steps']:
                 self._step_list = NODBUploadWorkflow.build_ordered_processing_steps(self.config['processing_steps'])
-            self._step_list = []
         return self._step_list
 
     def _validate_step(self, step_name: t.Optional[str]) -> tuple[int, bool]:
@@ -653,7 +654,9 @@ class WorkflowController:
 
     def _get_step_info(self, step_name: str) -> dict:
         self._validate_step(step_name)
-        return self.config['processing_steps'][step_name]
+        for sn in self.config['processing_steps']:
+            if self.config['processing_steps'][sn]['name'] == step_name:
+                return self.config['processing_steps'][sn]
 
     def has_more_steps(self, current_step: t.Optional[str]):
         """Check if there are more steps."""
