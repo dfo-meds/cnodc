@@ -514,6 +514,10 @@ glider_model_map:
     model: Teledyne Webb Research Slocum G2 glider
     prefix: 'unit_'
     maker: "Teledyne Web Research"
+  slocum_g3:
+    model: Teledyne Webb Research Slocum G3 glider
+    prefix: 'unit_'
+    maker: "Teledyne Web Research"
   slocum_sg3:
     model: Teledyne Webb Research Slocum G3 glider
     prefix: 'unit_'
@@ -528,6 +532,18 @@ sensor_map:
     make: SeaBird Electronics
     model: CTD 41CP
     type: CTD
+  "ctd":
+    type: CTD
+    model: Unknown
+    make: Unknown
+  "flbbcd":
+    type: FLUOROMETER
+    make: Unknown
+    model: Unknown
+  "doxy":
+    type: DOXY
+    make: Unknown
+    model: Unknown
   "aanderaa oxy 5013":
     make: "Aanderaa"
     model: "Oxygen Optode 5013"
