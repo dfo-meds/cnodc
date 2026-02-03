@@ -103,7 +103,7 @@ class OpenGliderConverter:
 
     def __init__(self, mapping_data, halt_flag=None):
         self._mapping_data = mapping_data
-        self._base_time = datetime.datetime.fromisoformat('1970-01-01T00:00:00Z')
+        self._base_time = datetime.datetime.fromisoformat('1970-01-01T00:00:00')
         self._halt = halt_flag
 
     def breakpoint(self):
@@ -382,7 +382,7 @@ class OpenGliderConverter:
             if math.isnan(d):
                 seconds.append(None)
                 continue
-            actual_time = datetime.datetime.fromisoformat("1950-01-01T00:00:00Z")
+            actual_time = datetime.datetime.fromisoformat("1950-01-01T00:00:00")
             actual_time += datetime.timedelta(days=d)
             time_delta = actual_time - self._base_time
             if actual_time.year > 1970:
@@ -441,7 +441,6 @@ class OpenGliderConverter:
             start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d%H%M%S')
         else:
             raise CNODCError(f"Unknown date format for [{deploy_start}]")
-        start_date = start_date.astimezone(datetime.timezone.utc)
         open_nc.set_attribute('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))
         open_nc.variable('TRAJECTORY').set_data_from_string(f"{platform}_{start_time}")
         open_nc.variable('DEPLOYMENT_TIME').set_data((start_date - self._base_time).total_seconds())
