@@ -34,10 +34,6 @@ class QueueWorker(BaseWorker):
     @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._queue_name = None
-        self._app_id = None
-        self._current_delay_time = None
-        self._current_item: t.Optional[structures.NODBQueueItem] = None
         self.set_defaults({
             "queue_name": None,
             "delay_time_seconds": 0.25,
@@ -46,6 +42,10 @@ class QueueWorker(BaseWorker):
             "max_delay_time_seconds": 128,
             'deprioritize_failures': False
         })
+        self._queue_name = None
+        self._app_id = None
+        self._current_delay_time = None
+        self._current_item: t.Optional[structures.NODBQueueItem] = None
         self._db: t.Optional[NODBControllerInstance] = None
 
     def _run(self):
