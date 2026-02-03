@@ -305,19 +305,20 @@ class OpenGliderConverter:
                 test_name = f'{copy_from}_QC'
                 if original_nc.has_variable(test_name):
                     var.set_attribute('ancilliary_variables', f'{var_name}_QC')
-            original_var = original_nc.variable(copy_from)
-            original_data = original_var.data()
-            if 'data_processor' in var_config and var_config['data_processor'] is not None:
-                data_processor = dynamic_object(var_config['data_processor'])
-                temp_data = []
-                for x in original_data:
-                    temp_data.append(data_processor(x))
-                    self.breakpoint()
-            var.set_data(original_data)
-            self.breakpoint()
-            if 'copy_attributes' in var_config and var_config['copy_attributes']:
-                for attr_name in var_config['copy_attributes']:
-                    var.set_attribute(attr_name, original_var.attribute(attr_name))
+            if original_nc.has_variable(copy_from):
+                original_var = original_nc.variable(copy_from)
+                original_data = original_var.data()
+                if 'data_processor' in var_config and var_config['data_processor'] is not None:
+                    data_processor = dynamic_object(var_config['data_processor'])
+                    temp_data = []
+                    for x in original_data:
+                        temp_data.append(data_processor(x))
+                        self.breakpoint()
+                var.set_data(original_data)
+                self.breakpoint()
+                if 'copy_attributes' in var_config and var_config['copy_attributes']:
+                    for attr_name in var_config['copy_attributes']:
+                        var.set_attribute(attr_name, original_var.attribute(attr_name))
         self.breakpoint()
 
     def _build_parameters(self, open_nc: Dataset, original_nc: Dataset, sensor_map: dict[str, str]):
