@@ -410,8 +410,8 @@ class NODBQueueItem(_NODBBaseObject):
                         status = %s,
                         locked_by = NULL,
                         locked_since = NULL,
-                        delay_release = %s
-                        priority -= %s
+                        delay_release = %s,
+                        priority = priority - %s,
                         escalation_level = %s
                     WHERE 
                         queue_uuid = %s
