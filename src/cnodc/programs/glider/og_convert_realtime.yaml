@@ -456,11 +456,19 @@ parameters:
 contact_info:
 
 glider_model_map:
-  SLOCUM_SG2:
+  slocum_sg2:
     model: Teledyne Webb Research Slocum G2 glider
     prefix: 'unit_'
     maker: "Teledyne Web Research"
-  SEAEXPLORER:
+  slocum_g2:
+    model: Teledyne Webb Research Slocum G2 glider
+    prefix: 'unit_'
+    maker: "Teledyne Web Research"
+  slocum_sg3:
+    model: Teledyne Webb Research Slocum G3 glider
+    prefix: 'unit_'
+    maker: "Teledyne Web Research"
+  seaexplorer:
     model: "Alseamar SeaExplorer X2 glider"
     prefix: "sea"
     maker: "Alseamar"

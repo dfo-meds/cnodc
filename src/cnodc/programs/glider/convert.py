@@ -442,9 +442,9 @@ class OpenGliderConverter:
         open_nc.variable('PLATFORM_NAME').set_data_from_string(platform_name)
         open_nc.variable('WMO_IDENTIFIER').set_data_from_string(original_nc.attribute('wmo_platform_code'))
         ego_model_code = original_nc.variable('PLATFORM_TYPE').as_string()
-        if ego_model_code not in self._mapping_data['glider_model_map']:
+        if ego_model_code.lower() not in self._mapping_data['glider_model_map']:
             raise CNODCError(f'Unknown platform model: {ego_model_code}')
-        model_info = self._mapping_data['glider_model_map'][ego_model_code]
+        model_info = self._mapping_data['glider_model_map'][ego_model_code.lower()]
         open_nc.variable('PLATFORM_MODEL').set_data_from_string(model_info['model'])
         serial_no = original_nc.variable('GLIDER_SERIAL_NO').as_string()
         open_nc.variable('PLATFORM_SERIAL_NUMBER').set_data_from_string(f"{model_info['prefix']}{serial_no}")
