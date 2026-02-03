@@ -34,7 +34,9 @@ class NODBValidationError(CNODCError):
     """Base exception for validation issues."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, code_space="NODBV", **kwargs)
+        if len(args) > 1:
+            kwargs['code_number'] = args[1]
+        super().__init__(args[0], code_space="NODBV", **kwargs)
 
 
 class UserStatus(enum.Enum):
