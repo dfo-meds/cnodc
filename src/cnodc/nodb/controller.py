@@ -296,7 +296,7 @@ class NODBControllerInstance:
                 row = cur.fetchone()
                 if row is None:
                     cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_date.isoformat()])
-                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date <= %s AND was_processed = FALSE", [file_path, mod_date.isoformat()])
+                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND (modified_date <= %s or modified_date IS NULL) AND was_processed = FALSE", [file_path, mod_date.isoformat()])
 
     def mark_scanned_item_failed(self, file_path, mod_date: t.Optional[datetime.datetime]):
         """Mark a scanned file as failing."""
