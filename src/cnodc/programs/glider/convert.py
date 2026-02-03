@@ -7,6 +7,7 @@ from os import PathLike
 import yaml
 from autoinject import injector
 
+from cnodc.dmd.metadata import GCContentType, GCContentFormat
 from cnodc.process import QueueItemResult
 from cnodc.process.payload_worker import FileWorkflowWorker
 from cnodc.storage import StorageController, BaseStorageHandle
@@ -109,14 +110,26 @@ class OpenGliderConverter:
         if self._halt is not None:
             self._halt.breakpoint()
 
-    def build_metadata(self, open_file) -> metadata.DatasetMetadata:
+    def build_metadata(self, open_file, file_name: str) -> metadata.DatasetMetadata:
         with Dataset(open_file, "r") as nc:
             dmd = metadata.DatasetMetadata()
             dmd.set_meds_defaults()
             dmd.set_from_netcdf_file(nc)
             dmd.set_processing_info("real-time")
             mission_id = nc.attribute('id')
-            # TODO: raw file distribution
+            dist = metadata.DistributionChannel()
+            dist.set_guid('direct_link')
+            dist.set_display_name({"en": "Direct Link", "fr": "Lien direct"})
+            main_link = metadata.Resource(f"https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/glider-planeur/{file_name}")
+            main_link.set_display_name({"en": "NetCDF File in OpenGlider format", "fr:": "Ficher NetCDF en format OpenGlider"})
+            main_link.set_name({"en": "NetCDF File in OpenGlider format", "fr:": "Ficher NetCDF en format OpenGlider"})
+            main_link.set_gc_language(metadata.GCLanguage.Bilingual)
+            main_link.set_link_purpose(metadata.ResourcePurpose.FileAccess)
+            main_link.set_gc_content_type(GCContentType.Dataset)
+            main_link.set_gc_content_format(GCContentFormat.DataNetCDF)
+            main_link.set_resource_type(metadata.ResourceType.File)
+            dist.set_primary_link(main_link)
+            dmd.add_distribution_channel(dist)
             dmd.set_erddap_info(
                 server=metadata.Common.ERDDAP_Primary,
                 dataset_id=mission_id,
@@ -124,7 +137,6 @@ class OpenGliderConverter:
                 file_path=f"/cloud_data/gliders/{mission_id.lower()}/",
                 file_pattern="*.nc"
             )
-            dmd.set_file_storage_location("")
             return dmd
 
     def convert(self, ego_file, og_file, file_name: t.Optional[str] = None):
