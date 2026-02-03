@@ -473,6 +473,21 @@ glider_model_map:
     prefix: "sea"
     maker: "Alseamar"
 
+sensor_map:
+  "seabird electronics ctd 41cp":
+    make: SeaBird Electronics
+    model: CTD 41CP
+    type: CTD
+  "aanderaa oxy 5013":
+    make: "Aanderaa"
+    model: "Oxygen Optode 5013"
+    type: DOXY
+  "wetlabs flbbcdslc":
+    make: "Weblabs"
+    model: "FLBBCD-SLC"
+    type: FLUOROMETER
+
+
 battery_type_map:
   LithiumION: lithium
 
