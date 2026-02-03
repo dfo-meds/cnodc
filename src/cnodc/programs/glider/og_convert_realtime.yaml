@@ -17,6 +17,7 @@ copy_metadata:
     program: program
     project: project
     comment: comment
+    network: network
 variables:
   TIME:
     type: "f8"
