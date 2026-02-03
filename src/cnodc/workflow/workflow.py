@@ -17,7 +17,7 @@ import zrlog
 from cnodc.nodb import NODBControllerInstance, NODBController, structures, NODBUploadWorkflow
 from cnodc.storage import StorageController, StorageTier, BaseStorageHandle
 from autoinject import injector
-from cnodc.util import CNODCError, HaltFlag, dynamic_object, haltable_gzip
+from cnodc.util import CNODCError, HaltFlag, dynamic_object, haltable_gzip, haltable_ungzip
 import typing as t
 import pathlib
 import datetime
@@ -276,16 +276,7 @@ class FilePayload(WorkflowPayload):
             gzip_path = target_dir / gzip_target_name
             target_path = target_dir / target_name
             handle.download(gzip_path)
-            with gzip.open(gzip_path, "wb") as src:
-                with open(target_path, "rb") as dest:
-                    chunk = src.read(2097152)
-                    while chunk != b'':
-                        if halt_flag:
-                            halt_flag.check_continue(True)
-                        dest.write(chunk)
-                        if halt_flag:
-                            halt_flag.check_continue(True)
-                        chunk = src.read(2097152)
+            haltable_ungzip(gzip_path, target_path, halt_flag=halt_flag)
             return target_path
         else:
             file_path = target_dir / target_name
