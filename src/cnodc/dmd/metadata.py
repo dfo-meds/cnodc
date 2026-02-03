@@ -2148,6 +2148,27 @@ class Keyword(EntityRef):
         self._metadata['description'] = EntityRef.format_multilingual_text(d)
 
 
+class DistributionChannel(EntityRef):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._children['responsibles']: list[_ResponsibleParty] = []
+        self._children['primary_web_link']: t.Optional[Resource] = None
+        self._children['links']: list[Resource] = []
+
+    def set_description(self, description: MultiLanguageString):
+        self._metadata['description'] = description
+
+    def add_responsible(self, role: ContactRole, contact: _Contact):
+        self._children['responsibles'].append(_ResponsibleParty(role, contact))
+
+    def set_primary_link(self, res: Resource):
+        self._children['primary_web_link'] = res
+
+    def add_link(self, res: Resource):
+        self._children['links'].append(res)
+
+
 class DatasetMetadata:
 
     ontology: cnodc.ocproc2.ontology.OCProc2Ontology = None
@@ -2191,7 +2212,11 @@ class DatasetMetadata:
             'metadata_licenses': [],
             'erddap_servers': [],
             'custom_keywords': [],
+            'distributors': [],
         }
+
+    def add_distribution_channel(self, dist: DistributionChannel):
+        self._children['distributors'].append(dist)
 
     def get_variables(self):
         return self._children['variables']
