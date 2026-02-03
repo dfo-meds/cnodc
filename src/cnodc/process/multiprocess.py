@@ -1,5 +1,6 @@
 """Controller for multiple processes based on the multiprocessing library."""
 import json
+import signal
 import uuid
 import multiprocessing as mp
 import time
@@ -21,10 +22,11 @@ class _SubprocessHaltFlag(HaltFlag):
 class _ProcessRunner(mp.Process):
     """Implementation of a process that runs a worker class."""
 
-    def __init__(self, worker_cls: str, process_uuid: str, halt_flag: mp.Event, config_json: str, *args, **kwargs):
+    def __init__(self, worker_cls: str, process_uuid: str, halt_flag: mp.Event, config_json: str, signals: str, *args, **kwargs):
         self._worker_cls = worker_cls
         self._process_uuid = process_uuid
         self._halt_flag = halt_flag
+        self._signals = signals
         self._end_flag = mp.Event()
         self._config_json = config_json
         self.is_working = mp.Event()
@@ -36,6 +38,9 @@ class _ProcessRunner(mp.Process):
 
     def run(self):
         """Create and run the worker."""
+        for sig in self._signals.split("\n"):
+            if hasattr(signal, sig):
+                signal.signal(getattr(signal, sig), self._handle_signal)
         worker = dynamic_object(self._worker_cls)(
             _process_uuid=self._process_uuid,
             _config=json.loads(self._config_json),
@@ -44,13 +49,17 @@ class _ProcessRunner(mp.Process):
         )
         worker.run()
 
+    def _handle_signal(self, *args, **kwargs):
+        pass
+
 
 class _ProcessSet:
     """Represents a set of processes all running the same worker."""
 
-    def __init__(self, worker_cls: str, target_count: int, config: dict, global_halt: mp.Event):
+    def __init__(self, worker_cls: str, target_count: int, config: dict, signals: set[str], global_halt: mp.Event):
         self._halt_flag = global_halt
         self._quota = target_count
+        self._signals = signals
         self._active_processes: dict[str, _ProcessRunner] = {}
         self._config = config
         self._is_active = True
@@ -109,6 +118,7 @@ class _ProcessSet:
                     worker_cls=self._worker_cls,
                     process_uuid=proc_id,
                     halt_flag=self._halt_flag,
+                    signals="\n".join(self._signals),
                     config_json=json.dumps(self._config)
                 )
                 self._active_processes[proc_id].start()
@@ -138,7 +148,7 @@ class ProcessController(BaseController):
     def _register_process(self, process_name: str, process_cls_name: str, count: int = 1, config: dict = None):
         if process_name not in self._process_info:
             self._log.debug(f"Registering process {process_name}")
-            self._process_info[process_name] = _ProcessSet(process_cls_name, count, config or {}, self._halt_flag)
+            self._process_info[process_name] = _ProcessSet(process_cls_name, count, config or {}, self._signals, self._halt_flag)
         else:
             self._log.debug(f"Updating process {process_name}")
             self._process_info[process_name].set_quota(count)

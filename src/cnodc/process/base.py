@@ -50,6 +50,7 @@ class BaseController:
         self._config_file = config_file
         self._config_dir = config_file_dir
         self._flag_file = flag_file
+        self._signals = set()
         self._loaded = False
 
     def _check_reload(self):
@@ -66,6 +67,7 @@ class BaseController:
         """Register a halt signal"""
         if hasattr(signal, sig_name):
             signal.signal(getattr(signal, sig_name), self._handle_halt)
+            self._signals.add(sig_name)
 
     def _handle_halt(self, sig_num, frame):
         """Handle a halt signal"""
