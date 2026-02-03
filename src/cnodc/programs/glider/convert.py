@@ -114,7 +114,9 @@ class OpenGliderConverter:
             dmd = metadata.DatasetMetadata()
             dmd.set_meds_defaults()
             dmd.set_from_netcdf_file(nc)
+            dmd.set_processing_info("real-time")
             mission_id = nc.attribute('id')
+            # TODO: raw file distribution
             dmd.set_erddap_info(
                 server=metadata.Common.ERDDAP_Primary,
                 dataset_id=mission_id,
