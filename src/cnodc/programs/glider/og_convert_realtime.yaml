@@ -452,6 +452,56 @@ parameters:
       valid_min: 0
       _FillValue: -9999.9
       cnodc_standard_name: ColoredDissolvedOrganicMatter
+  DPHDOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: DPHASE_DOXY
+    attributes:
+      long_name: "Calibrated phase shift reported by oxygen sensor"
+      long_name_fr: "Déphasage calibré rapporté par le capteur d'oxygène"
+      units: "degree"
+      valid_min: 10.0
+      valid_max: 70.0
+      _FillValue: -9999.9
+  RPHDOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: RPHASE_DOXY
+    attributes:
+      long_name: "Uncalibrated red phase shift reported by oxygen sensor"
+      long_name_fr: "Décalage de phase rouge non calibré signalé par le capteur d'oxygène"
+      units: "degree"
+      valid_min: 10.0
+      valid_max: 70.0
+      _FillValue: -9999.9
+  BPHDOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: BPHASE_DOXY
+    attributes:
+      long_name: "Calibrated blue phase shift reported by oxygen sensor"
+      long_name_fr: "Décalage de phase bleu non calibré signalé par le capteur d'oxygène"
+      units: "degree"
+      valid_min: 10.0
+      valid_max: 70.0
+      _FillValue: -9999.9
+  TEMPDOXY:
+    type: f8
+    dimensions:
+      - N_MEASUREMENTS
+    copy_data_from: TEMP_DOXY
+    attributes:
+      long_name: "Temperature of sea water reported by oxygen sensor"
+      long_name_fr: "Température de l'eau de mer mesurée par capteur d'oxygène"
+      standard_name: "temperature_of_sensor_for_oxygen_in_sea_water"
+      units: "degree_C"
+      valid_min: -2.0
+      valid_max: 40.0
+      _FillValue: -9999.9
+
 
 contact_info:
 
