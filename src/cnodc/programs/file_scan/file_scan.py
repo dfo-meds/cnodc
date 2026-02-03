@@ -165,13 +165,13 @@ class FileDownloadWorker(QueueWorker):
         with self.nodb as db:
             current_status = db.scanned_file_status(file_path, modified_time)
             if current_status == ScannedFileStatus.UNPROCESSED:
+                workflow = structures.NODBUploadWorkflow.find_by_name(db, workflow_name)
+                if workflow is None:
+                    raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
                 handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
                 if not metadata:
                     metadata = {}
                 self._update_payload_metadata(metadata, handle)
-                workflow = structures.NODBUploadWorkflow.find_by_name(db, workflow_name)
-                if workflow is None:
-                    raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
                 wf_controller = WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
                 temp_dir = self.temp_dir()
                 local_path = temp_dir / "file"
