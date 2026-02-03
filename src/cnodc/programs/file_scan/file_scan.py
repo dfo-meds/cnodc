@@ -171,16 +171,18 @@ class FileDownloadWorker(QueueWorker):
                 handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
                 if not metadata:
                     metadata = {}
+                lmt = handle.modified_datetime()
+                if lmt is not None:
+                    metadata['last-modified-time'] = lmt.isoformat()
                 self._update_payload_metadata(metadata, handle)
                 wf_controller = WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
                 temp_dir = self.temp_dir()
                 local_path = temp_dir / "file"
                 handle.download(local_path)
-                mod_time = handle.modified_datetime()
                 wf_controller.handle_incoming_file(
                     local_path=local_path,
                     metadata=metadata,
-                    post_hook=functools.partial(self._db.mark_scanned_item_success, file_path, mod_time),
+                    post_hook=functools.partial(self._on_successful_handle, file_path=file_path, mod_time=lmt),
                     unique_queue_id=file_path,
                     db=db
                 )
@@ -192,6 +194,9 @@ class FileDownloadWorker(QueueWorker):
                 self._try_remove_file(handle)
             else:
                 self._log.info(f"Item {file_path} already processed [result {current_status}], skipping")
+
+    def _on_successful_handle(self, db, file_path, mod_time):
+        db.mark_scanned_item_success(file_path, mod_time)
 
     def _update_payload_metadata(self, metadata: dict, handle):
         metadata['source'] = (self._process_name, self._process_version, self._process_uuid)
