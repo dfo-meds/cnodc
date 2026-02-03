@@ -302,9 +302,9 @@ class NODBControllerInstance:
         """Mark a scanned file as failing."""
         with self.cursor() as cur:
             if mod_date is None:
-                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND mod_date IS NULL", [file_path])
+                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL", [file_path])
             else:
-                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND mod_date = %s", [file_path, mod_date.isoformat()])
+                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_date.isoformat()])
 
     def create_queue_item(self,
                           queue_name: str,
@@ -376,9 +376,9 @@ class NODBControllerInstance:
         try:
             cur.create_savepoint("fetch_queue_item")
             if subqueue_name:
-                cur.execute("SELECT * FROM next_queue_item(%s, %s, %s)", (queue_name, app_id, subqueue_name))
+                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s::varchar(126))", (queue_name, app_id, subqueue_name))
             else:
-                cur.execute("SELECT * FROM next_queue_item(%s, %s)", (queue_name, app_id))
+                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126))", (queue_name, app_id))
             item = cur.fetchone()
             if item is not None and item[0] is not None:
                 cur.release_savepoint("fetch_queue_item")
