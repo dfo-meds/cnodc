@@ -1388,7 +1388,9 @@ class Variable(EntityRef):
             var_data_type=dtype,
             dimensions=ds_var.dimensions,
             long_name=get_bilingual_attribute(var_attributes, 'long_name', locale_map),
+            display_names={"und": ds_var.name}
         )
+        var.set_guid(ds_var.name)
         if 'comment' in var_attributes:
             var.set_comment(var_attributes.pop('comment'))
         if 'references' in var_attributes:
@@ -2202,9 +2204,15 @@ class DatasetMetadata:
         self.add_metadata_profile(Common.MetadataProfile_CIOOS)
         self.add_metadata_standard(Common.MetadataStandard_ISO19115)
         self.add_metadata_standard(Common.MetadataStandard_ISO191151)
+        self.set_metadata_owner(Common.Contact_CNODC)
+        self.set_publisher(Common.Contact_CNODC)
+        self.set_metadata_maintenance_frequency(MaintenanceFrequency.NotPlanned)
+        self.set_dataset_maintenance_frequency(MaintenanceFrequency.NotPlanned)
+        self.set_status(StatusCode.Final)
         self.set_topic_category(TopicCategory.Oceans)
         self.set_activation_workflow("cnodc_activation")
         self.set_publication_workflow("cnodc_publish")
+        self.set_cf_standard_name_vocab("CF 1.13")
         self._security_level = 'unclassified'
         self.set_goc_publisher(GCPublisher.MEDS)
         self.set_government_metadata(
@@ -2265,7 +2273,9 @@ class DatasetMetadata:
                 break
         for ds_var in dataset.variables():
             self.add_variable(Variable.build_from_netcdf(ds_var, locale_map), depths)
-        self.set_title(get_bilingual_attribute(attrs, 'title', locale_map))
+        title = get_bilingual_attribute(attrs, 'title', locale_map)
+        self.set_title(title)
+        self.set_display_name(title)
         self.set_program(attrs.pop('program', ""))
         self.set_project(attrs.pop('project', ""))
         self.set_conventions(attrs.pop('Conventions', "").split(","))
@@ -2276,6 +2286,7 @@ class DatasetMetadata:
         self.set_references(get_bilingual_attribute(attrs, 'references', locale_map))
         self.set_source(get_bilingual_attribute(attrs, 'source', locale_map))
         self.set_abstract(get_bilingual_attribute(attrs, 'summary', locale_map))
+        self.set_purpose(get_bilingual_attribute(attrs, 'purpose', locale_map))
         if 'date_created' in attrs:
             self.set_date_issued(datetime.datetime.fromisoformat(attrs.pop('date_created')))
         if 'date_issued' in attrs:
@@ -2288,6 +2299,15 @@ class DatasetMetadata:
             self.set_processing_info(
                 attrs.pop('processing_level')
             )
+        # contact items from list
+        # horizontal and vertical reference systems
+        self.set_additional_properties(attrs)
+
+    def set_additional_properties(self, attrs: dict):
+        if 'custom_metadata' not in self._metadata:
+            self._metadata['custom_metadata'] = {}
+        for key in attrs:
+            self._metadata['custom_metadata'] = unnumpy(attrs[key])
 
     def set_guid(self, guid: str, authority: t.Optional[str] = None):
         self._guid = guid
@@ -2540,6 +2560,9 @@ class DatasetMetadata:
             self._metadata['cf_standard_names'] = list()
         if keyword not in self._metadata['cf_standard_names']:
             self._metadata['cf_standard_names'].append(keyword)
+
+    def set_cf_standard_name_vocab(self, cf_version = "CF 1.13"):
+        self._metadata['standard_name_vocab'] = cf_version
 
     def set_feature_type(self, feature_type: CommonDataModelType):
         """
