@@ -30,18 +30,18 @@ class FileScanTask(ScheduledTask):
         super().__init__(
             process_name='file_scanner',
             process_version='1.0',
-            defaults={
-                'scan_target': None,
-                'workflow_name': None,
-                'queue_name': 'file_download',
-                'pattern': '*',
-                'recursive': False,
-                'remove_downloaded_files': False,
-                'reprocess_updated_files': False,
-                'metadata': None
-            },
             **kwargs
         )
+        self.set_defaults({
+            'scan_target': None,
+            'workflow_name': None,
+            'queue_name': 'file_download',
+            'pattern': '*',
+            'recursive': False,
+            'remove_downloaded_files': False,
+            'reprocess_updated_files': False,
+            'metadata': None
+        })
         self._scan_target: t.Optional[cnodc.storage.BaseStorageHandle] = None
 
     def on_start(self):
@@ -128,12 +128,12 @@ class FileDownloadWorker(QueueWorker):
         super().__init__(
             process_name='file_downloader',
             process_version='1.0',
-            defaults={
-                'queue_name': 'file_download',
-                'allow_file_deletes': False,
-            },
             **kwargs
         )
+        self.set_defaults({
+            'queue_name': 'file_download',
+            'allow_file_deletes': False,
+        })
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
         if 'target_file' not in item.data or not item.data['target_file']:

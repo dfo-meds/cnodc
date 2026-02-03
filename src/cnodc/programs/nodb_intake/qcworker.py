@@ -26,17 +26,17 @@ class NODBQCWorker(WorkflowWorker):
         super().__init__(
             process_name="qc_worker",
             process_version="1_0",
-            defaults={
-                'qc_tests': [],
-                'max_batch_size': None,
-                'max_buffer_size': None,
-                'target_buffer_size': None,
-                'recheck_queue': None,
-                'next_queue': "workflow_continue",
-                'review_queue': 'nodb_manual_review',
-            },
             **kwargs
         )
+        self.set_defaults({
+            'qc_tests': [],
+            'max_batch_size': None,
+            'max_buffer_size': None,
+            'target_buffer_size': None,
+            'recheck_queue': None,
+            'next_queue': "workflow_continue",
+            'review_queue': 'nodb_manual_review',
+        })
         self._test_runner = self._build_test_runner(self.get_config('qc_tests', []))
 
     def _build_test_runner(self, qc_tests: list[dict]) -> QCTestRunner:

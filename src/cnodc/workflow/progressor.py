@@ -12,11 +12,11 @@ class WorkflowProgressWorker(WorkflowWorker):
         super().__init__(
             process_name="progressor",
             process_version="1_0",
-            defaults={
-                'queue_name': 'workflow_continue'
-            },
             **kwargs
         )
+        self.set_defaults({
+            'queue_name': 'workflow_continue'
+        })
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         workflow = payload.load_workflow(self._db, self._halt_flag)

@@ -18,12 +18,12 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
         super().__init__(
             process_name="finalizer",
             process_version="1_0",
-            defaults={
-                'queue_name': 'nodb_finalize',
-                'next_queue': 'workflow_continue',
-            },
             **kwargs
         )
+        self.set_defaults({
+            'queue_name': 'nodb_finalize',
+            'next_queue': 'workflow_continue',
+        })
 
     def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]:
         batch = payload.load_batch(self._db)

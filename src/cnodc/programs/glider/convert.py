@@ -29,13 +29,14 @@ class GliderConversionWorker(FileWorkflowWorker):
         super().__init__(
             process_name="glider_conversion",
             process_version="1.0",
-            defaults={
-                'queue_name': 'glider_conversion',
-                'openglider_directory': '',
-                'gzip': True,
-            },
             **kwargs
         )
+        self.set_defaults({
+            'queue_name': 'glider_conversion',
+            'openglider_directory': '',
+            'openglider_erddap_directory': '',
+            'next_queue': 'workflow_continue',
+        })
         self._target_dir: t.Optional[BaseStorageHandle] = None
         self._target_erddap_dir: t.Optional[BaseStorageHandle] = None
         self._converter: t.Optional[OpenGliderConverter] = None

@@ -23,20 +23,20 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         super().__init__(
             process_name='decoder',
             process_version='1.0',
-            defaults={
-                'queue_name': None,
-                'next_queue': 'workflow_continue',
-                'failure_queue': 'nodb_decode_failure',
-                'error_directory': None,
-                'default_metadata': {},
-                'decoder_class': None,
-                'decode_kwargs': {},
-                'before_message': None,
-                'after_success': None,
-                'after_error': None
-            },
             **kwargs
         )
+        self.set_defaults({
+            'queue_name': None,
+            'next_queue': 'workflow_continue',
+            'failure_queue': 'nodb_decode_failure',
+            'error_directory': None,
+            'default_metadata': {},
+            'decoder_class': None,
+            'decode_kwargs': {},
+            'before_message': None,
+            'after_success': None,
+            'after_error': None
+        })
         self._error_dir_handle = self.storage.get_handle(
             self.get_config('error_directory'),
             self._halt_flag
