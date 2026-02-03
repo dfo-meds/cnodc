@@ -411,8 +411,9 @@ class OpenGliderConverter:
     def _build_contributors(self, open_nc: Dataset, original_nc: Dataset):
         contributors = []
         institutions = []
-        for pi in original_nc.attribute('principal_investigator').split(';'):
-            contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
+        if original_nc.has_attribute('principal_investigator'):
+            for pi in original_nc.attribute('principal_investigator').split(';'):
+                contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
         for op in original_nc.variable('OPERATING_INSTITUTION').as_string().split(';'):
             institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
         for owner in original_nc.variable('GLIDER_OWNER').as_string().split(';'):
