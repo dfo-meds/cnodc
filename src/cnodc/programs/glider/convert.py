@@ -192,10 +192,14 @@ class OpenGliderConverter:
         self.breakpoint()
         sensor_serials = original_nc.variable('SENSOR_SERIAL_NO').all_as_strings()
         self.breakpoint()
-        param_names = original_nc.variable('PARAMETER').all_as_strings()
-        self.breakpoint()
-        param_sensors = original_nc.variable('PARAMETER_SENSOR').all_as_strings()
-        self.breakpoint()
+        param_names = []
+        if original_nc.has_variable('PARAMETER'):
+            param_names = original_nc.variable('PARAMETER').all_as_strings()
+            self.breakpoint()
+        param_sensors = []
+        if original_nc.has_variable('PARAMETER_SENSOR'):
+            param_sensors = original_nc.variable('PARAMETER_SENSOR').all_as_strings()
+            self.breakpoint()
         sensor_info = {}
         sensors_seen = set()
         param_map = {}
