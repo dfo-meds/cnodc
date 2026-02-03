@@ -720,9 +720,9 @@ class NODBUploadWorkflow(_NODBBaseObject):
         sort_me = []
         for step_name in steps:
             step = steps[step_name]
-            if 'name' not in steps or not steps['name']:
+            if 'name' not in step or not step['name']:
                 raise CNODCError(f'Step {step_name} is missing a [name] value', 'NODB_WORKFLOW', 1000)
-            if 'order' not in steps or steps['order'] is None:
+            if 'order' not in step or step['order'] is None:
                 raise CNODCError(f'Step {step_name} is missing a proper [order] value', 'NODB_WORKFLOW', 1001)
             try:
                 sort_me.append((step['name'], int(step['order'])))
