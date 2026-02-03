@@ -83,6 +83,9 @@ class GliderConversionWorker(FileWorkflowWorker):
 
         self.metadb.upsert_dataset(meta)
 
+        self.progress_queue_item(self.file_payload_from_path(target_file.path(), datetime.datetime.now(datetime.timezone.utc)))
+        self._current_item.mark_complete(self._db)
+        self._db.commit()
 
 
 

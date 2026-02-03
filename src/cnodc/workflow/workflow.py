@@ -65,6 +65,16 @@ class FileInfo:
         return map_
 
     @staticmethod
+    def from_path(path: str, mod_date: t.Optional[datetime.datetime] = None):
+        p = pathlib.Path(path)
+        return FileInfo(
+            path,
+            p.name,
+            '.gz' in p.name.lower(),
+            mod_date
+        )
+
+    @staticmethod
     def from_map(map_: dict):
         """Build the object from a map."""
         if 'file_path' not in map_:
@@ -281,6 +291,13 @@ class FilePayload(WorkflowPayload):
             file_path = target_dir / target_name
             handle.download(file_path)
             return file_path
+
+    @staticmethod
+    def from_path(path: str, mod_date: t.Optional[datetime.datetime] = None, **kwargs):
+        return FilePayload(
+            file_info=FileInfo.from_path(path, mod_date),
+            **kwargs
+        )
 
     @staticmethod
     def from_map(map_: dict, **kwargs):

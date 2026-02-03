@@ -32,9 +32,7 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
                 self._complete_record(record)
             batch.status = structures.BatchStatus.COMPLETE
             self._db.update_object(batch)
-            next_payload = self.copy_payload(payload)
-            next_payload.current_step_done = True
-            next_payload.enqueue(self._db, self.get_config('next_queue'))
+            self.progress_queue_item()
         self._current_item.mark_complete(self._db)
         self._db.commit()
         return QueueItemResult.HANDLED
