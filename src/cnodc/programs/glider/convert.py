@@ -368,8 +368,10 @@ class OpenGliderConverter:
             else:
                 depths.append(seawater.eos80_depth(float(pressures[x]), float(latitudes[x])))
             self.breakpoint()
-        open_nc.set_attribute('geospatial_vertical_min', min(d for d in depths if not math.isnan(d) and d >= 0))
-        open_nc.set_attribute('geospatial_vertical_max', max(d for d in depths if not math.isnan(d) and d >= 0))
+        actual_values = [d for d in depths if not math.isnan(d) and d >= 0]
+        if actual_values:
+            open_nc.set_attribute('geospatial_vertical_min', min(actual_values))
+            open_nc.set_attribute('geospatial_vertical_max', max(actual_values))
         open_nc.variable('DEPTH').set_data(depths)
         self.breakpoint()
 
