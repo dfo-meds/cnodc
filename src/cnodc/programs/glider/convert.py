@@ -432,7 +432,15 @@ class OpenGliderConverter:
         open_nc.set_attribute('contributing_institutions_role_vocabulary', 'https://vocab.nerc.ac.uk/collection/W08/current/')
 
     def _build_deployment_info(self, open_nc: Dataset, original_nc: Dataset, platform: str, start_time: str):
-        start_date = datetime.datetime.strptime(original_nc.variable('DEPLOYMENT_START_DATE').as_string().strip(), '%Y%m%d')
+        deploy_start = original_nc.variable('DEPLOYMENT_START_DATE').as_string().strip()
+        if len(deploy_start) == 8:
+            start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d')
+        elif len(deploy_start) == 12:
+            start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d%H%M')
+        elif len(deploy_start) == 14:
+            start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d%H%M%S')
+        else:
+            raise CNODCError(f"Unknown date format for [{deploy_start}]")
         start_date = start_date.astimezone(datetime.timezone.utc)
         open_nc.set_attribute('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))
         open_nc.variable('TRAJECTORY').set_data_from_string(f"{platform}_{start_time}")
