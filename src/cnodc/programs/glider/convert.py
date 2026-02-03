@@ -459,13 +459,14 @@ class OpenGliderConverter:
         open_nc.variable('PLATFORM_SERIAL_NUMBER').set_data_from_string(f"{model_info['prefix']}{serial_no}")
         open_nc.variable('PLATFORM_MAKER').set_data_from_string(model_info['maker'])
         battery_type = original_nc.variable('BATTERY_TYPE').as_string()
-        if battery_type not in self._mapping_data['battery_type_map']:
-            raise CNODCError(f'Unknown battery type: {battery_type}')
+        if battery_type:
+            if battery_type not in self._mapping_data['battery_type_map']:
+                raise CNODCError(f'Unknown battery type: {battery_type}')
+            open_nc.variable('BATTERY_TYPE').set_data_from_string(self._mapping_data['battery_type_map'][battery_type])
         # BATTERY_PACKS??
         # FIRMWARE_VERSION_NAVIGATION
         # FIRMWAVE_VERSION_SCIENCE
         # GLIDER_MANUAL_VERSION
-        open_nc.variable('BATTERY_TYPE').set_data_from_string(self._mapping_data['battery_type_map'][battery_type])
         trans_systems = set()
         for sys_name in original_nc.variable('TRANS_SYSTEM').all_as_strings():
             if not sys_name:
