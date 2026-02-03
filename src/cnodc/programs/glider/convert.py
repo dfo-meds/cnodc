@@ -459,15 +459,19 @@ class OpenGliderConverter:
         open_nc.variable('BATTERY_TYPE').set_data_from_string(self._mapping_data['battery_type_map'][battery_type])
         trans_systems = set()
         for sys_name in original_nc.variable('TRANS_SYSTEM').all_as_strings():
-            if sys_name not in self._mapping_data['trans_system_type_map']:
+            if not sys_name:
+                continue
+            if sys_name.lower() not in self._mapping_data['trans_system_type_map']:
                 raise CNODCError(f'Unknown transmission system: {sys_name}')
-            trans_systems.add(self._mapping_data['trans_system_type_map'][sys_name])
+            trans_systems.add(self._mapping_data['trans_system_type_map'][sys_name.lower()])
         open_nc.variable('TELECOM_TYPE').set_data_from_string(','.join(trans_systems))
         track_systems = set()
         for sys_name in original_nc.variable('POSITIONING_SYSTEM').all_as_strings():
-            if sys_name not in self._mapping_data['track_system_type_map']:
+            if not sys_name:
+                continue
+            if sys_name.lower() not in self._mapping_data['track_system_type_map']:
                 raise CNODCError(f'Unknown positioning system: {sys_name}')
-            track_systems.add(self._mapping_data['track_system_type_map'][sys_name])
+            track_systems.add(self._mapping_data['track_system_type_map'][sys_name.lower()])
         open_nc.variable('TRACKING_SYSTEM').set_data_from_string(','.join(track_systems))
 
     def _build_phase_info(self, original_nc, open_nc):

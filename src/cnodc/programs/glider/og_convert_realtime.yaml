@@ -542,12 +542,12 @@ battery_type_map:
   LithiumION: lithium
 
 trans_system_type_map:
-  Iridium: iridium
+  iridium: iridium
 
 track_system_type_map:
-  GPS: gps
-  IRIDIUM: iridium
-  ARGOS: argos
+  gps: gps
+  iridium: iridium
+  argos: argos
 
 phase_map:
   0: 4
