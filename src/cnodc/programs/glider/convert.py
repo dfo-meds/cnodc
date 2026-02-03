@@ -348,6 +348,9 @@ class OpenGliderConverter:
                         'coordinates': "TIME,LONGITUDE,LATITUDE,DEPTH",
                         'rtqc_methodology': "Coriolis MATLAB toolbox",
                         'rtqc_methodology_fr': "Boîte à outils Coriolis Matlab",
+                        '_FillValue': -127,
+                        'valid_min': 0,
+                        'valid_max': 0,
                 },
                     'copy_attributes': ['flag_values', 'flag_meanings'],
                 })
@@ -493,8 +496,8 @@ class OpenGliderConverter:
         new_phase_qc = []
         for phase_info in phase_data:
             if math.isnan(phase_info):
-                new_phase_data.append(-1)
-                new_phase_qc.append(-1)
+                new_phase_data.append(-128)
+                new_phase_qc.append(-128)
             else:
                 new_phase_data.append(int(self._mapping_data['phase_map'][int(phase_info)]))
                 new_phase_qc.append(0)
