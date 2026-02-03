@@ -34,6 +34,7 @@ class DataManagerController:
             return None
 
     def upsert_dataset(self, metadata: DatasetMetadata):
+        result = None
         try:
             headers = {
                 'Authorization' : self._get_auth_header()
@@ -46,11 +47,14 @@ class DataManagerController:
             result.raise_for_status()
             return json.loads(result.content.decode('utf-8'))['guid']
         except Exception as ex:
-            self._log.exception("An exception occurred while creating a new dataset")
-            return None
+            if result:
+                self._log.exception(f"An exception occurred while creating a new dataset: {result.text}")
+            else:
+                self._log.exception(f"An exception occurred while creating a new dataset")
+            raise ex
 
     def _get_api_endpoint(self, ep) -> str:
-        return self.app_config.as_str(("dmd", "base_url"), default=None)
+        return f"{self.app_config.as_str(("dmd", "base_url"), default=None)}{ep}"
 
     def _get_auth_header(self) -> str:
         return self.app_config.as_str(("dmd", "auth_token"), default=None)
