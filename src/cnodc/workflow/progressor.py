@@ -29,6 +29,4 @@ class WorkflowProgressWorker(WorkflowWorker):
                 next_payload,
                 db=self._db
             )
-            return QueueItemResult.SUCCESS
-        else:
-            return QueueItemResult.SUCCESS
+            self.prevent_default_progression()

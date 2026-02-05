@@ -102,13 +102,16 @@ class QueueWorker(BaseWorker):
             self.after_item()
             self._current_item = None
 
+    def autocomplete(self, queue_item):
+        queue_item.mark_complete(self._db)
+
     def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[QueueItemResult], ex: Exception = None):
         """Handle the result of calling the queue processing function."""
         if queue_item is not None:
             if ex is not None:
                 self._log.exception(f"An exception occurred while processing {queue_item.queue_uuid}: {str(ex)}")
             if result is None or result == QueueItemResult.SUCCESS:
-                queue_item.mark_complete(self._db)
+                self.autocomplete(queue_item)
                 self.on_success(queue_item)
                 after = self.after_success
             elif result == QueueItemResult.HANDLED:

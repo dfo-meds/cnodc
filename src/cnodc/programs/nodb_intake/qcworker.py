@@ -109,9 +109,7 @@ class NODBQCWorker(WorkflowWorker):
                 order_by=self._test_runner.working_sort_by
             ), batcher)
             batcher.flush_all()
-            self._current_item.mark_complete(self._db)
-            self._db.commit()
-            return QueueItemResult.HANDLED
+            self.prevent_default_progression()
         else:
             raise CNODCError(f'Invalid payload type for QC processing (must be batch or source file, found {payload.__class__.__name__})')
 

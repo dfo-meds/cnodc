@@ -97,8 +97,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._db.update_object(source_file)
         # Only need to create a source payload if records were found
         if total_created > 0:
-            self.progress_queue_item(self.source_payload_from_nodb(source_file))
-        self._db.commit()
+            self.progress_queue_item(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
 
     def _download_file(self, payload: WorkflowPayload, source_file: structures.NODBSourceFile) -> pathlib.Path:
         temp_dir = self.temp_dir()

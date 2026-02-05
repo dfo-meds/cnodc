@@ -19,19 +19,31 @@ class WorkflowWorker(QueueWorker):
         super().__init__(process_version=process_version, process_name=process_name, **kwargs)
         self._require_type = require_type
         self.current_payload: t.Optional[WorkflowPayload] = None
+        self._skip_autoprogress_payload: bool = False
 
     def progress_queue_item(self,
                             new_payload: t.Optional[WorkflowPayload] = None,
-                            next_queue: t.Optional[str] = None):
-        if new_payload is None:
-            new_payload = self.copy_payload(self.current_payload)
-            new_payload.current_step_done = True
-        else:
-            new_payload.copy_details_from(self.current_payload, True)
-            self.add_payload_metadata(new_payload)
+                            next_queue: t.Optional[str] = None,
+                            prevent_default_progression: bool = False):
         if next_queue is None:
             next_queue = self.get_config('next_queue', 'workflow_continue')
+        if new_payload is None:
+            new_payload = self.copy_payload(self.current_payload)
+            new_payload.current_step_done = next_queue == "workflow_continue"
+        else:
+            new_payload.copy_details_from(self.current_payload, next_queue == "workflow_continue")
+            self.add_payload_metadata(new_payload)
         new_payload.enqueue(self._db, next_queue)
+        if prevent_default_progression:
+            self.prevent_default_progression()
+
+    def prevent_default_progression(self):
+        self._skip_autoprogress_payload = True
+
+    def autocomplete(self, queue_item):
+        super().autocomplete(queue_item)
+        if not self._skip_autoprogress_payload:
+            self.progress_queue_item()
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
         """Handles extracting the payload and checking that it is of the correct type"""
@@ -39,6 +51,7 @@ class WorkflowWorker(QueueWorker):
         if self._require_type is not None and not isinstance(payload, self._require_type):
             raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
         try:
+            self._skip_autoprogress_payload = False
             self.current_payload = payload
             return self.process_payload(payload)
         finally:
