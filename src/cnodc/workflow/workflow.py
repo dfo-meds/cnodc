@@ -618,6 +618,8 @@ class WorkflowController:
                 priority = int(queue_info['priority'])
             except (ValueError, TypeError):
                 self._log.exception(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
+        if 'worker_metadata' in queue_info and queue_info['worker_metadata']:
+            payload.metadata.update(queue_info['worker_metadata'])
         payload.enqueue(db, queue_info['name'], priority)
 
     def step_list(self) -> list[str]:
