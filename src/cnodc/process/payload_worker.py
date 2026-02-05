@@ -9,7 +9,8 @@ from cnodc.nodb import structures
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 from cnodc.util import CNODCError
-from cnodc.workflow.workflow import WorkflowPayload, BatchPayload, SourceFilePayload, FilePayload, FileInfo
+from cnodc.workflow.workflow import WorkflowPayload, BatchPayload, SourceFilePayload, FilePayload, FileInfo, \
+    ObservationPayload
 
 
 class WorkflowWorker(QueueWorker):
@@ -120,6 +121,15 @@ class SourceWorkflowWorker(WorkflowWorker):
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError
 
+
+class ObservationWorkflowWorker(WorkflowWorker):
+    """Implementation of PayloadWorker that limits payloads to SourceFile types."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, require_type=ObservationPayload)
+
+    def process_payload(self, payload: ObservationPayload) -> t.Optional[QueueItemResult]:
+        raise NotImplementedError
 
 class FileWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to File types."""
