@@ -379,7 +379,6 @@ class BaseCodec:
                 yield from result.data_stream
                 on_first = False
             elif fail_on_error:
-                print('here')
                 if result.from_exception:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1000) from result.from_exception
                 else:
