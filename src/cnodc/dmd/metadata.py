@@ -10,7 +10,7 @@ import numpy as np
 
 from cnodc.netcdf.wrapper import Dataset, _Variable
 from autoinject import injector
-
+from cnodc.util import unnumpy
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -24,33 +24,6 @@ def mltext(*, english: t.Optional[str] = None, french: t.Optional[str] = None, g
     if generic is not None:
         txt['und'] = generic
     return txt
-
-
-def unnumpy(numpy_val):
-    if numpy_val is None:
-        return None
-    elif isinstance(numpy_val, decimal.Decimal):
-        return str(numpy_val)
-    elif isinstance(numpy_val, str):
-        return numpy_val
-    elif isinstance(numpy_val, (int, float)):
-        return numpy_val if not math.isnan(numpy_val) else None
-    elif np.isscalar(numpy_val):
-        item = numpy_val.item()
-        return None if math.isnan(item) else item
-    elif isinstance(numpy_val, np.ndarray):
-        if isinstance(numpy_val.dtype, np.dtypes.Int8DType):
-            if numpy_val.ndim == 0:
-                val = int(numpy_val)
-                return None if math.isnan(val) else val
-            return [None if math.isnan(int(x)) else int(x) for x in numpy_val]
-        elif isinstance(numpy_val.dtype, np.dtypes.Float64DType):
-            if numpy_val.ndim == 0:
-                val = float(numpy_val)
-                return None if math.isnan(val) else val
-            return [None if math.isnan(float(x)) else float(x) for x in numpy_val]
-    else:
-        return numpy_val
 
 
 class Encoding(enum.Enum):
