@@ -78,7 +78,8 @@ BEGIN
             'RAW',
             'ADJUSTED',
             'REAL_TIME',
-            'DELAYED_MODE'
+            'DELAYED_MODE',
+            'UNKNOWN',
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
@@ -295,7 +296,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 
     surface_parameters  JSONB,
     profile_parameters  JSONB,
-    processing_level    processing_level        NOT NULL    DEFAULT 'RAW',
+    processing_level    processing_level        NOT NULL    DEFAULT 'UNKNOWN',
     embargo_date        TIMESTAMPTZ,
 
     PRIMARY KEY (obs_uuid, received_date)
@@ -370,6 +371,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
     source_file_uuid    UUID            NOT NULL,
     message_idx         INTEGER         NOT NULL,
     record_idx          INTEGER         NOT NULL,
+    processing_level    processing_level        NOT NULL    DEFAULT 'UNKNOWN',
 
     status              obs_status      NOT NULL,
 

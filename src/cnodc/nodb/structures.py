@@ -7,10 +7,12 @@ import hashlib
 import json
 import typing as t
 import secrets
+
 import zrlog
 from autoinject import injector
 from cnodc.codecs.ocproc2bin import OCProc2BinCodec
 import cnodc.ocproc2 as ocproc2
+from cnodc.ocean_math.seawater import eos80_depth
 from cnodc.storage import StorageController, StorageTier
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
@@ -114,6 +116,7 @@ class ProcessingLevel(enum.Enum):
     ADJUSTED = 'ADJUSTED'
     REAL_TIME = 'REAL_TIME'
     DELAYED_MODE = 'DELAYED_MODE'
+    UNKNOWN = 'UNKNOWN'
 
 
 class _NODBBaseObject:
@@ -898,7 +901,6 @@ class NODBObservation(_NODBBaseObject):
     platform_uuid: t.Optional[str] = UUIDColumn("platform_uuid")
     mission_uuid: t.Optional[str] = UUIDColumn("mission_uuid")
     source_name: str = StringColumn("source_name")
-    instrument_type: str = StringColumn("instrument_type")
     program_name: str = StringColumn("program_name")
     obs_time: datetime.datetime = DateTimeColumn("obs_time")
     min_depth: float = FloatColumn("min_depth")
@@ -918,6 +920,78 @@ class NODBObservation(_NODBBaseObject):
             "received_date": parse_received_date(received_date)
         }, **kwargs)
 
+    def update_from_record(self, record: ocproc2.ParentRecord):
+        self.program_name = record.metadata.best_value('CNODCProgram', None)
+        self.source_name = record.metadata.best_value('CNODCSource', None)
+        self.mission_uuid = record.metadata.best_value('CNODCMission', None)
+        self.platform_uuid = record.metadata.best_value('CNODCPlatform', None)
+        if record.metadata.has_value('CNODCEmbargoUntil'):
+            self.embargo_date = datetime.datetime.fromisoformat(record.metadata.best_value('CNODCEmbargoUntil'))
+        if record.coordinates.has_value('Time'):
+            self.obs_time = datetime.datetime.fromisoformat(record.coordinates.best_value('Time'))
+        if record.coordinates.has_value('Time') and record.coordinates['Time'].is_iso_datetime():
+            self.obs_time = record.coordinates['Time'].to_datetime()
+        if record.coordinates.has_value('Latitude') and record.coordinates['Latitude'].is_numeric() and record.coordinates.has_value('Longitude') and record.coordinates['Longitude'].is_numeric():
+            lat = record.coordinates['Latitude'].to_float()
+            lon = record.coordinates['Longitude'].to_float()
+            self.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
+        level = record.metadata.best_value('CNODCLevel', None)
+        if hasattr(ProcessingLevel, level):
+            self.processing_level = getattr(ProcessingLevel, level)
+        else:
+            self.processing_level = ProcessingLevel.UNKNOWN
+        self.surface_parameters = list(set(x for x in record.parameters))
+        ref_info = {
+            'profile_parameters': set(),
+            'surface_parameters': set(),
+            'min_depth': None,
+            'max_depth': None
+        }
+        NODBObservation._extract_subrecord_info(record, ref_info)
+        self.profile_parameters = list(ref_info['profile_parameters'])
+        self.surface_parameters = list(ref_info['surface_parameters'])
+        self.min_depth = ref_info['min_depth']
+        self.max_depth = ref_info['max_depth']
+        if self.location is None or self.obs_time is None:
+            self.observation_type = ObservationType.OTHER
+        elif self.min_depth is not None and self.min_depth > 0:
+            self.observation_type = ObservationType.AT_DEPTH
+        elif (self.min_depth is None or self.min_depth == 0) and (self.max_depth is None or self.max_depth == 0):
+            self.observation_type = ObservationType.SURFACE
+        else:
+            self.observation_type = ObservationType.PROFILE
+
+    @staticmethod
+    def _extract_subrecord_info(record: ocproc2.BaseRecord, ref_info: dict, position: dict = None):
+        if position is None:
+            position = {}
+        else:
+            position = { x: position[x] for x in position  if position[x] is not None}
+        for key in ('Latitude', 'Longitude', 'Depth', 'Pressure'):
+            if record.coordinates.has_value(key):
+                position[key] = record.coordinates.best_value(key)
+
+        depth = None
+        if 'Depth' in position:
+            depth = position['Depth']
+        elif 'Pressure' in position and 'Depth' not in position and 'Latitude' in position:
+            depth = eos80_depth(position['Pressure'], position['Latitude'])
+        if depth is not None:
+            if ref_info['min_depth'] is None or ref_info['min_depth'] > depth:
+                ref_info['min_depth'] = depth
+            if ref_info['max_depth'] is None or ref_info['max_depth'] < depth:
+                ref_info['max_depth'] = depth
+
+        if ('Depth' in position and position['Depth'] != 0) or ('Pressure' in position and position['Pressure'] != 0):
+            param_key = 'profile_parameters'
+        else:
+            param_key = 'surface_parameters'
+        ref_info[param_key].update(x for x in record.parameters)
+
+        for subrecord in record.iter_subrecords():
+            NODBObservation._extract_subrecord_info(subrecord, ref_info, position)
+
+
 
 class NODBObservationData(_NODBBaseObject):
     """Represents the 'meat' of an archived observation; the full record and associated metadata."""
@@ -936,6 +1010,7 @@ class NODBObservationData(_NODBBaseObject):
     duplicate_uuid: str = UUIDColumn("duplicate_uuid")
     duplicate_received_date: datetime.date = DateColumn("duplicate_received_date")
     status: ObservationStatus = EnumColumn("status", ObservationStatus)
+    processing_level: ProcessingLevel = EnumColumn("processing_level", ProcessingLevel)
 
     def get_process_metadata(self, key, default=None):
         """Retrieve metadata information about the record."""
@@ -965,14 +1040,19 @@ class NODBObservationData(_NODBBaseObject):
                             source_received_date: t.Union[str, datetime.date],
                             message_idx: int,
                             record_idx: int,
+                            processing_level: t.Optional[str] = None,
                             *args, **kwargs):
         """Locate a record by information about it in the source file."""
-        return db.load_object(cls, {
-                "received_date": parse_received_date(source_received_date),
-                "source_file_uuid": source_file_uuid,
-                "message_idx": message_idx,
-                "record_idx": record_idx
-            }, *args, **kwargs)
+        if processing_level is None:
+            processing_level = ProcessingLevel.UNKNOWN.value
+        filters = {
+            "received_date": parse_received_date(source_received_date),
+            "source_file_uuid": source_file_uuid,
+            "message_idx": message_idx,
+            "record_idx": record_idx,
+            "processing_level": processing_level
+        }
+        return db.load_object(cls, filters, *args, **kwargs)
 
     @property
     def record(self) -> t.Optional[ocproc2.ParentRecord]:
@@ -996,6 +1076,7 @@ class NODBObservationData(_NODBBaseObject):
             self.data_record = None
             self.mark_modified('data_record')
         else:
+            self._update_from_data_record(data_record)
             decoder = OCProc2BinCodec()
             ba = bytearray()
             for byte_ in decoder.encode_records(
@@ -1007,8 +1088,30 @@ class NODBObservationData(_NODBBaseObject):
             self.data_record = ba
             self.mark_modified('data_record')
 
+    def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
+        qc_test_names = set(x.test_name for x in data_record.qc_tests)
+        qc_test_info = {}
+        for x in qc_test_names:
+            best_result = data_record.latest_test_result(x, True)
+            qc_test_info[x] = {
+                'version': best_result.test_version,
+                'date_run': best_result.test_date,
+                'result': best_result.result,
+            }
+        self.qc_tests = qc_test_info
+        if data_record.metadata.has_value('CNODCDuplicateId') and data_record.metadata.has_value('CNODCDuplicateDate'):
+            self.duplicate_received_date = datetime.date.fromisoformat(data_record.metadata.best_value('CNODCDuplicateDate'))
+            self.duplicate_uuid = data_record.metadata.best_value('CNODCDuplicateId')
+        if data_record.metadata.has_value('CNODCStatus'):
+            new_status = data_record.metadata.best_value('CNODCStatus')
+            if hasattr(ObservationStatus, new_status):
+                self.status = getattr(ObservationStatus, new_status)
+        level = data_record.metadata.best_value('CNODCLevel', None)
+        if hasattr(ProcessingLevel, level):
+            self.processing_level = getattr(ProcessingLevel, level)
+        else:
+            self.processing_level = ProcessingLevel.UNKNOWN
 
-class NODBStation(_NODBBaseObject):
 
 class NODBPlatform(_NODBBaseObject):
 
@@ -1174,7 +1277,6 @@ class NODBWorkingRecord(_NODBBaseObject):
             self.mark_modified('data_record')
 
     def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
-
         if data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
             self.obs_time = data_record.coordinates['Time'].to_datetime()
         if data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
