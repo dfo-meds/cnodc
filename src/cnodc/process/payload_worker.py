@@ -5,9 +5,13 @@
 import datetime
 import pathlib
 
+from autoinject import injector
+
 from cnodc.nodb import structures
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
 import typing as t
+
+from cnodc.storage import StorageController
 from cnodc.util import CNODCError
 from cnodc.workflow.workflow import WorkflowPayload, BatchPayload, SourceFilePayload, FilePayload, FileInfo, \
     ObservationPayload
@@ -101,6 +105,17 @@ class WorkflowWorker(QueueWorker):
         self.add_payload_metadata(payload_copy)
         return payload_copy
 
+    @injector.inject
+    def download_to_temp_file(self, storage: StorageController) -> pathlib.Path:
+        temp_dir = self.temp_dir()
+        if isinstance(self.current_payload, FilePayload):
+            return self.current_payload.download(temp_dir, storage, halt_flag=self._halt_flag)
+        elif isinstance(self.current_payload, SourceFilePayload):
+            return self.current_payload.download(self._db, temp_dir, storage, halt_flag=self._halt_flag)
+        else:
+            raise ValueError('invalid payload type')
+
+
 
 class BatchWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to Batch types."""
@@ -139,6 +154,3 @@ class FileWorkflowWorker(WorkflowWorker):
 
     def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError
-
-    def download_to_temp_file(self) -> pathlib.Path:
-        return self.current_payload.download(self.temp_dir(), halt_flag=self._halt_flag)

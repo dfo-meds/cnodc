@@ -320,6 +320,36 @@ class SourceFilePayload(WorkflowPayload):
             raise CNODCError('Invalid payload, no such UUID', 'PAYLOAD', 1012, is_recoverable=False)
         return source_file
 
+    @injector.inject
+    def download(self,
+                 db,
+                 target_dir: pathlib.Path,
+                 storage: StorageController = None,
+                 halt_flag: HaltFlag = None) -> pathlib.Path:
+        """Download the file to a given directory."""
+        source_info = self.load_source_file(db)
+        handle = storage.get_handle(source_info.source_path, halt_flag=halt_flag)
+        if handle is None:
+            raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
+        if not handle.exists():
+            raise CNODCError('File path does not exist', 'PAYLOAD', 2001)
+        target_name = source_info.file_name
+        if source_info.source_path.endswith(".gz"):
+            if target_name.lower().endswith('.gz'):
+                gzip_target_name = target_name
+                target_name = target_name[:-3]
+            else:
+                gzip_target_name = f"{target_name}.gz"
+            gzip_path = target_dir / gzip_target_name
+            target_path = target_dir / target_name
+            handle.download(gzip_path)
+            haltable_ungzip(gzip_path, target_path, halt_flag=halt_flag)
+            return target_path
+        else:
+            file_path = target_dir / target_name
+            handle.download(file_path)
+            return file_path
+
     def to_map(self):
         map_ = super().to_map()
         map_['source_info'] = {
