@@ -41,6 +41,17 @@ class BaseRecord:
             self._subrecords = RecordMap()
         return self._subrecords
 
+    def set_element(self, element_full_name, value, *args, **kwargs):
+        map_name, element_name = element_full_name.split(':')
+        if map_name == 'coordinates':
+            self.coordinates.set_element(element_name, value, *args, **kwargs)
+        elif map_name == 'metadata':
+            self.metadata.set_element(element_name, value, *args, **kwargs)
+        elif map_name == 'parameters':
+            self.parameters.set_element(element_name, value, *args, **kwargs)
+        else:
+            raise ValueError(f'Unknown map type: [{map_name}]')
+
     def find_child(self, object_path: t.Union[str, list[str]]):
         if not object_path:
             return self
@@ -168,9 +179,9 @@ class ParentRecord(BaseRecord):
 
     def to_mapping(self):
         map_ = super().to_mapping()
-        if self.history:
+        if self.history is not None and self.history:
             map_['_history'] = self.history.to_mapping()
-        if self.qc_tests:
+        if self.qc_tests is not None and self.qc_tests:
             map_['_qc_tests'] = self.qc_tests.to_mapping()
         return map_
 
