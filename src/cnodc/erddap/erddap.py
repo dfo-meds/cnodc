@@ -90,7 +90,7 @@ class ErddapController:
         """Make an HTTP call to the endpoint with appropriate authentication."""
         config = self._get_config(cluster_name)
         if config is None:
-            raise CNODCError(f"Invalid ERDDAP configuration, see logs for more details", "ERDDAPUTIL", 1000)
+            raise CNODCError(f"Invalid ERDDAP configuration, see logs for more details", "ERDDAPUTIL", 1000, is_recoverable=True)
         if config['broadcast_mode'] == 'cluster':
             json_data['_broadcast'] = 1
         elif config['broadcast_mode'] == 'global':
