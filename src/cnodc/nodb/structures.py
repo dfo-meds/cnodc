@@ -87,12 +87,14 @@ class BatchStatus(enum.Enum):
     ERRORED = 'ERRORED'
 
 
-class StationStatus(enum.Enum):
-    """Status of a station in the database."""
+class PlatformStatus(enum.Enum):
+    """Status of a platform in the database."""
 
     ACTIVE = 'ACTIVE'
     INCOMPLETE = 'INCOMPLETE'
-    INACTIVE = 'INACTIVE'
+    HISTORICAL = 'HISTORICAL'
+    REMOVED = 'REMOVED'
+    REPLACED = 'REPLACED'
 
 
 class QueueStatus(enum.Enum):
@@ -868,6 +870,18 @@ class NODBUploadWorkflow(_NODBBaseObject):
                 yield NODBUploadWorkflow(**row, is_new=False)
 
 
+class NODBMission(_NODBBaseObject):
+
+    TABLE_NAME = 'nodb_missions'
+    PRIMARY_KEYS = ("mission_uuid",),
+
+    mission_uuid: str = UUIDColumn("mission_uuid")
+    mission_name: str = StringColumn("mission_name")
+    metadata: dict = JsonColumn("metadata")
+    start_date: datetime.datetime = DateTimeColumn("start_date")
+    end_date: t.Optional[datetime.datetime] = DateTimeColumn("end_date")
+
+
 class NODBObservation(_NODBBaseObject):
     """Represents an archived observation in the database.
 
@@ -881,8 +895,8 @@ class NODBObservation(_NODBBaseObject):
     obs_uuid: str = UUIDColumn("obs_uuid")
     received_date: datetime.date = DateColumn("received_date")
 
-    station_uuid: str = UUIDColumn("station_uuid")
-    mission_name: str = StringColumn("mission_name")
+    platform_uuid: t.Optional[str] = UUIDColumn("platform_uuid")
+    mission_uuid: t.Optional[str] = UUIDColumn("mission_uuid")
     source_name: str = StringColumn("source_name")
     instrument_type: str = StringColumn("instrument_type")
     program_name: str = StringColumn("program_name")
@@ -996,25 +1010,27 @@ class NODBObservationData(_NODBBaseObject):
 
 class NODBStation(_NODBBaseObject):
 
-    TABLE_NAME = 'nodb_stations'
-    PRIMARY_KEYS = ('station_uuid', )
+class NODBPlatform(_NODBBaseObject):
 
-    station_uuid: str = UUIDColumn("station_uuid")
+    TABLE_NAME = 'nodb_platforms'
+    PRIMARY_KEYS = ('platform_uuid', )
+
+    platform_uuid: str = UUIDColumn("platform_uuid")
     wmo_id: str = StringColumn("wmo_id")
     wigos_id: str = StringColumn("wigos_id")
-    station_name: str = StringColumn("station_name")
-    station_id: str = StringColumn("station_id")
-    station_type: str = StringColumn("station_type")
+    platform_name: str = StringColumn("platform_name")
+    platform_id: str = StringColumn("platform_id")
+    platform_type: str = StringColumn("platform_type")
     service_start_date: datetime.datetime = DateTimeColumn("service_start_date")
     service_end_date: datetime.datetime = DateTimeColumn("service_end_date")
     instrumentation: dict = JsonColumn('instrumentation')
     metadata: dict = JsonColumn('metadata')
     map_to_uuid: str = UUIDColumn("map_to_uuid")
-    status: StationStatus = EnumColumn("status", StationStatus)
+    status: PlatformStatus = EnumColumn("status", PlatformStatus)
     embargo_data_days: int = IntColumn('embargo_data_days')
 
     def get_metadata(self, metadata_key, default=None):
-        """Retrieve metadata abotu a station."""
+        """Retrieve metadata about a platform."""
         if self.metadata is not None and metadata_key in self.metadata:
             return self.metadata[metadata_key] or default
         return None
@@ -1025,9 +1041,9 @@ class NODBStation(_NODBBaseObject):
                in_service_time: t.Optional[datetime.datetime] = None,
                wmo_id: t.Optional[str] = None,
                wigos_id: t.Optional[str] = None,
-               station_id: t.Optional[str] = None,
-               station_name: t.Optional[str] = None) -> list[NODBStation]:
-        """Search for a station by various identifiers."""
+               platform_id: t.Optional[str] = None,
+               platform_name: t.Optional[str] = None) -> list[NODBPlatform]:
+        """Search for a platform by various identifiers."""
         with db.cursor() as cur:
             args = []
             clauses = []
@@ -1037,33 +1053,33 @@ class NODBStation(_NODBBaseObject):
             if wigos_id is not None and wigos_id != '':
                 args.append(wigos_id)
                 clauses.append('wigos_id = %s')
-            if station_id is not None and station_id != '':
-                args.append(station_id)
-                clauses.append('station_id = %s')
-            if station_name is not None and station_name != '':
-                args.append(station_name)
-                clauses.append('station_name = %s')
+            if platform_id is not None and platform_id != '':
+                args.append(platform_id)
+                clauses.append('platform_id = %s')
+            if platform_name is not None and platform_name != '':
+                args.append(platform_name)
+                clauses.append('platform_name = %s')
             if not args:
                 return []
             if in_service_time is not None:
                 clauses.append('((service_start_date IS NULL OR service_start_date <= %s) AND (service_end_date IS NULL or service_end_date >= %s)')
                 args.extend([in_service_time, in_service_time])
-            query = f"SELECT * FROM {NODBStation.TABLE_NAME} WHERE " + ' OR '.join(clauses)
+            query = f"SELECT * FROM {NODBPlatform.TABLE_NAME} WHERE " + ' OR '.join(clauses)
             cur.execute(query, args)
-            return [NODBStation(is_new=False, **x) for x in cur.fetch_all()]
+            return [NODBPlatform(is_new=False, **x) for x in cur.fetch_all()]
 
     @classmethod
-    def find_by_uuid(cls, db: NODBControllerInstance, station_uuid: str, **kwargs):
-        """Locate a station by its unique identifier."""
+    def find_by_uuid(cls, db: NODBControllerInstance, platform_uuid: str, **kwargs):
+        """Locate a platform by its unique identifier."""
         return db.load_object(cls, {
-            'station_uuid': station_uuid
+            'platform_uuid': platform_uuid
         }, **kwargs)
 
     @classmethod
     def find_all_raw(cls, db: NODBControllerInstance) -> t.Iterable[dict]:
-        """Retrieve all stations in a raw (i.e. database dictionary) format."""
+        """Retrieve all platforms in a raw (i.e. database dictionary) format."""
         with db.cursor() as cur:
-            cur.execute(f"SELECT * FROM {NODBStation.TABLE_NAME}")
+            cur.execute(f"SELECT * FROM {NODBPlatform.TABLE_NAME}")
             for row in cur.fetch_stream():
                 yield row
 
@@ -1083,7 +1099,7 @@ class NODBWorkingRecord(_NODBBaseObject):
     data_record: t.Optional[bytes] = ByteColumn("data_record")
     qc_metadata: dict = JsonColumn("qc_metadata")
     qc_batch_id: str = UUIDColumn("qc_batch_id")
-    station_uuid: str = UUIDColumn("station_uuid")
+    platform_uuid: str = UUIDColumn("platform_uuid")
     obs_time: datetime.datetime = DateTimeColumn("obs_time")
     location: str = WKTColumn("location")
 
@@ -1165,8 +1181,7 @@ class NODBWorkingRecord(_NODBBaseObject):
             lat = data_record.coordinates['Latitude'].to_float()
             lon = data_record.coordinates['Longitude'].to_float()
             self.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
-        if data_record.metadata.has_value('CNODCStation'):
-            self.station_uuid = data_record.metadata['CNODCStation'].best_value()
+        self.platform_uuid = data_record.metadata.best_value('CNODCPlatform', None)
 
     @staticmethod
     def bulk_set_batch_uuid(

@@ -49,9 +49,10 @@ BEGIN
             'ARCHIVED'
         );
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'station_status') THEN
-        CREATE TYPE station_status AS ENUM (
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'platform_status') THEN
+        CREATE TYPE platform_status AS ENUM (
             'ACTIVE',
+            'INCOMPLETE',
             'HISTORICAL',
             'REMOVED',
             'REPLACED'
@@ -218,31 +219,40 @@ CREATE OR REPLACE TRIGGER update_source_file_modified_date
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
 
--- Table for station records
-CREATE TABLE IF NOT EXISTS nodb_stations (
-    station_uuid        UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS nodb_missions (
+
+    mission_uuid    UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
+    mission_name    VARCHAR(126)    NOT NULL,
+    metadata        JSON,
+    start_date      TIMESTAMPTZ     NOT NULL,
+    end_date        TIMESTAMPTZ
+);
+
+-- Table for platform records
+CREATE TABLE IF NOT EXISTS nodb_platforms (
+    platform_uuid       UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     wmo_id              VARCHAR(126),
     wigos_id            VARCHAR(126),
-    station_name        VARCHAR(126),
-    station_id          VARCHAR(126),
-    station_type        VARCHAR(126)    NOT NULL,
+    platform_name       VARCHAR(126),
+    platform_id         VARCHAR(126),
+    platform_type       VARCHAR(126)    NOT NULL,
     service_start_date  TIMESTAMPTZ     NOT NULL,
     service_end_date    TIMESTAMPTZ,
     instrumentation     JSONB,
     metadata            JSON,
     map_to_uuid         UUID                        REFERENCES nodb_stations(station_uuid),
-    status              station_status  NOT NULL    DEFAULT 'ACTIVE',
+    status              platform_status  NOT NULL   DEFAULT 'ACTIVE',
     embargo_data_days   INTEGER
 );
 
 
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_wmo_id ON nodb_stations(wmo_id) WHERE wmo_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_wigos_id ON nodb_stations(wigos_id) WHERE wigos_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_station_name ON nodb_stations(station_name) WHERE station_name IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_station_id ON nodb_stations(station_id) WHERE station_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_service_start_date ON nodb_stations(service_start_date);
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_service_end_date ON nodb_stations(service_end_date);
-CREATE INDEX IF NOT EXISTS idx_nodb_stations_instrumentation ON nodb_stations USING GIN(instrumentation);
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_wmo_id ON nodb_platforms(wmo_id) WHERE wmo_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_wigos_id ON nodb_platforms(wigos_id) WHERE wigos_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_platform_name ON nodb_platforms(platform_name) WHERE platform_name IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_platform_id ON nodb_platforms(platform_id) WHERE platform_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_service_start_date ON nodb_platforms(service_start_date);
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_service_end_date ON nodb_platforms(service_end_date);
+CREATE INDEX IF NOT EXISTS idx_nodb_platforms_instrumentation ON nodb_platforms USING GIN(instrumentation);
 
 
 -- QC batch items (batches are processed as a single item)
@@ -272,9 +282,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
     station_uuid        UUID                        REFERENCES nodb_stations(station_uuid),
-    mission_name        VARCHAR(126),
+    mission_uuid        UUID                        REFERENCES nodb_missions(mission_uuid),
     source_name         VARCHAR(126)    NOT NULL,
-    instrument_type     VARCHAR(126)    NOT NULL,
     program_name        VARCHAR(126)    NOT NULL,
 
     obs_time            TIMESTAMPTZ,
@@ -439,7 +448,7 @@ CREATE TABLE IF NOT EXISTS nodb_working (
     qc_metadata             JSON,
     qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
     data_record             BYTEA,
-    station_uuid            VARCHAR(126),
+    platform_uuid            VARCHAR(126),
     obs_time                TIMESTAMPTZ,
     location                GEOGRAPHY(GEOMETRY, 4326),
 
