@@ -480,8 +480,8 @@ cnodc:CNODCID rdf:type skos:Concept ;
   skos:inScheme cnodc:elements .
 
 cnodc:CNODCMission rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Mission Name"@en ;
-  skos:documentation "Name of the originating mission"@en ;
+  skos:prefLabel "CNODC MissionID"@en ;
+  skos:documentation "Unique identifier of the originating mission"@en ;
   cnodc:elementGroup "metadata:record" ;
   cnodc:dataType xsd:string ;
   cnodc:ioosCategory ioos:Identifier ; 
@@ -2159,7 +2159,7 @@ cnodc:ParticleBackscatter rdf:type skos:Concept ;
   skos:prefLabel "Particle Backscattering"@en ;
   cnodc:elementGroup "parameters" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "1" ;
+  cnodc:preferredUnit "m-1" ;
   cnodc:allowMulti "True" ;
   skos:inScheme cnodc:elements .
 
@@ -2169,6 +2169,12 @@ cnodc:GliderPhaseCode rdf:type skos:Concept ;
   cnodc:minValue 0 ; 
   cnodc:maxValue 6 ; 
   skos:exactMatch og1:GLCOMPH ;
+  skos:inScheme cnodc:elements .
+
+cnodc:GliderPhaseNumber rdf:type skos:Concept ;
+  cnodc:elementGroup "metadata" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
 cnodc:ColoredDissolvedOrganicMatter rdf:type skos:Concept ;
@@ -2197,4 +2203,28 @@ cnodc:SensorTemperature rdf:type skos:Concept ;
   cnodc:elementGroup "metadata:element" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "K" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:RecordNumber rdf:type skos:Concept ;
+  skos:prefLabel "Record Number"@en ;
+  cnodc:elementGroup "coordinates" ;
+  cnodc:dataType xsd:integer ;
+  skos:inScheme cnodc:elements .
+
+cnodc:GliderPhaseCodeSource rdf:type skos:Concept ;
+  cnodc:elementGroup "metadata:element" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "seaglider" ;
+  cnodc:allowedValue "slocum" ;
+  cnodc:allowedValue "seaexplorer" ;
+  cnodc:allowedValue "openglider" ;
+  cnodc:allowedValue "ego" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PositionSource rdf:type skos:Concept ;
+  cnodc:elementGroup "metadata:element" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "gps" ;
+  cnodc:allowedValue "interpolated" ;
+  cnodc:allowedValue "argos" ;
   skos:inScheme cnodc:elements .

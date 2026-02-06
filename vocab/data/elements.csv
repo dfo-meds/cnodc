@@ -30,7 +30,7 @@ IceThickness,Ice Thickness,Épaisseur de glace,,,Parameters,decimal,m,,,IceDistr
 SeaIceConcentration,Sea Ice Concentration,,,,Parameters,text,,,,IceDistribution,,,,N,N,seaIce
 CentralFrequency,Central Frequency,Fréquence centrale,Central band frequency of a spectral bin,,Coordinates,decimal,Hz,sensor_band_central_radiation_frequency,central_frequency__frequence_centrale,Identifier,0,,,N,N,
 CNODCID,CNODC ID,,Unique identifier of this record in the CNODC database,,Metadata (Record Only),text,,,,Identifier,,,,Y,N,
-CNODCMission,CNODC Mission Name,,Name of the originating mission,,Metadata (Record Only),text,,,,Identifier,,,,N,N,
+CNODCMission,CNODC MissionID,,Unique identifier of the originating mission,,Metadata (Record Only),text,,,,Identifier,,,,N,N,
 CNODCPlatform,CNODC Platform UUID,,UUID of the originating platform,,Metadata (Record Only),text,,,,Identifier,,,,N,N,
 CNODCProgram,CNODC Program Name,,Name of the program that collected the profile,,Metadata (Record Only),text,,,,Identifier,,,,Y,N,
 CNODCSource,CNODC Source Name,,Identifier for the source of the data,,Metadata (Record Only),text,,,,Identifier,,,,Y,N,
@@ -187,9 +187,13 @@ WMOTemperatureSalinityQualifier,WMO Temperature Salinity Qualifier,,,,Metadata,t
 WMOWetBulbMeasurementMethod,WMO Wet Bulb Measurement Method,,,,Metadata,text,,,,,,,,N,N,
 WMOWindInstrumentType,WMO Wind Instrument Type,,,,Metadata,text,,,,,,,,N,N,
 WMOXBTType,WMO XBT Type,,,,Parameters,text,,,,,,,,N,N,
-ParticleBackscatter,Particle Backscattering,,,,Parameters,decimal,1,,,,,,,N,Y,
+ParticleBackscatter,Particle Backscattering,,,,Parameters,decimal,m-1,,,,,,,N,Y,
 GliderPhaseCode,,,,,Metadata,integer,,,,,0,6,,N,N,
+GliderPhaseNumber,,,,,Metadata,integer,,,,,0,,,N,N,
 ColoredDissolvedOrganicMatter,,,,,Parameter,decimal,1e-9,,,,,,,N,N,dissolvedOrganicCarbon
 BackscatterWavelength,,,,,Metadata (Element Only),integer,nm,,,,,,,N,N,
 DetectorCount,Detector Count,,,,Metadata (Element Only),integer,1,,,,,,,N,N,
 SensorTemperature,Sensor Temperature,,,,Metadata (Element Only),decimal,K,,,,,,,N,N,
+RecordNumber,Record Number,,,,Coordinates,integer,,,,,,,,N,N,
+GliderPhaseCodeSource,,,,,Metadata (Element Only),text,,,,,,,seaglider;slocum;seaexplorer;openglider;ego,N,N,
+PositionSource,,,,,Metadata (Element Only),text,,,,,,,gps;interpolated;argos,N,N,
