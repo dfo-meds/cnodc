@@ -9,6 +9,9 @@ from autoinject import injector
 from uncertainties import UFloat
 
 
+COMMON_BAD_UNITS = {
+    'psu': '0.001',
+}
 
 class Converter:
 
@@ -98,11 +101,18 @@ class UnitConverter:
         return True
 
     def is_valid_unit(self, unit_str: str) -> bool:
+        self._load_tables()
         try:
             _, _, _ = self._conversion_info(unit_str)
             return True
         except ValueError as ex:
             return False
+
+    def standardize(self, unit_name):
+        if unit_name in COMMON_BAD_UNITS:
+            unit_name = COMMON_BAD_UNITS[unit_name]
+        if self.is_valid_unit(unit_name):
+            return unit_name
 
     def convert(self, quantity: t.Union[float, int, UFloat], original_units: str, output_units: str) -> t.Union[float, int, UFloat]:
         self._load_tables()
@@ -119,6 +129,7 @@ class UnitConverter:
         return " ".join(s)
 
     def compatible(self, units_a: str, units_b: str) -> bool:
+        self._load_tables()
         return self._check_compatibility(
             self._get_dimensions(units_a),
             self._get_dimensions(units_b)
@@ -168,6 +179,8 @@ class UnitConverter:
             names = []
             for s in e.findall('symbol'):
                 names.append(s.text)
+            for n in e.findall('name'):
+                names.append(n.text)
             val = decimal.Decimal(e.find('value').text)
             for n in names:
                 if n in self._loaded_tables['prefixes']:
@@ -535,11 +548,13 @@ def _parse_unit_for_groups(units: str) -> UnitExpression:
             depth -= 1
             if depth > 0:
                 pieces[-1] += char
+            elif depth == 0:
+                pieces.append("")
             if depth < 0:
                 raise ValueError(f"Parse error, `)` found without opening `(` at position {pos}")
         else:
             pieces[-1] += char
-
+    pieces = [p.strip() for p in pieces if p.strip()]
     # Look for log pieces
     new_pieces = []
     for idx in range(0, len(pieces) - 1):
