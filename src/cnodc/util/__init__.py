@@ -1,10 +1,13 @@
 import datetime
+import decimal
 import gzip
 import math
 import os
 import pathlib
 import shutil
 import struct
+
+import numpy as np
 
 from .exceptions import CNODCError, ConfigError
 import typing as t
@@ -84,6 +87,37 @@ class HaltFlag(t.Protocol):
 
 class DynamicObjectLoadError(CNODCError):
     pass
+
+
+def unnumpy(numpy_val):
+    if numpy_val is None:
+        return None
+    elif isinstance(numpy_val, decimal.Decimal):
+        return str(numpy_val)
+    elif isinstance(numpy_val, str):
+        return numpy_val
+    elif isinstance(numpy_val, np.float64):
+        return numpy_val.item()
+    elif isinstance(numpy_val, np.int64):
+        return int(numpy_val)
+    elif np.isscalar(numpy_val):
+        item = numpy_val.item()
+        return None if math.isnan(item) else item
+    elif isinstance(numpy_val, np.ndarray):
+        if isinstance(numpy_val.dtype, np.dtypes.Int8DType):
+            if numpy_val.ndim == 0:
+                val = int(numpy_val)
+                return None if math.isnan(val) else val
+            return [None if math.isnan(int(x)) else int(x) for x in numpy_val]
+        elif isinstance(numpy_val.dtype, np.dtypes.Float64DType):
+            if numpy_val.ndim == 0:
+                val = float(numpy_val)
+                return None if math.isnan(val) else val
+            return [None if math.isnan(float(x)) else float(x) for x in numpy_val]
+    elif isinstance(numpy_val, (int, float)):
+        return numpy_val if not math.isnan(numpy_val) else None
+    else:
+        return numpy_val
 
 
 @t.runtime_checkable
