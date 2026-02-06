@@ -1,6 +1,6 @@
 import datetime
-import pathlib
 import uuid
+
 from cnodc.codecs.base import BaseCodec, DecodeResult
 from cnodc.nodb import LockType
 import cnodc.ocproc2 as ocproc2
@@ -8,11 +8,12 @@ import cnodc.nodb.structures as structures
 import typing as t
 
 from cnodc.process.payload_worker import WorkflowWorker
-from cnodc.storage import StorageController
+from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 
 from cnodc.workflow.workflow import FilePayload, WorkflowPayload, SourceFilePayload
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
+from cnodc.programs.nodb_intake.record_manager import NODBRecordManager
 
 
 class NODBDecodeLoadWorker(WorkflowWorker):
@@ -35,13 +36,26 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             'decode_kwargs': {},
             'before_message': None,
             'after_success': None,
-            'after_error': None
+            'after_error': None,
+            'allow_reprocessing': False,
+            'autocomplete_records': False,
         })
+        self._error_dir_handle: t.Optional[BaseStorageHandle] = None
+        self._decoder: t.Optional[BaseCodec] = None
+        self._decoder_kwargs = {}
+        self._before_message_hook: t.Optional[callable] = None
+        self._after_success_hook: t.Optional[callable] = None
+        self._after_error_hook: t.Optional[callable] = None
+        self._record_manager: t.Optional[NODBRecordManager] = None
+
+
+    def on_start(self):
+        self._record_manager = NODBRecordManager()
         self._error_dir_handle = self.storage.get_handle(
             self.get_config('error_directory'),
             self._halt_flag
         )
-        self._decoder: BaseCodec = dynamic_object(self.get_config('decoder_class'))(halt_flag=self._halt_flag)
+        self._decoder= dynamic_object(self.get_config('decoder_class'))(halt_flag=self._halt_flag)
         self._decoder_kwargs = self.get_config('decoder_kwargs', {})
         if not (self._error_dir_handle.is_dir() and self._error_dir_handle.exists()):
             raise CNODCError(f"Specified error directory is not a directory", "NODBLOAD", 1003)
@@ -61,11 +75,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
         # Find the source file
         source_file = self._fetch_source_file(payload)
+        allow_reprocessing = self.get_config('allow_reprocessing')
 
         # If it is already completed, then don't process it again
-        if source_file.status in (structures.SourceFileStatus.COMPLETE, structures.SourceFileStatus.ERROR):
+        if source_file.status == structures.SourceFileStatus.COMPLETE and not allow_reprocessing:
             self._log.info(f"Source file already processed, skipping")
-            return
+            return QueueItemResult.HANDLED
+
+        if source_file.status == structures.SourceFileStatus.ERROR:
+            self._log.info(f"Source file contains errors, skipping")
+            return QueueItemResult.FAILED
 
         # TODO: consider if it is worth loading the most recent message idx from the error and obs_data tables
         # and making the decoder skip ahead more efficiently.
@@ -77,7 +96,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._db.commit()
 
         # Download the file
-        temp_file = self._download_file(payload, source_file)
+        temp_file = self.download_to_temp_file()
 
         total_created = 0
 
@@ -97,20 +116,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._db.update_object(source_file)
         # Only need to create a source payload if records were found
         if total_created > 0:
-            self.progress_queue_item(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
-
-    def _download_file(self, payload: WorkflowPayload, source_file: structures.NODBSourceFile) -> pathlib.Path:
-        temp_dir = self.temp_dir()
-        if isinstance(payload, FilePayload):
-            return payload.download(temp_dir, self.storage, halt_flag=self._halt_flag)
-        elif isinstance(payload, SourceFilePayload):
-            handle = self.storage.get_handle(source_file.source_path, halt_flag=self._halt_flag)
-            target = temp_dir / "file"
-            handle.download(target)
-            # TODO: check for gzip
-            return target
-        else:
-            raise ValueError('invalid payload type')
+            self.progress_payload(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
 
     def _fetch_source_file(self, payload: WorkflowPayload) -> structures.NODBSourceFile:
         if isinstance(payload, FilePayload):
@@ -146,16 +152,17 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                                         source_file: structures.NODBSourceFile,
                                         result: DecodeResult) -> int:
         total_success = 0
+        errored = False
+        make_completed_records = self.get_config('autocomplete_records', False)
         self._before_message(source_file, result)
         if self._before_message_hook is not None:
             self._before_message_hook(source_file, result)
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
-                    if self._halt_flag:
-                        self._halt_flag.check_continue(True)
-                    self._create_nodb_record(source_file, result.message_idx, record_idx, record)
-                    total_success += 1
+                    self.breakpoint()
+                    if self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records):
+                        total_success += 1
                 self._after_success(source_file, result)
                 if self._after_success_hook is not None:
                     self._after_success_hook(source_file, result)
@@ -168,53 +175,27 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 else:
                     self._handle_decode_failure(source_file, result, ex)
                     self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
+                    errored = True
             except Exception as ex:
                 self._handle_decode_failure(source_file, result, ex)
                 self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
+                errored = True
         else:
             self._handle_decode_failure(source_file, result)
             self._log.error(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
-        return total_success
+            errored = True
+        return 0 if errored and result.single_message else total_success
 
     def _create_nodb_record(self,
                             source_file: structures.NODBSourceFile,
                             message_idx: int,
                             record_idx: int,
-                            record: ocproc2.ParentRecord):
-        obs_data = structures.NODBWorkingRecord.find_by_source_info(
-            self._db,
-            source_file.source_uuid,
-            source_file.received_date,
-            message_idx,
-            record_idx,
-            key_only=True
-        )
-        if obs_data is not None:
-            return
-        working_record = structures.NODBWorkingRecord.find_by_source_info(
-            self._db,
-            source_file.source_uuid,
-            source_file.received_date,
-            message_idx,
-            record_idx,
-            key_only=True
-        )
-        if working_record is not None:
-            return
-        working_record = structures.NODBWorkingRecord()
-        working_record.working_uuid = str(uuid.uuid4())
-        working_record.received_date = source_file.received_date
-        working_record.message_idx = message_idx
-        working_record.record_idx = record_idx
-        working_record.source_file_uuid = source_file.source_uuid
-        self._populate_observation_data(working_record, record)
-        self._db.insert_object(working_record)
-
-    def _populate_observation_data(self, working_record: structures.NODBWorkingRecord, record: ocproc2.ParentRecord):
-        for metadata_key in self._defaults:
-            if metadata_key not in record.metadata:
-                record.metadata[metadata_key] = self._defaults[metadata_key]
-        working_record.record = record
+                            record: ocproc2.ParentRecord,
+                            make_completed_records):
+        if make_completed_records:
+            return self._record_manager.create_completed_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx)
+        else:
+            return self._record_manager.create_working_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx)
 
     def _handle_decode_failure(self,
                                source_file: structures.NODBSourceFile,
@@ -223,46 +204,52 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._after_error(source_file, result, additional_exception)
         if self._after_error_hook is not None:
             self._after_error_hook(source_file, result, additional_exception)
-        child_file = structures.NODBSourceFile.find_by_original_info(
-            self._db,
-            source_file.original_uuid,
-            source_file.received_date,
-            result.message_idx
-        )
-        if child_file is None:
-            file = self._error_dir_handle.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
-            file.upload(result.original, allow_overwrite=True)
-            child_file = structures.NODBSourceFile()
-            child_file.source_uuid = str(uuid.uuid4())
-            child_file.original_idx = result.message_idx
-            child_file.original_uuid = source_file.original_uuid
-            child_file.received_date = source_file.received_date
-            child_file.file_name = source_file.file_name
-            child_file.source_path = file.path()
-            child_file.status = structures.SourceFileStatus.ERROR
-            if result.from_exception:
-                child_file.report_error(
-                    f"Decode error: {result.from_exception.__class__.__name__}: {str(result.from_exception)}",
-                    self._process_name,
-                    self._process_version,
-                    self._process_uuid
-                )
-            if additional_exception:
-                child_file.report_error(
-                    f"Decode error: {additional_exception.__class__.__name__}: {str(additional_exception)}",
-                    self._process_name,
-                    self._process_version,
-                    self._process_uuid
-                )
-            self._db.insert_object(child_file)
-            failure_queue = self.get_config('failure_queue')
-            if failure_queue is not None:
-                payload = self.source_payload_from_nodb(child_file)
-                payload.metadata['decoder-class'] = self._decoder.__class__.__name__
-                payload.set_followup_queue(self.get_config('queue-name'))
-                payload.enqueue(self._db, failure_queue)
-            self._db.commit()
-        return child_file
+        self._db.rollback()
+        mode = self._db.update_object
+        if result.single_message:
+            child_file = source_file
+        else:
+            child_file = structures.NODBSourceFile.find_by_original_info(
+                self._db,
+                source_file.original_uuid,
+                source_file.received_date,
+                result.message_idx
+            )
+            if child_file is None:
+                file = self._error_dir_handle.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
+                file.upload(result.original, allow_overwrite=True)
+                child_file = structures.NODBSourceFile()
+                child_file.source_uuid = str(uuid.uuid4())
+                child_file.original_idx = result.message_idx
+                child_file.original_uuid = source_file.original_uuid
+                child_file.received_date = source_file.received_date
+                child_file.file_name = source_file.file_name
+                child_file.source_path = file.path()
+                mode = self._db.insert_object
+
+        child_file.status = structures.SourceFileStatus.ERROR
+        if result.from_exception:
+            child_file.report_error(
+                f"Decode error: {result.from_exception.__class__.__name__}: {str(result.from_exception)}",
+                self._process_name,
+                self._process_version,
+                self._process_uuid
+            )
+        if additional_exception:
+            child_file.report_error(
+                f"Decode error: {additional_exception.__class__.__name__}: {str(additional_exception)}",
+                self._process_name,
+                self._process_version,
+                self._process_uuid
+            )
+        failure_queue = self.get_config('failure_queue')
+        if failure_queue is not None:
+            payload = self.source_payload_from_nodb(child_file)
+            payload.metadata['decoder-class'] = self._decoder.__class__.__name__
+            payload.set_followup_queue(self.get_config('next_queue'))
+            self.progress_payload(payload, failure_queue, prevent_default_progression=True)
+        mode(child_file)
+        self._db.commit()
 
     def _before_message(self, source_file: structures.NODBSourceFile, result: DecodeResult):
         pass

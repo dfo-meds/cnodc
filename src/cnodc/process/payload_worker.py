@@ -26,10 +26,10 @@ class WorkflowWorker(QueueWorker):
         self.current_payload: t.Optional[WorkflowPayload] = None
         self._skip_autoprogress_payload: bool = False
 
-    def progress_queue_item(self,
-                            new_payload: t.Optional[WorkflowPayload] = None,
-                            next_queue: t.Optional[str] = None,
-                            prevent_default_progression: bool = False):
+    def progress_payload(self,
+                         new_payload: t.Optional[WorkflowPayload] = None,
+                         next_queue: t.Optional[str] = None,
+                         prevent_default_progression: bool = False):
         if next_queue is None:
             next_queue = self.get_config('next_queue', 'workflow_continue')
         if new_payload is None:
@@ -48,7 +48,7 @@ class WorkflowWorker(QueueWorker):
     def autocomplete(self, queue_item):
         super().autocomplete(queue_item)
         if not self._skip_autoprogress_payload:
-            self.progress_queue_item()
+            self.progress_payload()
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
         """Handles extracting the payload and checking that it is of the correct type"""
