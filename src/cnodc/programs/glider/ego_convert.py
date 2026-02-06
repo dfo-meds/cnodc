@@ -2,92 +2,14 @@ import datetime
 import math
 import typing as t
 import pathlib
-from os import PathLike
 
 import yaml
-from autoinject import injector
 
 from cnodc.dmd.metadata import GCContentType, GCContentFormat
-from cnodc.process import QueueItemResult
-from cnodc.process.payload_worker import FileWorkflowWorker
-from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.util import CNODCError, dynamic_object
-from cnodc.workflow.workflow import FilePayload
 from cnodc.netcdf.wrapper import Dataset
-from cnodc.storage.base import StorageTier
 import cnodc.ocean_math.seawater as seawater
 import cnodc.dmd.metadata as metadata
-import cnodc.dmd.dmd as dmd
-
-
-class GliderConversionWorker(FileWorkflowWorker):
-
-    storage: StorageController = None
-    metadb: dmd.DataManagerController = None
-
-    @injector.construct
-    def __init__(self, *args, **kwargs):
-        super().__init__(
-            process_name="glider_conversion",
-            process_version="1.0",
-            **kwargs
-        )
-        self.set_defaults({
-            'queue_name': 'glider_conversion',
-            'openglider_directory': '',
-            'openglider_erddap_directory': '',
-            'next_queue': 'workflow_continue',
-        })
-        self._target_dir: t.Optional[BaseStorageHandle] = None
-        self._target_erddap_dir: t.Optional[BaseStorageHandle] = None
-        self._converter: t.Optional[OpenGliderConverter] = None
-
-    def on_start(self):
-        if self.get_config('openglider_directory', None) is None:
-            raise CNODCError('OpenGlider directory not specified', 'GLIDER_CONVERT', 1000)
-        self._target_dir = self.storage.get_handle(self.get_config('openglider_directory'), halt_flag=self._halt_flag)
-        if not self._target_dir.exists():
-            raise CNODCError('OpenGlider directory does not exist', 'GLIDER_CONVERT', 1001)
-        if self.get_config('openglider_erddap_directory', None) is None:
-            raise CNODCError('OpenGlider ERDDAP directory not specified', 'GLIDER_CONVERT', 1002)
-        self._target_erddap_dir = self.storage.get_handle(self.get_config('openglider_erddap_directory'), halt_flag=self._halt_flag)
-        if not self._target_erddap_dir.exists():
-            raise CNODCError('OpenGlider ERDDAP directory does not exist', 'GLIDER_CONVERT', 1003)
-        self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
-
-    def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
-
-        local_file = self.download_to_temp_file()
-        
-        new_file = self.temp_dir() / "openglider.nc"
-        file_name = self._converter.convert(local_file, new_file) + ".gz"
-        self.breakpoint()
-
-        meta = self._converter.build_metadata(new_file)
-        meta.set_file_storage_location(f"Original: {payload.file_info.file_path}\nPublic: {self._target_dir.child(file_name).path()}\nERDDAP: {self._target_erddap_dir.child(file_name).path()}")
-        self.breakpoint()
-
-        gzip_file = self.temp_dir() / "openglider.nc.gz"
-        self.gzip_local_file(new_file, gzip_file)
-
-        storage_metadata = self.storage.build_metadata(
-            program_name='GLIDERS',
-            dataset_name=file_name[:-6],
-            gzip=True
-        )
-
-        target_file = self._target_dir.child(file_name, False)
-        target_file.upload(gzip_file, True, metadata=storage_metadata, storage_tier=StorageTier.FREQUENT)
-
-        target_erddap_file = self._target_erddap_dir.child(file_name, False)
-        target_erddap_file.upload(gzip_file, True, metadata=storage_metadata, storage_tier=StorageTier.FREQUENT)
-
-        self.metadb.upsert_dataset(meta)
-
-        self.progress_queue_item(self.file_payload_from_path(target_file.path(), datetime.datetime.now(datetime.timezone.utc)))
-        self._current_item.mark_complete(self._db)
-        self._db.commit()
-
 
 
 
@@ -138,7 +60,7 @@ class OpenGliderConverter:
                 dataset_id=mission_id,
                 dataset_type=metadata.ERDDAPDatasetType.DSGTable,
                 file_path=f"/cloud_data/gliders/{mission_id.lower()}/",
-                file_pattern="*.nc"
+                file_pattern="*.nc.gz"
             )
             return dmd
 
@@ -163,7 +85,8 @@ class OpenGliderConverter:
                 self._build_glider_info(open_nc, original_nc, platform)
                 self._build_phase_info(original_nc, open_nc)
                 open_nc.set_attribute('date_created', datetime.datetime.now().strftime('%Y%m%dT%H%M%SZ'))
-        return file_name
+                mission_id = open_nc.attribute('id')
+        return file_name, mission_id
 
     def _create_dimensions(self, open_nc: Dataset):
         open_nc.create_dimension("N_MEASUREMENTS", None)

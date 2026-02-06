@@ -29,7 +29,7 @@ def gliders():
 @click.argument("original_file")
 @click.argument("output_file")
 def convert_file(original_file, output_file):
-    from cnodc.programs.glider.convert import OpenGliderConverter
+    from cnodc.programs.glider.ego_convert import OpenGliderConverter
     OpenGliderConverter.build().convert(original_file, output_file)
 
 
@@ -37,7 +37,7 @@ def convert_file(original_file, output_file):
 @click.argument("original_dir")
 @click.argument("output_dir")
 def convert_all_files(original_dir, output_dir):
-    from cnodc.programs.glider.convert import OpenGliderConverter
+    from cnodc.programs.glider.ego_convert import OpenGliderConverter
     out_dir = pathlib.Path(output_dir)
     for file in os.scandir(original_dir):
         if not file.name.endswith(".nc"):
@@ -64,7 +64,7 @@ def convert_all_files(original_dir, output_dir):
 @click.argument("original_file")
 @click.argument("output_file")
 def output_netcdf_metadata(original_file, output_file):
-    from cnodc.programs.glider.convert import OpenGliderConverter
+    from cnodc.programs.glider.ego_convert import OpenGliderConverter
     with open(output_file, "w", encoding="utf-8") as h:
         json.dump(OpenGliderConverter.build().build_metadata(original_file).build_request_body(), h, indent=2)
 
