@@ -8,7 +8,7 @@ from .structures import (
     ObservationStatus,
     ObservationType,
     BatchStatus,
-    StationStatus,
+    PlatformStatus,
     QueueStatus,
     ProcessingLevel,
     NODBQueueItem,
@@ -18,7 +18,7 @@ from .structures import (
     NODBUploadWorkflow,
     NODBObservation,
     NODBObservationData,
-    NODBStation,
+    NODBPlatform,
     NODBWorkingRecord,
     NODBBatch
 )
