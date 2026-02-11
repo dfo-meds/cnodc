@@ -1521,7 +1521,97 @@ class MaintenanceRecord(EntityRef):
         self._metadata['scope'] = scope.value
 
 
-class Resource(EntityRef):
+class QuickWebPage(EntityRef):
+
+    def __init__(self,
+                 url: str,
+                 *,
+                 resource_type: t.Optional[ResourceType] = None,
+                 name: t.Optional[MultiLanguageString] = None,
+                 description: t.Optional[MultiLanguageString] = None,
+                 purpose: t.Optional[ResourcePurpose] = None,
+                 guid: t.Optional[str] = None,
+                 display_names: t.Optional[MultiLanguageString]=None):
+        """
+        :param url: The URL for the resource
+        :param resource_type: The type of resource
+        :param purpose: The purpose of the resource
+        :param name: The name of the resource
+        :param description: The description of the resource
+        """
+        super().__init__(guid=guid, display_names=display_names)
+        self.set_url(url)
+        if resource_type is not None:
+            self.set_resource_type(resource_type)
+        if name is not None:
+            self.set_name(name)
+        if description is not None:
+            self.set_description(description)
+        if purpose is not None:
+            self.set_link_purpose(purpose)
+
+    def set_url(self, url: str):
+        """
+        :param url: The URL of the resource
+        """
+        self._metadata['url'] = EntityRef.format_multilingual_text(url or "")
+        if url:
+            if 'protocol' not in self._metadata or not self._metadata['protocol']:
+                self.set_resource_type()
+
+    def set_resource_type(self, res_type: ResourceType = ResourceType.Auto):
+        """
+        :param res_type: The type of resource (i.e. the protocol used to access it)
+        """
+        if res_type != ResourceType.Auto:
+            self._metadata['protocol'] = res_type.value
+        else:
+            self._metadata['protocol'] = Resource.autodetect_resource_type(self._metadata['url'])
+
+    def set_name(self, name: MultiLanguageString):
+        """
+        :param name: The name of the resource
+        """
+        self._metadata['name'] = EntityRef.format_multilingual_text(name)
+
+    def set_description(self, desc: MultiLanguageString):
+        """
+        :param desc: A description of the resource
+        """
+        self._metadata['description'] = EntityRef.format_multilingual_text(desc)
+
+    def set_link_purpose(self, purpose: ResourcePurpose):
+        """
+        :param purpose:  Why would somebody want to use this resource?
+        """
+        self._metadata['function'] = purpose.value
+
+    @staticmethod
+    def autodetect_resource_type(full_url: t.Optional[dict]):
+        if full_url is None:
+            return None
+        url = ""
+        if 'und' in full_url:
+            url = full_url['und']
+        elif 'en' in full_url:
+            url = full_url['en']
+        else:
+            for key in full_url.keys():
+                url = full_url[key]
+                break
+        if url.startswith("https://"):
+            return "https"
+        elif url.startswith("http://"):
+            return "http"
+        elif url.startswith("ftp://"):
+            return "ftp"
+        elif url.startswith("git://"):
+            return 'git'
+        elif url.startswith("file://"):
+            return 'file'
+        return None
+
+class Resource(QuickWebPage):
 
     def __init__(self,
                  url: str,
@@ -1551,22 +1641,21 @@ class Resource(EntityRef):
         :param guid: A unique identifier for the resource
         :param display_name: The display name of the resource
         """
-        super().__init__(guid=guid, display_names=display_name)
-        self.set_url(url)
-        if resource_type is not None:
-            self.set_resource_type(resource_type)
+        super().__init__(
+            url=url,
+            guid=guid,
+            display_names=display_name,
+            resource_type=resource_type,
+            purpose=purpose,
+            name=name,
+            description=description
+        )
         if gc_content_format is not None:
             self.set_gc_content_format(gc_content_format)
-        if name is not None:
-            self.set_name(name)
-        if description is not None:
-            self.set_description(description)
         if request_info is not None:
             self.set_additional_request_info(request_info)
         if app_info is not None:
             self.set_additional_app_info(app_info)
-        if purpose is not None:
-            self.set_link_purpose(purpose)
         if gc_content_type is not None:
             self.set_gc_content_type(gc_content_type)
         if gc_language is not None:
@@ -1576,46 +1665,9 @@ class Resource(EntityRef):
         """
         :param url: The URL of the resource
         """
-        self._metadata['url'] = EntityRef.format_multilingual_text(url or "")
-        if url:
-            if 'protocol' not in self._metadata or not self._metadata['protocol']:
-                self.set_resource_type()
-            if 'goc_formats' not in self._metadata or not self._metadata['goc_formats']:
-                self.set_gc_content_format()
-
-    def set_resource_type(self, res_type: ResourceType = ResourceType.Auto):
-        """
-        :param res_type: The type of resource (i.e. the protocol used to access it)
-        """
-        if res_type != ResourceType.Auto:
-            self._metadata['protocol'] = res_type.value
-        else:
-            self._metadata['protocol'] = Resource.autodetect_resource_type(self._metadata['url'])
-
-    @staticmethod
-    def autodetect_resource_type(full_url: t.Optional[dict]):
-        if full_url is None:
-            return None
-        url = ""
-        if 'und' in full_url:
-            url = full_url['und']
-        elif 'en' in full_url:
-            url = full_url['und']
-        else:
-            for key in full_url.keys():
-                url = full_url[key]
-                break
-        if url.startswith("https://"):
-            return "https"
-        elif url.startswith("http://"):
-            return "http"
-        elif url.startswith("ftp://"):
-            return "ftp"
-        elif url.startswith("git://"):
-            return 'git'
-        elif url.startswith("file://"):
-            return 'file'
-        return None
+        super().set_url(url)
+        if url and ('goc_formats' not in self._metadata or not self._metadata['goc_formats']):
+            self.set_gc_content_format()
 
     def set_gc_content_format(self, content_format: GCContentFormat = GCContentFormat.Auto):
         """
@@ -1625,6 +1677,30 @@ class Resource(EntityRef):
             self._metadata['goc_formats'] = [content_format.value]
         else:
             self._metadata['goc_formats'] = [Resource.autodetect_gc_content_format(self._metadata['url'])]
+
+    def set_additional_request_info(self, info: MultiLanguageString):
+        """
+        :param info: Any additional information needed to make requests
+        """
+        self._metadata['protocol_request'] = EntityRef.format_multilingual_text(info)
+
+    def set_additional_app_info(self, info: MultiLanguageString):
+        """
+        :param info: Any additional information needed to open the URL
+        """
+        self._metadata['app_profile'] = EntityRef.format_multilingual_text(info)
+
+    def set_gc_content_type(self, content_type: GCContentType):
+        """
+        :param content_type: Why would somebody want to use this resource, but more complicated
+        """
+        self._metadata['goc_content_type'] = content_type.value
+
+    def set_gc_language(self, language: GCLanguage):
+        """
+        :param language: What languages is this resource available in?
+        """
+        self._metadata['goc_languages'] = language.value
 
     @staticmethod
     def autodetect_gc_content_format(full_url: t.Optional[dict]):
@@ -1655,48 +1731,6 @@ class Resource(EntityRef):
             if url.startswith("https://") or url.startswith("http://"):
                 return "html"
         return None
-
-    def set_name(self, name: MultiLanguageString):
-        """
-        :param name: The name of the resource
-        """
-        self._metadata['name'] = EntityRef.format_multilingual_text(name)
-
-    def set_description(self, desc: MultiLanguageString):
-        """
-        :param desc: A description of the resource
-        """
-        self._metadata['description'] = EntityRef.format_multilingual_text(desc)
-
-    def set_additional_request_info(self, info: MultiLanguageString):
-        """
-        :param info: Any additional information needed to make requests
-        """
-        self._metadata['protocol_request'] = EntityRef.format_multilingual_text(info)
-
-    def set_additional_app_info(self, info: MultiLanguageString):
-        """
-        :param info: Any additional information needed to open the URL
-        """
-        self._metadata['app_profile'] = EntityRef.format_multilingual_text(info)
-
-    def set_link_purpose(self, purpose: ResourcePurpose):
-        """
-        :param purpose:  Why would somebody want to use this resource?
-        """
-        self._metadata['function'] = purpose.value
-
-    def set_gc_content_type(self, content_type: GCContentType):
-        """
-        :param content_type: Why would somebody want to use this resource, but more complicated
-        """
-        self._metadata['goc_content_type'] = content_type.value
-
-    def set_gc_language(self, language: GCLanguage):
-        """
-        :param language: What languages is this resource available in?
-        """
-        self._metadata['goc_languages'] = language.value
 
 
 class _Contact(EntityRef):
