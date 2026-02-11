@@ -107,11 +107,15 @@ class OpenGliderConverter:
         if data_mode == 'R':
             open_nc.set_attribute('rtqc_method', 'Real-time QC performed with Coriolis matlab toolbox')
             open_nc.set_attribute('rtqc_method_fr', 'Contrôle qualité en temps réel réalisé avec la boîte à outils Coriolis Matlab')
+            open_nc.set_attribute("summary", f"Real-time data from glider mission {platform}_{start_time}")
+            open_nc.set_attribute("summary_fr", f"Données en temps réel de la mission du planeur {platform}_{start_time}")
         else:
             open_nc.set_attribute('rtqc_method', 'No QC applied')
             open_nc.set_attribute('rtqc_method_fr', 'Aucun contrôle qualité appliqué')
-        open_nc.set_attribute('title', f'Glider {platform} - {start_time} ({'Real Time' if data_mode == 'R' else 'Unprocessed'})')
-        open_nc.set_attribute('title_fr', f'PLaneur {platform} - {start_time} ({'temps réel' if data_mode == 'R' else 'non traité'})')
+            open_nc.set_attribute("summary", f"Preliminary data from glider mission {platform}_{start_time}")
+            open_nc.set_attribute("summary_fr",f"Données préliminaire de la mission du planeur {platform}_{start_time}")
+        open_nc.set_attribute('title', f'Glider {platform} - {start_time} ({'Real Time' if data_mode == 'R' else 'Preliminary'})')
+        open_nc.set_attribute('title_fr', f'PLaneur {platform} - {start_time} ({'temps réel' if data_mode == 'R' else 'préliminaire'})')
         open_nc.set_attribute('id', f"{platform}_{start_time}_{data_mode}")
 
     def _set_geospatial_bounds_metadata(self, open_nc: Dataset, original_nc: Dataset):
