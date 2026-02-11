@@ -1494,6 +1494,7 @@ def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
             attr[locale_map[suffix]] = attribute_dict.pop(f"{attribute_name}{suffix}")
     return attr
 
+
 class MaintenanceRecord(EntityRef):
 
     def __init__(self, date: datetime, notes: str, scope: MaintenanceScope = MaintenanceScope.Dataset):
