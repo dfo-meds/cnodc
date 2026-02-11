@@ -1,6 +1,7 @@
 from __future__ import annotations
 import decimal
 import enum
+import logging
 import math
 import typing as t
 import datetime
@@ -2187,6 +2188,7 @@ class DatasetMetadata:
             'custom_keywords': [],
             'distributors': [],
         }
+        self._log = logging.getLogger("cnodc.dmd.metadata")
 
     def add_distribution_channel(self, dist: DistributionChannel):
         self._children['distributors'].append(dist)
