@@ -562,21 +562,59 @@ class StatusCode(enum.Enum):
 
 class CoordinateReferenceSystem(enum.Enum):
 
+    NAD27 = {
+        '_guid': 'nad27',
+    }
+    ''' EPSG 4267: the NAD27 datum '''
+
     WGS84 = {
         "_guid": "wgs84",
     }
+    ''' EPSG 4326: the WGS84 datum '''
 
     MSL_Depth = {
         "_guid": "msl_depth",
     }
+    ''' EPSG 5715: depth below a non-specific mean sea level (depth positive) '''
 
     MSL_Heights = {
         "_guid": "msl_height",
     }
+    ''' EPSG 5714: height above a non-specific mean sea level (depth negative) '''
+
+    Instant_Depth = {
+        "_guid": "instant_depth",
+    }
+    ''' EPSG 5831: depth below current instantaneous sea level (depth positive) '''
+
+    Instant_Heights = {
+        "_guid": "instant_heights",
+    }
+    ''' EPGS 5829: altitude above current instantaneous sea level (depth negative) '''
 
     Gregorian = {
         "_guid": "gregorian",
     }
+    ''' Standard Gregorian calendar '''
+
+    @staticmethod
+    def from_string(value: str):
+        value = value.upper().replace(" ", "")
+        if value in ('4326', 'EPSG:4326'):
+            return CoordinateReferenceSystem.WGS84
+        elif value in ('4267', 'EPSG:4267'):
+            return CoordinateReferenceSystem.NAD27
+        elif value in ('5829', 'EPSG:5829'):
+            return CoordinateReferenceSystem.Instant_Heights
+        elif value in ('5831', 'EPSG:5831'):
+            return CoordinateReferenceSystem.Instant_Depth
+        elif value in ('5715', 'EPSG:5715'):
+            return CoordinateReferenceSystem.MSL_Depth
+        elif value in ('5714', 'EPSG:5714'):
+            return CoordinateReferenceSystem.MSL_Heights
+        return None
+
+
 
 
 class MaintenanceScope(enum.Enum):
@@ -2189,6 +2227,20 @@ class DatasetMetadata:
             'distributors': [],
         }
         self._log = logging.getLogger("cnodc.dmd.metadata")
+
+    def set_info_link(self,
+                      url: MultiLanguageString,
+                      name: t.Optional[MultiLanguageString] = None,
+                      description: t.Optional[MultiLanguageString] = None,
+                      function: ResourcePurpose = ResourcePurpose.Information,
+                      protocol: ResourceType = ResourceType.Auto):
+        self._children['info_link'] = QuickWebPage(
+            url=url,
+            name=name,
+            description=description,
+            purpose=function,
+            resource_type=protocol
+        )
 
     def add_distribution_channel(self, dist: DistributionChannel):
         self._children['distributors'].append(dist)
