@@ -356,6 +356,31 @@ class OpenGliderConverter:
             institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
         for owner in original_nc.variable('GLIDER_OWNER').as_string().split(';'):
             institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
+        for inst in institutions:
+            if inst[0] == 'C-PROOF':
+                # CPROOF
+                open_nc.set_attribute('infoUrl', 'https://cproof.uvic.ca/')
+                break
+            elif inst[0] == 'CEOTR':
+                # CEOTR
+                open_nc.set_attribute('infoUrl', 'https://ceotr.ocean.dal.ca/gliders/')
+                break
+            elif inst[0] == 'BIO':
+                # BIO
+                open_nc.set_attribute('infoUrl', '')
+        else:
+            mission_id = open_nc.attribute('id')
+            network = open_nc.attribute('network') if open_nc.has_attribute('network') else ''
+            if 'C-PROOF' in network or any(mission_id.startswith(x) for x in ('hal_1002', 'k_999', 'marvin_1003', 'rosie_713', 'Wall_E_652', 'mike_rorider',  'SEA035', 'SEA046')):
+                # CRPOOF
+                open_nc.set_attribute("infoUrl", "https://cproof.uvic.ca/")
+            elif any(mission_id.startswith(x) for x in ('pearldiver', 'sunfish', 'Unit_334', 'unit_473')):
+                # MEMORIAL
+                open_nc.set_attribute('infoUrl', 'https://www.mun.ca/creait/autonomous-ocean-systems-centre/gliders--small-auvs/')
+            elif any(mission_id.startswith(x) for x in ('SEA019', 'SEA021', 'SEA022', 'SEA024', 'SEA032')):
+                # BIO
+                open_nc.set_attribute('infoUrl', '')
+
 
         open_nc.set_attribute('contributor_name', ','.join(c[0] for c in contributors))
         open_nc.set_attribute('contributor_email', ','.join(c[1] for c in contributors))
