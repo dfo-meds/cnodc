@@ -2268,7 +2268,7 @@ class DatasetMetadata:
         self._users: set[str] = set()
         self._profiles: set[str] = set()
         self._profiles.add('cnodc')
-        self._children: dict[str, t.Union[EntityRef, list[EntityRef]]] = {
+        self._children: dict[str, t.Union[EntityRef, list[EntityRef], None]] = {
             'iso_maintenance': [],
             'variables': [],
             'canon_urls': [],
@@ -2276,6 +2276,7 @@ class DatasetMetadata:
             'metadata_profiles': [],
             'metadata_standards': [],
             'alt_metadata': [],
+            'info_link': None,
             'responsibles': [],
             'licenses': [],
             'metadata_licenses': [],
