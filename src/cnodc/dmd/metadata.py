@@ -2397,21 +2397,194 @@ class DatasetMetadata:
         self.set_source(get_bilingual_attribute(attrs, 'source', locale_map))
         self.set_abstract(get_bilingual_attribute(attrs, 'summary', locale_map))
         self.set_purpose(get_bilingual_attribute(attrs, 'purpose', locale_map))
-        if 'date_created' in attrs:
-            self.set_date_issued(datetime.datetime.fromisoformat(attrs.pop('date_created')))
-        if 'date_issued' in attrs:
-            self.set_date_created(datetime.datetime.fromisoformat(attrs.pop('date_issued')))
-        if 'date_modified' in attrs:
-            self.set_date_modified(datetime.datetime.fromisoformat(attrs.pop('date_modified')))
-        if 'featureType' in attrs:
-            self.set_feature_type(CommonDataModelType.from_netcdf(attrs.pop('featureType', "")))
-        if 'processing_level' in attrs:
+        self._set_optional_netcdf(attrs, 'standard_name_vocabulary', self.set_cf_standard_name_vocab)
+        self._set_optional_netcdf(attrs, 'date_issued', self.set_date_issued, datetime.datetime.fromisoformat)
+        self._set_optional_netcdf(attrs, 'date_created', self.set_date_created, datetime.datetime.fromisoformat)
+        self._set_optional_netcdf(attrs, 'date_modified', self.set_date_modified, datetime.datetime.fromisoformat)
+        self._set_optional_netcdf(attrs, 'featureType', self.set_feature_type, CommonDataModelType.from_netcdf)
+        if 'processing_level' in attrs or 'processing_description' in attrs or 'processing_environment' in attrs:
             self.set_processing_info(
-                attrs.pop('processing_level')
+                attrs.pop('processing_level', ''),
+                get_bilingual_attribute(attrs, 'processing_description', locale_map),
+                get_bilingual_attribute(attrs, 'processing_environment', locale_map),
             )
-        # contact items from list
+        self._build_from_enum_value(attrs, "dataset_maintenance_frequency", MaintenanceFrequency, self.set_dataset_maintenance_frequency)
+        self._build_from_enum_value(attrs, "metadata_maintenance_frequency", MaintenanceFrequency, self.set_metadata_maintenance_frequency)
+        self._build_from_enum_value(attrs, "status", StatusCode, self.set_status)
+        self._build_from_enum_value(attrs, "topic_category", TopicCategory, self.set_topic_category)
+        self._build_from_enum_value(attrs, "gc_audiences", GCAudience, self.set_government_audiences, True)
+        self._build_from_enum_value(attrs, "gc_collection", GCCollectionType, self.set_government_collection)
+        self._build_from_enum_value(attrs, 'gc_publication_places', GCPlace, self.set_government_publication_places, True)
+        self._build_from_enum_value(attrs, "gc_subject", GCSubject, self.set_government_subject)
+        self._set_optional_netcdf(attrs, 'infoUrl', self.set_info_link)
+        self._set_optional_netcdf(attrs, 'doi', self.set_doi)
+        self._set_optional_netcdf(attrs, "geospatial_bounds")
+        if 'metadata_link' in attrs:
+            val = attrs.pop('metadata_link')
+            if val:
+                citation = Citation()
+                resource = Resource(val)
+                resource.set_link_purpose(ResourcePurpose.CompleteMetadata)
+                resource.set_gc_content_type(GCContentType.SupportingDocumentation)
+                citation.set_resource(resource)
+                self.add_alt_metadata(citation)
+        try:
+            self._set_optional_netcdf(attrs, 'time_coverage_resolution', self.set_time_resolution_from_iso)
+        except ValueError as ex:
+            self._log.exception("Invalid value for time_coverage_resolution")
+        self._set_netcdf_crs(attrs, 'geospatial_bounds_crs')
+        self._set_netcdf_crs(attrs, 'geospatial_bounds_vertical_crs')
+        self._build_from_netcdf_contacts(locale_map, attrs, 'creator', contact_default_role=ContactRole.Originator, contact_default_type='individual')
+        self._build_from_netcdf_contacts(locale_map, attrs, 'publisher', contact_default_role=ContactRole.Publisher, contact_default_type='individual')
+        self._build_from_netcdf_contacts(locale_map, attrs, 'contributor', contact_default_role=ContactRole.Contributor, contact_default_type='individual')
+        self._build_from_netcdf_contacts(locale_map, attrs, 'contributing_institutions', contact_default_role=ContactRole.Contributor, contact_default_type='institution')
         # horizontal and vertical reference systems
         self.set_additional_properties(attrs)
+
+    def _set_optional_netcdf(self, attrs, attr_name, setter: t.Union[callable, str, None] = None, processing: t.Optional[callable] = None):
+        if setter is None:
+            setter = attr_name
+        if attr_name in attrs:
+            value = attrs.pop(attr_name)
+            if value:
+                if processing is not None:
+                    value = processing(value)
+                if isinstance(setter, str):
+                    self._metadata[setter] = value
+                else:
+                    setter(value)
+
+    def _set_netcdf_crs(self, attrs, attribute_name, metadata_name=None):
+        metadata_name = metadata_name or attribute_name
+        if attribute_name in attrs:
+            crs_name = attrs.pop(attribute_name)
+            if crs_name:
+                actual_crs = CoordinateReferenceSystem.from_string(crs_name)
+                if actual_crs is not None:
+                    self._metadata[metadata_name] = actual_crs
+                else:
+                    self._log.warning(f"Unrecognized CRS: {crs_name}")
+
+
+    def _build_from_enum_value(self, attrs, attribute_name, enum_type, setter: callable, allow_many: bool = False):
+        def set_enum_value(v):
+            if v in enum_type:
+                setter(enum_type[v])
+            else:
+                self._log.warning(f"Unrecognized value [{v}] for [{str(enum_type)}")
+        if attribute_name in attrs:
+            value = attrs.pop(attribute_name)
+            if value:
+                if allow_many:
+                    values = value.split(",")
+                    for value in values:
+                        set_enum_value(value)
+                else:
+                    set_enum_value(value)
+
+    def _build_from_netcdf_contacts(self, locale_map, attrs: dict, prefix: str, **kwargs):
+        self._add_netcdf_contacts(
+            **kwargs,
+            names=get_bilingual_attribute(attrs, f"{prefix}_name", locale_map),
+            emails=get_bilingual_attribute(attrs, f"{prefix}_email", locale_map),
+            ids=attrs.pop(f"{prefix}_id", ""),
+            urls=get_bilingual_attribute(attrs, f"{prefix}_url", locale_map),
+            institutions=get_bilingual_attribute(attrs, f"{prefix}_institution", locale_map),
+            specific_roles=attrs.pop(f"{prefix}_role", ""),
+            specific_types=attrs.pop(f"{prefix}_type", ""),
+            id_vocabulary=attrs.pop(f"{prefix}_id_vocabulary", ""),
+        )
+
+    def _add_netcdf_contacts(self,
+                             contact_default_role: ContactRole,
+                             contact_default_type: str,
+                             names: dict[str, str],
+                             emails: dict[str, str],
+                             ids: str,
+                             urls: dict[str, str],
+                             institutions: dict[str, str],
+                             specific_roles: str,
+                             specific_types: str,
+                             id_vocabulary: str):
+        def split_multilingual_attribute(attr: dict[str, str], split_on: str = ",") -> list[dict[str, str]]:
+            split_attrs = {}
+            for key in attr:
+                split_attrs[key] = attr[key].split(split_on)
+            values = []
+            # TODO: double quote extraction.
+            for x in range(0, max(len(split_attrs[key]) for key in split_attrs)):
+                values.append({
+                    key: split_attrs[key][x] if x < len(split_attrs[key]) else None
+                    for key in split_attrs
+                })
+            return values
+
+        names = split_multilingual_attribute(names)
+        emails = split_multilingual_attribute(emails)
+        ids = ids.split(",")
+        urls = split_multilingual_attribute(urls)
+        institutions = split_multilingual_attribute(institutions)
+        specific_roles = specific_roles.split(",")
+        specific_types = specific_types.split(",")
+        for idx in range(0, len(names)):
+            self._add_netcdf_contact(
+                name=names[idx],
+                email=emails[idx] if idx < len(emails) else None,
+                contact_id=ids[idx] if idx < len(ids) else None,
+                url=urls[idx] if idx < len(urls) else None,
+                institution=institutions[idx] if idx < len(institutions) else None,
+                role=specific_roles[idx] if idx < len(specific_roles) and specific_roles[idx] else contact_default_role,
+                contact_type=specific_types[idx] if idx < len(specific_types) and specific_types[idx] else contact_default_type,
+                id_vocabulary=id_vocabulary
+            )
+
+    def _add_netcdf_contact(self,
+                            name: MultiLanguageString,
+                            email: t.Optional[MultiLanguageString],
+                            contact_id: t.Optional[str],
+                            url: t.Optional[MultiLanguageString],
+                            institution: t.Optional[MultiLanguageString],
+                            role: t.Union[str, ContactRole],
+                            contact_type: str,
+                            id_vocabulary: str):
+        if contact_type == 'institution' or contact_type == 'group':
+            contact = Organization(name=name)
+            if contact_id is not None and contact_id != "":
+                if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://ror.org"):
+                    contact.set_ror(contact_id)
+                else:
+                    self._log.warning(f"Unknown ID vocabulary for organization: {id_vocabulary}")
+        elif contact_type == 'position':
+            contact = Position(name=name)
+            if contact_id:
+                self._log.warning(f"ID provided for position: {contact_id} [{id_vocabulary}]")
+        else:
+            contact = Individual(name=name)
+            if contact_id is not None and contact_id != "":
+                if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://orcid.org"):
+                    contact.set_orcid(contact_id)
+                else:
+                    self._log.warning(f"Unknown ID vocabulary for individual: {id_vocabulary}")
+        if url is not None:
+            contact.set_web_page(url)
+        if email is not None:
+            if isinstance(email, str):
+                contact.set_guid(email)
+            elif 'und' in email:
+                contact.set_guid(email['und'])
+            elif 'en' in email:
+                contact.set_guid(email['en'])
+            elif 'fr' in email:
+                contact.set_guid(email['fr'])
+            contact.set_email(email)
+        # There's no ISO support for institution, but maybe we should add one?
+        if isinstance(role, str):
+            role = ContactRole.build_from_str(role)
+        if role is None:
+            self._log.warning(f"Missing contact role for [{name}]")
+        else:
+            self.add_responsible_party(role, contact)
+
 
     def set_additional_properties(self, attrs: dict):
         if 'custom_metadata' not in self._metadata:
@@ -2561,8 +2734,14 @@ class DatasetMetadata:
                     self.set_temporal_bounds(epoch + datetime.timedelta(days=unnumpy(var_min)), epoch + datetime.timedelta(days=unnumpy(var_max)))
                 elif pieces[0] == "months":
                     pass # TODO
+                    self._log.warning(f"months since EPOCH not implemented")
                 elif pieces[0] == "years":
                     pass # TODO
+                    self._log.warning(f"years since EPOCH not implemented")
+                else:
+                    self._log.warning(f"Unrecognized time units {units}")
+            else:
+                self._log.warning(f"Unrecognized time units {units}")
 
     def add_canon_url(self, canon_url: Resource):
         self._children['canon_urls'].append(canon_url)
@@ -2873,19 +3052,80 @@ class DatasetMetadata:
             self._metadata['spatial_resolution']['angular'] = str(angular)
             self._metadata['spatial_resolution']['angular_units'] = angular_units.value
 
-    def set_time_resolution(self, time_amount: int, time_units: NumericTimeUnits):
+    def set_time_resolution_from_iso(self, iso_duration: str):
+        tcr = iso_duration.replace("-", "").replace(":", "").upper()
+        if tcr[0] != 'P':
+            self._log.warning(f"Invalid time resolution [{tcr}]")
+        else:
+            parts = [0, 0, 0, 0, 0, 0]
+            weeks = 0
+            buffer = ''
+            in_time = False
+            used_alt_format = False
+            for i in range(1, len(tcr)):
+                if tcr[i].isdigit():
+                    buffer += tcr[i]
+                elif tcr[i] == 'T':
+                    in_time = True
+                    if buffer:
+                        if len(buffer) != 8:
+                            raise ValueError(f'Invalid alternate duration date length')
+                        parts[0] = int(buffer[0:4])
+                        parts[1] = int(buffer[4:6])
+                        parts[2] = int(buffer[6:8])
+                        used_alt_format = True
+                elif tcr[i] == 'Y':
+                    parts[0] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'M':
+                    parts[4 if in_time else 1] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'D':
+                    parts[2] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'H':
+                    parts[3] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'S':
+                    parts[5] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'W':
+                    weeks = int(buffer)
+                    buffer = ''
+                else:
+                    raise ValueError(f'Invalid character found at position [{i}] in [{tcr}]')
+            if buffer and used_alt_format:
+                if len(buffer) in (2, 4, 6):
+                    parts[3] = int(buffer[0:2])
+                else:
+                    raise ValueError('Invalid alternate duration time length')
+                if len(buffer) in (4, 6):
+                    parts[4] = int(buffer[2:4])
+                if len(buffer) == 6:
+                    parts[5] = int(buffer[4:6])
+            if weeks > 0:
+                if any(x > 0 for x in parts):
+                    raise ValueError('Cannot specify weeks and other time parts')
+                self.set_time_resolution(0, 0, weeks * 7)
+            else:
+                self.set_time_resolution(*parts)
+
+    def set_time_resolution(self,
+                            years: t.Optional[int] = None,
+                            months: t.Optional[int] = None,
+                            days: t.Optional[int] = None,
+                            hours: t.Optional[int] = None,
+                            minutes: t.Optional[int] = None,
+                            seconds: t.Optional[int] = None):
         """
-        :param time_amount: An amount of time as an integer (round up) in the given units.
-        :param time_units: The units that the time is given in. Note that milliseconds will be converted to seconds and rounded up to the next second.
         """
-        if time_units == NumericTimeUnits.Weeks:
-            time_amount *= 7
-            time_units = NumericTimeUnits.Days
-        elif time_units == NumericTimeUnits.Seconds:
-            time_amount = int(math.ceil(time_amount / 1000))
-            time_units = NumericTimeUnits.Seconds
         self._metadata['temporal_resolution'] = {
-            time_units.value: time_amount
+            'years': years,
+            'months': months,
+            'days': days,
+            'hours': hours,
+            'minutes': minutes,
+            'seconds': int(seconds)
         }
 
 
@@ -2964,9 +3204,21 @@ class DatasetMetadata:
         :param collection: The collection of this dataset (defaults to Geospatial data)
         :param audiences: The audience(s) this dataset is intended for (defaults to Scientists)
         """
+        self.set_government_publication_places(publication_places)
+        self.set_government_audiences(audiences)
+        self.set_government_collection(collection)
+        self.set_government_subject(subject)
+
+    def set_government_audiences(self, audiences: t.Union[GCAudience, t.Iterable[GCAudience]]):
         self._metadata['goc_audience'] = [audiences.value] if isinstance(audiences, GCAudience) else [x.value for x in audiences]
-        self._metadata['goc_subject'] = subject.value
+
+    def set_government_collection(self, collection: GCCollectionType):
         self._metadata['goc_collection_type'] = collection.value
+
+    def set_government_subject(self, subject: GCSubject):
+        self._metadata['goc_subject'] = subject.value
+
+    def set_government_publication_places(self, publication_places: t.Union[GCPlace, t.Iterable[GCPlace]]):
         self._metadata['goc_publication_place'] = [publication_places.value] if isinstance(publication_places, GCPlace) else [x.value for x in publication_places]
 
     # ERDDAP stuff
