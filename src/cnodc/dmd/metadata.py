@@ -812,6 +812,29 @@ class ContactRole(enum.Enum):
     User = "user"
     """ A person who uses the data. """
 
+    @staticmethod
+    def build_from_str(value: str):
+        # W08 approximate mapping
+        if value == 'CONT0001':
+            return ContactRole.Stakeholder
+        elif value == 'CONT0002':
+            return ContactRole.Owner
+        elif value == 'CONT0003':
+            return ContactRole.Originator  # not great sorry
+        elif value == 'CONT0004':
+            return ContactRole.PrincipalInvestigator
+        elif value == 'CONT0005':
+            return ContactRole.Stakeholder
+        elif value == 'CONT0006':
+            return ContactRole.Processor
+        elif value == 'CONT0007':
+            return ContactRole.Stakeholder
+        # ISO mappings
+        elif value in ContactRole:
+            return ContactRole(value)
+        else:
+            return None
+
 
 class IDSystem(enum.Enum):
 
