@@ -52,6 +52,9 @@ class OpenGliderConverter:
             main_link.set_resource_type(metadata.ResourceType.File)
             dist.set_primary_link(main_link)
             dmd.add_distribution_channel(dist)
+            for var in dmd.get_variables():
+                if var.get_source_name() in ('LATITUDE', 'LONGITUDE', 'DEPTH', 'TIME'):
+                    var.set_destination_name(var.get_source_name().lower())
             if 'users' in self._mapping_data and self._mapping_data['users']:
                 for user in self._mapping_data['users']:
                     dmd.add_user(user)
