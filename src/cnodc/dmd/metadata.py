@@ -1199,7 +1199,6 @@ class Variable(EntityRef):
         if is_altitude_proxy is not None:
             self.set_is_altitude_proxy(is_altitude_proxy)
 
-
     def get_cnodc_name(self):
         if 'cnodc_name' in self._metadata:
             return self._metadata['cnodc_name']
