@@ -69,7 +69,7 @@ class _Variable:
         return b''.join(bytes(x) for x in self._var[:]).replace(b'\x00', b'').decode('utf-8')
 
     def all_as_strings(self):
-        return [b''.join(bytes(y) for y in x).strip(b'\x00').decode('utf-8') for x in self.data()]
+        return [b''.join(bytes(y) for y in x).replace(b'\x00', b'').decode('utf-8') for x in self.data()]
 
 
 class Dataset:
@@ -79,7 +79,7 @@ class Dataset:
         self._handle: t.Optional[nc.Dataset] = None
         self._file_path = path
         self._args = {
-            "mode": mode
+            "mode": mode,
         }
         self._args.update(kwargs)
 
@@ -172,6 +172,7 @@ class Dataset:
 
     def open(self) -> Dataset:
         self._handle = nc.Dataset(self._file_path, **self._args)
+        return self._handle
 
     def close(self):
         self._handle.close()
