@@ -498,18 +498,10 @@ class BaseCodec:
     @staticmethod
     def map_to_record(record_map: dict) -> ParentRecord:
         dr = ParentRecord()
-        dr.from_mapping(BaseCodec.uncompress_record_map(record_map))
+        dr.from_mapping(record_map)
         return dr
 
     @staticmethod
-    def record_to_map(record: ParentRecord) -> dict:
-        return BaseCodec.compress_record_map(record.to_mapping())
-
-    @staticmethod
-    def compress_record_map(record_map: dict) -> dict:
-        return record_map
-
-    @staticmethod
-    def uncompress_record_map(record_map: dict) -> dict:
-        return record_map
+    def record_to_map(record: ParentRecord, compress: bool = False) -> dict:
+        return record.to_mapping()
 
