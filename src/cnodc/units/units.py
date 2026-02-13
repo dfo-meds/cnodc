@@ -11,6 +11,7 @@ from uncertainties import UFloat
 
 COMMON_BAD_UNITS = {
     'psu': '0.001',
+    'micromole/l': 'umol L-1',
 }
 
 class Converter:
