@@ -9,10 +9,18 @@ DIR = pathlib.Path(__file__).absolute().parent
 
 def map_group(group_human_name: str):
     """ Convert the name of a group in the spreadsheet to the programmatic term. """
-    if group_human_name == 'Metadata (Record Only)':
+    if group_human_name == 'Metadata (Record)':
         return 'metadata:record'
-    elif group_human_name == 'Metadata (Element Only)':
+    elif group_human_name == 'Metadata (Element)':
         return 'metadata:element'
+    elif group_human_name == 'Metadata (Platform)':
+        return 'metadata:platform'
+    elif group_human_name == 'Metadata (Mission)':
+        return 'metadata:mission'
+    elif group_human_name == 'Metadata (Parent)':
+        return 'metadata:parent'
+    elif group_human_name == 'Metadata (Product)':
+        return 'metadata:product'
     return group_human_name.lower()
 
 def map_vocab(vocab_name: str):
