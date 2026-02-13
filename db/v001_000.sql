@@ -29,6 +29,20 @@ BEGIN
             'COMPLETE'
         );
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gts_message_type') THEN
+        CREATE TYPE gts_message_type AS ENUM (
+            'NEW',
+            'CORRECTION',
+            'ADDITION',
+            'DELAYED',
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gts_outgoing_status') THEN
+        CREATE TYPE gts_outgoing_status AS ENUM (
+            'QUEUED',
+            'SENT'
+        );
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'qc_status') THEN
         CREATE TYPE qc_status AS ENUM (
             'NEW',
@@ -399,30 +413,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(
 
 
 -- Partition tables for 1980 to 2040
-CREATE TABLE IF NOT EXISTS nodb_obs_data_1800_1970 PARTITION OF nodb_obs_data FOR VALUES FROM ('1800-01-01') TO ('1970-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_1970_1980 PARTITION OF nodb_obs_data FOR VALUES FROM ('1970-01-01') TO ('1980-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_1980_1990 PARTITION OF nodb_obs_data FOR VALUES FROM ('1980-01-01') TO ('1990-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_1990_2000 PARTITION OF nodb_obs_data FOR VALUES FROM ('1990-01-01') TO ('2000-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2000_2001 PARTITION OF nodb_obs_data FOR VALUES FROM ('2000-01-01') TO ('2001-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2001_2002 PARTITION OF nodb_obs_data FOR VALUES FROM ('2001-01-01') TO ('2002-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2002_2003 PARTITION OF nodb_obs_data FOR VALUES FROM ('2002-01-01') TO ('2003-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2003_2004 PARTITION OF nodb_obs_data FOR VALUES FROM ('2003-01-01') TO ('2004-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2004_2005 PARTITION OF nodb_obs_data FOR VALUES FROM ('2004-01-01') TO ('2005-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2005_2006 PARTITION OF nodb_obs_data FOR VALUES FROM ('2005-01-01') TO ('2006-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2006_2007 PARTITION OF nodb_obs_data FOR VALUES FROM ('2006-01-01') TO ('2007-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2007_2008 PARTITION OF nodb_obs_data FOR VALUES FROM ('2007-01-01') TO ('2008-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2008_2009 PARTITION OF nodb_obs_data FOR VALUES FROM ('2008-01-01') TO ('2009-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2009_2010 PARTITION OF nodb_obs_data FOR VALUES FROM ('2009-01-01') TO ('2010-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2010_2011 PARTITION OF nodb_obs_data FOR VALUES FROM ('2010-01-01') TO ('2011-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2011_2012 PARTITION OF nodb_obs_data FOR VALUES FROM ('2011-01-01') TO ('2012-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2012_2013 PARTITION OF nodb_obs_data FOR VALUES FROM ('2012-01-01') TO ('2013-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2013_2014 PARTITION OF nodb_obs_data FOR VALUES FROM ('2013-01-01') TO ('2014-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2014_2015 PARTITION OF nodb_obs_data FOR VALUES FROM ('2014-01-01') TO ('2015-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2015_2016 PARTITION OF nodb_obs_data FOR VALUES FROM ('2015-01-01') TO ('2016-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2016_2017 PARTITION OF nodb_obs_data FOR VALUES FROM ('2016-01-01') TO ('2017-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2017_2018 PARTITION OF nodb_obs_data FOR VALUES FROM ('2017-01-01') TO ('2018-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2018_2019 PARTITION OF nodb_obs_data FOR VALUES FROM ('2018-01-01') TO ('2019-01-01');
-CREATE TABLE IF NOT EXISTS nodb_obs_data_2019_2020 PARTITION OF nodb_obs_data FOR VALUES FROM ('2019-01-01') TO ('2020-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_1800_1969 PARTITION OF nodb_obs_data FOR VALUES FROM ('1800-01-01') TO ('1970-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_1970_1979 PARTITION OF nodb_obs_data FOR VALUES FROM ('1970-01-01') TO ('1980-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_1980_1989 PARTITION OF nodb_obs_data FOR VALUES FROM ('1980-01-01') TO ('1990-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_1990_1999 PARTITION OF nodb_obs_data FOR VALUES FROM ('1990-01-01') TO ('2000-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2000_2009 PARTITION OF nodb_obs_data FOR VALUES FROM ('2000-01-01') TO ('2010-01-01');
+CREATE TABLE IF NOT EXISTS nodb_obs_data_2010_2019 PARTITION OF nodb_obs_data FOR VALUES FROM ('2010-01-01') TO ('2020-01-01');
 CREATE TABLE IF NOT EXISTS nodb_obs_data_2020_2021 PARTITION OF nodb_obs_data FOR VALUES FROM ('2020-01-01') TO ('2021-01-01');
 CREATE TABLE IF NOT EXISTS nodb_obs_data_2021_2022 PARTITION OF nodb_obs_data FOR VALUES FROM ('2021-01-01') TO ('2022-01-01');
 CREATE TABLE IF NOT EXISTS nodb_obs_data_2022_2023 PARTITION OF nodb_obs_data FOR VALUES FROM ('2022-01-01') TO ('2023-01-01');
@@ -509,6 +505,26 @@ CREATE OR REPLACE TRIGGER update_queues_modified_date
     BEFORE UPDATE ON nodb_queues
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
+
+
+CREATE TABLE IF NOT EXISTS gts_outgoing_message (
+
+    message_id              UUID                NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+
+    message_format          VARCHAR(126)        NOT NULL,
+    processing_center       CHAR(4)             NOT NULL,
+    obs_uuid                UUID                NOT NULL,
+    obs_received_date       DATE                NOT NULL,
+    message_type            gts_message_type    NOT NULL DEFAULT 'NEW',
+
+    status                  gts_outgoing_status NOT NULL DEFAULT 'QUEUED',
+    queued_date             TIMESTAMPTZ         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    sent_date               TIMESTAMPTZ         DEFAULT NULL,
+    assigned_header         VARCHAR(126)        DEFAULT NULL,
+    supplementary_header    CHAR(3)             DEFAULT NULL,
+);
+
 
 
 CREATE TABLE IF NOT EXISTS gts_messages (
