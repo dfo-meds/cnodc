@@ -93,369 +93,6 @@ cnodc:essentialOceanVariable rdf:type rdf:Property ;
 
 cnodc:elements rdf:type skos:ConceptScheme .
 
-cnodc:AlkalinityMolar rdf:type skos:Concept ;
-  skos:prefLabel "Alkalinity (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:standardName "sea_water_alkalinity_expressed_as_mole_equivalent" ;
-  cnodc:ioosCategory ioos:Acidity ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:CarbonateAlkalinityMolar rdf:type skos:Concept ;
-  skos:prefLabel "Carbonate Alkalinity (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory ioos:Acidity ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:PH rdf:type skos:Concept ;
-  skos:prefLabel "pH"@en ;
-  skos:prefLabel "pH"@fr ;
-  skos:documentation "Acidity or basicity of the water on the pH scale"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "1" ;
-  cnodc:standardName "sea_water_ph_reported_on_total_scale" ;
-  cnodc:ioosCategory ioos:Acidity ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 14 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:Depth rdf:type skos:Concept ;
-  skos:prefLabel "Depth"@en ;
-  skos:prefLabel "Profondeur"@fr ;
-  skos:documentation "Depth in distance units beneath the ocean surface"@en ;
-  cnodc:elementGroup "coordinates" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:standardName "depth" ;
-  cnodc:variableName "depth" ;
-  cnodc:ioosCategory ioos:Bathymetry ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 11000 ; 
-  skos:exactMatch bufr4B07:062 ;
-  skos:exactMatch bufr4B07:063 ;
-  cnodc:wmoCodeGroup "FM18-XII: zn zn zn zn" ; 
-  cnodc:wmoCodeGroup "FM63-XI: zn zn" ; 
-  cnodc:wmoCodeGroup "FM64-X: zn zn zn zn" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:SeaDepth rdf:type skos:Concept ;
-  skos:prefLabel "Sea Floor Depth"@en ;
-  skos:prefLabel "Profondeur du fond marin"@fr ;
-  skos:documentation "Depth of the sea floor below the sea surface"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:standardName "sea_floor_depth_below_sea_surface" ;
-  cnodc:ioosCategory ioos:Bathymetry ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 11000 ; 
-  skos:exactMatch bufr4B22:063 ;
-  skos:exactMatch pcode:BATH ;
-  cnodc:wmoCodeGroup "FM63-XI: Zd Zd Zd Zd" ; 
-  cnodc:wmoCodeGroup "FM64-X: Zd Zd Zd Zd" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:ChlorophyllA rdf:type skos:Concept ;
-  skos:prefLabel "Chlorophyll a"@en ;
-  skos:prefLabel "Chlorophylle a"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mg m-3" ;
-  cnodc:standardName "mass_concentration_of_chlorophyll_a_in_sea_water" ;
-  cnodc:variableName "chlorophyll_a" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch og1:CHLA ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ChlorophyllAFluorescence rdf:type skos:Concept ;
-  skos:prefLabel "Chlorophyll a Fluorescence"@en ;
-  skos:prefLabel "Flourescence de chlorophylle a"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "1" ;
-  cnodc:variableName "chlorophyll_a_fluorescence" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:ChlorophyllB rdf:type skos:Concept ;
-  skos:prefLabel "Chlorophyll b"@en ;
-  skos:prefLabel "Chlorophylle b"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mg m-3" ;
-  cnodc:standardName "mass_concentration_of_chlorophyll_b_in_sea_water" ;
-  cnodc:variableName "chlorophyll_b" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:ChlorophyllC rdf:type skos:Concept ;
-  skos:prefLabel "Chlorophyll c"@en ;
-  skos:prefLabel "Chlorophylle c"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mg m-3" ;
-  cnodc:standardName "mass_concentration_of_chlorophyll_c_in_sea_water" ;
-  cnodc:variableName "chlorophyll_c" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:Fluorescence rdf:type skos:Concept ;
-  skos:prefLabel "Fluorescence (Mass Concentration)"@en ;
-  skos:prefLabel "Fluorescence (concentration massique)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "kg L-1" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:FluorescenceFraction rdf:type skos:Concept ;
-  skos:prefLabel "Fluorescence (Fraction)"@en ;
-  skos:prefLabel "Fluorescence (Fraction)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "0.01" ;
-  cnodc:variableName "fluoresence_fraction" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 100 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:FluorescencePotential rdf:type skos:Concept ;
-  skos:prefLabel "Fluorescence Potential"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "V" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:Pheophytin rdf:type skos:Concept ;
-  skos:prefLabel "Pheophytin"@en ;
-  skos:prefLabel "Phéophytine"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mg m-3" ;
-  cnodc:ioosCategory ioos:Biology ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:Fluoride rdf:type skos:Concept ;
-  skos:prefLabel "Fluoride"@en ;
-  skos:prefLabel "Fluorure"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mg L-1" ;
-  cnodc:ioosCategory ioos:Contaminants ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:CurrentDirection rdf:type skos:Concept ;
-  skos:prefLabel "Current Direction (To)"@en ;
-  skos:prefLabel "Direction du courant (à)"@fr ;
-  skos:documentation "Direction to which the water current is moving"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degrees" ;
-  cnodc:standardName "sea_water_velocity_to_direction" ;
-  cnodc:ioosCategory ioos:Currents ; 
-  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
-  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:004 ;
-  skos:exactMatch bufr4B22:005 ;
-  skos:exactMatch pcode:SCDT ;
-  skos:exactMatch pcode:HCDT ;
-  cnodc:wmoCodeGroup "FM18-XII: dn dn" ; 
-  cnodc:wmoCodeGroup "FM62-VIII: d0 d0" ; 
-  cnodc:wmoCodeGroup "FM63-XI: Dc Dc" ; 
-  cnodc:wmoCodeGroup "FM64-X: dn dn" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:CurrentSpeed rdf:type skos:Concept ;
-  skos:prefLabel "Current Speed"@en ;
-  skos:prefLabel "Vitesse du courant"@fr ;
-  skos:documentation "Speed of sea water current"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m s-1" ;
-  cnodc:standardName "sea_water_speed" ;
-  cnodc:ioosCategory ioos:Currents ; 
-  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
-  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:031 ;
-  skos:exactMatch bufr4B22:032 ;
-  skos:exactMatch pcode:SCSP ;
-  skos:exactMatch pcode:HCSP ;
-  cnodc:wmoCodeGroup "FM18-XII: cn cn cn" ; 
-  cnodc:wmoCodeGroup "FM62-VIII: c0 c0" ; 
-  cnodc:wmoCodeGroup "FM63-XI: Vc Vc" ; 
-  cnodc:wmoCodeGroup "FM64-X: cn cn cn" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:AmmoniaMolar rdf:type skos:Concept ;
-  skos:prefLabel "Ammonia (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:NitrateMolar rdf:type skos:Concept ;
-  skos:prefLabel "Nitrate (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:standardName "mole_concentration_of_nitrate_in_sea_water" ;
-  cnodc:variableName "molar_nitrate__nitrate_molaire" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:NitriteMolar rdf:type skos:Concept ;
-  skos:prefLabel "Nitrite (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:standardName "mole_concentration_of_nitrite_in_sea_water" ;
-  cnodc:variableName "molar_nitrite__nitrite_molaire" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:PhosphateMolar rdf:type skos:Concept ;
-  skos:prefLabel "Phosphate (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:SilicateMolar rdf:type skos:Concept ;
-  skos:prefLabel "Silicate (Molarity)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol L-1" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:TotalNitrogenMolar rdf:type skos:Concept ;
-  skos:prefLabel "Total Nitrogen (Molarity)"@en ;
-  skos:prefLabel "Azote total (molarité)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mmol m-3" ;
-  cnodc:standardName "mole_concentration_of_dissolved_nitrogen_in_sea_water" ;
-  cnodc:variableName "molar_total_nitrogen__azote_total_molaire" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:TotalPhosphorousMolar rdf:type skos:Concept ;
-  skos:prefLabel "Total Phosphorous (Molarity)"@en ;
-  skos:prefLabel "Phosphore total (molarité)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mmol m-3" ;
-  cnodc:standardName "mole_concentration_of_phosphate_in_sea_water" ;
-  cnodc:variableName "molar_total_phosphorous__phosphore_total_molaire" ;
-  cnodc:ioosCategory ioos:DissolvedNutrients ; 
-  cnodc:essentialOceanVariable eov:nutrients ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:DissolvedOxygen rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved Oxygen"@en ;
-  skos:prefLabel "Oxygène dissous"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol kg-1" ;
-  cnodc:standardName "moles_of_oxygen_per_unit_mass_in_sea_water" ;
-  cnodc:variableName "dissolved_o2__o2_dissous" ;
-  cnodc:ioosCategory ioos:DissolvedO2 ; 
-  cnodc:essentialOceanVariable eov:oxygen ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:188 ;
-  skos:exactMatch og1:DOXY ;
-  skos:exactMatch pcode:OXYG ;
-  skos:inScheme cnodc:elements .
-
-cnodc:DissolvedOxygenMolar rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved Oxygen (Molarity)"@en ;
-  skos:prefLabel "Oxygène dissous (molarité)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "umol m-3" ;
-  cnodc:standardName "mole_concentration_of_dissolved_molecular_oxygen_in_sea_water" ;
-  cnodc:variableName "molar_dissolved_o2__o2_dissous_molaire" ;
-  cnodc:ioosCategory ioos:DissolvedO2 ; 
-  cnodc:essentialOceanVariable eov:oxygen ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:188 ;
-  skos:exactMatch pcode:OXYG ;
-  skos:inScheme cnodc:elements .
-
-cnodc:DissolvedOxygenFrequency rdf:type skos:Concept ;
-  skos:prefLabel "Dissolved Oxygen (Frequency)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "Hz" ;
-  cnodc:variableName "freq_dissolved_o2__o2_dissous_freq" ;
-  cnodc:ioosCategory ioos:DissolvedO2 ; 
-  cnodc:essentialOceanVariable eov:oxygen ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:DiffuseSolarRadiation rdf:type skos:Concept ;
-  skos:prefLabel "Diffuse Solar Radiation"@en ;
-  skos:prefLabel "Rayonnement solaire diffus"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "J m-2" ;
-  skos:exactMatch bufr4B14:029 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:IceThickness rdf:type skos:Concept ;
-  skos:prefLabel "Ice Thickness"@en ;
-  skos:prefLabel "Épaisseur de glace"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:IceDistribution ; 
-  cnodc:essentialOceanVariable eov:seaIce ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B13:115 ;
-  skos:exactMatch pcode:ICT%24 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SeaIceConcentration rdf:type skos:Concept ;
-  skos:prefLabel "Sea Ice Concentration"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:IceDistribution ; 
-  cnodc:essentialOceanVariable eov:seaIce ; 
-  skos:exactMatch bufr4B20:034 ;
-  skos:inScheme cnodc:elements .
-
 cnodc:CentralFrequency rdf:type skos:Concept ;
   skos:prefLabel "Central Frequency"@en ;
   skos:prefLabel "Fréquence centrale"@fr ;
@@ -470,252 +107,22 @@ cnodc:CentralFrequency rdf:type skos:Concept ;
   skos:exactMatch bufr4B22:080 ;
   skos:inScheme cnodc:elements .
 
-cnodc:CNODCID rdf:type skos:Concept ;
-  skos:prefLabel "CNODC ID"@en ;
-  skos:documentation "Unique identifier of this record in the CNODC database"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCMission rdf:type skos:Concept ;
-  skos:prefLabel "CNODC MissionID"@en ;
-  skos:documentation "Unique identifier of the originating mission"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCPlatform rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Platform UUID"@en ;
-  skos:documentation "UUID of the originating platform"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCProgram rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Program Name"@en ;
-  skos:documentation "Name of the program that collected the profile"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCSource rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Source Name"@en ;
-  skos:documentation "Identifier for the source of the data"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CruiseID rdf:type skos:Concept ;
-  skos:prefLabel "Cruise ID"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:115 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:DeviceID rdf:type skos:Concept ;
-  skos:prefLabel "Device ID"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:FloatCycleNumber rdf:type skos:Concept ;
-  skos:prefLabel "Float Cycle Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B22:055 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:GTSHeader rdf:type skos:Concept ;
-  skos:prefLabel "GTS Header"@en ;
-  skos:documentation "The header sent with this message on the GTS"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:date ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:IMONumber rdf:type skos:Concept ;
-  skos:prefLabel "IMO Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:103 ;
-  skos:exactMatch pcode:LYD%24 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:PlatformModel rdf:type skos:Concept ;
-  skos:prefLabel "Platform Model"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:085 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:PlatformSerialNumber rdf:type skos:Concept ;
-  skos:prefLabel "Platform Serial Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:086 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ProfileDirection rdf:type skos:Concept ;
-  skos:prefLabel "Profile Direction"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B22:056 ;
-  skos:exactMatch pcode:PDR%24 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ProfileID rdf:type skos:Concept ;
-  skos:prefLabel "Profile ID"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:079 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ProfilerSerialNumber rdf:type skos:Concept ;
-  skos:prefLabel "Profiler Serial Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B02:171 ;
-  skos:exactMatch pcode:SER1 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SequenceNumber rdf:type skos:Concept ;
-  skos:prefLabel "Sequence Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:023 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ShipLineNumber rdf:type skos:Concept ;
-  skos:prefLabel "Ship Line Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:080 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ShipTransectNumber rdf:type skos:Concept ;
-  skos:prefLabel "Ship Transect Number"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B05:036 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SoftwareID rdf:type skos:Concept ;
-  skos:prefLabel "Software ID"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B25:061 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:StationID rdf:type skos:Concept ;
-  skos:prefLabel "Station ID"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:011 ;
-  skos:exactMatch pcode:CCLL ;
-  cnodc:wmoCodeGroup "FM62-VIII: D....D" ; 
-  cnodc:wmoCodeGroup "FM63-XI: D....D" ; 
-  cnodc:wmoCodeGroup "FM64-X: D....D" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:StationName rdf:type skos:Concept ;
-  skos:prefLabel "Station Name"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:015 ;
-  skos:exactMatch bufr4B01:019 ;
-  skos:exactMatch pcode:PLTN ;
-  skos:exactMatch pcode:PNM1 ;
-  skos:exactMatch pcode:SHP%2523 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:TransmitterID rdf:type skos:Concept ;
-  skos:prefLabel "Transmitter ID"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:051 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WIGOSID rdf:type skos:Concept ;
-  skos:prefLabel "WIGOS Identifier"@en ;
-  skos:documentation "WIGOS identifier as assigned by the WMO"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:narrowerMatch bufr4B01:125 ;
-  skos:narrowerMatch bufr4B01:126 ;
-  skos:narrowerMatch bufr4B01:127 ;
-  skos:narrowerMatch bufr4B01:128 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOID rdf:type skos:Concept ;
-  skos:prefLabel "WMO Identifier"@en ;
-  skos:documentation "WMO identifier as assigned by the WMO"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:087 ;
-  skos:narrowerMatch bufr4B01:001 ;
-  skos:narrowerMatch bufr4B01:002 ;
-  skos:narrowerMatch bufr4B01:003 ;
-  skos:narrowerMatch bufr4B01:004 ;
-  skos:narrowerMatch bufr4B01:005 ;
-  skos:narrowerMatch bufr4B01:020 ;
-  skos:exactMatch pcode:WMO%24 ;
-  cnodc:wmoCodeGroup "FM18-XII: A1 bw nb nb nb" ; 
-  cnodc:wmoCodeGroup "FM63-XI: A1 bw nb nb nb" ; 
-  cnodc:wmoCodeGroup "FM64-X: A1 bw nb nb nb" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOSatelliteIdentifier rdf:type skos:Concept ;
-  skos:prefLabel "WMO Satellite Identifier"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Identifier ; 
-  skos:exactMatch bufr4B01:007 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BarometerHeight rdf:type skos:Concept ;
-  skos:prefLabel "Barometer Height"@en ;
-  cnodc:elementGroup "metadata" ;
+cnodc:Depth rdf:type skos:Concept ;
+  skos:prefLabel "Depth"@en ;
+  skos:prefLabel "Profondeur"@fr ;
+  skos:documentation "Depth in distance units beneath the ocean surface"@en ;
+  cnodc:elementGroup "coordinates" ;
   cnodc:dataType xsd:decimal ;
   cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B07:031 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:DrogueDepth rdf:type skos:Concept ;
-  skos:prefLabel "Drogue Depth"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B07:070 ;
-  skos:exactMatch pcode:DRDP ;
+  cnodc:standardName "depth" ;
+  cnodc:variableName "depth" ;
+  cnodc:ioosCategory ioos:Bathymetry ; 
+  cnodc:minValue 0 ; 
+  skos:exactMatch bufr4B07:062 ;
+  skos:exactMatch bufr4B07:063 ;
+  cnodc:wmoCodeGroup "FM18-XII: zn zn zn zn" ; 
+  cnodc:wmoCodeGroup "FM63-XI: zn zn" ; 
+  cnodc:wmoCodeGroup "FM64-X: zn zn zn zn" ; 
   skos:inScheme cnodc:elements .
 
 cnodc:Latitude rdf:type skos:Concept ;
@@ -760,250 +167,13 @@ cnodc:Longitude rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM64-X: Qc + Lo Lo Lo Lo Lo Lo" ; 
   skos:inScheme cnodc:elements .
 
-cnodc:SensorDepth rdf:type skos:Concept ;
-  skos:prefLabel "Sensor Depth"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
+cnodc:ObservationNumber rdf:type skos:Concept ;
+  skos:prefLabel "Observation Number"@en ;
+  skos:documentation "Number of the observation, for when no other coordinate is available or useful"@en ;
+  cnodc:elementGroup "coordinates" ;
+  cnodc:dataType xsd:integer ;
   cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B07:063 ;
-  skos:exactMatch pcode:DEPH ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SensorHeightAboveWater rdf:type skos:Concept ;
-  skos:prefLabel "Sensor Height (Above Water)"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B07:033 ;
-  cnodc:wmoCodeGroup "FM18-XII: Ah Ah Ah" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:SensorHeightLocal rdf:type skos:Concept ;
-  skos:prefLabel "Sensor Height (Above Local Ground)"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B07:032 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:StationHeight rdf:type skos:Concept ;
-  skos:prefLabel "Station Height"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B07:030 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:XBTHeight rdf:type skos:Concept ;
-  skos:prefLabel "XBT Height"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Location ; 
-  skos:exactMatch bufr4B22:177 ;
-  skos:exactMatch pcode:HTL%24 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:AirPressure rdf:type skos:Concept ;
-  skos:prefLabel "Air Pressure"@en ;
-  skos:prefLabel "Pression atmosphérique"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "Pa" ;
-  cnodc:standardName "air_pressure" ;
-  cnodc:variableName "air_pressure__pression_air" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
   cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B10:004 ;
-  skos:exactMatch pcode:ATMP ;
-  cnodc:wmoCodeGroup "FM18-XII: P0 P0 P0 P0" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:AirPressureAtSeaLevel rdf:type skos:Concept ;
-  skos:prefLabel "Air Pressure (At Sea Level)"@en ;
-  skos:prefLabel "Pression atmosphérique (au niveau de la mer)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "Pa" ;
-  cnodc:standardName "air_pressure_at_mean_sea_level" ;
-  cnodc:variableName "msl_air_pressure__pression_air_nmm" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B10:051 ;
-  skos:exactMatch pcode:ATMS ;
-  cnodc:wmoCodeGroup "FM18-XII: P P P P" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:AirPressureChange rdf:type skos:Concept ;
-  skos:prefLabel "Air Pressure (Change)"@en ;
-  skos:prefLabel "Pression atmosphérique (variation)"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "Pa" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:AirTemperature rdf:type skos:Concept ;
-  skos:prefLabel "Dry Bulb Temperature"@en ;
-  skos:prefLabel "Température de bulbe sec"@fr ;
-  skos:documentation "Dry bulb air temperature"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "K" ;
-  cnodc:standardName "air_temperature" ;
-  cnodc:variableName "air_temperature" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B12:101 ;
-  skos:exactMatch pcode:DRYT ;
-  cnodc:wmoCodeGroup "FM18-XII: sn T T T" ; 
-  cnodc:wmoCodeGroup "FM63-XI: sn T T T" ; 
-  cnodc:wmoCodeGroup "FM64-X: sn T T T" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:DewPointTemperature rdf:type skos:Concept ;
-  skos:prefLabel "Dew Point Temperature"@en ;
-  skos:prefLabel "Température du point de rosée"@fr ;
-  skos:documentation "Dewpoint temperature of the air"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "K" ;
-  cnodc:standardName "dew_point_temperature" ;
-  cnodc:variableName "dew_point__point_rosee" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:DirectSolarRadiation rdf:type skos:Concept ;
-  skos:prefLabel "Direct Solar Radiation"@en ;
-  skos:prefLabel "Rayonnement solaire direct"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:exactMatch bufr4B14:030 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:GlobalSolarRadiation rdf:type skos:Concept ;
-  skos:prefLabel "Global Solar Radiation"@en ;
-  skos:prefLabel "Rayonnement solaire global"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:exactMatch bufr4B14:028 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:HorizontalVisibility rdf:type skos:Concept ;
-  skos:prefLabel "Horizontal Visibility"@en ;
-  skos:prefLabel "Visibilité horizontale"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B20:001 ;
-  skos:exactMatch pcode:VISB ;
-  skos:inScheme cnodc:elements .
-
-cnodc:LongwaveRadiation rdf:type skos:Concept ;
-  skos:prefLabel "Longwave Radiation"@en ;
-  skos:prefLabel "Rayonnement solaire à ondes longues"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:exactMatch bufr4B14:002 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:NetRadiation rdf:type skos:Concept ;
-  skos:prefLabel "Net Radiation"@en ;
-  skos:prefLabel "Rayonnement net"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:exactMatch bufr4B14:016 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:RelativeHumidity rdf:type skos:Concept ;
-  skos:prefLabel "Relative Humidity"@en ;
-  skos:prefLabel "Humidité relative"@fr ;
-  skos:documentation "Fraction of maximum possible humidity contained in the air"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "0.01" ;
-  cnodc:standardName "relative_humidity" ;
-  cnodc:variableName "relative_humidity__humidite_relative" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 100 ; 
-  skos:exactMatch bufr4B13:003 ;
-  skos:exactMatch pcode:RELH ;
-  cnodc:wmoCodeGroup "FM18-XII: U U U" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:ShortwaveRadiation rdf:type skos:Concept ;
-  skos:prefLabel "Shortwave Radiation"@en ;
-  skos:prefLabel "Rayonnement solaire à ondes courtes"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "J m-2" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:exactMatch bufr4B14:004 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:TotalPrecipitation rdf:type skos:Concept ;
-  skos:prefLabel "Total Precipitation"@en ;
-  skos:prefLabel "Précipitations totales"@fr ;
-  skos:documentation "Total precipitation that has fallen in a given reporting period"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "kg m-2" ;
-  cnodc:standardName "precipitation_amount" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B13:011 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WetBulbTemperature rdf:type skos:Concept ;
-  skos:prefLabel "Wet Bulb Temperature"@en ;
-  skos:prefLabel "Température de bulbe humide"@fr ;
-  skos:documentation "Wet bulb air temperature"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "K" ;
-  cnodc:standardName "wet_bulb_temperature" ;
-  cnodc:variableName "wet_bulb_temperature__temperature_bulbe_humide" ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B12:102 ;
-  skos:exactMatch pcode:WETT ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOAirPressureCharacteristic rdf:type skos:Concept ;
-  skos:prefLabel "WMO Air Pressure Characteristic"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Meteorology ; 
-  skos:exactMatch bufr4B10:063 ;
-  skos:exactMatch pcode:GPT%24 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:LightTransmission rdf:type skos:Concept ;
-  skos:prefLabel "Light Transmission"@en ;
-  skos:prefLabel "Transmission de la lumière"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "0.01" ;
-  cnodc:variableName "transmissivity__transmissivite" ;
-  cnodc:ioosCategory ioos:OpticalProperties ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 100 ; 
   skos:inScheme cnodc:elements .
 
 cnodc:Pressure rdf:type skos:Concept ;
@@ -1019,502 +189,6 @@ cnodc:Pressure rdf:type skos:Concept ;
   cnodc:minValue 0 ; 
   skos:exactMatch bufr4B07:065 ;
   skos:exactMatch og1:PRES ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Quality rdf:type skos:Concept ;
-  skos:prefLabel "Quality Flag"@en ;
-  skos:documentation "GTSPP compatible quality flag"@en ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:standardName "quality_flag" ;
-  cnodc:ioosCategory ioos:Quality ; 
-  cnodc:allowedValue "0" ;
-  cnodc:allowedValue "1" ;
-  cnodc:allowedValue "2" ;
-  cnodc:allowedValue "3" ;
-  cnodc:allowedValue "4" ;
-  cnodc:allowedValue "5" ;
-  cnodc:allowedValue "6" ;
-  cnodc:allowedValue "7" ;
-  cnodc:allowedValue "8" ;
-  cnodc:allowedValue "9" ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:exactMatch bufr4B08:080 ;
-  cnodc:wmoCodeGroup "FM18-XII: Ql" ; 
-  cnodc:wmoCodeGroup "FM18-XII: Qt" ; 
-  cnodc:wmoCodeGroup "FM18-XII: Qd Qx" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOQualityLocation rdf:type skos:Concept ;
-  skos:prefLabel "WMO Quality Location"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Quality ; 
-  skos:exactMatch bufr4B33:023 ;
-  skos:exactMatch pcode:GGLC ;
-  skos:broaderMatch pcode:GGST ;
-  cnodc:wmoCodeGroup "FM18-XII: QL" ; 
-  cnodc:wmoCodeGroup "FM18-XII: QA" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOQualityLocationClass rdf:type skos:Concept ;
-  skos:prefLabel "WMO Quality Location Class"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Quality ; 
-  skos:exactMatch bufr4B33:027 ;
-  skos:exactMatch pcode:BQA%24 ;
-  skos:broaderMatch pcode:GGST ;
-  cnodc:wmoCodeGroup "FM18-XII: QA" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOQualitySatellite rdf:type skos:Concept ;
-  skos:prefLabel "WMO Quality Satellite"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ioosCategory ioos:Quality ; 
-  skos:exactMatch bufr4B33:022 ;
-  skos:broaderMatch pcode:GGST ;
-  cnodc:wmoCodeGroup "FM18-XII: QN" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WorkingQuality rdf:type skos:Concept ;
-  skos:prefLabel "Quality (Working)"@en ;
-  skos:documentation "Internally proposed quality flag"@en ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory ioos:Quality ; 
-  cnodc:allowedValue "0" ;
-  cnodc:allowedValue "1" ;
-  cnodc:allowedValue "2" ;
-  cnodc:allowedValue "3" ;
-  cnodc:allowedValue "4" ;
-  cnodc:allowedValue "5" ;
-  cnodc:allowedValue "9" ;
-  cnodc:allowedValue "13" ;
-  cnodc:allowedValue "14" ;
-  cnodc:allowedValue "15" ;
-  cnodc:allowedValue "19" ;
-  cnodc:allowedValue "20" ;
-  cnodc:allowedValue "21" ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:AbsoluteSalinity rdf:type skos:Concept ;
-  skos:prefLabel "Absolute Salinity"@en ;
-  skos:prefLabel "Salinité absolue"@fr ;
-  skos:documentation "Mass fraction of dissolved salts in water"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "g kg-1" ;
-  cnodc:standardName "sea_water_absolute_salinity" ;
-  cnodc:ioosCategory ioos:Salinity ; 
-  cnodc:essentialOceanVariable eov:seaSurfaceSalinity ; 
-  cnodc:essentialOceanVariable eov:subSurfaceSalinity ; 
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:PracticalSalinity rdf:type skos:Concept ;
-  skos:prefLabel "Practical Salinity"@en ;
-  skos:prefLabel "Salinité pratique"@fr ;
-  skos:documentation "Salinity measured using the Practical Salinity Scale of 1978"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "0.001" ;
-  cnodc:standardName "sea_water_practical_salinity" ;
-  cnodc:variableName "salinity__salinite" ;
-  cnodc:ioosCategory ioos:Salinity ; 
-  cnodc:essentialOceanVariable eov:seaSurfaceSalinity ; 
-  cnodc:essentialOceanVariable eov:subSurfaceSalinity ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:062 ;
-  skos:exactMatch bufr4B22:064 ;
-  skos:exactMatch og1:PSAL ;
-  skos:exactMatch pcode:SSPS ;
-  skos:exactMatch pcode:PSAL ;
-  cnodc:wmoCodeGroup "FM18-XII: Sn Sn Sn Sn" ; 
-  cnodc:wmoCodeGroup "FM62-VIII: S0 S0 S0 S0" ; 
-  cnodc:wmoCodeGroup "FM64-X: Sn Sn Sn Sn" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:FourierA1 rdf:type skos:Concept ;
-  skos:prefLabel "Fourier A1 Parameter"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:Statistics ; 
-  skos:exactMatch bufr4B42:011 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:FourierA2 rdf:type skos:Concept ;
-  skos:prefLabel "Fourier A2 Parameter"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:Statistics ; 
-  skos:exactMatch bufr4B42:013 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:FourierB1 rdf:type skos:Concept ;
-  skos:prefLabel "Fourier B1 Parameter"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:Statistics ; 
-  skos:exactMatch bufr4B42:012 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:FourierB2 rdf:type skos:Concept ;
-  skos:prefLabel "Fourier B2 Parameter"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:Statistics ; 
-  skos:exactMatch bufr4B42:014 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:FourierK rdf:type skos:Concept ;
-  skos:prefLabel "Fourier K Parameter"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:Statistics ; 
-  skos:exactMatch bufr4B42:015 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Uncertainty rdf:type skos:Concept ;
-  skos:prefLabel "Uncertainty"@en ;
-  skos:documentation "Absolute uncertainty of a measurement, in the same units as the value"@en ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:Statistics ; 
-  cnodc:minValue 0 ; 
-  skos:relatedMatch bufr4B02:005 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveBandCount rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Band Count"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:094 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveBandWidth rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Band Width"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "s-1" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:096 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveDensity rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Density"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m2 Hz-1" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:069 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveDensityByFrequency rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Density By Frequency"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m2 s" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:104 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveDensityRatio rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Density Ratio"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "0.01" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:108 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveDirDensityByFrequency rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Direction Density By Frequency"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m2 s rad-1" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:106 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveFourier1 rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Fourier 1"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:088 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveFourier2 rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Fourier 2"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:089 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveMaxDensityByFrequency rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Maximuim Density By Frequency"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m2 s" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:082 ;
-  skos:exactMatch bufr4B22:102 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWaveMaxWaveBand rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Maximum Wave Band"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B22:084 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpectralWavePeakPeriod rdf:type skos:Concept ;
-  skos:prefLabel "Spectral Wave Peak Period"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:071 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveAveragePeriod rdf:type skos:Concept ;
-  skos:prefLabel "Wave Average Period"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:074 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveDirection rdf:type skos:Concept ;
-  skos:prefLabel "Wave Direction (From)"@en ;
-  skos:documentation "Direction the waves are coming from in degrees from north"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:standardName "sea_surface_wave_from_direction" ;
-  cnodc:variableName "wave_direction__direction_vagues" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:186 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveDominantDirection rdf:type skos:Concept ;
-  skos:prefLabel "Wave Dominant Direction (From)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:076 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveDominantSpread rdf:type skos:Concept ;
-  skos:prefLabel "Wave Dominant Spread"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:077 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveHeight rdf:type skos:Concept ;
-  skos:prefLabel "Wave Height"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:021 ;
-  cnodc:wmoCodeGroup "FM18-XII: Hwa Hwa" ; 
-  cnodc:wmoCodeGroup "FM18-XII: Hwa Hwa Hwa" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveMaximumHeight rdf:type skos:Concept ;
-  skos:prefLabel "Wave Maximum Height"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:standardName "sea_surface_wave_maximum_height" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:073 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveMeanDirection rdf:type skos:Concept ;
-  skos:prefLabel "Wave Mean Direction (From)"@en ;
-  skos:documentation "Average direction that waves are coming from in degrees from north"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:086 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WavePeriod rdf:type skos:Concept ;
-  skos:prefLabel "Wave Period"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:011 ;
-  cnodc:wmoCodeGroup "FM18-XII: Pwa Pwa" ; 
-  cnodc:wmoCodeGroup "FM18-XII: Pwa Pwa Pwa" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WavePrincipalDirection rdf:type skos:Concept ;
-  skos:prefLabel "Wave Principal Direction (From)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:standardName "sea_surface_wave_principal_from_direction" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:087 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveSamplingTime rdf:type skos:Concept ;
-  skos:prefLabel "Wave Sampling Time"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  skos:exactMatch bufr4B25:043 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveSignificantHeight rdf:type skos:Concept ;
-  skos:prefLabel "Wave Significant Height"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m" ;
-  cnodc:standardName "sea_surface_wave_significant_height" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:070 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WaveSpread rdf:type skos:Concept ;
-  skos:prefLabel "Wave Spread"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:ioosCategory ioos:SurfaceWaves ; 
-  cnodc:essentialOceanVariable eov:seaState ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B22:187 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Temperature rdf:type skos:Concept ;
-  skos:prefLabel "Water Temperature"@en ;
-  skos:prefLabel "Température de l'eau"@fr ;
-  skos:documentation "Water temperature"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "K" ;
-  cnodc:standardName "sea_water_temperature" ;
-  cnodc:variableName "temperature" ;
-  cnodc:ioosCategory ioos:Temperature ; 
-  cnodc:essentialOceanVariable eov:seaSurfaceTemperature ; 
-  cnodc:essentialOceanVariable eov:subSurfaceTemperature ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B22:042 ;
-  skos:exactMatch bufr4B22:043 ;
-  skos:exactMatch bufr4B22:045 ;
-  skos:exactMatch bufr4B22:049 ;
-  skos:exactMatch og1:TEMP ;
-  skos:exactMatch pcode:TEMP ;
-  skos:exactMatch pcode:SSTP ;
-  cnodc:wmoCodeGroup "FM18-XII: Tw Tw Tw" ; 
-  cnodc:wmoCodeGroup "FM18-XII: Tn Tn Tn Tn" ; 
-  cnodc:wmoCodeGroup "FM62-VIII: sn Tw Tw Tw" ; 
-  cnodc:wmoCodeGroup "FM63-XI: Tn Tn Tn" ; 
-  cnodc:wmoCodeGroup "FM64-X: Tn Tn Tn Tn" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:LastKnownPositionTime rdf:type skos:Concept ;
-  skos:prefLabel "Time of Last Known Position"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:dateTimeStamp ;
-  cnodc:ioosCategory ioos:Time ; 
-  skos:relatedMatch bufr4B08:021 ;
-  skos:narrowerMatch bufr4B04:001 ;
-  skos:narrowerMatch bufr4B04:002 ;
-  skos:narrowerMatch bufr4B04:003 ;
-  skos:narrowerMatch bufr4B04:004 ;
-  skos:narrowerMatch bufr4B04:005 ;
-  skos:narrowerMatch bufr4B04:006 ;
-  skos:narrowerMatch bufr4B04:007 ;
-  skos:narrowerMatch pcode:PDT%24 ;
-  skos:narrowerMatch pcode:PTM%24 ;
-  cnodc:wmoCodeGroup "FM18-XII Buoy: Y Y M M J G G g g / (Second Group)" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:ObservationPeriod rdf:type skos:Concept ;
-  skos:prefLabel "Observation Period"@en ;
-  skos:documentation "Time over which a measurement was taken"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:preferredUnit "s" ;
-  cnodc:ioosCategory ioos:Time ; 
-  skos:narrowerMatch bufr4B04:021 ;
-  skos:narrowerMatch bufr4B04:022 ;
-  skos:narrowerMatch bufr4B04:023 ;
-  skos:narrowerMatch bufr4B04:024 ;
-  skos:narrowerMatch bufr4B04:025 ;
-  skos:narrowerMatch bufr4B04:026 ;
-  cnodc:wmoCodeGroup "FM62-VIII: mT" ; 
-  cnodc:wmoCodeGroup "FM62-VIII: mS" ; 
-  cnodc:wmoCodeGroup "FM62-VIII: mc" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:SubmergenceTime rdf:type skos:Concept ;
-  skos:prefLabel "Submergence Time"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "0.01" ;
-  cnodc:ioosCategory ioos:Time ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 100 ; 
-  skos:exactMatch bufr4B02:190 ;
   skos:inScheme cnodc:elements .
 
 cnodc:Time rdf:type skos:Concept ;
@@ -1556,453 +230,14 @@ cnodc:TimeOffset rdf:type skos:Concept ;
   skos:narrowerMatch bufr4B04:026 ;
   skos:inScheme cnodc:elements .
 
-cnodc:WindDirection rdf:type skos:Concept ;
-  skos:prefLabel "Wind Direction (From)"@en ;
-  skos:prefLabel "Direction du vent (de)"@fr ;
-  skos:documentation "Direction the wind is coming from"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:standardName "wind_from_direction" ;
-  cnodc:variableName "wind_direction__direction_vents" ;
-  cnodc:ioosCategory ioos:Wind ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B11:001 ;
-  skos:exactMatch pcode:WDIR ;
-  cnodc:wmoCodeGroup "FM18-XII: d d" ; 
-  cnodc:wmoCodeGroup "FM63-XI: d d" ; 
-  cnodc:wmoCodeGroup "FM64-X: dd" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WindGustMaxDirection rdf:type skos:Concept ;
-  skos:prefLabel "Wind Gust Max Direction (From)"@en ;
-  skos:prefLabel "Direction des rafales de vent (de)"@fr ;
-  skos:documentation "Direction the maximum speed wind gusts are coming from"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:standardName "wind_gust_from_direction" ;
-  cnodc:ioosCategory ioos:Wind ; 
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B11:043 ;
-  skos:exactMatch pcode:GDIR ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WindGustMaxSpeed rdf:type skos:Concept ;
-  skos:prefLabel "Wind Gust Max Speed"@en ;
-  skos:prefLabel "Vitesse maximale des rafales de vent"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m s-1" ;
-  cnodc:standardName "wind_speed_of_gust" ;
-  cnodc:ioosCategory ioos:Wind ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B11:041 ;
-  skos:exactMatch pcode:GSPD ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WindSpeed rdf:type skos:Concept ;
-  skos:prefLabel "Wind Speed"@en ;
-  skos:prefLabel "Vitesse du vent"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m s-1" ;
-  cnodc:standardName "wind_speed" ;
-  cnodc:variableName "wind_speed__vitesse_vents" ;
-  cnodc:ioosCategory ioos:Wind ; 
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B11:002 ;
-  skos:exactMatch pcode:WSPD ;
-  cnodc:wmoCodeGroup "FM18-XII: f f" ; 
-  cnodc:wmoCodeGroup "FM63-XI: f f" ; 
-  cnodc:wmoCodeGroup "FM64-X: f f" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:AggregationMethod rdf:type skos:Concept ;
-  skos:prefLabel "Aggregation Method"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:narrowerMatch bufr4B08:021 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BatteryVoltage rdf:type skos:Concept ;
-  skos:prefLabel "Battery Voltage"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "V" ;
-  skos:exactMatch bufr4B25:025 ;
-  skos:exactMatch bufr4B25:026 ;
-  skos:exactMatch pcode:PBV%24 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFRDataCategory rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Data Category"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFRDescriptors rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Descriptors"@en ;
-  skos:documentation "A list of BUFR descriptors attached to this message"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType cnodc:List ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFRInferredMessageType rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Inferred Message Type"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType cnodc:List ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFRIsObservation rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Is Observation"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 1 ; 
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFRMessageTime rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Message Time"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:dateTimeStamp ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFROriginCentre rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Origin Centre"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFROriginSubcentre rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Origin Subcentre"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:BUFRSubsetIndex rdf:type skos:Concept ;
-  skos:prefLabel "BUFR Subset Index"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCDuplicateDate rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Duplicate Date"@en ;
-  skos:documentation "If present, the record is a duplicate of another better record and this is the date the CNODC received that record"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:date ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCDuplicateID rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Duplicate ID"@en ;
-  skos:documentation "If present, the record is a duplicate of another better record and this is that records ID"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCEmbargoUntil rdf:type skos:Concept ;
-  skos:prefLabel "Embargo Date"@en ;
-  skos:documentation "If present, the record may not be released to the public until the given date has passed."@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:dateTimeStamp ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCInstrumentType rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Instrument Type"@en ;
-  skos:documentation "Type of instrument that collected the information"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCLevel rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Processing Level"@en ;
-  skos:documentation "Processing level of the data record"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCOperatorAction rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Record Status (Working)"@en ;
-  skos:documentation "Working status of the data record"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:allowedValue "DISCARD" ;
-  cnodc:allowedValue "MARK_DUPLICATE" ;
-  cnodc:allowedValue "ARCHIVE" ;
-  cnodc:allowedValue "MARK_DUBIOUS" ;
-  cnodc:allowedValue "RECOMMEND_DISCARD" ;
-  cnodc:allowedValue "RECOMMEND_DUPLICATE" ;
-  cnodc:allowedValue "RECOMMEND_ARCHIVAL" ;
-  cnodc:allowedValue "RECOMMEND_DUBIOUS" ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCPlatformCandidates rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Platform Candidates"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType cnodc:List ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCStatus rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Record Status"@en ;
-  skos:documentation "Status of the data record"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:allowedValue "DISCARDED" ;
-  cnodc:allowedValue "DUPLICATE" ;
-  cnodc:allowedValue "ARCHIVED" ;
-  cnodc:allowedValue "VERIFIED" ;
-  cnodc:allowedValue "UNVERIFIED" ;
-  cnodc:allowedValue "DUBIOUS" ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCWorkingDuplicateDate rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Duplicate Date (Working)"@en ;
-  skos:documentation "If present, the record is a duplicate of another better record and this is the date the CNODC received that record"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:date ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:CNODCWorkingDuplicateID rdf:type skos:Concept ;
-  skos:prefLabel "CNODC Duplicate ID (Working)"@en ;
-  skos:documentation "If present, the record is a duplicate of another better record and this is that records ID"@en ;
-  cnodc:elementGroup "metadata:record" ;
-  cnodc:dataType xsd:string ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Conductivity rdf:type skos:Concept ;
-  skos:prefLabel "Conductivity"@en ;
-  skos:prefLabel "Conductivité"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "S m-1" ;
-  cnodc:standardName "sea_water_electrical_conductivity" ;
-  cnodc:variableName "conductivity__conductivite" ;
-  cnodc:minValue 0 ; 
-  skos:exactMatch og1:CNDC ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Density rdf:type skos:Concept ;
-  skos:prefLabel "Water Density"@en ;
-  skos:prefLabel "Densité de l'eau"@fr ;
-  skos:documentation "Density of water"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "kg m-3" ;
-  cnodc:standardName "sea_water_density" ;
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:InstrumentManufacturingDate rdf:type skos:Concept ;
-  skos:prefLabel "Instrument Manufacturing Date"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:dateTimeStamp ;
-  skos:relatedMatch bufr4B08:041 ;
-  skos:narrowerMatch bufr4B04:001 ;
-  skos:narrowerMatch bufr4B04:002 ;
-  skos:narrowerMatch bufr4B04:003 ;
-  skos:narrowerMatch bufr4B04:004 ;
-  skos:narrowerMatch bufr4B04:005 ;
-  skos:narrowerMatch bufr4B04:006 ;
-  skos:narrowerMatch bufr4B04:007 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:ParticulateCarbon rdf:type skos:Concept ;
-  skos:prefLabel "Particulate Carbon"@en ;
-  skos:prefLabel "Carbone particulaire"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "mg L-1" ;
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:PlatformDirection rdf:type skos:Concept ;
-  skos:prefLabel "Platform Direction"@en ;
-  skos:documentation "Direction the platform is moving in degrees from north"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "degree" ;
-  cnodc:standardName "platform_orientation" ;
-  cnodc:variableName "platform_direction__direction_platforme" ;
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 360 ; 
-  skos:exactMatch bufr4B01:012 ;
-  skos:exactMatch pcode:HEAD ;
-  skos:inScheme cnodc:elements .
-
-cnodc:PlatformPitch rdf:type skos:Concept ;
-  skos:prefLabel "Platform Pitch"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  skos:inScheme cnodc:elements .
-
-cnodc:PlatformRoll rdf:type skos:Concept ;
-  skos:prefLabel "Platform Roll"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  skos:inScheme cnodc:elements .
-
-cnodc:PlatformSpeed rdf:type skos:Concept ;
-  skos:prefLabel "Platform Speed"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m s-1" ;
-  cnodc:standardName "platform_speed_wrt_sea_water" ;
-  cnodc:variableName "platform_speed__vitesse_plateforme" ;
-  cnodc:minValue 0 ; 
-  skos:exactMatch bufr4B01:013 ;
-  skos:exactMatch bufr4B01:014 ;
-  skos:exactMatch pcode:SPDR ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SensorFrequency rdf:type skos:Concept ;
-  skos:prefLabel "Sensor Frequency"@en ;
-  skos:prefLabel "Fréquence du capteur"@fr ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "s-1" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SoundVelocity rdf:type skos:Concept ;
-  skos:prefLabel "Speed of Sound"@en ;
-  skos:prefLabel "Vitesse du son"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m s-1" ;
-  cnodc:standardName "speed_of_sound_in_sea_water" ;
-  cnodc:minValue 0 ; 
-  skos:exactMatch pcode:SVEL ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SpecificConductance rdf:type skos:Concept ;
-  skos:prefLabel "Specific Conductance"@en ;
-  skos:prefLabel "Conductivité spécifique"@fr ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "S m-1" ;
-  cnodc:standardName "sea_water_electrical_conductivity_at_reference_temperature" ;
-  cnodc:variableName "specific_conductivity__conductivite_specifique" ;
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:SurfaceType rdf:type skos:Concept ;
-  skos:prefLabel "Surface Type"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B08:029 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:TemperatureScale rdf:type skos:Concept ;
-  skos:prefLabel "Temperature Scale"@en ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:string ;
-  cnodc:allowedValue "ITS-90" ;
-  cnodc:allowedValue "IPTS-68" ;
-  cnodc:allowedValue "IPTS-48" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Turbidity rdf:type skos:Concept ;
-  skos:prefLabel "Turbidity"@en ;
-  skos:prefLabel "Turbidité"@fr ;
-  skos:documentation "Turbidity as mesasured in Nephelometric Turbidity Units (NTUs)"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "1" ;
-  cnodc:standardName "sea_water_turbidity" ;
-  cnodc:variableName "turbidity__turbidite" ;
-  cnodc:minValue 0 ; 
-  skos:exactMatch og1:TURB ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Unadjusted rdf:type skos:Concept ;
-  skos:prefLabel "Unadjusted Value"@en ;
-  skos:prefLabel "Valeur non ajustée"@fr ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType cnodc:Element ;
-  cnodc:ignoreInDuplicateCheck "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:Units rdf:type skos:Concept ;
-  skos:prefLabel "Units"@en ;
-  skos:documentation "Units relevant to a value"@en ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:string ;
-  skos:inScheme cnodc:elements .
-
 cnodc:WaveSensor rdf:type skos:Concept ;
   skos:prefLabel "Wave Sensor Type"@en ;
   skos:prefLabel "Type de capteur de vague"@fr ;
   skos:documentation "Heave (1) or Slope (2) sensor"@en ;
   cnodc:elementGroup "coordinates" ;
-  cnodc:dataType xsd:string ;
+  cnodc:dataType xsd:integer ;
   cnodc:variableName "wave_sensor__capteur_vague" ;
   skos:exactMatch bufr4B02:046 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOAgencyCode rdf:type skos:Concept ;
-  skos:prefLabel "WMO Agency Code"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B01:036 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOAnemometerType rdf:type skos:Concept ;
-  skos:prefLabel "WMO Anemometer Type"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B02:169 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOBuoyType rdf:type skos:Concept ;
-  skos:prefLabel "WMO Buoy Type"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B02:036 ;
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOCurrentMeasurementDuration rdf:type skos:Concept ;
-  skos:prefLabel "WMO Current Measurement Duration"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B02:031 ;
-  skos:exactMatch pcode:GGEC ;
-  cnodc:wmoCodeGroup "FM64-X: k3" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WMOCurrentMeasurementMethod rdf:type skos:Concept ;
-  skos:prefLabel "WMO Current Measurement Method"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B02:030 ;
-  skos:exactMatch pcode:GGCM ;
-  cnodc:wmoCodeGroup "FM63-XI: k5" ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:WMODataBuoyType rdf:type skos:Concept ;
-  skos:prefLabel "WMO Data Buoy Type"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B02:149 ;
-  skos:exactMatch pcode:BTP%24 ;
-  cnodc:wmoCodeGroup "FM18-XII: Bt Bt" ; 
   skos:inScheme cnodc:elements .
 
 cnodc:WMODataSystem rdf:type skos:Concept ;
@@ -2092,6 +327,39 @@ cnodc:WMOProfileRecorderType rdf:type skos:Concept ;
   cnodc:wmoCodeGroup "FM64-X: XR XR" ; 
   skos:inScheme cnodc:elements .
 
+cnodc:WMOQualityLocation rdf:type skos:Concept ;
+  skos:prefLabel "WMO Quality Location"@en ;
+  cnodc:elementGroup "metadata" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Quality ; 
+  skos:exactMatch bufr4B33:023 ;
+  skos:exactMatch pcode:GGLC ;
+  skos:broaderMatch pcode:GGST ;
+  cnodc:wmoCodeGroup "FM18-XII: QL" ; 
+  cnodc:wmoCodeGroup "FM18-XII: QA" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WMOQualityLocationClass rdf:type skos:Concept ;
+  skos:prefLabel "WMO Quality Location Class"@en ;
+  cnodc:elementGroup "metadata" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Quality ; 
+  skos:exactMatch bufr4B33:027 ;
+  skos:exactMatch pcode:BQA%24 ;
+  skos:broaderMatch pcode:GGST ;
+  cnodc:wmoCodeGroup "FM18-XII: QA" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WMOQualitySatellite rdf:type skos:Concept ;
+  skos:prefLabel "WMO Quality Satellite"@en ;
+  cnodc:elementGroup "metadata" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Quality ; 
+  skos:exactMatch bufr4B33:022 ;
+  skos:broaderMatch pcode:GGST ;
+  cnodc:wmoCodeGroup "FM18-XII: QN" ; 
+  skos:inScheme cnodc:elements .
+
 cnodc:WMOSalinityDepthMeasurementMethod rdf:type skos:Concept ;
   skos:prefLabel "WMO Salinity Depth Measurement Method"@en ;
   cnodc:elementGroup "metadata" ;
@@ -2099,6 +367,14 @@ cnodc:WMOSalinityDepthMeasurementMethod rdf:type skos:Concept ;
   skos:exactMatch bufr4B02:033 ;
   skos:exactMatch pcode:GGSL ;
   cnodc:wmoCodeGroup "FM64-X: k2" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WMOSatelliteIdentifier rdf:type skos:Concept ;
+  skos:prefLabel "WMO Satellite Identifier"@en ;
+  cnodc:elementGroup "metadata" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:007 ;
   skos:inScheme cnodc:elements .
 
 cnodc:WMOSpectralWaveMethod rdf:type skos:Concept ;
@@ -2136,83 +412,134 @@ cnodc:WMOWetBulbMeasurementMethod rdf:type skos:Concept ;
   skos:exactMatch bufr4B02:039 ;
   skos:inScheme cnodc:elements .
 
-cnodc:WMOWindInstrumentType rdf:type skos:Concept ;
-  skos:prefLabel "WMO Wind Instrument Type"@en ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:string ;
-  skos:exactMatch bufr4B02:002 ;
-  skos:exactMatch pcode:GGWI ;
-  skos:exactMatch pcode:ANT%24 ;
-  cnodc:wmoCodeGroup "FM18-XII: An" ; 
-  cnodc:wmoCodeGroup "FM63-XI: iu" ; 
-  cnodc:wmoCodeGroup "FM64-X: iu" ; 
-  skos:inScheme cnodc:elements .
-
 cnodc:WMOXBTType rdf:type skos:Concept ;
   skos:prefLabel "WMO XBT Type"@en ;
-  cnodc:elementGroup "parameters" ;
+  cnodc:elementGroup "metadata" ;
   cnodc:dataType xsd:string ;
   skos:exactMatch bufr4B22:178 ;
   skos:inScheme cnodc:elements .
 
-cnodc:ParticleBackscatter rdf:type skos:Concept ;
-  skos:prefLabel "Particle Backscattering"@en ;
-  cnodc:elementGroup "parameters" ;
-  cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "m-1" ;
-  cnodc:allowMulti "True" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:GliderPhaseCode rdf:type skos:Concept ;
+cnodc:XBTHeight rdf:type skos:Concept ;
+  skos:prefLabel "XBT Height"@en ;
   cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:minValue 0 ; 
-  cnodc:maxValue 6 ; 
-  skos:exactMatch og1:GLCOMPH ;
-  skos:inScheme cnodc:elements .
-
-cnodc:GliderPhaseNumber rdf:type skos:Concept ;
-  cnodc:elementGroup "metadata" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:minValue 0 ; 
-  skos:inScheme cnodc:elements .
-
-cnodc:ColoredDissolvedOrganicMatter rdf:type skos:Concept ;
-  cnodc:elementGroup "parameter" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "1e-9" ;
-  cnodc:essentialOceanVariable eov:dissolvedOrganicCarbon ; 
-  skos:exactMatch og1:CDOM ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:Location ; 
+  skos:exactMatch bufr4B22:177 ;
+  skos:exactMatch pcode:HTL%24 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:AggregationMethod rdf:type skos:Concept ;
+  skos:prefLabel "Aggregation Method"@en ;
+  skos:documentation "How the data was assembled"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "averaged" ;
+  cnodc:allowedValue "instantaneous" ;
+  skos:narrowerMatch bufr4B08:021 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:AnemometerType rdf:type skos:Concept ;
+  skos:prefLabel "Anemometer Type"@en ;
+  skos:documentation "The specific type of the anemometer"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "cup" ;
+  cnodc:allowedValue "propeller" ;
+  cnodc:allowedValue "wotan" ;
+  cnodc:allowedValue "sonic" ;
+  cnodc:allowedValue "other" ;
+  cnodc:allowedValue "unknown" ;
   skos:inScheme cnodc:elements .
 
 cnodc:BackscatterWavelength rdf:type skos:Concept ;
-  cnodc:elementGroup "metadata:element" ;
+  skos:prefLabel "Backscatter Wavelength"@en ;
+  skos:documentation "Wavelength of the backscattering sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
   cnodc:dataType xsd:integer ;
   cnodc:preferredUnit "nm" ;
+  cnodc:minValue 0 ; 
   skos:inScheme cnodc:elements .
 
-cnodc:DetectorCount rdf:type skos:Concept ;
-  skos:prefLabel "Detector Count"@en ;
-  cnodc:elementGroup "metadata:element" ;
-  cnodc:dataType xsd:integer ;
-  cnodc:preferredUnit "1" ;
-  skos:inScheme cnodc:elements .
-
-cnodc:SensorTemperature rdf:type skos:Concept ;
-  skos:prefLabel "Sensor Temperature"@en ;
-  cnodc:elementGroup "metadata:element" ;
+cnodc:CalibrationCoefficient rdf:type skos:Concept ;
+  skos:prefLabel "Calibration Coefficient"@en ;
+  skos:documentation "The coefficient(s) used in calibrating the sensor (one per variable with different VariableNames)"@en ;
+  cnodc:elementGroup "metadata (element)" ;
   cnodc:dataType xsd:decimal ;
-  cnodc:preferredUnit "K" ;
+  cnodc:allowMulti "True" ;
   skos:inScheme cnodc:elements .
 
-cnodc:RecordNumber rdf:type skos:Concept ;
-  skos:prefLabel "Record Number"@en ;
-  cnodc:elementGroup "coordinates" ;
-  cnodc:dataType xsd:integer ;
+cnodc:CalibrationComment rdf:type skos:Concept ;
+  skos:prefLabel "Calibration Comment"@en ;
+  skos:documentation "Comments on the sensor calibration"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CalibrationDate rdf:type skos:Concept ;
+  skos:prefLabel "Calibration Date"@en ;
+  skos:documentation "The date the sensor was calibrated"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CalibrationEquation rdf:type skos:Concept ;
+  skos:prefLabel "Calibration Equation"@en ;
+  skos:documentation "The equation used to calibrate the sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CurrentSensorType rdf:type skos:Concept ;
+  skos:prefLabel "Current Sensor Type"@en ;
+  skos:documentation "The specific type of the current sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "acdp" ;
+  cnodc:allowedValue "gek" ;
+  cnodc:allowedValue "buoy_drift" ;
+  cnodc:allowedValue "ship_drift_short" ;
+  cnodc:allowedValue "ship_drift_long" ;
+  cnodc:allowedValue "acdp_bottom_track" ;
+  cnodc:allowedValue "em_sensor" ;
+  cnodc:allowedValue "acdp_lowered" ;
+  cnodc:allowedValue "other" ;
+  cnodc:allowedValue "unknown" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DerivationCoefficient rdf:type skos:Concept ;
+  skos:prefLabel "Derivation Coefficient"@en ;
+  skos:documentation "The coefficient(s) used in a derivation equation (one per coefficient with different VariableNames set)"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DerivationComment rdf:type skos:Concept ;
+  skos:prefLabel "Derivation Comment"@en ;
+  skos:documentation "Any comments about the derivation"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DerivationDate rdf:type skos:Concept ;
+  skos:prefLabel "Derivation Date"@en ;
+  skos:documentation "The date the derivation was made"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DerivationEquation rdf:type skos:Concept ;
+  skos:prefLabel "Derivation Equation"@en ;
+  skos:documentation "The equation used to derive a derivated value"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
   skos:inScheme cnodc:elements .
 
 cnodc:GliderPhaseCodeSource rdf:type skos:Concept ;
-  cnodc:elementGroup "metadata:element" ;
+  skos:prefLabel "Glider Phase Code Source"@en ;
+  skos:documentation "What code table we're using for the glider phase"@en ;
+  cnodc:elementGroup "metadata (element)" ;
   cnodc:dataType xsd:string ;
   cnodc:allowedValue "seaglider" ;
   cnodc:allowedValue "slocum" ;
@@ -2221,10 +548,2289 @@ cnodc:GliderPhaseCodeSource rdf:type skos:Concept ;
   cnodc:allowedValue "ego" ;
   skos:inScheme cnodc:elements .
 
-cnodc:PositionSource rdf:type skos:Concept ;
-  cnodc:elementGroup "metadata:element" ;
+cnodc:Language rdf:type skos:Concept ;
+  skos:prefLabel "Language"@en ;
+  skos:documentation "The language the element took place in"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:NavigationSatelliteType rdf:type skos:Concept ;
+  skos:prefLabel "Navigation Satellite Type"@en ;
+  skos:documentation "The specific type of satellite navigation used"@en ;
+  cnodc:elementGroup "metadata (element)" ;
   cnodc:dataType xsd:string ;
   cnodc:allowedValue "gps" ;
-  cnodc:allowedValue "interpolated" ;
   cnodc:allowedValue "argos" ;
+  cnodc:allowedValue "iridium" ;
+  cnodc:allowedValue "other" ;
+  cnodc:allowedValue "unknown" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ObservationPeriod rdf:type skos:Concept ;
+  skos:prefLabel "Observation Period"@en ;
+  skos:documentation "Time over which a measurement was taken"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:preferredUnit "s" ;
+  cnodc:ioosCategory ioos:Time ; 
+  cnodc:minValue 0 ; 
+  skos:narrowerMatch bufr4B04:021 ;
+  skos:narrowerMatch bufr4B04:022 ;
+  skos:narrowerMatch bufr4B04:023 ;
+  skos:narrowerMatch bufr4B04:024 ;
+  skos:narrowerMatch bufr4B04:025 ;
+  skos:narrowerMatch bufr4B04:026 ;
+  cnodc:wmoCodeGroup "FM62-VIII: mT" ; 
+  cnodc:wmoCodeGroup "FM62-VIII: mS" ; 
+  cnodc:wmoCodeGroup "FM62-VIII: mc" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:ObservationPeriodMaximum rdf:type skos:Concept ;
+  skos:prefLabel "Maximum value for Observation Period"@en ;
+  skos:documentation "Minimum time over which a measurement is taken"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:preferredUnit "s" ;
+  cnodc:ioosCategory ioos:Time ; 
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:ObservationPeriodMininimum rdf:type skos:Concept ;
+  skos:prefLabel "Minimum value for Observation Period"@en ;
+  skos:documentation "Maximum time over which a measurement is taken"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:preferredUnit "s" ;
+  cnodc:ioosCategory ioos:Time ; 
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:Quality rdf:type skos:Concept ;
+  skos:prefLabel "Quality Flag"@en ;
+  skos:documentation "GTSPP compatible quality flag"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:standardName "quality_flag" ;
+  cnodc:ioosCategory ioos:Quality ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 9 ; 
+  cnodc:allowedValue "0" ;
+  cnodc:allowedValue "1" ;
+  cnodc:allowedValue "2" ;
+  cnodc:allowedValue "3" ;
+  cnodc:allowedValue "4" ;
+  cnodc:allowedValue "5" ;
+  cnodc:allowedValue "6" ;
+  cnodc:allowedValue "7" ;
+  cnodc:allowedValue "8" ;
+  cnodc:allowedValue "9" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:exactMatch bufr4B08:080 ;
+  cnodc:wmoCodeGroup "FM18-XII: Ql" ; 
+  cnodc:wmoCodeGroup "FM18-XII: Qt" ; 
+  cnodc:wmoCodeGroup "FM18-XII: Qd Qx" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorAccuracy rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Accuracy"@en ;
+  skos:documentation "Typical accuracy of the sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorDepth rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Depth"@en ;
+  skos:documentation "The depth (or height if negative) of the sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:Location ; 
+  skos:exactMatch bufr4B07:063 ;
+  skos:exactMatch pcode:DEPH ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorDepthReference rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Depth Reference"@en ;
+  skos:documentation "What Sensor Depth is relative to"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "local_ground" ;
+  cnodc:allowedValue "water" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorFrequency rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Frequency"@en ;
+  skos:prefLabel "Fréquence du capteur"@fr ;
+  skos:documentation "The frequency the sensor is tuned to"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "Hz" ;
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorLocation rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Location"@en ;
+  skos:documentation "The location of the sensor on the platform"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorMake rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Make"@en ;
+  skos:documentation "The manufacturer of the sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorManufactureDate rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Date of Manufacture"@en ;
+  skos:documentation "The date the sensor was made"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:date ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorModel rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Model"@en ;
+  skos:documentation "The model of the sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorOrientation rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Orientation"@en ;
+  skos:documentation "The orientation of the sensor with regards to the platform"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "forwards" ;
+  cnodc:allowedValue "backwards" ;
+  cnodc:allowedValue "upwards" ;
+  cnodc:allowedValue "downwards" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorResolution rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Resolution"@en ;
+  skos:documentation "Smallest value measurable by sensor (in same units as the measurement)"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorSerial rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Serial Number"@en ;
+  skos:documentation "The serial number of the sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorTemperature rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Temperature"@en ;
+  skos:documentation "The temperature of the sensor itself"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "K" ;
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:SensorType rdf:type skos:Concept ;
+  skos:prefLabel "Sensor Type"@en ;
+  skos:documentation "The type of sensor"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "ctd" ;
+  cnodc:allowedValue "doxy" ;
+  cnodc:allowedValue "fluorometer" ;
+  cnodc:allowedValue "estimate" ;
+  cnodc:allowedValue "anemometer" ;
+  cnodc:allowedValue "satnav" ;
+  cnodc:allowedValue "interpolation" ;
+  cnodc:allowedValue "current" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:TemperatureScale rdf:type skos:Concept ;
+  skos:prefLabel "Temperature Scale"@en ;
+  skos:documentation "The temperature scale used in the measurement"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "ITS-90" ;
+  cnodc:allowedValue "IPTS-68" ;
+  cnodc:allowedValue "IPTS-48" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Unadjusted rdf:type skos:Concept ;
+  skos:prefLabel "Unadjusted Value"@en ;
+  skos:prefLabel "Valeur non ajustée"@fr ;
+  skos:documentation "The "raw" value recorded before it was adjusted"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType cnodc:Element ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Uncertainty rdf:type skos:Concept ;
+  skos:prefLabel "Uncertainty"@en ;
+  skos:documentation "Uncertainty of the measurement, in the same units"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:Statistics ; 
+  cnodc:minValue 0 ; 
+  skos:relatedMatch bufr4B02:005 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:UncertaintyType rdf:type skos:Concept ;
+  skos:prefLabel "UncertaintyType"@en ;
+  skos:documentation "How the uncertainty was determined (uniform being from the resolution of the instrument, normal from a known or calculated standard deviation)"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "uniform" ;
+  cnodc:allowedValue "normal" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Units rdf:type skos:Concept ;
+  skos:prefLabel "Units"@en ;
+  skos:documentation "Units relevant to a value"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:VariableName rdf:type skos:Concept ;
+  skos:prefLabel "Variable Name"@en ;
+  skos:documentation "The name of a variable in an equation"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WorkingQuality rdf:type skos:Concept ;
+  skos:prefLabel "Quality (Working)"@en ;
+  skos:documentation "Internally proposed quality flag"@en ;
+  cnodc:elementGroup "metadata (element)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:Quality ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 99 ; 
+  cnodc:allowedValue "0" ;
+  cnodc:allowedValue "1" ;
+  cnodc:allowedValue "2" ;
+  cnodc:allowedValue "3" ;
+  cnodc:allowedValue "4" ;
+  cnodc:allowedValue "5" ;
+  cnodc:allowedValue "9" ;
+  cnodc:allowedValue "13" ;
+  cnodc:allowedValue "14" ;
+  cnodc:allowedValue "15" ;
+  cnodc:allowedValue "19" ;
+  cnodc:allowedValue "20" ;
+  cnodc:allowedValue "21" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Abstract rdf:type skos:Concept ;
+  skos:prefLabel "Abstract"@en ;
+  skos:documentation "A long abstact of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Area rdf:type skos:Concept ;
+  skos:prefLabel "Area"@en ;
+  skos:documentation "The area the mission took place in"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCCruiseID rdf:type skos:Concept ;
+  skos:prefLabel "Cruise ID"@en ;
+  skos:documentation "The CNODC ID for the cruise"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCDeploymentMissionID rdf:type skos:Concept ;
+  skos:prefLabel "Deployment Mission ID"@en ;
+  skos:documentation "The mission that deployed this mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCDeploymentPlatformID rdf:type skos:Concept ;
+  skos:prefLabel "Deployment Platform ID"@en ;
+  skos:documentation "The platform that deployed this mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CruiseName rdf:type skos:Concept ;
+  skos:prefLabel "Cruise Name"@en ;
+  skos:documentation "The typical name of the cruise"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:EndDate rdf:type skos:Concept ;
+  skos:prefLabel "Mission End Date"@en ;
+  skos:documentation "The end date of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  cnodc:ioosCategory ioos:Time ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:EndLatitude rdf:type skos:Concept ;
+  skos:prefLabel "Mission End Latitude"@en ;
+  skos:documentation "The end latitude of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree_north" ;
+  cnodc:ioosCategory ioos:Location ; 
+  cnodc:minValue -90 ; 
+  cnodc:maxValue 90 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:EndLongitude rdf:type skos:Concept ;
+  skos:prefLabel "Mission End Longitude"@en ;
+  skos:documentation "The end longitude of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree_east" ;
+  cnodc:ioosCategory ioos:Location ; 
+  cnodc:minValue -180 ; 
+  cnodc:maxValue 180 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:LeadInstitution rdf:type skos:Concept ;
+  skos:prefLabel "Lead Institution"@en ;
+  skos:documentation "The institution that took the lead on the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:MissionInformationLink rdf:type skos:Concept ;
+  skos:prefLabel "Mission Information Link"@en ;
+  skos:documentation "A link to relavent information about the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Network rdf:type skos:Concept ;
+  skos:prefLabel "Network"@en ;
+  skos:documentation "The observing network for the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:Notes rdf:type skos:Concept ;
+  skos:prefLabel "Notes"@en ;
+  skos:documentation "Any special notes about the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Observatory rdf:type skos:Concept ;
+  skos:prefLabel "Observatory"@en ;
+  skos:documentation "The observatory that ran the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:OperatingInstitution rdf:type skos:Concept ;
+  skos:prefLabel "Operating Institution"@en ;
+  skos:documentation "The institution that operated the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformFinalStatus rdf:type skos:Concept ;
+  skos:prefLabel "Final Status of Platform"@en ;
+  skos:documentation "The final status of the platform after the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "lost" ;
+  cnodc:allowedValue "recovered" ;
+  cnodc:allowedValue "unknown" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformMissionNumber rdf:type skos:Concept ;
+  skos:prefLabel "Platform Mission Number"@en ;
+  skos:documentation "The number of missions the platform has performed (including this one)"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:minValue 1 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PrincipalInvestigator rdf:type skos:Concept ;
+  skos:prefLabel "Principal Investigator"@en ;
+  skos:documentation "The principal investigator for the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:Program rdf:type skos:Concept ;
+  skos:prefLabel "Program"@en ;
+  skos:documentation "The program the mission operates under"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Project rdf:type skos:Concept ;
+  skos:prefLabel "Project"@en ;
+  skos:documentation "The project that the mission is a part of"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ReferenceStations rdf:type skos:Concept ;
+  skos:prefLabel "Reference Stations"@en ;
+  skos:documentation "Station names used to validate data from the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:StartDate rdf:type skos:Concept ;
+  skos:prefLabel "Mission Start Date"@en ;
+  skos:documentation "The start date of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  cnodc:ioosCategory ioos:Time ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:StartLatitude rdf:type skos:Concept ;
+  skos:prefLabel "Mission Start Longitude"@en ;
+  skos:documentation "The start latitude of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree_north" ;
+  cnodc:ioosCategory ioos:Location ; 
+  cnodc:minValue -90 ; 
+  cnodc:maxValue 90 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:StartLongitude rdf:type skos:Concept ;
+  skos:prefLabel "Mission Start Latitude"@en ;
+  skos:documentation "The start longitude of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree_east" ;
+  cnodc:ioosCategory ioos:Location ; 
+  cnodc:minValue -180 ; 
+  cnodc:maxValue 180 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:Summary rdf:type skos:Concept ;
+  skos:prefLabel "Summary"@en ;
+  skos:documentation "A short summary of the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Title rdf:type skos:Concept ;
+  skos:prefLabel "Title"@en ;
+  skos:documentation "A short title for the mission"@en ;
+  cnodc:elementGroup "metadata (mission)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCDuplicateDate rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Duplicate Date"@en ;
+  skos:documentation "If present, the record is a duplicate of another better record and this is the date the CNODC received that record"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:date ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCDuplicateID rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Duplicate ID"@en ;
+  skos:documentation "If present, the record is a duplicate of another better record and this is that records ID"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCEmbargoUntil rdf:type skos:Concept ;
+  skos:prefLabel "Embargo Date"@en ;
+  skos:documentation "If present, the record may not be released to the public until the given date has passed."@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCID rdf:type skos:Concept ;
+  skos:prefLabel "CNODC ID"@en ;
+  skos:documentation "Unique identifier of this record in the CNODC database"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCLevel rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Processing Level"@en ;
+  skos:documentation "Processing level of the data record"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "RAW" ;
+  cnodc:allowedValue "ADJUSTED" ;
+  cnodc:allowedValue "DELAYED_MODE" ;
+  cnodc:allowedValue "REAL_TIME" ;
+  cnodc:allowedValue "UNKNOWN" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCMission rdf:type skos:Concept ;
+  skos:prefLabel "CNODC MissionID"@en ;
+  skos:documentation "Unique identifier of the originating mission"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCOperatorAction rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Record Status (Working)"@en ;
+  skos:documentation "Working status of the data record"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "DISCARD" ;
+  cnodc:allowedValue "MARK_DUPLICATE" ;
+  cnodc:allowedValue "ARCHIVE" ;
+  cnodc:allowedValue "MARK_DUBIOUS" ;
+  cnodc:allowedValue "RECOMMEND_DISCARD" ;
+  cnodc:allowedValue "RECOMMEND_DUPLICATE" ;
+  cnodc:allowedValue "RECOMMEND_ARCHIVAL" ;
+  cnodc:allowedValue "RECOMMEND_DUBIOUS" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCPlatform rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Platform UUID"@en ;
+  skos:documentation "UUID of the originating platform"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCPlatformCandidates rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Platform Candidates"@en ;
+  skos:documentation "A list of potential candidates for the observation"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType cnodc:List ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCProgram rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Program Name"@en ;
+  skos:documentation "Name of the program that collected the profile"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCSource rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Source Name"@en ;
+  skos:documentation "Identifier for the source of the data"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCStatus rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Record Status"@en ;
+  skos:documentation "Status of the data record"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "DISCARDED" ;
+  cnodc:allowedValue "DUPLICATE" ;
+  cnodc:allowedValue "ARCHIVED" ;
+  cnodc:allowedValue "VERIFIED" ;
+  cnodc:allowedValue "UNVERIFIED" ;
+  cnodc:allowedValue "DUBIOUS" ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCWorkingDuplicateDate rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Duplicate Date (Working)"@en ;
+  skos:documentation "If present, the record is a duplicate of another better record and this is the date the CNODC received that record"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:date ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CNODCWorkingDuplicateID rdf:type skos:Concept ;
+  skos:prefLabel "CNODC Duplicate ID (Working)"@en ;
+  skos:documentation "If present, the record is a duplicate of another better record and this is that records ID"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:GTSHeader rdf:type skos:Concept ;
+  skos:prefLabel "GTS Header"@en ;
+  skos:documentation "The header sent with this message on the GTS"@en ;
+  cnodc:elementGroup "metadata (parent)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BatteryDescription rdf:type skos:Concept ;
+  skos:prefLabel "Battery Description"@en ;
+  skos:documentation "A description of the batteries on the mission"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BatteryType rdf:type skos:Concept ;
+  skos:prefLabel "Battery Type"@en ;
+  skos:documentation "The type of batteries used"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "lithium_ion" ;
+  cnodc:allowedValue "other" ;
+  cnodc:allowedValue "unknown" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DocumentationVersion rdf:type skos:Concept ;
+  skos:prefLabel "Documentation Version"@en ;
+  skos:documentation "The version of documentation used"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FieldReferences rdf:type skos:Concept ;
+  skos:prefLabel "Field References"@en ;
+  skos:documentation "Field references used to validate readings"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FirmwareType rdf:type skos:Concept ;
+  skos:prefLabel "Firmware Type"@en ;
+  skos:documentation "The type of firmware"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "navigation" ;
+  cnodc:allowedValue "science" ;
+  cnodc:allowedValue "land_station" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FirmwareVersion rdf:type skos:Concept ;
+  skos:prefLabel "Firmware Version"@en ;
+  skos:documentation "The version of firmware"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:IMONumber rdf:type skos:Concept ;
+  skos:prefLabel "IMO Number"@en ;
+  skos:documentation "The IMO number of a platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:103 ;
+  skos:exactMatch pcode:LYD%24 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformCategory rdf:type skos:Concept ;
+  skos:prefLabel "Platform Category"@en ;
+  skos:documentation "The broad type of platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "glider_coastal" ;
+  cnodc:allowedValue "glider_ocean" ;
+  cnodc:allowedValue "glider_deep" ;
+  cnodc:allowedValue "ship" ;
+  cnodc:allowedValue "buoy_drifting" ;
+  cnodc:allowedValue "argo" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformCustomization rdf:type skos:Concept ;
+  skos:prefLabel "Platform Customization"@en ;
+  skos:documentation "Any details on how the platform has been customized after it was purchased"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformDetails rdf:type skos:Concept ;
+  skos:prefLabel "Platform Details"@en ;
+  skos:documentation "Additional details on the platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformID rdf:type skos:Concept ;
+  skos:prefLabel "Platform ID"@en ;
+  skos:documentation "A short code for the platform, such as a ship ID or glider ID"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformMake rdf:type skos:Concept ;
+  skos:prefLabel "Platform Make"@en ;
+  skos:documentation "The company that made the platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformMaximumDepth rdf:type skos:Concept ;
+  skos:prefLabel "Maximum Depth of the Platform"@en ;
+  skos:documentation "The maximum depth the platform can reach"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformModel rdf:type skos:Concept ;
+  skos:prefLabel "Platform Model"@en ;
+  skos:documentation "The model of the platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:085 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformName rdf:type skos:Concept ;
+  skos:prefLabel "Platform Name"@en ;
+  skos:documentation "A common name for the platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformOwner rdf:type skos:Concept ;
+  skos:prefLabel "Platform Owner"@en ;
+  skos:documentation "The owner of the platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformSerial rdf:type skos:Concept ;
+  skos:prefLabel "Platform Serial Number"@en ;
+  skos:documentation "The serial number of the platform"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:ResponsibleAgency rdf:type skos:Concept ;
+  skos:prefLabel "Responsible Agency"@en ;
+  skos:documentation "Responsible Agency, as the WMO would identify it"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ShipC rdf:type skos:Concept ;
+  skos:prefLabel "SHIP-C Code"@en ;
+  skos:documentation "The code of a platform as present in the SHIP-C codes"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WIGOSID rdf:type skos:Concept ;
+  skos:prefLabel "WIGOS Identifier"@en ;
+  skos:documentation "WIGOS identifier as assigned by the WMO"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:narrowerMatch bufr4B01:125 ;
+  skos:narrowerMatch bufr4B01:126 ;
+  skos:narrowerMatch bufr4B01:127 ;
+  skos:narrowerMatch bufr4B01:128 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WMOID rdf:type skos:Concept ;
+  skos:prefLabel "WMO Identifier"@en ;
+  skos:documentation "WMO identifier as assigned by the WMO"@en ;
+  cnodc:elementGroup "metadata (platform)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:087 ;
+  skos:narrowerMatch bufr4B01:001 ;
+  skos:narrowerMatch bufr4B01:002 ;
+  skos:narrowerMatch bufr4B01:003 ;
+  skos:narrowerMatch bufr4B01:004 ;
+  skos:narrowerMatch bufr4B01:005 ;
+  skos:narrowerMatch bufr4B01:020 ;
+  skos:exactMatch pcode:WMO%24 ;
+  cnodc:wmoCodeGroup "FM18-XII: A1 bw nb nb nb" ; 
+  cnodc:wmoCodeGroup "FM63-XI: A1 bw nb nb nb" ; 
+  cnodc:wmoCodeGroup "FM64-X: A1 bw nb nb nb" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CreationTime rdf:type skos:Concept ;
+  skos:prefLabel "Creation Time"@en ;
+  skos:documentation "The time the product was created"@en ;
+  cnodc:elementGroup "metadata (product)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DataUpdateInterval rdf:type skos:Concept ;
+  skos:prefLabel "Data Update Interval"@en ;
+  skos:documentation "The data update interval of the data"@en ;
+  cnodc:elementGroup "metadata (product)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "hourly" ;
+  cnodc:allowedValue "daily" ;
+  cnodc:allowedValue "none" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DOI rdf:type skos:Concept ;
+  skos:prefLabel "DOI"@en ;
+  skos:documentation "The doi the product took place in"@en ;
+  cnodc:elementGroup "metadata (product)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BatteryVoltage rdf:type skos:Concept ;
+  skos:prefLabel "Battery Voltage"@en ;
+  skos:documentation "The voltage of the batteries on board the platform"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "V" ;
+  skos:exactMatch bufr4B25:025 ;
+  skos:exactMatch bufr4B25:026 ;
+  skos:exactMatch pcode:PBV%24 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRDataCategory rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Data Category"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRDescriptors rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Descriptors"@en ;
+  skos:documentation "A list of BUFR descriptors attached to this message"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType cnodc:List ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRInferredMessageType rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Inferred Message Type"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType cnodc:List ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRIsObservation rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Is Observation"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 1 ; 
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRMessageTime rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Message Time"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFROriginCentre rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Origin Centre"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFROriginSubcentre rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Origin Subcentre"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:BUFRSubsetIndex rdf:type skos:Concept ;
+  skos:prefLabel "BUFR Subset Index"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ignoreInDuplicateCheck "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DrogueDepth rdf:type skos:Concept ;
+  skos:prefLabel "Drogue Depth"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:Location ; 
+  skos:exactMatch bufr4B07:070 ;
+  skos:exactMatch pcode:DRDP ;
+  skos:inScheme cnodc:elements .
+
+cnodc:GliderPhaseCode rdf:type skos:Concept ;
+  skos:prefLabel "Glider Phase Code"@en ;
+  skos:documentation "Describes the current operating phase of the glider"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 6 ; 
+  skos:exactMatch og1:GLCOMPH ;
+  skos:inScheme cnodc:elements .
+
+cnodc:GliderPhaseNumber rdf:type skos:Concept ;
+  skos:prefLabel "Glider Phase Number"@en ;
+  skos:documentation "Describes the phase number "@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:LastKnownPositionTime rdf:type skos:Concept ;
+  skos:prefLabel "Time of Last Known Position"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:dateTimeStamp ;
+  cnodc:ioosCategory ioos:Time ; 
+  skos:relatedMatch bufr4B08:021 ;
+  skos:narrowerMatch bufr4B04:001 ;
+  skos:narrowerMatch bufr4B04:002 ;
+  skos:narrowerMatch bufr4B04:003 ;
+  skos:narrowerMatch bufr4B04:004 ;
+  skos:narrowerMatch bufr4B04:005 ;
+  skos:narrowerMatch bufr4B04:006 ;
+  skos:narrowerMatch bufr4B04:007 ;
+  skos:narrowerMatch pcode:PDT%24 ;
+  skos:narrowerMatch pcode:PTM%24 ;
+  cnodc:wmoCodeGroup "FM18-XII Buoy: Y Y M M J G G g g / (Second Group)" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformDirection rdf:type skos:Concept ;
+  skos:prefLabel "Platform Direction"@en ;
+  skos:documentation "Direction the platform is moving in degrees from north"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:standardName "platform_orientation" ;
+  cnodc:variableName "platform_direction__direction_platforme" ;
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  skos:exactMatch bufr4B01:012 ;
+  skos:exactMatch pcode:HEAD ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformHeight rdf:type skos:Concept ;
+  skos:prefLabel "Platform Height"@en ;
+  skos:documentation "Height of the platform above sea level"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:Location ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformPitch rdf:type skos:Concept ;
+  skos:prefLabel "Platform Pitch"@en ;
+  skos:documentation "Current pitch of the platform"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformRoll rdf:type skos:Concept ;
+  skos:prefLabel "Platform Roll"@en ;
+  skos:documentation "Current roll of the platform"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PlatformSpeed rdf:type skos:Concept ;
+  skos:prefLabel "Platform Speed"@en ;
+  skos:documentation "Current speed of the platform"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:standardName "platform_speed_wrt_sea_water" ;
+  cnodc:variableName "platform_speed__vitesse_plateforme" ;
+  cnodc:minValue 0 ; 
+  skos:exactMatch bufr4B01:013 ;
+  skos:exactMatch bufr4B01:014 ;
+  skos:exactMatch pcode:SPDR ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ProfileDirection rdf:type skos:Concept ;
+  skos:prefLabel "Profile Direction"@en ;
+  skos:documentation "The direction of the profile (up or down)"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:allowedValue "up" ;
+  cnodc:allowedValue "down" ;
+  skos:exactMatch bufr4B22:056 ;
+  skos:exactMatch pcode:PDR%24 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ProfileID rdf:type skos:Concept ;
+  skos:prefLabel "Profile ID"@en ;
+  skos:documentation "A unique identifier for the profile"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:079 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ProfileNumber rdf:type skos:Concept ;
+  skos:prefLabel "Profile or Cycle Number"@en ;
+  skos:documentation "The count of the profile within the observations made"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:SamplingScheme rdf:type skos:Concept ;
+  skos:prefLabel "Sampling Scheme"@en ;
+  skos:documentation "The sampling scheme used to construct a profile"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:string ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SegmentNumber rdf:type skos:Concept ;
+  skos:prefLabel "Segment Number"@en ;
+  skos:documentation "The segment number the observation was recorded on"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:Location ; 
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:ShipLineNumber rdf:type skos:Concept ;
+  skos:prefLabel "Ship Line Number"@en ;
+  skos:documentation "Mostly for SOOP, report line/transect/observation numbers"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:080 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ShipObservationNumber rdf:type skos:Concept ;
+  skos:prefLabel "Ship Observation Number"@en ;
+  skos:documentation "Mostly for SOOP, report line/transect/observation numbers"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  cnodc:minValue 0 ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:ShipTransectNumber rdf:type skos:Concept ;
+  skos:prefLabel "Ship Transect Number"@en ;
+  skos:documentation "Mostly for SOOP, report line/transect/observation numbers"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B05:036 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SoftwareID rdf:type skos:Concept ;
+  skos:prefLabel "Software ID"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:string ;
+  skos:exactMatch bufr4B25:061 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SubmergenceTime rdf:type skos:Concept ;
+  skos:prefLabel "Submergence Time"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "0.01" ;
+  cnodc:ioosCategory ioos:Time ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 100 ; 
+  skos:exactMatch bufr4B02:190 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:TransmitterID rdf:type skos:Concept ;
+  skos:prefLabel "Transmitter ID"@en ;
+  cnodc:elementGroup "metadata (record)" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Identifier ; 
+  skos:exactMatch bufr4B01:051 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:AbsoluteSalinity rdf:type skos:Concept ;
+  skos:prefLabel "Absolute Salinity"@en ;
+  skos:prefLabel "Salinité absolue"@fr ;
+  skos:documentation "Mass fraction of dissolved salts in water"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "g kg-1" ;
+  cnodc:standardName "sea_water_absolute_salinity" ;
+  cnodc:ioosCategory ioos:Salinity ; 
+  cnodc:essentialOceanVariable eov:seaSurfaceSalinity ; 
+  cnodc:essentialOceanVariable eov:subSurfaceSalinity ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:AirPressure rdf:type skos:Concept ;
+  skos:prefLabel "Air Pressure"@en ;
+  skos:prefLabel "Pression atmosphérique"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "Pa" ;
+  cnodc:standardName "air_pressure" ;
+  cnodc:variableName "air_pressure__pression_air" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B10:004 ;
+  skos:exactMatch pcode:ATMP ;
+  cnodc:wmoCodeGroup "FM18-XII: P0 P0 P0 P0" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:AirPressureAtSeaLevel rdf:type skos:Concept ;
+  skos:prefLabel "Air Pressure (At Sea Level)"@en ;
+  skos:prefLabel "Pression atmosphérique (au niveau de la mer)"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "Pa" ;
+  cnodc:standardName "air_pressure_at_mean_sea_level" ;
+  cnodc:variableName "msl_air_pressure__pression_air_nmm" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B10:051 ;
+  skos:exactMatch pcode:ATMS ;
+  cnodc:wmoCodeGroup "FM18-XII: P P P P" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:AirPressureChange rdf:type skos:Concept ;
+  skos:prefLabel "Air Pressure (Change)"@en ;
+  skos:prefLabel "Pression atmosphérique (variation)"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "Pa" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:AirTemperature rdf:type skos:Concept ;
+  skos:prefLabel "Dry Bulb Temperature"@en ;
+  skos:prefLabel "Température de bulbe sec"@fr ;
+  skos:documentation "Dry bulb air temperature"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "K" ;
+  cnodc:standardName "air_temperature" ;
+  cnodc:variableName "air_temperature" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B12:101 ;
+  skos:exactMatch pcode:DRYT ;
+  cnodc:wmoCodeGroup "FM18-XII: sn T T T" ; 
+  cnodc:wmoCodeGroup "FM63-XI: sn T T T" ; 
+  cnodc:wmoCodeGroup "FM64-X: sn T T T" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:AlkalinityMolar rdf:type skos:Concept ;
+  skos:prefLabel "Alkalinity (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:standardName "sea_water_alkalinity_expressed_as_mole_equivalent" ;
+  cnodc:ioosCategory ioos:Acidity ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:AmmoniaMolar rdf:type skos:Concept ;
+  skos:prefLabel "Ammonia (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CarbonateAlkalinityMolar rdf:type skos:Concept ;
+  skos:prefLabel "Carbonate Alkalinity (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:ioosCategory ioos:Acidity ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ChlorophyllA rdf:type skos:Concept ;
+  skos:prefLabel "Chlorophyll a"@en ;
+  skos:prefLabel "Chlorophylle a"@fr ;
+  skos:documentation "Mass concentration of Chlorophyll-A"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mg m-3" ;
+  cnodc:standardName "mass_concentration_of_chlorophyll_a_in_sea_water" ;
+  cnodc:variableName "chlorophyll_a" ;
+  cnodc:ioosCategory ioos:Biology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch og1:CHLA ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ChlorophyllAFluorescence rdf:type skos:Concept ;
+  skos:prefLabel "Chlorophyll a Fluorescence"@en ;
+  skos:prefLabel "Flourescence de chlorophylle a"@fr ;
+  skos:documentation "Raw count from flurometer for Chlorophyll-A"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "1" ;
+  cnodc:variableName "chlorophyll_a_fluorescence" ;
+  cnodc:ioosCategory ioos:Biology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ChlorophyllB rdf:type skos:Concept ;
+  skos:prefLabel "Chlorophyll b"@en ;
+  skos:prefLabel "Chlorophylle b"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mg m-3" ;
+  cnodc:standardName "mass_concentration_of_chlorophyll_b_in_sea_water" ;
+  cnodc:variableName "chlorophyll_b" ;
+  cnodc:ioosCategory ioos:Biology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ChlorophyllC rdf:type skos:Concept ;
+  skos:prefLabel "Chlorophyll c"@en ;
+  skos:prefLabel "Chlorophylle c"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mg m-3" ;
+  cnodc:standardName "mass_concentration_of_chlorophyll_c_in_sea_water" ;
+  cnodc:variableName "chlorophyll_c" ;
+  cnodc:ioosCategory ioos:Biology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ColoredDissolvedOrganicMatter rdf:type skos:Concept ;
+  skos:prefLabel "Colored Dissolved Organic Matter"@en ;
+  skos:documentation "Concentration of colored dissolved organic matter "@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "1e-9" ;
+  cnodc:essentialOceanVariable eov:dissolvedOrganicCarbon ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch og1:CDOM ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Conductivity rdf:type skos:Concept ;
+  skos:prefLabel "Conductivity"@en ;
+  skos:prefLabel "Conductivité"@fr ;
+  skos:documentation "Conductivity of sea water"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "S m-1" ;
+  cnodc:standardName "sea_water_electrical_conductivity" ;
+  cnodc:variableName "conductivity__conductivite" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch og1:CNDC ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CurrentDirection rdf:type skos:Concept ;
+  skos:prefLabel "Current Direction (To)"@en ;
+  skos:prefLabel "Direction du courant (à)"@fr ;
+  skos:documentation "Direction to which the water current is moving"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degrees" ;
+  cnodc:standardName "sea_water_velocity_to_direction" ;
+  cnodc:ioosCategory ioos:Currents ; 
+  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
+  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:004 ;
+  skos:exactMatch bufr4B22:005 ;
+  skos:exactMatch pcode:SCDT ;
+  skos:exactMatch pcode:HCDT ;
+  cnodc:wmoCodeGroup "FM18-XII: dn dn" ; 
+  cnodc:wmoCodeGroup "FM62-VIII: d0 d0" ; 
+  cnodc:wmoCodeGroup "FM63-XI: Dc Dc" ; 
+  cnodc:wmoCodeGroup "FM64-X: dn dn" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CurrentSpeed rdf:type skos:Concept ;
+  skos:prefLabel "Current Speed"@en ;
+  skos:prefLabel "Vitesse du courant"@fr ;
+  skos:documentation "Speed of sea water current"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:standardName "sea_water_speed" ;
+  cnodc:ioosCategory ioos:Currents ; 
+  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
+  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:031 ;
+  skos:exactMatch bufr4B22:032 ;
+  skos:exactMatch pcode:SCSP ;
+  skos:exactMatch pcode:HCSP ;
+  cnodc:wmoCodeGroup "FM18-XII: cn cn cn" ; 
+  cnodc:wmoCodeGroup "FM62-VIII: c0 c0" ; 
+  cnodc:wmoCodeGroup "FM63-XI: Vc Vc" ; 
+  cnodc:wmoCodeGroup "FM64-X: cn cn cn" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:CurrentSpeedEast rdf:type skos:Concept ;
+  skos:prefLabel "Current Speed (East)"@en ;
+  skos:documentation "Eastwards component of the current speed"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:ioosCategory ioos:Currents ; 
+  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
+  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:CurrentSpeedNorth rdf:type skos:Concept ;
+  skos:prefLabel "Current Speed (North)"@en ;
+  skos:documentation "Northwards component of the current speed"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:ioosCategory ioos:Currents ; 
+  cnodc:essentialOceanVariable eov:surfaceCurrents ; 
+  cnodc:essentialOceanVariable eov:subSurfaceCurrents ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Density rdf:type skos:Concept ;
+  skos:prefLabel "Water Density"@en ;
+  skos:prefLabel "Densité de l'eau"@fr ;
+  skos:documentation "Density of water"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "kg m-3" ;
+  cnodc:standardName "sea_water_density" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DewPointTemperature rdf:type skos:Concept ;
+  skos:prefLabel "Dew Point Temperature"@en ;
+  skos:prefLabel "Température du point de rosée"@fr ;
+  skos:documentation "Dewpoint temperature of the air"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "K" ;
+  cnodc:standardName "dew_point_temperature" ;
+  cnodc:variableName "dew_point__point_rosee" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DiffuseSolarRadiation rdf:type skos:Concept ;
+  skos:prefLabel "Diffuse Solar Radiation"@en ;
+  skos:prefLabel "Rayonnement solaire diffus"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "J m-2" ;
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B14:029 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DirectSolarRadiation rdf:type skos:Concept ;
+  skos:prefLabel "Direct Solar Radiation"@en ;
+  skos:prefLabel "Rayonnement solaire direct"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "J m-2" ;
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B14:030 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DissolvedOxygen rdf:type skos:Concept ;
+  skos:prefLabel "Dissolved Oxygen"@en ;
+  skos:prefLabel "Oxygène dissous"@fr ;
+  skos:documentation "Molality of dissolved oxygen in water"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol kg-1" ;
+  cnodc:standardName "moles_of_oxygen_per_unit_mass_in_sea_water" ;
+  cnodc:variableName "dissolved_o2__o2_dissous" ;
+  cnodc:ioosCategory ioos:DissolvedO2 ; 
+  cnodc:essentialOceanVariable eov:oxygen ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:188 ;
+  skos:exactMatch og1:DOXY ;
+  skos:exactMatch pcode:OXYG ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DissolvedOxygenFrequency rdf:type skos:Concept ;
+  skos:prefLabel "Dissolved Oxygen (Frequency)"@en ;
+  skos:documentation "Raw frequency information from the dissolved oxygen sensor"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "Hz" ;
+  cnodc:variableName "freq_dissolved_o2__o2_dissous_freq" ;
+  cnodc:ioosCategory ioos:DissolvedO2 ; 
+  cnodc:essentialOceanVariable eov:oxygen ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:DissolvedOxygenMolar rdf:type skos:Concept ;
+  skos:prefLabel "Dissolved Oxygen (Molarity)"@en ;
+  skos:prefLabel "Oxygène dissous (molarité)"@fr ;
+  skos:documentation "Molarity of dissolved oxygen in water"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol m-3" ;
+  cnodc:standardName "mole_concentration_of_dissolved_molecular_oxygen_in_sea_water" ;
+  cnodc:variableName "molar_dissolved_o2__o2_dissous_molaire" ;
+  cnodc:ioosCategory ioos:DissolvedO2 ; 
+  cnodc:essentialOceanVariable eov:oxygen ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:188 ;
+  skos:exactMatch pcode:OXYG ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Fluorescence rdf:type skos:Concept ;
+  skos:prefLabel "Fluorescence (Mass Concentration)"@en ;
+  skos:prefLabel "Fluorescence (concentration massique)"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "kg L-1" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FluorescenceFraction rdf:type skos:Concept ;
+  skos:prefLabel "Fluorescence (Fraction)"@en ;
+  skos:prefLabel "Fluorescence (Fraction)"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "0.01" ;
+  cnodc:variableName "fluoresence_fraction" ;
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 100 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FluorescencePotential rdf:type skos:Concept ;
+  skos:prefLabel "Fluorescence Potential"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "V" ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Fluoride rdf:type skos:Concept ;
+  skos:prefLabel "Fluoride"@en ;
+  skos:prefLabel "Fluorure"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mg L-1" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FourierA1 rdf:type skos:Concept ;
+  skos:prefLabel "Fourier A1 Parameter"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:Statistics ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B42:011 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FourierA2 rdf:type skos:Concept ;
+  skos:prefLabel "Fourier A2 Parameter"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:Statistics ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B42:013 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FourierB1 rdf:type skos:Concept ;
+  skos:prefLabel "Fourier B1 Parameter"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:Statistics ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B42:012 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FourierB2 rdf:type skos:Concept ;
+  skos:prefLabel "Fourier B2 Parameter"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:Statistics ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B42:014 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:FourierK rdf:type skos:Concept ;
+  skos:prefLabel "Fourier K Parameter"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:Statistics ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B42:015 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:GlobalSolarRadiation rdf:type skos:Concept ;
+  skos:prefLabel "Global Solar Radiation"@en ;
+  skos:prefLabel "Rayonnement solaire global"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "J m-2" ;
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B14:028 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:HorizontalVisibility rdf:type skos:Concept ;
+  skos:prefLabel "Horizontal Visibility"@en ;
+  skos:prefLabel "Visibilité horizontale"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B20:001 ;
+  skos:exactMatch pcode:VISB ;
+  skos:inScheme cnodc:elements .
+
+cnodc:IceThickness rdf:type skos:Concept ;
+  skos:prefLabel "Ice Thickness"@en ;
+  skos:prefLabel "Épaisseur de glace"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:IceDistribution ; 
+  cnodc:essentialOceanVariable eov:seaIce ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B13:115 ;
+  skos:exactMatch pcode:ICT%24 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:LightTransmission rdf:type skos:Concept ;
+  skos:prefLabel "Light Transmission"@en ;
+  skos:prefLabel "Transmission de la lumière"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "0.01" ;
+  cnodc:variableName "transmissivity__transmissivite" ;
+  cnodc:ioosCategory ioos:OpticalProperties ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 100 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:LongwaveRadiation rdf:type skos:Concept ;
+  skos:prefLabel "Longwave Radiation"@en ;
+  skos:prefLabel "Rayonnement solaire à ondes longues"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "J m-2" ;
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B14:002 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:NetRadiation rdf:type skos:Concept ;
+  skos:prefLabel "Net Radiation"@en ;
+  skos:prefLabel "Rayonnement net"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "J m-2" ;
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B14:016 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:NitrateMolar rdf:type skos:Concept ;
+  skos:prefLabel "Nitrate (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:standardName "mole_concentration_of_nitrate_in_sea_water" ;
+  cnodc:variableName "molar_nitrate__nitrate_molaire" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:NitriteMolar rdf:type skos:Concept ;
+  skos:prefLabel "Nitrite (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:standardName "mole_concentration_of_nitrite_in_sea_water" ;
+  cnodc:variableName "molar_nitrite__nitrite_molaire" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ParticleBackscatter rdf:type skos:Concept ;
+  skos:prefLabel "Particle Backscattering"@en ;
+  skos:documentation "Particle backscattering value at a specific wavelength"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m-1" ;
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ParticulateCarbon rdf:type skos:Concept ;
+  skos:prefLabel "Particulate Carbon"@en ;
+  skos:prefLabel "Carbone particulaire"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mg L-1" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PH rdf:type skos:Concept ;
+  skos:prefLabel "pH"@en ;
+  skos:prefLabel "pH"@fr ;
+  skos:documentation "Acidity or basicity of the water on the pH scale"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "1" ;
+  cnodc:standardName "sea_water_ph_reported_on_total_scale" ;
+  cnodc:ioosCategory ioos:Acidity ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 14 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Pheophytin rdf:type skos:Concept ;
+  skos:prefLabel "Pheophytin"@en ;
+  skos:prefLabel "Phéophytine"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mg m-3" ;
+  cnodc:ioosCategory ioos:Biology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PhosphateMolar rdf:type skos:Concept ;
+  skos:prefLabel "Phosphate (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:PracticalSalinity rdf:type skos:Concept ;
+  skos:prefLabel "Practical Salinity"@en ;
+  skos:prefLabel "Salinité pratique"@fr ;
+  skos:documentation "Salinity measured using the Practical Salinity Scale of 1978"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "0.001" ;
+  cnodc:standardName "sea_water_practical_salinity" ;
+  cnodc:variableName "salinity__salinite" ;
+  cnodc:ioosCategory ioos:Salinity ; 
+  cnodc:essentialOceanVariable eov:seaSurfaceSalinity ; 
+  cnodc:essentialOceanVariable eov:subSurfaceSalinity ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:062 ;
+  skos:exactMatch bufr4B22:064 ;
+  skos:exactMatch og1:PSAL ;
+  skos:exactMatch pcode:SSPS ;
+  skos:exactMatch pcode:PSAL ;
+  cnodc:wmoCodeGroup "FM18-XII: Sn Sn Sn Sn" ; 
+  cnodc:wmoCodeGroup "FM62-VIII: S0 S0 S0 S0" ; 
+  cnodc:wmoCodeGroup "FM64-X: Sn Sn Sn Sn" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:RelativeHumidity rdf:type skos:Concept ;
+  skos:prefLabel "Relative Humidity"@en ;
+  skos:prefLabel "Humidité relative"@fr ;
+  skos:documentation "Fraction of maximum possible humidity contained in the air"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "0.01" ;
+  cnodc:standardName "relative_humidity" ;
+  cnodc:variableName "relative_humidity__humidite_relative" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 100 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B13:003 ;
+  skos:exactMatch pcode:RELH ;
+  cnodc:wmoCodeGroup "FM18-XII: U U U" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:SeaDepth rdf:type skos:Concept ;
+  skos:prefLabel "Sea Floor Depth"@en ;
+  skos:prefLabel "Profondeur du fond marin"@fr ;
+  skos:documentation "Depth of the sea floor below the sea surface"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:standardName "sea_floor_depth_below_sea_surface" ;
+  cnodc:ioosCategory ioos:Bathymetry ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:063 ;
+  skos:exactMatch pcode:BATH ;
+  cnodc:wmoCodeGroup "FM63-XI: Zd Zd Zd Zd" ; 
+  cnodc:wmoCodeGroup "FM64-X: Zd Zd Zd Zd" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:SeaIceConcentration rdf:type skos:Concept ;
+  skos:prefLabel "Sea Ice Concentration"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:IceDistribution ; 
+  cnodc:essentialOceanVariable eov:seaIce ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B20:034 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:ShortwaveRadiation rdf:type skos:Concept ;
+  skos:prefLabel "Shortwave Radiation"@en ;
+  skos:prefLabel "Rayonnement solaire à ondes courtes"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "J m-2" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B14:004 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SilicateMolar rdf:type skos:Concept ;
+  skos:prefLabel "Silicate (Molarity)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "umol L-1" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SoundVelocity rdf:type skos:Concept ;
+  skos:prefLabel "Speed of Sound"@en ;
+  skos:prefLabel "Vitesse du son"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:standardName "speed_of_sound_in_sea_water" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch pcode:SVEL ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpecificConductance rdf:type skos:Concept ;
+  skos:prefLabel "Specific Conductance"@en ;
+  skos:prefLabel "Conductivité spécifique"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "S m-1" ;
+  cnodc:standardName "sea_water_electrical_conductivity_at_reference_temperature" ;
+  cnodc:variableName "specific_conductivity__conductivite_specifique" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveBandCount rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Band Count"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:094 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveBandWidth rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Band Width"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "s-1" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:096 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveDensity rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Density"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m2 Hz-1" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:069 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveDensityByFrequency rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Density By Frequency"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m2 s" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:104 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveDensityRatio rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Density Ratio"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "0.01" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:108 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveDirDensityByFrequency rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Direction Density By Frequency"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m2 s rad-1" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:106 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveFourier1 rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Fourier 1"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:088 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveFourier2 rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Fourier 2"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:089 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveMaxDensityByFrequency rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Maximuim Density By Frequency"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m2 s" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:082 ;
+  skos:exactMatch bufr4B22:102 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWaveMaxWaveBand rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Maximum Wave Band"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:integer ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:084 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SpectralWavePeakPeriod rdf:type skos:Concept ;
+  skos:prefLabel "Spectral Wave Peak Period"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "s" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:071 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:SurfaceType rdf:type skos:Concept ;
+  skos:prefLabel "Surface Type"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B08:029 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Temperature rdf:type skos:Concept ;
+  skos:prefLabel "Water Temperature"@en ;
+  skos:prefLabel "Température de l'eau"@fr ;
+  skos:documentation "Water temperature"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "K" ;
+  cnodc:standardName "sea_water_temperature" ;
+  cnodc:variableName "temperature" ;
+  cnodc:ioosCategory ioos:Temperature ; 
+  cnodc:essentialOceanVariable eov:seaSurfaceTemperature ; 
+  cnodc:essentialOceanVariable eov:subSurfaceTemperature ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:042 ;
+  skos:exactMatch bufr4B22:043 ;
+  skos:exactMatch bufr4B22:045 ;
+  skos:exactMatch bufr4B22:049 ;
+  skos:exactMatch og1:TEMP ;
+  skos:exactMatch pcode:TEMP ;
+  skos:exactMatch pcode:SSTP ;
+  cnodc:wmoCodeGroup "FM18-XII: Tw Tw Tw" ; 
+  cnodc:wmoCodeGroup "FM18-XII: Tn Tn Tn Tn" ; 
+  cnodc:wmoCodeGroup "FM62-VIII: sn Tw Tw Tw" ; 
+  cnodc:wmoCodeGroup "FM63-XI: Tn Tn Tn" ; 
+  cnodc:wmoCodeGroup "FM64-X: Tn Tn Tn Tn" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:TotalNitrogenMolar rdf:type skos:Concept ;
+  skos:prefLabel "Total Nitrogen (Molarity)"@en ;
+  skos:prefLabel "Azote total (molarité)"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mmol m-3" ;
+  cnodc:standardName "mole_concentration_of_dissolved_nitrogen_in_sea_water" ;
+  cnodc:variableName "molar_total_nitrogen__azote_total_molaire" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:TotalPhosphorousMolar rdf:type skos:Concept ;
+  skos:prefLabel "Total Phosphorous (Molarity)"@en ;
+  skos:prefLabel "Phosphore total (molarité)"@fr ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "mmol m-3" ;
+  cnodc:standardName "mole_concentration_of_phosphate_in_sea_water" ;
+  cnodc:variableName "molar_total_phosphorous__phosphore_total_molaire" ;
+  cnodc:ioosCategory ioos:DissolvedNutrients ; 
+  cnodc:essentialOceanVariable eov:nutrients ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:inScheme cnodc:elements .
+
+cnodc:TotalPrecipitation rdf:type skos:Concept ;
+  skos:prefLabel "Total Precipitation"@en ;
+  skos:prefLabel "Précipitations totales"@fr ;
+  skos:documentation "Total precipitation that has fallen in a given reporting period"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "kg m-2" ;
+  cnodc:standardName "precipitation_amount" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B13:011 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:Turbidity rdf:type skos:Concept ;
+  skos:prefLabel "Turbidity"@en ;
+  skos:prefLabel "Turbidité"@fr ;
+  skos:documentation "Turbidity as mesasured in Nephelometric Turbidity Units (NTUs)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "1" ;
+  cnodc:standardName "sea_water_turbidity" ;
+  cnodc:variableName "turbidity__turbidite" ;
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch og1:TURB ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveAveragePeriod rdf:type skos:Concept ;
+  skos:prefLabel "Wave Average Period"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "s" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:074 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveDirection rdf:type skos:Concept ;
+  skos:prefLabel "Wave Direction (From)"@en ;
+  skos:documentation "Direction the waves are coming from in degrees from north"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:standardName "sea_surface_wave_from_direction" ;
+  cnodc:variableName "wave_direction__direction_vagues" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:186 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveDominantDirection rdf:type skos:Concept ;
+  skos:prefLabel "Wave Dominant Direction (From)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:076 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveDominantSpread rdf:type skos:Concept ;
+  skos:prefLabel "Wave Dominant Spread"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:077 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveHeight rdf:type skos:Concept ;
+  skos:prefLabel "Wave Height"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:021 ;
+  cnodc:wmoCodeGroup "FM18-XII: Hwa Hwa" ; 
+  cnodc:wmoCodeGroup "FM18-XII: Hwa Hwa Hwa" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveMaximumHeight rdf:type skos:Concept ;
+  skos:prefLabel "Wave Maximum Height"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:standardName "sea_surface_wave_maximum_height" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:073 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveMeanDirection rdf:type skos:Concept ;
+  skos:prefLabel "Wave Mean Direction (From)"@en ;
+  skos:documentation "Average direction that waves are coming from in degrees from north"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:086 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WavePeriod rdf:type skos:Concept ;
+  skos:prefLabel "Wave Period"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "s" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:011 ;
+  cnodc:wmoCodeGroup "FM18-XII: Pwa Pwa" ; 
+  cnodc:wmoCodeGroup "FM18-XII: Pwa Pwa Pwa" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WavePrincipalDirection rdf:type skos:Concept ;
+  skos:prefLabel "Wave Principal Direction (From)"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:standardName "sea_surface_wave_principal_from_direction" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:087 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveSignificantHeight rdf:type skos:Concept ;
+  skos:prefLabel "Wave Significant Height"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m" ;
+  cnodc:standardName "sea_surface_wave_significant_height" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:070 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WaveSpread rdf:type skos:Concept ;
+  skos:prefLabel "Wave Spread"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:ioosCategory ioos:SurfaceWaves ; 
+  cnodc:essentialOceanVariable eov:seaState ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B22:187 ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WetBulbTemperature rdf:type skos:Concept ;
+  skos:prefLabel "Wet Bulb Temperature"@en ;
+  skos:prefLabel "Température de bulbe humide"@fr ;
+  skos:documentation "Wet bulb air temperature"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "K" ;
+  cnodc:standardName "wet_bulb_temperature" ;
+  cnodc:variableName "wet_bulb_temperature__temperature_bulbe_humide" ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B12:102 ;
+  skos:exactMatch pcode:WETT ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WindDirection rdf:type skos:Concept ;
+  skos:prefLabel "Wind Direction (From)"@en ;
+  skos:prefLabel "Direction du vent (de)"@fr ;
+  skos:documentation "Direction the wind is coming from"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:standardName "wind_from_direction" ;
+  cnodc:variableName "wind_direction__direction_vents" ;
+  cnodc:ioosCategory ioos:Wind ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B11:001 ;
+  skos:exactMatch pcode:WDIR ;
+  cnodc:wmoCodeGroup "FM18-XII: d d" ; 
+  cnodc:wmoCodeGroup "FM63-XI: d d" ; 
+  cnodc:wmoCodeGroup "FM64-X: dd" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WindGustMaxDirection rdf:type skos:Concept ;
+  skos:prefLabel "Wind Gust Max Direction (From)"@en ;
+  skos:prefLabel "Direction des rafales de vent (de)"@fr ;
+  skos:documentation "Direction the maximum speed wind gusts are coming from"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "degree" ;
+  cnodc:standardName "wind_gust_from_direction" ;
+  cnodc:ioosCategory ioos:Wind ; 
+  cnodc:minValue 0 ; 
+  cnodc:maxValue 360 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B11:043 ;
+  skos:exactMatch pcode:GDIR ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WindGustMaxSpeed rdf:type skos:Concept ;
+  skos:prefLabel "Wind Gust Max Speed"@en ;
+  skos:prefLabel "Vitesse maximale des rafales de vent"@fr ;
+  skos:documentation "Speed of the maximum wind gusts"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:standardName "wind_speed_of_gust" ;
+  cnodc:ioosCategory ioos:Wind ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B11:041 ;
+  skos:exactMatch pcode:GSPD ;
+  skos:inScheme cnodc:elements .
+
+cnodc:WindSpeed rdf:type skos:Concept ;
+  skos:prefLabel "Wind Speed"@en ;
+  skos:prefLabel "Vitesse du vent"@fr ;
+  skos:documentation "Average wind speed"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:decimal ;
+  cnodc:preferredUnit "m s-1" ;
+  cnodc:standardName "wind_speed" ;
+  cnodc:variableName "wind_speed__vitesse_vents" ;
+  cnodc:ioosCategory ioos:Wind ; 
+  cnodc:minValue 0 ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B11:002 ;
+  skos:exactMatch pcode:WSPD ;
+  cnodc:wmoCodeGroup "FM18-XII: f f" ; 
+  cnodc:wmoCodeGroup "FM63-XI: f f" ; 
+  cnodc:wmoCodeGroup "FM64-X: f f" ; 
+  skos:inScheme cnodc:elements .
+
+cnodc:WMOAirPressureCharacteristic rdf:type skos:Concept ;
+  skos:prefLabel "WMO Air Pressure Characteristic"@en ;
+  cnodc:elementGroup "parameters" ;
+  cnodc:dataType xsd:string ;
+  cnodc:ioosCategory ioos:Meteorology ; 
+  cnodc:allowMulti "True" ;
+  skos:exactMatch bufr4B10:063 ;
+  skos:exactMatch pcode:GPT%24 ;
   skos:inScheme cnodc:elements .
