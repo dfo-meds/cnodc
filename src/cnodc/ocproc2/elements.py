@@ -4,6 +4,8 @@ import decimal
 import functools
 import typing as t
 import datetime
+from xml.etree.ElementTree import Element
+
 from uncertainties import ufloat, UFloat
 
 from cnodc.ocproc2.lazy_load import LazyLoadDict
@@ -423,9 +425,12 @@ class ElementMap(LazyLoadDict[AbstractElement]):
             return False
         return not self.load(item).is_empty()
 
-    def set_or_append(self,
-                      element_name: str,
-                      element: SingleElement):
+    def add_element(self,
+                    element_name: str,
+                    value: OCProcValue,
+                    metadata: t.Optional[DefaultValueDict] = None,
+                    **kwargs):
+        element = ElementMap.ensure_element(value, metadata, **kwargs)
         if element_name not in self:
             self.set(element_name, element)
         else:
@@ -442,37 +447,22 @@ class ElementMap(LazyLoadDict[AbstractElement]):
                     metadata: t.Optional[DefaultValueDict] = None,
                     **kwargs):
         """Set an element to the given value and metadata."""
-        if not isinstance(value, AbstractElement):
-            value = SingleElement(value)
-        if metadata:
-            value.metadata.update(metadata)
-        if kwargs:
-            value.metadata.update(kwargs)
-        self.set(element_name, value)
+        self.set(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
 
     def set_multiple(self,
                      element_name: str,
                      values: t.Sequence[OCProcValue],
                      common_metadata: t.Optional[DefaultValueDict] = None,
-                     specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None
-                     ):
+                     specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None):
         """Build a multi-valued element from the given values."""
-        actual_values = []
         for i in range(0, len(values)):
             value_metadata = {}
             if common_metadata:
                 value_metadata.update(common_metadata)
             if specific_metadata:
                 value_metadata.update(specific_metadata[i])
-            if isinstance(values[i], AbstractElement):
-                values[i].metadata.update(value_metadata)
-                actual_values.append(values[i])
-            else:
-                val = SingleElement(values[i])
-                if value_metadata:
-                    val.metadata.update(value_metadata)
-                actual_values.append(val)
-        self.set(element_name, MultiElement(actual_values))
+            element = self.ensure_element(values[i], value_metadata)
+            self.add_element(element_name, element)
 
     def update(self, map_: dict = None, **kwargs):
         if map_ is not None:
@@ -481,3 +471,13 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         if kwargs:
             for key in kwargs:
                 self.set_element(key, kwargs[key])
+
+    @staticmethod
+    def ensure_element(value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+        if not isinstance(value, AbstractElement):
+            value = SingleElement(value)
+        if metadata:
+            value.metadata.update(metadata)
+        if kwargs:
+            value.metadata.update(kwargs)
+        return value

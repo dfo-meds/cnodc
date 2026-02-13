@@ -1,8 +1,9 @@
 """Structural elements of OCPROC2."""
+from __future__ import annotations
 import hashlib
 import typing as t
 import datetime
-from cnodc.ocproc2.elements import ElementMap
+from cnodc.ocproc2.elements import ElementMap, DefaultValueDict, OCProcValue
 from cnodc.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 from cnodc.ocproc2.lazy_load import LazyLoadList
 
@@ -41,29 +42,38 @@ class BaseRecord:
             self._subrecords = RecordMap()
         return self._subrecords
 
-    def set_element(self, element_full_name, value, *args, **kwargs):
-        map_name, element_name = element_full_name.split(':')
-        if map_name == 'coordinates':
-            self.coordinates.set_element(element_name, value, *args, **kwargs)
-        elif map_name == 'metadata':
-            self.metadata.set_element(element_name, value, *args, **kwargs)
-        elif map_name == 'parameters':
-            self.parameters.set_element(element_name, value, *args, **kwargs)
-        else:
-            raise ValueError(f'Unknown map type: [{map_name}]')
+    def set_element(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+        child_parent, element_name = self._find_element_map(element_full_name)
+        child_parent.set_element(element_name, value, metadata, **kwargs)
 
-    def find_child(self, object_path: t.Union[str, list[str]]):
+    def add_element(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+        child_parent, element_name = self._find_element_map(element_full_name)
+        child_parent.add_element(element_full_name, value, metadata, **kwargs)
+
+    def set_multiple(self, element_full_name: str, values: t.Sequence[OCProcValue], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None):
+        child_parent, element_name = self._find_element_map(element_full_name)
+        child_parent.set_multiple(element_name, values, common_metadata, specific_metadata)
+
+    def _find_element_map(self, element_full_name):
+        pieces = element_full_name.split('/')
+        child_parent = self.find_child(pieces[:-1])
+        if child_parent is not None and isinstance(child_parent, ElementMap):
+            return child_parent, pieces[-1]
+        else:
+            raise ValueError(f'invalid element path: [{element_full_name}]')
+
+    def find_child(self, object_path: t.Union[str, list[str]]) -> t.Optional[t.Union[BaseRecord, ElementMap, RecordSet]]:
         if not object_path:
             return self
         if isinstance(object_path, str):
             object_path = [x for x in object_path.split('/') if x != '']
-        if object_path[0] == 'metadata' and self._metadata is not None:
+        if object_path[0] == 'metadata':
             return self.metadata.find_child(object_path[1:])
-        elif object_path[0] == 'parameters' and self._parameters is not None:
+        elif object_path[0] == 'parameters':
             return self.parameters.find_child(object_path[1:])
-        elif object_path[0] == 'coordinates' and self._coordinates is not None:
+        elif object_path[0] == 'coordinates':
             return self.coordinates.find_child(object_path[1:])
-        elif object_path[0] == 'subrecords' and self._subrecords is not None:
+        elif object_path[0] == 'subrecords':
             return self.subrecords.find_child(object_path[1:])
         else:
             return None
