@@ -199,7 +199,7 @@ class AbstractElement:
     def is_empty(self) -> bool:
         """Check if the value is empty."""
         for v in self.all_values():
-            if v.value is not None and v.value == '':
+            if v.value is not None and v.value != '':
                 return False
         return True
 
