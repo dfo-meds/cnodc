@@ -11,6 +11,27 @@ from cnodc.netcdf.wrapper import Dataset
 import cnodc.ocean_math.seawater as seawater
 import cnodc.dmd.metadata as metadata
 
+def ego_old_sensor_info(original_nc, sensor_map: dict[str, str]):
+    sensors = {}
+    sensors_seen = set()
+    param_map = {}
+    for var in original_nc.variables():
+        if not var.has_attribute('sensor_name'):
+            continue
+        sensor_full_name = var.attribute('sensor_name').strip().lower()
+        while '  ' in sensor_full_name:
+            sensor_full_name = sensor_full_name.replace('  ', ' ')
+        if sensor_full_name not in sensor_map:
+            raise CNODCError(f"Unknown sensor [{sensor_full_name}]")
+        info = sensor_map[sensor_full_name]
+        info['serial'] = var.attribute('sensor_serial_number')
+        key = f"SENSOR_{info['type']}_{info['serial']}"
+        if key in sensors_seen:
+            continue
+        sensors_seen.add(key)
+        sensors[key] = info
+        param_map[var.name] = key
+    return sensors, param_map
 
 
 
@@ -19,7 +40,7 @@ class OpenGliderConverter:
     @staticmethod
     def build(map_file: t.Optional[pathlib.Path] = None, halt_flag=None):
         if map_file is None:
-            map_file = pathlib.Path(__file__).absolute().parent / 'og_convert_realtime.yaml'
+            map_file = pathlib.Path(__file__).absolute().parent / 'ego_conversion.yaml'
         with open(map_file, encoding="utf-8") as h:
             return OpenGliderConverter(yaml.safe_load(h), halt_flag)
 
@@ -130,33 +151,10 @@ class OpenGliderConverter:
 
     def _set_sensor_metadata(self, open_nc: Dataset, original_nc: Dataset):
         if not original_nc.has_variable('PARAMETER'):
-            return self._build_old_sensor_metadata(open_nc, original_nc)
+            sensor_info, param_map = ego_old_sensor_info(original_nc, self._mapping_data['sensor_map'])
         else:
-            return self._build_new_sensor_metadata(open_nc, original_nc)
-
-    def _build_old_sensor_metadata(self, open_nc: Dataset, original_nc: Dataset):
-        sensors = {}
-        sensors_seen = set()
-        param_map = {}
-        for var in original_nc.variables():
-            if not var.has_attribute('sensor_name'):
-                continue
-            sensor_full_name = var.attribute('sensor_name').strip().lower()
-            while '  ' in sensor_full_name:
-                sensor_full_name = sensor_full_name.replace('  ', ' ')
-            if sensor_full_name not in self._mapping_data['sensor_map']:
-                raise CNODCError(f"Unknown sensor [{sensor_full_name}]")
-                # TODO: should be an error
-                continue
-            info = self._mapping_data['sensor_map'][sensor_full_name]
-            info['serial'] = var.attribute('sensor_serial_number')
-            key = f"SENSOR_{info['type']}_{info['serial']}"
-            if key in sensors_seen:
-                continue
-            sensors_seen.add(key)
-            sensors[key] = info
-            param_map[var.name] = key
-        self._create_openglider_sensor_vars(open_nc, sensors)
+            sensor_info, param_map = ego_new_sensor_info(original_nc)
+        self._create_openglider_sensor_vars(open_nc, sensor_info)
         return param_map
 
     def _create_openglider_sensor_vars(self, open_nc: Dataset, sensors: dict[str, dict[str, str]]):
@@ -174,49 +172,6 @@ class OpenGliderConverter:
                 },
             )
             self.breakpoint()
-
-    def _build_new_sensor_metadata(self, open_nc: Dataset, original_nc: Dataset):
-        sensor_names = original_nc.variable('SENSOR').all_as_strings()
-        self.breakpoint()
-        sensor_makers = original_nc.variable('SENSOR_MAKER').all_as_strings()
-        self.breakpoint()
-        sensor_models = original_nc.variable('SENSOR_MODEL').all_as_strings()
-        self.breakpoint()
-        sensor_serials = original_nc.variable('SENSOR_SERIAL_NO').all_as_strings()
-        self.breakpoint()
-        param_names = original_nc.variable('PARAMETER').all_as_strings()
-        self.breakpoint()
-        param_sensors = original_nc.variable('PARAMETER_SENSOR').all_as_strings()
-        self.breakpoint()
-        sensor_info = {}
-        sensors_seen = set()
-        param_map = {}
-        for x in range(0, len(sensor_names)):
-            if (sensor_models[x], sensor_serials[x]) in sensors_seen:
-                continue
-            sensors_seen.add((sensor_models[x], sensor_serials[x]))
-            if sensor_names[x].startswith('CTD_'):
-                sensor_type = 'CTD'
-            elif sensor_names[x].startswith('FLUOROMETER_') or sensor_names[x].startswith('BACKSCATTER'):
-                sensor_type = 'FLUOROMETER'
-            elif sensor_names[x] == 'OPTODE_DOXY':
-                sensor_type = 'DOXY'
-            else:
-                raise CNODCError(f"Unknown glider instrument type: {sensor_names[x]}", 'GLIDER_CONVERT', 1003)
-            key = f"SENSOR_{sensor_type}_{sensor_serials[x]}"
-            for idx,val in enumerate(param_sensors):
-                if val == sensor_names[x]:
-                    param_map[param_names[idx]] = key
-            if key not in sensor_info:
-                sensor_info[key] = {
-                    'type': sensor_type,
-                    'make': sensor_makers[x],
-                    'model': sensor_models[x],
-                    'serial': sensor_serials[x],
-                }
-            self.breakpoint()
-        self._create_openglider_sensor_vars(open_nc, sensor_info)
-        return param_map
 
     def _build_variables(self, open_nc: Dataset, original_nc: Dataset):
         for var_name in self._mapping_data['variables']:
