@@ -19,11 +19,11 @@ import cnodc.dmd.dmd as dmd
 
 def add_glider_mission_platform_info(source_file, record: ParentRecord, db: NODBControllerInstance, memory: dict):
     if record.metadata.has_value('WMOID'):
-        wmoid = record.metadata['WMOID']
+        wmoid = record.metadata['WMOID'].value
         platforms = structures.NODBPlatform.search(
             db=db,
             wmo_id=wmoid,
-            in_service_time=record.coordinates['Time'] if record.coordinates.has_value('Time') else None
+            in_service_time=record.coordinates['Time'].value if record.coordinates.has_value('Time') else None
         )
         if platforms:
             record.metadata['CNODCPlatform'] = platforms[0].platform_uuid
@@ -38,7 +38,7 @@ def add_glider_mission_platform_info(source_file, record: ParentRecord, db: NODB
                 memory['platform_map'] = {}
             memory['platform_map'][wmoid] = platform.platform_uuid
     if record.metadata.has_value('CruiseID'):
-        cruise_id = record.metadata['CruiseID']
+        cruise_id = record.metadata['CruiseID'].value
         missions = structures.NODBMission.search(
             db=db,
             mission_id=cruise_id,
