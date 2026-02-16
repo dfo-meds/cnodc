@@ -81,7 +81,7 @@ variables:
       long_name_fr: 'Drapeau de qualité pour latitude de chaque mesure et localisation GPS'
       rtqc_methodology: "Coriolis MATLAB toolbox"
       rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
-      cnodc_standard_name: Latitude:Quality
+      cnodc_standard_name: Latitude/Quality
       _FillValue: -128
       valid_min: 0
       valid_max: 9
@@ -116,7 +116,7 @@ variables:
       coordinates: "TIME,LONGITUDE,LATITUDE,DEPTH"
       rtqc_methodology: "Coriolis MATLAB toolbox"
       rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
-      cnodc_standard_name: Longitude:Quality
+      cnodc_standard_name: Longitude/Quality
       _FillValue: -128
       valid_min: 0
       valid_max: 9
@@ -154,6 +154,7 @@ variables:
       valid_min: 1000000000.0
       valid_max: 4000000000.0
       ancillary_variables: "TIME_GPS_QC"
+      cnodc_standard_name: Time
       standard_name: "time"
   TIME_GPS_QC:
     type: i1
@@ -167,6 +168,7 @@ variables:
       _FillValue: -128
       valid_min: 0
       valid_max: 9
+      cnodc_standard_name: Time/Quality
     copy_attributes:
       - flag_values
       - flag_meanings
@@ -183,6 +185,7 @@ variables:
       valid_max: 180.0
       ancillary_variables: "LONGITUDE_GPS_QC"
       standard_name: "longitude"
+      cnodc_standard_name: Longitude
       crs: "EPSG:4326"
   LONGITUDE_GPS_QC:
     type: i1
@@ -196,6 +199,7 @@ variables:
       _FillValue: -128
       valid_min: 0
       valid_max: 9
+      cnodc_standard_name: Longitude/Quality
     copy_attributes:
       - flag_values
       - flag_meanings
@@ -213,6 +217,7 @@ variables:
       ancillary_variables: "LATITUDE_GPS_QC"
       standard_name: "latitude"
       crs: "EPSG:4326"
+      cnodc_standard_name: Latitude
   LATITUDE_GPS_QC:
     type: i1
     dimensions:
@@ -225,6 +230,7 @@ variables:
       _FillValue: -128
       valid_min: 0
       valid_max: 9
+      cnodc_standard_name: Latitude/Quality
     copy_attributes:
       - flag_values
       - flag_meanings
@@ -549,22 +555,27 @@ contact_info:
 glider_model_map:
   slocum_sg2:
     model: Teledyne Webb Research Slocum G2 glider
+    ocproc2_model: "Slocum G2"
     prefix: 'unit_'
     maker: "Teledyne Web Research"
   slocum_g2:
     model: Teledyne Webb Research Slocum G2 glider
+    ocproc2_model: "Slocum G2"
     prefix: 'unit_'
     maker: "Teledyne Web Research"
   slocum_g3:
     model: Teledyne Webb Research Slocum G3 glider
+    ocproc2_model: "Slocum G3"
     prefix: 'unit_'
     maker: "Teledyne Web Research"
   slocum_sg3:
     model: Teledyne Webb Research Slocum G3 glider
+    ocproc2_model: "Slocum G3"
     prefix: 'unit_'
     maker: "Teledyne Web Research"
   seaexplorer:
     model: "Alseamar SeaExplorer X2 glider"
+    ocproc2_model: "X2"
     prefix: "sea"
     maker: "Alseamar"
 
@@ -614,5 +625,198 @@ phase_map:
   4: 2
   5: 0
   6: 0
+
+key_variable: JULD
+
+attribute_map:
+  abstract:
+    target: metadata/Abstract
+    mapping_type: bilingual
+  area: metadata/Area
+  summary:
+    target: metadata/Summary
+    mapping_type: bilingual
+  observatory:
+    target: metadata/Observatory
+    mapping_type: institution
+  institution:
+    target: metadata/Institution
+    mapping_type: institution
+  deployment_code: metadata/DeploymentCruiseID
+  principal_investigator:
+    target: metadata/PrincipalInvestigator
+    mapping_type: semicolon_list
+  project: metadata/Project
+  program: metadata/Program
+  data_mode:
+    target: metadata/CNODCLevel
+    mapping_type: data_mode_to_level
+  wmo_platform_code: metadata/WMOID
+  doi: metadata/DOI
+  update_interval:
+    target: metadata/DataUpdateInterval
+    mapping_type: convert_update_level
+  platform_code: metadata/PlatformID
+  platform_name: metadata/PlatformName
+
+single_variable_map:
+  DEPLOYMENT_END_DATE: metadata/EndDate
+  DEPLOYMENT_END_LATITUDE: metadata/EndLatitude
+  DEPLOYMENT_END_LONGITUDE: metadata/EndLongitude
+  DEPLOYMENT_START_DATE: metadata/StartDate
+  DEPLOYMENT_START_LATITUDE: metadata/StartLatitude
+  DEPLOYMENT_START_LONGITUDE: metadata/StartLongitude
+  PLATFORM_FAMILY:
+    target: metadata/PlatformCategory
+    mapping_type: convert_platform_family
+  DEPLOYMENT_START_QC:
+    target:
+      - metadata/StartLatitude/metadata/Quality
+      - metadata/StartLongitude/metadata/Quality
+      - metadata/StartDate/metadata/Quality
+  DEPLOYMENT_END_QC:
+    target:
+      - metadata/EndLatitude/metadata/Quality
+      - metadata/EndLongitude/metadata/Quality
+      - metadata/EndDate/metadata/Quality
+    allow_missing: yes
+  DEPLOYMENT_REFERENCE_STATION_ID: metadata/ReferenceStationNames
+  BATTERY_PACKS: metadata/BatteryDescription
+  GLIDER_MANUAL_VERSION: metadata/DocumentationVersion
+  CUSTOMIZATION: metadata/PlatformCustomization
+  SPECIAL_FEATURES: metadata/PlatformDetails
+
+  FIRMWARE_VERSION_NAVIGATION:
+    target: metadata/FirmwareVersion
+    metadata:
+      FirmwareType: navigation
+    allow_multiple: yes
+  FIRMWARE_VERSION_SCIENCE:
+    target: metadata/FirmwareVersion
+    metadata:
+      FirmwareType: science
+    allow_multiple: yes
+  FIRMWARE_VERSION:
+    target: metadata/FirmwareVersion
+    metadata:
+      FirmwareType: science
+    allow_multiple: yes
+  BATTERY_TYPE:
+    target: metadata/BatteryType
+    mapping_type: convert_battery_type
+  ANOMALY:
+    target: metadata/Notes
+    metadata:
+      Language: en
+  OPERATING_INSTITUTION:
+    target: metadata/Operator
+    mapping_type: institution
+  GLIDER_OWNER:
+    target: metadata/PlatformOwner
+    mapping_type: institution
+  GLIDER_SERIAL_NO: metadata/PlatformSerial
+
+variable_map:
+  JULD:
+    target: coordinates/Time
+    source: JULD
+    qc_source: TIME_QC
+    mapping_type: time_since
+    no_units: yes
+    metadata:
+      SensorType: interpolated
+    allow_multiple: yes
+  LATITUDE:
+    target: coordinates/Latitude
+    source: LATITUDE
+    qc_source: POSITION_QC
+    metadata:
+      SensorType: interpolated
+    allow_multiple: yes
+  LONGITUDE:
+    target: coordinates/Longitude
+    source: LONGITUDE
+    qc_source: POSITION_QC
+    metadata:
+      SensorType: interpolated
+    allow_multiple: yes
+  LATITUDE_GPS:
+    target: coordinates/Latitude
+    source: LATITUDE_GPS
+    qc_source: LATITUDE_GPS_QC
+    metadata:
+      SensorType: satnav
+    allow_multiple: yes
+  LONGITUDE_GPS:
+    target: coordinates/Longitude
+    source: LONGITUDE_GPS
+    qc_source: LONGITUDE_GPS_QC
+    metadata:
+      SensorType: satnav
+    allow_multiple: yes
+  TIME_GPS:
+    target: coordinates/Time
+    source: TIME_GPS
+    qc_source: TIME_GPS_QC
+    metadata:
+      SensorType: satnav
+    allow_multiple: yes
+  PRES:
+    target: coordinates/Pressure
+    source: PRES
+    qc_source: PRES_QC
+  CHLA:
+    target: parameters/ChlorophyllA
+    source: CHLA
+    qc_source: CHLA_QC
+  FLUORESCENCE_CHLA:
+    target: parameters/ChlorophyllAFluorescence
+    source: FLUORESCENCE_CHLA
+    qc_source: FLUORESCENCE_CHLA_QC
+  PSAL:
+    target: parameters/PracticalSalinity
+    source: PSAL
+    qc_source: PSAL_QC
+  TEMP:
+    target: parameters/Temperature
+    source: TEMP
+    qc_source: TEMP_QC
+    metadata:
+      TemperatureScale: ITS-90
+  CDOM:
+    target: parameters/ColoredDissolvedOrganicMatter
+    source: CDOM
+    qc_source: CDOM_QC
+  PHASE:
+    target: metadata/GliderPhaseCode
+    source: PHASE
+    metadata:
+      GliderPhaseCodeSource: ego
+  PHASE_NUMBER:
+    target: metadata/GliderPhaseNumber
+    source: PHASE_NUMBER
+  DOXY:
+    target: parameters/DissolvedOxygen
+    qc_source: DOXY_QC
+  FREQUENCY_DOXY:
+    target: parameters/DissolvedOxygenFrequency
+    qc_source: FREQUENCY_DOXY_QC
+  MOLAR_DOXY:
+    target: parameters/DissolvedOxygenMolar
+    qc_source: MOLAR_DOXY_QC
+  TURBIDITY:
+    target: parameters/Turbidity
+    qc_source: TURBIDITY_QC
+  BBP700:
+    target: parameters/ParticleBackscatter
+    qc_source: BBP700_QC
+    metadata:
+      BackscatterWavelength:
+        _value: 700
+        _metadata:
+          Units: nm
+
+
+
 
 
