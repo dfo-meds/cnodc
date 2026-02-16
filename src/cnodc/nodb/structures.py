@@ -879,10 +879,29 @@ class NODBMission(_NODBBaseObject):
     PRIMARY_KEYS = ("mission_uuid",),
 
     mission_uuid: str = UUIDColumn("mission_uuid")
-    mission_name: str = StringColumn("mission_name")
+    mission_id: str = StringColumn("mission_id")
     metadata: dict = JsonColumn("metadata")
     start_date: datetime.datetime = DateTimeColumn("start_date")
     end_date: t.Optional[datetime.datetime] = DateTimeColumn("end_date")
+
+    @classmethod
+    def find_by_uuid(cls, db, mission_uuid: str, **kwargs) -> t.Optional[NODBMission]:
+        """Find a workflow by name."""
+        return db.load_object(cls, {"mission_uuid": mission_uuid},  **kwargs)
+
+    @staticmethod
+    def search(db: NODBControllerInstance, mission_id: t.Optional[str] = None):
+        with db.cursor() as cur:
+            args = []
+            clauses = []
+            if mission_id is not None and mission_id != '':
+                args.append(mission_id)
+                clauses.append('mission_id = %s')
+            if not args:
+                return []
+            query = f"SELECT * FROM {NODBMission.TABLE_NAME} WHERE " + ' OR '.join(clauses)
+            cur.execute(query, args)
+            return [NODBMission(is_new=False, **x) for x in cur.fetch_all()]
 
 
 class NODBObservation(_NODBBaseObject):
@@ -1172,7 +1191,7 @@ class NODBPlatform(_NODBBaseObject):
             return [NODBPlatform(is_new=False, **x) for x in cur.fetch_all()]
 
     @classmethod
-    def find_by_uuid(cls, db: NODBControllerInstance, platform_uuid: str, **kwargs):
+    def find_by_uuid(cls, db: NODBControllerInstance, platform_uuid: str, **kwargs) -> t.Optional[NODBPlatform]:
         """Locate a platform by its unique identifier."""
         return db.load_object(cls, {
             'platform_uuid': platform_uuid

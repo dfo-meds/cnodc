@@ -26,6 +26,7 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
 
     def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]:
         batch = payload.load_batch(self._db)
+        memory = {}
         if batch.status != structures.BatchStatus.COMPLETE:
             for working in batch.stream_working_records(self._db):
                 self._finalizer.create_completed_entry(
@@ -34,7 +35,8 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
                     working.received_date,
                     working.message_idx,
                     working.record_idx,
-                    working.source_file_uuid
+                    working.source_file_uuid,
+                    memory
                 )
                 self._db.delete_object(working)
             batch.status = structures.BatchStatus.COMPLETE

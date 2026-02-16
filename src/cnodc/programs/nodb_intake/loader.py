@@ -35,6 +35,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             'decoder_class': None,
             'decode_kwargs': {},
             'before_message': None,
+            'before_record': None,
             'after_success': None,
             'after_error': None,
             'allow_reprocessing': False,
@@ -46,7 +47,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._before_message_hook: t.Optional[callable] = None
         self._after_success_hook: t.Optional[callable] = None
         self._after_error_hook: t.Optional[callable] = None
+        self._before_record_hook: t.Optional[callable] = None
         self._record_manager: t.Optional[NODBRecordManager] = None
+        self._memory: t.Optional[dict] = None
 
 
     def on_start(self):
@@ -61,17 +64,23 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             raise CNODCError(f"Specified error directory is not a directory", "NODBLOAD", 1003)
         if not self._decoder.is_decoder:
             raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODBLOAD", 1002)
-        self._before_message_hook = self.get_config('before_message')
-        if self._before_message_hook is not None:
-            self._before_message_hook = dynamic_object(self._before_message_hook)
-        self._after_success_hook = self.get_config('after_success')
-        if self._after_success_hook is not None:
-            self._after_success_hook = dynamic_object(self._after_success)
-        self._after_error_hook = self.get_config('after_error')
-        if self._after_error_hook is not None:
-            self._after_error_hook = dynamic_object(self._after_error)
+        self._before_message_hook = NODBDecodeLoadWorker._load_hook(self.get_config('before_message'))
+        self._after_success_hook = NODBDecodeLoadWorker._load_hook(self.get_config('after_success'))
+        self._after_error_hook = NODBDecodeLoadWorker._load_hook(self.get_config('after_error'))
+        self._before_record_hook = NODBDecodeLoadWorker._load_hook(self.get_config('before_record'))
+
+    @staticmethod
+    def _load_hook(hook):
+        if hook is None:
+            return []
+        elif isinstance(hook, (list, tuple, set)):
+            return [dynamic_object(x) for x in hook]
+        else:
+            return [dynamic_object(hook)]
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
+
+        self._memory = {}
 
         # Find the source file
         source_file = self._fetch_source_file(payload)
@@ -155,17 +164,14 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         errored = False
         make_completed_records = self.get_config('autocomplete_records', False)
         self._before_message(source_file, result)
-        if self._before_message_hook is not None:
-            self._before_message_hook(source_file, result)
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
+                    self._before_record(source_file, record)
                     self.breakpoint()
                     if self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records):
                         total_success += 1
                 self._after_success(source_file, result)
-                if self._after_success_hook is not None:
-                    self._after_success_hook(source_file, result)
                 self._db.commit()
             except (HaltInterrupt, KeyboardInterrupt) as ex:
                 raise ex from ex
@@ -193,7 +199,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             record: ocproc2.ParentRecord,
                             make_completed_records):
         if make_completed_records:
-            return self._record_manager.create_completed_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx)
+            return self._record_manager.create_completed_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx, self._memory)
         else:
             return self._record_manager.create_working_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx)
 
@@ -201,10 +207,8 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                                source_file: structures.NODBSourceFile,
                                result: DecodeResult,
                                additional_exception: Exception = None):
-        self._after_error(source_file, result, additional_exception)
-        if self._after_error_hook is not None:
-            self._after_error_hook(source_file, result, additional_exception)
         self._db.rollback()
+        self._after_error(source_file, result, additional_exception)
         mode = self._db.update_object
         if result.single_message:
             child_file = source_file
@@ -252,10 +256,17 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._db.commit()
 
     def _before_message(self, source_file: structures.NODBSourceFile, result: DecodeResult):
-        pass
+        for hook in self._before_message_hook:
+            hook(source_file, result, self._db, self._memory)
+
+    def _before_record(self, source_file, record):
+        for hook in self._before_record_hook:
+            hook(source_file, record, self._db, self._memory)
 
     def _after_success(self, source_file, result):
-        pass
+        for hook in self._after_success_hook:
+            hook(source_file, result, self._db, self._memory)
 
     def _after_error(self, source_file, result, additional_exception):
-        pass
+        for hook in self._after_error_hook:
+            hook(source_file, result, additional_exception, self._db, self._memory)

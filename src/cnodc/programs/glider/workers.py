@@ -1,7 +1,12 @@
 import datetime
 import typing as t
+import uuid
+
 from autoinject import injector
 
+from cnodc.nodb import NODBControllerInstance
+import cnodc.nodb.structures as structures
+from cnodc.ocproc2 import ParentRecord
 from cnodc.process import QueueItemResult, SourceWorkflowWorker
 from cnodc.process.payload_worker import FileWorkflowWorker
 from cnodc.storage import StorageController, BaseStorageHandle
@@ -10,6 +15,46 @@ from cnodc.workflow.workflow import FilePayload, SourceFilePayload
 from cnodc.storage.base import StorageTier
 from cnodc.programs.glider.ego_convert import OpenGliderConverter
 import cnodc.dmd.dmd as dmd
+
+
+def add_glider_mission_platform_info(source_file, record: ParentRecord, db: NODBControllerInstance, memory: dict):
+    if record.metadata.has_value('WMOID'):
+        wmoid = record.metadata['WMOID']
+        platforms = structures.NODBPlatform.search(
+            db=db,
+            wmo_id=wmoid,
+            in_service_time=record.coordinates['Time'] if record.coordinates.has_value('Time') else None
+        )
+        if platforms:
+            record.metadata['CNODCPlatform'] = platforms[0].platform_uuid
+        elif 'platform_map' in memory and wmoid in memory['platform_map']:
+            record.metadata['CNODCPlatform'] = memory['platform_map'][wmoid]
+        else:
+            platform = structures.NODBPlatform()
+            platform.platform_uuid = str(uuid.uuid4())
+            platform.wmo_id = wmoid
+            db.insert_object(platform)
+            if 'platform_map' not in memory:
+                memory['platform_map'] = {}
+            memory['platform_map'][wmoid] = platform.platform_uuid
+    if record.metadata.has_value('CruiseID'):
+        cruise_id = record.metadata['CruiseID']
+        missions = structures.NODBMission.search(
+            db=db,
+            mission_id=cruise_id,
+        )
+        if missions:
+            record.metadata['CNODCMission'] = missions[0].mission_uuid
+        elif 'mission_map' in memory and cruise_id in memory['mission_map']:
+            record.metadata['CNODCMission'] = memory['mission_map'][cruise_id]
+        else:
+            mission = structures.NODBMission()
+            mission.mission_id = cruise_id
+            mission.mission_uuid = str(uuid.uuid4())
+            db.insert_object(mission)
+            if 'mission_map' not in memory:
+                memory['mission_map'] = {}
+            memory['mission_map'][cruise_id] = mission.mission_uuid
 
 
 class GliderConversionWorker(SourceWorkflowWorker):
@@ -27,7 +72,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
             'queue_name': 'glider_conversion',
             'openglider_directory': '',
             'openglider_erddap_directory': '',
-            'next_queue': 'glider_metadata_upload',
+            'next_queue': 'workflow_continue',
             'erddap_reload_queue': 'erddap_reload',
         })
         self._target_dir: t.Optional[BaseStorageHandle] = None
@@ -84,7 +129,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
         payload.set_metadata("glider_erddap_file_path", target_erddap_file.path())
         payload.set_metadata("glider_ego_file_path", payload.file_info.file_path)
         payload.set_metadata("glider_file_name", file_name)
-        self.progress_payload(payload, prevent_default_progression=True)
+        self.progress_payload(payload, 'glider_metadata_upload')
 
 
 class GliderMetadataUploadWorker(FileWorkflowWorker):
@@ -98,15 +143,13 @@ class GliderMetadataUploadWorker(FileWorkflowWorker):
             process_version="1.0",
             **kwargs
         )
-        self.set_defaults({
-            'next_queue': 'workflow_continue',
-        })
         self._converter: t.Optional[OpenGliderConverter] = None
 
     def on_start(self):
         self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
 
     def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
+        self._skip_autoprogress_payload = True
         local_file = self.download_to_temp_file()
         meta = self._converter.build_metadata(local_file, payload.get_metadata("glider_file_name", payload.file_info.filename))
         storage_locations = [
