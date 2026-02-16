@@ -497,7 +497,7 @@ class _Bufr4Decoder:
                     value.metadata[x] = ctx.var_metadata[x][0]
         if 'metadata' in instruction and instruction['metadata']:
             value.metadata.update(instruction['metadata'])
-        property_map.set_or_append(property_name, value)
+        property_map.add_element(property_name, value)
 
     def _add_record_metadata(self, property_name, value, ctx, instruction):
         self._set_record_property("metadata", ctx.target.metadata, property_name, value, ctx, instruction, False)
