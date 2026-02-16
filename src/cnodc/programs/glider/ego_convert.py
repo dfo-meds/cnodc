@@ -34,6 +34,40 @@ def ego_old_sensor_info(original_nc, sensor_map: dict[str, str]):
     return sensors, param_map
 
 
+def ego_new_sensor_info(original_nc):
+    sensor_names = original_nc.variable('SENSOR').all_as_strings()
+    sensor_makers = original_nc.variable('SENSOR_MAKER').all_as_strings()
+    sensor_models = original_nc.variable('SENSOR_MODEL').all_as_strings()
+    sensor_serials = original_nc.variable('SENSOR_SERIAL_NO').all_as_strings()
+    sensor_mounts = original_nc.variable('SENSOR_MOUNT').all_as_strings()
+    sensor_orientations = original_nc.variable('SENSOR_ORIENTATION').all_as_strings()
+    param_names = original_nc.variable('PARAMETER').all_as_strings()
+    param_sensors = original_nc.variable('PARAMETER_SENSOR').all_as_strings()
+    sensor_info = {}
+    param_map = {}
+    for x in range(0, len(sensor_names)):
+        if sensor_names[x].startswith('CTD_'):
+            sensor_type = 'CTD'
+        elif sensor_names[x].startswith('FLUOROMETER_') or sensor_names[x].startswith('BACKSCATTER'):
+            sensor_type = 'FLUOROMETER'
+        elif sensor_names[x] == 'OPTODE_DOXY':
+            sensor_type = 'DOXY'
+        else:
+            raise CNODCError(f"Unknown glider instrument type: {sensor_names[x]}", 'GLIDER_CONVERT', 1003)
+        key = f"SENSOR_{sensor_type}_{sensor_serials[x]}"
+        for idx, val in enumerate(param_sensors):
+            if val == sensor_names[x]:
+                param_map[param_names[idx]] = key
+        if key not in sensor_info:
+            sensor_info[key] = {
+                'type': sensor_type,
+                'make': sensor_makers[x],
+                'model': sensor_models[x],
+                'serial': sensor_serials[x],
+                'location': sensor_mounts[x].lower().replace('_', ' ') + ('' if not sensor_orientations[x] else ' - ' + sensor_orientations[x].lower()),
+            }
+    return sensor_info, param_map
+
 
 class OpenGliderConverter:
 
