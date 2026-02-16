@@ -14,7 +14,7 @@ import typing as t
 import importlib
 import abc
 import time
-
+import unicodedata
 
 JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
 
@@ -89,20 +89,29 @@ class DynamicObjectLoadError(CNODCError):
     pass
 
 
+def normalize_string(value: str):
+    value = unicodedata.normalize('NFC', value)
+    value = ''.join(c for c in value if not unicodedata.category(c) == 'Cc')
+    value = value.replace("\x00", "")
+    return value
+
+
 def unnumpy(numpy_val):
     if numpy_val is None:
         return None
     elif isinstance(numpy_val, decimal.Decimal):
-        return str(numpy_val)
+        return normalize_string(str(numpy_val))
     elif isinstance(numpy_val, str):
-        return numpy_val
+        return normalize_string(numpy_val)
     elif isinstance(numpy_val, np.float64):
         return numpy_val.item()
     elif isinstance(numpy_val, np.int64):
         return int(numpy_val)
     elif np.isscalar(numpy_val):
-        item = numpy_val.item()
-        return None if math.isnan(item) else item
+        if hasattr(numpy_val, "item"):
+            item = numpy_val.item()
+            return None if math.isnan(item) else item
+        return None if math.isnan(numpy_val) else numpy_val
     elif isinstance(numpy_val, np.ndarray):
         if isinstance(numpy_val.dtype, np.dtypes.Int8DType):
             if numpy_val.ndim == 0:
