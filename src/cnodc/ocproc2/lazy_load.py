@@ -50,7 +50,7 @@ class LazyLoadDict(t.Generic[T]):
         except KeyError:
             return None
 
-    def set(self, item: str, value: T):
+    def set(self, item: str, value):
         self._dict[item] = value
         self._loaded[item] = True
 

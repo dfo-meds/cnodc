@@ -332,9 +332,12 @@ class RecordSet:
             }
 
     def from_mapping(self, map_):
-        self.records.from_mapping(map_['_records'])
-        if '_metadata' in map_:
-            self.metadata.from_mapping(map_['_metadata'])
+        if isinstance(map_, (tuple, list)):
+            self.records.from_mapping(map_)
+        else:
+            self.records.from_mapping(map_['_records'])
+            if '_metadata' in map_:
+                self.metadata.from_mapping(map_['_metadata'])
 
     def find_child(self, path: list[str]):
         if not path:

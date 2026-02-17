@@ -103,7 +103,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertFalse(dr.metadata['TestValue'].is_numeric())
+        self.assertTrue(dr.metadata['TestValue'].is_numeric())
         self.assertEqual(dr.metadata['TestValue'].value, '123')
 
     def test_set_bool(self):
@@ -112,7 +112,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue('TestValue' in dr.metadata)
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertFalse(dr.metadata['TestValue'].is_numeric())
+        self.assertTrue(dr.metadata['TestValue'].is_numeric())
         self.assertEqual(dr.metadata['TestValue'].value, True)
 
     def test_set_null(self):
@@ -145,12 +145,14 @@ class TestOCProc2ValueMap(ut.TestCase):
 
     def test_set_multi_value_combo(self):
         dr = ocproc2.ParentRecord()
-        dr.metadata['TestValue'] = ocproc2.MultiElement(['', 5, '6', 7, ''])
+        dr.metadata['TestValue'] = ocproc2.MultiElement([None, 5, '6', 7, ''])
         self.assertTrue('TestValue' in dr.metadata)
+
         self.assertFalse(dr.metadata['TestValue'].is_empty())
-        self.assertFalse(dr.metadata['TestValue'].is_numeric())
+        self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
+        self.assertTrue(dr.metadata['TestValue'].is_numeric())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertEqual([x.value for x in dr.metadata['TestValue'].values()], ['', 5, '6', 7, ''])
+        self.assertEqual([x.value for x in dr.metadata['TestValue'].values()], [None, 5, '6', 7, ''])
         self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
 
     def test_set_multi_numeric(self):
@@ -206,24 +208,29 @@ class TestOCProc2ValueMap(ut.TestCase):
 
     def test_set_multiple(self):
         dr = ocproc2.ParentRecord()
+        notes = ['abc', 'def', 'ghi']
         dr.metadata.set_multiple(
             'TestValue',
             values=['', 5, 6],
             common_metadata={'Units': 'm s-1'},
-            metadata={'Note': 'abc'}
+            specific_metadata=[{'Note': notes[0]}, {'Note': notes[1]}, {'Note': notes[2]}],
+            metadata={'Note2': 'jkl'}
         )
         self.assertTrue('TestValue' in dr.metadata)
         values = ['', 5, 6]
         self.assertIsInstance(dr.metadata['TestValue'], ocproc2.MultiElement)
         for i in range(0, len(values)):
             with self.subTest(index=i, value=values[i]):
-                self.assertIn('Units', dr.metadata['TestValue'][i].metadata)
-                self.assertNotIn('Note', dr.metadata['TestValue'][i].metadata)
-                self.assertEqual(dr.metadata['TestValue'][i].metadata['Units'].value, 'm s-1')
+                obj = dr.metadata['TestValue'][i]
+                self.assertIn('Units', obj.metadata)
+                self.assertIn('Note', obj.metadata)
+                self.assertNotIn('Note2', obj.metadata)
+                self.assertEqual(obj.metadata['Note'].value, notes[i])
+                self.assertEqual(obj.metadata['Units'].value, 'm s-1')
         self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
-        self.assertTrue('Note' in dr.metadata['TestValue'].metadata)
+        self.assertTrue('Note2' in dr.metadata['TestValue'].metadata)
         self.assertFalse('Units' in dr.metadata['TestValue'].metadata)
-        self.assertEqual(dr.metadata['TestValue'].metadata['Note'].value, 'abc')
+        self.assertEqual(dr.metadata['TestValue'].metadata['Note2'].value, 'jkl')
 
 
 class TestOCProc2ImportExport(ut.TestCase):
@@ -233,14 +240,14 @@ class TestOCProc2ImportExport(ut.TestCase):
         all_keys.update(actual.keys())
         parent_path = parent_path or []
         for key in all_keys:
-            path = [*parent_path, str(key)]
-            with self.subTest(item_path='/'.join(path)):
-                self.assertIn(key, actual, msg="Reference key is not in the actual map")
-                self.assertIn(key, ref, msg="Actual key is not in the reference map")
+            path = [*parent_path, key]
+            with self.subTest(item_path='/'.join(str(x) for x in path)):
+                self.assertIn(key, actual.keys(), msg="Reference key is not in the actual map")
+                self.assertIn(key, ref.keys(), msg="Actual key is not in the reference map")
                 self._delegate_check(actual[key], ref[key], path)
 
     def _delegate_check(self, actual, ref, path):
-        self.assertEqual(type(actual), type(ref))
+        self.assertEqual(type(actual), type(ref), msg=f"Bad type match at {path}")
         if isinstance(actual, dict):
             self._check_mapping_dict(actual, ref, path)
         elif isinstance(actual, list):
@@ -300,7 +307,8 @@ class TestOCProc2ImportExport(ut.TestCase):
                 ocproc2.QCMessage('lat_fail', ['a', 'b', 'c'], 90),
                 ocproc2.QCMessage('lon_fail', ['a', 'b', 'd'], -180)
             ],
-            'hello world3'
+            'hello world3',
+            test_tags=["foobar"]
         ))
         profile1 = dr.subrecords.new_recordset('PROFILE')
         for i in range(0, 5):
@@ -359,7 +367,8 @@ class TestOCProc2ImportExport(ut.TestCase):
             },
             '_subrecords': {
                 'PROFILE': {
-                    0: [
+                    '0': {
+                        '_records': [
                         {
                             '_coordinates': {
                                 'C3': {
@@ -415,7 +424,7 @@ class TestOCProc2ImportExport(ut.TestCase):
                                 }
                             }
                         },
-                    ]
+                    ], }
                 }
             },
             '_history': [
@@ -440,18 +449,19 @@ class TestOCProc2ImportExport(ut.TestCase):
                     '_messages': [
                         {
                             '_code': 'lat_fail',
-                            '_path': ['a', 'b', 'c'],
+                            '_path': 'a/b/c',
                             '_ref': 90
                         },
                         {
                             '_code': 'lon_fail',
-                            '_path': ['a', 'b', 'd'],
+                            '_path': 'a/b/d',
                             '_ref': -180
                         }
                     ],
                     '_result': 'F',
                     '_stale': False,
-                    '_notes': 'hello world3'
+                    '_notes': 'hello world3',
+                    '_tags': ['foobar'],
                 }
             ]
         })
@@ -508,7 +518,7 @@ class TestOCProc2ImportExport(ut.TestCase):
             },
             '_subrecords': {
                 'PROFILE': {
-                    0: [
+                    '0': [
                         {
                             '_coordinates': {
                                 'C3': {
@@ -589,12 +599,12 @@ class TestOCProc2ImportExport(ut.TestCase):
                     '_messages': [
                         {
                             '_code': 'lat_fail',
-                            '_path': ['a', 'b', 'c'],
+                            '_path': 'a/b/c',
                             '_ref': 90
                         },
                         {
                             '_code': 'lon_fail',
-                            '_path': ['a', 'b', 'd'],
+                            '_path': 'a/b/d',
                             '_ref': -180
                         }
                     ],

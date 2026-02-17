@@ -44,35 +44,29 @@ class FileInfo:
     def __init__(self,
                  file_path: t.Optional[str] = None,
                  filename: t.Optional[str] = None,
-                 is_gzipped: bool = False,
+                 is_gzipped: t.Optional[bool] = None,
                  last_modified_date: t.Optional[datetime.datetime] = None):
         self.file_path = file_path
+        if filename is None or is_gzipped is None:
+            p = pathlib.Path(file_path)
+            if filename is None:
+                filename = p.name
+            if is_gzipped is None:
+                is_gzipped = p.name.lower().endswith(".gz")
         self.filename = filename
         self.is_gzipped = is_gzipped
         self.last_modified_date = last_modified_date
 
     def to_map(self) -> dict:
         """Convert the object into a map."""
-        map_ = {}
-        if self.file_path:
-            map_['file_path'] = self.file_path
-        if self.filename:
-            map_['filename'] = self.filename
-        if self.is_gzipped:
-            map_['is_gzipped'] = self.is_gzipped
+        map_ = {
+            'file_path': self.file_path,
+            'filename': self.filename,
+            'is_gzipped': self.is_gzipped,
+        }
         if self.last_modified_date is not None:
             map_['mod_date'] = self.last_modified_date.isoformat()
         return map_
-
-    @staticmethod
-    def from_path(path: str, mod_date: t.Optional[datetime.datetime] = None):
-        p = pathlib.Path(path)
-        return FileInfo(
-            path,
-            p.name,
-            '.gz' in p.name.lower(),
-            mod_date
-        )
 
     @staticmethod
     def from_map(map_: dict):
@@ -80,9 +74,9 @@ class FileInfo:
         if 'file_path' not in map_:
             raise CNODCError('Missing file path', 'PAYLOAD', 1005)
         return FileInfo(
-            map_['file_path'] if 'file_path' in map_ else None,
+            map_['file_path'],
             map_['filename'] if 'filename' in map_ else None,
-            map_['is_gzipped'] if 'is_gzipped' in map_ else False,
+            map_['is_gzipped'] if 'is_gzipped' in map_ else None,
             datetime.datetime.fromisoformat(map_['mod_date']) if 'mod_date' in map_ and map_['mod_date'] else None
         )
 
@@ -227,7 +221,7 @@ class WorkflowPayload:
                 'workflow_name': data['workflow']['name'],
                 'current_step': data['workflow']['step'],
                 'current_step_done': data['workflow']['step_done'],
-                'metadata': data['_metadata'] if '_metadata' in data else {}
+                'metadata': {x: data['metadata'][x] for x in data['metadata']} if 'metadata' in data else None
         }
         if 'file_info' in data:
             return FilePayload.from_map(data['file_info'], **base_kwargs)
@@ -286,7 +280,7 @@ class FilePayload(WorkflowPayload):
     @staticmethod
     def from_path(path: str, mod_date: t.Optional[datetime.datetime] = None, **kwargs):
         return FilePayload(
-            file_info=FileInfo.from_path(path, mod_date),
+            file_info=FileInfo(path, last_modified_date=mod_date),
             **kwargs
         )
 

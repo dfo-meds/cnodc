@@ -115,7 +115,7 @@ class UnitConverter:
         if self.is_valid_unit(unit_name):
             return unit_name
 
-    def convert(self, quantity: t.Union[float, int, UFloat], original_units: str, output_units: str) -> t.Union[float, int, UFloat]:
+    def convert(self, quantity: t.Union[float, int, UFloat, decimal.Decimal], original_units: str, output_units: str) -> t.Union[float, int, UFloat]:
         self._load_tables()
         factor_original, dims_original, expr_original = self._conversion_info(original_units)
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
@@ -235,7 +235,7 @@ class LinearFunction(Converter):
             return f'{self._scale}x'
 
     def convert(self, input_val):
-        return (input_val * float(self._scale)) + float(self._shift)
+        return (input_val * self._scale) + self._shift
 
     def scale(self, factor: decimal.Decimal):
         if factor == 1:

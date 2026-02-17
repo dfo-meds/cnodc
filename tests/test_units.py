@@ -106,7 +106,7 @@ class TestConversions(ut.TestCase):
 
     def test_celsius(self):
         self.assertEqual(
-            self._converter.convert(27, '°C', 'K'),
+            self._converter.convert(decimal.Decimal(27), '°C', 'K'),
             decimal.Decimal('300.15')
         )
 
@@ -128,7 +128,7 @@ class TestConversions(ut.TestCase):
         self.assertEqual(self._converter.convert(1, 'Pa s-1', 'hPa h-1'), 36)
 
     def test_concentration(self):
-        self.assertEqual(self._converter.convert(1000, "umol L-1", "mol L-1"), decimal.Decimal("0.001"))
+        self.assertEqual(self._converter.convert(decimal.Decimal(1000), "umol L-1", "mol L-1"), decimal.Decimal("0.001"))
         self.assertEqual(self._converter.convert(decimal.Decimal("0.001"), "mol L-1", "umol L-1"), 1000)
 
     def test_non_convertible(self):

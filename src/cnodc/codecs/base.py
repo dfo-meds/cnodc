@@ -227,14 +227,13 @@ class ByteSequenceReader:
                     if best_pos is None or pos < best_pos:
                         best_opt = opt
                         best_pos = pos
-                except ValueError:
+                except ValueError as ex:
                     continue
             if best_pos is not None:
                 return best_opt.to_bytes(1, 'little'), best_pos
-            if self.at_eof():
-                return None, None
             curr_idx = self._buffer_length
-            self._read_next()
+            if not self._read_next():
+                return None, None
 
     def split_and_iterate(self, matches: t.Union[list, bytes], include_target: bool = False):
         options, min_length, max_length, checker = self._build_option_list(

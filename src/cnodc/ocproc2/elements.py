@@ -8,7 +8,7 @@ from xml.etree.ElementTree import Element
 
 from uncertainties import ufloat, UFloat
 
-from cnodc.ocproc2.lazy_load import LazyLoadDict
+from cnodc.ocproc2.lazy_load import LazyLoadDict, T
 from cnodc.units.units import convert
 
 
@@ -229,6 +229,16 @@ class AbstractElement:
         raise NotImplementedError
 
     @property
+    def quality(self):
+        if self.metadata.has_value('Quality'):
+            return self.metadata.best_value('Quality')
+        if self.metadata.has_value('WorkingQuality'):
+            return self.metadata.best_value('WorkingQuality')
+        if self.is_empty():
+            return 9
+        return 0
+
+    @property
     def value(self):
         """Get the value associated with this entry."""
         raise NotImplementedError
@@ -239,9 +249,11 @@ class SingleElement(AbstractElement):
 
     __slots__ = ('_metadata', '_value')
 
-    def __init__(self, value: SupportedValue = None, _skip_normalization: bool = False):
+    def __init__(self, value: SupportedValue = None, _skip_normalization: bool = False, **kwargs):
         self._value = value if _skip_normalization else normalize_data_value(value)
         self._metadata = None
+        if kwargs:
+            self.metadata.update(kwargs)
 
     def __contains__(self, item):
         return False
@@ -338,18 +350,17 @@ class MultiElement(AbstractElement):
         # TODO: do we need to handle the case where there are no values? seems unlikely
         best_value, best_wq = None, 9
         for v in self.all_values():
-            wq = v.metadata.best_value('WorkingQuality', 0)
-            if (
-                best_value is None
-                or (best_wq == 4 and wq == 9)
-                or (best_wq == 3 and wq in (4, 9))
-                or (best_wq == 2 and wq in (3, 4, 9))
-                or (best_wq == 0 and wq in (2, 3, 4, 9))
-                or (best_wq in (1, 5) and wq in (0, 2, 3, 4, 9))
-            ):
-                best_value, best_wq = v, wq
-                if best_wq in (1, 5):
-                    break
+            wq = v.quality
+            if wq == 1 or wq == 5:
+                return v
+            if (    best_value is None
+                    or (wq == 2 and best_wq not in (2, ))
+                    or (wq == 3 and best_wq not in (2, 3))
+                    or (wq == 4 and best_wq not in (2, 3, 4))
+                    or (wq == 0 and best_wq not in (0, 2, 3))
+                    or (wq == 9 and best_wq not in (0, 2, 3, 4))):
+                best_value = v
+                best_wq = wq
         return best_value
 
     def is_multivalue(self) -> bool:
@@ -432,14 +443,14 @@ class ElementMap(LazyLoadDict[AbstractElement]):
                     **kwargs):
         element = ElementMap.ensure_element(value, metadata, **kwargs)
         if element_name not in self:
-            self.set(element_name, element)
+            self.set(element_name, element, _check=False)
         else:
             e = self.load(element_name)
             if isinstance(e, MultiElement):
                 e.append(element)
             elif e.value != element.value:
                 ne = MultiElement((e, element))
-                self.set(element_name, ne)
+                self.set(element_name, ne, _check=False)
 
     def set_element(self,
                     element_name: str,
@@ -447,13 +458,19 @@ class ElementMap(LazyLoadDict[AbstractElement]):
                     metadata: t.Optional[DefaultValueDict] = None,
                     **kwargs):
         """Set an element to the given value and metadata."""
-        self.set(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
+        self.set(element_name, ElementMap.ensure_element(value, metadata, **kwargs), _check=False)
+
+    def set(self, item: str, value, _check: bool = True):
+        if _check and not isinstance(value, AbstractElement):
+            value = SingleElement(value)
+        super().set(item, value)
 
     def set_multiple(self,
                      element_name: str,
                      values: t.Sequence[OCProcValue],
                      common_metadata: t.Optional[DefaultValueDict] = None,
-                     specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None):
+                     specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None,
+                     metadata: t.Optional[DefaultValueDict] = None):
         """Build a multi-valued element from the given values."""
         for i in range(0, len(values)):
             value_metadata = {}
@@ -463,6 +480,10 @@ class ElementMap(LazyLoadDict[AbstractElement]):
                 value_metadata.update(specific_metadata[i])
             element = self.ensure_element(values[i], value_metadata)
             self.add_element(element_name, element)
+        if metadata:
+            obj = self.get(element_name)
+            for key in metadata:
+                obj.metadata[key] = metadata[key]
 
     def update(self, map_: dict = None, **kwargs):
         if map_ is not None:
