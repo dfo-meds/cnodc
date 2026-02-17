@@ -1,3 +1,6 @@
+import pathlib
+import shutil
+import tempfile
 import unittest as ut
 import uuid
 
@@ -181,6 +184,21 @@ class TestWorkflowPayload(ut.TestCase):
         self.assertEqual(obj.file_info.filename, '1234.txt.gz')
         self.assertTrue(obj.file_info.is_gzipped)
         self.assertIsNone(obj.file_info.last_modified_date)
+
+
+class TestFilePayload(ut.TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_file_download(self):
+        fp = FilePayload.from_path(str(pathlib.Path(__file__).absolute()))
+        expected_dir = pathlib.Path(self.temp_dir)
+        actual_file = fp.download(expected_dir)
+        self.assertTrue(actual_file.exists())
 
 
 class TestBatchPayload(ut.TestCase):

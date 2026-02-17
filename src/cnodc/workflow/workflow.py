@@ -316,7 +316,7 @@ class SourceFilePayload(WorkflowPayload):
 
     @injector.inject
     def download(self,
-                 db,
+                 db: NODBControllerInstance,
                  target_dir: pathlib.Path,
                  storage: StorageController = None,
                  halt_flag: HaltFlag = None) -> pathlib.Path:
