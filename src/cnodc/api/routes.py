@@ -12,7 +12,7 @@ import typing as t
 cnodc = flask.Blueprint("cnodc", __name__)
 
 
-@cnodc.route("/login", methods=["POST"])
+@cnodc.route("/public/api/login", methods=["POST"])
 @require_inputs(["username", "password"])
 @injector.inject
 def login(login_controller: LoginController = None, nodb_web: NODBWebController = None):
@@ -28,7 +28,7 @@ def login(login_controller: LoginController = None, nodb_web: NODBWebController 
     }
 
 
-@cnodc.route('/logout', methods=["POST"])
+@cnodc.route('/public/api/logout', methods=["POST"])
 @json_api
 @require_login
 @injector.inject
@@ -39,7 +39,7 @@ def logout(login_controller: LoginController = None):
     }
 
 
-@cnodc.route('/renew', methods=["POST"])
+@cnodc.route('/public/api/renew', methods=["POST"])
 @json_api
 @require_login
 @injector.inject
@@ -51,7 +51,7 @@ def renew(login_controller: LoginController = None):
     }
 
 
-@cnodc.route('/access', methods=['GET'])
+@cnodc.route('/public/api/access', methods=['GET'])
 @json_api
 @require_login
 @injector.inject
@@ -59,7 +59,7 @@ def list_access(nodb_web: NODBWebController):
     return nodb_web.access_list()
 
 
-@cnodc.route('/change-password', methods=["POST"])
+@cnodc.route('/public/api/change-password', methods=["POST"])
 @require_inputs(['password'])
 @require_login
 @injector.inject
@@ -71,7 +71,7 @@ def change_password():
     }
 
 
-@cnodc.route('/submit/<workflow_name>', methods=["POST"])
+@cnodc.route('/public/api/submit/<workflow_name>', methods=["POST"])
 @json_api
 @require_permission("submit_files")
 def submit_file(workflow_name: str):
@@ -95,7 +95,7 @@ def submit_file(workflow_name: str):
     return {'success': True}
 
 
-@cnodc.route('/submit/<workflow_name>/<request_id>', methods=["POST"])
+@cnodc.route('/public/api/submit/<workflow_name>/<request_id>', methods=["POST"])
 @json_api
 @require_permission("submit_files")
 def submit_next_file(workflow_name: str, request_id: str):
@@ -119,7 +119,7 @@ def submit_next_file(workflow_name: str, request_id: str):
     return {'success': True}
 
 
-@cnodc.route('/submit/<workflow_name>/<request_id>/cancel', methods=['POST'])
+@cnodc.route('/public/api/submit/<workflow_name>/<request_id>/cancel', methods=['POST'])
 @json_api
 @require_permission("submit_files")
 def cancel_request(workflow_name: str, request_id: str):
@@ -128,7 +128,7 @@ def cancel_request(workflow_name: str, request_id: str):
     return {'success': True}
 
 
-@cnodc.route('/submit/<workflow_name>', methods=['GET'])
+@cnodc.route('/public/api/submit/<workflow_name>', methods=['GET'])
 @json_api
 @require_permission("submit_files")
 def workflow_info(workflow_name):
@@ -140,14 +140,14 @@ def workflow_info(workflow_name):
     return info
 
 
-@cnodc.route('/api/stations', methods=['GET'])
+@cnodc.route('/private/api/stations', methods=['GET'])
 @require_permission('handle_nodb_station_failure')
 @injector.inject
 def list_stations(nodb_web: NODBWebController = None):
     return nodb_web.list_stations(), {'Content-Type': 'application/octet-stream'}
 
 
-@cnodc.route('/api/stations/new', methods=['POST'])
+@cnodc.route('/private/api/stations/new', methods=['POST'])
 @require_inputs(['station'])
 @require_permission('handle_nodb_station_failure')
 @injector.inject
@@ -165,7 +165,7 @@ def deliver_turtle_file(file_name: str):
 # TODO: update station
 
 
-@cnodc.route('/api/queue-item/next/<queue_service_name>', methods=['POST'])
+@cnodc.route('/private/api/queue-item/next/<queue_service_name>', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -175,7 +175,7 @@ def next_queue_item(queue_service_name, nodb_web: NODBWebController = None):
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/stream-batch', methods=['GET'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/stream-batch', methods=['GET'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -186,7 +186,7 @@ def download_batch(queue_item_uuid: str, nodb_web: NODBWebController = None):
     ), {'Content-Type': 'application/octet-stream'}
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/apply-changes', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/apply-changes', methods=['POST'])
 @require_inputs(['app_id', 'operations'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -198,7 +198,7 @@ def apply_changes(queue_item_uuid: str, nodb_web: NODBWebController = None):
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/clear-actions', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/clear-actions', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -209,7 +209,7 @@ def reset_actions(queue_item_uuid: str, nodb_web: NODBWebController = None):
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/retry-decode', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/retry-decode', methods=['POST'])
 @require_inputs(['app_id', 'operations'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -220,7 +220,7 @@ def retry_decode(queue_item_uuid: str, nodb_web: NODBWebController = None):
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/renew', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/renew', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -231,7 +231,7 @@ def renew_queue_lock(queue_item_uuid: str, nodb_web: NODBWebController = None):
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/release', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/release', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -242,7 +242,7 @@ def release_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None)
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/complete', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/complete', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject
@@ -253,7 +253,7 @@ def complete_queue_item(queue_item_uuid: str, nodb_web: NODBWebController = None
     )
 
 
-@cnodc.route('/api/queue-item/<queue_item_uuid>/fail', methods=['POST'])
+@cnodc.route('/private/api/queue-item/<queue_item_uuid>/fail', methods=['POST'])
 @require_inputs(['app_id'])
 @require_permission("handle_queue_items")
 @injector.inject

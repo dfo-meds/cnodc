@@ -8,7 +8,7 @@ from .util import require_login, require_inputs, require_permission, json_api
 admin = flask.Blueprint("admin", __name__)
 
 
-@admin.route('/users/<username>/create', methods=["POST"])
+@admin.route('/private/api/users/<username>/create', methods=["POST"])
 @require_inputs(['password'])
 @require_permission('manage_users')
 def create_user(username):
@@ -16,7 +16,7 @@ def create_user(username):
     uc.create_user(username, flask.request.json['password'])
 
 
-@admin.route('/users/<username>/update', methods=["POST"])
+@admin.route('/private/api/users/<username>/update', methods=["POST"])
 @require_inputs([])
 @require_permission('manage_users')
 def update_user(username: str):
@@ -29,7 +29,7 @@ def update_user(username: str):
     )
 
 
-@admin.route('/users/<username>/assign-role', methods=["POST"])
+@admin.route('/private/api/users/<username>/assign-role', methods=["POST"])
 @require_inputs(['role_name'])
 @require_permission('manage_users')
 def assign_role(username: str):
@@ -37,7 +37,7 @@ def assign_role(username: str):
     uc.assign_role(username, flask.request.json['role_name'])
 
 
-@admin.route('/users/<username>/assign-role', methods=["POST"])
+@admin.route('/private/api/users/<username>/assign-role', methods=["POST"])
 @require_inputs(['role_name'])
 @require_permission('manage_users')
 def unassign_role(username: str):
@@ -45,7 +45,7 @@ def unassign_role(username: str):
     uc.unassign_role(username, flask.request.json['role_name'])
 
 
-@admin.route('/workflow/<workflow_name>', methods=["POST"])
+@admin.route('/private/api/workflow/<workflow_name>', methods=["POST"])
 @require_inputs([])
 @require_permission('manage_workflows')
 def set_workflow_configuration(workflow_name):
