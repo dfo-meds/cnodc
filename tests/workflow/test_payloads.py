@@ -1,115 +1,18 @@
 import gzip
 import pathlib
-import shutil
-import tempfile
-import unittest as ut
 import uuid
-import typing as t
+import datetime
 
-from cnodc.nodb import QueueStatus
+from cnodc.nodb import NODBBatch, NODBObservation, NODBObservationData, NODBUploadWorkflow
 from cnodc.workflow.workflow import FileInfo, WorkflowPayload, FilePayload, BatchPayload, SourceFilePayload, \
     ObservationPayload
-import datetime
-from cnodc.nodb.structures import NODBQueueItem, NODBSourceFile
+from cnodc.nodb.structures import NODBSourceFile
 from cnodc.util import CNODCError
 
-
-class DatabaseQueueMock:
-
-    def __init__(self):
-        self.tables: dict[str, list] = {
-            NODBQueueItem.TABLE_NAME: []
-        }
-
-    def stream_objects(self, cls, filters: t.Optional[dict] = None, order_by: t.Optional[t.Union[list[str], str]] = None, **kwargs):
-        for idx in self._find_object_indexes(cls.TABLE_NAME, filters or {}, order_by):
-            yield self.tables[cls.TABLE_NAME][idx]
-
-    def count_objects(self, cls, filters: t.Optional[dict] = None, **kwargs):
-        return len([x for x in self.stream_objects(cls, filters, **kwargs)])
-
-    def bulk_update(self, cls, updates, key_field, key_values):
-        pass
-
-    def insert_object(self, obj):
-        pass
-
-    def update_object(self, obj):
-        pass
-
-    def upsert_object(self, obj):
-        if obj.is_new:
-            self.insert_object(obj)
-        else:
-            self.update_object(obj)
-
-    def load_object(self, cls, filters: dict, **kwargs):
-        obj_idx = self._find_object_index(cls.TABLE_NAME, filters)
-        if obj_idx is None:
-            return None
-        return self.tables[cls.TABLE_NAME][obj_idx]
-
-    def delete_object(self, obj):
-        filters = {
-            key: getattr(obj, obj.get_for_db(key))
-            for key in obj.get_primary_keys()
-        }
-        index = self._find_object_index(obj.get_table_name(), filters)
-        if index is not None:
-            self.tables[obj.get_table_name()].pop(index)
-
-    def _find_object_index(self, table_name, filters: dict, order_by=None):
-        for idx in self._find_object_indexes(table_name, filters):
-            return idx
-        return None
-
-    def _find_object_indexes(self, table_name, filters: dict, order_by=None):
-        # TODO: handle ordering
-        for idx, obj in enumerate(self.tables[table_name]):
-            for filter_name in filters:
-                test_value = obj.get_for_db(filter_name)
-                if filters[filter_name] is None and test_value is not None:
-                    break
-                elif isinstance(filters[filter_name], tuple):
-                    if test_value is None:
-                        if len(filters[filter_name]) < 3 or not filters[filter_name][2]:
-                            break
-                    else:
-                        if filters[filter_name][1] == '<=' and not test_value <= filters[filter_name]:
-                            break
-                        elif filters[filter_name][1] == '>=' and not test_value >= filters[filter_name]:
-                            break
-
-                elif test_value != filters[filter_name]:
-                    break
-            else:
-                yield idx
-
-    def create_queue_item(self, **kwargs):
-        kwargs['queue_uuid'] = str(uuid.uuid4())
-        kwargs['created_date'] = datetime.datetime.now()
-        kwargs['modified_date'] = datetime.datetime.now()
-        kwargs['status'] = QueueStatus.UNLOCKED
-        kwargs['locked_by'] = None
-        kwargs['locked_since'] = None
-        kwargs['escalation_level'] = 0
-        if 'priority' not in kwargs:
-            kwargs['priority'] = 0
-        if 'unique_item_key' not in kwargs:
-            kwargs['unique_item_key'] = None
-        self.tables[NODBQueueItem.TABLE_NAME].append(NODBQueueItem(**kwargs, is_new=False))
-
-    def fetch_next_queue_item(self,
-                              queue_name: str,
-                              app_id: str = 'tests',
-                              subqueue_name: t.Optional[str] = None,
-                              retries: int = 0):
-        for idx, item in enumerate(self.tables[NODBQueueItem.TABLE_NAME]):
-            if item.queue_name == queue_name and (subqueue_name is None or item.subqueue_name == subqueue_name):
-                return self.tables[NODBQueueItem.TABLE_NAME].pop(idx)
+from core import BaseTestCase
 
 
-class TestFileInfo(ut.TestCase):
+class TestFileInfo(BaseTestCase):
 
     def test_from_dict(self):
         info = FileInfo.from_map({
@@ -163,7 +66,21 @@ class TestFileInfo(ut.TestCase):
         self.assertEqual(info.last_modified_date, datetime.datetime(2017, 1, 2, 3, 4, 5))
 
 
-class TestWorkflowPayload(ut.TestCase):
+class TestWorkflowPayload(BaseTestCase):
+
+    def test_load_workflow(self):
+        workflow = NODBUploadWorkflow(is_new=True)
+        workflow.workflow_name = 'test'
+        workflow.configuration = {}
+        self.db.insert_object(workflow)
+        wp = WorkflowPayload(workflow_name='test')
+        workflow = wp.load_workflow(self.db)
+        self.assertIsNotNone(workflow)
+        self.assertEqual(workflow.name, 'test')
+
+    def test_load_bad_workflow(self):
+        wp = WorkflowPayload(workflow_name='test')
+        self.assertRaises(CNODCError, wp.load_workflow, self.db)
 
     def test_set_get_clear_metadata(self):
         wp = WorkflowPayload()
@@ -258,27 +175,19 @@ class TestWorkflowPayload(ut.TestCase):
         self.assertIsNone(obj.file_info.last_modified_date)
 
 
-class TestFilePayload(ut.TestCase):
-
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        shutil.rmtree(self.temp_dir)
+class TestFilePayload(BaseTestCase):
 
     def test_file_download(self):
         fp = FilePayload.from_path(str(pathlib.Path(__file__).absolute()))
-        expected_dir = pathlib.Path(self.temp_dir)
-        actual_file = fp.download(expected_dir)
+        actual_file = fp.download(self.temp_dir)
         self.assertTrue(actual_file.exists())
 
     def test_gzipped_file_download(self):
-        expected_dir = pathlib.Path(self.temp_dir)
-        gzip_file = expected_dir / "hello.txt.gz"
+        gzip_file = self.temp_dir / "hello.txt.gz"
         with gzip.open(gzip_file, "wb") as h:
             h.write(b"hello world")
         fp = FilePayload(file_info=FileInfo(str(gzip_file), filename="hello2.txt.gz", is_gzipped=True))
-        actual_file = fp.download(expected_dir)
+        actual_file = fp.download(self.temp_dir)
         self.assertTrue(actual_file.exists())
         self.assertTrue(actual_file.name, 'hello2.txt')
         with open(actual_file, "rb") as h:
@@ -309,7 +218,7 @@ class TestFilePayload(ut.TestCase):
         self.assertEqual(map_['workflow']['name'], 'test')
 
 
-class TestSourceFilePayload(ut.TestCase):
+class TestSourceFilePayload(BaseTestCase):
 
     def test_map(self):
         sp = SourceFilePayload(source_file_uuid="12345", received_date=datetime.date(2015, 1, 1), workflow_name='test')
@@ -324,15 +233,40 @@ class TestSourceFilePayload(ut.TestCase):
         self.assertEqual(map_['workflow']['name'], 'test')
 
     def test_from_source_file(self):
-        sf = NODBSourceFile(is_new=False, source_uuid='12345', received_date=datetime.date(2015, 1, 2))
+        sf = NODBSourceFile(is_new=True, source_uuid='12345', received_date=datetime.date(2015, 1, 2))
         self.assertEqual(sf.source_uuid, '12345')
         self.assertEqual(sf.received_date, datetime.date(2015, 1, 2))
         sp = SourceFilePayload.from_source_file(sf)
         self.assertEqual(sp.source_uuid, '12345')
         self.assertTrue(sp.received_date, datetime.date(2015, 1, 2))
+        self.db.insert_object(sf)
+        retrieved_sf = sp.load_source_file(self.db)
+        self.assertIsNotNone(retrieved_sf)
+        self.assertEqual(retrieved_sf.source_uuid, '12345')
+        self.assertEqual(retrieved_sf.received_date, datetime.date(2015, 1, 2))
+
+    def test_download(self):
+        file = pathlib.Path(self.temp_dir) / "test.txt"
+        with open(file, "w") as h:
+            h.write("hello world")
+        sf = NODBSourceFile(is_new=True, source_uuid='12345', received_date=datetime.date(2015, 2, 3))
+        sf.source_path = str(file)
+        sf.file_name = 'test2.txt'
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        actual_file = sp.download(self.db, self.temp_dir)
+        self.assertTrue(actual_file.exists())
+        self.assertEqual(actual_file.name, 'test2.txt')
+        with open(actual_file, 'r') as h:
+            content = h.read()
+            self.assertEqual(content, 'hello world')
+
+    def test_no_source_file(self):
+        sp = SourceFilePayload(source_file_uuid='123456', received_date=datetime.date(2015, 1, 2))
+        self.assertRaises(CNODCError, sp.load_source_file, self.db)
 
 
-class TestBatchPayload(ut.TestCase):
+class TestBatchPayload(BaseTestCase):
 
     def test_independent_copy(self):
         wp = BatchPayload("12345")
@@ -343,11 +277,10 @@ class TestBatchPayload(ut.TestCase):
 
     def test_enqueue_dequeue_batch(self):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
-        db_mock = DatabaseQueueMock()
-        bp.enqueue(db_mock, 'hello')
-        next_item = db_mock.fetch_next_queue_item('something_else')
+        bp.enqueue(self.db, 'hello')
+        next_item = self.db.fetch_next_queue_item('something_else')
         self.assertIsNone(next_item)
-        next_item = db_mock.fetch_next_queue_item('hello')
+        next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
         bp2 = WorkflowPayload.from_queue_item(next_item)
         self.assertIsInstance(bp2, BatchPayload)
@@ -358,27 +291,24 @@ class TestBatchPayload(ut.TestCase):
 
     def test_enqueue_override_priority(self):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
-        db_mock = DatabaseQueueMock()
-        bp.enqueue(db_mock, 'hello', 27)
-        next_item = db_mock.fetch_next_queue_item('hello')
+        bp.enqueue(self.db, 'hello', 27)
+        next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
         self.assertEqual(next_item.priority, 27)
 
     def test_enqueue_manual_priority(self):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
         bp.set_priority(29)
-        db_mock = DatabaseQueueMock()
-        bp.enqueue(db_mock, 'hello')
-        next_item = db_mock.fetch_next_queue_item('hello')
+        bp.enqueue(self.db, 'hello')
+        next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
         self.assertEqual(next_item.priority, 29)
 
     def test_enqueue_subqueue(self):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
         bp.set_subqueue_name('world')
-        db_mock = DatabaseQueueMock()
-        bp.enqueue(db_mock, 'hello')
-        next_item = db_mock.fetch_next_queue_item('hello')
+        bp.enqueue(self.db,'hello')
+        next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
         self.assertEqual(next_item.subqueue_name, 'world')
 
@@ -386,19 +316,21 @@ class TestBatchPayload(ut.TestCase):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
         bp.set_unique_key('my_luggage')
         self.assertEqual(bp.metadata['unique-item-key'], 'my_luggage')
-        db_mock = DatabaseQueueMock()
-        bp.enqueue(db_mock, 'hello')
-        next_item = db_mock.fetch_next_queue_item('hello')
+        bp.enqueue(self.db, 'hello')
+        next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
         self.assertEqual(next_item.unique_item_name, 'my_luggage')
 
     def test_enqueue_followup(self):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
         bp.set_followup_queue('world')
-        db_mock = DatabaseQueueMock()
-        bp.enqueue(db_mock)
-        next_item = db_mock.fetch_next_queue_item('world')
+        bp.enqueue(self.db)
+        next_item = self.db.fetch_next_queue_item('world')
         self.assertIsNotNone(next_item)
+
+    def test_enqueue_error(self):
+        bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
+        self.assertRaises(CNODCError, bp.enqueue, self.db)
 
     def test_copy_details_from(self):
         bp = BatchPayload("12345", workflow_name='hello', current_step='step1')
@@ -420,8 +352,54 @@ class TestBatchPayload(ut.TestCase):
         sp.copy_details_from(bp, True)
         self.assertTrue(sp.current_step_done)
 
+    def test_from_batch_object(self):
+        batch = NODBBatch(is_new=True, batch_uuid='1234567')
+        self.db.insert_object(batch)
+        bp = BatchPayload.from_batch(batch, workflow_name='hello')
+        self.assertEqual(bp.batch_uuid, '1234567')
+        self.assertEqual(bp.workflow_name, 'hello')
+        load_batch = bp.load_batch(self.db)
+        self.assertIsNotNone(load_batch)
+        self.assertEqual(load_batch.batch_uuid, '1234567')
+
+    def test_bad_batch(self):
+        bp = BatchPayload(batch_uuid='12345')
+        self.assertRaises(CNODCError, bp.load_batch, self.db)
 
 
+class TestObservationPayload(BaseTestCase):
 
+    def test_to_map(self):
+        op = ObservationPayload(item_uuid='12345', item_received=datetime.date(2015, 1, 2), workflow_name='test')
+        self.assertEqual(op.workflow_name, 'test')
+        self.assertEqual(op.uuid, '12345')
+        self.assertEqual(op.received_date, datetime.date(2015, 1, 2))
+        map_ = op.to_map()
+        self.assertIn('item_info', map_)
+        self.assertIn('uuid', map_['item_info'])
+        self.assertIn('received', map_['item_info'])
+        self.assertEqual(map_['item_info']['uuid'], '12345')
+        self.assertEqual(map_['item_info']['received'], '2015-01-02')
 
+    def test_load(self):
+        obs = NODBObservation(is_new=True, obs_uuid='12345', received_date=datetime.date(2015, 1, 2), platform_uuid='test')
+        self.db.insert_object(obs)
+        obs_data = NODBObservationData(is_new=True, obs_uuid='12345', received_date=datetime.date(2015, 1, 2), message_idx=5)
+        self.db.insert_object(obs_data)
+        op = ObservationPayload.from_observation(obs, workflow_name='test')
+        self.assertEqual(op.uuid, '12345')
+        self.assertEqual(op.received_date, datetime.date(2015, 1, 2))
+        self.assertEqual(op.workflow_name, 'test')
+        loaded_obs = op.load_observation(self.db)
+        self.assertIsNotNone(loaded_obs)
+        self.assertEqual(loaded_obs.platform_uuid, 'test')
+        loaded_obs_data = op.load_observation_data(self.db)
+        self.assertIsNotNone(loaded_obs_data)
+        self.assertEqual(loaded_obs_data.message_idx, 5)
 
+    def test_bad_load(self):
+        op = ObservationPayload(item_uuid='12345', item_received=datetime.date(2015, 1, 2))
+        self.assertEqual(op.uuid, '12345')
+        self.assertEqual(op.received_date, datetime.date(2015, 1, 2))
+        self.assertRaises(CNODCError, op.load_observation, self.db)
+        self.assertRaises(CNODCError, op.load_observation_data, self.db)

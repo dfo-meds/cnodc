@@ -36,7 +36,7 @@ class LocalHandle(BaseStorageHandle):
     def _complete_upload(self, local_path: pathlib.Path):
         if isinstance(local_path, (str, pathlib.Path)):
             shutil.copystat(local_path, self._path)
-        self._stat_cache = None
+        super()._complete_upload(local_path)
 
     def _read_chunks(self, buffer_size: int = None):
         return self._local_read_chunks(self._path, buffer_size)
@@ -44,6 +44,7 @@ class LocalHandle(BaseStorageHandle):
     @local_file_error_wrap
     def _complete_download(self, local_path: pathlib.Path):
         shutil.copystat(self._path, local_path)
+        super()._complete_download(local_path)
 
     def _name(self) -> str:
         return self._path.name
@@ -83,7 +84,7 @@ class LocalHandle(BaseStorageHandle):
 
     @staticmethod
     def supports(file_path: str) -> bool:
-        return True
+        return '://' not in file_path or file_path.startswith('file://')
 
     @classmethod
     def build(cls, file_path: str, halt_flag: HaltFlag = None) -> BaseStorageHandle:

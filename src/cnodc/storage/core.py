@@ -47,14 +47,16 @@ class StorageController:
         ]
         self.default_handle = LocalHandle
 
-    def get_handle(self, file_path: t.Union[str, pathlib.Path], halt_flag: HaltFlag = None) -> BaseStorageHandle:
+    def get_handle(self, file_path: t.Union[str, pathlib.Path], halt_flag: HaltFlag = None) -> t.Optional[BaseStorageHandle]:
         """Build an appropriate handle for the given file path."""
         if isinstance(file_path, pathlib.Path):
             return LocalHandle(file_path.resolve(), halt_flag=halt_flag)
         for cls in self.handle_classes:
             if cls.supports(file_path):
                 return cls.build(file_path, halt_flag=halt_flag)
-        return self.default_handle.build(file_path, halt_flag=halt_flag)
+        if self.default_handle.supports(file_path):
+            return self.default_handle.build(file_path, halt_flag=halt_flag)
+        return None
 
     def build_metadata(self,
                        program_name: str = "??",

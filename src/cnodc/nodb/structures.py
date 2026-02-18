@@ -1284,6 +1284,8 @@ class NODBWorkingRecord(_NODBBaseObject):
 
 class NODBBatch(_NODBBaseObject):
 
+    TABLE_NAME = 'nodb_qc_batches'
+
     batch_uuid: str = _NODBBaseObject.make_property("batch_uuid", coerce=str)
     qc_metadata: dict = _NODBBaseObject.make_property("qc_metadata")
     status: BatchStatus = EnumColumn("status", BatchStatus)

@@ -14,6 +14,8 @@ import tempfile
 import uuid
 from urllib.parse import quote
 import zrlog
+from pandas.core.dtypes.inference import is_re
+
 from cnodc.nodb import NODBControllerInstance, NODBController, structures, NODBUploadWorkflow
 from cnodc.storage import StorageController, StorageTier, BaseStorageHandle
 from autoinject import injector
@@ -23,7 +25,7 @@ import pathlib
 import datetime
 
 
-VALID_METADATA_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:;.,\\/\"'?!(){}[]@<>=-+*#$&`|~^%"
+VALID_METADATA_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:;.,\\/\"'?!(){}[]@<>=-+*#$&`|~^"
 
 VALID_FILENAME_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-."
 
@@ -99,6 +101,8 @@ class WorkflowPayload:
                       halt_flag: HaltFlag = None):
         """Find the workflow associated with this payload and load the controller for it."""
         workflow_config = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
+        if workflow_config is None:
+            raise CNODCError(f'Invalid workflow name: [{self.workflow_name}]', is_recoverable=True)
         return WorkflowController(
             workflow_name=self.workflow_name,
             config=workflow_config.configuration,
@@ -158,7 +162,7 @@ class WorkflowPayload:
             if 'followup-queue' in self.metadata and self.metadata['followup-queue']:
                 queue_name = self.metadata['followup-queue']
         if queue_name is None:
-            raise ValueError("invalid queue name")
+            raise CNODCError("Missing queue name")
         if self.metadata is None:
             self.metadata = {}
         self.metadata['send_time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -444,11 +448,12 @@ class ObservationPayload(WorkflowPayload):
         )
 
     @staticmethod
-    def from_observation(obs: t.Union[structures.NODBObservation, structures.NODBObservationData]):
+    def from_observation(obs: t.Union[structures.NODBObservation, structures.NODBObservationData], **kwargs):
         """Build a payload from an observation or observation data object."""
         return ObservationPayload(
             obs.obs_uuid,
-            obs.received_date
+            obs.received_date,
+            **kwargs
         )
 
 
@@ -614,18 +619,16 @@ class WorkflowController:
                     db: NODBControllerInstance):
         if payload.current_step_done:
             payload.current_step = self._get_next_step(payload.current_step)
-        # Check if we are all done
-        if payload.current_step is not None:
-            payload.current_step_done = False
-        else:
-            return
+        payload.current_step_done = False
         queue_info = self._get_step_info(payload.current_step)
         priority = None
         if 'priority' in queue_info and queue_info['priority']:
             try:
                 priority = int(queue_info['priority'])
-            except (ValueError, TypeError):
-                self._log.exception(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
+            except ValueError:
+                self._log.error(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
+            except TypeError:
+                self._log.error(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
         if 'worker_metadata' in queue_info and queue_info['worker_metadata']:
             payload.metadata.update(queue_info['worker_metadata'])
         payload.enqueue(db, queue_info['name'], priority)
@@ -691,11 +694,12 @@ class WorkflowController:
         return quote(str(s), safe=VALID_METADATA_CHARACTERS)
 
     @staticmethod
-    def _substitute_headers(s: str, metadata: dict) -> str:
+    def _substitute_headers(s: str, metadata: dict, _now: t.Optional[datetime.datetime] = None) -> str:
         """Sanitize and substitute headers"""
         for h in metadata:
-            s = s.replace("%{" + h.lower() + "}", metadata[h])
-        return s.replace('${now}', datetime.datetime.now(datetime.timezone.utc).isoformat())
+            s = s.replace("%{" + h.lower() + "}", str(metadata[h]))
+        _now = _now or datetime.datetime.now(datetime.timezone.utc)
+        return s.replace('%{now}', _now.isoformat())
 
     @staticmethod
     def _sanitize_filename(filename: str) -> t.Optional[str]:
@@ -711,10 +715,12 @@ class WorkflowController:
 
     def _handle_file_upload(self, local_path: pathlib.Path, filename: str, metadata: dict, upload_kwargs: dict, gzip: bool = False) -> tuple[BaseStorageHandle, t.Optional[StorageTier]]:
         """Upload a file to a given location."""
-        if 'directory' not in upload_kwargs:
-            raise CNODCError("Missing directory for workflow upload action", "WORKFLOW", 1003)
+        if 'directory' not in upload_kwargs or not upload_kwargs['directory']:
+            raise CNODCError("Missing/invalid directory for workflow upload action", "WORKFLOW", 1003)
         self._log.info(f"Uploading file to {upload_kwargs['directory']}")
         target_dir_handle = self.storage.get_handle(upload_kwargs['directory'], halt_flag=self.halt_flag)
+        if target_dir_handle is None:
+            raise CNODCError(f'Invalid directory [{upload_kwargs['directory']} for uploading', 'WORKFLOW', 1005)
         file_handle = target_dir_handle.child(filename)
 
         storage_tier = StorageTier(upload_kwargs['tier']) if 'tier' in upload_kwargs and upload_kwargs['tier'] else None
