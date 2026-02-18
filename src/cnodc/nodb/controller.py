@@ -310,7 +310,7 @@ class NODBControllerInstance:
                           queue_name: str,
                           data: dict,
                           priority: t.Optional[int] = None,
-                          unique_item_key: t.Optional[str] = None,
+                          unique_item_name: t.Optional[str] = None,
                           subqueue_name: t.Optional[str] = None):
         """Create a new queue item."""
         with self.cursor() as cur:
@@ -320,7 +320,7 @@ class NODBControllerInstance:
                 queue_name,
                 subqueue_name or None,
                 priority if priority is not None else 0,
-                unique_item_key,
+                unique_item_name,
                 json.dumps(data)
             ])
 
@@ -338,6 +338,23 @@ class NODBControllerInstance:
                     for x in values
                 )
             )
+
+    def bulk_update(self, cls, updates: dict, key_field: str, key_values: list[str]):
+        query = f'UPDATE {cls.get_table_name()} SET '
+        variables = []
+        update_clauses = []
+        for key in updates:
+            if updates[key] is None:
+                update_clauses.append(f"{key} = NULL")
+            else:
+                update_clauses.append(f"{key} = %s")
+                variables.append(updates[key])
+        query += ','.join(update_clauses)
+        query += f' WHERE {key_field} IN '
+        with self.cursor() as cur:
+            for subset in self.chunk_for_in(key_values):
+                specific_query = query + "(" + ",".join('%s' for _ in range(0, len(subset))) + ")"
+                cur.execute(specific_query, [*variables, *subset])
 
     def chunk_for_in(self, values: list) -> t.Iterable[list]:
         """Separate a list of values into manageable lists for an IN clause."""
@@ -415,22 +432,13 @@ class NODBControllerInstance:
                     lock_type: LockType = LockType.NONE,
                     key_only: bool = False) -> t.Optional[object]:
         """Load an object."""
-        key_names = list(x for x in filters.keys())
-        if limit_fields:
-            limit_fields = set(limit_fields)
-            limit_fields.update(key_names)
-            limit_fields.update(obj_cls.get_primary_keys())
-        elif key_only:
-            limit_fields = set(key_names)
-            limit_fields.update(obj_cls.get_primary_keys())
-        else:
-            limit_fields = None
-        field_list = '*' if limit_fields is None else ', '.join(limit_fields)
-        query = f"SELECT {field_list} FROM {obj_cls.get_table_name()} WHERE "
-        query += " AND ".join(f"{x} = %s" for x in key_names)
+        limit_fields = self.extend_selected_fields(limit_fields, filters, key_only, obj_cls)
+        query = self.build_select_clause(obj_cls.get_table_name(), limit_fields)
+        where, variables = self.build_where_clause(filters)
+        query += where
         query += self.build_lock_type_clause(lock_type)
         with self.cursor() as cur:
-            cur.execute(query, [filters[x] for x in key_names])
+            cur.execute(query, variables)
             first_row = cur.fetchone()
             if first_row:
                 return obj_cls(
@@ -438,6 +446,94 @@ class NODBControllerInstance:
                     **{x: first_row[x] for x in first_row.keys()}
                 )
         return None
+
+
+    def count_objects(self,
+                    obj_cls: type,
+                    filters: t.Optional[dict[str, str]] = None,
+                    filter_type: t.Optional[str] = None) -> int:
+        """Load an object."""
+        query = self.build_select_clause(obj_cls.get_table_name(), ['COUNT(*)'])
+        where, variables = self.build_where_clause(filters, join_str=filter_type or ' AND ')
+        query += where
+        with self.cursor() as cur:
+            cur.execute(query, variables)
+            row = cur.first()
+            return row[0]
+
+    def stream_objects(self,
+                    obj_cls: type,
+                    filters: t.Optional[dict[str, str]] = None,
+                    filter_type: t.Optional[str] = None,
+                    limit_fields: t.Optional[list[str]] = None,
+                    lock_type: LockType = LockType.NONE,
+                    key_only: bool = False,
+                    order_by: t.Optional[list[str]] = None,
+                    raw: bool = False) -> t.Optional[object]:
+        """Load an object."""
+        limit_fields = self.extend_selected_fields(limit_fields, filters, key_only, obj_cls)
+        query = self.build_select_clause(obj_cls.get_table_name(), limit_fields)
+        where, variables = self.build_where_clause(filters, join_str=filter_type or ' AND ')
+        query += where
+        query += self.build_order_by_clause(order_by)
+        query += self.build_lock_type_clause(lock_type)
+        with self.cursor() as cur:
+            cur.execute(query, variables)
+            for row in cur.fetch_stream():
+                if raw:
+                    yield row
+                else:
+                    yield obj_cls(is_new=False, **{x: row[x] for x in row.keys()})
+
+    def extend_selected_fields(self, limit_fields, filters, key_only, obj_cls):
+        if limit_fields:
+            limit_fields = set(limit_fields)
+            if filters:
+                limit_fields.update(filters.keys())
+            limit_fields.update(obj_cls.get_primary_keys())
+        elif key_only:
+            limit_fields = set(filters.keys()) if filters else set()
+            limit_fields.update(obj_cls.get_primary_keys())
+        else:
+            limit_fields = None
+        return limit_fields
+
+    def build_select_clause(self, table_name, fields):
+        if not fields:
+            return f'SELECT * FROM {table_name}'
+        return f'SELECT {','.join(fields)} FROM {table_name}'
+
+    def build_where_clause(self, filters, join_str = ' AND '):
+        if not filters:
+            return '', []
+        clauses = []
+        parameters = []
+        for key in filters:
+            if filters[key] is None:
+                clauses.append(f'{key} IS NULL')
+            elif isinstance(filters[key], tuple):
+                # (value, operation[, allow_null])
+                # TODO: handle IN
+                if len(filters[key]) > 2 and filters[key][2]:
+                    clauses.append(f"({key} IS NULL OR {key} {filters[key][1]} %s)")
+                    parameters.append(filters[key][0])
+                else:
+                    clauses.append(f"{key} {filters[key][1]} %s")
+                    parameters.append(filters[key][0])
+            else:
+                clauses.append(f'{key} = %s')
+                parameters.append(filters[key])
+        if clauses:
+            return ' WHERE ' + join_str.join(clauses), parameters
+        return '', []
+
+    def build_order_by_clause(self, order_by: t.Optional[t.Sequence[tuple[str, bool]]] = None):
+        if not order_by:
+            return ''
+        actual_order_by = []
+        for order_field, is_desc in order_by:
+            actual_order_by.append(f"{order_field} {'ASC' if not is_desc else 'DESC'}")
+        return f' ORDER BY {','.join(actual_order_by)}'
 
     def build_lock_type_clause(self, lock_type: t.Optional[LockType] = None) -> str:
         """Build a clause to add on to a SELECT statement to get a row lock."""

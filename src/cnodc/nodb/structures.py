@@ -328,6 +328,11 @@ class _NODBBaseObject:
         """Return the identifier for this object."""
         return f"{self.__class__.__name__}"
 
+    @classmethod
+    def find_all(cls, db, **kwargs):
+        """Find all workflows."""
+        yield from db.stream_objects(cls, **kwargs)
+
 
 IntColumn = functools.partial(_NODBBaseObject.make_property, coerce=int)
 BooleanColumn = functools.partial(_NODBBaseObject.make_property, coerce=bool)
@@ -512,41 +517,27 @@ class NODBSourceFile(_NODBBaseObject):
         })
         self.modified_values.add('history')
 
-    def stream_observation_data(self, db: NODBControllerInstance, lock_type: LockType = None) -> t.Iterable[NODBObservationData]:
+    def stream_observation_data(self, db: NODBControllerInstance, **kwargs) -> t.Iterable[NODBObservationData]:
         """Find all observations associated with this source file."""
-        with db.cursor() as cur:
-            query = f"""
-                SELECT * 
-                FROM {NODBObservationData.TABLE_NAME} 
-                WHERE 
-                    received_date = %s
-                    AND source_file_uuid = %s
-            """
-            query += db.build_lock_type_clause(lock_type)
-            cur.execute(query, [self.received_date, self.source_uuid])
-            for row in cur.fetch_stream():
-                yield NODBObservationData(
-                    is_new=False,
-                    **{x: row[x] for x in row.keys()}
-                )
+        yield from db.stream_objects(
+            obj_cls=NODBObservationData,
+            filters={
+                'received_date': self.received_date,
+                'source_file_uuid': self.source_uuid,
+            },
+            **kwargs
+        )
 
-    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None, order_by: t.Optional[str] = None) -> t.Iterable[NODBWorkingRecord]:
+    def stream_working_records(self, db: NODBControllerInstance, **kwargs) -> t.Iterable[NODBWorkingRecord]:
         """Find a working record associated with this source file."""
-        with db.cursor() as cur:
-            query = f"""
-                   SELECT * 
-                   FROM {NODBWorkingRecord.TABLE_NAME} 
-                   WHERE 
-                       received_date = %s
-                       AND source_file_uuid = %s
-               """ + NODBWorkingRecord.build_query_extras(order_by)
-            query += db.build_lock_type_clause(lock_type)
-            cur.execute(query, [self.received_date, self.source_uuid])
-            for row in cur.fetch_stream():
-                yield NODBWorkingRecord(
-                    is_new=False,
-                    **{x: row[x] for x in row.keys()}
-                )
+        yield from db.stream_objects(
+            obj_cls=NODBWorkingRecord,
+            filters={
+                'received_date': self.received_date,
+                'source_file_uuid': self.source_uuid,
+            },
+            **kwargs
+        )
 
     @classmethod
     def find_by_source_path(cls, db: NODBControllerInstance, source_path: str, **kwargs):
@@ -824,8 +815,6 @@ class NODBUploadWorkflow(_NODBBaseObject):
             if not isinstance(dm, dict):
                 raise NODBValidationError("The default_metadata must be a dictionary", 2019)
 
-
-
     def _check_upload_target_config(self, config: dict, files: StorageController, tn: str):
         """Validate an upload target."""
         if 'directory' not in config:
@@ -864,14 +853,6 @@ class NODBUploadWorkflow(_NODBBaseObject):
         """Find a workflow by name."""
         return db.load_object(cls, {"workflow_name": workflow_name},  **kwargs)
 
-    @classmethod
-    def find_all(cls, db, **kwargs):
-        """Find all workflows."""
-        with db.cursor() as cur:
-            cur.execute(f'SELECT * FROM {NODBUploadWorkflow.TABLE_NAME}')
-            for row in cur.fetch_stream():
-                yield NODBUploadWorkflow(**row, is_new=False)
-
 
 class NODBMission(_NODBBaseObject):
 
@@ -890,18 +871,11 @@ class NODBMission(_NODBBaseObject):
         return db.load_object(cls, {"mission_uuid": mission_uuid},  **kwargs)
 
     @staticmethod
-    def search(db: NODBControllerInstance, mission_id: t.Optional[str] = None):
-        with db.cursor() as cur:
-            args = []
-            clauses = []
-            if mission_id is not None and mission_id != '':
-                args.append(mission_id)
-                clauses.append('mission_id = %s')
-            if not args:
-                return []
-            query = f"SELECT * FROM {NODBMission.TABLE_NAME} WHERE " + ' OR '.join(clauses)
-            cur.execute(query, args)
-            return [NODBMission(is_new=False, **x) for x in cur.fetch_all()]
+    def search(db: NODBControllerInstance, mission_id: t.Optional[str] = None, **kwargs):
+        if mission_id is None:
+            return []
+        else:
+            yield from db.stream_objects(NODBMission, {'mission_id': mission_id}, **kwargs)
 
 
 class NODBObservation(_NODBBaseObject):
@@ -930,14 +904,6 @@ class NODBObservation(_NODBBaseObject):
     profile_parameters: list = JsonColumn("profile_parameters")
     processing_level: ProcessingLevel = EnumColumn("processing_level", ProcessingLevel)
     embargo_date: datetime.datetime = DateTimeColumn("embargo_date")
-
-    @classmethod
-    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], **kwargs):
-        """Find an observation by UUID and received date."""
-        return db.load_object(cls, {
-            "obs_uuid": obs_uuid,
-            "received_date": parse_received_date(received_date)
-        }, **kwargs)
 
     def update_from_record(self, record: ocproc2.ParentRecord):
         self.program_name = record.metadata.best_value('CNODCProgram', None)
@@ -979,6 +945,14 @@ class NODBObservation(_NODBBaseObject):
             self.observation_type = ObservationType.SURFACE
         else:
             self.observation_type = ObservationType.PROFILE
+
+    @classmethod
+    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], **kwargs):
+        """Find an observation by UUID and received date."""
+        return db.load_object(cls, {
+            "obs_uuid": obs_uuid,
+            "received_date": parse_received_date(received_date)
+        }, **kwargs)
 
     @staticmethod
     def _extract_subrecord_info(record: ocproc2.BaseRecord, ref_info: dict, position: dict = None):
@@ -1045,12 +1019,12 @@ class NODBObservationData(_NODBBaseObject):
         self.modified_values.add('process_metadata')
 
     @classmethod
-    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], *args, **kwargs):
+    def find_by_uuid(cls, db, obs_uuid: str, received_date: t.Union[str, datetime.date], **kwargs):
         """Locate a record by UUID."""
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
             "received_date": parse_received_date(received_date)
-        }, *args, **kwargs)
+        }, **kwargs)
 
     @classmethod
     def find_by_source_info(cls,
@@ -1060,7 +1034,7 @@ class NODBObservationData(_NODBBaseObject):
                             message_idx: int,
                             record_idx: int,
                             processing_level: t.Optional[str] = None,
-                            *args, **kwargs):
+                            **kwargs):
         """Locate a record by information about it in the source file."""
         if processing_level is None:
             processing_level = ProcessingLevel.UNKNOWN.value
@@ -1071,7 +1045,7 @@ class NODBObservationData(_NODBBaseObject):
             "record_idx": record_idx,
             "processing_level": processing_level
         }
-        return db.load_object(cls, filters, *args, **kwargs)
+        return db.load_object(cls, filters, **kwargs)
 
     @property
     def record(self) -> t.Optional[ocproc2.ParentRecord]:
@@ -1164,31 +1138,29 @@ class NODBPlatform(_NODBBaseObject):
                wmo_id: t.Optional[str] = None,
                wigos_id: t.Optional[str] = None,
                platform_id: t.Optional[str] = None,
-               platform_name: t.Optional[str] = None) -> list[NODBPlatform]:
+               platform_name: t.Optional[str] = None,
+               **kwargs) -> list[NODBPlatform]:
         """Search for a platform by various identifiers."""
-        with db.cursor() as cur:
-            args = []
-            clauses = []
-            if wmo_id is not None and wmo_id != '':
-                args.append(wmo_id)
-                clauses.append('wmo_id = %s')
-            if wigos_id is not None and wigos_id != '':
-                args.append(wigos_id)
-                clauses.append('wigos_id = %s')
-            if platform_id is not None and platform_id != '':
-                args.append(platform_id)
-                clauses.append('platform_id = %s')
-            if platform_name is not None and platform_name != '':
-                args.append(platform_name)
-                clauses.append('platform_name = %s')
-            if not args:
-                return []
-            if in_service_time is not None:
-                clauses.append('((service_start_date IS NULL OR service_start_date <= %s) AND (service_end_date IS NULL or service_end_date >= %s)')
-                args.extend([in_service_time, in_service_time])
-            query = f"SELECT * FROM {NODBPlatform.TABLE_NAME} WHERE " + ' OR '.join(clauses)
-            cur.execute(query, args)
-            return [NODBPlatform(is_new=False, **x) for x in cur.fetch_all()]
+        filters = {}
+        if wmo_id is not None and wmo_id != '':
+            filters['wmo_id'] = wmo_id
+        if wigos_id is not None and wigos_id != '':
+            filters['wigos_id'] = wigos_id
+        if platform_id is not None and platform_id != '':
+            filters['platform_id'] = platform_id
+        if platform_name is not None and platform_name != '':
+            filters['platform_name'] = platform_name
+        if in_service_time is not None:
+            filters['service_start_date'] = (in_service_time, '<=', True)
+            filters['service_end_date'] = (in_service_time, '>=', True)
+        if not filters:
+            return []
+        yield from db.stream_objects(
+            obj_cls=NODBPlatform,
+            filters=filters,
+            filter_type=' OR ',
+            **kwargs
+        )
 
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, platform_uuid: str, **kwargs) -> t.Optional[NODBPlatform]:
@@ -1198,12 +1170,9 @@ class NODBPlatform(_NODBBaseObject):
         }, **kwargs)
 
     @classmethod
-    def find_all_raw(cls, db: NODBControllerInstance) -> t.Iterable[dict]:
+    def find_all_raw(cls, db: NODBControllerInstance, **kwargs) -> t.Iterable[dict]:
         """Retrieve all platforms in a raw (i.e. database dictionary) format."""
-        with db.cursor() as cur:
-            cur.execute(f"SELECT * FROM {NODBPlatform.TABLE_NAME}")
-            for row in cur.fetch_stream():
-                yield row
+        yield from db.stream_objects(cls, raw=True, **kwargs)
 
 
 class NODBWorkingRecord(_NODBBaseObject):
@@ -1310,27 +1279,7 @@ class NODBWorkingRecord(_NODBBaseObject):
             working_uuids: list[str],
             batch_uuid: str
     ):
-        with db.cursor() as cur:
-            for uuid_subset in db.chunk_for_in(working_uuids):
-                cur.execute(f"""
-                    UPDATE {NODBWorkingRecord.TABLE_NAME} 
-                    SET qc_batch_id = %s
-                    WHERE working_uuid IN {','.join('%s' for _ in range(0, len(uuid_subset)))}""", [
-                    batch_uuid,
-                    *uuid_subset
-                ])
-
-    @staticmethod
-    def build_query_extras(order_by: t.Optional[str]):
-        extras = ""
-        if order_by is None:
-            pass
-        elif order_by == 'obs_time_asc':
-            extras += " ORDER BY obs_time ASC"
-        else:
-            zrlog.get_logger('cnodc.nodb.wr').error(f'Invalid order by statement {order_by}')
-            pass
-        return extras
+        db.bulk_update(NODBWorkingRecord, {'qc_batch_id': batch_uuid}, 'working_uuid', working_uuids)
 
 
 class NODBBatch(_NODBBaseObject):
@@ -1338,6 +1287,15 @@ class NODBBatch(_NODBBaseObject):
     batch_uuid: str = _NODBBaseObject.make_property("batch_uuid", coerce=str)
     qc_metadata: dict = _NODBBaseObject.make_property("qc_metadata")
     status: BatchStatus = EnumColumn("status", BatchStatus)
+
+    def stream_working_records(self, db: NODBControllerInstance, **kwargs):
+        yield from db.stream_objects(
+            obj_cls=NODBWorkingRecord,
+            filters={
+                'qc_batch_id': self.batch_uuid,
+            },
+            **kwargs
+        )
 
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, batch_uuid: str, **kwargs):
@@ -1347,26 +1305,7 @@ class NODBBatch(_NODBBaseObject):
 
     @classmethod
     def count_working_by_uuid(cls, db: NODBControllerInstance, batch_uuid: str) -> int:
-        with db.cursor() as cur:
-            cur.execute(f"SELECT COUNT(*) FROM {NODBWorkingRecord.TABLE_NAME} WHERE qc_batch_id = %s", [batch_uuid])
-            row = cur.fetch_one()
-            return row[0]
-
-    def stream_working_records(self, db: NODBControllerInstance, lock_type: LockType = None, order_by: t.Optional[str] = None):
-        with db.cursor() as cur:
-            query = f"""
-                   SELECT * 
-                   FROM {NODBWorkingRecord.TABLE_NAME} 
-                   WHERE 
-                       qc_batch_id = %s
-               """ + NODBWorkingRecord.build_query_extras(order_by)
-            query += db.build_lock_type_clause(lock_type)
-            cur.execute(query, [self.batch_uuid])
-            for row in cur.fetch_stream():
-                yield NODBWorkingRecord(
-                    is_new=False,
-                    **{x: row[x] for x in row.keys()}
-                )
+        return db.count_objects(NODBWorkingRecord, {'qc_batch_id': batch_uuid})
 
 
 class GTSOutgoingMessageType(enum.Enum):
