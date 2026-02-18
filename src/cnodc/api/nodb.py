@@ -293,7 +293,7 @@ class NODBWebController:
 
     def list_stations(self):
         with self.nodb as db:
-            for station_raw in structures.NODBStation.find_all_raw(db):
+            for station_raw in structures.NODBPlatform.find_all_raw(db):
                 yield json.dumps(clean_for_json(station_raw))
 
     def save_updates(self,
@@ -334,8 +334,7 @@ class NODBWebController:
 
     def mark_queue_item_complete(self,
                                  item_uuid: str,
-                                 enc_app_id: str,
-                                 recheck: bool = False):
+                                 enc_app_id: str):
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id, 'complete')
             if 'batch_info' in queue_item.data:
@@ -356,9 +355,7 @@ class NODBWebController:
             queue_item.mark_complete(db)
             payload = WorkflowPayload.from_queue_item(queue_item)
             payload.increment_priority()
-            if recheck and payload.get_metadata('recheck-queue', None) is not None:
-                payload.set_followup_queue(payload.get_metadata('recheck-queue'))
-            payload.enqueue_followup(db)
+            payload.enqueue(db)
             db.commit()
             return {
                 'success': True
