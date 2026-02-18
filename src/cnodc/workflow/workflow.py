@@ -136,7 +136,7 @@ class WorkflowPayload:
 
     def set_followup_queue(self, queue_name: t.Optional[str]):
         """Set the follow-up queue after a manual review cycle"""
-        self.set_metadata('post-review-queue', queue_name)
+        self.set_metadata('followup-queue', queue_name)
 
     def increment_priority(self, increment: int = 1):
         """Increment the priority by the given amount."""
@@ -149,20 +149,16 @@ class WorkflowPayload:
         """Decrement the priority by the given amount."""
         self.increment_priority(increment * -1)
 
-    def enqueue_followup(self, db: NODBControllerInstance) -> bool:
-        """Create a queue item based on the follow-up queue name."""
-        if 'post-review-queue' in self.metadata and self.metadata['post-review-queue']:
-            queue_name = self.metadata['post-review-queue']
-            del self.metadata['post-review-queue']
-            self.enqueue(db, queue_name)
-            return True
-        return False
-
     def enqueue(self,
                 db: NODBControllerInstance,
-                queue_name: str,
+                queue_name: t.Optional[str] = None,
                 override_priority: t.Optional[int] = None):
         """Enqueue this payload in the given queue."""
+        if queue_name is None:
+            if 'followup-queue' in self.metadata and self.metadata['followup-queue']:
+                queue_name = self.metadata['followup-queue']
+        if queue_name is None:
+            raise ValueError("invalid queue name")
         if self.metadata is None:
             self.metadata = {}
         self.metadata['send_time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -177,7 +173,7 @@ class WorkflowPayload:
         if 'manual-subqueue' in self.metadata and self.metadata['manual-subqueue']:
             kwargs['subqueue_name'] = self.metadata['manual-subqueue']
         if 'unique-item-key' in self.metadata and self.metadata['unique-item-key']:
-            kwargs['unique_item_key'] = self.metadata['unique-item-key']
+            kwargs['unique_item_name'] = self.metadata['unique-item-key']
         db.create_queue_item(**kwargs)
 
     def copy_details_from(self, payload, next_step: bool = False):
@@ -200,6 +196,39 @@ class WorkflowPayload:
             },
             'metadata': self.metadata
         }
+
+    @injector.inject
+    def _do_download(self,
+                 file_path: str,
+                 filename: str,
+                 is_gzipped: bool,
+                 target_dir: t.Union[str, pathlib.Path],
+                 halt_flag: HaltFlag = None,
+                 storage: StorageController = None) -> pathlib.Path:
+        """Download the file to a given directory."""
+        if isinstance(target_dir, str):
+            target_dir = pathlib.Path(target_dir)
+        handle = storage.get_handle(file_path, halt_flag=halt_flag)
+        if handle is None:
+            raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
+        if not handle.exists():
+            raise CNODCError('File path does not exist', 'PAYLOAD', 2001)
+        target_name = filename
+        if is_gzipped:
+            if target_name.lower().endswith('.gz'):
+                gzip_target_name = target_name
+                target_name = target_name[:-3]
+            else:
+                gzip_target_name = f"{target_name}.gz"
+            gzip_path = target_dir / gzip_target_name
+            target_path = target_dir / target_name
+            handle.download(gzip_path)
+            haltable_ungzip(gzip_path, target_path, halt_flag=halt_flag)
+            return target_path
+        else:
+            file_path = target_dir / target_name
+            handle.download(file_path)
+            return file_path
 
     @staticmethod
     def from_queue_item(queue_item: structures.NODBQueueItem):
@@ -249,33 +278,10 @@ class FilePayload(WorkflowPayload):
         map_['file_info'] = self.file_info.to_map()
         return map_
 
-    @injector.inject
     def download(self,
-                 target_dir: pathlib.Path,
-                 storage: StorageController = None,
+                 target_dir: t.Union[str, pathlib.Path],
                  halt_flag: HaltFlag = None) -> pathlib.Path:
-        """Download the file to a given directory."""
-        handle = storage.get_handle(self.file_info.file_path, halt_flag=halt_flag)
-        if handle is None:
-            raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
-        if not handle.exists():
-            raise CNODCError('File path does not exist', 'PAYLOAD', 2001)
-        target_name = self.file_info.filename
-        if self.file_info.is_gzipped:
-            if target_name.lower().endswith('.gz'):
-                gzip_target_name = target_name
-                target_name = target_name[:-3]
-            else:
-                gzip_target_name = f"{target_name}.gz"
-            gzip_path = target_dir / gzip_target_name
-            target_path = target_dir / target_name
-            handle.download(gzip_path)
-            haltable_ungzip(gzip_path, target_path, halt_flag=halt_flag)
-            return target_path
-        else:
-            file_path = target_dir / target_name
-            handle.download(file_path)
-            return file_path
+        return self._do_download(self.file_info.file_path, self.file_info.filename, self.file_info.is_gzipped, target_dir, halt_flag)
 
     @staticmethod
     def from_path(path: str, mod_date: t.Optional[datetime.datetime] = None, **kwargs):
@@ -314,35 +320,12 @@ class SourceFilePayload(WorkflowPayload):
             raise CNODCError('Invalid payload, no such UUID', 'PAYLOAD', 1012, is_recoverable=False)
         return source_file
 
-    @injector.inject
     def download(self,
                  db: NODBControllerInstance,
-                 target_dir: pathlib.Path,
-                 storage: StorageController = None,
+                 target_dir: t.Union[str, pathlib.Path],
                  halt_flag: HaltFlag = None) -> pathlib.Path:
-        """Download the file to a given directory."""
         source_info = self.load_source_file(db)
-        handle = storage.get_handle(source_info.source_path, halt_flag=halt_flag)
-        if handle is None:
-            raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
-        if not handle.exists():
-            raise CNODCError('File path does not exist', 'PAYLOAD', 2001)
-        target_name = source_info.file_name
-        if source_info.source_path.endswith(".gz"):
-            if target_name.lower().endswith('.gz'):
-                gzip_target_name = target_name
-                target_name = target_name[:-3]
-            else:
-                gzip_target_name = f"{target_name}.gz"
-            gzip_path = target_dir / gzip_target_name
-            target_path = target_dir / target_name
-            handle.download(gzip_path)
-            haltable_ungzip(gzip_path, target_path, halt_flag=halt_flag)
-            return target_path
-        else:
-            file_path = target_dir / target_name
-            handle.download(file_path)
-            return file_path
+        return self._do_download(source_info.source_path, source_info.file_name, source_info.source_path.lower().endswith(".gz"), target_dir, halt_flag)
 
     def to_map(self):
         map_ = super().to_map()
@@ -365,11 +348,12 @@ class SourceFilePayload(WorkflowPayload):
         )
 
     @staticmethod
-    def from_source_file(source_file: structures.NODBSourceFile):
+    def from_source_file(source_file: structures.NODBSourceFile, **kwargs):
         """Build a source file payload from a given source file."""
         return SourceFilePayload(
             source_file_uuid=source_file.source_uuid,
-            received_date=source_file.received_date
+            received_date=source_file.received_date,
+            **kwargs
         )
 
 
@@ -409,9 +393,9 @@ class BatchPayload(WorkflowPayload):
         )
 
     @staticmethod
-    def from_batch(batch: structures.NODBBatch):
+    def from_batch(batch: structures.NODBBatch, **kwargs):
         """Build a payload from a batch object"""
-        return BatchPayload(batch.batch_uuid)
+        return BatchPayload(batch.batch_uuid, **kwargs)
 
 
 class ObservationPayload(WorkflowPayload):
