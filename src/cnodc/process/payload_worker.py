@@ -13,7 +13,7 @@ import typing as t
 
 from cnodc.storage import StorageController
 from cnodc.util import CNODCError
-from cnodc.workflow.workflow import WorkflowPayload, BatchPayload, SourceFilePayload, FilePayload, FileInfo, \
+from cnodc.workflow.payloads import FileInfo, WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
     ObservationPayload
 
 

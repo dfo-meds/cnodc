@@ -6,7 +6,7 @@ import datetime
 
 from cnodc.storage.local import LocalHandle
 from cnodc.workflow import WorkflowController
-from cnodc.workflow.workflow import WorkflowPayload, FilePayload, BatchPayload
+from cnodc.workflow.payloads import WorkflowPayload, FilePayload, BatchPayload
 from cnodc.nodb.structures import NODBQueueItem
 from cnodc.util import CNODCError
 from core import BaseTestCase, InjectableDict

@@ -3,7 +3,7 @@ import typing as t
 from cnodc.process import QueueItemResult
 from cnodc.process.payload_worker import ObservationWorkflowWorker
 from cnodc.util import CNODCError
-from cnodc.workflow.workflow import ObservationPayload
+from cnodc.workflow.payloads import ObservationPayload
 import cnodc.nodb.structures as orm
 
 

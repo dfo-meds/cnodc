@@ -11,7 +11,7 @@ import yaml
 import zrlog
 import pathlib
 from zrlog.logger import ImprovedLogger
-from cnodc.util import HaltFlag, dynamic_object, CNODCError, haltable_gzip
+from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt
 import json
 
 
@@ -389,6 +389,6 @@ class BaseWorker:
             self._temp_dir = None
 
     def gzip_local_file(self, source_file, destination_file):
-        haltable_gzip(source_file, destination_file, halt_flag=self._halt_flag)
+        gzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)
 
 

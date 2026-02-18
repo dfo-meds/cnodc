@@ -18,7 +18,7 @@ import numpy as np
 import math
 import datetime
 
-from cnodc.workflow.workflow import FilePayload
+from cnodc.workflow.payloads import FilePayload
 
 REF_TIME = datetime.datetime(1950, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 

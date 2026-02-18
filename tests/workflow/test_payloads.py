@@ -4,7 +4,7 @@ import uuid
 import datetime
 
 from cnodc.nodb import NODBBatch, NODBObservation, NODBObservationData, NODBUploadWorkflow
-from cnodc.workflow.workflow import FileInfo, WorkflowPayload, FilePayload, BatchPayload, SourceFilePayload, \
+from cnodc.workflow.payloads import FileInfo, WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
     ObservationPayload
 from cnodc.nodb.structures import NODBSourceFile
 from cnodc.util import CNODCError
