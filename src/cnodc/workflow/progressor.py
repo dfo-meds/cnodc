@@ -20,9 +20,7 @@ class WorkflowProgressWorker(WorkflowWorker):
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         workflow = payload.load_workflow(self._db, self._halt_flag)
-        if workflow is None:
-            raise CNODCError(f"Invalid workflow", "PROGRESSOR", 1000, is_recoverable=False)
-        elif workflow.has_more_steps(payload.current_step):
+        if workflow.has_more_steps(payload.current_step):
             next_payload = self.copy_payload(payload)
             next_payload.current_step_done = True
             workflow.queue_step(

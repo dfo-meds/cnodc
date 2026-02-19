@@ -356,7 +356,7 @@ class BaseWorker:
             self._log.exception(ex)
         finally:
             self._log.debug(f'Cleaning up {self._process_uuid}')
-            self.on_complete(exc)
+            self.on_exit(exc)
             self._save_data.save_file()
             self._log.debug(f'Process {self._process_uuid} complete')
 
@@ -364,7 +364,7 @@ class BaseWorker:
         """Override this method to provide functionality prior to _run() being called."""
         pass
 
-    def on_complete(self, ex: Exception = None):
+    def on_exit(self, ex: Exception = None):
         """Override this method for clean-up after _run() is called."""
         pass
 
@@ -372,21 +372,21 @@ class BaseWorker:
         """Override this method with a loop to process items."""
         pass
 
-    def before_item(self):
+    def before_cycle(self):
         """Override this method to be called before each item is processed."""
         pass
+
+    def after_cycle(self):
+        """Override this method to be called after each item is processed."""
+        if self._temp_dir is not None:
+            self._temp_dir.cleanup()
+            self._temp_dir = None
 
     def temp_dir(self) -> pathlib.Path:
         """Get a temporary directory that will be cleaned up after the current item."""
         if self._temp_dir is None:
             self._temp_dir = tempfile.TemporaryDirectory()
         return pathlib.Path(self._temp_dir.name)
-
-    def after_item(self):
-        """Override this method to be called after each item is processed."""
-        if self._temp_dir is not None:
-            self._temp_dir.cleanup()
-            self._temp_dir = None
 
     def gzip_local_file(self, source_file, destination_file):
         gzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)

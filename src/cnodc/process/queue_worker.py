@@ -50,8 +50,6 @@ class QueueWorker(BaseWorker):
 
     def _run(self):
         """Grab and process a queue item repeatedly"""
-        if not self.get_config("queue_name"):
-            raise CNODCError("No queue specified for a queue worker")
         self._current_delay_time = self.get_config("delay_time_seconds")
         self._app_id = str(uuid.uuid4())
         while self.continue_loop():
@@ -64,19 +62,22 @@ class QueueWorker(BaseWorker):
                 finally:
                     self._db = None
 
+    def _fetch_next_queue_item(self):
+        return self._db.fetch_next_queue_item(
+            queue_name=self.get_config("queue_name"),
+            app_id=self._app_id
+        )
+
     def _process_next_queue_item(self) -> bool:
         """Process a queue item and return True if there was an item otherwise False."""
         self._log.debug(f"Checking for new items in [{self.get_config('queue_name')}]")
         self._current_item = None
         try:
             # Get an item
-            self._current_item = self._db.fetch_next_queue_item(
-                queue_name=self.get_config("queue_name"),
-                app_id=self._app_id
-            )
+            self._current_item = self._fetch_next_queue_item()
             # Run the process on the item
             if self._current_item is not None:
-                self.before_item()
+                self.before_cycle()
                 self._current_delay_time = self.get_config("delay_time_seconds")
                 self._process_result(self._current_item, self.process_queue_item(self._current_item))
                 return True
@@ -99,7 +100,7 @@ class QueueWorker(BaseWorker):
         except Exception as ex:
             self._process_result(self._current_item, QueueItemResult.FAILED, ex)
         finally:
-            self.after_item()
+            self.after_cycle()
             self._current_item = None
 
     def autocomplete(self, queue_item):
@@ -157,6 +158,10 @@ class QueueWorker(BaseWorker):
     def after_success(self, queue_item: structures.NODBQueueItem):
         """Override to add logic after an object has been marked as a success (i.e. after commit)."""
         pass
+
+    def on_start(self):
+        if not self.get_config("queue_name"):
+            raise CNODCError("No queue specified for a queue worker")
 
     def _delay_time(self) -> float:
         """Calculate the delay time"""

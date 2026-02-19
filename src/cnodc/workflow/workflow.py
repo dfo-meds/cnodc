@@ -236,9 +236,7 @@ class WorkflowController:
 
     def _get_step_info(self, step_name: str) -> dict:
         self._validate_step(step_name)
-        for sn in self.config['processing_steps']:
-            if self.config['processing_steps'][sn]['name'] == step_name:
-                return self.config['processing_steps'][sn]
+        return self.config['processing_steps'][step_name]
 
     def has_more_steps(self, current_step: t.Optional[str]):
         """Check if there are more steps."""

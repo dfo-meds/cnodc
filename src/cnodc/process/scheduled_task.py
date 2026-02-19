@@ -86,7 +86,7 @@ class ScheduledTask(BaseWorker):
         """Execute the scheduled task"""
         try:
             self._save_data['last_start'] = now.isoformat()
-            self.before_item()
+            self.before_cycle()
             self.execute()
         except CNODCError as ex:
             # We assume non-recoverable errors will continually happen and recoverable errors may not
@@ -96,7 +96,7 @@ class ScheduledTask(BaseWorker):
             else:
                 self._log.exception(f"Recoverable error while executing scheduled task")
         finally:
-            self.after_item()
+            self.after_cycle()
             now = datetime.datetime.now(datetime.timezone.utc)
             self._save_data['last_end'] = now.isoformat()
             self._save_data.save_file()

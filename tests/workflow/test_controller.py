@@ -390,7 +390,8 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(queue_item.priority, 15)
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step2', current_step_done=True)
-        workflow._queue_step(payload, self.db)
+        with self.assertLogs('cnodc.workflow', 'ERROR'):
+            workflow._queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step4')
         self.assertFalse(payload.current_step_done)
         queue_item = self.db.fetch_next_queue_item('step4')
@@ -422,7 +423,6 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'priority': 'invalid',
                     'worker_metadata': {
                         'hello': 'world',
                     }
@@ -473,7 +473,6 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'priority': 'invalid',
                     'worker_metadata': {
                         'hello': 'world',
                     }
@@ -552,7 +551,6 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'priority': 'invalid',
                     'worker_metadata': {
                         'hello': 'world',
                     }
@@ -617,7 +615,6 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'priority': 'invalid',
                     'worker_metadata': {
                         'hello': 'world',
                     }
@@ -680,7 +677,6 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'priority': 'invalid',
                     'worker_metadata': {
                         'hello': 'world',
                     }

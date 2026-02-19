@@ -17,7 +17,6 @@ from psycopg2._psycopg import cursor as PGCursor
 import cnodc.nodb.structures as structures
 from cnodc.util import CNODCError
 
-
 RECOVERABLE_ERRORS: list[str] = [
     '08***',  # Connection errors
     '25***',  # transaction states
@@ -219,6 +218,35 @@ class NODBControllerInstance:
         """Release a savepoint."""
         with self.cursor() as cur:
             cur.release_savepoint(name)
+
+    def fast_renew_queue_item(self, queue_uuid):
+        with self.cursor() as cur:
+            now_ = datetime.datetime.now(datetime.timezone.utc)
+            cur.execute(f"UPDATE {structures.NODBQueueItem.TABLE_NAME} SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [now_, queue_uuid])
+            return now_
+
+    def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level):
+        with self.cursor() as cur:
+            cur.execute(f"""
+                UPDATE {structures.NODBQueueItem.TABLE_NAME}
+                SET
+                    status = %s,
+                    locked_by = NULL,
+                    locked_since = NULL,
+                    delay_release = %s,
+                    priority = priority - %s,
+                    escalation_level = %s
+                WHERE 
+                    queue_uuid = %s
+                    AND status = 'LOCKED'
+            """, [
+                new_status.value,
+                release_at,
+                1 if reduce_priority else 0,
+                escalation_level,
+                queue_uuid
+            ])
+
 
     def spooled_copy(self,
                      copy_query: str,

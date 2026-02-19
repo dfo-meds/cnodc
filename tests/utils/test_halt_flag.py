@@ -1,14 +1,5 @@
 from cnodc.util import HaltFlag, HaltInterrupt
-from core import BaseTestCase
-
-
-class ConstantHaltFlag(HaltFlag):
-
-    def __init__(self, sc: bool):
-        self.should_continue = sc
-
-    def _should_continue(self) -> bool:
-        return self.should_continue
+from core import BaseTestCase, ConstantHaltFlag
 
 
 class TestHaltFlag(BaseTestCase):

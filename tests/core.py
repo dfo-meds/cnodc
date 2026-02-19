@@ -4,11 +4,17 @@ import tempfile
 import uuid
 import unittest as ut
 import typing as t
+from queue import Queue
 
 from cnodc.nodb import QueueStatus
 import datetime
 from cnodc.nodb.structures import NODBQueueItem
 from autoinject import injector
+
+from cnodc.process import BaseWorker, QueueWorker, ScheduledTask
+from cnodc.util import HaltFlag
+from cnodc.workflow.payloads import WorkflowPayload
+
 
 @injector.injectable
 class InjectableDict:
@@ -29,6 +35,12 @@ class DatabaseMock:
         if table_name not in self.tables:
             self.tables[table_name] = []
         return self.tables[table_name]
+
+    def fast_renew_queue_item(self, queue_uuid):
+        return datetime.datetime.now(datetime.timezone.utc)
+
+    def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level):
+        pass
 
     def stream_objects(self, cls, filters: t.Optional[dict] = None, order_by: t.Optional[t.Union[list[str], str]] = None, **kwargs):
         for idx in self._find_object_indexes(cls.TABLE_NAME, filters or {}, order_by):
@@ -123,11 +135,80 @@ class DatabaseMock:
     def commit(self):
         pass
 
+
+class WorkerTestController:
+
+    def __init__(self, db):
+        self._db = db
+
+    def payload_to_queue_item(self,
+                              payload: WorkflowPayload,
+                              queue_name: str = '',
+                              priority: int = 0,
+                              subqueue_name: t.Optional[str] = None,
+                              unique_item_name: t.Optional[str] = None):
+        return NODBQueueItem(
+            is_new=False,
+            queue_name=queue_name,
+            subqueue_name=subqueue_name,
+            unique_item_name=unique_item_name,
+            data=payload.to_map(),
+            priority=priority,
+            queue_uuid=str(uuid.uuid4()),
+            created_date=datetime.datetime.now(datetime.timezone.utc),
+            modified_date=datetime.datetime.now(datetime.timezone.utc),
+            status=QueueStatus.LOCKED,
+            locked_since=datetime.datetime.now(datetime.timezone.utc),
+            locked_by='test',
+            escalation_level=0
+        )
+
+    def test_queue_worker(self, worker_cls: type, worker_config: dict, queue_item: NODBQueueItem):
+        worker: QueueWorker = self._build_test_worker(worker_cls, worker_config)
+        return self._test_harness(worker, self._test_queue_worker, queue_item)
+
+    def _test_queue_worker(self, worker, queue_item):
+        def retrieve_item():
+            return queue_item
+        worker._db = self._db
+        worker._fetch_next_queue_item = retrieve_item
+        worker._process_next_queue_item()
+
+    def test_scheduled_task(self, worker_cls: type, worker_config: dict):
+        worker: ScheduledTask = self._build_test_worker(worker_cls, worker_config)
+        return self._test_harness(worker, self._test_scheduled_task)
+
+    def _test_scheduled_task(self, worker):
+        worker._run_scheduled_task(datetime.datetime.now(datetime.timezone.utc))
+
+    def _test_harness(self, worker, action: callable, *args, **kwargs):
+        exc = None
+        try:
+            worker.on_start()
+            action(worker, *args, **kwargs)
+        except Exception as ex:
+            exc = ex
+            raise ex
+        finally:
+            worker.on_exit(exc)
+        return worker
+
+    def _build_test_worker(self, worker_cls: type, worker_config: dict):
+        return worker_cls(
+            _halt_flag=ConstantHaltFlag(True),
+            _end_flag=ConstantHaltFlag(True),
+            _process_uuid=str(uuid.uuid4()),
+            _config=worker_config,
+        )
+
+
+
 class BaseTestCase(ut.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.db = DatabaseMock()
+        cls.worker_controller = WorkerTestController(cls.db)
 
     def setUp(self):
         self.temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
@@ -141,3 +222,12 @@ class BaseTestCase(ut.TestCase):
     @classmethod
     def tearDownClass(cls):
         del cls.db
+
+
+class ConstantHaltFlag(HaltFlag):
+
+    def __init__(self, sc: bool):
+        self.should_continue = sc
+
+    def _should_continue(self) -> bool:
+        return self.should_continue

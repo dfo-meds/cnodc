@@ -55,12 +55,13 @@ class WorkflowWorker(QueueWorker):
         payload = WorkflowPayload.from_queue_item(item)
         if self._require_type is not None and not isinstance(payload, self._require_type):
             raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
-        try:
-            self._skip_autoprogress_payload = False
-            self.current_payload = payload
-            return self.process_payload(payload)
-        finally:
-            self.current_payload = None
+        self._skip_autoprogress_payload = False
+        self.current_payload = payload
+        return self.process_payload(payload)
+
+    def after_cycle(self):
+        super().after_cycle()
+        self.current_payload = None
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         """Override to add payload logic."""

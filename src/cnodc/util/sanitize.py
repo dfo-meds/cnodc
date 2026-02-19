@@ -9,6 +9,8 @@ import numpy as np
 
 JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
 
+UNICODE_SPACES = "\t\u00A0\u180E\u2002\u2000\u2003\u2004\u2005\u2006\u2008\u2007\u2009\u200A\u200B\u202F\u205F\u3000\uFEFF"
+UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u2E3B\uFE58\uFE63\uFF0D"
 
 def clean_for_json(data):
     if isinstance(data, dict):
@@ -25,8 +27,16 @@ def clean_for_json(data):
 
 def normalize_string(value: str):
     value = unicodedata.normalize('NFC', value)
-    value = ''.join(c for c in value if not unicodedata.category(c) == 'Cc')
+    value = value.replace("\r\n", "\n")
+    for c in UNICODE_SPACES:
+        value = value.replace(c, " ")
+    for c in UNICODE_DASHES:
+        value = value.replace(c, "-")
+    value = ''.join(c for c in value if (not unicodedata.category(c) == 'Cc') or c == "\n")
     value = value.replace("\x00", "")
+    value = value.strip(" ")
+    while "  " in value:
+        value = value.replace("  ", " ")
     return value
 
 
@@ -34,7 +44,7 @@ def unnumpy(numpy_val):
     if numpy_val is None:
         return None
     elif isinstance(numpy_val, decimal.Decimal):
-        return normalize_string(str(numpy_val))
+        return numpy_val
     elif isinstance(numpy_val, str):
         return normalize_string(numpy_val)
     elif isinstance(numpy_val, np.float64):
@@ -47,16 +57,18 @@ def unnumpy(numpy_val):
             return None if math.isnan(item) else item
         return None if math.isnan(numpy_val) else numpy_val
     elif isinstance(numpy_val, np.ndarray):
-        if isinstance(numpy_val.dtype, np.dtypes.Int8DType):
+        if isinstance(numpy_val.dtype, (np.dtypes.Int8DType, np.dtypes.Int16DType, np.dtypes.Int32DType, np.dtypes.Int64DType)):
             if numpy_val.ndim == 0:
                 val = int(numpy_val)
                 return None if math.isnan(val) else val
             return [None if math.isnan(int(x)) else int(x) for x in numpy_val]
-        elif isinstance(numpy_val.dtype, np.dtypes.Float64DType):
+        elif isinstance(numpy_val.dtype, (np.dtypes.Float64DType, np.dtypes.Float16DType, np.dtypes.Float32DType)):
             if numpy_val.ndim == 0:
                 val = float(numpy_val)
                 return None if math.isnan(val) else val
             return [None if math.isnan(float(x)) else float(x) for x in numpy_val]
+        else:
+            raise ValueError(f'unknown dtype: [{type(numpy_val.dtype)}]')
     elif isinstance(numpy_val, (int, float)):
         return numpy_val if not math.isnan(numpy_val) else None
     else:

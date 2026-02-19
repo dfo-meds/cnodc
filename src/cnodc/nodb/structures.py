@@ -356,6 +356,7 @@ class NODBQueueItem(_NODBBaseObject):
     queue_uuid: str = UUIDColumn("queue_uuid")
     created_date: datetime.datetime = DateTimeColumn("created_date", readonly=True)
     modified_date: datetime.datetime = DateTimeColumn("modified_date", readonly=True)
+    delay_release: datetime.datetime = DateTimeColumn("delay_release", readonly=True)
     status: QueueStatus = EnumColumn("status", QueueStatus)
     locked_by: t.Optional[str] = StringColumn("locked_by", readonly=True)
     locked_since: t.Optional[datetime.datetime] = DateTimeColumn("locked_since", readonly=True)
@@ -392,18 +393,9 @@ class NODBQueueItem(_NODBBaseObject):
     def renew(self, db: NODBControllerInstance):
         """Renew a lock on the queue item"""
         if self.status == QueueStatus.LOCKED:
-            with db.cursor() as cur:
-                cur.execute(f"""
-                    UPDATE {self.TABLE_NAME}
-                    SET
-                        locked_since = %s
-                    WHERE
-                        queue_uuid = %s
-                        AND status = 'LOCKED'
-                """, [
-                    datetime.datetime.now(datetime.timezone.utc),
-                    self.queue_uuid
-                ])
+            self._allow_set_readonly = True
+            self.locked_since = db.fast_renew_queue_item(self.queue_uuid)
+            self._allow_set_readonly = False
 
     def set_queue_status(self,
                          db: NODBControllerInstance,
@@ -413,28 +405,20 @@ class NODBQueueItem(_NODBBaseObject):
                          escalation_level: t.Optional[int] = None):
         """Set the queue status from LOCKED to a new status."""
         if self.status == QueueStatus.LOCKED:
-            with db.cursor() as cur:
-                cur.execute(f"""
-                    UPDATE {self.TABLE_NAME}
-                    SET
-                        status = %s,
-                        locked_by = NULL,
-                        locked_since = NULL,
-                        delay_release = %s,
-                        priority = priority - %s,
-                        escalation_level = %s
-                    WHERE 
-                        queue_uuid = %s
-                        AND status = 'LOCKED'
-                """, [
-                    new_status.value,
-                    release_at,
-                    1 if reduce_priority else 0,
-                    escalation_level if escalation_level is not None else (self.escalation_level or 0),
-                    self.queue_uuid
-                ])
-                # TODO: check if the row was actually updated?
-                self.status = new_status
+            db.fast_update_queue_status(
+                self.queue_uuid,
+                new_status,
+                release_at,
+                reduce_priority,
+                escalation_level if escalation_level is not None else (self.escalation_level or 0)
+            )
+            self._allow_set_readonly = True
+            self.status = new_status
+            self.priority = self.priority - (1 if reduce_priority else 0)
+            if self.escalation_level is not None:
+                self.escalation_level = escalation_level
+            self.delay_release = release_at
+            self._allow_set_readonly = False
 
 
 class NODBSourceFile(_NODBBaseObject):
@@ -721,7 +705,7 @@ class NODBUploadWorkflow(_NODBBaseObject):
             if 'order' not in step or step['order'] is None:
                 raise CNODCError(f'Step {step_name} is missing a proper [order] value', 'NODB_WORKFLOW', 1001)
             try:
-                sort_me.append((step['name'], int(step['order'])))
+                sort_me.append((step_name, int(step['order'])))
             except (ValueError, TypeError):
                 raise CNODCError(f"Step {step_name} is missing an integer [order] value", 'NODB_WORKFLOW', 1002)
         sort_me.sort(key=lambda x: x[1])
