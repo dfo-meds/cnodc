@@ -1,5 +1,9 @@
+import gzip
+import pathlib
 import typing as t
 import abc
+
+from cnodc.util import HaltFlag, HaltInterrupt
 
 
 @t.runtime_checkable
@@ -40,3 +44,43 @@ def vlq_decode(bytes_: bytes) -> tuple[int, int]:
         pos += 1
     return total, pos + 1
 
+
+def copy_with_halt(source_handle: Readable, destination_handle: Writable, chunk_size: t.Optional[int] = None, halt_flag: t.Optional[HaltFlag] = None):
+    """Copy a file with halt flag support"""
+    if chunk_size is None:
+        chunk_size = 2621440
+    if halt_flag:
+        def check_continue():
+            halt_flag.check_continue(True)
+    else:
+        def check_continue():
+            pass
+    check_continue()
+    src_bytes = source_handle.read(chunk_size)
+    while src_bytes != b'':
+        check_continue()
+        destination_handle.write(src_bytes)
+        check_continue()
+        src_bytes = source_handle.read(chunk_size)
+
+
+def gzip_with_halt(source_file: pathlib.Path, target_file: pathlib.Path, chunk_size=None, halt_flag: HaltFlag = None):
+    """Gzip a file into the target file."""
+    try:
+        with open(source_file, 'rb') as src:
+            with gzip.open(target_file, 'wb') as dest:
+                copy_with_halt(src, dest, chunk_size, halt_flag)
+    except HaltInterrupt as ex:
+        target_file.unlink(True)
+        raise ex from ex
+
+
+def ungzip_with_halt(source_file: pathlib.Path, target_file: pathlib.Path, chunk_size=2621440, halt_flag: HaltFlag = None):
+    """Ungzip a file into the target file."""
+    try:
+        with gzip.open(source_file, 'rb') as src:
+            with open(target_file, 'wb') as dest:
+                copy_with_halt(src, dest, chunk_size, halt_flag)
+    except HaltInterrupt as ex:
+        target_file.unlink(True)
+        raise ex from ex

@@ -17,28 +17,28 @@ COMMON_BAD_UNITS = {
 class Converter:
 
     def convert(self, input_val):
-        raise NotImplementedError()
+        raise NotImplementedError  # pragma: no cover
 
     def scale(self, factor: decimal.Decimal):
-        raise NotImplementedError()
+        raise NotImplementedError  # pragma: no cover
 
     def power(self, factor: decimal.Decimal):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     def product(self, other_converter):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     def shift(self, factor: decimal.Decimal):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     def invert(self):
-        raise NotImplementedError()
+        raise NotImplementedError  # pragma: no cover
 
 
 class UnitExpression:
 
     def get_unit_info(self, ref_dict) -> tuple[Converter, dict[str, int]]:
-        raise NotImplementedError()
+        raise NotImplementedError  # pragma: no cover
 
 
 @injector.injectable_global

@@ -1,3 +1,5 @@
+import threading
+
 import flask
 import zirconium as zr
 import pathlib
@@ -14,6 +16,8 @@ __VERSION__ = "0.0.1"
 
 from cnodc.util.flask import RequestInfo
 
+test_mode = threading.Event()
+
 
 def _config_paths():
     yield pathlib.Path(".").absolute()
@@ -26,12 +30,16 @@ def _config_paths():
                 p = pathlib.Path(path).absolute()
                 if p.exists():
                     yield p
+    if test_mode.is_set():
+        yield pathlib.Path(__file__).absolute().parent.parent.parent.parent / 'tests'
 
 
-def init_cnodc(app_type: str):
+def init_cnodc(app_type: str, *, _for_test: bool = False):
     # Avoid spam from pybufrkit when DEBUG mode is enabled
     from pybufrkit.coder import log as pybufrkit_logger
-    pybufrkit_logger.setLevel(logging.INFO)
+    pybufrkit_logger.setLevel(logging.WARNING)
+    if _for_test:
+        test_mode.set()
 
     @zr.configure
     def set_config(app_config: zr.ApplicationConfig):
@@ -133,5 +141,9 @@ def init_flask(app: flask.Flask, config: zr.ApplicationConfig):
     app.register_blueprint(admin)
 
 
-
+def build_cnodc_webapp(name: str, *, _for_test: bool = False):
+    init_cnodc("web", _for_test=_for_test)
+    app = flask.Flask(name)
+    init_flask(app)
+    return app
 

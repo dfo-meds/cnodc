@@ -24,7 +24,7 @@ class TrustedProxyFix:
         _ip = environ.get("REMOTE_ADDR")
         try:
             upstream_ip = ipaddress.ip_address(_ip)
-        except ipaddress.AddressValueError:
+        except (ipaddress.AddressValueError, ValueError):
             self._log.warning(f"Upstream address could not be parsed: {_ip}")
             return False
         if isinstance(self._trusted, str):
@@ -33,9 +33,9 @@ class TrustedProxyFix:
 
     def _match_ip_address(self, actual: ipaddress, network_def):
         try:
-            subnet = ipaddress.ip_network(network_def)
+            subnet = ipaddress.ip_network(network_def, strict=True)
             return actual in subnet
-        except (ipaddress.AddressValueError, ipaddress.NetmaskValueError) as ex:
+        except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError) as ex:
             self._log.warning(f"Trusted IP or subnet could not be parsed: {network_def}")
             return False
 
