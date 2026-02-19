@@ -3,11 +3,14 @@ import math
 import pathlib
 import typing as t
 import xml.etree.ElementTree as ET
+from pickle import UNICODE
+
 import zrlog
 import threading
 from autoinject import injector
 from uncertainties import UFloat
 
+from cnodc.util.exceptions import CNODCError
 
 COMMON_BAD_UNITS = {
     'psu': '0.001',
@@ -716,36 +719,31 @@ def _parse_unit_with_opt_exponent(units: str) -> UnitExpression:
     # we should be left with either a NUMBER or an ID
     # but it might have a trailing exponent if it is an ID
     if not units:
-        raise ValueError(f"Empty unit string")
+        raise CNODCError(f"Empty unit string", 'UNITS', 2000)
     if _is_literal(units):
         return _parse_literal(units)
     elif '**' in units:
         p = units.find('**')
-        exp = units[p+2:]
+        exp = units[p+2:].strip()
         if exp in ('', '+', '-') or exp[0] not in "+-0123456789" or any(exp_digit not in '0123456789' for exp_digit in exp[1:]):
-            raise ValueError('Invalid exponent, no digits')
+            raise CNODCError('Invalid exponent, no digits', 'UNITS', 2001)
         return Exponent(SimpleUnit(units[:p].strip()), Integer(exp))
     elif '^' in units:
         p = units.find('^')
         exp = units[p+1:]
         if exp in ('', '+', '-') or exp[0] not in "+-0123456789" or any(exp_digit not in '0123456789' for exp_digit in exp[1:]):
-            raise ValueError('Invalid exponent, no digits')
+            raise CNODCError('Invalid exponent, no digits', 'UNITS', 2002)
         return Exponent(SimpleUnit(units[:p].strip()), Integer(exp))
     elif units[-1].isdigit() or units[-1] in '+-':
         exp = ""
         while units[-1].isdigit() or units[-1] in '+-':
-            exp = f"{units[-1]}{exp}"
+            if units[-1] in UNICODE_EXPONENTS:
+                exp = f"{UNICODE_EXPONENTS[units[-1]]}{exp}"
+            else:
+                exp = f"{units[-1]}{exp}"
             units = units[:-1]
         if exp in ('', '+', '-'):
-            raise ValueError('Invalid exponent, no digits')
-        return Exponent(SimpleUnit(units), Integer(exp))
-    elif units[-1] in UNICODE_EXPONENTS:
-        exp = ""
-        while units[-1] in UNICODE_EXPONENTS:
-            exp = f"{UNICODE_EXPONENTS[units[-1]]}{exp}"
-            units = units[:-1]
-        if exp in ('', '+', '-'):
-            raise ValueError('Invalid exponent, no digits')
+            raise CNODCError('Invalid exponent, no digits', 'UNITS', 2003)
         return Exponent(SimpleUnit(units), Integer(exp))
     else:
         return SimpleUnit(units)
@@ -753,7 +751,7 @@ def _parse_unit_with_opt_exponent(units: str) -> UnitExpression:
 
 def _extract_leading_int(s: str) -> tuple[str, str]:
     idx = 0
-    while s[idx].isdigit() or (idx == 0 and (s == '+') or s == '-'):
+    while s[idx].isdigit() or (idx == 0 and s[idx] in '+-'):
         idx += 1
     return s[:idx], s[idx:]
 

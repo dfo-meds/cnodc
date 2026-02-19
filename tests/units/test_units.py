@@ -1,7 +1,11 @@
 import decimal
+import itertools
 import unittest as ut
 import cnodc.units.units as un
 import typing as t
+
+from cnodc.units.units import Integer
+from cnodc.util import CNODCError
 
 
 class TestUnitParsing(ut.TestCase):
@@ -133,3 +137,118 @@ class TestConversions(ut.TestCase):
 
     def test_non_convertible(self):
         self.assertRaises(ValueError, self._converter.convert, 1, 'm', '°C')
+
+
+class TestLowLevel(ut.TestCase):
+
+    INTEGERS = ["+0", "-1", "0", "1234567"]
+    DECIMALS = ["3.0", "-3.0", "3.7", "+3.7"]
+    LITERALS = ['+3E7', '-4.21E9', '+3.3E-12', '3.4e9', '-2.31e-12']
+    NOT_NUMBERS = ["foo", "hello", "bar", "3.4.1", "+-8", "", "2.3E2.1", "-2.3e2.7"]
+
+    def test_is_integer(self):
+        for case in itertools.chain(TestLowLevel.NOT_NUMBERS, TestLowLevel.DECIMALS):
+            with self.subTest(case=case):
+                self.assertFalse(un._is_integer_number(case))
+        for case in TestLowLevel.INTEGERS:
+            with self.subTest(case=case):
+                self.assertTrue(un._is_integer_number(case))
+        
+    def test_is_decimal(self):
+        for case in itertools.chain(TestLowLevel.INTEGERS, TestLowLevel.DECIMALS):
+            with self.subTest(case=case):
+                self.assertTrue(un._is_decimal_number(case))
+        for case in TestLowLevel.NOT_NUMBERS:
+            with self.subTest(case=case):
+                self.assertFalse(un._is_decimal_number(case))
+
+    def test_is_literal(self):
+        for case in itertools.chain(TestLowLevel.INTEGERS, TestLowLevel.DECIMALS, TestLowLevel.LITERALS):
+            with self.subTest(case=case):
+                self.assertTrue(un._is_literal(case))
+        for case in TestLowLevel.NOT_NUMBERS:
+            with self.subTest(case=case):
+                self.assertFalse(un._is_decimal_number(case))
+
+    def test_parse_literal(self):
+        for case in TestLowLevel.INTEGERS:
+            with self.subTest(case=case):
+                self.assertIsInstance(un._parse_literal(case), Integer)
+        for case in itertools.chain(TestLowLevel.DECIMALS, TestLowLevel.LITERALS):
+            with self.subTest(case=case):
+                self.assertIsInstance(un._parse_literal(case), un.Real)
+
+    def test_extract_leading_int(self):
+        self.assertEqual(un._extract_leading_int('1234 kg'), ('1234', ' kg'))
+        self.assertEqual(un._extract_leading_int('+1234 kg'), ('+1234', ' kg'))
+        self.assertEqual(un._extract_leading_int('-1234 kg'), ('-1234', ' kg'))
+        self.assertEqual(un._extract_leading_int('1234+567 kg'), ('1234', '+567 kg'))
+        self.assertEqual(un._extract_leading_int('1234-567 k'), ('1234', '-567 k'))
+        self.assertEqual(un._extract_leading_int('1234-567k'), ('1234', '-567k'))
+        self.assertEqual(un._extract_leading_int('test'), ('', 'test'))
+
+    def test_extract_leading_exponents(self):
+        self.assertEqual(un._extract_leading_int_from_exp('12345 kg'), ('', '12345 kg'))
+        self.assertEqual(un._extract_leading_int_from_exp('⁰0 kg'), ('0', '0 kg'))
+        self.assertEqual(un._extract_leading_int_from_exp('⁺⁹ kg'), ('+9', ' kg'))
+
+    def test_bad_unit_components(self):
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent(None)
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ** 2.3')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg **')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ** +')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ** -')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ^ 2.3')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ^')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ^ +')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg ^ -')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg+')
+        with self.assertRaises(CNODCError):
+            un._parse_unit_with_opt_exponent('kg-')
+
+    def test_simple_unit_component(self):
+        u = un._parse_unit_with_opt_exponent('kg')
+        self.assertIsInstance(u, un.SimpleUnit)
+        self.assertEqual(u.name, 'kg')
+
+    def test_literal_components(self):
+        for case in TestLowLevel.INTEGERS:
+            with self.subTest(case=case):
+                self.assertEqual(un._parse_unit_with_opt_exponent(case), Integer(case))
+        for case in itertools.chain(TestLowLevel.LITERALS, TestLowLevel.DECIMALS):
+            with self.subTest(case=case):
+                self.assertEqual(un._parse_unit_with_opt_exponent(case), un.Real(case))
+
+    def test_exponent_component(self):
+        x = un._parse_unit_with_opt_exponent('kg ** 2')
+        self.assertIsInstance(x, un.Exponent)
+        self.assertEqual(x.exponent, Integer('2'))
+        self.assertIsInstance(x.base, un.SimpleUnit)
+        self.assertEqual(x.base.name, 'kg')
+        x = un._parse_unit_with_opt_exponent('kg^2')
+        self.assertIsInstance(x, un.Exponent)
+        self.assertEqual(x.exponent, Integer('2'))
+        self.assertIsInstance(x.base, un.SimpleUnit)
+        self.assertEqual(x.base.name, 'kg')
+        x = un._parse_unit_with_opt_exponent('kg-2')
+        self.assertIsInstance(x, un.Exponent)
+        self.assertEqual(x.exponent, Integer('-2'))
+        self.assertIsInstance(x.base, un.SimpleUnit)
+        self.assertEqual(x.base.name, 'kg')
+        x = un._parse_unit_with_opt_exponent('kg²')
+        self.assertIsInstance(x, un.Exponent)
+        self.assertEqual(x.exponent, Integer('2'))
+        self.assertIsInstance(x.base, un.SimpleUnit)
+        self.assertEqual(x.base.name, 'kg')
