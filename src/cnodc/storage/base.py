@@ -54,6 +54,9 @@ class BaseStorageHandle:
     def __init__(self, *args, halt_flag: HaltFlag = None, **kwargs):
         self._cached_properties = {}
         self._halt_flag = halt_flag
+        self._new_child_args = {
+            'halt_flag': halt_flag
+        }
 
     def __str__(self):
         return self.path()
@@ -274,10 +277,13 @@ class BaseStorageHandle:
     def _size(self) -> t.Optional[int]:
         return None  # pragma: no coverage
 
+    def _build_child(self, *args, **kwargs):
+        return self.__class__(*args, **self._new_child_args, **kwargs)
+
     @staticmethod
     def supports(file_path: str) -> bool:
         """Check if this handle class supports the given file path."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     @classmethod
     def build(cls, file_path: str, halt_flag: HaltFlag = None) -> BaseStorageHandle:
@@ -296,9 +302,8 @@ class UrlBaseHandle(BaseStorageHandle):
         part1, part2 = self._split_url()
         if not part1.endswith('/'):
             part1 += '/'
-        return self.__class__(
-            f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}",
-            halt_flag=self._halt_flag
+        return self._build_child(
+            f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}"
         )
 
     def parse_url(self) -> ParseResult:

@@ -16,6 +16,7 @@ from cnodc.ocean_math.seawater import eos80_depth
 from cnodc.storage import StorageController, StorageTier
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
+
 if t.TYPE_CHECKING:
     from cnodc.nodb import NODBControllerInstance, LockType, NODBController
     import cnodc.storage.core
@@ -747,7 +748,7 @@ class NODBUploadWorkflow(_NODBBaseObject):
                     raise NODBValidationError(f"Step {step_name} cannot be moved after {other_step}", 2017)
 
     @injector.inject
-    def check_config(self, files: cnodc.storage.core.StorageController):
+    def check_config(self, files: StorageController):
         """Validate the configuration for this workflow."""
         if 'label' not in self.configuration:
             raise NODBValidationError(f"A label is required for workflows", 2020)

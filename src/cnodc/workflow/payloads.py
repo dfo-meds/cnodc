@@ -183,11 +183,11 @@ class WorkflowPayload:
                  is_gzipped: bool,
                  target_dir: t.Union[str, pathlib.Path],
                  halt_flag: HaltFlag = None,
-                 storage: StorageController = None) -> pathlib.Path:
+                 files: StorageController = None) -> pathlib.Path:
         """Download the file to a given directory."""
         if isinstance(target_dir, str):
             target_dir = pathlib.Path(target_dir)
-        handle = storage.get_handle(file_path, halt_flag=halt_flag)
+        handle = files.get_handle(file_path, halt_flag=halt_flag)
         if handle is None:
             raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
         if not handle.exists():

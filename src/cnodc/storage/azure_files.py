@@ -59,6 +59,22 @@ class AzureFileHandle(UrlBaseHandle):
         }
         return kwargs
 
+    @staticmethod
+    def _client_from_connection_string(conn_str, share_name, file_path):
+        return ShareFileClient.from_connection_string(conn_str, share_name, file_path)
+
+    @staticmethod
+    def _client_from_file_url(url):
+        return ShareFileClient.from_file_url(url)
+
+    @staticmethod
+    def _directory_from_connection_string(conn_str, share_name, directory_path):
+        return ShareDirectoryClient.from_connection_string(conn_str, share_name, directory_path)
+
+    @staticmethod
+    def _directory_from_file_url(url):
+        return ShareDirectoryClient.from_directory_url(url)
+
     def file_client(self) -> ShareFileClient:
         """Build a file share client."""
         try:
@@ -66,13 +82,13 @@ class AzureFileHandle(UrlBaseHandle):
                 raise CNODCError(f"Cannot make file client on a directory", "AZFILE", 1005)
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
-                return ShareFileClient.from_connection_string(
+                return AzureFileHandle._client_from_connection_string(
                     conn_str=connection_info["connection_string"],
                     share_name=connection_info["share_name"],
                     file_path=connection_info["file_path"]
                 )
             else:
-                return ShareFileClient.from_file_url(self._url, credential=DefaultAzureCredential())
+                return AzureFileHandle._client_from_file_url(self._url)
         except ValueError as ex:
             raise CNODCError(f"Could not create file client", "AZFILE", 1000) from ex
 
@@ -83,13 +99,13 @@ class AzureFileHandle(UrlBaseHandle):
                 raise CNODCError(f"Cannot make directory client on a file", "AZFILE", 1004)
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
-                return ShareDirectoryClient.from_connection_string(
+                return AzureFileHandle._directory_from_connection_string(
                     conn_str=connection_info["connection_string"],
                     share_name=connection_info["share_name"],
                     directory_path=connection_info["file_path"][:-1]
                 )
             else:
-                return ShareDirectoryClient.from_directory_url(self._url, credential=DefaultAzureCredential())
+                return AzureFileHandle._directory_from_file_url(self._url)
         except ValueError as ex:
             raise CNODCError(f"Could not create directory client", "AZFILE", 1003) from ex
 

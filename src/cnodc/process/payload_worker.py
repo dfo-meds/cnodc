@@ -106,13 +106,12 @@ class WorkflowWorker(QueueWorker):
         self.add_payload_metadata(payload_copy)
         return payload_copy
 
-    @injector.inject
-    def download_to_temp_file(self, storage: StorageController) -> pathlib.Path:
+    def download_to_temp_file(self) -> pathlib.Path:
         temp_dir = self.temp_dir()
         if isinstance(self.current_payload, FilePayload):
-            return self.current_payload.download(temp_dir, storage, halt_flag=self._halt_flag)
+            return self.current_payload.download(temp_dir, halt_flag=self._halt_flag)
         elif isinstance(self.current_payload, SourceFilePayload):
-            return self.current_payload.download(self._db, temp_dir, storage, halt_flag=self._halt_flag)
+            return self.current_payload.download(self._db, temp_dir, halt_flag=self._halt_flag)
         else:
             raise ValueError('invalid payload type')
 

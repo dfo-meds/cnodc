@@ -1,3 +1,5 @@
+import os
+
 from cnodc.storage.base import StorageError
 from core import BaseTestCase
 from cnodc.storage.local import LocalHandle
@@ -209,3 +211,23 @@ class TestLocalHandle(BaseTestCase):
                     self.assertIn(file, results)
                 else:
                     self.assertNotIn(file, results)
+
+    def test_build(self):
+        if os.name == 'nt':
+            with self.subTest(platform="windows"):
+                handle = LocalHandle.build("C:\\hello\\world.txt")
+                self.assertEqual(handle.path(), "C:\\hello\\world.txt")
+        if os.name == 'posix':
+            with self.subTest(platform="posix"):
+                handle = LocalHandle.build("/srv/opt/hello")
+                self.assertEqual(handle.path(), "/srv/opt/hello")
+
+    def test_build_from_protocol(self):
+        if os.name == 'nt':
+            with self.subTest(platform="windows"):
+                handle = LocalHandle.build("file://C:/hello/world.txt")
+                self.assertEqual(handle.path(), "C:\\hello\\world.txt")
+        if os.name == 'posix':
+            with self.subTest(platform="posix"):
+                handle = LocalHandle.build("file:///srv/opt/test")
+                self.assertEqual(handle.path(), "/srv/opt/test")

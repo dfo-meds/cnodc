@@ -66,7 +66,7 @@ class LocalHandle(BaseStorageHandle):
                 m_time,
                 datetime.timezone.utc
             )
-        return None
+        return None  # pragma: no coverage
 
     def child(self, sub_path: str, as_dir: bool = False):
         return LocalHandle(self._path / sub_path, force_dir=as_dir, halt_flag=self._halt_flag)

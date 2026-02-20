@@ -87,18 +87,34 @@ class AzureBlobHandle(UrlBaseHandle):
         }
         return kwargs
 
+    @staticmethod
+    def _blob_client_from_url(url: str, *args, **kwargs):
+        return BlobClient.from_blob_url(url, *args, **kwargs)
+
+    @staticmethod
+    def _blob_client_from_connection_string(conn_str: str, container_name: str, blob_name: str):
+        return BlobClient.from_connection_string(conn_str, container_name, blob_name)
+
+    @staticmethod
+    def _container_client_from_url(url: str, *args, **kwargs):
+        return ContainerClient.from_container_url(url, *args, **kwargs)
+
+    @staticmethod
+    def _container_client_from_connection_string(conn_str: str, container_name: str):
+        return ContainerClient.from_connection_string(conn_str, container_name)
+
     def client(self) -> BlobClient:
         """Build a blob client."""
         try:
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
-                return BlobClient.from_connection_string(
+                return AzureBlobHandle._blob_client_from_connection_string(
                     conn_str=connection_info["connection_string"],
                     container_name=connection_info["container_name"],
                     blob_name=connection_info["blob_name"]
                 )
             else:
-                return BlobClient.from_blob_url(self._url, credential=DefaultAzureCredential())
+                return AzureBlobHandle._blob_client_from_url(self._url)
         except ValueError as ex:
             raise CNODCError(f"Could not create blob client", "AZBLOB", 1000) from ex
 
@@ -107,14 +123,13 @@ class AzureBlobHandle(UrlBaseHandle):
         try:
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
-                return ContainerClient.from_connection_string(
+                return AzureBlobHandle._container_client_from_connection_string(
                     conn_str=connection_info["connection_string"],
                     container_name=connection_info["container_name"]
                 )
             else:
-                return ContainerClient.from_container_url(
-                    container_url=f"https://{connection_info['storage_url']}/{connection_info['container_name']}",
-                    credential=DefaultAzureCredential()
+                return AzureBlobHandle._container_client_from_url(
+                    f"https://{connection_info['storage_url']}/{connection_info['container_name']}",
                 )
         except ValueError as ex:
             raise CNODCError(f"Could not create container client", "AZBLOB", 1001) from ex
