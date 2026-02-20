@@ -4,6 +4,7 @@ import cnodc.nodb.structures as structures
 import zirconium as zr
 from autoinject import injector
 
+from cnodc.nodb import NODBUser
 from cnodc.util import CNODCError
 
 
@@ -25,6 +26,8 @@ class UserTest(ut.TestCase):
         self.assertEqual(user.username, "12345")
 
     def test_password(self):
+        # speed up password hashing
+        NODBUser.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
         user = structures.NODBUser()
 
         # Check setting the password

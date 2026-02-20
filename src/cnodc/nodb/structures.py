@@ -550,6 +550,8 @@ class NODBSourceFile(_NODBBaseObject):
 
 class NODBUser(_NODBBaseObject):
 
+    DEFAULT_PASSWORD_HASH_ITERATIONS = 752123
+
     TABLE_NAME = "nodb_users"
     PRIMARY_KEYS: tuple[str] = ("username",)
 
@@ -628,10 +630,11 @@ class NODBUser(_NODBBaseObject):
         return self.get_cached('permissions')
 
     @staticmethod
-    def hash_password(password: str, salt: bytes, iterations=752123) -> bytes:
+    def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
         """Hash a password."""
         if not isinstance(password, str):
             raise CNODCError("Invalid password", "USERCHECK", 1000)
+        iterations = iterations or NODBUser.DEFAULT_PASSWORD_HASH_ITERATIONS
         return hashlib.pbkdf2_hmac('sha512', password.encode('utf-8', errors="replace"), salt, iterations)
 
     @classmethod
