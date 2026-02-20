@@ -14,9 +14,10 @@ class LocalHandle(BaseStorageHandle):
         caching layers.
     """
 
-    def __init__(self, path: pathlib.Path, *args, **kwargs):
+    def __init__(self, path: pathlib.Path, *args, force_dir: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
         self._path = path.expanduser().absolute()
+        self._force_dir = force_dir
 
     @local_file_error_wrap
     def stat(self, clear_cache: bool = False):
@@ -27,6 +28,8 @@ class LocalHandle(BaseStorageHandle):
         return self._path.exists()
 
     def _is_dir(self) -> bool:
+        if not self._path.exists():
+            return self._force_dir
         return self._path.is_dir()
 
     def _write_chunks(self, chunks: t.Iterable[bytes]):
@@ -60,13 +63,13 @@ class LocalHandle(BaseStorageHandle):
         m_time = self.stat(clear_cache).st_mtime
         if m_time is not None:
             return datetime.datetime.fromtimestamp(
-                self.stat(clear_cache).st_mtime,
-                datetime.timezone(datetime.timedelta(hours=0), "UTC")
+                m_time,
+                datetime.timezone.utc
             )
         return None
 
     def child(self, sub_path: str, as_dir: bool = False):
-        return LocalHandle(self._path / sub_path, halt_flag=self._halt_flag)
+        return LocalHandle(self._path / sub_path, force_dir=as_dir, halt_flag=self._halt_flag)
 
     @local_file_error_wrap
     def walk(self, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
@@ -75,7 +78,8 @@ class LocalHandle(BaseStorageHandle):
             d = work.pop()
             for file in HaltFlag.iterate(d.iterdir(), self._halt_flag, True):
                 if file.is_dir():
-                    work.append(file)
+                    if recursive:
+                        work.append(file)
                 else:
                     yield LocalHandle(file, halt_flag=self._halt_flag)
 

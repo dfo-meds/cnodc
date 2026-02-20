@@ -125,8 +125,6 @@ class BaseStorageHandle:
                 metadata['StoragePlan'] = 'HOT'
             elif storage_tier == StorageTier.INFREQUENT:
                 metadata['StoragePlan'] = 'COOL'
-        if 'PublicationPlan' not in metadata:
-            metadata['PublicationPlan'] = 'NONE'
 
     def _upload(self,
                local_path,
@@ -189,7 +187,7 @@ class BaseStorageHandle:
             for chunk in HaltFlag.iterate(chunks, self._halt_flag, True):
                 dest.write(chunk)
 
-    def search(self, pattern: str, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
+    def search(self, pattern: t.Optional[str] = None, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
         """Find all files that match the given pattern."""
         for file in self.walk(recursive):
             if pattern is None or fnmatch.fnmatch(file.name(), pattern):
