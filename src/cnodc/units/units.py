@@ -9,8 +9,7 @@ from autoinject import injector
 from uncertainties import UFloat
 
 from cnodc.units.parsing import parse_unit_string
-from cnodc.units.structures import LinearFunction, Converter, UnitExpression
-from cnodc.util import CNODCError
+from cnodc.units.structures import LinearFunction, Converter, UnitExpression, UnitError
 
 COMMON_BAD_UNITS = {
     'psu': '0.001',
@@ -48,13 +47,13 @@ class UnitConverter:
         if unit_str not in self._cache:
             with self._cache_lock:
                 if unit_str in self._nested_tracker:
-                    raise CNODCError("Infinite loop detected")
+                    raise UnitError("Infinite loop detected", 2000)
                 self._nested_tracker.add(unit_str)
                 if unit_str not in self._cache:
                     try:
                         expr = parse_unit_string(unit_str)
                         self._cache[unit_str] = [*expr.get_unit_info(self), expr]
-                    except CNODCError as ex:
+                    except Exception as ex:
                         self._cache[unit_str] = ex
         if isinstance(self._cache[unit_str], Exception):
             raise self._cache[unit_str]
@@ -97,7 +96,7 @@ class UnitConverter:
         factor_original, dims_original, expr_original = self._conversion_info(original_units)
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
         if not self._check_compatibility(dims_original, dims_output):
-            raise CNODCError(f"Incompatible dimensions [{self._format_dims(dims_original)}] vs [{self._format_dims(dims_output)}]")
+            raise UnitError(f"Incompatible dimensions [{self._format_dims(dims_original)}] vs [{self._format_dims(dims_output)}]", 2001)
         return factor_output.invert().convert(factor_original.convert(quantity))
 
     def _format_dims(self, dims: dict[str, int]):
@@ -178,7 +177,7 @@ class UnitConverter:
                 if test_unit not in self._loaded_tables['units']:
                     continue
                 return self._loaded_tables['prefixes'][prefix], self._loaded_tables['units'][test_unit], test_unit
-        raise CNODCError(f"Invalid simple unit [{simple_unit}]")
+        raise UnitError(f"Unknown simple unit: [{simple_unit}]", 2002)
 
     def raw_unit_info(self, simple_unit: str) -> tuple[Converter, dict[str, int]]:
         factor, expr, real_unit = self._find_entry(simple_unit)

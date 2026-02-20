@@ -1,6 +1,5 @@
 
-from cnodc.units.structures import Log, Offset, Quotient, Product, Exponent, Real, Integer, Literal, SimpleUnit, UnitExpression
-from cnodc.util.exceptions import CNODCError
+from cnodc.units.structures import Log, Offset, Quotient, Product, Exponent, Real, Integer, Literal, SimpleUnit, UnitExpression, UnitError
 
 UNICODE_EXPONENTS = {
     '⁰': '0',
@@ -64,17 +63,17 @@ def _parse_unit_for_groups(units: str) -> UnitExpression:
             expr = piece if isinstance(piece, UnitExpression) else parse_unit_string(piece)
         elif piece[0] == "^":
             if op is not None:
-                raise CNODCError(f"Operation cannot be followed by an exponentiation immediately")
+                raise UnitError(f"Operation cannot be followed by an exponentiation immediately", 1000)
             if expr is None:
-                raise CNODCError(f"Exponentiation cannot be at the start")
+                raise UnitError(f"Exponentiation cannot be at the start", 1001)
             expr = Exponent(expr, int(piece[1:]))
         elif piece in UDUNITS_MULTIPLICATION:
             if op is not None:
-                raise CNODCError(f"Operation cannot be followed by multiplication immediately")
+                raise UnitError(f"Operation cannot be followed by multiplication immediately", 1002)
             op = '*'
         elif piece in UDUNITS_DIVISION:
             if op is not None:
-                raise CNODCError(f"Operation cannot be followed by a division immediately")
+                raise UnitError(f"Operation cannot be followed by a division immediately", 1003)
             op = '/'
         else:
             expr2 = piece if isinstance(piece, UnitExpression) else parse_unit_string(piece)
@@ -184,11 +183,11 @@ def _decompose_bracket_pairs(units: str) -> list[str]:
             elif depth == 0:
                 pieces.append("")
             if depth < 0:
-                raise CNODCError(f"Parse error, `)` found without opening `(` at position {pos} in [{units}]")
+                raise UnitError(f"Parse error, `)` found without opening `(` at position {pos} in [{units}]", 1004)
         else:
             pieces[-1] += char
     if depth > 0:
-        raise CNODCError(f"Unit string parse error, '(' found without closing ')' in [{units}]")
+        raise UnitError(f"Unit string parse error, '(' found without closing ')' in [{units}]", 1005)
     return [p.strip() for p in pieces if p.strip()]
 
 
@@ -272,7 +271,7 @@ def _decompose_simple_unit_string(units: str):
 def _parse_unit_for_exponents(units: str) -> UnitExpression:
     """ Extracts the exponent (if present) from a unit string. """
     if not units:
-        raise CNODCError(f"Empty unit string", 'UNITS', 2000)
+        raise UnitError(f"Empty unit string", 1006)
     units = units.strip()
     if _is_literal(units):
         return _parse_literal(units)
@@ -302,7 +301,7 @@ def _build_exponent(unit_name, exponent=None):
     if exponent == '1':
         return SimpleUnit(unit_name)
     if not _is_integer_number(exponent):
-        raise CNODCError(f'Invalid exponent, expected integer, got [{exponent}]', 'UNITS', 2001)
+        raise UnitError(f'Invalid exponent, expected integer, got [{exponent}]', 1007)
     return Exponent(SimpleUnit(unit_name), Integer(exponent))
 
 

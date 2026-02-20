@@ -1,12 +1,17 @@
 from __future__ import annotations
 import decimal
-import math
 import typing as t
-
 from cnodc.util.exceptions import CNODCError
+
 
 if t.TYPE_CHECKING:
     from cnodc.units import UnitConverter  # pragma: no cover
+
+
+class UnitError(CNODCError):
+
+    def __init__(self, msg: str, code: t.Optional[int] = None, is_recoverable: bool = False):
+        super().__init__(msg, 'UNITS', code, is_recoverable)
 
 
 class Converter:
@@ -101,7 +106,7 @@ class Log(UnitExpression):
         return f"(log base {self.base} of {self.expression})"
 
     def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
-        raise CNODCError("Unit info calculations not yet supported for log units")
+        raise UnitError("Unit info calculations not yet supported for log units", 3000)
 
 
 class Offset(UnitExpression):
@@ -122,7 +127,7 @@ class Offset(UnitExpression):
         inner_convert, inner_dims = self.expression.get_unit_info(ref_dict)
         if isinstance(self.offset, Number):
             return inner_convert.shift(self.offset.as_decimal()), inner_dims
-        raise CNODCError("Shift not supported with other data types yet")
+        raise UnitError("Shift not supported with other data types yet", 3001)
 
 
 class Quotient(UnitExpression):
@@ -235,7 +240,7 @@ class LinearFunction(Converter):
     def product(self, other_converter):
         if isinstance(other_converter, LinearFunction):
             return LinearFunction(self._scale * other_converter._scale)
-        raise CNODCError("Cannot take products of other things yet")
+        raise UnitError("Cannot take products of other things yet", 3002)
 
 
 """
