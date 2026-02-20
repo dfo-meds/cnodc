@@ -44,7 +44,7 @@ def local_file_error_wrap(cb):
         except NotADirectoryError as ex:
             raise StorageError(f"Local directory is not a directory", 1005) from ex
         except Exception as ex:
-            raise StorageError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", 1005) from ex
+            raise StorageError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", 1006) from ex
 
     return _inner
 
@@ -69,16 +69,16 @@ class BaseStorageHandle:
 
     def path(self) -> str:
         """Get a string representation of this path that could be used to rebuild it."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def _default_buffer_size(self):
         """Override this to set the default buffer size for reading/writing."""
-        return 2621440
+        return DEFAULT_CHUNK_SIZE
 
     def download(self, local_path: pathlib.Path, allow_overwrite: bool = False, buffer_size: int = None):
         """Download the file to the given local path."""
         if (not allow_overwrite) and local_path.exists():
-            raise CNODCError(f"Path [{local_path}] already exists, cannot download from [{self}]", "STORAGE", 1000, is_recoverable=True)
+            raise StorageError(f"Path [{local_path}] already exists, cannot download from [{self}]", 1000, True)
         self._download(local_path, buffer_size)
 
     def _download(self, local_path: pathlib.Path, buffer_size: int = None):
@@ -93,11 +93,11 @@ class BaseStorageHandle:
 
     def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         """Read the file in chunks given a buffer size."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def _complete_download(self, local_path: pathlib.Path):
         """Override to implement behaviour after the download is complete."""
-        pass
+        pass  # pragma: no coverage
 
     def upload(self,
                local_path,
@@ -107,7 +107,7 @@ class BaseStorageHandle:
                storage_tier: t.Optional[StorageTier] = None):
         """Upload a local file to the location represented by this handle."""
         if (not allow_overwrite) and self.exists():
-            raise CNODCError(f"Path [{self.name()}] already exists, cannot overwrite", "STORAGE", 1001, is_recoverable=True)
+            raise StorageError(f"Path [{self.name()}] already exists, cannot overwrite", 1001, True)
         metadata = metadata or {}
         self._add_default_metadata(metadata, storage_tier)
         self._upload(local_path, buffer_size, metadata, storage_tier)
@@ -149,7 +149,7 @@ class BaseStorageHandle:
 
     def _write_chunks(self, chunks: t.Iterable[bytes]):
         """Write an iterable bytes to the given file."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def _complete_upload(self, local_path: pathlib.Path):
         """Override to specify behaviour after an upload is complete."""
@@ -197,25 +197,25 @@ class BaseStorageHandle:
 
     def walk(self, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
         """Find all files, optionally recursively."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def exists(self, clear_cache: bool = False) -> bool:
         """Check if the handle exists."""
         return self._with_cache('exists', self._exists, clear_cache=clear_cache)
 
     def _exists(self) -> bool:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def is_dir(self, clear_cache: bool = False) -> bool:
         """Check if the handle represents a directory."""
         return self._with_cache('is_dir', self._is_dir, clear_cache=clear_cache)
 
     def _is_dir(self) -> bool:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def child(self, sub_path: str, as_dir: bool = False) -> BaseStorageHandle:
         """Create a child of the current directory."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def subdir(self, sub_path: str) -> BaseStorageHandle:
         """Create a child of the current directory, as a directory."""
@@ -223,58 +223,58 @@ class BaseStorageHandle:
 
     def remove(self):
         """Remove the file or directory, if it exists."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def name(self) -> str:
         """Get the name of the handle."""
         return self._with_cache('name', self._name)
 
     def _name(self) -> str:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
         """Get the last modified time of the entry."""
         return self._with_cache('modified_datetime', self._modified_datetime, clear_cache=clear_cache)
 
     def _modified_datetime(self) -> t.Optional[datetime.datetime]:
-        return None
+        return None  # pragma: no coverage
 
     def supports_metadata(self) -> bool:
         """Check if the handle supports metadata setting."""
-        return False
+        return False  # pragma: no coverage
 
     def set_metadata(self, metadata: dict[str, str]):
         """Set metadata."""
-        pass
+        pass  # pragma: no coverage
 
     def get_metadata(self, clear_cache: bool = False) -> dict[str, str]:
         """Retrieve metadata"""
         return self._with_cache('get_metadata', self._get_metadata, clear_cache=clear_cache)
 
     def _get_metadata(self) -> dict[str, str]:
-        return {}
+        return {}  # pragma: no coverage
 
     def supports_tiering(self) -> bool:
         """Check if the handle supports tiering"""
-        return False
+        return False  # pragma: no coverage
 
     def set_tier(self, tier: StorageTier):
         """Set the storage tier."""
-        pass
+        pass  # pragma: no coverage
 
     def get_tier(self, clear_cache: bool = False) -> t.Optional[StorageTier]:
         """Retrieve the storage tier"""
         return self._with_cache('get_tier', self._get_tier, clear_cache=clear_cache)
 
     def _get_tier(self) -> t.Optional[StorageTier]:
-        return None
+        return None  # pragma: no coverage
 
     def size(self, clear_cache: bool = False) -> int:
         """Retrieve the size of the file."""
         return self._with_cache('size', self._size, clear_cache=clear_cache)
 
     def _size(self) -> t.Optional[int]:
-        return None
+        return None  # pragma: no coverage
 
     @staticmethod
     def supports(file_path: str) -> bool:
