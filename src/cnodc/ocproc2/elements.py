@@ -4,11 +4,10 @@ import decimal
 import functools
 import typing as t
 import datetime
-from xml.etree.ElementTree import Element
 
 from uncertainties import ufloat, UFloat
 
-from cnodc.ocproc2.lazy_load import LazyLoadDict, T
+from cnodc.ocproc2.lazy_load import LazyLoadDict
 from cnodc.units.units import convert
 
 
@@ -78,10 +77,6 @@ class AbstractElement:
         """Retrieve the working quality of the value."""
         return self.ideal_single_value().metadata.best_value('WorkingQuality', default=0, coerce=int)
 
-    def uncertainty(self) -> t.Optional[float]:
-        """Retrieve the uncertainty of the value."""
-        return self.ideal_single_value().metadata.best_value('Uncertainty', None)
-
     def units(self) -> t.Optional[str]:
         """Retrieve the units of the value."""
         return self.ideal_single_value().metadata.best_value('Units')
@@ -111,36 +106,41 @@ class AbstractElement:
     def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
         """Convert this value to a decimal number"""
         bv = self.ideal_single_value()
-        return convert(decimal.Decimal(bv.value), bv.units(), units)
+        if units:
+            return convert(decimal.Decimal(bv.value), bv.units(), units)
+        return decimal.Decimal(bv.value)
 
     def to_float_with_uncertainty(self, units: t.Optional[str] = None) -> t.Union[UFloat, float]:
         """Convert this value to a UFloat."""
         bv = self.ideal_single_value()
         if bv.metadata.has_value('Uncertainty'):
-            return convert(
-                ufloat(float(bv.value), bv.metadata.best_value('Uncertainty', coerce=float)),
-                bv.units(),
-                units
-            )
-        return convert(float(bv.value), bv.units(), units)
+            # TODO: uncertainty type
+            value = ufloat(float(bv.value), bv.metadata.best_value('Uncertainty', coerce=float))
+        else:
+            value = float(bv.value)
+        if units:
+            return convert(value, bv.units(), units)
+        return value
 
     def to_float(self, units: t.Optional[str] = None) -> float:
         """Convert this value to a float."""
         bv = self.ideal_single_value()
-        return convert(float(bv.value), bv.units(), units)
+        if units:
+            return convert(float(bv.value), bv.units(), units)
+        return float(bv.value)
 
     def to_int(self, units: t.Optional[str] = None) -> int:
         """Convert this value to an integer."""
         bv = self.ideal_single_value()
-        return convert(int(bv.value), bv.units(), units)
+        if isinstance(bv.value, float) or (isinstance(bv.value, str) and '.' in bv.value):
+            raise ValueError('Loss of precision')
+        if units:
+            return convert(int(bv.value), bv.units(), units)
+        return int(bv.value)
 
     def to_datetime(self) -> datetime.datetime:
         """Convert this value to a datetime."""
         return datetime.datetime.fromisoformat(self.ideal_single_value().value)
-
-    def to_date(self) -> datetime.date:
-        """Convert this value to a date."""
-        return datetime.date.fromisoformat(self.ideal_single_value().value)
 
     def to_string(self) -> str:
         return str(self.ideal_single_value().value)
@@ -157,11 +157,12 @@ class AbstractElement:
                     (AbstractElement.build_from_mapping(x) for x in map_['_values']),
                     _skip_normalization=True
                 )
-            # NB: metadata is assumed to be present on all of the values
-            # if we get here.
-            md = map_['_metadata']
-            if md:
-                element.metadata.from_mapping(md)
+            try:
+                md = map_['_metadata']
+                if md:
+                    element.metadata.from_mapping(md)
+            except KeyError:
+                pass
             return element
 
     def update_hash(self, h):
@@ -182,7 +183,7 @@ class AbstractElement:
                 else:
                     continue
             wq = v.metadata.best_value('WorkingQuality', 0, int)
-            if wq in (1, 2, 5):
+            if wq in (0, 1, 2, 5):
                 return True
             if wq == 3 and allow_dubious:
                 return True

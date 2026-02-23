@@ -1,7 +1,196 @@
 import datetime
+import decimal
 import unittest as ut
 import cnodc.ocproc2 as ocproc2
 import typing as t
+
+from cnodc.ocproc2 import SingleElement, AbstractElement, MultiElement
+from cnodc.ocproc2.elements import normalize_data_value
+
+
+class TestLowLevelThings(ut.TestCase):
+
+    def test_normalize_data_value(self):
+        pass_through = [
+            'test',
+            5,
+            5.5,
+            True,
+            None
+        ]
+        for pt in pass_through:
+            with self.subTest(input=pt):
+                self.assertIs(pt, normalize_data_value(pt))
+        date_ = datetime.date(2015, 10, 12)
+        date_time_ = datetime.datetime(2015, 11, 13, 1, 2, 3)
+        self.assertEqual('2015-10-12', normalize_data_value(date_))
+        self.assertEqual('2015-11-13T01:02:03', normalize_data_value(date_time_))
+        self.assertEqual(['test', 5, 5.5, True, None, '2015-10-12', '2015-11-13T01:02:03'], normalize_data_value([*pass_through, date_, date_time_]))
+        self.assertEqual({'test': 5, 'test2': '2015-10-12'}, normalize_data_value({'test': 5, 'test2': date_}))
+        with self.assertRaises(ValueError):
+            normalize_data_value(self)
+
+
+class TestSingleElement(ut.TestCase):
+
+    def test_working_quality(self):
+        x = SingleElement("five")
+        x.metadata['WorkingQuality'] = 2
+        self.assertEqual(x.working_quality(), 2)
+
+    def test_units(self):
+        x = SingleElement(5)
+        x.metadata['Units'] = 'm'
+        self.assertEqual(x.units(), 'm')
+
+    def test_best_value(self):
+        x = SingleElement('five')
+        self.assertEqual(x.best_value(), 'five')
+
+    def test_is_numeric(self):
+        values = [
+            ('five', False),
+            ('2.3', True),
+            ('2', True),
+            (2.3, True),
+            (2, True),
+            (None, False),
+            ([12,23], False),
+            ({'test': 123}, False),
+        ]
+        for val, result in values:
+            with self.subTest(input=val):
+                element = SingleElement(val)
+                self.assertEqual(element.is_numeric(), result)
+
+    def test_is_integer(self):
+        values = [
+            ('five', False),
+            ('2.3', False),
+            ('2', True),
+            (2.3, False),
+            (2, True),
+            (None, False),
+            ([12,23], False),
+            ({'test': 123}, False),
+        ]
+        for val, result in values:
+            with self.subTest(input=val):
+                element = SingleElement(val)
+                self.assertEqual(element.is_integer(), result)
+
+    def test_is_iso_datetime(self):
+        values = [
+            ('five', False),
+            ('2.3', False),
+            ('2', False),
+            (2.3, False),
+            (2, False),
+            (None, False),
+            ([12,23], False),
+            ({'test': 123}, False),
+            ('2015-10-05', True),
+            ('2015-10-06T12:00:12', True),
+            ('2015-10-02T01:02', True),
+            ('2015-10-03T01:03:12.313432', True),
+            ('2015-10-03T00:12:12-0500', True),
+        ]
+        for val, result in values:
+            with self.subTest(input=val):
+                element = SingleElement(val)
+                self.assertEqual(element.is_iso_datetime(), result)
+
+    def test_to_decimal(self):
+        element = SingleElement("1234.31")
+        self.assertEqual(element.to_decimal(), decimal.Decimal("1234.31"))
+        with self.assertRaises(decimal.InvalidOperation):
+            element = SingleElement("str")
+            element.to_decimal()
+
+    def test_is_good(self):
+        with self.subTest("blank quality"):
+            element = SingleElement('12345')
+            self.assertTrue(element.is_good())
+        with self.subTest("quality=1"):
+            element = SingleElement('12345')
+            element.metadata['WorkingQuality'] = 1
+            self.assertTrue(element.is_good())
+        with self.subTest("quality=5"):
+            element = SingleElement('12345')
+            element.metadata['WorkingQuality'] = 5
+            self.assertTrue(element.is_good())
+        with self.subTest("quality=2"):
+            element = SingleElement('12345')
+            element.metadata['WorkingQuality'] = 2
+            self.assertTrue(element.is_good())
+        with self.subTest("quality=3"):
+            element = SingleElement('12345')
+            element.metadata['WorkingQuality'] = 3
+            self.assertTrue(element.is_good(True))
+            self.assertFalse(element.is_good(False))
+        with self.subTest("quality=9"):
+            element = SingleElement('12345')
+            element.metadata['WorkingQuality'] = 9
+            self.assertTrue(element.is_good(allow_empty=True))
+            self.assertFalse(element.is_good(allow_empty=False))
+        with self.subTest("empty value"):
+            element = SingleElement('')
+            self.assertTrue(element.is_good(allow_empty=True))
+            self.assertFalse(element.is_good(allow_empty=False))
+        with self.subTest("quality=4"):
+            element = SingleElement('12345')
+            element.metadata['WorkingQuality'] = 4
+            self.assertFalse(element.is_good(True, True))
+            self.assertFalse(element.is_good(False, True))
+            self.assertFalse(element.is_good(False, False))
+            self.assertFalse(element.is_good(True, False))
+
+    def test_to_float(self):
+        element = SingleElement("123.4")
+        self.assertEqual(element.to_float(), float("123.4"))
+        element = SingleElement("1")
+        self.assertEqual(element.to_float(), float("1"))
+        with self.assertRaises(ValueError):
+            element = SingleElement("str")
+            element.to_float()
+
+    def test_to_int(self):
+        element = SingleElement("5")
+        self.assertEqual(element.to_int(), 5)
+        with self.assertRaises(ValueError):
+            element = SingleElement("str")
+            element.to_int()
+        with self.assertRaises(ValueError):
+            element = SingleElement("5.2")
+            element.to_int()
+
+    def test_to_datetime(self):
+        element = SingleElement("2015-01-02T09:08:07")
+        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 2, 9, 8, 7))
+        element = SingleElement("2015-01-03")
+        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 3, 0, 0, 0))
+        with self.assertRaises(ValueError):
+            element = SingleElement("foobar")
+            element.to_datetime()
+
+    def test_to_str(self):
+        element = SingleElement(5)
+        self.assertEqual(element.to_string(), "5")
+
+    def test_load(self):
+        x = AbstractElement.build_from_mapping({'_value': 'hello'})
+        self.assertIsInstance(x, SingleElement)
+        self.assertEqual(x.value, 'hello')
+
+
+class TestMultiElement(ut.TestCase):
+
+    def test_load(self):
+        x = AbstractElement.build_from_mapping({'_values': ['hello', 'world']})
+        self.assertIsInstance(x, MultiElement)
+        self.assertEqual(len(x.value), 2)
+        self.assertEqual(x.value[0].value, 'hello')
+        self.assertEqual(x.value[1].value, 'world')
 
 
 class TestOCProc2ValueMap(ut.TestCase):
