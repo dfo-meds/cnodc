@@ -80,7 +80,7 @@ class BaseController:
 
     def _registered_process_names(self) -> list[str]:
         """Return a list of currently registered process names"""
-        raise NotImplementedError
+        raise NotImplementedError # pragma: no coverage
 
     def _register_process(self,
                           process_name: str,
@@ -88,12 +88,12 @@ class BaseController:
                           quota: int,
                           config: dict):
         """Register a new process or update an existing one"""
-        raise NotImplementedError
+        raise NotImplementedError # pragma: no coverage
 
     def _deregister_process(self,
                             process_name: str):
         """Unregister an existing process."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def _populate_config_from_file(self, config: dict, file: t.Union[str, pathlib.Path]):
         with open(file, "r", encoding="utf-8") as h:
@@ -193,7 +193,7 @@ class BaseController:
         self.run()
 
     def run(self):
-        raise NotImplementedError
+        raise NotImplementedError # pragma: no coverage
 
 
 class SaveData:
@@ -219,6 +219,7 @@ class SaveData:
         self._values[key] = value
 
     def __contains__(self, key):
+        self.load_file()
         return key in self._values
 
     def get(self, item, default=None):
@@ -235,7 +236,8 @@ class SaveData:
                 try:
                     with open(self._save_file, "r") as h:
                         self._values = json.loads(h.read()) or {}
-                except Exception:
+                except Exception as ex:
+                    print(ex)
                     zrlog.get_logger("cnodc.save_file").exception("Exception while opening save file")
 
     def save_file(self):
@@ -244,7 +246,8 @@ class SaveData:
             try:
                 with open(self._save_file, "w") as h:
                     h.write(json.dumps(self._values))
-            except Exception:
+            except Exception as ex:
+                print(ex)
                 zrlog.get_logger("cnodc.save_file").exception("Exception while saving save data")
                 self._save_failed = True
 
@@ -362,19 +365,19 @@ class BaseWorker:
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""
-        pass
+        pass # pragma: no coverage
 
     def on_exit(self, ex: Exception = None):
         """Override this method for clean-up after _run() is called."""
-        pass
+        pass # pragma: no coverage
 
     def _run(self):
         """Override this method with a loop to process items."""
-        pass
+        pass # pragma: no coverage
 
     def before_cycle(self):
         """Override this method to be called before each item is processed."""
-        pass
+        pass # pragma: no coverage
 
     def after_cycle(self):
         """Override this method to be called after each item is processed."""
