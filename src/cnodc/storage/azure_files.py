@@ -17,9 +17,8 @@ connection_string = "..."
 
 """
 import datetime
-from .base import UrlBaseHandle, StorageTier
+from .base import UrlBaseHandle, StorageTier, StorageError
 from azure.storage.fileshare import ShareFileClient, ShareDirectoryClient, FileProperties, DirectoryProperties
-from azure.identity import DefaultAzureCredential
 from azure.core.exceptions import ResourceNotFoundError
 from cnodc.util import HaltFlag, CNODCError
 import typing as t
@@ -46,10 +45,10 @@ class AzureFileHandle(UrlBaseHandle):
         url_parts = self.parse_url()
         domain = url_parts.hostname
         if not domain.endswith(".file.core.windows.net"):
-            raise CNODCError(f"Invalid hostname", "AZFILE", 1001)
+            raise StorageError(f"Invalid hostname", 4001)
         path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
         if len(path_parts) < 1 or path_parts[0] == "":
-            raise CNODCError(f"Missing share name", "AZFILE", 1002)
+            raise StorageError(f"Missing share name", 4002)
         kwargs = {
             "storage_account": domain[:-22],
             "storage_url": domain,
@@ -59,27 +58,11 @@ class AzureFileHandle(UrlBaseHandle):
         }
         return kwargs
 
-    @staticmethod
-    def _client_from_connection_string(conn_str, share_name, file_path):
-        return ShareFileClient.from_connection_string(conn_str, share_name, file_path)
-
-    @staticmethod
-    def _client_from_file_url(url):
-        return ShareFileClient.from_file_url(url)
-
-    @staticmethod
-    def _directory_from_connection_string(conn_str, share_name, directory_path):
-        return ShareDirectoryClient.from_connection_string(conn_str, share_name, directory_path)
-
-    @staticmethod
-    def _directory_from_file_url(url):
-        return ShareDirectoryClient.from_directory_url(url)
-
     def file_client(self) -> ShareFileClient:
         """Build a file share client."""
         try:
             if self._is_dir():
-                raise CNODCError(f"Cannot make file client on a directory", "AZFILE", 1005)
+                raise StorageError(f"Cannot make file client on a directory", 4000)
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
                 return AzureFileHandle._client_from_connection_string(
@@ -90,13 +73,13 @@ class AzureFileHandle(UrlBaseHandle):
             else:
                 return AzureFileHandle._client_from_file_url(self._url)
         except ValueError as ex:
-            raise CNODCError(f"Could not create file client", "AZFILE", 1000) from ex
+            raise StorageError(f"Could not create file client", 4002) from ex
 
     def directory_client(self) -> ShareDirectoryClient:
         """Build a directory client."""
         try:
             if not self._is_dir():
-                raise CNODCError(f"Cannot make directory client on a file", "AZFILE", 1004)
+                raise StorageError(f"Cannot make directory client on a file", 4004)
             connection_info = self.get_connection_details()
             if connection_info["connection_string"]:
                 return AzureFileHandle._directory_from_connection_string(
@@ -107,7 +90,7 @@ class AzureFileHandle(UrlBaseHandle):
             else:
                 return AzureFileHandle._directory_from_file_url(self._url)
         except ValueError as ex:
-            raise CNODCError(f"Could not create directory client", "AZFILE", 1003) from ex
+            raise StorageError(f"Could not create directory client", 4003) from ex
 
     def _exists(self) -> bool:
         if self.is_dir():
@@ -195,7 +178,7 @@ class AzureFileHandle(UrlBaseHandle):
                     if recursive:
                         more_work.append(dh)
             else:
-                raise CNODCError(f"Unknown type of file listing results [{file.__class__.__name__}]", "AZFILE", 1005)
+                raise StorageError(f"Unknown type of file listing results [{file.__class__.__name__}]", 4005)
         for sub_dir in more_work:
             yield from sub_dir.walk(recursive)
 
@@ -241,8 +224,24 @@ class AzureFileHandle(UrlBaseHandle):
             return self.file_properties(clear_cache).metadata
 
     @staticmethod
+    def _client_from_connection_string(conn_str, share_name, file_path):
+        return ShareFileClient.from_connection_string(conn_str, share_name, file_path)
+
+    @staticmethod
+    def _client_from_file_url(url):
+        return ShareFileClient.from_file_url(url)
+
+    @staticmethod
+    def _directory_from_connection_string(conn_str, share_name, directory_path):
+        return ShareDirectoryClient.from_connection_string(conn_str, share_name, directory_path)
+
+    @staticmethod
+    def _directory_from_file_url(url):
+        return ShareDirectoryClient.from_directory_url(url)
+
+    @staticmethod
     def supports(file_path: str) -> bool:
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
         pieces = urlparse(file_path)
-        return pieces.hostname.endswith(".file.core.gui.net")
+        return pieces.hostname.endswith(".file.core.windows.net")

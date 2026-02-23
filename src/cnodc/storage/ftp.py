@@ -1,5 +1,6 @@
 import datetime
 import ftplib
+import functools
 import logging
 import ssl
 import typing as t
@@ -13,6 +14,24 @@ import zirconium as zr
 
 from cnodc.storage.base import BaseStorageHandle, UrlBaseHandle, StorageError
 from cnodc.util.halts import HaltFlag
+
+
+def ftplib_error_wrap(cb):
+
+    @functools.wraps(cb)
+    def _inner(*args, **kwargs):
+        try:
+            return cb(*args, **kwargs)
+        except ftplib.error_perm as ex:
+            raise StorageError(str(ex), 2000, is_recoverable=True)
+        except ftplib.error_temp as ex:
+            raise StorageError(str(ex), 2001, is_recoverable=True)
+        except ftplib.error_proto as ex:
+            raise StorageError(str(ex), 2002, is_recoverable=False)
+        except ftplib.error_reply as ex:
+            raise StorageError(str(ex), 2003, is_recoverable=False)
+
+    return _inner
 
 
 @injector.injectable
@@ -142,7 +161,7 @@ class _FTPWrapper:
             elif self._config['tls'] == 'none':
                 self._server = ftplib.FTP()
             else:
-                raise StorageError("Invalid tls setting for FTP", 50001, False)
+                raise StorageError("Invalid tls setting for FTP", 2005, False)
         self._depth += 1
         return self
 
@@ -180,33 +199,30 @@ class FTPHandle(UrlBaseHandle):
             ftp.cwd(self.current_dir())
             yield ftp
 
+    @ftplib_error_wrap
     def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         buffer_size = buffer_size or 1024 * 1024
         with self._connection() as ftp:
             ftp.binary_mode()
-            try:
-                with ftp.transfer_command(f"RETR {self.name()}") as conn:
-                    while data := conn.recv(buffer_size):
-                        yield data
-                        if self._halt_flag:
-                            self._halt_flag.breakpoint()
-                    if isinstance(conn, ssl.SSLSocket):
-                        conn.unwrap()
-            except ftplib.error_perm as ex:
-                raise StorageError(str(ex), 5003)
+            with ftp.transfer_command(f"RETR {self.name()}") as conn:
+                while data := conn.recv(buffer_size):
+                    yield data
+                    if self._halt_flag:
+                        self._halt_flag.breakpoint()
+                if isinstance(conn, ssl.SSLSocket):
+                    conn.unwrap()
 
+    @ftplib_error_wrap
     def _write_chunks(self, chunks: t.Iterable[bytes]):
         with self._connection() as ftp:
             ftp.binary_mode()
-            try:
-                with ftp.transfer_command(f"STOR {self.name()}") as conn:
-                    for chunk in chunks:
-                        conn.sendall(chunk)
-                    if isinstance(conn, ssl.SSLSocket):
-                        conn.unwrap()
-            except ftplib.error_perm as ex:
-                raise StorageError(str(ex), 5002) from ex
+            with ftp.transfer_command(f"STOR {self.name()}") as conn:
+                for chunk in chunks:
+                    conn.sendall(chunk)
+                if isinstance(conn, ssl.SSLSocket):
+                    conn.unwrap()
 
+    @ftplib_error_wrap
     def walk(self, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
         if not self.is_dir():
             return []
@@ -240,6 +256,7 @@ class FTPHandle(UrlBaseHandle):
     def stat(self):
         return self._with_cache('stat', self._stat)
 
+    @ftplib_error_wrap
     def _stat(self):
         with self._connection() as ftp:
             return ftp.stat(self.name())
@@ -250,14 +267,13 @@ class FTPHandle(UrlBaseHandle):
         part1, _ = self._split_url()
         return part1.endswith('/')
 
+    @ftplib_error_wrap
     def remove(self):
         if self.is_dir():
-            raise StorageError("Cannot remove an FTP directory", 5000)
+            raise StorageError("Cannot remove an FTP directory", 2004)
         with self._connection() as ftp:
             try:
                 ftp.delete(self.name())
-            except ftplib.error_perm as ex:
-                raise StorageError(str(ex), 5001) from ex
             finally:
                 self.clear_cache()
 

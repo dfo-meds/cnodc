@@ -1,12 +1,13 @@
 from __future__ import annotations
 import functools
 import pathlib
-from urllib.parse import urlparse, ParseResult
-from cnodc.util import HaltFlag, CNODCError
 import datetime
 import typing as t
 import fnmatch
 import enum
+from urllib.parse import urlparse, ParseResult
+
+from cnodc.util import HaltFlag, CNODCError
 
 
 DEFAULT_CHUNK_SIZE = 4194304

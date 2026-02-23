@@ -34,6 +34,7 @@ class StorageController:
         https://STORAGE.files.core.windows.net/SHARE -> AzureFileHandle
         ftp://PATH -> FTPHandle
         ftps://PATH -> FTPHandle
+        ftpse://PATH -> FTPHandle
         sftp://PATH -> SFTPHandle
         (default or path-like) -> LocalHandle
     """
@@ -42,7 +43,7 @@ class StorageController:
         self.handle_classes = [
             AzureFileHandle,
             AzureBlobHandle,
-            # FTPHandle,
+            FTPHandle,
             # SFTPHandle,
         ]
         self.default_handle = LocalHandle

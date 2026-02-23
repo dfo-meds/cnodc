@@ -22,7 +22,6 @@ import requests
 import urllib3.exceptions
 from .base import UrlBaseHandle, StorageTier, StorageError
 from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobProperties
-from azure.identity import DefaultAzureCredential
 from cnodc.util import HaltFlag, CNODCError
 import typing as t
 from urllib.parse import urlparse
@@ -41,17 +40,17 @@ def wrap_azure_errors(cb):
         except ace.AzureError as ex:
             if ex.inner_exception is not None:
                 if isinstance(ex.inner_exception, urllib3.exceptions.ConnectTimeoutError):
-                    raise StorageError(f"Azure: Connection timeout error: {ex.__class__.__name__}: {str(ex)}", 2001, True) from ex
+                    raise StorageError(f"Azure: Connection timeout error: {ex.__class__.__name__}: {str(ex)}", 3001, True) from ex
                 elif isinstance(ex.inner_exception, requests.ConnectionError):
-                    raise StorageError(f"Azure: Connection error: {ex.__class__.__name__}: {str(ex)}", 2002, True) from ex
+                    raise StorageError(f"Azure: Connection error: {ex.__class__.__name__}: {str(ex)}", 3002, True) from ex
                 elif isinstance(ex, ace.ClientAuthenticationError):
-                    raise StorageError(f"Azure: lient authentication error: {ex.__class__.__name__}: {str(ex)}", 2003, True) from ex
+                    raise StorageError(f"Azure: lient authentication error: {ex.__class__.__name__}: {str(ex)}", 3003, True) from ex
                 elif isinstance(ex, ace.ResourceNotFoundError):
-                    raise StorageError(f"Azure: Resource not found error: {ex.__class__.__name__}: {str(ex)}", 2004, True) from ex
+                    raise StorageError(f"Azure: Resource not found error: {ex.__class__.__name__}: {str(ex)}", 3004, True) from ex
                 elif isinstance(ex, ace.ResourceExistsError):
-                    raise StorageError(f"Azure: Resource already exists error: {ex.__class__.__name__}: {str(ex)}", 2005, True) from ex
+                    raise StorageError(f"Azure: Resource already exists error: {ex.__class__.__name__}: {str(ex)}", 3005, True) from ex
 
-            raise StorageError(f"Azure: {ex.__class__.__name__}: {str(ex)}", 2000) from ex
+            raise StorageError(f"Azure: {ex.__class__.__name__}: {str(ex)}", 3000) from ex
 
     return _inner
 
@@ -64,7 +63,8 @@ class AzureBlobHandle(UrlBaseHandle):
     @injector.construct
     def __init__(self, url, properties=None, *args, **kwargs):
         super().__init__(url, *args, **kwargs)
-        self._cached_properties['properties'] = properties
+        if properties:
+            self._cached_properties['properties'] = properties
 
     def get_connection_details(self) -> dict:
         """Get connection information from the configuration about the URL."""
@@ -74,10 +74,10 @@ class AzureBlobHandle(UrlBaseHandle):
         url_parts = self.parse_url()
         domain = url_parts.hostname
         if not domain.endswith(".blob.core.windows.net"):
-            raise CNODCError(f"Invalid hostname", "AZBLOB", 1001)
+            raise CNODCError(f"Invalid hostname", "AZBLOB", 3006)
         path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
         if len(path_parts) < 1 or path_parts[0] == "":
-            raise CNODCError(f"Missing container name", "AZBLOB", 1002)
+            raise CNODCError(f"Missing container name", "AZBLOB", 3007)
         kwargs = {
             "storage_account": domain[:-22],
             "storage_url": domain,
@@ -86,22 +86,6 @@ class AzureBlobHandle(UrlBaseHandle):
             "blob_name": "/".join(path_parts[1:]) if len(path_parts) > 1 else ""
         }
         return kwargs
-
-    @staticmethod
-    def _blob_client_from_url(url: str, *args, **kwargs):
-        return BlobClient.from_blob_url(url, *args, **kwargs)
-
-    @staticmethod
-    def _blob_client_from_connection_string(conn_str: str, container_name: str, blob_name: str):
-        return BlobClient.from_connection_string(conn_str, container_name, blob_name)
-
-    @staticmethod
-    def _container_client_from_url(url: str, *args, **kwargs):
-        return ContainerClient.from_container_url(url, *args, **kwargs)
-
-    @staticmethod
-    def _container_client_from_connection_string(conn_str: str, container_name: str):
-        return ContainerClient.from_connection_string(conn_str, container_name)
 
     def client(self) -> BlobClient:
         """Build a blob client."""
@@ -116,7 +100,7 @@ class AzureBlobHandle(UrlBaseHandle):
             else:
                 return AzureBlobHandle._blob_client_from_url(self._url)
         except ValueError as ex:
-            raise CNODCError(f"Could not create blob client", "AZBLOB", 1000) from ex
+            raise CNODCError(f"Could not create blob client", "AZBLOB", 3008) from ex
 
     def container_client(self) -> ContainerClient:
         """Build a container client."""
@@ -132,7 +116,7 @@ class AzureBlobHandle(UrlBaseHandle):
                     f"https://{connection_info['storage_url']}/{connection_info['container_name']}",
                 )
         except ValueError as ex:
-            raise CNODCError(f"Could not create container client", "AZBLOB", 1001) from ex
+            raise CNODCError(f"Could not create container client", "AZBLOB", 3009) from ex
 
     @wrap_azure_errors
     def _exists(self) -> bool:
@@ -168,6 +152,7 @@ class AzureBlobHandle(UrlBaseHandle):
                metadata: t.Optional[dict[str, str]] = None,
                storage_tier: t.Optional[StorageTier] = None,
                halt_flag: t.Optional[HaltFlag] = None):
+        metadata = metadata or {}
         self._add_default_metadata(metadata, storage_tier)
         args = {
             'data': self._local_read_chunks(local_path, buffer_size),
@@ -204,12 +189,14 @@ class AzureBlobHandle(UrlBaseHandle):
 
     @wrap_azure_errors
     def walk(self, recursive: bool = True) -> t.Iterable:
-        client = self.container_client()
-        full_name = self.full_name()
-        if full_name[-1] != '/':
-            full_name += '/'
         if not recursive:
             raise NotImplementedError(f"Non-recursive iteration on blobs not implemented")
+        client = self.container_client()
+        full_name = self.full_name()
+        if not full_name:
+            full_name = '/'
+        if full_name[-1] != '/':
+            full_name += '/'
         for blob_properties in HaltFlag.iterate(client.list_blobs(name_starts_with=full_name), self._halt_flag, True):
             # TODO: recursive=False isn't handled
             bc = client.get_blob_client(blob_properties.name)
@@ -221,13 +208,22 @@ class AzureBlobHandle(UrlBaseHandle):
 
     @wrap_azure_errors
     def _properties(self):
-        return self.client().get_blob_properties()
+        if self.is_dir():
+            return None
+        client = self.client()
+        if client.exists():
+            return self.client().get_blob_properties()
+        return None
 
     def size(self, clear_cache: bool = False) -> int:
-        return self.properties(clear_cache).size
+        props = self.properties(clear_cache)
+        if props:
+            return props.size
 
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
-        return self.properties(clear_cache).last_modified
+        props = self.properties(clear_cache)
+        if props:
+            return props.last_modified
 
     @wrap_azure_errors
     def set_metadata(self, metadata: dict[str, str]):
@@ -262,8 +258,24 @@ class AzureBlobHandle(UrlBaseHandle):
                 self.clear_cache()
 
     @staticmethod
+    def _blob_client_from_url(url: str, *args, **kwargs):
+        return BlobClient.from_blob_url(url, *args, **kwargs)
+
+    @staticmethod
+    def _blob_client_from_connection_string(conn_str: str, container_name: str, blob_name: str):
+        return BlobClient.from_connection_string(conn_str, container_name, blob_name)
+
+    @staticmethod
+    def _container_client_from_url(url: str, *args, **kwargs):
+        return ContainerClient.from_container_url(url, *args, **kwargs)
+
+    @staticmethod
+    def _container_client_from_connection_string(conn_str: str, container_name: str):
+        return ContainerClient.from_connection_string(conn_str, container_name)
+
+    @staticmethod
     def supports(file_path: str) -> bool:
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
         pieces = urlparse(file_path)
-        return pieces.hostname.endswith(".blob.core.gui.net")
+        return pieces.hostname.endswith(".blob.core.windows.net")
