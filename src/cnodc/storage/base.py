@@ -308,7 +308,7 @@ class UrlBaseHandle(BaseStorageHandle):
 
     def parse_url(self) -> ParseResult:
         """Get the parts of the URL."""
-        return self._with_cache('_parse_url', urlparse)
+        return self._with_cache('_parse_url', urlparse, self._url)
 
     def _split_url(self):
         return self._with_cache('_split_url', self._split_url_actual)
@@ -324,6 +324,14 @@ class UrlBaseHandle(BaseStorageHandle):
         part1 = self._url if url_end is None else self._url[:url_end]
         part2 = "" if url_end is None else self._url[url_end:]
         return part1, part2
+
+    def _name(self) -> str:
+        parts = self.parse_url()
+        pieces = [x for x in parts.path.split('/') if x]
+        if not pieces:
+            return ''
+        return pieces[-1]
+
 
     def path(self) -> str:
         return self._url

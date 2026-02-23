@@ -3,6 +3,8 @@ import shutil
 import subprocess
 
 import flask
+import zirconium
+from autoinject import injector
 
 from cnodc.boot.boot import build_cnodc_webapp
 from cnodc.util.flask import TrustedProxyFix, RequestInfo
@@ -71,6 +73,7 @@ class TestProxyFix(BaseTestCase):
         self.assertFalse(can_trust('0.0.0.0'))
         self.assertFalse(can_trust('192.168.0.0'))
         self.assertFalse(can_trust('192.168.0.1'))
+
 
     def test_two_subnet_upstream(self):
         tpf = TrustedProxyFix(None, ["10.1.2.0/24", "127.0.0.1"])
@@ -158,9 +161,11 @@ class TestRequestInfo(BaseTestCase):
         self.assertEqual(info.sys_username(), pieces[0])
         self.assertIsNotNone(info.sys_emulated_username())
 
+    @injector.test_case
+    @zirconium.test_with_config(('flask', 'SECRET_KEY'), 'hello_world')
     def test_with_request(self):
         info = RequestInfo()
-        client = build_cnodc_webapp("app", _for_test=True)
+        client = build_cnodc_webapp("app")
         with client.test_client():
             with client.test_request_context('/foobar', method='GET', headers={
                 'X-Correlation-ID': '12345',
@@ -180,9 +185,11 @@ class TestRequestInfo(BaseTestCase):
                 self.assertIsNone(info.proxy_ip())
                 self.assertIsNone(info.username())
 
+    @injector.test_case
+    @zirconium.test_with_config(('flask', 'SECRET_KEY'), 'hello_world')
     def test_less_helpful_request(self):
         info = RequestInfo()
-        client = build_cnodc_webapp("app", _for_test=True)
+        client = build_cnodc_webapp("app")
         with client.test_client():
             with client.test_request_context('/foobar2', method='POST', headers={
                 'X-Forwarded-For': '17.1.2.3 127.0.0.1'
