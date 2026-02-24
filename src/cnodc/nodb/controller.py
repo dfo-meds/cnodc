@@ -689,7 +689,7 @@ class NODBControllerBase:
         return self._instance
 
     def _build_controller_instance(self):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._inner_count -= 1
