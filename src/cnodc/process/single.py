@@ -3,7 +3,7 @@ import threading
 import uuid
 
 from cnodc.process.base import BaseController, _ThreadingHaltFlag
-from cnodc.util import dynamic_object
+from cnodc.util import dynamic_object, CNODCError
 
 
 class SingleProcessController(BaseController):
@@ -17,6 +17,7 @@ class SingleProcessController(BaseController):
         )
         self._process_name = process_name
         self._process_info = {}
+        self._process = None
 
     def _register_process(self,
                           process_name: str,
@@ -28,7 +29,7 @@ class SingleProcessController(BaseController):
     def _deregister_process(self,
                             process_name: str):
         if process_name in self._process_info:
-            del self._process_info
+            del self._process_info[process_name]
 
     def _registered_process_names(self) -> list[str]:
         return list(self._process_info.keys())
@@ -36,12 +37,12 @@ class SingleProcessController(BaseController):
     def run(self):
         """Load and run the named process."""
         if self._process_name in self._process_info:
-            process = dynamic_object(self._process_info[self._process_name][0])(
+            self._process = dynamic_object(self._process_info[self._process_name][0])(
                 _process_uuid=str(uuid.uuid4()),
                 _halt_flag=_ThreadingHaltFlag(self._halt_flag),
                 _end_flag=_ThreadingHaltFlag(self._halt_flag),
                 _config=self._process_info[self._process_name][2]
             )
-            process.run()
+            self._process.run()
         else:
-            self._log.error(f'Process [{self._process_name}] not defined in configuration file')
+            raise CNODCError(f'Process [{self._process_name}] not defined in configuration file')

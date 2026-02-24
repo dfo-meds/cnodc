@@ -1,9 +1,7 @@
 import threading
 import unittest as ut
 
-import yaml
-
-from cnodc.process.base import _ThreadingHaltFlag, _NoHaltFlag, BaseController, SaveData
+from cnodc.process.base import _ThreadingHaltFlag, _NoHaltFlag, SaveData, BaseWorker
 from cnodc.util import HaltInterrupt
 from core import BaseTestCase
 
@@ -25,145 +23,19 @@ class TestHaltFlags(ut.TestCase):
         hf.breakpoint()
 
 
-class NoopController(BaseController):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.processes = {}
-
-    def _register_process(self,
-                          process_name: str,
-                          process_cls: str,
-                          quota: int,
-                          config: dict):
-        self.processes[process_name] = (process_cls, quota, config)
-
-    def _deregister_process(self, process_name: str):
-        if process_name in self.processes:
-            del self.processes[process_name]
-
-    def _registered_process_names(self) -> list[str]:
-        return list(self.processes.keys())
-
-
-class TestBaseProcessController(BaseTestCase):
-
-    def test_process_config_file(self):
-        file = self.temp_dir / "test.yaml"
-        with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': 'cnodc.process.queue_worker.QueueWorker',
-                    'config': {
-                        'five': 5,
-                    }
-                },
-                'process2': {
-                    'class_name': 'cnodc.process.scheduled_task.ScheduledTask',
-                    'count': 4,
-                    'config': {
-                        'hello': 'world',
-                    }
-                }
-            }, h)
-        nc = NoopController(
-            log_name="test",
-            halt_flag=_NoHaltFlag(),
-            config_file=file
-        )
-        nc.reload_check()
-        self.assertEqual(len(nc.processes), 2)
-        self.assertIn('process1', nc.processes)
-        self.assertIn('process2', nc.processes)
-        self.assertEqual(nc.processes['process1'][0], 'cnodc.process.queue_worker.QueueWorker')
-        self.assertEqual(nc.processes['process1'][1], 1)
-        self.assertEqual(nc.processes['process1'][2], {"five": 5})
-        self.assertEqual(nc.processes['process2'][0], 'cnodc.process.scheduled_task.ScheduledTask')
-        self.assertEqual(nc.processes['process2'][1], 4)
-        self.assertEqual(nc.processes['process2'][2], {"hello": "world"})
-
-    def test_process_config_dir(self):
-        with open(self.temp_dir / "process1.yaml", "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': 'cnodc.process.queue_worker.QueueWorker',
-                    'config': {
-                        'five': 5,
-                    }
-                },
-            }, h)
-
-        with open(self.temp_dir / 'process2.yaml', 'w') as h:
-            yaml.safe_dump({
-                'process2': {
-                    'class_name': 'cnodc.process.scheduled_task.ScheduledTask',
-                    'count': 4,
-                    'config': {
-                        'hello': 'world',
-                    }
-                }
-            }, h)
-        nc = NoopController(
-            log_name="test",
-            halt_flag=_NoHaltFlag(),
-            config_file_dir=self.temp_dir,
-        )
-        nc.reload_check()
-        self.assertEqual(len(nc.processes), 2)
-        self.assertIn('process1', nc.processes)
-        self.assertIn('process2', nc.processes)
-        self.assertEqual(nc.processes['process1'][0], 'cnodc.process.queue_worker.QueueWorker')
-        self.assertEqual(nc.processes['process1'][1], 1)
-        self.assertEqual(nc.processes['process1'][2], {"five": 5})
-        self.assertEqual(nc.processes['process2'][0], 'cnodc.process.scheduled_task.ScheduledTask')
-        self.assertEqual(nc.processes['process2'][1], 4)
-        self.assertEqual(nc.processes['process2'][2], {"hello": "world"})
-
-    def test_process_config_reload(self):
-        file = self.temp_dir / "test.yaml"
-        procs = {
-            'process1': {
-                'class_name': 'cnodc.process.queue_worker.QueueWorker',
-                'config': {
-                    'five': 5,
-                }
-            },
-            'process2': {
-                'class_name': 'cnodc.process.scheduled_task.ScheduledTask',
-                'count': 4,
-                'config': {
-                    'hello': 'world',
-                }
-            }
-        }
-        with open(file, "w") as h:
-            yaml.safe_dump(procs, h)
-        flag_file = self.temp_dir / 'flag'
-        nc = NoopController(
-            log_name="test",
-            halt_flag=_NoHaltFlag(),
-            config_file=file,
-            flag_file=flag_file
-        )
-        nc.reload_check()
-        self.assertFalse(flag_file.exists())
-        self.assertEqual(len(nc.processes), 2)
-        self.assertFalse(nc._check_reload())
-        procs['process3'] = {
-            'class_name': 'cnodc.process.scheduled_task.ScheduledTask',
-            'config': {},
-        }
-        with open(file, "w") as h:
-            yaml.safe_dump(procs, h)
-        flag_file.touch()
-        self.assertTrue(flag_file.exists())
-        self.assertTrue(nc._check_reload())
-        flag_file.touch()
-        nc.reload_check()
-        self.assertEqual(len(nc.processes), 3)
-
-
 class TestSaveData(BaseTestCase):
+
+    def test_bad_save_file(self):
+        file = self.temp_dir / 'file'
+        file.mkdir()
+        sf = SaveData(file)
+        with self.assertLogs('cnodc.save_file', 'ERROR'):
+            sf.load_file()
+        self.assertNotIn('hello', sf)
+        sf['hello'] = 'world'
+        self.assertEqual(sf['hello'], 'world')
+        with self.assertLogs('cnodc.save_file', 'ERROR'):
+            sf.save_file()
 
     def test_save_data(self):
         file = self.temp_dir / 'file'
@@ -184,4 +56,78 @@ class TestSaveData(BaseTestCase):
         self.assertEqual(sf2.get('foo', 'bar'), 'world')
 
 
+class TestBaseWorker(BaseTestCase):
 
+    def test_save_file(self):
+        worker = BaseWorker('foo', 'bar', 'foobar', None, None, {
+            'save_file': str(self.temp_dir / 'test.txt')
+        })
+        worker.save_data['foo'] = 'bar'
+        self.assertEqual(worker.save_data['foo'], 'bar')
+        worker.on_exit()
+        del worker
+        worker2 = BaseWorker('foo', 'bar', 'foobar', None, None, {
+            'save_file': str(self.temp_dir / 'test.txt')
+        })
+        self.assertEqual(worker2.save_data['foo'], 'bar')
+
+    def test_empty_save_file(self):
+        worker = BaseWorker('foo', 'bar', 'foobar', None, None, {})
+        worker.on_start()
+        worker.save_data['foo'] = 'bar'
+        self.assertEqual(worker.save_data['foo'], 'bar')
+        worker.on_exit()
+        del worker
+        worker2 = BaseWorker('foo', 'bar', 'foobar', None, None, {
+            'save_file': str(self.temp_dir / 'test.txt')
+        })
+        self.assertIsNone(worker2.save_data.get('foo', None))
+
+    def test_temp_dir_cleanup(self):
+        worker = BaseWorker('foo', 'bar', 'foobar', None, None, {})
+        td = worker.temp_dir()
+        self.assertTrue(td.exists())
+        file = td / 'file.txt'
+        file.touch()
+        self.assertTrue(file.exists())
+        worker.after_cycle()
+        self.assertFalse(file.exists())
+        self.assertFalse(td.exists())
+        td2 = worker.temp_dir()
+        self.assertNotEqual(td2, td)
+
+    def test_worker_config(self):
+        worker = BaseWorker('foo', 'bar', 'foobar', None, None, {
+            'foo': 'bar',
+            'six': 'seven'
+        })
+        worker.set_defaults({
+            'foo': 'hello',
+            'world': 'what',
+        })
+        self.assertEqual(worker.get_config('foo'), 'bar')
+        self.assertEqual(worker.get_config('six'), 'seven')
+        self.assertEqual(worker.get_config('world'), 'what')
+        self.assertIsNone(worker.get_config('no'))
+
+    def test_flags(self):
+        flag1 = threading.Event()
+        flag2 = threading.Event()
+        worker = BaseWorker('foo', 'bar', 'foobar', _ThreadingHaltFlag(flag1), _ThreadingHaltFlag(flag2), {})
+        with self.subTest("no flags set"):
+            self.assertTrue(worker.continue_loop())
+            worker.breakpoint()
+        with self.subTest("halt flag set"):
+            flag1.set()
+            self.assertFalse(worker.continue_loop())
+            with self.assertRaises(HaltInterrupt):
+                worker.breakpoint()
+        with self.subTest("both flags set"):
+            flag2.set()
+            self.assertFalse(worker.continue_loop())
+            with self.assertRaises(HaltInterrupt):
+                worker.breakpoint()
+        with self.subTest("end flag set"):
+            flag1.clear()
+            self.assertFalse(worker.continue_loop())
+            worker.breakpoint()

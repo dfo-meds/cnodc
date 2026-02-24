@@ -11,7 +11,7 @@ import yaml
 import zrlog
 import pathlib
 from zrlog.logger import ImprovedLogger
-from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt
+from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt, ungzip_with_halt
 import json
 
 
@@ -154,8 +154,7 @@ class BaseController:
                 if isinstance(config[process_name]['config'], dict):
                     proc_config = config[process_name]['config']
                 else:
-                    self._log.error(f"Process [{process_name}] does not define a dictionary for its configuration")
-                    continue
+                    self._log.warning(f"Process [{process_name}] does not define a dictionary for its configuration, ignoring configuration")
             # Validate count
             count = 1
             if 'count' in config[process_name] and config[process_name]['count']:
@@ -236,8 +235,7 @@ class SaveData:
                 try:
                     with open(self._save_file, "r") as h:
                         self._values = json.loads(h.read()) or {}
-                except Exception as ex:
-                    print(ex)
+                except OSError as ex:
                     zrlog.get_logger("cnodc.save_file").exception("Exception while opening save file")
 
     def save_file(self):
@@ -246,8 +244,7 @@ class SaveData:
             try:
                 with open(self._save_file, "w") as h:
                     h.write(json.dumps(self._values))
-            except Exception as ex:
-                print(ex)
+            except OSError as ex:
                 zrlog.get_logger("cnodc.save_file").exception("Exception while saving save data")
                 self._save_failed = True
 
@@ -309,8 +306,7 @@ class BaseWorker:
             'process_version': self._process_version,
         })
         self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
-        self._save_data = SaveData(self.get_config('save_file'))
-        self._save_data.load_file()
+        self._save_data: t.Optional[SaveData] = None
 
     def breakpoint(self):
         """ Check if we need to break. """
@@ -355,21 +351,27 @@ class BaseWorker:
             self._run()
         except Exception as ex:
             exc = ex
-            self._log.error(f"{ex.__class__.__name__}: {str(ex)}")
-            self._log.exception(ex)
+            self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
         finally:
             self._log.debug(f'Cleaning up {self._process_uuid}')
             self.on_exit(exc)
-            self._save_data.save_file()
             self._log.debug(f'Process {self._process_uuid} complete')
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""
-        pass # pragma: no coverage
+        pass
+
+    @property
+    def save_data(self):
+        if self._save_data is None:
+            self._save_data = SaveData(self.get_config('save_file'))
+            self._save_data.load_file()
+        return self._save_data
 
     def on_exit(self, ex: Exception = None):
         """Override this method for clean-up after _run() is called."""
-        pass # pragma: no coverage
+        if self._save_data is not None:
+            self._save_data.save_file()
 
     def _run(self):
         """Override this method with a loop to process items."""
@@ -392,6 +394,8 @@ class BaseWorker:
         return pathlib.Path(self._temp_dir.name)
 
     def gzip_local_file(self, source_file, destination_file):
-        gzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)
+        gzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)   # pragma: no coverage
 
+    def ungzip_local_file(self, source_file, destination_file):
+        ungzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)   # pragma: no coverage
 

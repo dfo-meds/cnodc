@@ -42,13 +42,13 @@ class ScheduledTask(BaseWorker):
         """Decide on the next scheduled execution time."""
         mode = self.get_config("schedule_mode")
         if mode == "from_completion":
-            last_end = self._save_data.get('last_end')
+            last_end = self.save_data.get('last_end')
             if last_end is None:
                 self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
             else:
                 self._next_execution = datetime.datetime.fromisoformat(last_end) + self._execution_delay()
         elif mode == "from_start":
-            last_start = self._save_data.get('last_start')
+            last_start = self.save_data.get('last_start')
             if last_start is None:
                 self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
             else:
@@ -85,7 +85,7 @@ class ScheduledTask(BaseWorker):
     def _run_scheduled_task(self, now) -> datetime.datetime:
         """Execute the scheduled task"""
         try:
-            self._save_data['last_start'] = now.isoformat()
+            self.save_data['last_start'] = now.isoformat()
             self.before_cycle()
             self.execute()
         except CNODCError as ex:
@@ -98,8 +98,8 @@ class ScheduledTask(BaseWorker):
         finally:
             self.after_cycle()
             now = datetime.datetime.now(datetime.timezone.utc)
-            self._save_data['last_end'] = now.isoformat()
-            self._save_data.save_file()
+            self.save_data['last_end'] = now.isoformat()
+            self.save_data.save_file()
             self._update_next_execution_time()
         return now
 
