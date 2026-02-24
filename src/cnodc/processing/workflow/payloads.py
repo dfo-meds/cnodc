@@ -74,7 +74,7 @@ class WorkflowPayload:
                       db: NODBControllerInstance,
                       halt_flag: HaltFlag = None):
         """Find the workflow associated with this payload and load the controller for it."""
-        from cnodc.workflow.workflow import WorkflowController
+        from cnodc.processing.workflow.workflow import WorkflowController
         workflow_config = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
         if workflow_config is None:
             raise CNODCError(f'Invalid workflow name: [{self.workflow_name}]', is_recoverable=True)

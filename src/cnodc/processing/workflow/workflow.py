@@ -22,7 +22,7 @@ import typing as t
 import pathlib
 import datetime
 
-from cnodc.workflow.payloads import FileInfo, WorkflowPayload, FilePayload
+from cnodc.processing.workflow.payloads import FileInfo, WorkflowPayload, FilePayload
 
 VALID_METADATA_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:;.,\\/\"'?!(){}[]@<>=-+*#$&`|~^"
 

@@ -11,8 +11,8 @@ init_cnodc("process")
 
 @injector.inject
 def run_processor(app_config: zr.ApplicationConfig = None):
-    from cnodc.process.multiprocess import ProcessController
-    pc = ProcessController(
+    from cnodc.process.multiprocess import MultiProcessController
+    pc = MultiProcessController(
         config_file=app_config.as_path(("cnodc", "process_definition_file"), default=None),
         config_file_dir=app_config.as_path(("cnodc", "process_definition_directory"), default=None),
         flag_file=app_config.as_path(("cnodc", "flag_file"), default=None)

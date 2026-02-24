@@ -1,5 +1,4 @@
 import shutil
-import gzip
 import flask
 import uuid
 import pathlib
@@ -16,7 +15,7 @@ from autoinject import injector
 import yaml
 
 from .auth import LoginController
-from cnodc.workflow import WorkflowController
+from cnodc.processing.workflow import WorkflowController
 
 from cnodc.nodb import NODBControllerInstance, structures, NODBController
 

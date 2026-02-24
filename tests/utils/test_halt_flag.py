@@ -1,8 +1,28 @@
+import threading
+
 from cnodc.util import HaltFlag, HaltInterrupt
 from core import BaseTestCase, ConstantHaltFlag
 
 
 class TestHaltFlag(BaseTestCase):
+
+    def test_halt_flag(self):
+        e = threading.Event()
+        hf = HaltFlag(e)
+        self.assertTrue(hf._should_continue())
+        self.assertTrue(hf.check_continue(False))
+        self.assertTrue(hf.check_continue(True))
+        try:
+            self.assertIsNone(hf.breakpoint())
+        except HaltInterrupt:
+            self.assertFalse(True, msg='Halt interrupt raised when it should not be')
+        e.set()
+        self.assertFalse(hf._should_continue())
+        self.assertFalse(hf.check_continue(False))
+        with self.assertRaises(HaltInterrupt):
+            hf.check_continue(True)
+        with self.assertRaises(HaltInterrupt):
+            hf.breakpoint()
 
     def test_protocol(self):
         chf = ConstantHaltFlag(True)

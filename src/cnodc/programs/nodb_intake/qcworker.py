@@ -8,9 +8,9 @@ from cnodc.process.payload_worker import WorkflowWorker
 import typing as t
 import cnodc.nodb.structures as structures
 from cnodc.process.queue_worker import QueueItemResult
-from cnodc.qc.base import BaseTestSuite, QCTestRunner
+from cnodc.qc.base import QCTestRunner
 from cnodc.util import dynamic_object, CNODCError
-from cnodc.workflow.payloads import WorkflowPayload, SourceFilePayload, BatchPayload
+from cnodc.processing.workflow import WorkflowPayload, SourceFilePayload, BatchPayload
 import cnodc.ocproc2 as ocproc2
 
 

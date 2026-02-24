@@ -4,7 +4,7 @@ import typing as t
 
 from cnodc.process.queue_worker import QueueItemResult
 from cnodc.programs.nodb_intake.record_manager import NODBRecordManager
-from cnodc.workflow.payloads import BatchPayload
+from cnodc.processing.workflow import BatchPayload
 
 
 class NODBFinalizeWorker(BatchWorkflowWorker):

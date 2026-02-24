@@ -16,7 +16,7 @@ import cnodc.nodb.structures as structures
 import threading
 import itsdangerous
 
-from cnodc.workflow.payloads import WorkflowPayload
+from cnodc.processing.workflow.payloads import WorkflowPayload
 import zirconium as zr
 DB_LOCK_TIME = 3600  # in seconds
 

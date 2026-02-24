@@ -11,7 +11,7 @@ from cnodc.process import QueueItemResult, SourceWorkflowWorker
 from cnodc.process.payload_worker import FileWorkflowWorker
 from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.util import CNODCError
-from cnodc.workflow.payloads import FilePayload, SourceFilePayload
+from cnodc.processing.workflow import FilePayload, SourceFilePayload
 from cnodc.storage.base import StorageTier
 from cnodc.programs.glider.ego_convert import OpenGliderConverter
 import cnodc.dmd.dmd as dmd

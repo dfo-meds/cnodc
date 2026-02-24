@@ -5,8 +5,8 @@ from autoinject import injector
 import datetime
 
 from cnodc.storage.local import LocalHandle
-from cnodc.workflow import WorkflowController
-from cnodc.workflow.payloads import WorkflowPayload, FilePayload, BatchPayload
+from cnodc.processing.workflow import WorkflowController
+from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, BatchPayload
 from cnodc.nodb.structures import NODBQueueItem
 from cnodc.util import CNODCError
 from core import BaseTestCase, InjectableDict

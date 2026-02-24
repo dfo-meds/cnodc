@@ -1,9 +1,7 @@
-from cnodc.process.payload_worker import WorkflowWorker
-from cnodc.process.queue_worker import QueueItemResult
-from cnodc.workflow.payloads import WorkflowPayload
-from cnodc.util.exceptions import CNODCError
+from cnodc.processing.workers.payload_worker import WorkflowWorker
+from cnodc.processing.workers.queue_worker import QueueItemResult
+from cnodc.processing.workflow.payloads import WorkflowPayload
 import typing as t
-from cnodc.nodb import structures
 
 
 class WorkflowProgressWorker(WorkflowWorker):

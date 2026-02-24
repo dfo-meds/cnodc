@@ -1,22 +1,18 @@
 import datetime
 import functools
 import hashlib
-import pathlib
-import tempfile
 import uuid
 import typing as t
 
-import zrlog
-
 import cnodc.storage
 from cnodc.nodb import NODBController
-from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus, NODBControllerInstance
+from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus
 from cnodc.process.scheduled_task import ScheduledTask
 from cnodc.process.queue_worker import QueueWorker, QueueItemResult
-from cnodc.workflow import WorkflowController
+from cnodc.processing.workflow import WorkflowController
 from cnodc.storage import StorageController
 import cnodc.nodb.structures as structures
-from cnodc.util import CNODCError, HaltFlag
+from cnodc.util import CNODCError
 from autoinject import injector
 
 

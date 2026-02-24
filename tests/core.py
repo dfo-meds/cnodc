@@ -4,16 +4,16 @@ import tempfile
 import uuid
 import unittest as ut
 import typing as t
-from queue import Queue
 
 from cnodc.nodb import QueueStatus
 import datetime
 from cnodc.nodb.structures import NODBQueueItem
 from autoinject import injector
 
-from cnodc.process import BaseWorker, QueueWorker, ScheduledTask
+from cnodc.processing.workers.queue_worker import QueueWorker
+from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.util import HaltFlag
-from cnodc.workflow.payloads import WorkflowPayload
+from cnodc.processing.workflow.payloads import WorkflowPayload
 
 
 @injector.injectable

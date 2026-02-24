@@ -1,7 +1,6 @@
 from cnodc.nodb import QueueStatus, NODBUploadWorkflow, NODBQueueItem
-from cnodc.util import CNODCError
-from cnodc.workflow.payloads import BatchPayload, WorkflowPayload
-from cnodc.workflow.progressor import WorkflowProgressWorker
+from cnodc.processing.workflow.payloads import BatchPayload, WorkflowPayload
+from cnodc.processing.workflow.progressor import WorkflowProgressWorker
 from core import BaseTestCase
 
 

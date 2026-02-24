@@ -10,7 +10,7 @@
 
 """
 import random
-from .base import BaseWorker
+from cnodc.processing.control.base import BaseWorker
 import datetime
 import typing as t
 from cnodc.util import CNODCError

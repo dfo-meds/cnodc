@@ -1,27 +1,29 @@
 import threading
 import unittest as ut
 
-from cnodc.process.base import _ThreadingHaltFlag, _NoHaltFlag, SaveData, BaseWorker
-from cnodc.util import HaltInterrupt
+from cnodc.processing.control.base import SaveData, BaseWorker, BaseProcess
+from cnodc.util import HaltInterrupt, HaltFlag
 from core import BaseTestCase
 
 
-class TestHaltFlags(ut.TestCase):
+class TestBaseProcess(BaseTestCase):
 
-    def test_threaded_flag(self):
-        e = threading.Event()
-        hf = _ThreadingHaltFlag(e)
-        self.assertTrue(hf._should_continue())
-        hf.breakpoint()
-        e.set()
-        self.assertFalse(hf._should_continue())
-        self.assertRaises(HaltInterrupt, hf.breakpoint)
-
-    def test_noop_flag(self):
-        hf = _NoHaltFlag()
-        self.assertTrue(hf._should_continue())
-        hf.breakpoint()
-
+    def test_shutdown_flag(self):
+        hf = threading.Event()
+        ef = threading.Event()
+        p = BaseProcess(
+            None,
+            None,
+            hf,
+            ef,
+            '',
+            ''
+        )
+        self.assertFalse(ef.is_set())
+        self.assertFalse(hf.is_set())
+        p.shutdown()
+        self.assertFalse(hf.is_set())
+        self.assertTrue(ef.is_set())
 
 class TestSaveData(BaseTestCase):
 
@@ -113,10 +115,18 @@ class TestBaseWorker(BaseTestCase):
     def test_flags(self):
         flag1 = threading.Event()
         flag2 = threading.Event()
-        worker = BaseWorker('foo', 'bar', 'foobar', _ThreadingHaltFlag(flag1), _ThreadingHaltFlag(flag2), {})
+        worker = BaseWorker(
+            'foo',
+            'bar',
+            'foobar',
+            HaltFlag(flag1),
+            HaltFlag(flag2))
         with self.subTest("no flags set"):
             self.assertTrue(worker.continue_loop())
-            worker.breakpoint()
+            try:
+                worker.breakpoint()
+            except HaltInterrupt:
+                self.assertFalse(True, msg='Halt interrupt raised when it should not be')
         with self.subTest("halt flag set"):
             flag1.set()
             self.assertFalse(worker.continue_loop())
@@ -130,4 +140,7 @@ class TestBaseWorker(BaseTestCase):
         with self.subTest("end flag set"):
             flag1.clear()
             self.assertFalse(worker.continue_loop())
-            worker.breakpoint()
+            try:
+                worker.breakpoint()
+            except HaltInterrupt:
+                self.assertFalse(True, msg='Halt interrupt raised when it should not be')

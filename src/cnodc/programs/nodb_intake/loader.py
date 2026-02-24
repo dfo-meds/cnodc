@@ -11,8 +11,8 @@ from cnodc.process.payload_worker import WorkflowWorker
 from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 
-from cnodc.workflow.payloads import WorkflowPayload, FilePayload, SourceFilePayload
-from cnodc.process.queue_worker import QueueWorker, QueueItemResult
+from cnodc.processing.workflow import WorkflowPayload, FilePayload, SourceFilePayload
+from cnodc.process.queue_worker import QueueItemResult
 from cnodc.programs.nodb_intake.record_manager import NODBRecordManager
 
 

@@ -5,15 +5,12 @@
 import datetime
 import pathlib
 
-from autoinject import injector
-
 from cnodc.nodb import structures
-from cnodc.process.queue_worker import QueueWorker, QueueItemResult
+from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 
-from cnodc.storage import StorageController
 from cnodc.util import CNODCError
-from cnodc.workflow.payloads import FileInfo, WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
+from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
     ObservationPayload
 
 

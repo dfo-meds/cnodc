@@ -1,16 +1,13 @@
 import gzip
 import shutil
 
-from cnodc.nodb import NODBControllerInstance, structures
 from cnodc.process.payload_worker import FileWorkflowWorker
-from cnodc.process.queue_worker import QueueWorker, QueueItemResult
+from cnodc.process.queue_worker import QueueItemResult
 import typing as t
-from autoinject import injector
 from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.erddap import ErddapController
 from cnodc.storage.base import StorageTier
 from cnodc.util import CNODCError, HaltFlag
-import tempfile
 import pathlib
 import netCDF4 as nc
 import csv
@@ -18,7 +15,7 @@ import numpy as np
 import math
 import datetime
 
-from cnodc.workflow.payloads import FilePayload
+from cnodc.processing.workflow import FilePayload
 
 REF_TIME = datetime.datetime(1950, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 

@@ -6,7 +6,7 @@
     Queue items have a "unique_item_name" which, when non-null, will prevent two items
     with the same value for that field from being locked at the same time.
 """
-from cnodc.process.base import BaseWorker
+from cnodc.processing.control.base import BaseWorker
 from cnodc.util import CNODCError, HaltInterrupt
 from autoinject import injector
 import uuid
