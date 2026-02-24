@@ -211,23 +211,23 @@ class AbstractElement:
 
     def ideal_single_value(self) -> SingleElement:
         """Find the ideal representation of this value."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def all_values(self) -> t.Iterable:
         """Retrieve all possible values for this one."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def to_mapping(self) -> dict:
         """Convert the value to a map."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def from_mapping(self, map_: t.Any):
         """Rebuild the value from a map."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def find_child(self, path: list[str]):
         """Find a child value within this value."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     @property
     def quality(self):
@@ -242,7 +242,7 @@ class AbstractElement:
     @property
     def value(self):
         """Get the value associated with this entry."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
 
 class SingleElement(AbstractElement):

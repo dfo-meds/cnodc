@@ -110,4 +110,4 @@ class ScheduledTask(BaseWorker):
 
     def execute(self):
         """Override with logic for the scheduled task."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no coverage

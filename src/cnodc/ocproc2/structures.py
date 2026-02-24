@@ -118,40 +118,15 @@ class BaseRecord:
         if self._subrecords is not None:
             self._subrecords.update_hash(h)
 
-
-class ChildRecord(BaseRecord):
-
-    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords')
-
-    @property
-    def metadata(self):
-        if self._metadata is None:
-            self._metadata = ElementMap()
-        return self._metadata
-
-    @property
-    def parameters(self):
-        if self._parameters is None:
-            self._parameters = ElementMap()
-        return self._parameters
-
-    @property
-    def coordinates(self):
-        if self._coordinates is None:
-            self._coordinates = ElementMap()
-        return self._coordinates
-
-    @property
-    def subrecords(self):
-        if self._subrecords is None:
-            self._subrecords = RecordMap()
-        return self._subrecords
-
-    @staticmethod
-    def build_from_mapping(map_: dict):
-        r = ChildRecord()
+    @classmethod
+    def build_from_mapping(cls, map_: dict):
+        r = cls()
         r.from_mapping(map_)
         return r
+
+
+class ChildRecord(BaseRecord):
+    pass
 
 
 class ParentRecord(BaseRecord):
@@ -162,30 +137,6 @@ class ParentRecord(BaseRecord):
         super().__init__()
         self.history: LazyLoadList[HistoryEntry] = LazyLoadList(HistoryEntry.from_mapping)
         self.qc_tests: LazyLoadList[QCTestRunInfo] = LazyLoadList(QCTestRunInfo.from_mapping)
-
-    @property
-    def metadata(self):
-        if self._metadata is None:
-            self._metadata = ElementMap()
-        return self._metadata
-
-    @property
-    def parameters(self):
-        if self._parameters is None:
-            self._parameters = ElementMap()
-        return self._parameters
-
-    @property
-    def coordinates(self):
-        if self._coordinates is None:
-            self._coordinates = ElementMap()
-        return self._coordinates
-
-    @property
-    def subrecords(self):
-        if self._subrecords is None:
-            self._subrecords = RecordMap()
-        return self._subrecords
 
     def to_mapping(self):
         map_ = super().to_mapping()

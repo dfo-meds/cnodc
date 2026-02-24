@@ -137,27 +137,27 @@ class QueueWorker(BaseWorker):
 
     def on_retry(self, queue_item: structures.NODBQueueItem):
         """Override to add logic when an item is about to be released to be retried."""
-        pass
+        pass  # pragma: no coverage
 
     def on_failure(self, queue_item: structures.NODBQueueItem):
         """Override to add logic when an item is about to be marked as a failure."""
-        pass
+        pass  # pragma: no coverage
 
     def on_success(self, queue_item: structures.NODBQueueItem):
         """Override to add logic when an item is about to be marked as a success."""
-        pass
+        pass  # pragma: no coverage
 
     def after_retry(self, queue_item: structures.NODBQueueItem):
         """Override to add logic after an object has been released to be retried (i.e. after commit)."""
-        pass
+        pass  # pragma: no coverage
 
     def after_failure(self, queue_item: structures.NODBQueueItem):
         """Override to add logic after an object has been marked as a failure (i.e. after commit)."""
-        pass
+        pass  # pragma: no coverage
 
     def after_success(self, queue_item: structures.NODBQueueItem):
         """Override to add logic after an object has been marked as a success (i.e. after commit)."""
-        pass
+        pass  # pragma: no coverage
 
     def on_start(self):
         if not self.get_config("queue_name"):
@@ -174,4 +174,4 @@ class QueueWorker(BaseWorker):
 
     def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
         """Handle a specific queue item."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage

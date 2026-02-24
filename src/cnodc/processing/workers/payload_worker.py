@@ -62,7 +62,7 @@ class WorkflowWorker(QueueWorker):
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         """Override to add payload logic."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
     def batch_payload_from_uuid(self, batch_uuid: str) -> BatchPayload:
         """Create a new payload from a batch UUID."""
@@ -113,7 +113,6 @@ class WorkflowWorker(QueueWorker):
             raise ValueError('invalid payload type')
 
 
-
 class BatchWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to Batch types."""
 
@@ -121,7 +120,7 @@ class BatchWorkflowWorker(WorkflowWorker):
         super().__init__(*args, **kwargs, require_type=BatchPayload)
 
     def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
 
 class SourceWorkflowWorker(WorkflowWorker):
@@ -131,7 +130,7 @@ class SourceWorkflowWorker(WorkflowWorker):
         super().__init__(*args, **kwargs, require_type=SourceFilePayload)
 
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
 
 class ObservationWorkflowWorker(WorkflowWorker):
@@ -141,7 +140,8 @@ class ObservationWorkflowWorker(WorkflowWorker):
         super().__init__(*args, **kwargs, require_type=ObservationPayload)
 
     def process_payload(self, payload: ObservationPayload) -> t.Optional[QueueItemResult]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
+
 
 class FileWorkflowWorker(WorkflowWorker):
     """Implementation of PayloadWorker that limits payloads to File types."""
@@ -150,4 +150,4 @@ class FileWorkflowWorker(WorkflowWorker):
         super().__init__(*args, **kwargs, require_type=FilePayload)
 
     def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
