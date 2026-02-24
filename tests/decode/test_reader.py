@@ -1,10 +1,5 @@
-import datetime
 import unittest as ut
-from cnodc.codecs.base import ByteSequenceReader
-import zirconium as zr
-from autoinject import injector
-
-from cnodc.util import CNODCError
+from cnodc.ocproc2.codecs.base import ByteSequenceReader
 
 
 class ByteSequenceTests(ut.TestCase):

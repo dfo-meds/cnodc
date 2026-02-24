@@ -7,8 +7,8 @@ import typing as t
 import cnodc.storage
 from cnodc.nodb import NODBController
 from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus
-from cnodc.process.scheduled_task import ScheduledTask
-from cnodc.process.queue_worker import QueueWorker, QueueItemResult
+from cnodc.processing.workers.scheduled_task import ScheduledTask
+from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
 from cnodc.processing.workflow import WorkflowController
 from cnodc.storage import StorageController
 import cnodc.nodb.structures as structures

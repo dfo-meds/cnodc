@@ -1,12 +1,10 @@
 import datetime
-import json
 import pathlib
 import typing as t
 import random
-from requests import HTTPError
 
 import cnodc.ocproc2 as ocproc2
-from cnodc.codecs import OCProc2YamlCodec
+from cnodc.ocproc2.codecs import OCProc2YamlCodec
 from cnodc.ocproc2.operations import QCOperator
 
 

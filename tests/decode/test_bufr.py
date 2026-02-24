@@ -1,8 +1,7 @@
-import json
 import unittest as ut
 import pathlib
 import cnodc.ocproc2 as ocproc2
-from cnodc.codecs.gts import GtsCodec
+from cnodc.ocproc2.codecs.gts import GtsCodec
 
 
 class TestBufrParsing(ut.TestCase):

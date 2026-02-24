@@ -1,7 +1,7 @@
 from uncertainties import UFloat, ufloat
 
-from cnodc.bathymetry import BathymetryModel
-from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext
+from cnodc.science.bathymetry import BathymetryModel
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, RecordTest, TestContext
 import cnodc.ocproc2 as ocproc2
 from cnodc.util import dynamic_object
 
@@ -10,7 +10,7 @@ class GTSPPBathymetryTest(BaseTestSuite):
 
     def __init__(self,
                  bathymetry_model_class: str,
-                 bathymetry_model_kwargs: dict,
+                 bathymetry_model_kwargs: dict = None,
                  minimum_relative_uncertainty: float = 0.1,
                  run_on_land_test: bool = True,
                  run_sounding_test: bool = True,
@@ -27,7 +27,10 @@ class GTSPPBathymetryTest(BaseTestSuite):
             **kwargs)
         bathymetry_model_kwargs = bathymetry_model_kwargs or {}
         self._min_uncertainty = minimum_relative_uncertainty
-        self._bathymetry_model: BathymetryModel = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
+        if bathymetry_model_kwargs:
+            self._bathymetry_model: BathymetryModel = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
+        else:
+            self._bathymetry_model: BathymetryModel = dynamic_object(bathymetry_model_class)()
         self.run_on_land_test = run_on_land_test
         self.run_sounding_test = run_sounding_test
         self.run_bottom_test = run_bottom_test

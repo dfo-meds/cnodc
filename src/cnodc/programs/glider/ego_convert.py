@@ -5,11 +5,11 @@ import pathlib
 
 import yaml
 
-from cnodc.dmd.metadata import GCContentType, GCContentFormat
+from cnodc.programs.dmd.metadata import GCContentType, GCContentFormat
 from cnodc.util import CNODCError, dynamic_object
-from cnodc.netcdf.wrapper import Dataset
-import cnodc.ocean_math.seawater as seawater
-import cnodc.dmd.metadata as metadata
+from cnodc.util.netcdf import Dataset
+import cnodc.science.seawater as seawater
+import cnodc.programs.dmd.metadata as metadata
 
 def ego_old_sensor_info(original_nc, sensor_map: dict[str, str]):
     sensors = {}

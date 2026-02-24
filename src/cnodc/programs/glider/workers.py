@@ -7,14 +7,14 @@ from autoinject import injector
 from cnodc.nodb import NODBControllerInstance
 import cnodc.nodb.structures as structures
 from cnodc.ocproc2 import ParentRecord
-from cnodc.process import QueueItemResult, SourceWorkflowWorker
-from cnodc.process.payload_worker import FileWorkflowWorker
+from cnodc.processing.workers.queue_worker import QueueItemResult
+from cnodc.processing.workers.payload_worker import FileWorkflowWorker, SourceWorkflowWorker
 from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.util import CNODCError
-from cnodc.processing.workflow import FilePayload, SourceFilePayload
+from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload
 from cnodc.storage.base import StorageTier
 from cnodc.programs.glider.ego_convert import OpenGliderConverter
-import cnodc.dmd.dmd as dmd
+import cnodc.programs.dmd.dmd as dmd
 
 
 def add_glider_mission_platform_info(source_file, record: ParentRecord, db: NODBControllerInstance, memory: dict):

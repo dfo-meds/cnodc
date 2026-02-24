@@ -1,7 +1,7 @@
 import unittest as ut
 import typing as t
 from uncertainties import UFloat, ufloat
-from cnodc.bathymetry import BathymetryModel
+from cnodc.science.bathymetry import BathymetryModel
 import cnodc.ocproc2 as ocproc2
 from cnodc.programs.gtspp.bathymetry_test import GTSPPBathymetryTest
 

@@ -10,16 +10,15 @@ import secrets
 
 import zrlog
 from autoinject import injector
-from cnodc.codecs.ocproc2bin import OCProc2BinCodec
+from cnodc.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 import cnodc.ocproc2 as ocproc2
-from cnodc.ocean_math.seawater import eos80_depth
+from cnodc.science.seawater import eos80_depth
 from cnodc.storage import StorageController, StorageTier
 from cnodc.util import CNODCError, dynamic_object, DynamicObjectLoadError
 
 
 if t.TYPE_CHECKING:
-    from cnodc.nodb import NODBControllerInstance, LockType, NODBController
-    import cnodc.storage.core
+    from cnodc.nodb import NODBControllerInstance
 
 
 def parse_received_date(rdate: t.Union[str, datetime.date]) -> datetime.date:

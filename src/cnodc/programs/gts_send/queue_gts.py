@@ -1,9 +1,9 @@
 import typing as t
 
-from cnodc.process import QueueItemResult
-from cnodc.process.payload_worker import ObservationWorkflowWorker
+from cnodc.processing.workers.queue_worker import QueueItemResult
+from cnodc.processing.workers.payload_worker import ObservationWorkflowWorker
 from cnodc.util import CNODCError
-from cnodc.processing.workflow import ObservationPayload
+from cnodc.processing.workflow.payloads import ObservationPayload
 import cnodc.nodb.structures as orm
 
 

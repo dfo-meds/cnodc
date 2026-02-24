@@ -1,8 +1,6 @@
-import typing as t
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordSetTest
 import cnodc.ocproc2 as ocproc2
-from cnodc.ocean_math.seawater import eos80_density_at_depth_t90
-import cnodc.ocean_math.ocproc2int as oom
+import cnodc.science.ocproc_math as oom
 
 
 class GTSPPDensityInversionTest(BaseTestSuite):

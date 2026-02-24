@@ -1,8 +1,6 @@
-import json
 import unittest as ut
-import pathlib
 import cnodc.ocproc2 as ocproc2
-from cnodc.codecs.ocproc2bin import OCProc2BinCodec
+from cnodc.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 import datetime
 
 class TestOCProc2BinaryFormat(ut.TestCase):

@@ -1,8 +1,9 @@
 import typing as t
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
+
+import cnodc.science.amath
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordSetTest
 import cnodc.ocproc2 as ocproc2
-import cnodc.ocean_math.umath_wrapper as umath
-import cnodc.ocean_math.ocproc2int as oom
+import cnodc.science.ocproc_math as oom
 
 
 class GTSPPTemperatureInversionTest(BaseTestSuite):
@@ -50,12 +51,14 @@ class GTSPPTemperatureInversionTest(BaseTestSuite):
                 continue
             t13_avg = (t1 + t3) / 2.0
             diff = t2 - t13_avg
-            if umath.is_greater_than(diff, self._maxima_threshold):
+            if cnodc.science.amath.is_greater_than(diff, self._maxima_threshold):
                 ref['maxima'].append(ldt2[1])
-                return ref['minima'] and any(umath.is_greater_than(x, ldt2[1]) and umath.is_less_than(x - ldt2[1], self._depth_gap) for x in ref['minima'])
-            elif umath.is_less_than(diff, self._minima_threshold):
+                return ref['minima'] and any(
+                    cnodc.science.amath.is_greater_than(x, ldt2[1]) and cnodc.science.amath.is_less_than(x - ldt2[1], self._depth_gap) for x in ref['minima'])
+            elif cnodc.science.amath.is_less_than(diff, self._minima_threshold):
                 ref['minima'].append(ldt2[1])
-                return ref['maxima'] and any(umath.is_greater_than(x, ldt2[1]) and umath.is_less_than(x - ldt2[1], self._depth_gap) for x in ref['maxima'])
+                return ref['maxima'] and any(
+                    cnodc.science.amath.is_greater_than(x, ldt2[1]) and cnodc.science.amath.is_less_than(x - ldt2[1], self._depth_gap) for x in ref['maxima'])
         return False
 
     def _get_inversion_test_points(self, recordset: ocproc2.RecordSet, context: TestContext) -> t.Iterable[tuple[int, float, list[float]]]:

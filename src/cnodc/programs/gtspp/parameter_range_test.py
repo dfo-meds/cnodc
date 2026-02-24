@@ -7,9 +7,9 @@ from uncertainties import UFloat
 import cnodc.ocproc2 as ocproc2
 import typing as t
 import yaml
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, ReferenceRange
-from cnodc.ocean_math.geodesy import upoint_to_geometry
-from cnodc.units import UnitConverter
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordTest, ReferenceRange
+from cnodc.science.geodesy import coordinates_to_geometry
+from cnodc.science.units import UnitConverter
 
 
 class ParameterReferences:
@@ -67,7 +67,7 @@ class ParameterReferences:
     def build_parameter_references(self, lat: t.Union[float, UFloat], lon: t.Union[float, UFloat]) -> tuple[dict[str, ReferenceRange], set[str]]:
         regions = set()
         base = {x: self._config['GLOBAL'][x] for x in self._config['GLOBAL']}
-        geom = upoint_to_geometry(latitude=lat, longitude=lon)
+        geom = coordinates_to_geometry(latitude=lat, longitude=lon)
         for region_key in self._config['REGIONAL']:
             if geom.intersects(self._config['REGIONAL'][region_key]['_BoundingBox']):
                 base.update({x: self._config['REGIONAL'][region_key][x] for x in self._config['REGIONAL'][region_key] if x != '_BoundingBox'})

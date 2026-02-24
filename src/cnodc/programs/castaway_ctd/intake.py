@@ -1,11 +1,12 @@
 import gzip
 import shutil
 
-from cnodc.process.payload_worker import FileWorkflowWorker
-from cnodc.process.queue_worker import QueueItemResult
+from cnodc.processing.workflow.payloads import FilePayload
+from cnodc.processing.workers.payload_worker import FileWorkflowWorker
+from cnodc.processing.workers.queue_worker import QueueItemResult
 import typing as t
 from cnodc.storage import StorageController, BaseStorageHandle
-from cnodc.erddap import ErddapController
+from cnodc.programs.erddap import ErddapController
 from cnodc.storage.base import StorageTier
 from cnodc.util import CNODCError, HaltFlag
 import pathlib
@@ -15,7 +16,6 @@ import numpy as np
 import math
 import datetime
 
-from cnodc.processing.workflow import FilePayload
 
 REF_TIME = datetime.datetime(1950, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 

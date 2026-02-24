@@ -1,7 +1,7 @@
 import pathlib
 import typing as t
 
-from cnodc.codecs.netcdf import NetCDFCommonMapper
+from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper
 from cnodc.ocproc2 import SingleElement, ParentRecord
 import cnodc.programs.glider.ego_convert as ego_convert
 

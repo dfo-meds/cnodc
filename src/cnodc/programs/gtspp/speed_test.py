@@ -1,11 +1,7 @@
-import datetime
-import math
-
-from cnodc.ocean_math.geodesy import uhaversine
+from cnodc.science.geodesy import haversine
 import cnodc.ocproc2 as ocproc2
 import typing as t
-from uncertainties import ufloat
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordTest, QCSkipTest, QCAssertionError, BatchTest
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordTest
 
 
 class GTSPPSpeedTest(BaseTestSuite):

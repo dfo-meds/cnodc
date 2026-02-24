@@ -1,4 +1,4 @@
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordSetTest
 import cnodc.ocproc2 as ocproc2
 
 

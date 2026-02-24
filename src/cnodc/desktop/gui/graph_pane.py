@@ -13,9 +13,9 @@ import matplotlib.backend_bases as mplbb
 import tkinter as tk
 import cnodc.desktop.translations as i18n
 from cnodc.desktop.gui.ocproc_graph import OCProc2Graph
-from cnodc.ocean_math.geodesy import uhaversine
-from cnodc.units import UnitConverter
-import cnodc.ocean_math.ocproc2int as oom
+from cnodc.science.geodesy import uhaversine
+from cnodc.science.units import UnitConverter
+import cnodc.science.ocproc_math as oom
 
 
 class GraphPane(BasePane):

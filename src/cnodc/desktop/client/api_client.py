@@ -5,14 +5,13 @@ import typing as t
 import zrlog
 from autoinject import injector
 
-from cnodc.codecs import OCProc2BinCodec
-from cnodc.codecs.base import ByteSequenceReader
+from cnodc.ocproc2.codecs import OCProc2BinCodec
+from cnodc.ocproc2.codecs import ByteSequenceReader
 from cnodc.desktop.client.local_db import LocalDatabase, CursorWrapper
 from cnodc.desktop.client.test_client import TestClient
 from cnodc.desktop.gui.messenger import CrossThreadMessenger
 from cnodc.desktop.util import TranslatableException
-from cnodc.ocproc2.operations import QCOperator
-from cnodc.util import clean_for_json, vlq_decode
+from cnodc.util import clean_for_json
 import zirconium as zr
 import requests
 import cnodc.ocproc2 as ocproc2

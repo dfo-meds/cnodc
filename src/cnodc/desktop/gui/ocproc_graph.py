@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import math
 import tkinter.ttk as ttk
 import typing as t
 import cnodc.desktop.translations as i18n
 import matplotlib.axes as mpla
 import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
-import matplotlib.backend_bases as mplbb
 import matplotlib.style as mpls
-import cnodc.ocean_math.ocproc2int as oom
+import cnodc.science.ocproc_math as oom
 from cnodc.desktop.gui.base_pane import SimpleRecordInfo
-from cnodc.ocean_math.geodesy import uhaversine
+from cnodc.science.geodesy import uhaversine
 
 if t.TYPE_CHECKING:
     from cnodc.desktop.main_app import CNODCQCApp

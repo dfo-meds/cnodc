@@ -1,7 +1,6 @@
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest, RecordTest
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordTest
 import cnodc.ocproc2 as ocproc2
-from cnodc.ocean_math.seawater import eos80_freezing_point_t90
-import cnodc.ocean_math.ocproc2int as oom
+import cnodc.science.ocproc_math as oom
 
 
 class GTSPPFreezingPointTest(BaseTestSuite):

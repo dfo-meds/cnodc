@@ -1,9 +1,11 @@
 import pathlib
 import typing as t
 import yaml
-from cnodc.qc.base import BaseTestSuite, TestContext, RecordSetTest
+
+import cnodc.science.amath
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordSetTest
 import cnodc.ocproc2 as ocproc2
-import cnodc.ocean_math.umath_wrapper as umath
+import cnodc.science.amath as amath
 
 
 class SpikeReference:
@@ -128,7 +130,7 @@ class GTSPPSpikeGradientTest(BaseTestSuite):
         for v1_ in v1:
             for v2_ in v2:
                 check_values.append(v1_ - v2_)
-        if all(umath.is_greater_than(cv, test_ranges[1]) or umath.is_less_than(cv, test_ranges[0]) for cv in check_values):
+        if all(cnodc.science.amath.is_greater_than(cv, test_ranges[1]) or cnodc.science.amath.is_less_than(cv, test_ranges[0]) for cv in check_values):
             self.report_for_review('spike_extrema_test_failed', qc_flag=13, ref_value=(check_values, test_ranges[0], test_ranges[1]))
 
     def _run_bottom_spike_test(self, recordset: ocproc2.RecordSet, context: TestContext):
@@ -176,7 +178,7 @@ class GTSPPSpikeGradientTest(BaseTestSuite):
                 else:
                     self._run_spike_test_for_parameter(v1[pname], v2[pname], v3[pname], test_parameters[pname])
 
-    def _run_spike_test_for_parameter(self, v1: t.Union[umath.FLOAT, list[umath.FLOAT], None], v2: umath.FLOAT, v3: t.Union[umath.FLOAT, list[umath.FLOAT], None], thresholds: tuple):
+    def _run_spike_test_for_parameter(self, v1: t.Union[amath.AnyNumber, list[amath.AnyNumber], None], v2: amath.AnyNumber, v3: t.Union[amath.AnyNumber, list[amath.AnyNumber], None], thresholds: tuple):
         if v2 is None or v1 is None or v3 is None or (thresholds[0] is None and thresholds[1] is None):
             self.skip_test()
         if isinstance(v1, list):
@@ -198,9 +200,11 @@ class GTSPPSpikeGradientTest(BaseTestSuite):
                 gradient = abs(v2 - ((v3_ + v1_)/2))
                 check_gradients.append(gradient)
                 check_spikes.append(gradient - (abs(v1_ - v3_) / 2))
-        if self.run_spike_test and thresholds[0] is not None and all(umath.is_greater_than(cv, thresholds[0]) for cv in check_spikes):
+        if self.run_spike_test and thresholds[0] is not None and all(
+                cnodc.science.amath.is_greater_than(cv, thresholds[0]) for cv in check_spikes):
             self.report_for_review('spike_test_failed', qc_flag=13, ref_value=(check_spikes, thresholds[0]))
-        if self.run_gradient_test and thresholds[1] is not None and all(umath.is_greater_than(cv, thresholds[1]) for cv in check_gradients):
+        if self.run_gradient_test and thresholds[1] is not None and all(
+                cnodc.science.amath.is_greater_than(cv, thresholds[1]) for cv in check_gradients):
             self.report_for_review('gradient_test_failed', qc_flag=13, ref_value=(check_gradients, thresholds[1]))
 
     def _extract_spike_test_values(self, recordset: ocproc2.RecordSet, target_level: int, ref: dict, test_parameters: dict) -> dict[str, t.Union[float, list[float]]]:

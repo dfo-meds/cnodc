@@ -8,7 +8,7 @@ import datetime
 from uncertainties import ufloat, UFloat
 
 from cnodc.ocproc2.lazy_load import LazyLoadDict
-from cnodc.units.units import convert
+from cnodc.science.units.units import convert
 
 
 SupportedValue = t.Union[

@@ -1,12 +1,10 @@
-import functools
 import shutil
 import subprocess
 
-import flask
 import zirconium
 from autoinject import injector
 
-from cnodc.boot.boot import build_cnodc_webapp
+from cnodc.system.boot import build_cnodc_webapp
 from cnodc.util.flask import TrustedProxyFix, RequestInfo
 from core import BaseTestCase
 

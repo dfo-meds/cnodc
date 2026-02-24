@@ -1,13 +1,10 @@
-import itertools
 import pathlib
 import typing as t
 
 import yaml
-from uncertainties import UFloat
-from cnodc.qc.base import BaseTestSuite, RecordTest, TestContext, ReferenceRange
+from cnodc.programs.nodb.qc.qc import BaseTestSuite, RecordTest, TestContext, ReferenceRange
 import cnodc.ocproc2 as ocproc2
-from cnodc.units import UnitConverter
-from cnodc.ocean_math.seawater import eos80_pressure, eos80_freezing_point_t90, eos80_density_at_depth_t90
+from cnodc.science.units import UnitConverter
 
 
 class EnvelopeReference:
