@@ -518,7 +518,7 @@ class TestWorkflowController(BaseTestCase):
     @injector.inject
     def test_validate_file(self, d: InjectableDict = None):
         workflow = WorkflowController("test", {
-            'validation': 'tests.workflow.test_controller._fake_validation_called',
+            'validation': 'tests.processing.test_controller._fake_validation_called',
         })
         workflow._validate_file_upload(self.temp_dir / 'hello.txt', {'foo': 'bar'})
         self.assertEqual(d.data['local_path'], self.temp_dir / 'hello.txt')
@@ -685,7 +685,7 @@ class TestWorkflowController(BaseTestCase):
             'default_metadata': {
               'foo2': 'bar2',
             },
-            'validation': 'tests.workflow.test_controller._fake_validation_called',
+            'validation': 'tests.processing.test_controller._fake_validation_called',
         })
         file = self.temp_dir / 'file.txt'
         with open(file, 'w') as h:

@@ -343,7 +343,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.process.test_single.GoodTest',
+                'class_name': 'tests.processing.test_single.GoodTest',
             },
         }
         with open(file, "w") as h:
@@ -364,7 +364,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.process.test_single.BadTest',
+                'class_name': 'tests.processing.test_single.BadTest',
             },
         }
         with open(file, "w") as h:
@@ -385,7 +385,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.process.test_single.BadTest',
+                'class_name': 'tests.processing.test_single.BadTest',
             },
         }
         with open(file, "w") as h:
@@ -403,7 +403,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.process.test_single.GoodTest',
+                'class_name': 'tests.processing.test_single.GoodTest',
                 'count': 2,
             },
         }
