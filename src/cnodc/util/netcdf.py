@@ -22,6 +22,7 @@ class DataType(enum.Enum):
     Character = "S1"
 
 
+
 class _Variable:
 
     def __init__(self, var: nc.Variable):
@@ -66,7 +67,7 @@ class _Variable:
         self._var[:] = np.array([data], dtype=object)
 
     def as_string(self):
-        return b''.join(bytes(x) for x in self._var[:]).replace(b'\x00', b'').decode('utf-8')
+        return
 
     def all_as_strings(self):
         return [b''.join(bytes(y) for y in x).replace(b'\x00', b'').decode('utf-8') for x in self.data()]
@@ -83,41 +84,33 @@ class Dataset:
         }
         self._args.update(kwargs)
 
-    def has_attribute(self, attr_name):
-        return attr_name in self._handle.ncattrs()
-
     def has_variable(self, var_name):
         return var_name in self._handle.variables
 
-    def data(self, var_name):
-        return self._handle.variables[var_name][:]
+    def variables(self) -> t.Iterable[_Variable]:
+        for vname in self._handle.variables:
+            yield _Variable(self._handle.variables[vname])
 
-    def decode_string_variable(self, var_name, encoding='utf-8'):
-        if hasattr(self._handle.variables[var_name], '_Encoding'):
-            encoding = self._handle.variables[var_name]['_Encoding']
-        return ''.join(bytes(x).decode(encoding) for x in self._handle.variables[var_name][:] if bytes(x) > b'0').strip("\0 \r\n\t")
-
-    def variable(self, var_name) -> _Variable:
+    def getvar(self, var_name) -> _Variable:
         return _Variable(self._handle.variables[var_name])
-
-    def copy_data(self, dataset, var_name: str, new_name: t.Optional[str] = None):
-        self._handle.variables[new_name or var_name][:] = dataset._handle.variables[var_name][:]
 
     def copy_attributes(self, ds: Dataset, exclude_attrs: t.Optional[list[str]] = None):
         for attr_name, attr_value in ds.attributes():
             if attr_name not in exclude_attrs:
                 self.set_attribute(attr_name, attr_value)
 
+    def has_attribute(self, attr_name):
+        return attr_name in self._handle.ncattrs()
+
     def attributes(self) -> t.Iterable[tuple[str, t.Any]]:
         for attr_name in self._handle.ncattrs():
-            yield attr_name, getattr(self._handle, attr_name)
+            yield attr_name, self._handle.getncattr(attr_name)
 
-    def attribute(self, attr_name: str):
-        return getattr(self._handle, attr_name)
+    def getncattr(self, attr_name: str, encoding: t.Optional[str] = None):
+        return self._handle.getncattr(attr_name, encoding)
 
-    def variables(self) -> t.Iterable[_Variable]:
-        for vname in self._handle.variables:
-            yield _Variable(self._handle.variables[vname])
+    def setncattr(self, attr_name: str, value: t.Any):
+        self._handle.setncattr(attr_name, value)
 
     def set_attributes(self, attrs: dict[str, t.Any]):
         for key in attrs:

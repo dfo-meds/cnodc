@@ -18,13 +18,13 @@ def ego_old_sensor_info(original_nc, sensor_map: dict[str, str]):
     for var in original_nc.variables():
         if not var.has_attribute('sensor_name'):
             continue
-        sensor_full_name = var.attribute('sensor_name').strip().lower()
+        sensor_full_name = var.getncattr('sensor_name').strip().lower()
         while '  ' in sensor_full_name:
             sensor_full_name = sensor_full_name.replace('  ', ' ')
         if sensor_full_name not in sensor_map:
             raise CNODCError(f"Unknown sensor [{sensor_full_name}]")
         info = sensor_map[sensor_full_name]
-        info['serial'] = var.attribute('sensor_serial_number')
+        info['serial'] = var.getncattr('sensor_serial_number')
         key = f"SENSOR_{info['type']}_{info['serial']}"
         if key in sensors_seen:
             continue
@@ -35,14 +35,14 @@ def ego_old_sensor_info(original_nc, sensor_map: dict[str, str]):
 
 
 def ego_new_sensor_info(original_nc):
-    sensor_names = original_nc.variable('SENSOR').all_as_strings()
-    sensor_makers = original_nc.variable('SENSOR_MAKER').all_as_strings()
-    sensor_models = original_nc.variable('SENSOR_MODEL').all_as_strings()
-    sensor_serials = original_nc.variable('SENSOR_SERIAL_NO').all_as_strings()
-    sensor_mounts = original_nc.variable('SENSOR_MOUNT').all_as_strings()
-    sensor_orientations = original_nc.variable('SENSOR_ORIENTATION').all_as_strings()
-    param_names = original_nc.variable('PARAMETER').all_as_strings()
-    param_sensors = original_nc.variable('PARAMETER_SENSOR').all_as_strings()
+    sensor_names = original_nc.getvar('SENSOR').all_as_strings()
+    sensor_makers = original_nc.getvar('SENSOR_MAKER').all_as_strings()
+    sensor_models = original_nc.getvar('SENSOR_MODEL').all_as_strings()
+    sensor_serials = original_nc.getvar('SENSOR_SERIAL_NO').all_as_strings()
+    sensor_mounts = original_nc.getvar('SENSOR_MOUNT').all_as_strings()
+    sensor_orientations = original_nc.getvar('SENSOR_ORIENTATION').all_as_strings()
+    param_names = original_nc.getvar('PARAMETER').all_as_strings()
+    param_sensors = original_nc.getvar('PARAMETER_SENSOR').all_as_strings()
     sensor_info = {}
     param_map = {}
     for x in range(0, len(sensor_names)):
@@ -93,7 +93,7 @@ class OpenGliderConverter:
             dmd.set_meds_defaults()
             dmd.set_from_netcdf_file(nc)
             dmd.set_processing_info("real-time")
-            mission_id = nc.attribute('id')
+            mission_id = nc.getncattr('id')
             dist = metadata.DistributionChannel()
             dist.set_guid('direct_link')
             dist.set_display_name({"en": "Direct Link", "fr": "Lien direct"})
@@ -143,7 +143,7 @@ class OpenGliderConverter:
                 self._build_glider_info(open_nc, original_nc, platform)
                 self._build_phase_info(original_nc, open_nc)
                 open_nc.set_attribute('date_created', datetime.datetime.now().strftime('%Y%m%dT%H%M%SZ'))
-                mission_id = open_nc.attribute('id')
+                mission_id = open_nc.getncattr('id')
         return file_name, mission_id
 
     def _create_dimensions(self, open_nc: Dataset):
@@ -156,7 +156,7 @@ class OpenGliderConverter:
     def _copy_metadata(self, open_nc: Dataset, original_nc: Dataset):
         for key in self._mapping_data['copy_metadata']:
             if original_nc.has_attribute(key):
-                open_nc.set_attribute(key, original_nc.attribute(self._mapping_data['copy_metadata'][key]))
+                open_nc.set_attribute(key, original_nc.getncattr(self._mapping_data['copy_metadata'][key]))
 
     def _set_metadata_from_file_name(self, open_nc: Dataset, platform, start_time, data_mode):
         if data_mode == 'R':
@@ -174,9 +174,9 @@ class OpenGliderConverter:
         open_nc.set_attribute('id', f"{platform}_{start_time}_{data_mode}")
 
     def _set_geospatial_bounds_metadata(self, open_nc: Dataset, original_nc: Dataset):
-        min_lat, max_lat = original_nc.variable('LATITUDE').range()
+        min_lat, max_lat = original_nc.getvar('LATITUDE').range()
         self.breakpoint()
-        min_lon, max_lon = original_nc.variable('LONGITUDE').range()
+        min_lon, max_lon = original_nc.getvar('LONGITUDE').range()
         self.breakpoint()
         open_nc.set_attribute('geospatial_lat_min', min_lat)
         open_nc.set_attribute('geospatial_lat_max', max_lat)
@@ -228,7 +228,7 @@ class OpenGliderConverter:
                 if original_nc.has_variable(test_name):
                     var.set_attribute('ancilliary_variables', f'{var_name}_QC')
             if original_nc.has_variable(copy_from):
-                original_var = original_nc.variable(copy_from)
+                original_var = original_nc.getvar(copy_from)
                 original_data = original_var.data()
                 if 'data_processor' in var_config and var_config['data_processor'] is not None:
                     data_processor = dynamic_object(var_config['data_processor'])
@@ -248,11 +248,11 @@ class OpenGliderConverter:
             param_config = self._mapping_data['parameters'][param_name]
             if not original_nc.has_variable(param_config['copy_data_from']):
                 continue
-            data = original_nc.variable(param_config['copy_data_from']).data()
+            data = original_nc.getvar(param_config['copy_data_from']).data()
             if all(math.isnan(x) for x in data):
                 continue
             self._create_variable(open_nc, original_nc, param_name, param_config, as_parameter=True)
-            var = open_nc.variable(param_name)
+            var = open_nc.getvar(param_name)
             var.set_attribute('coordinates', "TIME,LONGITUDE,LATITUDE,DEPTH")
             if param_name in sensor_map:
                 var.set_attribute('sensor', sensor_map[param_name])
@@ -278,13 +278,13 @@ class OpenGliderConverter:
 
 
     def _build_depths(self, open_nc: Dataset, original_nc: Dataset):
-        pressures = original_nc.variable('PRES').data()
+        pressures = original_nc.getvar('PRES').data()
         self.breakpoint()
-        pressures_qc = original_nc.variable('PRES_QC').data()
+        pressures_qc = original_nc.getvar('PRES_QC').data()
         self.breakpoint()
-        latitudes = original_nc.variable('LATITUDE').data()
+        latitudes = original_nc.getvar('LATITUDE').data()
         self.breakpoint()
-        latitudes_qc = original_nc.variable('POSITION_QC').data()
+        latitudes_qc = original_nc.getvar('POSITION_QC').data()
         self.breakpoint()
         depths = []
         for x in range(0, len(pressures)):
@@ -297,11 +297,11 @@ class OpenGliderConverter:
         if actual_values:
             open_nc.set_attribute('geospatial_vertical_min', min(actual_values))
             open_nc.set_attribute('geospatial_vertical_max', max(actual_values))
-        open_nc.variable('DEPTH').set_data(depths)
+        open_nc.getvar('DEPTH').set_data(depths)
         self.breakpoint()
 
     def _build_times(self, open_nc: Dataset, original_nc: Dataset):
-        times = original_nc.variable('JULD').data()
+        times = original_nc.getvar('JULD').data()
         seconds = []
         min_time = None
         max_time = None
@@ -319,7 +319,7 @@ class OpenGliderConverter:
                     max_time = actual_time
             seconds.append(time_delta.total_seconds())
             self.breakpoint()
-        open_nc.variable('TIME').set_data(seconds)
+        open_nc.getvar('TIME').set_data(seconds)
         self.breakpoint()
         open_nc.set_attribute('time_coverage_start', min_time.strftime('%Y%m%dT%H%M%SZ'))
         open_nc.set_attribute('time_coverage_end', max_time.strftime('%Y%m%dT%H%M%SZ'))
@@ -339,11 +339,11 @@ class OpenGliderConverter:
         contributors = []
         institutions = []
         if original_nc.has_attribute('principal_investigator'):
-            for pi in original_nc.attribute('principal_investigator').split(';'):
+            for pi in original_nc.getncattr('principal_investigator').split(';'):
                 contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
-        for op in original_nc.variable('OPERATING_INSTITUTION').as_string().split(';'):
+        for op in original_nc.getvar('OPERATING_INSTITUTION').as_string().split(';'):
             institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
-        for owner in original_nc.variable('GLIDER_OWNER').as_string().split(';'):
+        for owner in original_nc.getvar('GLIDER_OWNER').as_string().split(';'):
             institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
         for inst in institutions:
             if inst[0] == 'C-PROOF':
@@ -358,8 +358,8 @@ class OpenGliderConverter:
                 # BIO
                 open_nc.set_attribute('infoUrl', '')
         else:
-            mission_id = open_nc.attribute('id')
-            network = open_nc.attribute('network') if open_nc.has_attribute('network') else ''
+            mission_id = open_nc.getncattr('id')
+            network = open_nc.getncattr('network') if open_nc.has_attribute('network') else ''
             if 'C-PROOF' in network or any(mission_id.startswith(x) for x in ('hal_1002', 'k_999', 'marvin_1003', 'rosie_713', 'Wall_E_652', 'mike_rorider',  'SEA035', 'SEA046')):
                 # CRPOOF
                 open_nc.set_attribute("infoUrl", "https://cproof.uvic.ca/")
@@ -384,7 +384,7 @@ class OpenGliderConverter:
         open_nc.set_attribute('contributing_institutions_role_vocabulary', 'https://vocab.nerc.ac.uk/collection/W08/current/')
 
     def _build_deployment_info(self, open_nc: Dataset, original_nc: Dataset, platform: str, start_time: str):
-        deploy_start = original_nc.variable('DEPLOYMENT_START_DATE').as_string().strip()
+        deploy_start = original_nc.getvar('DEPLOYMENT_START_DATE').as_string().strip()
         if len(deploy_start) == 8:
             start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d')
         elif len(deploy_start) == 12:
@@ -394,48 +394,48 @@ class OpenGliderConverter:
         else:
             raise CNODCError(f"Unknown date format for [{deploy_start}]")
         open_nc.set_attribute('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))
-        open_nc.variable('TRAJECTORY').set_data_from_string(f"{platform}_{start_time}")
-        open_nc.variable('DEPLOYMENT_TIME').set_data((start_date - self._base_time).total_seconds())
+        open_nc.getvar('TRAJECTORY').set_data_from_string(f"{platform}_{start_time}")
+        open_nc.getvar('DEPLOYMENT_TIME').set_data((start_date - self._base_time).total_seconds())
 
     def _build_glider_info(self, open_nc: Dataset, original_nc: Dataset, platform_name):
-        open_nc.variable('PLATFORM_NAME').set_data_from_string(platform_name)
-        open_nc.variable('WMO_IDENTIFIER').set_data_from_string(original_nc.attribute('wmo_platform_code'))
-        ego_model_code = original_nc.variable('PLATFORM_TYPE').as_string()
+        open_nc.getvar('PLATFORM_NAME').set_data_from_string(platform_name)
+        open_nc.getvar('WMO_IDENTIFIER').set_data_from_string(original_nc.getncattr('wmo_platform_code'))
+        ego_model_code = original_nc.getvar('PLATFORM_TYPE').as_string()
         if ego_model_code.lower() not in self._mapping_data['glider_model_map']:
             raise CNODCError(f'Unknown platform model: {ego_model_code}')
         model_info = self._mapping_data['glider_model_map'][ego_model_code.lower()]
-        open_nc.variable('PLATFORM_MODEL').set_data_from_string(model_info['model'])
-        serial_no = original_nc.variable('GLIDER_SERIAL_NO').as_string()
-        open_nc.variable('PLATFORM_SERIAL_NUMBER').set_data_from_string(f"{model_info['prefix']}{serial_no}")
-        open_nc.variable('PLATFORM_MAKER').set_data_from_string(model_info['maker'])
-        battery_type = original_nc.variable('BATTERY_TYPE').as_string()
+        open_nc.getvar('PLATFORM_MODEL').set_data_from_string(model_info['model'])
+        serial_no = original_nc.getvar('GLIDER_SERIAL_NO').as_string()
+        open_nc.getvar('PLATFORM_SERIAL_NUMBER').set_data_from_string(f"{model_info['prefix']}{serial_no}")
+        open_nc.getvar('PLATFORM_MAKER').set_data_from_string(model_info['maker'])
+        battery_type = original_nc.getvar('BATTERY_TYPE').as_string()
         if battery_type:
             if battery_type not in self._mapping_data['battery_type_map']:
                 raise CNODCError(f'Unknown battery type: {battery_type}')
-            open_nc.variable('BATTERY_TYPE').set_data_from_string(self._mapping_data['battery_type_map'][battery_type])
+            open_nc.getvar('BATTERY_TYPE').set_data_from_string(self._mapping_data['battery_type_map'][battery_type])
         # BATTERY_PACKS??
         # FIRMWARE_VERSION_NAVIGATION
         # FIRMWAVE_VERSION_SCIENCE
         # GLIDER_MANUAL_VERSION
         trans_systems = set()
-        for sys_name in original_nc.variable('TRANS_SYSTEM').all_as_strings():
+        for sys_name in original_nc.getvar('TRANS_SYSTEM').all_as_strings():
             if not sys_name:
                 continue
             if sys_name.lower() not in self._mapping_data['trans_system_type_map']:
                 raise CNODCError(f'Unknown transmission system: {sys_name}')
             trans_systems.add(self._mapping_data['trans_system_type_map'][sys_name.lower()])
-        open_nc.variable('TELECOM_TYPE').set_data_from_string(','.join(trans_systems))
+        open_nc.getvar('TELECOM_TYPE').set_data_from_string(','.join(trans_systems))
         track_systems = set()
-        for sys_name in original_nc.variable('POSITIONING_SYSTEM').all_as_strings():
+        for sys_name in original_nc.getvar('POSITIONING_SYSTEM').all_as_strings():
             if not sys_name:
                 continue
             if sys_name.lower() not in self._mapping_data['track_system_type_map']:
                 raise CNODCError(f'Unknown positioning system: {sys_name}')
             track_systems.add(self._mapping_data['track_system_type_map'][sys_name.lower()])
-        open_nc.variable('TRACKING_SYSTEM').set_data_from_string(','.join(track_systems))
+        open_nc.getvar('TRACKING_SYSTEM').set_data_from_string(','.join(track_systems))
 
     def _build_phase_info(self, original_nc, open_nc):
-        phase_data = original_nc.variable('PHASE').data()
+        phase_data = original_nc.getvar('PHASE').data()
         new_phase_data = []
         new_phase_qc = []
         for phase_info in phase_data:
@@ -445,8 +445,8 @@ class OpenGliderConverter:
             else:
                 new_phase_data.append(int(self._mapping_data['phase_map'][int(phase_info)]))
                 new_phase_qc.append(0)
-        open_nc.variable('PHASE').set_data(new_phase_data)
-        open_nc.variable('PHASE_QC').set_data(new_phase_qc)
+        open_nc.getvar('PHASE').set_data(new_phase_data)
+        open_nc.getvar('PHASE_QC').set_data(new_phase_qc)
 
 
 def validate_glider_file(file: pathlib.Path, metadata: dict):
