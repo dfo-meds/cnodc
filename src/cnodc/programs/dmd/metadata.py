@@ -10,6 +10,7 @@ import netCDF4
 from cnodc.util.netcdf import Dataset, _Variable
 from autoinject import injector
 from cnodc.util import unnumpy
+import netCDF4 as nc
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -2330,8 +2331,9 @@ class DatasetMetadata:
             GCAudience.Scientists
         )
 
-    def set_from_netcdf_file(self, dataset: Dataset, default_lang: str = 'en'):
-        attrs = { x: v for x, v in dataset.attributes()}
+    def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en'):
+        # TODO: tomorrow
+        attrs = { x: dataset.getncattr(x) for x, v in dataset.ncattrs()}
         locale_map = {}
         primary_locale = Locale.CanadianEnglish
         secondary_locales = []
@@ -2364,9 +2366,12 @@ class DatasetMetadata:
             locale_map['_en'] = 'en'
             locale_map['_fr'] = 'fr'
         depths = ['seaSurface']
-        for ds_var in dataset.variables():
-            if ds_var.has_attribute('axis') and ds_var.attribute('axis') == 'Z':
-
+        for var_name in dataset.variables:
+            ds_var = dataset.variables[var_name]
+            ds_var_attrs = {
+                x: getattr(ds_var, x) for x in ds_var.ncattrs()
+            }
+            if 'axis' in ds_var_attrs and ds_var_attrs['axis'] == 'Z':
                 min_z, max_z = ds_var.range()
                 if ds_var.has_attribute('positive') and ds_var.attribute('positive') == 'up':
                     if min_z < 0:

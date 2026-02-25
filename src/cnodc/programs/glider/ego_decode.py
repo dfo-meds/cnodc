@@ -40,7 +40,7 @@ class GliderEGOMapper(NetCDFCommonMapper):
         for key in self._record_metadata:
             record.set_element(key, self._record_metadata[key])
 
-    def _after_element(self, element: SingleElement, minfo: dict, data: dict[str, t.Any]):
+    def _after_element(self, element: SingleElement, minfo: dict, data: t.Optional[dict[str, t.Any]] = None):
         extra_metadata = {}
         if 'source' in minfo and minfo['source'] and minfo['source'] in self._sensor_map:
             info = self._sensor_info[self._sensor_map[minfo['source']]]
