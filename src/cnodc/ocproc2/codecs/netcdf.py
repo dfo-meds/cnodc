@@ -36,7 +36,7 @@ class NetCDFDecoder(BaseCodec):
             yield DecodeResult(exc=ex)
 
     def _build_from_netcdf(self, dataset: nc.Dataset, **kwargs) -> t.Optional[list[ParentRecord]]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage
 
 
 class NetCDFCommonDecoderError(CNODCError):
@@ -73,15 +73,17 @@ class NetCDFCommonMapper:
 
     @injector.construct
     def __init__(self, dataset: nc.Dataset, mapping_file: t.Union[pathlib.Path, dict], log_name: str = "cnodc.netcdf.common_mapper"):
-        if isinstance(mapping_file, dict):
-            self._map_file = None
-            self._data = mapping_file
-        else:
+        if isinstance(mapping_file, (str, pathlib.Path)):
             self._map_file = mapping_file
             self._data = None
+        else:
+            self._map_file = None
+            self._data = mapping_file
         self._dataset: nc.Dataset = dataset
+        self._data_validated: bool = False
         self._cache = {}
         self._log = logging.getLogger(log_name)
+
 
     def _load_data(self):
         if self._data is None:
@@ -90,6 +92,7 @@ class NetCDFCommonMapper:
                     self._data = yaml.safe_load(h)
             except OSError:
                 raise NetCDFCommonDecoderError(f"No mapping file or invalid file found at [{self._map_file}]", 2000)
+        if not self._data_validated:
             if not isinstance(self._data, dict):
                 raise NetCDFCommonDecoderError("Mapping file is not a YAML dictionary", 2001)
             if 'ocproc2_map' not in self._data or not isinstance(self._data['ocproc2_map'], dict):
@@ -99,6 +102,7 @@ class NetCDFCommonMapper:
             if self._get_ocproc2_map()['key_var'] is None:
                 raise NetCDFCommonDecoderError("Missing a variable with [is_index=yes] in ocproc2_map", 2004)
             self._on_data_load()
+            self._data_validated = True
 
     def _on_data_load(self):
         pass
@@ -189,7 +193,7 @@ class NetCDFCommonMapper:
                 if element is not None:
                     self._cache['global_elements'].append((key, element))
         for key, element in self._cache['global_elements']:
-            self._apply_element(record, element, self._data[ocproc_map['global'][key]])
+            self._apply_element(record, element, ocproc_map['global'][key])
 
     def _apply_element(self, record, element, map_info, target_name=None):
         target_name = target_name or map_info['target']
