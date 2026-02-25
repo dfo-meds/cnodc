@@ -1,6 +1,10 @@
+import datetime
+import logging
+
 import netCDF4 as nc
 import yaml
 
+from cnodc.ocproc2 import MultiElement, SingleElement
 from cnodc.util import CNODCError
 from cnodc.util.sanitize import str_to_netcdf, str_to_netcdf_vlen
 from core import BaseTestCase
@@ -359,3 +363,836 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 with self.subTest(record_no=idx):
                     self.assertIn('Bar2', record.metadata)
                     self.assertEqual("hello world", record.metadata['Bar2'].value)
+
+    def test_multiple_target_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'hello world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': ['metadata/Bar2', 'metadata/Bar3'],
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertEqual('hello world', record.metadata['Bar2'].value)
+                    self.assertIn('Bar3', record.metadata)
+                    self.assertEqual('hello world', record.metadata['Bar3'].value)
+
+    def test_multiple_value_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'hello world')
+            ds.setncattr('test3', 'bonjour le monde')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'allow_multiple': True,
+                    },
+                    'attribute:test3': {
+                        'target': 'metadata/Bar2',
+                        'allow_multiple': True,
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    self.assertEqual(2, len(record.metadata['Bar2'].value))
+                    data = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertIn('hello world', data)
+                    self.assertIn('bonjour le monde', data)
+
+    def test_missing_target_map(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'hello world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': 'metadata/Bar2/metadata/Quality',
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs('test', 'ERROR') as info:
+                records = [x for x in mapper.build_records()]
+                for x in info.records:
+                    self.assertEqual(x.levelno, logging.ERROR)
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
+    def test_missing_target_map_acceptable(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'hello world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2/metadata/Quality',
+                        'nowarn_missing_target': True,
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs('test', 'INFO') as info:
+                records = [x for x in mapper.build_records()]
+                for x in info.records:
+                    self.assertEqual(x.levelno, logging.INFO)
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
+    def test_no_such_attribute(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': 'metadata/Bar2',
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs("test", "WARNING"):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
+    def test_no_such_global_variable(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'globalvar:test2': 'metadata/Bar2',
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs("test", "WARNING"):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
+    def test_two_variables(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.createVariable('test2', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 5]
+            rev_values = [5, 4, 3, 2, 1]
+            ds.variables['test'][:] = values
+            ds.variables['test2'][:] = rev_values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'test2': 'metadata/Bar2',
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertEqual(rev_values[idx], record.metadata['Bar2'].value)
+
+    def test_missing_data_variable(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'test2': 'metadata/Bar2',
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs('test', 'WARNING'):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
+    def test_adjusted_data_variable(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.createVariable('test_adj', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 5]
+            updated = [2, 3, 4, 5, 6]
+            ds.variables['test'][:] = values
+            ds.variables['test_adj'][:] = updated
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                        'adjusted_source': 'test_adj'
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar', record.metadata)
+                    self.assertEqual(updated[idx], record.metadata['Bar'].value)
+                    self.assertIn('Unadjusted', record.metadata['Bar'].metadata)
+                    self.assertEqual(values[idx], record.metadata['Bar'].metadata['Unadjusted'].value)
+
+
+    def test_unadjusted_data_variable(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.createVariable('test_adj', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 5]
+            original = [2, 3, 4, 5, 6]
+            ds.variables['test'][:] = values
+            ds.variables['test_adj'][:] = original
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                        'unadjusted_source': 'test_adj'
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar', record.metadata)
+                    self.assertEqual(values[idx], record.metadata['Bar'].value)
+                    self.assertIn('Unadjusted', record.metadata['Bar'].metadata)
+                    self.assertEqual(original[idx], record.metadata['Bar'].metadata['Unadjusted'].value)
+
+    def test_qc_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.createVariable('test_qc', 'i4', ('FOO',))
+            values = [1, 2, 3, 4, 9]
+            qc_values = [1, 1, 1, 1, 4]
+            ds.variables['test'][:] = values
+            ds.variables['test_qc'][:] = qc_values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                        'qc_source': 'test_qc'
+                    }
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar', record.metadata)
+                    self.assertIn('Quality', record.metadata['Bar'].metadata)
+                    self.assertEqual(qc_values[idx], record.metadata['Bar'].metadata['Quality'].value)
+
+    def test_unit_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            v = ds.createVariable('test', 'i4', ('FOO',))
+            setattr(v, 'units', 'm')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    }
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar', record.metadata)
+                    self.assertIn('Units', record.metadata['Bar'].metadata)
+                    self.assertEqual("m", record.metadata['Bar'].metadata['Units'].value)
+
+    def test_good_unit_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            v = ds.createVariable('test', 'i4', ('FOO',))
+            setattr(v, 'units', 'm')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'coordinates/Depth',
+                        'is_index': True,
+                    }
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Depth', record.coordinates)
+                    self.assertIn('Units', record.coordinates['Depth'].metadata)
+                    self.assertEqual("m", record.coordinates['Depth'].metadata['Units'].value)
+
+    def test_bad_unit_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            v = ds.createVariable('test', 'i4', ('FOO',))
+            setattr(v, 'units', 's')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'coordinates/Depth',
+                        'is_index': True,
+                    }
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs("test", "WARNING"):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Depth', record.coordinates)
+                    self.assertIn('Units', record.coordinates['Depth'].metadata)
+                    self.assertEqual("s", record.coordinates['Depth'].metadata['Units'].value)
+
+    def test_empty_global_attribute_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', '')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': 'metadata/Bar2',
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
+    def test_add_metadata(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'hello world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'metadata': {
+                            'foo': 'bar',
+                            'extended': {
+                                '_value': 500,
+                                '_metadata': {
+                                    'Units': 'm',
+                                },
+                            }
+                        }
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIn('foo', record.metadata['Bar2'].metadata)
+                    self.assertEqual('bar', record.metadata['Bar2'].metadata['foo'].value)
+                    self.assertIn('extended', record.metadata['Bar2'].metadata)
+                    self.assertEqual(500, record.metadata['Bar2'].metadata['extended'].value)
+                    self.assertIn('Units', record.metadata['Bar2'].metadata['extended'].metadata)
+                    self.assertEqual('m', record.metadata['Bar2'].metadata['extended'].metadata['Units'].value)
+
+    def test_split_value_simple(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo', values)
+                    self.assertIn('bar', values)
+                    self.assertIn('hello', values)
+                    self.assertIn('world', values)
+
+
+    def test_split_value_one_list(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'allow_list_values': True,
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], SingleElement)
+                    self.assertEqual(4, len(record.metadata['Bar2'].value))
+                    self.assertIn('foo', record.metadata['Bar2'].value)
+                    self.assertIn('bar', record.metadata['Bar2'].value)
+                    self.assertIn('hello', record.metadata['Bar2'].value)
+                    self.assertIn('world', record.metadata['Bar2'].value)
+
+
+    def test_split_value_regex(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar,hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';|,',
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo', values)
+                    self.assertIn('bar', values)
+                    self.assertIn('hello', values)
+                    self.assertIn('world', values)
+
+    def test_data_mapping_local(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': {
+                            'foo': 'foo1',
+                            'bar': 'bar1',
+                            'hello': 'hello1',
+                            'world': 'world1',
+                        }
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo1', values)
+                    self.assertIn('bar1', values)
+                    self.assertIn('hello1', values)
+                    self.assertIn('world1', values)
+
+    def test_data_mapping_reuseable(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': 'foobar',
+                    },
+                },
+                'data_maps': {
+                    'foobar': {
+                        'foo': 'foo1',
+                        'bar': 'bar1',
+                        'hello': 'hello1',
+                        'world': 'world1',
+                    }
+                },
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo1', values)
+                    self.assertIn('bar1', values)
+                    self.assertIn('hello1', values)
+                    self.assertIn('world1', values)
+
+    def test_data_mapping_bad_data_map(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': 'foobar2',
+                    },
+                },
+                'data_maps': {
+                    'foobar': {
+                        'foo': 'foo1',
+                        'bar': 'bar1',
+                        'hello': 'hello1',
+                        'world': 'world1',
+                    }
+                },
+            }, 'test')
+            with self.assertLogs('test', 'ERROR'):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo', values)
+                    self.assertIn('bar', values)
+                    self.assertIn('hello', values)
+                    self.assertIn('world', values)
+
+    def test_data_mapping_missing_value(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': 'foobar',
+                    },
+                },
+                'data_maps': {
+                    'foobar': {
+                        'bar': 'bar1',
+                        'hello': 'hello1',
+                        'world': 'world1',
+                    }
+                },
+            }, 'test')
+            with self.assertLogs('test', 'ERROR'):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo', values)
+                    self.assertIn('bar1', values)
+                    self.assertIn('hello1', values)
+                    self.assertIn('world1', values)
+
+    def test_data_mapping_subkey(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': {
+                            'foo': {'key': 'foo1'},
+                            'bar': {'key': 'bar1'},
+                            'hello': {'key': 'hello1'},
+                            'world': {'key': 'world1'},
+                        },
+                        'data_map_key': 'key',
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo1', values)
+                    self.assertIn('bar1', values)
+                    self.assertIn('hello1', values)
+                    self.assertIn('world1', values)
+
+    def test_data_mapping_missing_subkey(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': {
+                            'foo': {'key2': 'foo1'},
+                            'bar': {'key': 'bar1'},
+                            'hello': {'key': 'hello1'},
+                            'world': {'key': 'world1'},
+                        },
+                        'data_map_key': 'key',
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            with self.assertLogs('test', 'ERROR'):
+                records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                    values = [x.value for x in record.metadata['Bar2'].all_values()]
+                    self.assertEqual(4, len(values))
+                    self.assertIn('foo', values)
+                    self.assertIn('bar1', values)
+                    self.assertIn('hello1', values)
+                    self.assertIn('world1', values)
+
+    def test_datetime_mapping(self):
+        for increment in ('seconds', 'minutes', 'hours', 'days', 'weeks', 'SECONDS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS'):
+            with self.subTest(increment=increment):
+                with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+                    ds.createDimension('FOO')
+                    v = ds.createVariable('test', 'i4', ('FOO',))
+                    setattr(v, 'units', f'{increment} since 1960-01-01T00:00:00+0000')
+                    values = [50, 100, 150, 200, 250]
+                    ds.variables['test'][:] = values
+                    mapper = NetCDFCommonMapper(ds, {
+                        'ocproc2_map': {
+                            'test': {
+                                'target': 'coordinates/Time',
+                                'data_processor': '_time_since',
+                                'is_index': True,
+                            }
+                        },
+                        'data_maps': {},
+                    }, 'test')
+                    base = datetime.datetime.fromisoformat('1960-01-01T00:00:00+0000')
+                    records = [x for x in mapper.build_records()]
+                    self.assertEqual(5, len(records))
+                    for idx, record in enumerate(records):
+                        with self.subTest(record_no=idx):
+                            self.assertIn('Time', record.coordinates)
+                            self.assertTrue(record.coordinates['Time'].is_iso_datetime())
+                            self.assertFalse(record.coordinates['Time'].is_empty())
+                            dt = record.coordinates['Time'].to_datetime()
+                            self.assertIsInstance(dt, datetime.datetime)
+                            self.assertEqual((base + datetime.timedelta(**{increment.lower(): values[idx]})), dt)
+
+    def test_invalid_increment(self):
+        for invalid_unit in ('foobar since 1960-01-01T00:00:00', 'foobar', 'seconds', 'seconds since 1960-13-30T00:00:00', None, 'seconds since ', 'i dont know'):
+            with self.subTest(invalid_unit=invalid_unit):
+                with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+                    ds.createDimension('FOO')
+                    v = ds.createVariable('test', 'i4', ('FOO',))
+                    if invalid_unit:
+                        setattr(v, 'units', invalid_unit)
+                    values = [50, 100, 150, 200, 250]
+                    ds.variables['test'][:] = values
+                    mapper = NetCDFCommonMapper(ds, {
+                        'ocproc2_map': {
+                            'test': {
+                                'target': 'coordinates/Time',
+                                'data_processor': '_time_since',
+                                'is_index': True,
+                            }
+                        },
+                        'data_maps': {},
+                    }, 'test')
+                    with self.assertRaises(NetCDFCommonDecoderError):
+                        _ = [x for x in mapper.build_records()]

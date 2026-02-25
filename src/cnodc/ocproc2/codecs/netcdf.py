@@ -14,7 +14,7 @@ from autoinject import injector
 from cnodc.science.units import UnitConverter
 from cnodc.util import unnumpy
 from cnodc.ocproc2.codecs.base import BaseCodec, ByteIterable, DecodeResult
-from cnodc.ocproc2 import ParentRecord, SingleElement
+from cnodc.ocproc2 import ParentRecord, SingleElement, MultiElement
 from cnodc.ocproc2.ontology import OCProc2Ontology
 from cnodc.util import CNODCError
 from cnodc.util.dynamic import dynamic_object
@@ -127,6 +127,12 @@ class NetCDFCommonMapper:
                         mapping_type = info['mapping_type']
                     if 'is_index' in info and info['is_index'] and mapping_type == 'var' and self._cache['ocproc_map']['key_var'] is None:
                         self._cache['ocproc_map']['key_var'] = source_name
+                    if 'unadjusted_source' in info and info['unadjusted_source']:
+                        self._cache['ocproc_map']['data_vars'].append(info['unadjusted_source'])
+                    if 'adjusted_source' in info and info['adjusted_source']:
+                        self._cache['ocproc_map']['data_vars'].append(info['adjusted_source'])
+                    if 'qc_source' in info and info['qc_source']:
+                        self._cache['ocproc_map']['data_vars'].append(info['qc_source'])
                     if 'data_map' in info and info['data_map'] and isinstance(info['data_map'], str):
                         if info['data_map'] not in self._data['data_maps'] or not isinstance(self._data['data_maps'][info['data_map']], dict):
                             self._log.error(f"Invalid data map [{info['data_map']}, ignoring")
@@ -157,11 +163,10 @@ class NetCDFCommonMapper:
                 continue
             var = self._dataset.variables[var_name]
             var_data = var[:]
+            # we only want the numeric data that comes in arrays
             if var.dtype != '|S1' and not var_data.ndim == 0:
                 if not all(math.isnan(d) for d in var_data):
                     data[var_name] = var_data
-            elif var_data.ndim != 0:
-                data[var_name] = var_data
         return data
 
     def build_records(self) -> t.Iterable[ParentRecord]:
@@ -207,8 +212,8 @@ class NetCDFCommonMapper:
             try:
                 action(target_name, element)
             except ValueError as ex:
-                if 'allow_missing' in map_info and map_info['allow_missing']:
-                    self._log.debug(f"Missing target [{target_name}]")
+                if 'nowarn_missing_target' in map_info and map_info['nowarn_missing_target']:
+                    self._log.info(f"Missing target [{target_name}]")
                 else:
                     self._log.exception(f"Missing target [{target_name}]")
 
@@ -225,21 +230,24 @@ class NetCDFCommonMapper:
             element = self._build_element_from_attribute(minfo)
         elif minfo['mapping_type'] == 'globalvar':
             element = self._build_element_from_single_variable(minfo)
-        else:
-            # we should never get here because we flag bad mapping types above
+        # we should never get here because we flag bad mapping types above
+        else:   # pragma: no coverage
             raise ValueError(f"Invalid mapping type [{minfo['mapping_type']}")
+
         if element is not None:
             self._after_element(element, minfo, data)
         return element
 
     def _build_element_from_attribute(self, minfo):
         if not self.has_attribute(minfo['source']):
+            self._log.warning(f"Missing attribute [{minfo['source']}]")
             return None
         value = self._process_value(self._dataset.getncattr(minfo['source']), minfo)
         return self._build_element_common(value, minfo)
 
     def _build_element_from_single_variable(self, minfo):
         if not self.has_variable(minfo['source']):
+            self._log.warning(f"Missing global variable [{minfo['source']}]")
             return None
         var = self._dataset.variables[minfo['source']]
         value = netcdf_bytes_to_string(var[:]) if var.dtype == '|S1' else unnumpy(var[:])
@@ -251,21 +259,36 @@ class NetCDFCommonMapper:
                                      data: dict[str, t.Any]):
         # Make sure our source value exists
         if minfo['source'] not in data:
+            self._log.warning(f"Missing data variable [{minfo['source']}]")
             return None
 
         # Get the source value and process it as necessary
         value = self._process_value(data[minfo['source']], minfo)
         unadjusted_value = None
 
-        # Check if there was an adjusted value (should not be true)
-        adjusted_name = f'{minfo['source']}_ADJUSTED'
-        if adjusted_name in data:
-            test_value = self._process_value(data[adjusted_name], minfo)
-            if test_value is not None:
-                unadjusted_value = value
-                value = test_value
+        # Check if there was an adjusted value
+        if 'adjusted_source' in minfo and minfo['adjusted_source']:
+            adjusted_name = minfo['adjusted_source']
+            if adjusted_name in data:
+                test_value = self._process_value(data[adjusted_name], minfo)
+                if test_value is not None:
+                    unadjusted_value = value
+                    value = test_value
+            else:
+                self._log.warning(f"Missing adjusted variable [{adjusted_name}]")
+
+        # Check if there was an unadjusted value
+        elif 'unadjusted_source' in minfo and minfo['unadjusted_source']:
+            unadjusted_name = minfo['unadjusted_source']
+            if unadjusted_name in data:
+                test_value = self._process_value(data[unadjusted_name], minfo)
+                if test_value is not None:
+                    unadjusted_value = test_value
+            else:
+                self._log.warning(f"Missing adjusted variable [{unadjusted_name}]")
 
         element = self._build_element_common(value, minfo, unadjusted_value)
+
 
         # Check for QC variable
         if 'qc_source' in minfo and minfo['qc_source'] and minfo['qc_source'] in data:
@@ -295,11 +318,19 @@ class NetCDFCommonMapper:
         if value is None and unadjusted is None:
             return None
         metadata = {}
-        if unadjusted is not None:
-            metadata['Unadjusted'] = unadjusted
         if 'metadata' in minfo and minfo['metadata']:
             metadata.update(self._build_metadata(minfo['metadata']))
-        element = SingleElement(value)
+        if unadjusted is not None:
+            metadata['Unadjusted'] = unadjusted
+        if isinstance(value, (list, set, tuple)):
+            if 'allow_list_values' in minfo and minfo['allow_list_values']:
+                element = SingleElement(value)
+            else:
+                element = MultiElement()
+                for v in value:
+                    element.append(SingleElement(v))
+        else:
+            element = SingleElement(value)
         if metadata:
             element.metadata.update(metadata)
         return element
@@ -320,11 +351,14 @@ class NetCDFCommonMapper:
             value = None
         if 'separator' in minfo and minfo['separator'] and value is not None:
             sep = minfo['separator']
-            value = [
-                y for y in
+            return [
+                self._process_individual_value(y, minfo) for y in
                 (x.strip() for x in (value.split(sep) if len(sep) == 1 else re.split(sep, value)))
                 if y
             ]
+        return self._process_individual_value(value, minfo)
+
+    def _process_individual_value(self, value, minfo):
         if 'data_map' in minfo and minfo['data_map']:
             if 'data_map_key' in minfo and minfo['data_map_key']:
                 value = self.map_value(minfo['data_map'], value, minfo['data_map_key'], raise_ex=False)
@@ -342,9 +376,6 @@ class NetCDFCommonMapper:
         return value
 
     def map_value(self, map_name_or_dict, item_name, sub_key: t.Optional[str] = None, coerce=None, raise_ex: bool = False):
-        # dive into sequences
-        if isinstance(item_name, (list, tuple, set)):
-            return [self.map_value(map_name_or_dict, x, coerce, raise_ex) for x in item_name]
         # empty items are empty
         if item_name is None or item_name == '':
             return None
@@ -354,7 +385,7 @@ class NetCDFCommonMapper:
         # find the appropriate data map
         if isinstance(map_name_or_dict, dict):
             data_map = map_name_or_dict
-        elif 'data_maps' in self._data and self._data['data_maps'] and map_name_or_dict in self._data['data_maps'][map_name_or_dict] and isinstance(self._data['data_maps'][map_name_or_dict], dict):
+        elif map_name_or_dict in self._data['data_maps'] and isinstance(self._data['data_maps'][map_name_or_dict], dict):
             data_map = self._data['data_maps'][map_name_or_dict]
         elif raise_ex:
             raise NetCDFCommonDecoderError(f"Missing map [{map_name_or_dict}]", 2000)
@@ -370,20 +401,24 @@ class NetCDFCommonMapper:
                     raise NetCDFCommonDecoderError(f'Missing subkey [{sub_key}] for [{map_name_or_dict}][{item_name}]', 2001)
                 else:
                     self._log.error(f'Missing subkey [{sub_key}] for [{map_name_or_dict}][{item_name}], defaulting to original value')
-                return data_map[item_name][sub_key]
-            return data_map[item_name]
+                    return item_name
+            else:
+                return data_map[item_name]
         elif raise_ex:
             raise NetCDFCommonDecoderError(f'Unknown value [{item_name}] for map [{map_name_or_dict}]', 2002)
         else:
             self._log.error(f'Unknown value [{item_name}] for map [{map_name_or_dict}], defaulting to original value')
             return item_name
 
-    def _time_since(self, value, var_name):
+    def _time_since(self, value, minfo):
+        if value is None or value == '':
+            return None
+        var_name = minfo['source']
         key = f'time_since_{var_name}'
         if key not in self._cache:
             units = self.get_units(var_name)
             if units is None:
-                raise NetCDFCommonDecoderError(f'Time since variable must have untis attribute: [{var_name}]', 1007, True)
+                raise NetCDFCommonDecoderError(f'Time since variable must have units attribute: [{var_name}]', 1007, True)
             pieces = units.split(' ', maxsplit=2)
             if len(pieces) != 3:
                 raise NetCDFCommonDecoderError(f"Invalid time since units: [{units}]", 1006, True)
@@ -405,15 +440,13 @@ class NetCDFCommonMapper:
     def var_to_string(self, var_name):
         return netcdf_bytes_to_string(self._dataset.variables[var_name][:])
 
-    def get_units(self, var_name) -> t.Optional[str]:
-        var = self._dataset[var_name]
+    def get_units(self, var_name: str) -> t.Optional[str]:
+        var = self._dataset.variables[var_name]
         if any('units' == x for x in var.ncattrs()):
-            return var.ncattr('units')
+            return getattr(var, 'units')
         return None
 
     @staticmethod
     def _decode_time_since(value, increments: str, epoch: datetime.datetime):
-        if value is None:
-            return None
         return epoch + datetime.timedelta(**{increments: float(value)})
 
