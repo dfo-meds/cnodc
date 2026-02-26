@@ -384,6 +384,7 @@ class NetCDFCommonMapper:
         if item_name is None or item_name == '':
             return None
         # coerce if needed
+        item_name = item_name.lower()
         if coerce:
             item_name = coerce(item_name)
         # find the appropriate data map

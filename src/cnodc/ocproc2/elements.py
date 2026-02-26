@@ -147,7 +147,12 @@ class AbstractElement:
 
     @staticmethod
     def build_from_mapping(map_: t.Any):
-        if not isinstance(map_, dict):
+        type_name = type(map_).__name__
+        if type_name == 'list':
+            return MultiElement(
+                AbstractElement.build_from_mapping(x) for x in map_
+            )
+        elif type_name != 'dict':
             return SingleElement(map_, _skip_normalization=True)
         else:
             try:
@@ -293,16 +298,15 @@ class SingleElement(AbstractElement):
         self._value = normalize_data_value(value)
 
     def to_mapping(self):
-        md = self._metadata.to_mapping() if self._metadata else None
+        md = self.metadata.to_mapping() if self._metadata else None
         if md:
             return {
                 '_value': self._value,
                 '_metadata': md
             }
-        elif isinstance(self._value, dict):
+        elif type(self._value).__name__ in ('dict', 'list'):
             return {
                 '_value': self._value,
-                '_metadata': {}
             }
         else:
             return self._value
@@ -395,10 +399,12 @@ class MultiElement(AbstractElement):
         self._value.append(value)
 
     def to_mapping(self):
-        return {
-            '_values': [v.to_mapping() for v in self._value],
-            '_metadata': self._metadata.to_mapping() if self._metadata else {}
-        }
+        if self.metadata:
+            return {
+                '_values': [v.to_mapping() for v in self._value],
+                '_metadata': self._metadata.to_mapping()
+            }
+        return [v.to_mapping() for v in self._value]
 
 
 class ElementMap(LazyLoadDict[AbstractElement]):
