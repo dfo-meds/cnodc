@@ -16,20 +16,25 @@ import cnodc.programs.dmd.metadata as metadata
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf_vlen
 
 
-def ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
+def ego_sensor_info(ds: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
+    if 'PARAMETER' in ds.variables:
+        return _ego_new_sensor_info(ds)
+    else:
+        return _ego_old_sensor_info(ds, sensor_map)
+
+def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
     sensors = {}
     sensors_seen = set()
     param_map = {}
     for var_name in original_nc.variables:
         var = original_nc.variables[var_name]
-        var_attrs = [x for x in var.ncattrs()]
-        if 'sensor_name' in var_attrs:
+        if not hasattr(var, 'sensor_name'):
             continue
         sensor_full_name = normalize_string(getattr(var, 'sensor_name').strip().lower())
         if sensor_full_name not in sensor_map:
             raise NetCDFCommonDecoderError(f"Unknown sensor [{sensor_full_name}]", 3000)
         info: dict = copy(sensor_map[sensor_full_name])
-        info['serial'] = getattr(var, 'sensor_serial_number') if 'sensor_serial_number' in var_attrs else 'unknown'
+        info['serial'] = getattr(var, 'sensor_serial_number') if hasattr(var, 'sensor_serial_number') else 'unknown'
         key = f"SENSOR_{info['type']}_{info['serial']}"
         if key in sensors_seen:
             continue
@@ -39,7 +44,7 @@ def ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str,
     return sensors, param_map
 
 
-def ego_new_sensor_info(original_nc: nc.Dataset):
+def _ego_new_sensor_info(original_nc: nc.Dataset):
     sensor_names = [netcdf_bytes_to_string(x) for x in original_nc.variables['SENSOR'][:]]
     sensor_makers = [netcdf_bytes_to_string(x) for x in original_nc.variables['SENSOR_MAKER'][:]]
     sensor_models = [netcdf_bytes_to_string(x) for x in original_nc.variables['SENSOR_MODEL'][:]]
@@ -119,8 +124,8 @@ class OpenGliderConverter:
             for var in dmd.get_variables():
                 if var.get_source_name() in ('LATITUDE', 'LONGITUDE', 'DEPTH', 'TIME'):
                     var.set_destination_name(var.get_source_name().lower())
-            if 'users' in self._mapping_data and self._mapping_data['users']:
-                for user in self._mapping_data['users']:
+            if 'users' in self._mapping_data['netcdf_conversion'] and self._mapping_data['netcdf_conversion']['users']:
+                for user in self._mapping_data['netcdf_conversion']['users']:
                     dmd.add_user(user)
             dmd.set_erddap_info(
                 server=metadata.Common.ERDDAP_Primary,
@@ -161,14 +166,14 @@ class OpenGliderConverter:
         open_nc.createDimension("N_MEASUREMENTS", None)
 
     def _map_static_metadata(self, open_nc: nc.Dataset):
-        for key in self._mapping_data['static_metadata']:
-            open_nc.setncattr(key, self._mapping_data['static_metadata'][key])
+        for key in self._mapping_data['netcdf_conversion']['static_metadata']:
+            open_nc.setncattr(key, self._mapping_data['netcdf_conversion']['static_metadata'][key])
 
     def _copy_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
         attrs = [x for x in original_nc.ncattrs()]
-        for key in self._mapping_data['copy_metadata']:
+        for key in self._mapping_data['netcdf_conversion']['copy_metadata']:
             if key in attrs:
-                open_nc.setncattr(key, original_nc.getncattr(self._mapping_data['copy_metadata'][key]))
+                open_nc.setncattr(key, original_nc.getncattr(self._mapping_data['netcdf_conversion']['copy_metadata'][key]))
 
     def _set_metadata_from_file_name(self, open_nc: nc.Dataset, platform, start_time, data_mode):
         if data_mode == 'R':
@@ -194,10 +199,7 @@ class OpenGliderConverter:
         open_nc.setncattr('geospatial_lon_max', np.max(longitudes))
 
     def _set_sensor_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
-        if 'PARAMETER' not in original_nc.variables:
-            sensor_info, param_map = ego_old_sensor_info(original_nc, self._get_data_map('sensors'))
-        else:
-            sensor_info, param_map = ego_new_sensor_info(original_nc)
+        sensor_info, param_map = ego_sensor_info(original_nc, self._get_data_map('sensors'))
         self._create_openglider_sensor_vars(open_nc, sensor_info)
         return param_map
 
@@ -215,8 +217,8 @@ class OpenGliderConverter:
             self.breakpoint()
 
     def _build_variables(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
-        for var_name in self._mapping_data['variables']:
-            var_config = self._mapping_data['variables'][var_name]
+        for var_name in self._mapping_data['netcdf_conversion']['variables']:
+            var_config = self._mapping_data['netcdf_conversion']['variables'][var_name]
             if 'copy_data_from' in var_config and var_config['copy_data_from'] and not var_config['copy_data_from'] in original_nc.variables:
                 continue
             self._create_variable(open_nc, original_nc, var_name, var_config)
@@ -248,8 +250,8 @@ class OpenGliderConverter:
         return var
 
     def _build_parameters(self, open_nc: nc.Dataset, original_nc: nc.Dataset, sensor_map: dict[str, str]):
-        for param_name in self._mapping_data['parameters']:
-            param_config = self._mapping_data['parameters'][param_name]
+        for param_name in self._mapping_data['netcdf_conversion']['parameters']:
+            param_config = self._mapping_data['netcdf_conversion']['parameters'][param_name]
             if param_config['copy_data_from'] not in original_nc.variables:
                 continue
             data = original_nc.variables[param_config['copy_data_from']][:]

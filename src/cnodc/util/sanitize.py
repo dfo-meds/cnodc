@@ -18,12 +18,12 @@ UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u
 def netcdf_bytes_to_string(byte_sequence, encoding='utf-8'):
     return normalize_string(b''.join(bytes(x) for x in byte_sequence).replace(b'\x00', b'').decode(encoding))
 
-def str_to_netcdf_vlen(s: t.Union[list[str], str]):
+def str_to_netcdf_vlen(s: t.Union[t.Sequence[str], str]):
     if isinstance(s, str):
         s = [s]
     return np.array([s], dtype=object)
 
-def str_to_netcdf(s: t.Union[list[str], str], fixed_len: int):
+def str_to_netcdf(s: t.Union[t.Sequence[str], str], fixed_len: int):
     if isinstance(s, str):
         s = [s]
     return nc.stringtochar(np.array(s, dtype=f"S{fixed_len}"))

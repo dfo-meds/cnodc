@@ -4,7 +4,6 @@ import typing as t
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper
 from cnodc.ocproc2 import SingleElement, ParentRecord
 import cnodc.programs.glider.ego_convert as ego_convert
-from cnodc.util.sanitize import netcdf_bytes_to_string
 
 
 class GliderEGOMapper(NetCDFCommonMapper):
@@ -19,10 +18,7 @@ class GliderEGOMapper(NetCDFCommonMapper):
 
     def _on_data_load(self):
         if self._sensor_map is None:
-            if self.has_variable('PARAMETER'):
-                self._sensor_info, self._sensor_map = ego_convert.ego_new_sensor_info(self._dataset)
-            else:
-                self._sensor_info, self._sensor_map = ego_convert.ego_old_sensor_info(self._dataset, self._data['sensor_map'])
+            self._sensor_info, self._sensor_map = ego_convert.ego_sensor_info(self._dataset, self._data['data_maps']['sensor_map'])
         if self._record_metadata is None:
             self._record_metadata = {}
             if self.has_variable('PLATFORM_TYPE'):
