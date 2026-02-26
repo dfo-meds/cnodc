@@ -571,12 +571,12 @@ ocproc2_map:
 
   attribute:observatory:
     target: metadata/Observatory
-    data_map: institution_map
+    data_map: institutions
     separator: '[;,]'
 
   attribute:institution:
     target: metadata/Institution
-    data_map: institution_map
+    data_map: institutions
     separator: '[;,]'
 
   attribute:principal_investigator:
@@ -585,11 +585,11 @@ ocproc2_map:
 
   attribute:data_mode:
     target: metadata/CNODCLevel
-    data_map: data_mode_map
+    data_map: data_modes
 
   attribute:update_interval:
     target: metadata/DataUpdateInterval
-    data_map: update_frequency_map
+    data_map: update_frequencies
 
   globalvar:DEPLOYMENT_END_DATE: metadata/EndDate
   globalvar:DEPLOYMENT_END_LATITUDE: metadata/EndLatitude
@@ -606,7 +606,7 @@ ocproc2_map:
 
   globalvar:PLATFORM_FAMILY:
     target: metadata/PlatformCategory
-    data_map: family_map
+    data_map: glider_families
 
   globalvar:DEPLOYMENT_START_QC:
     target:
@@ -641,7 +641,7 @@ ocproc2_map:
 
   globalvar:BATTERY_TYPE:
     target: metadata/BatteryType
-    data_map: battery_map
+    data_map: battery_types
 
   globalvar:ANOMALY:
     target: metadata/Notes
@@ -650,19 +650,19 @@ ocproc2_map:
 
   globalvar:OPERATING_INSTITUTION:
     target: metadata/Operator
-    data_map: institution_map
+    data_map: institutions
     separator: '[;,]'
 
   globalvar:GLIDER_OWNER:
     target: metadata/PlatformOwner
-    data_map: institution_map
+    data_map: institutions
     separator: '[;,]'
 
   var:JULD:
     target: coordinates/Time
     source: JULD
     qc_source: TIME_QC
-    mapping_type: time_since
+    data_processor: _time_since
     no_units: yes
     metadata:
       SensorType: interpolated

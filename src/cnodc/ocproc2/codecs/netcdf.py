@@ -12,6 +12,7 @@ import netCDF4 as nc
 from autoinject import injector
 
 from cnodc.science.units import UnitConverter
+from cnodc.science.units.structures import UnitError
 from cnodc.util import unnumpy
 from cnodc.ocproc2.codecs.base import BaseCodec, ByteIterable, DecodeResult
 from cnodc.ocproc2 import ParentRecord, SingleElement, MultiElement
@@ -135,7 +136,7 @@ class NetCDFCommonMapper:
                         self._cache['ocproc_map']['data_vars'].append(info['qc_source'])
                     if 'data_map' in info and info['data_map'] and isinstance(info['data_map'], str):
                         if info['data_map'] not in self._data['data_maps'] or not isinstance(self._data['data_maps'][info['data_map']], dict):
-                            self._log.error(f"Invalid data map [{info['data_map']}, ignoring")
+                            self._log.error(f"Invalid data map [{info['data_map']}], ignoring")
                             del info['data_map']
                     info.update({
                         'source': source_name,
@@ -309,8 +310,11 @@ class NetCDFCommonMapper:
         if element_info is not None:
             current_units = element.metadata.best_value('Units', None)
             if current_units and element_info.preferred_unit:
-                if not self.units.compatible(current_units, element_info.preferred_unit):
-                    self._log.warning(f"Invalid units [{current_units}] for element [{element_info.name}] from [{minfo['source']}]")
+                try:
+                    if not self.units.compatible(current_units, element_info.preferred_unit):
+                        self._log.warning(f"Invalid units [{current_units}] for element [{element_info.name}] from [{minfo['source']}]")
+                except UnitError as ex:
+                    self._log.exception(f"Invalid units [{current_units}] for element [{element_info.name}] from [{minfo['source']}]")
 
         return element
 

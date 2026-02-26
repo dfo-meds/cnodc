@@ -4,9 +4,42 @@ import cnodc.science.units.units as un
 import typing as t
 
 from cnodc.util.exceptions import CNODCError
+from science.units.test_parsing import TestUnitParsing
 
 
 class TestConversions(ut.TestCase):
+
+    VALID_UNITS = {
+        'hPa': 'hPa',
+        'dbar': 'dbar',
+        'bar': 'bar',
+        'mbar': 'mbar',
+        'h': 'h',
+        's': 's',
+        'umol': 'umol',
+        'L': 'L',
+        'm': 'm',
+        'm-1': 'm-1',
+        'decibar': 'dbar',
+        'mg/m3': 'mg m-3',
+        'mg m-3': 'mg m-3',
+        'K-1 J m': 'J m K-1',
+        '1': '1',
+        'K': 'K',
+        '°C': 'degrees_Celsius',
+        'degree_Celsius': 'degrees_Celsius',
+        'degree_C': 'degrees_Celsius',
+        'ppb': 'ppb',
+        'umol l-1': 'umol L-1',
+        'micromol/kg': 'umol kg-1',
+        'micromol/l': 'umol L-1',
+        'mhos/m': 'S m-1',
+        's-1': 's-1',
+        'Hz': 'Hz',
+        'degree': 'arc_degree',
+        'degree_east': 'degrees_east',
+        'degree_north': 'degrees_north'
+    }
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -55,10 +88,8 @@ class TestConversions(ut.TestCase):
         self.assertRaises(CNODCError, self._converter.convert, 1, 'm s-2', 'm s')
 
     def test_valid_unit(self):
-        valid_units = [
-            'hPa', 'dbar', 'bar', 'mbar', 'h', 's', 'umol', 'L', 'm'
-        ]
-        for unit in valid_units:
+
+        for unit in TestConversions.VALID_UNITS:
             with self.subTest(unit=unit):
                 self.assertTrue(self._converter.is_valid_unit(unit))
 
@@ -71,10 +102,10 @@ class TestConversions(ut.TestCase):
                 self.assertFalse(self._converter.is_valid_unit(unit))
 
     def test_standardize_units(self):
-        self.assertEqual(self._converter.standardize('kg'), 'kg')
-        self.assertEqual(self._converter.standardize('m s-1'), 'm s-1')
         self.assertEqual(self._converter.standardize('psu'), '0.001')
-        self.assertEqual(self._converter.standardize('micromole/l'), 'umol L-1')
+        for x in TestConversions.VALID_UNITS:
+            with self.subTest(unit=x):
+                self.assertEqual(TestConversions.VALID_UNITS[x], self._converter.standardize(x))
         self.assertIsNone(self._converter.standardize('foobarmonkeyhat'))
 
     def test_compatible_units(self):

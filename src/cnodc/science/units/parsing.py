@@ -66,7 +66,7 @@ def _parse_unit_for_groups(units: str) -> UnitExpression:
                 raise UnitError(f"Operation cannot be followed by an exponentiation immediately", 1000)
             if expr is None:
                 raise UnitError(f"Exponentiation cannot be at the start", 1001)
-            expr = Exponent(expr, int(piece[1:]))
+            expr = Exponent(expr, Integer(str(int(piece[1:]))))
         elif piece in UDUNITS_MULTIPLICATION:
             if op is not None:
                 raise UnitError(f"Operation cannot be followed by multiplication immediately", 1002)
@@ -194,13 +194,15 @@ def _decompose_bracket_pairs(units: str) -> list[str]:
 def _parse_simple_unit_string(units: str) -> UnitExpression:
     """ Parse a simple unit string into objects. """
     units = units.strip()
+    if _is_literal(units):
+        return _parse_literal(units)
     expr = None
     op = None
     pieces = _decompose_simple_unit_string(units)
     for piece in pieces:
         # The first piece is just an expression
         if expr is None:
-            expr = _parse_unit_for_exponents(piece)
+            expr = _parse_unit_for_exponents_and_leading(piece)
 
         # If we have an expression, we need to look for operations
         elif piece in UDUNITS_DIVISION:
@@ -210,7 +212,7 @@ def _parse_simple_unit_string(units: str) -> UnitExpression:
 
         # Or the next element
         else:
-            expr2 = _parse_unit_for_exponents(piece)
+            expr2 = _parse_unit_for_exponents_and_leading(piece)
             # Default operation is implicit multiplication
             if op == '*' or op is None:
                 expr = Product(expr, expr2)
@@ -259,16 +261,13 @@ def _decompose_simple_unit_string(units: str):
                 skip = len(op) - 1
                 break
         else:
-            if buffer and buffer.isdigit() and not units[i].isdigit():
-                pieces.append(buffer)
-                buffer = ''
             buffer += units[i]
     if buffer:
         pieces.append(buffer)
     return pieces
 
 
-def _parse_unit_for_exponents(units: str) -> UnitExpression:
+def _parse_unit_for_exponents_and_leading(units: str) -> UnitExpression:
     """ Extracts the exponent (if present) from a unit string. """
     if not units:
         raise UnitError(f"Empty unit string", 1006)

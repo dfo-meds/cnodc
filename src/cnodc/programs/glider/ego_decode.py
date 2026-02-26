@@ -18,11 +18,11 @@ class GliderEGOMapper(NetCDFCommonMapper):
 
     def _on_data_load(self):
         if self._sensor_map is None:
-            self._sensor_info, self._sensor_map = ego_convert.ego_sensor_info(self._dataset, self._data['data_maps']['sensor_map'])
+            self._sensor_info, self._sensor_map = ego_convert.ego_sensor_info(self._dataset, self._data['data_maps']['sensors'])
         if self._record_metadata is None:
             self._record_metadata = {}
             if self.has_variable('PLATFORM_TYPE'):
-                info = self._data['glider_model_map'][self.var_to_string('PLATFORM_TYPE').lower()]
+                info = self._data['data_maps']['glider_models'][self.var_to_string('PLATFORM_TYPE').lower()]
                 if 'ocproc2_model' in info and info['ocproc2_model']:
                     self._record_metadata['metadata/PlatformModel'] = info['ocproc2_model']
                 elif 'model' in info and info['model']:

@@ -6,16 +6,44 @@ import xml.etree.ElementTree as ET
 import zrlog
 import threading
 from autoinject import injector
+from contourpy.util.data import simple
 from uncertainties import UFloat
 
 from cnodc.science.units.parsing import parse_unit_string
 from cnodc.science.units.structures import LinearFunction, Converter, UnitExpression, UnitError
 
-COMMON_BAD_UNITS = {
+ADDITIONAL_UNITS = {
     'psu': '0.001',
-    'micromole/l': 'umol L-1',
+    'mhos': 'S',
 }
 
+# normally we just let it pick the first one it finds, but I don't like some of them
+PREFERRED_UNIT_OVERRIDES = {
+    'degree_north': 'degrees_north',
+    'degrees_north': 'degrees_north',
+    'degree_N': 'degrees_north',
+    'degrees_N': 'degrees_north',
+    'degreeN': 'degrees_north',
+    'degreesN': 'degrees_north',
+    'degree_east': 'degrees_east',
+    'degrees_east': 'degrees_east',
+    'degree_E': 'degrees_east',
+    'degrees_E': 'degrees_east',
+    'degreeE': 'degrees_east',
+    'degreesE': 'degrees_east',
+    'degree_true': 'degrees_true',
+    'degrees_true': 'degrees_true',
+    'degreeT': 'degrees_true',
+    'degreesT': 'degrees_true',
+    'degree_T': 'degrees_true',
+    'degrees_T': 'degrees_true',
+    'arc_degree': 'arc_degree',
+    'degrees_Celsius': 'degrees_Celsius',
+    'degree_C': 'degrees_Celsius'
+}
+PREFERRED_PREFIX_OVERRIDES = {
+    'µ': 'u'
+}
 
 @injector.injectable_global
 class UnitConverter:
@@ -35,13 +63,19 @@ class UnitConverter:
                 if self._loaded_tables is None:
                     self._loaded_tables = {
                         'prefixes': {},
-                        'units': {}
+                        'preferred_prefixes': {},
+                        'units': {},
+                        'preferred_units': {},
                     }
                     self._load_prefix_table('udunits2-prefixes.xml')
                     self._load_units_table('udunits2-base.xml')
                     self._load_units_table('udunits2-derived.xml')
                     self._load_units_table('udunits2-common.xml')
                     self._load_units_table('udunits2-accepted.xml')
+                    for x in ADDITIONAL_UNITS:
+                        if x not in self._loaded_tables['units']:
+                            self._loaded_tables['units'][x] = ADDITIONAL_UNITS[x]
+                            self._loaded_tables['preferred_units'][x] = ADDITIONAL_UNITS[x]
 
     def _conversion_info(self, unit_str: str) -> tuple[Converter, dict[str, int], UnitExpression]:
         if unit_str not in self._cache:
@@ -51,10 +85,11 @@ class UnitConverter:
                 self._nested_tracker.add(unit_str)
                 if unit_str not in self._cache:
                     try:
-                        expr = parse_unit_string(unit_str)
+                        expr = parse_unit_string(unit_str).standardize()
                         self._cache[unit_str] = [*expr.get_unit_info(self), expr]
                     except Exception as ex:
                         self._cache[unit_str] = ex
+                        #self._log.exception(f"Error building conversion info for {unit_str}")
         if isinstance(self._cache[unit_str], Exception):
             raise self._cache[unit_str]
         return self._cache[unit_str]
@@ -78,18 +113,15 @@ class UnitConverter:
         return True
 
     def is_valid_unit(self, unit_str: str) -> bool:
-        self._load_tables()
-        try:
-            _, _, _ = self._conversion_info(unit_str)
-            return True
-        except Exception as ex:
-            return False
+        return self.standardize(unit_str) is not None
 
     def standardize(self, unit_name):
-        if unit_name in COMMON_BAD_UNITS:
-            unit_name = COMMON_BAD_UNITS[unit_name]
-        if self.is_valid_unit(unit_name):
-            return unit_name
+        self._load_tables()
+        try:
+            _, _, expr = self._conversion_info(unit_name)
+            return expr.udunit_str(self)
+        except Exception as ex:
+            return None
 
     def convert(self, quantity: t.Union[float, int, UFloat, decimal.Decimal], original_units: str, output_units: str) -> t.Union[float, int, UFloat]:
         self._load_tables()
@@ -141,6 +173,15 @@ class UnitConverter:
                         names.append(plural.text)
             x = e.find('def')
             for name in names:
+                if name in PREFERRED_UNIT_OVERRIDES:
+                    self._loaded_tables['preferred_units'][name] = PREFERRED_UNIT_OVERRIDES[name]
+                else:
+                    for y in names:
+                        if y in PREFERRED_UNIT_OVERRIDES:
+                            self._loaded_tables['preferred_units'][name] = PREFERRED_UNIT_OVERRIDES[y]
+                            break
+                    else:
+                        self._loaded_tables['preferred_units'][name] = names[0]
                 if name in self._loaded_tables['units']:
                     self._log.warning(f"Unit [{name}] already defined")
                 elif x is None:
@@ -156,8 +197,11 @@ class UnitConverter:
         et = ET.parse(file)
         for e in et.getroot().findall('prefix'):
             names = []
+            preferred = None
             for s in e.findall('symbol'):
                 names.append(s.text)
+                if preferred is None:
+                    preferred = s.text
             for n in e.findall('name'):
                 names.append(n.text)
             val = decimal.Decimal(e.find('value').text)
@@ -166,6 +210,7 @@ class UnitConverter:
                     self._log.warning(f"Prefix [{n}] already defined")
                 else:
                     self._loaded_tables['prefixes'][n] = val
+                    self._loaded_tables['preferred_prefixes'][n] = preferred if preferred not in PREFERRED_PREFIX_OVERRIDES else PREFERRED_PREFIX_OVERRIDES[preferred]
 
     def _find_entry(self, simple_unit: str) -> tuple[decimal.Decimal, str, str]:
         self._load_tables()
@@ -178,6 +223,16 @@ class UnitConverter:
                     continue
                 return self._loaded_tables['prefixes'][prefix], self._loaded_tables['units'][test_unit], test_unit
         raise UnitError(f"Unknown simple unit: [{simple_unit}]", 2002)
+
+    def standardize_simple_unit(self, simple_unit: str):
+        if simple_unit in self._loaded_tables['preferred_units']:
+            return self._loaded_tables['preferred_units'][simple_unit]
+        for prefix in self._loaded_tables['preferred_prefixes']:
+            if simple_unit.startswith(prefix):
+                test_unit = simple_unit[len(prefix):]
+                if test_unit not in self._loaded_tables['preferred_units']:
+                    continue
+                return self._loaded_tables['preferred_prefixes'][prefix] + self._loaded_tables['preferred_units'][test_unit]
 
     def raw_unit_info(self, simple_unit: str) -> tuple[Converter, dict[str, int]]:
         factor, expr, real_unit = self._find_entry(simple_unit)

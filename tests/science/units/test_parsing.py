@@ -11,6 +11,7 @@ from cnodc.util import CNODCError
 class TestUnitParsing(ut.TestCase):
 
     SIMPLE_TESTS = [
+        ("10e-9", uns.Real("10e-9")),
         ("m", uns.SimpleUnit("m")),
         ("m2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
         ("m^2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
@@ -114,20 +115,20 @@ class TestLowLevel(ut.TestCase):
         for test in tests:
             with self.subTest(input=test):
                 with self.assertRaises(CNODCError):
-                    unp._parse_unit_for_exponents(test)
+                    unp._parse_unit_for_exponents_and_leading(test)
 
     def test_simple_unit_component(self):
-        u = unp._parse_unit_for_exponents('kg')
+        u = unp._parse_unit_for_exponents_and_leading('kg')
         self.assertIsInstance(u, uns.SimpleUnit)
         self.assertEqual(u.name, 'kg')
 
     def test_literal_components(self):
         for case in TestLowLevel.INTEGERS:
             with self.subTest(case=case):
-                self.assertEqual(unp._parse_unit_for_exponents(case), uns.Integer(case))
+                self.assertEqual(unp._parse_unit_for_exponents_and_leading(case), uns.Integer(case))
         for case in itertools.chain(TestLowLevel.LITERALS, TestLowLevel.DECIMALS):
             with self.subTest(case=case):
-                self.assertEqual(unp._parse_unit_for_exponents(case), uns.Real(case))
+                self.assertEqual(unp._parse_unit_for_exponents_and_leading(case), uns.Real(case))
 
     def test_exponent_component(self):
         tests = [
@@ -138,7 +139,7 @@ class TestLowLevel(ut.TestCase):
         ]
         for in_value, base_unit, exponent in tests:
             with self.subTest(input=in_value):
-                x = unp._parse_unit_for_exponents(in_value)
+                x = unp._parse_unit_for_exponents_and_leading(in_value)
                 self.assertIsInstance(x, uns.Exponent)
                 self.assertEqual(x.exponent, uns.Integer(exponent))
                 self.assertIsInstance(x.base, uns.SimpleUnit)
@@ -151,7 +152,7 @@ class TestLowLevel(ut.TestCase):
         ]
         for in_value, base_unit in tests:
             with self.subTest(input=in_value):
-                x = unp._parse_unit_for_exponents(in_value)
+                x = unp._parse_unit_for_exponents_and_leading(in_value)
                 self.assertIsInstance(x, uns.SimpleUnit)
                 self.assertEqual(x.name, base_unit)
 
@@ -212,7 +213,6 @@ class TestLowLevel(ut.TestCase):
             ("log(re1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
             ("log(re:1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
             ("log(1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
-            ("log(1V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
         ]
         for test, result in tests:
             with self.subTest(input=test):
@@ -233,7 +233,7 @@ class TestLowLevel(ut.TestCase):
 
     def test_parse_with_groups(self):
         tests = [
-            ("log(1V) kg m", uns.Product(uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10")), uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m")))),
+            ("log(1 V) kg m", uns.Product(uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10")), uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m")))),
             ("(kg m) / (s N)", uns.Quotient(uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m")), uns.Product(uns.SimpleUnit("s"), uns.SimpleUnit("N"))))
         ]
         for test, result in tests:
