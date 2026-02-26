@@ -36,11 +36,11 @@ def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str
         info: dict = copy(sensor_map[sensor_full_name])
         info['serial'] = getattr(var, 'sensor_serial_number') if hasattr(var, 'sensor_serial_number') else 'unknown'
         key = f"SENSOR_{info['type']}_{info['serial']}"
+        param_map[var.name] = key
         if key in sensors_seen:
             continue
         sensors_seen.add(key)
         sensors[key] = info
-        param_map[var.name] = key
     return sensors, param_map
 
 

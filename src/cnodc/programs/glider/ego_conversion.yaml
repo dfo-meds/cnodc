@@ -841,7 +841,7 @@ data_maps:
       model: "Oxygen Optode 5013"
       type: DOXY
     "wetlabs flbbcdslc":
-      make: "Weblabs"
+      make: "Wetlabs"
       model: "FLBBCD-SLC"
       type: FLUOROMETER
 
