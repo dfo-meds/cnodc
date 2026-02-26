@@ -5,12 +5,11 @@ import logging
 import typing as t
 import datetime
 
-import netCDF4
+import netCDF4 as nc
+import numpy as np
 
-from cnodc.util.netcdf import Dataset, _Variable
 from autoinject import injector
 from cnodc.util import unnumpy
-import netCDF4 as nc
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -33,7 +32,7 @@ class Encoding(enum.Enum):
     UTF16 = "utf16"
 
     @staticmethod
-    def get_encoding(encoding: str):
+    def from_string(encoding: str):
         if encoding == 'utf-8':
             return Encoding.UTF8
         return Encoding(encoding)
@@ -44,6 +43,10 @@ class Axis(enum.Enum):
     Longitude = 'X'
     Latitude = 'Y'
     Depth = 'Z'
+
+    @staticmethod
+    def from_string(s: str):
+        return Axis(s)
 
 class NetCDFDataType(enum.Enum):
     String = "String"
@@ -60,33 +63,37 @@ class NetCDFDataType(enum.Enum):
     ByteUnsigned = "ubyte"
 
     @staticmethod
-    def from_netcdf_file(name):
-        if name == 'float64':
+    def from_string(name):
+        if not name:
+            return None
+        elif name in ('float64', 'f8', 'd'):
             return NetCDFDataType.Double
-        elif name == 'float32':
+        elif name in ('float32', 'f4', 'f'):
             return NetCDFDataType.Float
-        elif name == 'int8':
+        elif name in ('int8',' i8'):
             return NetCDFDataType.Long
-        elif name == 'int4':
+        elif name in ('int4', 'i4', 'i'):
             return NetCDFDataType.Integer
-        elif name == 'int2':
+        elif name in ('int2', 'i2', 's', 'h'):
             return NetCDFDataType.Short
-        elif name == 'int1':
+        elif name in ('int1', 'i1', 'b', 'B'):
             return NetCDFDataType.Byte
-        elif name == 'uint8':
+        elif name in ('uint8', 'u8'):
             return NetCDFDataType.LongUnsigned
-        elif name == 'uint4':
+        elif name in ('uint4', 'u4'):
             return NetCDFDataType.IntegerUnsigned
-        elif name == 'uint2':
+        elif name in ('uint2', 'u2'):
             return NetCDFDataType.ShortUnsigned
-        elif name == 'uint1':
+        elif name in ('uint1', 'u1'):
             return NetCDFDataType.ByteUnsigned
-        elif name == 'S1':
+        elif name in ('S1', 'c'):
             return NetCDFDataType.Character
-        elif isinstance(name, netCDF4.VLType):
+        elif name[0] == 'S' and name[1:].isdigit():
+            return NetCDFDataType.String
+        elif isinstance(name, nc.VLType):
             return NetCDFDataType.String
         else:
-            raise ValueError(f'Unknown NetCDF data type [{name}]')
+            return NetCDFDataType(name)
 
 class Unit(enum.Enum):
 
@@ -295,6 +302,13 @@ class CoverageContentType(enum.Enum):
     QualityInformation = "qualityInformation"
     ReferenceInformation = "referenceInformation"
     ThematicClassification = "thematicClassification"
+
+    @staticmethod
+    def from_string(cc: str):
+        if not cc:
+            return None
+        return CoverageContentType(cc)
+
 
 
 class GCAudience(enum.Enum):
@@ -1080,7 +1094,7 @@ class Variable(EntityRef):
                  *,
                  destination_name: t.Optional[str] = None,
                  destination_type: t.Optional[NetCDFDataType] = None,
-                 dimensions: t.Optional[list[str]] = None,
+                 dimensions: t.Optional[t.Sequence[str]] = None,
                  long_name: t.Optional[MultiLanguageString] = None,
                  standard_name: t.Optional[StandardName] = None,
                  units: t.Optional[Unit] = None,
@@ -1413,9 +1427,9 @@ class Variable(EntityRef):
             self._metadata['custom_metadata'][key] = unnumpy(properties[key])
 
     @staticmethod
-    def build_from_netcdf(ds_var: _Variable, locale_map) -> Variable:
-        var_attributes = {x: v for x, v in ds_var.attributes()}
-        dtype = NetCDFDataType.from_netcdf_file(ds_var.data_type)
+    def build_from_netcdf(ds_var: nc.Variable, locale_map) -> Variable:
+        var_attributes = {x: ds_var.getncattr(x) for x, v in ds_var.ncattrs()}
+        dtype = NetCDFDataType.from_string(ds_var.dtype)
         var = Variable(
             var_name=ds_var.name,
             var_data_type=dtype,
@@ -1424,34 +1438,26 @@ class Variable(EntityRef):
             display_names={"und": ds_var.name}
         )
         var.set_guid(ds_var.name)
-        if 'comment' in var_attributes:
-            var.set_comment(var_attributes.pop('comment'))
-        if 'references' in var_attributes:
-            var.set_references(var_attributes.pop('references'))
-        if 'source' in var_attributes:
-            var.set_source(var_attributes.pop('source'))
+        var.set_comment(var_attributes.pop('comment', ''))
+        var.set_references(var_attributes.pop('references', ''))
+        var.set_source(var_attributes.pop('source', ''))
         if 'coverage_content_type' in var_attributes:
-            var.set_coverage_content_type(var_attributes.pop('coverage_content_type'))
-        if 'units' in var_attributes:
-            var.set_units(var_attributes.pop('units'))
+            var.set_coverage_content_type(CoverageContentType.from_string(var_attributes.pop('coverage_content_type', '')))
+        var.set_units(var_attributes.pop('units', ''))
         if 'missing_value' in var_attributes:
             var.set_missing_value(var_attributes.pop('missing_value'))
             var_attributes.pop("_FillValue", "")
         elif '_FillValue' in var_attributes:
             var.set_missing_value(var_attributes.pop('_FillValue'))
         if '_Encoding' in var_attributes:
-            var.set_encoding(Encoding.get_encoding(var_attributes.pop('_Encoding')))
-        elif ds_var.data_type == "S1":
+            var.set_encoding(Encoding.from_string(var_attributes.pop('_Encoding')))
+        elif dtype == NetCDFDataType.String or dtype == NetCDFDataType.Character:
             var.set_encoding(Encoding.UTF8)
-        valid_min, valid_max = None, None
-        if 'valid_min' in var_attributes:
-            valid_min = var_attributes.pop('valid_min')
-        if 'valid_max' in var_attributes:
-            valid_max = var_attributes.pop('valid_max')
+        valid_min = var_attributes.pop('valid_min', None)
+        valid_max = var_attributes.pop('valid_max', None)
         if valid_min is not None or valid_max is not None:
             var.set_valid_range(valid_min, valid_max)
-        if 'standard_name' in var_attributes:
-            var.set_standard_name(var_attributes.pop('standard_name'))
+        var.set_standard_name(var_attributes.pop('standard_name', ''))
         if 'calendar' in var_attributes:
             cal_name = var_attributes.pop('calendar')
             if cal_name == 'gregorian':
@@ -1460,11 +1466,8 @@ class Variable(EntityRef):
                 var.set_calendar(Calendar(var_attributes.pop('calendar')))
         if 'positive' in var_attributes:
             var.set_positive_direction(Direction(var_attributes.pop('positive')))
-        scale_factor, add_offset = None, None
-        if 'scale_factor' in var_attributes:
-            scale_factor = var_attributes.pop('scale_factor')
-        if 'add_offset' in var_attributes:
-            add_offset = var_attributes.pop('add_offset')
+        scale_factor = var_attributes.pop('scale_factor', None)
+        add_offset = var_attributes.pop('add_offset', None)
         if scale_factor is not None or add_offset is not None:
             var.set_conversion(scale_factor, add_offset)
         if 'time_precision' in var_attributes:
@@ -1477,12 +1480,11 @@ class Variable(EntityRef):
             var.set_axis(Axis(var_attributes.pop('axis')))
         if 'cnodc_standard_name' in var_attributes:
             var.set_cnodc_name(var_attributes.pop('cnodc_standard_name'))
-        if dtype != NetCDFDataType.Character and dtype != NetCDFDataType.String:
-            var.set_actual_range(*ds_var.range())
-            if 'actual_min' in var_attributes:
-                var_attributes.pop('actual_min')
-            if 'actual_max' in var_attributes:
-                var_attributes.pop('actual_max')
+        if dtype != NetCDFDataType.String and dtype != NetCDFDataType.Character:
+            values = ds_var[:]
+            var.set_actual_range(np.min(values), np.max(values))
+            var_attributes.pop('actual_min', None)
+            var_attributes.pop('actual_max', None)
         var.set_additional_properties(var_attributes)
         return var
 
@@ -2239,7 +2241,7 @@ class DistributionChannel(EntityRef):
 
 class DatasetMetadata:
 
-    ontology: cnodc.ocproc2.ontology.OCProc2Ontology = None
+    ontology: "cnodc.ocproc2.ontology.OCProc2Ontology" = None
 
     REPRESENTATION_MAP = {
         CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
@@ -2332,59 +2334,10 @@ class DatasetMetadata:
         )
 
     def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en'):
-        # TODO: tomorrow
         attrs = { x: dataset.getncattr(x) for x, v in dataset.ncattrs()}
-        locale_map = {}
-        primary_locale = Locale.CanadianEnglish
-        secondary_locales = []
-        if 'default_locale' in attrs:
-            default_locale = attrs.pop('default_locale')
-            if '-' in default_locale:
-                default_locale = default_locale[:default_locale.find('-')]
-            locale_map[''] = default_locale
-            if default_locale.startswith("fr"):
-                primary_locale = Locale.CanadianFrench
-                secondary_locales.append(Locale.CanadianEnglish)
-            else:
-                secondary_locales.append(Locale.CanadianFrench)
-        else:
-            locale_map[''] = default_lang
-            if default_lang == 'fr':
-                primary_locale = Locale.CanadianFrench
-                secondary_locales.append(Locale.CanadianEnglish)
-            else:
-                secondary_locales.append(Locale.CanadianFrench)
-        self.set_data_locales(primary_locale, secondary_locales)
-        self.set_metadata_locales(primary_locale, secondary_locales)
-        if 'locales' in attrs:
-            for locale in attrs.pop('locales').split(','):
-                suffix, bcptag = locale.split(':', maxsplit=1)
-                if '-' in bcptag:
-                    bcptag, _ = bcptag.split('-', maxsplit=1)
-                locale_map[suffix.strip()] = bcptag.strip()
-        else:
-            locale_map['_en'] = 'en'
-            locale_map['_fr'] = 'fr'
-        depths = ['seaSurface']
-        for var_name in dataset.variables:
-            ds_var = dataset.variables[var_name]
-            ds_var_attrs = {
-                x: getattr(ds_var, x) for x in ds_var.ncattrs()
-            }
-            if 'axis' in ds_var_attrs and ds_var_attrs['axis'] == 'Z':
-                min_z, max_z = ds_var.range()
-                if ds_var.has_attribute('positive') and ds_var.attribute('positive') == 'up':
-                    if min_z < 0:
-                        depths = ['subSurface']
-                    elif max_z < 0:
-                        depths.append('subSurface')
-                else:
-                    if min_z > 0:
-                        depths = ['subSurface']
-                    elif max_z > 0:
-                        depths.append('subSurface')
-                break
-        for ds_var in dataset.variables():
+        locale_map = self._set_locales_from_netcdf(attrs, default_lang)
+        depths = self._identify_levels(dataset)
+        for ds_var in dataset.variables:
             self.add_variable(Variable.build_from_netcdf(ds_var, locale_map), depths)
         title = get_bilingual_attribute(attrs, 'title', locale_map)
         self.set_title(title)
@@ -2441,8 +2394,63 @@ class DatasetMetadata:
         self._build_from_netcdf_contacts(locale_map, attrs, 'publisher', contact_default_role=ContactRole.Publisher, contact_default_type='individual')
         self._build_from_netcdf_contacts(locale_map, attrs, 'contributor', contact_default_role=ContactRole.Contributor, contact_default_type='individual')
         self._build_from_netcdf_contacts(locale_map, attrs, 'contributing_institutions', contact_default_role=ContactRole.Contributor, contact_default_type='institution')
-        # horizontal and vertical reference systems
         self.set_additional_properties(attrs)
+
+    def _set_locales_from_netcdf(self, attrs: dict, default_lang: str):
+        locale_map = {}
+        primary_locale = Locale.CanadianEnglish
+        secondary_locales = []
+        if 'default_locale' in attrs:
+            default_locale = attrs.pop('default_locale')
+            if '-' in default_locale:
+                default_locale = default_locale[:default_locale.find('-')]
+            locale_map[''] = default_locale
+            if default_locale.startswith("fr"):
+                primary_locale = Locale.CanadianFrench
+                secondary_locales.append(Locale.CanadianEnglish)
+            else:
+                secondary_locales.append(Locale.CanadianFrench)
+        else:
+            locale_map[''] = default_lang
+            if default_lang == 'fr':
+                primary_locale = Locale.CanadianFrench
+                secondary_locales.append(Locale.CanadianEnglish)
+            else:
+                secondary_locales.append(Locale.CanadianFrench)
+        self.set_data_locales(primary_locale, secondary_locales)
+        self.set_metadata_locales(primary_locale, secondary_locales)
+        if 'locales' in attrs:
+            for locale in attrs.pop('locales').split(','):
+                suffix, bcptag = locale.split(':', maxsplit=1)
+                if '-' in bcptag:
+                    bcptag, _ = bcptag.split('-', maxsplit=1)
+                locale_map[suffix.strip()] = bcptag.strip()
+        else:
+            locale_map['_en'] = 'en'
+            locale_map['_fr'] = 'fr'
+        return locale_map
+
+    def _identify_levels(self, dataset: nc.Dataset):
+        depths = ['seaSurface']
+        for var_name in dataset.variables:
+            ds_var = dataset.variables[var_name]
+            if hasattr(ds_var, 'axis') and ds_var.axis == 'Z':
+                vals = ds_var[:]
+                min_z, max_z = np.min(vals), np.max(vals)
+                if min_z is None and max_z is None:
+                    continue
+                if hasattr(ds_var, 'positive') and ds_var.positive == 'up':
+                    if min_z < 0:
+                        depths = ['subSurface']
+                    elif max_z < 0:
+                        depths.append('subSurface')
+                else:
+                    if min_z > 0:
+                        depths = ['subSurface']
+                    elif max_z > 0:
+                        depths.append('subSurface')
+                break
+        return depths
 
     def _set_optional_netcdf(self, attrs, attr_name, setter: t.Union[callable, str, None] = None, processing: t.Optional[callable] = None):
         if setter is None:
