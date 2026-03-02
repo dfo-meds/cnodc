@@ -361,6 +361,28 @@ class TestRecordSet(ut.TestCase):
         self.assertIsInstance(rs.metadata['Foo'], SingleElement)
         self.assertEqual(rs.metadata['Foo'].value, 'Bar')
 
+    def test_metadata_hash(self):
+        rs = RecordSet()
+        rs.metadata['Foo'] = 'Bar'
+        h = hashlib.new('sha256')
+        rs.update_hash(h)
+        rs2 = RecordSet()
+        rs2.metadata['Foo'] = 'Bar'
+        h2 = hashlib.new('sha256')
+        rs2.update_hash(h2)
+        self.assertEqual(h.digest(), h2.digest())
+
+    def test_diff_metadata_hash(self):
+        rs = RecordSet()
+        rs.metadata['Foo'] = 'Bar'
+        h = hashlib.new('sha256')
+        rs.update_hash(h)
+        rs2 = RecordSet()
+        rs2.metadata['Foo'] = 'Bar2'
+        h2 = hashlib.new('sha256')
+        rs2.update_hash(h2)
+        self.assertNotEqual(h.digest(), h2.digest())
+
     def test_to_mapping(self):
         rs = RecordSet()
         rs.metadata['Foo'] = 'Bar'
