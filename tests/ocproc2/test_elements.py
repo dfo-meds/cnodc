@@ -1,11 +1,14 @@
 import datetime
 import decimal
+import hashlib
 import unittest as ut
+
+from uncertainties import UFloat
+
 import cnodc.ocproc2 as ocproc2
-import typing as t
 
 from cnodc.ocproc2 import SingleElement, AbstractElement, MultiElement
-from cnodc.ocproc2.elements import normalize_data_value
+from cnodc.ocproc2.elements import normalize_data_value, UNIFORM_CONVERSION_FACTOR
 
 
 class TestLowLevelThings(ut.TestCase):
@@ -103,9 +106,68 @@ class TestSingleElement(ut.TestCase):
     def test_to_decimal(self):
         element = SingleElement("1234.31")
         self.assertEqual(element.to_decimal(), decimal.Decimal("1234.31"))
-        with self.assertRaises(decimal.InvalidOperation):
+        with self.assertRaises(ValueError):
             element = SingleElement("str")
             element.to_decimal()
+
+    def test_to_decimal_units(self):
+        element = SingleElement("1234")
+        element.metadata['Units'] = 'm'
+        self.assertEqual(element.to_decimal("km"), decimal.Decimal('1.234'))
+
+    def test_to_ufloat(self):
+        element = SingleElement("1234.1")
+        element.metadata['Uncertainty'] = "0.05"
+        uf = element.to_float_with_uncertainty()
+        self.assertIsInstance(uf, UFloat)
+        self.assertEqual(uf.nominal_value, 1234.1)
+        self.assertEqual(uf.std_dev, 0.05)
+
+    def test_to_ufloat_units(self):
+        element = SingleElement("1234.1")
+        element.metadata['Uncertainty'] = "0.05"
+        element.metadata['Units'] = 'm'
+        uf = element.to_float_with_uncertainty('km')
+        self.assertIsInstance(uf, UFloat)
+        self.assertEqual(uf.nominal_value, 1.2341)
+        self.assertEqual(uf.std_dev, 0.00005)
+
+    def test_to_ufloat_negative(self):
+        element = SingleElement("1234.1")
+        element.metadata['Uncertainty'] = "-0.05"
+        uf = element.to_float_with_uncertainty()
+        self.assertIsInstance(uf, UFloat)
+        self.assertEqual(uf.nominal_value, 1234.1)
+        self.assertEqual(uf.std_dev, 0.05)
+
+    def test_to_ufloat_missing(self):
+        element = SingleElement("1234.1")
+        element.metadata['Uncertainty'] = None
+        uf = element.to_float_with_uncertainty()
+        self.assertIsInstance(uf, float)
+        self.assertEqual(uf, 1234.1)
+
+    def test_to_ufloat_zero(self):
+        element = SingleElement("1234.1")
+        element.metadata['Uncertainty'] = 0
+        uf = element.to_float_with_uncertainty()
+        self.assertIsInstance(uf, float)
+        self.assertEqual(uf, 1234.1)
+
+    def test_to_uniform_ufloat(self):
+        element = SingleElement("1234.1")
+        element.metadata['Uncertainty'] = "0.05"
+        element.metadata['UncertaintyType'] = 'uniform'
+        uf = element.to_float_with_uncertainty()
+        self.assertIsInstance(uf, UFloat)
+        self.assertEqual(uf.nominal_value, 1234.1)
+        self.assertEqual(uf.std_dev, float(decimal.Decimal("0.05") * UNIFORM_CONVERSION_FACTOR))
+
+    def test_to_ufloat_no_unc(self):
+        element = SingleElement("1234.1")
+        uf = element.to_float_with_uncertainty()
+        self.assertIsInstance(uf, float)
+        self.assertEqual(uf, 1234.1)
 
     def test_is_good(self):
         with self.subTest("blank quality"):
@@ -182,8 +244,180 @@ class TestSingleElement(ut.TestCase):
         self.assertIsInstance(x, SingleElement)
         self.assertEqual(x.value, 'hello')
 
+    def test_value_hash(self):
+        h = hashlib.new('sha256')
+        x = SingleElement(5)
+        x.update_hash(h)
+        h2 = hashlib.new('sha256')
+        x2 = SingleElement(5)
+        x2.update_hash(h2)
+        self.assertEqual(h.digest(), h2.digest())
+
+    def test_value_hash_none(self):
+        h = hashlib.new('sha256')
+        x = SingleElement(None)
+        x.update_hash(h)
+        h2 = hashlib.new('sha256')
+        x2 = SingleElement(None)
+        x2.update_hash(h2)
+        self.assertEqual(h.digest(), h2.digest())
+
+    def test_value_hash_metadata(self):
+        h = hashlib.new('sha256')
+        x = SingleElement(5)
+        x.metadata['Uncertainty'] = '0.05'
+        x.metadata['Units'] = 'km'
+        x.update_hash(h)
+        h2 = hashlib.new('sha256')
+        x2 = SingleElement(5)
+        x2.metadata['Units'] = 'km'
+        x2.metadata['Uncertainty'] = '0.05'
+        x2.update_hash(h2)
+        self.assertEqual(h.digest(), h2.digest())
+
+    def test_value_hash_different_metadata(self):
+        h = hashlib.new('sha256')
+        x = SingleElement(5)
+        x.metadata['Uncertainty'] = '0.05'
+        x.metadata['Units'] = 'km'
+        x.update_hash(h)
+        h2 = hashlib.new('sha256')
+        x2 = SingleElement(5)
+        x2.metadata['SensorType'] = 'ctd'
+        x2.metadata['Units'] = 'km'
+        x2.metadata['Uncertainty'] = '0.05'
+        x2.update_hash(h2)
+        self.assertNotEqual(h.digest(), h2.digest())
+
+    def test_value_hash_different_value(self):
+        h = hashlib.new('sha256')
+        x = SingleElement(5)
+        x.metadata['Uncertainty'] = '0.05'
+        x.metadata['Units'] = 'km'
+        x.update_hash(h)
+        h2 = hashlib.new('sha256')
+        x2 = SingleElement(6)
+        x2.metadata['Units'] = 'km'
+        x2.metadata['Uncertainty'] = '0.05'
+        x2.update_hash(h2)
+        self.assertNotEqual(h.digest(), h2.digest())
+
+    def test_passed_qc(self):
+        for qc_flag in (1, 2, 5):
+            with self.subTest(qc_flag=qc_flag):
+                e = SingleElement(5)
+                e.metadata['WorkingQuality'] = qc_flag
+                self.assertTrue(e.passed_qc())
+
+    def test_failed_qc(self):
+        for qc_flag in (0, 3, 4, 9):
+            e = SingleElement(5)
+            e.metadata['WorkingQuality'] = qc_flag
+            self.assertFalse(e.passed_qc())
+
+    def test_quality(self):
+        e = SingleElement(5)
+        e.metadata['Quality'] = 2
+        e.metadata['WorkingQuality'] = 12
+        self.assertEqual(2, e.quality)
+
+    def test_quality_working(self):
+        e = SingleElement(5)
+        e.metadata['WorkingQuality'] = 3
+        self.assertEqual(3, e.quality)
+
+    def test_quality_not_set(self):
+        e = SingleElement(5)
+        self.assertEqual(0, e.quality)
+
+    def test_quality_missing(self):
+        e = SingleElement(None)
+        self.assertEqual(9, e.quality)
+
+    def test_contains(self):
+        e = SingleElement(5)
+        self.assertIn(5, e)
+        self.assertNotIn("5", e)
+
+    def test_equal(self):
+        e = SingleElement(5)
+        e2 = SingleElement(5)
+        self.assertEqual(e, e2)
+
+    def test_not_equal_other_obj(self):
+        e = SingleElement(5)
+        self.assertNotEqual(e, self)
+
+    def test_equal_multi(self):
+        e = SingleElement(5)
+        e2 = MultiElement([SingleElement(5)])
+        self.assertEqual(e, e2)
+
+    def test_not_equal_multi(self):
+        e = SingleElement(5)
+        e2 = MultiElement([SingleElement(5), SingleElement(6)])
+        self.assertNotEqual(e, e2)
+
+    def test_equal_with_metadata(self):
+        e = SingleElement(5)
+        e.metadata['Units'] = 'km'
+        e2 = SingleElement(5)
+        e2.metadata['Units'] = 'km'
+        self.assertEqual(e, e2)
+
+    def test_not_equal(self):
+        e = SingleElement(5)
+        e2 = SingleElement(6)
+        self.assertNotEqual(e, e2)
+
+    def test_not_equal_with_metadata(self):
+        e = SingleElement(5)
+        e.metadata['Units'] = 'km'
+        e2 = SingleElement(5)
+        e2.metadata['Units'] = 'm'
+        self.assertNotEqual(e, e2)
+
+    def test_find_child(self):
+        e = SingleElement(5)
+        e.metadata['Units'] = 'km'
+        self.assertIs(e.find_child([]), e)
+        self.assertIs(e.find_child(["0"]), e)
+        self.assertIs(e.find_child(['metadata', 'Units']), e.metadata['Units'])
+        self.assertIsNone(e.find_child(["1"]))
+        self.assertIsNone(e.find_child(["Uncertainty"]))
+
+    def test_value_setter(self):
+        e = SingleElement(None)
+        e.value = datetime.datetime(2015, 10, 5, 1, 2, 3)
+        self.assertEqual(e.value, '2015-10-05T01:02:03')
+
+    def test_list_value(self):
+        e = SingleElement(['a', 'b'])
+        self.assertEqual(e.to_mapping(), {'_value': ['a', 'b']})
+
+    def test_dict_value(self):
+        e = SingleElement({'a': 'b'})
+        self.assertEqual(e.to_mapping(), {'_value': {'a': 'b'}})
+
+    def test_build_no_meta(self):
+        e = SingleElement.build('1234')
+        self.assertEqual(e.value, '1234')
+
+    def test_build_meta(self):
+        e = SingleElement.build('1234', {'Units': 'km'})
+        self.assertEqual(e.value, '1234')
+        self.assertEqual(e.metadata.best_value('Units'), 'km')
+
 
 class TestMultiElement(ut.TestCase):
+
+    def test_load_from_list(self):
+        x = AbstractElement.build_from_mapping(['1', '2', '3'])
+        self.assertIsInstance(x, MultiElement)
+        self.assertEqual(3, len(x.value))
+        self.assertEqual('1', x.value[0].value)
+        self.assertEqual('2', x.value[1].value)
+        self.assertEqual('3', x.value[2].value)
 
     def test_load(self):
         x = AbstractElement.build_from_mapping({'_values': ['hello', 'world']})
@@ -192,6 +426,22 @@ class TestMultiElement(ut.TestCase):
         self.assertEqual(x.value[0].value, 'hello')
         self.assertEqual(x.value[1].value, 'world')
 
+    def test_value_hash_stable_order(self):
+        h = hashlib.new('sha256')
+        x = MultiElement([
+            SingleElement(6),
+            SingleElement(5),
+            SingleElement(None),
+        ])
+        x.update_hash(h)
+        h2 = hashlib.new('sha256')
+        x2 = MultiElement([
+            SingleElement(5),
+            SingleElement(None),
+            SingleElement(6)
+        ])
+        x2.update_hash(h2)
+        self.assertEqual(h.digest(), h2.digest())
 
 class TestOCProc2ValueMap(ut.TestCase):
 
@@ -421,428 +671,130 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertFalse('Units' in dr.metadata['TestValue'].metadata)
         self.assertEqual(dr.metadata['TestValue'].metadata['Note2'].value, 'jkl')
 
+    def test_len(self):
+        me = MultiElement()
+        self.assertEqual(0, len(me))
 
-class TestOCProc2ImportExport(ut.TestCase):
+    def test_len_many(self):
+        me = MultiElement([2, 3, 4])
+        self.assertEqual(3, len(me))
 
-    def _check_mapping_dict(self, actual: dict, ref: dict, parent_path: t.Optional[list] = None):
-        all_keys = set(ref.keys())
-        all_keys.update(actual.keys())
-        parent_path = parent_path or []
-        for key in all_keys:
-            path = [*parent_path, key]
-            with self.subTest(item_path='/'.join(str(x) for x in path)):
-                self.assertIn(key, actual.keys(), msg="Reference key is not in the actual map")
-                self.assertIn(key, ref.keys(), msg="Actual key is not in the reference map")
-                self._delegate_check(actual[key], ref[key], path)
+    def test_equal(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3)])
+        me2 = MultiElement([SingleElement(2), SingleElement(3)])
+        self.assertEqual(me1, me2)
 
-    def _delegate_check(self, actual, ref, path):
-        self.assertEqual(type(actual), type(ref), msg=f"Bad type match at {path}")
-        if isinstance(actual, dict):
-            self._check_mapping_dict(actual, ref, path)
-        elif isinstance(actual, list):
-            self._check_mapping_list(actual, ref, path)
-        else:
-            self._check_mapping_value(actual, ref)
+    def test_equal_different_order(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3)])
+        me2 = MultiElement([SingleElement(3), SingleElement(2)])
+        self.assertEqual(me1, me2)
 
-    def _check_mapping_list(self, actual: list, ref: list, parent_path: t.Optional[list] = None):
-        self.assertEqual(len(actual), len(ref))
-        for i in range(0, len(ref)):
-            self._delegate_check(actual[i], ref[i], [*parent_path, str(i)])
+    def test_not_equal_too_many(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3)])
+        me2 = MultiElement([SingleElement(3), SingleElement(2), SingleElement(2)])
+        self.assertNotEqual(me1, me2)
 
-    def _check_mapping_value(self, actual, ref):
-        if ref is None:
-            self.assertIsNone(actual)
-        else:
-            self.assertIsNotNone(actual)
-            self.assertEqual(actual, ref)
+    def test_not_equal_different_meta(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3)])
+        me1.metadata['Foo'] = 'Bar'
+        me2 = MultiElement([SingleElement(2), SingleElement(3)])
+        me1.metadata['Foo'] = 'Bar2'
+        self.assertNotEqual(me1, me2)
 
-    def test_full_to_mapping(self):
-        dr = ocproc2.ParentRecord()
-        dr.metadata['M1'] = 'abc'
-        dr.metadata['M2'] = datetime.datetime(2023, 1, 1, 1, 2, 3)
-        dr.metadata['M3'] = datetime.date(2023, 12, 31)
-        dr.metadata['M4'] = 123
-        dr.metadata['M5'] = ''
-        dr.metadata['M6'] = None
-        dr.metadata['M7'] = 123.34
-        dr.metadata['M8'] = True
-        dr.metadata['M9'] = False
-        dr.coordinates['C1'] = ocproc2.SingleElement(123.45, Units="degree")
-        dr.coordinates['C2'] = ocproc2.SingleElement(12.34, Units="degree")
-        dr.parameters['P1'] = ocproc2.SingleElement(12.34, Units='0.001', Uncertainty=0.01)
-        dr.parameters['P2'] = ocproc2.SingleElement(5, Units='m s-1', Uncertainty=0.1, SensorHeight=ocproc2.SingleElement(1, Units='m'))
-        dr.history.append(ocproc2.HistoryEntry(
-            'hello world',
-            '2023-01-01T00:00:00+00:00',
-            'test1',
-            'version1',
-            'instance1',
-            ocproc2.MessageType.INFO
-        ))
-        dr.history.append(ocproc2.HistoryEntry(
-            'hello world2',
-            '2023-01-02T00:00:00+00:00',
-            'test1',
-            'version1',
-            'instance1',
-            ocproc2.MessageType.INFO
-        ))
-        dr.qc_tests.append(ocproc2.QCTestRunInfo(
-            'test1',
-            'version1',
-            '2023-01-03T00:00:00+00:00',
-            ocproc2.QCResult.FAIL,
-            [
-                ocproc2.QCMessage('lat_fail', ['a', 'b', 'c'], 90),
-                ocproc2.QCMessage('lon_fail', ['a', 'b', 'd'], -180)
+    def test_not_equal_one_different(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3), SingleElement(2)])
+        me2 = MultiElement([SingleElement(2), SingleElement(3), SingleElement(1)])
+        self.assertNotEqual(me1, me2)
+
+    def test_not_equal_other_different(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3), SingleElement(1)])
+        me2 = MultiElement([SingleElement(2), SingleElement(3), SingleElement(2)])
+        self.assertNotEqual(me1, me2)
+
+    def test_not_equal_other(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3)])
+        self.assertNotEqual(me1, self)
+
+    def test_equal_single(self):
+        me1 = MultiElement([SingleElement(2), SingleElement(3)])
+        me2 = SingleElement(3)
+        self.assertEqual(me1, me2)
+
+    def test_ideal_single_value(self):
+        me = MultiElement([
+            SingleElement.build(1, {'Quality': 2}),
+            SingleElement.build(2, {'Quality': 5}),
+        ])
+        self.assertIs(me.ideal_single_value(), me._value[1])
+
+    def test_ideal_single_value_same(self):
+        me = MultiElement([
+            SingleElement.build(1, {'Quality': 0}),
+            SingleElement.build(2, {'Quality': 0}),
+        ])
+        self.assertIs(me.ideal_single_value(), me._value[0])
+
+    def test_find_child(self):
+        me = MultiElement([
+            SingleElement.build(1, {'Quality': 1}),
+            SingleElement.build(2, {'Quality': 2}),
+        ])
+        me.metadata['Units'] = 'km'
+        self.assertIs(me.find_child([]), me)
+        self.assertIs(me.find_child(["0"]), me._value[0])
+        self.assertIs(me.find_child(["1"]), me._value[1])
+        self.assertIsNone(me.find_child(["2"]))
+        self.assertIs(me.find_child(["metadata", "Units"]), me.metadata['Units'])
+        self.assertIsNone(me.find_child(["metadata", "Uncertainty"]))
+        self.assertIsNone(me.find_child(["coordinates"]))
+
+    def test_to_mapping(self):
+        me = MultiElement([
+            SingleElement.build(1, {'Quality': 1}),
+            SingleElement.build(2, {'Quality': 2}),
+        ])
+        me.metadata['Units'] = 'km'
+        self.assertEqual(me.to_mapping(), {
+            '_values': [
+                {'_value': 1, '_metadata': {'Quality': 1}},
+                {'_value': 2, '_metadata': {'Quality': 2}}
             ],
-            'hello world3',
-            test_tags=["foobar"]
-        ))
-        profile1 = dr.subrecords.new_recordset('PROFILE')
-        for i in range(0, 5):
-            sr = ocproc2.ParentRecord()
-            sr.coordinates['C3'] = ocproc2.SingleElement(10 + (i * 10), Units="m", Uncertainty=5)
-            profile1.records.append(sr)
-        map_ = dr.to_mapping()
-        self.assertIsInstance(map_, dict)
-        self._check_mapping_dict(map_, {
-            '_parameters': {
-                'P1': {
-                    '_value': 12.34,
-                    '_metadata': {
-                        'Units': '0.001',
-                        'Uncertainty': 0.01
-                    }
-                },
-                'P2': {
-                    '_value': 5,
-                    '_metadata': {
-                        'Units': 'm s-1',
-                        'Uncertainty': 0.1,
-                        'SensorHeight': {
-                            '_value': 1,
-                            '_metadata': {
-                                'Units': 'm'
-                            }
-                        }
-                    }
-                }
-            },
-            '_coordinates': {
-                'C1': {
-                    '_value': 123.45,
-                    '_metadata': {
-                        'Units': 'degree'
-                    }
-                },
-                'C2': {
-                    '_value': 12.34,
-                    '_metadata': {
-                        'Units': 'degree'
-                    }
-                }
-            },
             '_metadata': {
-                'M1': 'abc',
-                'M2': '2023-01-01T01:02:03',
-                'M3': '2023-12-31',
-                'M4': 123,
-                'M5': '',
-                'M6': None,
-                'M7': 123.34,
-                'M8': True,
-                'M9': False
-            },
-            '_subrecords': {
-                'PROFILE': {
-                    '0': {
-                        '_records': [
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 10,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 20,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 30,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 40,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 50,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                    ], }
-                }
-            },
-            '_history': [
-                {
-                    '_message': 'hello world',
-                    '_timestamp': '2023-01-01T00:00:00+00:00',
-                    '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'I'
-                },
-                {
-                    '_message': 'hello world2',
-                    '_timestamp': '2023-01-02T00:00:00+00:00',
-                    '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'I'
-                }
-            ],
-            '_qc_tests': [
-                {
-                    '_name': 'test1',
-                    '_version': 'version1',
-                    '_date': '2023-01-03T00:00:00+00:00',
-                    '_messages': [
-                        {
-                            '_code': 'lat_fail',
-                            '_path': 'a/b/c',
-                            '_ref': 90
-                        },
-                        {
-                            '_code': 'lon_fail',
-                            '_path': 'a/b/d',
-                            '_ref': -180
-                        }
-                    ],
-                    '_result': 'F',
-                    '_stale': False,
-                    '_notes': 'hello world3',
-                    '_tags': ['foobar'],
-                }
-            ]
+                'Units': 'km'
+            }
         })
 
-    def test_load_from_map(self):
-        dr = ocproc2.ParentRecord()
-        dr.from_mapping({
-            '_parameters': {
-                'P1': {
-                    '_value': 12.34,
-                    '_metadata': {
-                        'Units': '0.001',
-                        'Uncertainty': 0.01
-                    }
-                },
-                'P2': {
-                    '_value': 5,
-                    '_metadata': {
-                        'Units': 'm s-1',
-                        'Uncertainty': 0.1,
-                        'SensorHeight': {
-                            '_value': 1,
-                            '_metadata': {
-                                'Units': 'm'
-                            }
-                        }
-                    }
-                }
-            },
-            '_coordinates': {
-                'C1': {
-                    '_value': 123.45,
-                    '_metadata': {
-                        'Units': 'degree'
-                    }
-                },
-                'C2': {
-                    '_value': 12.34,
-                    '_metadata': {
-                        'Units': 'degree'
-                    }
-                }
-            },
-            '_metadata': {
-                'M1': 'abc',
-                'M2': '2023-01-01T01:02:03',
-                'M3': '2023-12-31',
-                'M4': 123,
-                'M5': '',
-                'M6': None,
-                'M7': 123.34,
-                'M8': True,
-                'M9': False
-            },
-            '_subrecords': {
-                'PROFILE': {
-                    '0': [
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 10,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 20,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 30,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 40,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            '_coordinates': {
-                                'C3': {
-                                    '_value': 50,
-                                    '_metadata': {
-                                        'Units': 'm',
-                                        'Uncertainty': 5
-                                    }
-                                }
-                            }
-                        },
-                    ]
-                }
-            },
-            '_history': [
-                {
-                    '_message': 'hello world',
-                    '_timestamp': '2023-01-01T00:00:00+00:00',
-                    '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'I'
-                },
-                {
-                    '_message': 'hello world2',
-                    '_timestamp': '2023-01-02T00:00:00+00:00',
-                    '_source': ('test1', 'version1', 'instance1'),
-                    '_message_type': 'I'
-                }
-            ],
-            '_qc_tests': [
-                {
-                    '_name': 'test1',
-                    '_version': 'version1',
-                    '_date': '2023-01-03T00:00:00+00:00',
-                    '_messages': [
-                        {
-                            '_code': 'lat_fail',
-                            '_path': 'a/b/c',
-                            '_ref': 90
-                        },
-                        {
-                            '_code': 'lon_fail',
-                            '_path': 'a/b/d',
-                            '_ref': -180
-                        }
-                    ],
-                    '_result': 'F',
-                    '_stale': False,
-                    '_notes': 'hello world3'
-                }
-            ]
-        })
-        self.assertIn('M1', dr.metadata)
-        self.assertEqual(dr.metadata['M1'], ocproc2.SingleElement('abc'))
-        self.assertIn('M2', dr.metadata)
-        self.assertEqual(dr.metadata['M2'], ocproc2.SingleElement(datetime.datetime(2023, 1, 1, 1, 2, 3)))
-        self.assertIn('M3', dr.metadata)
-        self.assertEqual(dr.metadata['M3'], ocproc2.SingleElement(datetime.date(2023, 12, 31)))
-        self.assertIn('M4', dr.metadata)
-        self.assertEqual(dr.metadata['M4'], ocproc2.SingleElement(123))
-        self.assertIn('M5', dr.metadata)
-        self.assertEqual(dr.metadata['M5'], ocproc2.SingleElement(''))
-        self.assertIn('M6', dr.metadata)
-        self.assertEqual(dr.metadata['M6'], ocproc2.SingleElement(None))
-        self.assertIn('M7', dr.metadata)
-        self.assertEqual(dr.metadata['M7'], ocproc2.SingleElement(123.34))
-        self.assertIn('M8', dr.metadata)
-        self.assertEqual(dr.metadata['M8'], ocproc2.SingleElement(True))
-        self.assertIn('M9', dr.metadata)
-        self.assertEqual(dr.metadata['M9'], ocproc2.SingleElement(False))
-        self.assertIn('C1', dr.coordinates)
-        self.assertEqual(dr.coordinates['C1'], ocproc2.SingleElement(123.45, Units="degree"))
-        self.assertNotEqual(dr.coordinates['C1'], ocproc2.SingleElement(123.45))
-        self.assertIn('C2', dr.coordinates)
-        self.assertEqual(dr.coordinates['C2'], ocproc2.SingleElement(12.34, Units="degree"))
-        self.assertIn('P1', dr.parameters)
-        self.assertEqual(dr.parameters['P1'], ocproc2.SingleElement(12.34, Units="0.001", Uncertainty=0.01))
-        self.assertIn('P2', dr.parameters)
-        self.assertEqual(dr.parameters['P2'], ocproc2.SingleElement(5, Units='m s-1', Uncertainty=0.1, SensorHeight=ocproc2.SingleElement(1, Units='m')))
-        self.assertNotEqual(dr.parameters['P2'], ocproc2.SingleElement(5, Units='m s-1', Uncertainty=0.1, SensorHeight=1))
-        self.assertIn('PROFILE', dr.subrecords)
-        self.assertIn(0, dr.subrecords['PROFILE'])
-        self.assertEqual(5, len(dr.subrecords['PROFILE'][0].records))
-        for idx, record in enumerate(dr.subrecords['PROFILE'][0].records):
-            with self.subTest(subrecord_index=idx):
-                self.assertIn('C3', record.coordinates)
-                self.assertEqual(record.coordinates['C3'], ocproc2.SingleElement(10 + (10 * idx), Units="m", Uncertainty=5))
-        self.assertEqual(2, len(dr.history))
-        # TODO: check history in more depth
-        self.assertEqual(1, len(dr.qc_tests))
-        # TODO: check qc_tests in more depth
+    def test_to_mapping_short(self):
+        me = MultiElement([
+            SingleElement.build(1, {'Quality': 1}),
+            SingleElement.build(2, {'Quality': 2}),
+        ])
+        self.assertEqual(me.to_mapping(), [
+            {'_value': 1, '_metadata': {'Quality': 1}},
+            {'_value': 2, '_metadata': {'Quality': 2}}
+        ])
 
 
+class TestElementMap(ut.TestCase):
 
+    def test_find_child(self):
+        em = ocproc2.ElementMap()
+        em.set_element('Hello', 'World')
+        self.assertIs(em.find_child([]), em)
+        self.assertIs(em.find_child(['Hello']), em['Hello'])
+        self.assertIsNone(em.find_child(['None']))
+
+    def test_update_kwargs(self):
+        em = ocproc2.ElementMap()
+        em.update(Hello="World", Units="km")
+        self.assertEqual(em.get('Hello').value, 'World')
+        self.assertEqual(em.get('Units').value, 'km')
+
+    def test_ensure_element(self):
+        em = ocproc2.ElementMap.ensure_element('a', {'b': 'c'}, d='e')
+        self.assertEqual(em.value, 'a')
+        self.assertIn('b', em.metadata)
+        self.assertIn('d', em.metadata)
+        self.assertEqual('c', em.metadata['b'].value)
+        self.assertEqual('e', em.metadata['d'].value)
 

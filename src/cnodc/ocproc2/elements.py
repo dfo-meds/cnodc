@@ -2,6 +2,8 @@
 from __future__ import annotations
 import decimal
 import functools
+import hashlib
+import math
 import typing as t
 import datetime
 
@@ -10,6 +12,8 @@ from uncertainties import ufloat, UFloat
 from cnodc.ocproc2.lazy_load import LazyLoadDict
 from cnodc.science.units.units import convert
 
+
+UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
 
 SupportedValue = t.Union[
     None,
@@ -65,7 +69,7 @@ class AbstractElement:
             self._metadata = ElementMap()
         return self._metadata
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no coverage
         s = f'{self.__class__.__name__}({str(self)})'
         if self.metadata:
             s += "("
@@ -106,37 +110,37 @@ class AbstractElement:
     def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
         """Convert this value to a decimal number"""
         bv = self.ideal_single_value()
-        if units:
-            return convert(decimal.Decimal(bv.value), bv.units(), units)
-        return decimal.Decimal(bv.value)
+        try:
+            if units:
+                return convert(decimal.Decimal(bv.value), bv.units(), units)
+            return decimal.Decimal(bv.value)
+        except decimal.DecimalException as ex:
+            raise ValueError(f"Invalid decimal number [{bv.value}]") from ex
 
     def to_float_with_uncertainty(self, units: t.Optional[str] = None) -> t.Union[UFloat, float]:
         """Convert this value to a UFloat."""
         bv = self.ideal_single_value()
+        value = bv.to_decimal(units)
+        unc = None
         if bv.metadata.has_value('Uncertainty'):
-            # TODO: uncertainty type
-            value = ufloat(float(bv.value), bv.metadata.best_value('Uncertainty', coerce=float))
+            unc = abs(bv.metadata.best_value('Uncertainty', coerce=decimal.Decimal))
+            if bv.metadata.best_value('UncertaintyType', 'normal') == 'uniform':
+                unc = unc * UNIFORM_CONVERSION_FACTOR
+        if unc is not None and unc > 0:
+            return ufloat(value, convert(unc, bv.units(), units))
         else:
-            value = float(bv.value)
-        if units:
-            return convert(value, bv.units(), units)
-        return value
+            return float(value)
 
     def to_float(self, units: t.Optional[str] = None) -> float:
         """Convert this value to a float."""
-        bv = self.ideal_single_value()
-        if units:
-            return convert(float(bv.value), bv.units(), units)
-        return float(bv.value)
+        return float(self.to_decimal(units))
 
-    def to_int(self, units: t.Optional[str] = None) -> int:
+    def to_int(self, units: t.Optional[str] = None, raise_error_on_precision_loss: bool = True) -> int:
         """Convert this value to an integer."""
-        bv = self.ideal_single_value()
-        if isinstance(bv.value, float) or (isinstance(bv.value, str) and '.' in bv.value):
+        dv = self.to_decimal(units)
+        if raise_error_on_precision_loss and "." in str(dv):
             raise ValueError('Loss of precision')
-        if units:
-            return convert(int(bv.value), bv.units(), units)
-        return int(bv.value)
+        return int(dv)
 
     def to_datetime(self) -> datetime.datetime:
         """Convert this value to a datetime."""
@@ -172,7 +176,7 @@ class AbstractElement:
 
     def update_hash(self, h):
         """Update a hash with the unique value of this value."""
-        for v in self.all_values():
+        for v in self.all_values(True):
             if v.value is None:
                 h.update(b'\x00')
             else:
@@ -211,6 +215,9 @@ class AbstractElement:
                 return False
         return True
 
+    def _stable_sort_key(self):
+        raise NotImplementedError  # pragma: no coverage
+
     def is_multivalue(self) -> bool:
         return False
 
@@ -218,7 +225,7 @@ class AbstractElement:
         """Find the ideal representation of this value."""
         raise NotImplementedError  # pragma: no coverage
 
-    def all_values(self) -> t.Iterable:
+    def all_values(self, srt: bool = False) -> t.Iterable:
         """Retrieve all possible values for this one."""
         raise NotImplementedError  # pragma: no coverage
 
@@ -262,9 +269,11 @@ class SingleElement(AbstractElement):
             self.metadata.update(kwargs)
 
     def __contains__(self, item):
-        return False
+        return item == self._value
 
     def __eq__(self, other: AbstractElement):
+        if not isinstance(other, AbstractElement):
+            return False
         if other.is_multivalue():
             if len(other.value) == 1:
                 return self.__eq__(other.value[0])
@@ -273,7 +282,7 @@ class SingleElement(AbstractElement):
             return self.value == other.value and self.metadata == other.metadata
 
     def __str__(self):
-        return str(self._value)
+        return str(self._value)  # pragma: no coverage
 
     def find_child(self, path: list[str]):
         if (not path) or path[0] == "0":
@@ -283,7 +292,7 @@ class SingleElement(AbstractElement):
         else:
             return None
 
-    def all_values(self) -> t.Iterable:
+    def all_values(self, srt: bool = False) -> t.Iterable:
         yield self
 
     def ideal_single_value(self) -> SingleElement:
@@ -296,6 +305,15 @@ class SingleElement(AbstractElement):
     @value.setter
     def value(self, value: SupportedValue):
         self._value = normalize_data_value(value)
+
+    def _stable_sort_key(self):
+        h = hashlib.new('sha256')
+        if self._value is None:
+            h.update(b"\x00")
+        else:
+            h.update(str(self._value).encode('utf-8', errors='replace'))
+        self.metadata.update_hash(h)
+        return h.digest()
 
     def to_mapping(self):
         md = self.metadata.to_mapping() if self._metadata else None
@@ -333,7 +351,7 @@ class MultiElement(AbstractElement):
         self._metadata = None
 
     def __str__(self):
-        return '\n'.join(str(x) for x in self._value)
+        return '\n'.join(str(x) for x in self._value)  # pragma: no coverage
 
     def __len__(self) -> int:
         return len(self._value)
@@ -343,11 +361,17 @@ class MultiElement(AbstractElement):
 
     def __eq__(self, other):
         if isinstance(other, SingleElement):
-            if len(self._value) == 1:
-                return other == self._value[0]
-            return False
+            return any(x == other for x in self._value)
         elif isinstance(other, MultiElement):
-            return len(other) == len(self) and all(other[x] == self[x] for x in range(0, len(self)))
+            if len(other) != len(self):
+                return False
+            if self.metadata != other.metadata:
+                return False
+            if not all(any(x == y for y in other.values()) for x in self.values()):
+                return False
+            if not all(any(x == y for y in self.values()) for x in other.values()):
+                return False
+            return True
         else:
             return False
 
@@ -384,9 +408,13 @@ class MultiElement(AbstractElement):
         else:
             return None
 
-    def all_values(self) -> t.Iterable:
-        for v in self._value:
-            yield from v.all_values()
+    def all_values(self, srt: bool = False) -> t.Iterable:
+        if srt:
+            items = [x for x in self.all_values(False)]
+            yield from sorted(items, key=lambda x: x._stable_sort_key())
+        else:
+            for v in self._value:
+                yield from v.all_values()
 
     def values(self):
         return self._value
