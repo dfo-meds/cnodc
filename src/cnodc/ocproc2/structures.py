@@ -166,7 +166,7 @@ class ParentRecord(BaseRecord):
                 continue
             if (not include_stale) and qcr.is_stale:
                 continue
-            if best is None or qcr.test_date > best.test_date:
+            if best is None or qcr.test_date >= best.test_date:
                 best = qcr
         return best
 
@@ -210,7 +210,7 @@ class ParentRecord(BaseRecord):
                           source_name: str,
                           source_version: str,
                           source_instance: str,
-                          message_type: MessageType.NOTE,
+                          message_type: MessageType = MessageType.NOTE,
                           change_time: t.Optional[datetime.datetime] = None):
         self.history.append(HistoryEntry(
             message,
@@ -310,9 +310,6 @@ class RecordMap:
     def __init__(self):
         self.record_sets: dict[str, dict[int, RecordSet]] = {}
 
-    def __iter__(self):
-        return iter(self.record_sets)
-
     def __getitem__(self, item):
         return self.record_sets[item]
 
@@ -383,7 +380,7 @@ class RecordMap:
         return None
 
     def set(self, record_set_type: str, record_set_index: int, record_set: RecordSet):
-        if record_set not in self.record_sets:
+        if record_set_type not in self.record_sets:
             self.record_sets[record_set_type] = {}
         self.record_sets[record_set_type][record_set_index] = record_set
 
