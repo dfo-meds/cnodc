@@ -42,15 +42,15 @@ class BaseRecord:
             self._subrecords = RecordMap()
         return self._subrecords
 
-    def set_element(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+    def set(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.set(element_name, value, metadata, **kwargs)
 
-    def add_element(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+    def append_to(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.append_to(element_name, value, metadata, **kwargs)
 
-    def set_multiple(self, element_full_name: str, values: t.Sequence[OCProcValue], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None):
+    def set_many(self, element_full_name: str, values: t.Sequence[OCProcValue], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None):
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.set_many(element_name, values, common_metadata, specific_metadata)
 

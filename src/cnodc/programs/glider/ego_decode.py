@@ -34,7 +34,7 @@ class GliderEGOMapper(NetCDFCommonMapper):
 
     def _after_record(self, record: ParentRecord, index: int):
         for key in self._record_metadata:
-            record.set_element(key, self._record_metadata[key])
+            record.set(key, self._record_metadata[key])
 
     def _after_element(self, element: SingleElement, minfo: dict, data: t.Optional[dict[str, t.Any]] = None):
         extra_metadata = {}

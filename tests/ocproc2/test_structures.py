@@ -10,35 +10,35 @@ class TestBaseRecord(ut.TestCase):
 
     def test_set_element_metadata(self):
         r = BaseRecord()
-        r.set_element('metadata/Foo', 'Bar')
+        r.set('metadata/Foo', 'Bar')
         self.assertEqual(r.metadata.best('Foo'), 'Bar')
 
     def test_set_element_coordinates(self):
         r = BaseRecord()
-        r.set_element('coordinates/Foo', 'Bar')
+        r.set('coordinates/Foo', 'Bar')
         self.assertEqual(r.coordinates.best('Foo'), 'Bar')
 
     def test_set_element_parameters(self):
         r = BaseRecord()
-        r.set_element('parameters/Foo', 'Bar')
+        r.set('parameters/Foo', 'Bar')
         self.assertEqual(r.parameters.best('Foo'), 'Bar')
 
     def test_set_element_bad_group(self):
         r = BaseRecord()
         with self.assertRaises(ValueError):
-            r.set_element('parameter/Foo', 'Bar')
+            r.set('parameter/Foo', 'Bar')
 
     def test_add_element(self):
         r = BaseRecord()
-        r.add_element('parameters/Foo', 'Bar')
-        r.add_element('parameters/Foo', 'Bar2')
+        r.append_to('parameters/Foo', 'Bar')
+        r.append_to('parameters/Foo', 'Bar2')
         self.assertIsInstance(r.parameters['Foo'], MultiElement)
         self.assertEqual(r.parameters['Foo'].value[0].value, 'Bar')
         self.assertEqual(r.parameters['Foo'].value[1].value, 'Bar2')
 
     def test_set_multiple(self):
         r = BaseRecord()
-        r.set_multiple('parameters/Foo', ['Bar', 'Bar2'])
+        r.set_many('parameters/Foo', ['Bar', 'Bar2'])
         self.assertIsInstance(r.parameters['Foo'], MultiElement)
         self.assertEqual(r.parameters['Foo'].value[0].value, 'Bar')
         self.assertEqual(r.parameters['Foo'].value[1].value, 'Bar2')
