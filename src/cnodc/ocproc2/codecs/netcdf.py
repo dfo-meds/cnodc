@@ -306,7 +306,7 @@ class NetCDFCommonMapper:
         # Some basic validation
         pieces = minfo['target'].split('/', maxsplit=1) if '/' in minfo['target'] else minfo['target']
         ename = pieces[-1]
-        element_info = self.ontology.element_info(ename)
+        element_info = self.ontology.info(ename)
         if element_info is not None:
             current_units = element.metadata.best('Units', None)
             if current_units and element_info.preferred_unit:

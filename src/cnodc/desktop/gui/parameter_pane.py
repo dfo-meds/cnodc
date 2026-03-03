@@ -332,7 +332,7 @@ class ParameterPane(BasePane):
         self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{self._key_name(key)}', *dv], tags=tags)
 
     def _key_name(self, key: str):
-        einfo = self.ontology.element_info(key)
+        einfo = self.ontology.info(key)
         if einfo is not None:
             return einfo.label(i18n.current_language())
         return key
@@ -377,5 +377,5 @@ class ParameterPane(BasePane):
         elements = path.split('/')
         while elements[-1].isdigit():
             elements = elements[:-1]
-        return self.ontology.element_info(elements[-1])
+        return self.ontology.info(elements[-1])
 

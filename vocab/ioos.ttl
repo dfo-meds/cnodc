@@ -1,7 +1,8 @@
 @prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
-cnodc:ioosCategories rdf:type skos:ConceptScheme .
+ioos:ioosCategories rdf:type skos:ConceptScheme .
 
 
 ioos:Location rdf:type skos:Concept ;

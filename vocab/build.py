@@ -101,8 +101,9 @@ with open(temp_ioos, 'w', encoding='utf-8') as output:
 
     output.write("""@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
-cnodc:ioosCategories rdf:type skos:ConceptScheme .
+ioos:ioosCategories rdf:type skos:ConceptScheme .
 
 """)
 
@@ -126,6 +127,7 @@ cnodc:ioosCategories rdf:type skos:ConceptScheme .
 with open(temp_eov, 'w', encoding='utf-8') as output:
     output.write("""@prefix eov: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
 eov:essentialOceanVariables rdf:type skos:ConceptScheme .
 
@@ -151,6 +153,8 @@ with open(temp_rs, 'w', encoding='utf-8') as output:
     output.write("""@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 @prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 rstypes:recordSetTypes rdf:type skos:ConceptScheme .
 

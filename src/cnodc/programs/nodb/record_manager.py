@@ -52,7 +52,7 @@ class NODBRecordManager:
         unloaded, loaded = memory['platform_info'][platform_uuid]
         changed = False
         for element_name in record.metadata.keys():
-            element_group = self.ontology.element_group(element_name)
+            element_group = self.ontology.group_name(element_name)
             if element_group == 'metadata:platform':
                 if element_name not in unloaded:
                     unloaded[element_name] = record.metadata[element_name].to_mapping()
@@ -89,7 +89,7 @@ class NODBRecordManager:
         unloaded, loaded = memory['mission_info'][mission_uuid]
         changed = False
         for element_name in record.metadata.keys():
-            element_group = self.ontology.element_group(element_name)
+            element_group = self.ontology.group_name(element_name)
             if element_group == 'metadata:mission':
                 if element_name not in unloaded:
                     unloaded[element_name] = record.metadata[element_name].to_mapping()

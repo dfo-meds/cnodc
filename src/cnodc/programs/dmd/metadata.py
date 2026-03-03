@@ -2696,8 +2696,8 @@ class DatasetMetadata:
         if cnodc_name:
             if ':' in cnodc_name:
                 _, cnodc_name = cnodc_name.rsplit(":", maxsplit=1)
-            if self.ontology.is_defined_element(cnodc_name):
-                element = self.ontology.element_info(cnodc_name)
+            if self.ontology.exists(cnodc_name):
+                element = self.ontology.info(cnodc_name)
                 if element.ioos_category is None:
                     ioos_cat = IOOSCategory.Other
                 else:

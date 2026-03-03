@@ -2,6 +2,8 @@ import rdflib
 import pathlib
 import threading
 import typing as t
+
+import rdflib.term
 from autoinject import injector
 
 
@@ -26,6 +28,9 @@ SKOS_LABEL = f'http://www.w3.org/2004/02/skos/core#prefLabel'
 SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
 
 
+LiteralValue = t.Union[set[rdflib.term.Literal], rdflib.term.Literal]
+ReferenceValue = t.Union[str, set[str]]
+
 class _BaseInfo:
 
     __slots__ = ('name', '_label', '_documentation')
@@ -36,46 +41,70 @@ class _BaseInfo:
         self._documentation = {}
 
     def label(self, lang: str = 'en') -> str:
-        return self._get_language_attribute(self._label, lang, self.name)
+        return _BaseInfo._get_language_attribute(self._label, lang)
+
+    def set_label(self, label: LiteralValue):
+        for lang, value in _BaseInfo.build_all_from_multilingual(label):
+            self._label[lang] = value
 
     def documentation(self, lang: str = 'en') -> str:
-        return self._get_language_attribute(self._documentation, lang)
+        return _BaseInfo._get_language_attribute(self._documentation, lang)
 
-    def _get_language_attribute(self, lang_attr: dict, lang: str = 'en', default: str = '') -> str:
+    def set_documentation(self, doc: LiteralValue):
+        for lang, value in _BaseInfo.build_all_from_multilingual(doc):
+            self._documentation[lang] = value
+
+    @staticmethod
+    def _get_language_attribute(lang_attr: dict, lang: str = 'en', default: str = '') -> str:
         if lang in lang_attr and lang_attr[lang] != '':
             return lang_attr[lang]
         elif 'und' in lang_attr and lang_attr['und'] != '':
             return lang_attr['und']
-        elif 'en' in self._label and lang_attr['en'] != '':
-            return lang_attr['en']
         else:
             return default
 
-    def _set_multi_language(self, label, property: dict):
-        lang = getattr(label, 'language') if hasattr(label, 'language') else 'und'
-        if lang is None or lang == '':
-            lang = 'und'
-        property[lang] = str(label)
-
-    def set_label(self, label: t.Union[set, str]):
-        if isinstance(label, set):
-            for l in label:
-                self._set_multi_language(l, self._label)
+    @staticmethod
+    def build_all_from_multilingual(literal: LiteralValue) -> t.Iterable[tuple[str, str]]:
+        if isinstance(literal, set):
+            for lit in literal:
+                yield (lit.language or 'und'), lit.value
         else:
-            self._set_multi_language(label, self._label)
+            yield literal.language or 'und', literal.value
 
-    def set_documentation(self, doc: t.Union[set, str]):
-        if isinstance(doc, set):
-            for d in doc:
-                self._set_multi_language(d, self._documentation)
+    @staticmethod
+    def build_one_from_ref(ref_value: ReferenceValue) -> str:
+        if isinstance(ref_value, set):
+            return _BaseInfo._remove_prefix(list(ref_value)[0])
         else:
-            self._set_multi_language(doc, self._documentation)
+            return _BaseInfo._remove_prefix(ref_value)
 
-    def _remove_prefix(self, x: t.Union[set, str]):
+    @staticmethod
+    def build_all_from_ref(ref_value: ReferenceValue) -> t.Iterable[str]:
+        if isinstance(ref_value, set):
+            for x in ref_value:
+                yield _BaseInfo._remove_prefix(x)
+        else:
+            yield _BaseInfo._remove_prefix(ref_value)
+
+    @staticmethod
+    def build_one_from_literal(ref_value: LiteralValue) -> t.Union[str, int, float, None]:
+        if isinstance(ref_value, set):
+            return list(ref_value)[0].value
+        else:
+            return ref_value.value
+
+    @staticmethod
+    def build_all_from_literal(ref_value: LiteralValue) -> t.Union[str, int, float, None]:
+        if isinstance(ref_value, set):
+            for x in ref_value:
+                yield x.value
+        else:
+            yield ref_value.value
+
+    @staticmethod
+    def _remove_prefix(x: t.Optional[str]):
         if x is None:
             return x
-        if isinstance(x, set):
-            return set(self._remove_prefix(y) for y in x)
         else:
             return x if '#' not in x else x[x.rfind('#')+1:]
 
@@ -90,16 +119,14 @@ class OCProc2ChildRecordTypeInfo(_BaseInfo):
         self.coordinates = relevant_coordinates or set()
         super().__init__(name)
 
-    def update_coordinates(self, coordinates: t.Union[set, str]):
-        if isinstance(coordinates, set):
-            self.coordinates.update(self._remove_prefix(coordinates))
-        else:
-            self.coordinates.add(self._remove_prefix(coordinates))
+    def update_coordinates(self, coordinates: ReferenceValue):
+        self.coordinates.update(_BaseInfo.build_all_from_ref(coordinates))
 
 
 class OCProc2ElementInfo(_BaseInfo):
 
-    __slots__ = ('ioos_category', 'essential_ocean_vars', 'name', '_label', '_documentation', 'allow_multi', 'groups', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values')
+    __slots__ = ('ioos_category', 'essential_ocean_vars', 'name', '_label', '_documentation', 'allow_many',
+                 'group_name', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values')
 
     def __init__(self,
                  name: str,
@@ -108,14 +135,14 @@ class OCProc2ElementInfo(_BaseInfo):
                  max_value: t.Optional[float] = None,
                  data_type: t.Optional[str] = None,
                  preferred_unit: t.Optional[str] = None,
-                 groups: t.Optional[set[str]] = None,
+                 groups: t.Optional[str] = None,
                  allowed_values: t.Optional[set[t.Union[int, str]]] = None,
                  ioos_category: t.Optional[str] = None,
                  essential_ocean_variables: t.Optional[set[str]] = None):
-        self.groups = groups or set()
+        self.group_name = groups
         self.preferred_unit = preferred_unit
         self.data_type = data_type
-        self.allow_multi = allow_multi
+        self.allow_many = allow_multi
         self.min_value = min_value
         self.max_value = max_value
         self.allowed_values = allowed_values or set()
@@ -123,70 +150,49 @@ class OCProc2ElementInfo(_BaseInfo):
         self.essential_ocean_vars = essential_ocean_variables or set()
         super().__init__(name)
 
-    def set_ioos_category(self, ioos_category: t.Union[set, str]):
-        if isinstance(ioos_category, set):
-            ioos_category = list(ioos_category)[0]
-        self.ioos_category = self._remove_prefix(ioos_category)
+    def set_ioos_category(self, ioos_category: ReferenceValue):
+        self.ioos_category = _BaseInfo.build_one_from_ref(ioos_category)
 
-    def update_essential_ocean_vars(self, ocean_var: t.Union[str, set]):
-        if isinstance(ocean_var, set):
-            self.essential_ocean_vars.update(self._remove_prefix(ocean_var))
-        else:
-            self.essential_ocean_vars.add(self._remove_prefix(ocean_var))
+    def update_essential_ocean_vars(self, ocean_var: ReferenceValue):
+        self.essential_ocean_vars.update(_BaseInfo.build_all_from_ref(ocean_var))
 
-    def set_preferred_unit(self, unit: t.Union[set, str]):
-        if isinstance(unit, set):
-            self.preferred_unit = list(unit)[0]
-        elif unit is None or unit == '':
-            self.preferred_unit = None
-        else:
-            self.preferred_unit = unit
+    def set_preferred_unit(self, unit: LiteralValue):
+        self.preferred_unit = _BaseInfo.build_one_from_literal(unit)
 
-    def set_data_type(self, data_type: t.Union[set, str]):
-        if isinstance(data_type, set):
-            dt = list(data_type)[0]
-        elif data_type is None or data_type == '':
-            dt = None
-        else:
-            dt = data_type
-        self.data_type = dt[dt.rfind('#')+1:] if dt else None
+    def set_data_type(self, data_type: ReferenceValue):
+        self.data_type = _BaseInfo.build_one_from_ref(data_type)
 
-    def update_groups(self, groups: t.Union[set, str]):
-        if isinstance(groups, set):
-            self.groups.update(groups)
-        else:
-            self.groups.add(groups)
+    def set_allowed_group(self, group: LiteralValue):
+        self.group_name = _BaseInfo.build_one_from_literal(group)
 
-    def update_allowed_values(self, avs: t.Union[set, str, int]):
-        if isinstance(avs, set):
-            self.allowed_values.update(avs)
-        else:
-            self.allowed_values.add(avs)
+    def update_allowed_values(self, avs: LiteralValue):
+        self.allowed_values.update(_BaseInfo.build_all_from_literal(avs))
 
-    def set_allow_multi(self, allow_multi: t.Union[set, str]):
-        if isinstance(allow_multi, set):
-            self.allow_multi = not any(str(x).lower() == 'false' for x in allow_multi)
-        else:
-            self.allow_multi = str(allow_multi).lower() != 'false'
+    def set_allow_multi(self, allow_multi: LiteralValue):
+        self.allow_many = _BaseInfo.build_one_from_literal(allow_multi).lower().strip() != 'false'
 
-    def set_min_value(self, min_value: t.Union[set, float]):
-        if isinstance(min_value, set):
-            self.min_value = float(list(min_value)[0])
-        else:
-            self.min_value = float(min_value)
+    def set_min_value(self, min_value: LiteralValue):
+        self.min_value = _BaseInfo.build_one_from_literal(min_value)
 
-    def set_max_value(self, max_value: t.Union[set, float]):
-        if isinstance(max_value, set):
-            self.max_value = float(list(max_value)[0])
-        else:
-            self.max_value = float(max_value)
+    def set_max_value(self, max_value: LiteralValue):
+        self.max_value = _BaseInfo.build_one_from_literal(max_value)
 
 
 @injector.injectable_global
 class OCProc2Ontology:
 
-    def __init__(self, ontology_file: pathlib.Path = None):
-        self._onto_file = ontology_file or pathlib.Path(__file__).absolute().parent.parent.parent.parent / 'vocab' / 'cnodc.ttl'
+    def __init__(self, ontology_files: t.Optional[t.Union[t.Sequence[pathlib.Path], pathlib.Path]] = None):
+        self._onto_file = []
+        if isinstance(ontology_files, (set, tuple, list)):
+            self._onto_file.extend(ontology_files)
+        elif ontology_files:
+            self._onto_file.append(ontology_files)
+        else:
+            vocab_dir = pathlib.Path(__file__).absolute().parent.parent.parent.parent / 'vocab'
+            self._onto_file.append(vocab_dir / 'eov.ttl')
+            self._onto_file.append(vocab_dir / 'ioos.ttl')
+            self._onto_file.append(vocab_dir / 'cnodc.ttl')
+            self._onto_file.append(vocab_dir / 'rstypes.ttl')
         self._parameters: t.Optional[dict[str, OCProc2ElementInfo]] = None
         self._recordset_types: t.Optional[dict, str, OCProc2ChildRecordTypeInfo] = None
         self._load_lock = threading.Lock()
@@ -199,7 +205,8 @@ class OCProc2Ontology:
                     self._parameters = {}
                     self._recordset_types = {}
                     graph = rdflib.Graph()
-                    graph.parse(str(self._onto_file))
+                    for f in self._onto_file:
+                        graph.parse(str(f))
                     graph_dict: dict[str, dict] = {}
                     for a, b, c in graph:
                         a = str(a)
@@ -213,8 +220,6 @@ class OCProc2Ontology:
                         else:
                             graph_dict[a][b] = c
                     for key in graph_dict:
-                        if not key.startswith(CNODC_PREFIX):
-                            continue
                         if SKOS_IN_SCHEME not in graph_dict[key]:
                             continue
                         if str(graph_dict[key][SKOS_IN_SCHEME]) == CNODC_ELEMENTS:
@@ -229,7 +234,7 @@ class OCProc2Ontology:
                             if CNODC_DATA_TYPE in graph_dict[key]:
                                 self._parameters[e_name].set_data_type(graph_dict[key][CNODC_DATA_TYPE])
                             if CNODC_GROUP in graph_dict[key]:
-                                self._parameters[e_name].update_groups(graph_dict[key][CNODC_GROUP])
+                                self._parameters[e_name].set_allowed_group(graph_dict[key][CNODC_GROUP])
                             if CNODC_ALLOW_MULTI in graph_dict[key]:
                                 self._parameters[e_name].set_allow_multi(graph_dict[key][CNODC_ALLOW_MULTI])
                             if CNODC_MIN in graph_dict[key]:
@@ -257,24 +262,32 @@ class OCProc2Ontology:
             return self._recordset_types[recordset_type_name]
         return None
 
-    def element_info(self, element_name: str) -> t.Optional[OCProc2ElementInfo]:
+    def recordset_exists(self, recordset_type: str) -> bool:
+        return recordset_type in self._recordset_types
+
+    def coordinates(self, recordset_type: str) -> t.Optional[set]:
+        if recordset_type in self._recordset_types:
+            return self._recordset_types[recordset_type].coordinates or None
+        return None
+
+    def info(self, element_name: str) -> t.Optional[OCProc2ElementInfo]:
         if element_name in self._parameters:
             return self._parameters[element_name]
         return None
 
-    def allow_multiple_values(self, element_name: str) -> bool:
+    def allow_many(self, element_name: str) -> t.Optional[bool]:
         if element_name in self._parameters:
-            return self._parameters[element_name].allow_multi
-        return True
+            return self._parameters[element_name].allow_many
+        return None
 
     def preferred_unit(self, element_name: str) -> t.Optional[str]:
         if element_name in self._parameters:
             return self._parameters[element_name].preferred_unit
         return None
 
-    def element_group(self, element_name: str) -> t.Optional[set[str]]:
+    def group_name(self, element_name: str) -> t.Optional[set[str]]:
         if element_name in self._parameters:
-            return self._parameters[element_name].groups
+            return self._parameters[element_name].group_name
         return None
 
     def data_type(self, element_name: str) -> t.Optional[str]:
@@ -282,11 +295,8 @@ class OCProc2Ontology:
             return self._parameters[element_name].data_type
         return None
 
-    def is_defined_element(self, element_name: str) -> bool:
+    def exists(self, element_name: str) -> bool:
         return element_name in self._parameters
-
-    def is_defined_recordset_type(self, recordset_type: str) -> bool:
-        return recordset_type in self._recordset_types
 
     def min_value(self, element_name: str) -> t.Optional[t.Union[float, int]]:
         if element_name in self._parameters:
@@ -300,5 +310,15 @@ class OCProc2Ontology:
 
     def allowed_values(self, element_name: str) -> t.Optional[set[t.Union[str, int]]]:
         if element_name in self._parameters:
-            return self._parameters[element_name].allowed_values
+            return self._parameters[element_name].allowed_values or None
+        return None
+
+    def ioos_category(self, element_name: str) -> t.Optional[str]:
+        if element_name in self._parameters:
+            return self._parameters[element_name].ioos_category
+        return None
+
+    def essential_ocean_vars(self, element_name: str) -> t.Optional[set[str]]:
+        if element_name in self._parameters:
+            return self._parameters[element_name].essential_ocean_vars or None
         return None

@@ -42,7 +42,7 @@ class NODBIntegrityCheck(BaseTestSuite):
     def profile_depth_check(self, record, context: TestContext):
         if context.current_subrecord_type is None:
             self.skip_test()
-        if not self.ontology.is_defined_recordset_type(context.current_subrecord_type):
+        if not self.ontology.recordset_exists(context.current_subrecord_type):
             self.skip_test()
         valid_coordinates = self.ontology.recordset_info(context.current_subrecord_type)
         if not any(record.coordinates.has_value(x) for x in valid_coordinates.coordinates):
@@ -70,7 +70,7 @@ class NODBIntegrityCheck(BaseTestSuite):
     def _verify_record_type(self, context: TestContext, record_type: str):
         with context.self_context():
             if self._strict:
-                self.assert_true(self.ontology.is_defined_recordset_type(record_type), 'ontology_invalid_recordset_type')
+                self.assert_true(self.ontology.recordset_exists(record_type), 'ontology_invalid_recordset_type')
 
     def _verify_element(self, context: TestContext, element_group: str, element_name: str, element_value: ocproc2.AbstractElement):
         # Check if the element is a defined parameter type in the scheme
@@ -81,14 +81,14 @@ class NODBIntegrityCheck(BaseTestSuite):
                 self.skip_test()
 
         # Check if the element is of an allowed group
-        allowed_groups = self.ontology.element_group(element_name)
+        allowed_groups = self.ontology.group_name(element_name)
         if allowed_groups:
             self.assert_true(any(element_group.startswith(x) for x in allowed_groups), 'ontology_invalid_group', 20)
         elif self._strict:
             self.report_for_review('ontology_no_allowed_groups', 20)
 
         # If the element is multi-valued, check if this is allowed
-        if not self.ontology.allow_multiple_values(element_name):
+        if not self.ontology.allow_many(element_name):
             self.assert_not_multi(element_value, 'ontology_multi_not_allowed')
 
         # Check all non-empty values against the preferred unit and data type
