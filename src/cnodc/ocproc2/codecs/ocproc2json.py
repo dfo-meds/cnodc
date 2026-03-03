@@ -1,9 +1,9 @@
-try:
+try:      # pragma: no coverage (speeds up processing qutie a bit)
     import orjson
     json_dumps = orjson.dumps
     json_loads = orjson.loads
     json_name = 'orjson'
-except ModuleNotFoundError:
+except ModuleNotFoundError:  # pragma: no coverage (fallback for when orjson might not be available)
     import json
     json_name = 'json'
 
@@ -58,27 +58,28 @@ class OCProc2JsonCodec(BaseCodec):
         for chunk in stream.split_and_iterate([b"[", b"]", b"{", b"}"], True):
             buffer.extend(chunk)
             end_c = buffer[-1]
-            if end_c in (91, 123):
+            if end_c in (91, 123):  # [ or {
                 depth += 1
-            elif end_c == 93:
+            elif end_c == 93:  # ]
                 depth -= 1
                 if depth == 0:
                     break
-            elif end_c == 125:
+            elif end_c == 125: # }
                 depth -= 1
                 if depth == 1:
+                    buffer = buffer.strip()
                     # First character is either a comma or a square bracket that isn't closed, so finish it
                     yield self.decode_single_record(buffer[1:], encoding=encoding)
                     buffer = bytearray()
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
+        buffer = buffer.strip()
         # TODO: handle this better
         if not stream.at_eof():
-            print("warning, end of file not reached")
+            self.log.warning(f"More data detected")
         if buffer == b'':
-            print("warning, missing trailing bracket")
+            self.log.warning(f"Missing trailing bracket")
         elif buffer != b']':
-            print("warning, buffer not empty")
-            print(buffer)
+            self.log.warning(f"More data detected")
 
     def _decode_single_record(self, stream: t.Union[bytes, bytearray], encoding: str = 'utf-8', *args, **kwargs) -> t.Optional[ocproc2.ParentRecord]:
         return BaseCodec.map_to_record(json_loads(stream))

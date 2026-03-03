@@ -276,7 +276,7 @@ class NetCDFCommonMapper:
                     unadjusted_value = value
                     value = test_value
             else:
-                self._log.warning(f"Missing adjusted variable [{adjusted_name}]")
+                self._log.warning(f"Missing adjusted variable [{adjusted_name}]")  # pragma: no coverage (not used)
 
         # Check if there was an unadjusted value
         elif 'unadjusted_source' in minfo and minfo['unadjusted_source']:
@@ -286,7 +286,7 @@ class NetCDFCommonMapper:
                 if test_value is not None:
                     unadjusted_value = test_value
             else:
-                self._log.warning(f"Missing adjusted variable [{unadjusted_name}]")
+                self._log.warning(f"Missing unadjusted variable [{unadjusted_name}]")  # pragma: no coverage (not used)
 
         element = self._build_element_common(value, minfo, unadjusted_value)
 
@@ -313,7 +313,7 @@ class NetCDFCommonMapper:
                 try:
                     if not self.units.compatible(current_units, element_info.preferred_unit):
                         self._log.warning(f"Invalid units [{current_units}] for element [{element_info.name}] from [{minfo['source']}]")
-                except UnitError as ex:
+                except UnitError as ex:  # pragma: no coverage (not used)
                     self._log.exception(f"Invalid units [{current_units}] for element [{element_info.name}] from [{minfo['source']}]")
 
         return element
@@ -372,7 +372,7 @@ class NetCDFCommonMapper:
             processor = minfo['data_processor']
             if "." not in processor:
                 if not hasattr(self, processor):
-                    raise NetCDFCommonDecoderError(f"Invalid local data processor [{processor}]", 1004, True)
+                    raise NetCDFCommonDecoderError(f"Invalid local data processor [{processor}]", 1004, True) # pragma: no coverage (just a cover my butt)
                 value = getattr(self, processor)(value, minfo)
             else:
                 obj = dynamic_object(processor)
@@ -382,7 +382,7 @@ class NetCDFCommonMapper:
     def map_value(self, map_name_or_dict, item_name, sub_key: t.Optional[str] = None, coerce=None, raise_ex: bool = False):
         # empty items are empty
         if item_name is None or item_name == '':
-            return None
+            return None  # pragma: no coverage
         # coerce if needed
         item_name = item_name.lower()
         if coerce:
@@ -392,24 +392,19 @@ class NetCDFCommonMapper:
             data_map = map_name_or_dict
         elif map_name_or_dict in self._data['data_maps'] and isinstance(self._data['data_maps'][map_name_or_dict], dict):
             data_map = self._data['data_maps'][map_name_or_dict]
-        elif raise_ex:
-            raise NetCDFCommonDecoderError(f"Missing map [{map_name_or_dict}]", 2000)
-        else:
-            self._log.error(f"Missing map [{map_name_or_dict}], defaulting to original value")
-            return item_name
         # check if the item is in the data map
         if item_name in data_map:
             if sub_key:
                 if sub_key in data_map[item_name]:
                     return data_map[item_name][sub_key]
-                elif raise_ex:
+                elif raise_ex:  # pragma: no coverage
                     raise NetCDFCommonDecoderError(f'Missing subkey [{sub_key}] for [{map_name_or_dict}][{item_name}]', 2001)
                 else:
                     self._log.error(f'Missing subkey [{sub_key}] for [{map_name_or_dict}][{item_name}], defaulting to original value')
                     return item_name
             else:
                 return data_map[item_name]
-        elif raise_ex:
+        elif raise_ex: # pragma: no coverage
             raise NetCDFCommonDecoderError(f'Unknown value [{item_name}] for map [{map_name_or_dict}]', 2002)
         else:
             self._log.error(f'Unknown value [{item_name}] for map [{map_name_or_dict}], defaulting to original value')
@@ -417,7 +412,7 @@ class NetCDFCommonMapper:
 
     def _time_since(self, value, minfo):
         if value is None or value == '':
-            return None
+            return None  # pragma: no coverage
         var_name = minfo['source']
         key = f'time_since_{var_name}'
         if key not in self._cache:

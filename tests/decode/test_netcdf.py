@@ -8,10 +8,97 @@ from cnodc.ocproc2 import MultiElement, SingleElement
 from cnodc.util import CNODCError
 from cnodc.util.sanitize import str_to_netcdf, str_to_netcdf_vlen
 from core import BaseTestCase
-from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError
+from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder
 
 
 class TestNetCDFCommonDecode(BaseTestCase):
+
+    def test_full_decoder(self):
+        config_file = self.temp_dir / 'test.yaml'
+        with open(config_file, "w") as h:
+            yaml.safe_dump({
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                        'data_map': {
+                            'foo': 'foo1',
+                            'bar': 'bar1',
+                            'hello': 'hello1',
+                            'world': 'world1',
+                        }
+                    },
+                },
+                'data_maps': {},
+            }, h)
+        nc_file = self.temp_dir / "test.nc"
+        with nc.Dataset(nc_file, "w") as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+        bytes_iterable = []
+        with open(nc_file, 'rb') as h:
+            r = h.read(128)
+            while r != b'':
+                bytes_iterable.append(r)
+                r = h.read(128)
+        decoder = NetCDFCommonDecoder()
+        records = [x for x in decoder.decode_messages(bytes_iterable, mapping_file=str(config_file))]
+        self.assertEqual(5, len(records))
+        for idx, record in enumerate(records):
+            with self.subTest(record_no=idx):
+                self.assertIn('Bar2', record.metadata)
+                self.assertIsInstance(record.metadata['Bar2'], MultiElement)
+                values = [x.value for x in record.metadata['Bar2'].all_values()]
+                self.assertEqual(4, len(values))
+                self.assertIn('foo1', values)
+                self.assertIn('bar1', values)
+                self.assertIn('hello1', values)
+                self.assertIn('world1', values)
+
+    def test_bad_mapping_file(self):
+        nc_file = self.temp_dir / "test.nc"
+        with nc.Dataset(nc_file, "w") as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+        bytes_iterable = []
+        with open(nc_file, 'rb') as h:
+            r = h.read(128)
+            while r != b'':
+                bytes_iterable.append(r)
+                r = h.read(128)
+        decoder = NetCDFCommonDecoder()
+        with self.assertLogs("cnodc.netcdf_common_decoder", "ERROR"):
+            _ = [x for x in decoder.decode_messages(bytes_iterable)]
+
+    def test_default_mapping_file_and_class(self):
+        nc_file = self.temp_dir / "test.nc"
+        with nc.Dataset(nc_file, "w") as ds:
+            ds.createDimension('FOO')
+            v = ds.createVariable('JULD', 'i4', ('FOO',))
+            v.setncattr('units', 'seconds since 1950-01-01T00:00:00')
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['JULD'][:] = values
+        bytes_iterable = []
+        with open(nc_file, 'rb') as h:
+            r = h.read(128)
+            while r != b'':
+                bytes_iterable.append(r)
+                r = h.read(128)
+        decoder = NetCDFCommonDecoder()
+        with self.assertLogs("cnodc.programs.glider.ego_decode", "INFO"):
+            records = [x for x in decoder.decode_messages(bytes_iterable, mapping_class="cnodc.programs.glider.ego_decode.GliderEGOMapper")]
+        self.assertEqual(5, len(records))
 
     def test_bad_file(self):
         path = self.temp_dir / 'file.txt'

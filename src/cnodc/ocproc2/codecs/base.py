@@ -473,7 +473,8 @@ class BaseCodec:
                 original=data
             )
         except Exception as ex:
-            self.log.exception(f"An exception occurred while decoding")
+            self.log.error(f"An exception occurred while decoding")
+            self.log.exception(f"{type(ex)}: {str(ex)}")
             return DecodeResult(
                 exc=ex,
                 original=data

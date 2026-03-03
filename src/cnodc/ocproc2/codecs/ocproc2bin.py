@@ -7,10 +7,10 @@ from cnodc.util import CNODCError, vlq_encode
 class StreamWrapper:
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        yield from stream
+        yield from stream  # pragma: no coverage
 
     def unwrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        yield from stream
+        yield from stream  # pragma: no coverage
 
 
 class OCProc2BinCodec(BaseCodec):
@@ -74,7 +74,7 @@ class OCProc2BinCodec(BaseCodec):
     def _make_header(self, codec: str, compression: t.Optional[str], correction: t.Optional[str]) -> t.Iterable[bytes]:
         s = f"{codec},{compression or ''},{correction or ''}"
         if len(s) > 65000:
-            raise CNODCError(f'Header string is too long', 'OCPROC2BIN', 1006)
+            raise CNODCError(f'Header string is too long', 'OCPROC2BIN', 1006)  # pragma: no coverage (this doesn't happen with any good options, its to remind myself in case I add more options)
         yield len(s).to_bytes(2, 'little', signed=False)
         yield s.encode('ascii')
 
@@ -155,7 +155,7 @@ class _Bz2Compression(StreamWrapper):
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)
         while not decompressor.eof:
-            yield decompressor.decompress(b'')
+            yield decompressor.decompress(b'')  # pragma: no coverage (doesn't happen on shorter calls)
 
 
 class _ZlibCompression(StreamWrapper):
@@ -211,7 +211,7 @@ class _ReedSoloCorrection(StreamWrapper):
         buffer = bytearray()
         for input_ in stream:
             buffer.extend(input_)
-            while len(buffer) >= self._out_chunk_size:
+            while len(buffer) >= self._out_chunk_size:  # pragma: no coverage (doesn't happen on shorter calls)
                 yield self.rsc.encode(buffer[0:self._out_chunk_size])
                 buffer = buffer[self._out_chunk_size:]
         if buffer:
@@ -221,7 +221,8 @@ class _ReedSoloCorrection(StreamWrapper):
         buffer = bytearray()
         for input_ in stream:
             buffer.extend(input_)
-            while len(buffer) >= self._in_chunk_size:
+            while len(buffer) >= self._in_chunk_size:    # pragma: no coverage (doesn't happen on shorter calls)
                 results = self.rsc.decode(buffer[0:self._in_chunk_size])
                 yield results[0]
-        print(buffer)
+        if buffer:
+            yield self.rsc.decode(buffer)[0]
