@@ -893,21 +893,21 @@ class NODBObservation(_NODBBaseObject):
     embargo_date: datetime.datetime = DateTimeColumn("embargo_date")
 
     def update_from_record(self, record: ocproc2.ParentRecord):
-        self.program_name = record.metadata.best_value('CNODCProgram', None)
-        self.source_name = record.metadata.best_value('CNODCSource', None)
-        self.mission_uuid = record.metadata.best_value('CNODCMission', None)
-        self.platform_uuid = record.metadata.best_value('CNODCPlatform', None)
+        self.program_name = record.metadata.best('CNODCProgram', None)
+        self.source_name = record.metadata.best('CNODCSource', None)
+        self.mission_uuid = record.metadata.best('CNODCMission', None)
+        self.platform_uuid = record.metadata.best('CNODCPlatform', None)
         if record.metadata.has_value('CNODCEmbargoUntil'):
-            self.embargo_date = datetime.datetime.fromisoformat(record.metadata.best_value('CNODCEmbargoUntil'))
+            self.embargo_date = datetime.datetime.fromisoformat(record.metadata.best('CNODCEmbargoUntil'))
         if record.coordinates.has_value('Time'):
-            self.obs_time = datetime.datetime.fromisoformat(record.coordinates.best_value('Time'))
+            self.obs_time = datetime.datetime.fromisoformat(record.coordinates.best('Time'))
         if record.coordinates.has_value('Time') and record.coordinates['Time'].is_iso_datetime():
             self.obs_time = record.coordinates['Time'].to_datetime()
         if record.coordinates.has_value('Latitude') and record.coordinates['Latitude'].is_numeric() and record.coordinates.has_value('Longitude') and record.coordinates['Longitude'].is_numeric():
             lat = record.coordinates['Latitude'].to_float()
             lon = record.coordinates['Longitude'].to_float()
             self.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
-        level = record.metadata.best_value('CNODCLevel', None)
+        level = record.metadata.best('CNODCLevel', None)
         if hasattr(ProcessingLevel, level):
             self.processing_level = getattr(ProcessingLevel, level)
         else:
@@ -949,7 +949,7 @@ class NODBObservation(_NODBBaseObject):
             position = { x: position[x] for x in position  if position[x] is not None}
         for key in ('Latitude', 'Longitude', 'Depth', 'Pressure'):
             if record.coordinates.has_value(key):
-                position[key] = record.coordinates.best_value(key)
+                position[key] = record.coordinates.best(key)
 
         depth = None
         if 'Depth' in position:
@@ -1080,13 +1080,13 @@ class NODBObservationData(_NODBBaseObject):
             }
         self.qc_tests = qc_test_info
         if data_record.metadata.has_value('CNODCDuplicateId') and data_record.metadata.has_value('CNODCDuplicateDate'):
-            self.duplicate_received_date = datetime.date.fromisoformat(data_record.metadata.best_value('CNODCDuplicateDate'))
-            self.duplicate_uuid = data_record.metadata.best_value('CNODCDuplicateId')
+            self.duplicate_received_date = datetime.date.fromisoformat(data_record.metadata.best('CNODCDuplicateDate'))
+            self.duplicate_uuid = data_record.metadata.best('CNODCDuplicateId')
         if data_record.metadata.has_value('CNODCStatus'):
-            new_status = data_record.metadata.best_value('CNODCStatus')
+            new_status = data_record.metadata.best('CNODCStatus')
             if hasattr(ObservationStatus, new_status):
                 self.status = getattr(ObservationStatus, new_status)
-        level = data_record.metadata.best_value('CNODCLevel', None)
+        level = data_record.metadata.best('CNODCLevel', None)
         if hasattr(ProcessingLevel, level):
             self.processing_level = getattr(ProcessingLevel, level)
         else:
@@ -1258,7 +1258,7 @@ class NODBWorkingRecord(_NODBBaseObject):
             lat = data_record.coordinates['Latitude'].to_float()
             lon = data_record.coordinates['Longitude'].to_float()
             self.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
-        self.platform_uuid = data_record.metadata.best_value('CNODCPlatform', None)
+        self.platform_uuid = data_record.metadata.best('CNODCPlatform', None)
 
     @staticmethod
     def bulk_set_batch_uuid(

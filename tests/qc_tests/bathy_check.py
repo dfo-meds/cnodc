@@ -51,8 +51,8 @@ class TestBathymetryCheck(ut.TestCase):
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
-        self.assertEqual(dr.coordinates['Latitude'].metadata.best_value('WorkingQuality'), 14)
-        self.assertEqual(dr.coordinates['Longitude'].metadata.best_value('WorkingQuality'), 14)
+        self.assertEqual(dr.coordinates['Latitude'].metadata.best('WorkingQuality'), 14)
+        self.assertEqual(dr.coordinates['Longitude'].metadata.best('WorkingQuality'), 14)
         self.assertIn('position_above_sea_level', [m.code for m in dr.qc_tests[0].messages])
 
     def test_sea_depth_within_10percent_below(self):
@@ -95,7 +95,7 @@ class TestBathymetryCheck(ut.TestCase):
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
-        self.assertEqual(dr.parameters['SeaDepth'].metadata.best_value('WorkingQuality'), 14)
+        self.assertEqual(dr.parameters['SeaDepth'].metadata.best('WorkingQuality'), 14)
         self.assertIn('sounding_bathymetry_mismatch', [m.code for m in dr.qc_tests[0].messages])
 
     def test_sea_depth_less_than_10percent_above(self):
@@ -110,7 +110,7 @@ class TestBathymetryCheck(ut.TestCase):
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
-        self.assertEqual(dr.parameters['SeaDepth'].metadata.best_value('WorkingQuality'), 14)
+        self.assertEqual(dr.parameters['SeaDepth'].metadata.best('WorkingQuality'), 14)
         self.assertIn('sounding_bathymetry_mismatch', [m.code for m in dr.qc_tests[0].messages])
 
     def test_sea_depth_exactly_10percent_below(self):
@@ -172,7 +172,7 @@ class TestBathymetryCheck(ut.TestCase):
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
         self.assertEqual(1, len(dr.qc_tests[0].messages))
-        self.assertEqual(sr.coordinates['Depth'].metadata.best_value('WorkingQuality'), 14)
+        self.assertEqual(sr.coordinates['Depth'].metadata.best('WorkingQuality'), 14)
         self.assertIn('depth_too_deep', [m.code for m in dr.qc_tests[0].messages])
 
     def test_depth_within_10percent_below(self):
@@ -269,6 +269,6 @@ class TestBathymetryCheck(ut.TestCase):
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
-        self.assertEqual(dr.coordinates['Latitude'].metadata.best_value('WorkingQuality'), 14)
-        self.assertEqual(dr.coordinates['Longitude'].metadata.best_value('WorkingQuality'), 14)
+        self.assertEqual(dr.coordinates['Latitude'].metadata.best('WorkingQuality'), 14)
+        self.assertEqual(dr.coordinates['Longitude'].metadata.best('WorkingQuality'), 14)
         self.assertIn('position_above_sea_level', [m.code for m in dr.qc_tests[0].messages])

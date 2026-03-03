@@ -42,8 +42,8 @@ class GTSPPBathymetryTest(BaseTestSuite):
         station = self.load_station(context)
         if station is not None and station.get_metadata('skip_bathymetry_check', False):
             return
-        x = record.coordinates['Longitude'].to_float_with_uncertainty()
-        y = record.coordinates['Latitude'].to_float_with_uncertainty()
+        x = record.coordinates['Longitude'].to_ufloat()
+        y = record.coordinates['Latitude'].to_ufloat()
         z = self._bathymetry_model.water_depth(x, y)
         if z is None:
             self.record_note(f'Bathymetry [{self._bathymetry_model.ref_name}] does not support coordinates ({x}, {y})', context)

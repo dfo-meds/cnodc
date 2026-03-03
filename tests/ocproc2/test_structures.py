@@ -11,17 +11,17 @@ class TestBaseRecord(ut.TestCase):
     def test_set_element_metadata(self):
         r = BaseRecord()
         r.set_element('metadata/Foo', 'Bar')
-        self.assertEqual(r.metadata.best_value('Foo'), 'Bar')
+        self.assertEqual(r.metadata.best('Foo'), 'Bar')
 
     def test_set_element_coordinates(self):
         r = BaseRecord()
         r.set_element('coordinates/Foo', 'Bar')
-        self.assertEqual(r.coordinates.best_value('Foo'), 'Bar')
+        self.assertEqual(r.coordinates.best('Foo'), 'Bar')
 
     def test_set_element_parameters(self):
         r = BaseRecord()
         r.set_element('parameters/Foo', 'Bar')
-        self.assertEqual(r.parameters.best_value('Foo'), 'Bar')
+        self.assertEqual(r.parameters.best('Foo'), 'Bar')
 
     def test_set_element_bad_group(self):
         r = BaseRecord()

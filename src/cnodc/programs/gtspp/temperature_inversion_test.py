@@ -66,7 +66,7 @@ class GTSPPTemperatureInversionTest(BaseTestSuite):
             record = recordset.records[i]
             if 'Depth' not in record.coordinates or 'Temperature' not in record.parameters or not record.coordinates['Depth'].is_good():
                 continue
-            depth = record.coordinates['Depth'].to_float_with_uncertainty('m')
+            depth = record.coordinates['Depth'].to_ufloat('m')
             if depth is None or depth <= self._min_depth:
                 continue
             temp_data = [

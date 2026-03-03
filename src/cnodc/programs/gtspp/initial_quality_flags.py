@@ -27,7 +27,7 @@ class GTSPPInitialQualityFlagsCheck(BaseTestSuite):
 
     def _set_flags_on_element(self, v: ocproc2.AbstractElement, context: TestContext, use_qc: bool):
         if use_qc:
-            qual = v.metadata.best_value('Quality', None)
+            qual = v.metadata.best('Quality', None)
             if qual is not None and int(qual) > 0:
                 v.metadata['WorkingQuality'] = int(qual)
             elif 'WorkingQuality' in v.metadata:

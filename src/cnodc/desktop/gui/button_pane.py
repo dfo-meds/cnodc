@@ -186,7 +186,7 @@ class ButtonPane(BasePane):
         if change_type & DisplayChange.RECORD:
             if app_state.record is not None:
                 if app_state.record.metadata.has_value('WMOID'):
-                    self._label.configure(text=f'WMO ID: {app_state.record.metadata.best_value("WMOID")}')
+                    self._label.configure(text=f'WMO ID: {app_state.record.metadata.best("WMOID")}')
                 else:
                     self._label.configure(text=app_state.record_uuid)
 

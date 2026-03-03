@@ -110,9 +110,9 @@ class NODBDuplicateCheck(BaseTestSuite):
         kwargs = {
             'min_time': time - datetime.timedelta(self.time_window),
             'max_time': time + datetime.timedelta(self.time_window),
-            'station_uuid': context_a.top_record.metadata['CNODCStation'].best_value()
+            'station_uuid': context_a.top_record.metadata['CNODCStation'].best()
         }
-        lat = context_a.top_record.coordinates['Latitude'].to_float_with_uncertainty()
+        lat = context_a.top_record.coordinates['Latitude'].to_ufloat()
         lat_min = ((lat.nominal_value - lat.std_dev) if isinstance(lat, UFloat) else lat) - self._lat_range
         lat_max = ((lat.nominal_value + lat.std_dev) if isinstance(lat, UFloat) else lat) + self._lat_range
         if lat_min < -89.9:
@@ -136,7 +136,7 @@ class NODBDuplicateCheck(BaseTestSuite):
         else:
             kwargs['min_lat'] = lat_min
             kwargs['max_lat'] = lat_max
-            lon = context_a.top_record.coordinates['Longitude'].to_float_with_uncertainty()
+            lon = context_a.top_record.coordinates['Longitude'].to_ufloat()
             ref_lat = max(abs(lat_min), abs(lat_max))
             one_degree_lon = uhaversine((ref_lat, 0), (ref_lat, 1))
             lon_range = self.distance_window / one_degree_lon
@@ -207,7 +207,7 @@ class NODBDuplicateCheck(BaseTestSuite):
 
     def _check_is_duplicate(self, record_a: ocproc2.BaseRecord, record_b: ocproc2.BaseRecord) -> DuplicateCheckResult:
         # Station check
-        if record_a.metadata.best_value('CNODCStation') != record_b.metadata.best_value('CNODCStation'):
+        if record_a.metadata.best('CNODCStation') != record_b.metadata.best('CNODCStation'):
             return DuplicateCheckResult.NO_MATCH
         # Time check
         time_a = record_a.coordinates['Time'].to_datetime()
@@ -215,10 +215,10 @@ class NODBDuplicateCheck(BaseTestSuite):
         if (time_b - time_a).total_seconds() > self.time_window:
             return DuplicateCheckResult.NO_MATCH
         # Distance check
-        lat_a = record_a.coordinates['Latitude'].to_float_with_uncertainty()
-        lon_a = record_a.coordinates['Longitude'].to_float_with_uncertainty()
-        lat_b = record_b.coordinates['Latitude'].to_float_with_uncertainty()
-        lon_b = record_b.coordinates['Longitude'].to_float_with_uncertainty()
+        lat_a = record_a.coordinates['Latitude'].to_ufloat()
+        lon_a = record_a.coordinates['Longitude'].to_ufloat()
+        lat_b = record_b.coordinates['Latitude'].to_ufloat()
+        lon_b = record_b.coordinates['Longitude'].to_ufloat()
         distance = uhaversine((lat_a, lon_a), (lat_b, lon_b))
         if cnodc.science.amath.is_greater_than(distance, self.distance_window):
             return DuplicateCheckResult.NO_MATCH
@@ -480,8 +480,8 @@ class NODBDuplicateCheck(BaseTestSuite):
             val_a_real = self.value_in_units(val_a)
             val_b_real = self.value_in_units(
                 val_b,
-                expected_units=val_a.metadata.best_value('Units', None),
-                temp_scale=val_a.metadata.best_value('TemperatureScale', None)
+                expected_units=val_a.metadata.best('Units', None),
+                temp_scale=val_a.metadata.best('TemperatureScale', None)
             )
             if not cnodc.science.amath.is_close(val_a_real, val_b_real):
                 return ValueCompareResult.CONFLICT

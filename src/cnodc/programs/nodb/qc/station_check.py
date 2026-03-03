@@ -22,7 +22,7 @@ class NODBStationCheck(BaseTestSuite):
     def test_top_record(self, record: ocproc2.ParentRecord, context: TestContext):
         # Skip station check if WorkingQuality=9
         if 'CNODCStation' in context.current_record.metadata:
-            if context.current_record.metadata['CNODCStation'].best_value('WorkingQuality', 0) == 9:
+            if context.current_record.metadata['CNODCStation'].best('WorkingQuality', 0) == 9:
                 return
         station_options = self._find_station_matches(context.top_record)
         if not station_options:
@@ -37,7 +37,7 @@ class NODBStationCheck(BaseTestSuite):
                 if 'CNODCStationCandidates' in context.current_record.metadata:
                     del context.current_record.metadata['CNODCStationCandidates']
                 context.current_record.metadata['CNODCStationString'] = '&'.join(
-                    f"{x}={context.current_record.metadata.best_value(x)}"
+                    f"{x}={context.current_record.metadata.best(x)}"
                     for x in ('WMOID', 'StationName', 'WIGOSID', 'StationID')
                     if context.current_record.metadata.has_value(x)
                 )
@@ -73,22 +73,22 @@ class NODBStationCheck(BaseTestSuite):
     def _find_station_matches(self, record: ParentRecord) -> t.Optional[list[structures.NODBStation]]:
         with self.nodb as db:
             if record.metadata.has_value('CNODCStation'):
-                station = structures.NODBStation.find_by_uuid(db, record.metadata.best_value('CNODCStation'))
+                station = structures.NODBStation.find_by_uuid(db, record.metadata.best('CNODCStation'))
                 if station is not None:
                     return [station]
                 return []
             obs_time = None
             if record.coordinates.has_value('Time') and record.coordinates['Time'].is_iso_datetime():
-                obs_time = datetime.datetime.fromisoformat(record.coordinates['Time'].best_value())
+                obs_time = datetime.datetime.fromisoformat(record.coordinates['Time'].best())
             station_options = {
                 x.station_uuid: x
                 for x in self.searcher.search_stations(
                     db=db,
                     in_service_time=obs_time,
-                    station_id=record.metadata.best_value('StationID'),
-                    station_name=record.metadata.best_value('StationName'),
-                    wmo_id=record.metadata.best_value('WMOID'),
-                    wigos_id=record.metadata.best_value('WIGOSID')
+                    station_id=record.metadata.best('StationID'),
+                    station_name=record.metadata.best('StationName'),
+                    wmo_id=record.metadata.best('WMOID'),
+                    wigos_id=record.metadata.best('WIGOSID')
                 )
             }
             return self._select_best_matches(db, station_options)

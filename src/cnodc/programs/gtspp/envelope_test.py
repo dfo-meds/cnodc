@@ -43,7 +43,7 @@ class GTSPPEnvelopeTest(BaseTestSuite):
         self.precheck_value_in_map(record.coordinates, 'Depth')
         references = self._envelope_ref.find_level(
             record.coordinates['Depth'].to_float(),
-            record.coordinates['Depth'].metadata.best_value('Units')
+            record.coordinates['Depth'].metadata.best('Units')
         )
         self._test_and_loop(record, context, qc_flag=13, error_code='outside_envelope_range', references=references)
 

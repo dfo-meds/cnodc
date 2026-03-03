@@ -44,15 +44,15 @@ class BaseRecord:
 
     def set_element(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
         child_parent, element_name = self._find_element_map(element_full_name)
-        child_parent.set_element(element_name, value, metadata, **kwargs)
+        child_parent.set(element_name, value, metadata, **kwargs)
 
     def add_element(self, element_full_name: str, value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
         child_parent, element_name = self._find_element_map(element_full_name)
-        child_parent.add_element(element_name, value, metadata, **kwargs)
+        child_parent.append_to(element_name, value, metadata, **kwargs)
 
     def set_multiple(self, element_full_name: str, values: t.Sequence[OCProcValue], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None):
         child_parent, element_name = self._find_element_map(element_full_name)
-        child_parent.set_multiple(element_name, values, common_metadata, specific_metadata)
+        child_parent.set_many(element_name, values, common_metadata, specific_metadata)
 
     def _find_element_map(self, element_full_name):
         pieces = element_full_name.split('/')

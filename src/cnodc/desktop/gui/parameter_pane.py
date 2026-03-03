@@ -178,7 +178,7 @@ class ParameterContextMenu:
         self._set_working_quality_flag(2)
 
     def _set_working_quality_flag(self, flag_no: int):
-        cwq = self._current_value.metadata.best_value('WorkingQuality', 0)
+        cwq = self._current_value.metadata.best('WorkingQuality', 0)
         if int(cwq) != flag_no:
             self._app.save_operations([
                 self._app.create_flag_operator(self._target_path, flag_no)
@@ -339,7 +339,7 @@ class ParameterPane(BasePane):
 
     def _parameter_display_value(self, v: ocproc2.AbstractElement) -> tuple[tuple, list]:
         tags = []
-        wq = v.metadata.best_value('WorkingQuality', 0)
+        wq = v.metadata.best('WorkingQuality', 0)
         if wq is not None and not isinstance(wq, int):
             try:
                 wq = int(wq)
@@ -354,9 +354,9 @@ class ParameterPane(BasePane):
             return (dt_utc.strftime('%Y-%m-%d %H:%M:%S'), 'UTC', wq), tags
         if v.is_numeric():
             val = v.to_float() if not v.is_integer() else v.to_int()
-            units = v.metadata.best_value('Units', None)
+            units = v.metadata.best('Units', None)
             if units is not None:
-                return (str(val), v.metadata.best_value('Units'), wq), tags
+                return (str(val), v.metadata.best('Units'), wq), tags
             else:
                 return (str(val), '', wq), tags
         return (v.to_string(), '', wq), tags

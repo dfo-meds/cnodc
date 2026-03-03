@@ -21,7 +21,7 @@ class NODBRecordManager:
 
     def create_completed_entry(self, db, record: ocproc2.ParentRecord, source_file_uuid: str, received_date: datetime.date, message_idx: int, record_idx: int, memory: dict):
         check = structures.NODBObservationData.find_by_source_info(
-            db, source_file_uuid, received_date, message_idx, record_idx, record.metadata.best_value('CNODCLevel', 'UNKNOWN'), key_only=True
+            db, source_file_uuid, received_date, message_idx, record_idx, record.metadata.best('CNODCLevel', 'UNKNOWN'), key_only=True
         )
         if check is not None:
             return False
@@ -160,7 +160,7 @@ class NODBRecordManager:
     def finalize(self, record: ocproc2.BaseRecord, is_top_level: bool = True):
         if is_top_level:
             if not record.metadata.has_value('CNODCLevel'):
-                record.metadata.set_element('CNODCLevel', 'UNKNOWN')
+                record.metadata.set('CNODCLevel', 'UNKNOWN')
         for key in record.metadata:
             self._finalize_value(record.metadata[key])
         for key in record.parameters:
@@ -172,7 +172,7 @@ class NODBRecordManager:
 
     def _finalize_value(self, value: ocproc2.AbstractElement):
         if 'WorkingQuality' in value.metadata:
-            value.metadata['Quality'] = value.metadata['WorkingQuality'].best_value()
+            value.metadata['Quality'] = value.metadata['WorkingQuality'].best()
             del value.metadata['WorkingQuality']
         if isinstance(value, ocproc2.MultiElement):
             for v in value.values():

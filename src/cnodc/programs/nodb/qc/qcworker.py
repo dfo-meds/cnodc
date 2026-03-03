@@ -123,16 +123,16 @@ class NODBQCWorker(WorkflowWorker):
                                working_record: structures.NODBWorkingRecord,
                                data_record: ocproc2.ParentRecord):
         if data_record.metadata.has_value('CNODCStation'):
-            working_record.station_uuid = data_record.metadata.best_value('CNODCStation')
+            working_record.station_uuid = data_record.metadata.best('CNODCStation')
         if data_record.coordinates.has_value('Time'):
             try:
                 working_record.obs_time = datetime.datetime.fromisoformat(
-                    data_record.coordinates.best_value('Time'))
+                    data_record.coordinates.best('Time'))
             except (TypeError, ValueError):
                 working_record.obs_time = None
         if data_record.coordinates.has_value('Latitude') and data_record.coordinates.has_value('Longitude'):
             try:
-                wkt = f'POINT ({str(float(data_record.coordinates.best_value("Longitude")))} {str(float(data_record.coordinates.best_value("Latitude")))})'
+                wkt = f'POINT ({str(float(data_record.coordinates.best("Longitude")))} {str(float(data_record.coordinates.best("Latitude")))})'
                 working_record.location = wkt
             except (ValueError, TypeError):
                 working_record.location = None
@@ -161,11 +161,11 @@ class BaseResultBatcher:
 
     def _generate_unique_group(self, record: ocproc2.ParentRecord) -> t.Optional[str]:
         if record.metadata.has_value('CNODCStation'):
-            return record.metadata.best_value('CNODCStation')
+            return record.metadata.best('CNODCStation')
         if record.metadata.has_value('CNODCStationCandidates'):
-            return '\x1F'.join(record.metadata.best_value('CNODCStationCandidates'))
+            return '\x1F'.join(record.metadata.best('CNODCStationCandidates'))
         if record.metadata.has_value('CNODCStationString'):
-            return record.metadata.best_value('CNODCStationString')
+            return record.metadata.best('CNODCStationString')
         return None
 
     def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):

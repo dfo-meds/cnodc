@@ -97,8 +97,8 @@ def calc_distance(latitude1: ocproc2.SingleElement,
         return None, 9, None
     return (
         convert(geodesy.haversine(
-            (latitude1.to_float_with_uncertainty(), longitude1.to_float_with_uncertainty()),
-            (latitude2.to_float_with_uncertainty(), longitude2.to_float_with_uncertainty())
+            (latitude1.to_ufloat(), longitude1.to_ufloat()),
+            (latitude2.to_ufloat(), longitude2.to_ufloat())
         ), "m", units),
         _compress_quality_scores(
             latitude1.working_quality(),
@@ -120,8 +120,8 @@ def get_temperature(temperature: t.Optional[ocproc2.SingleElement],
         present, otherwise it is assumed to be ITS-90."""
     if temperature is None or temperature.is_empty():
         return None
-    temp_val = temperature.to_float_with_uncertainty(units)
-    c_temp_scale = temperature.metadata.best_value('TemperatureScale', None)
+    temp_val = temperature.to_ufloat(units)
+    c_temp_scale = temperature.metadata.best('TemperatureScale', None)
     if c_temp_scale is None:
         if obs_date is not None and not obs_date.is_empty():
             obs_date_val = obs_date.to_datetime()
@@ -173,11 +173,11 @@ def calc_freezing_point(pressure: t.Optional[ocproc2.SingleElement] = None,
         return (
             freezing_point(
                 pressure=p_val,
-                latitude=latitude.to_float_with_uncertainty() if latitude is not None and not latitude.is_empty() else None,
-                longitude=longitude.to_float_with_uncertainty() if longitude is not None and not longitude.is_empty() else None,
-                absolute_salinity=absolute_salinity.to_float_with_uncertainty(
+                latitude=latitude.to_ufloat() if latitude is not None and not latitude.is_empty() else None,
+                longitude=longitude.to_ufloat() if longitude is not None and not longitude.is_empty() else None,
+                absolute_salinity=absolute_salinity.to_ufloat(
                     'g kg-1') if absolute_salinity is not None and not absolute_salinity.is_empty() else None,
-                practical_salinity=practical_salinity.to_float_with_uncertainty(
+                practical_salinity=practical_salinity.to_ufloat(
                     '0.001') if practical_salinity is not None and not practical_salinity.is_empty() else None,
                 units=units,
                 temperature_scale=temperature_scale
@@ -211,13 +211,13 @@ def calc_pressure(pressure: t.Optional[ocproc2.SingleElement] = None,
         and sensible, otherwise uses depth. Returns in the given units."""
     if pressure is not None and not pressure.is_empty():
         return (
-            pressure.to_float_with_uncertainty(units=units),
+            pressure.to_ufloat(units=units),
             pressure.working_quality(),
             units or pressure.units()
         )
     if depth is not None and latitude is not None and not (depth.is_empty() or latitude.is_empty()):
-        d_float = depth.to_float_with_uncertainty(units='m')
-        lat_float = latitude.to_float_with_uncertainty()
+        d_float = depth.to_ufloat(units='m')
+        lat_float = latitude.to_ufloat()
         return (
             pressure_from_depth(d_float, lat_float, units),
             _compress_quality_scores(depth.working_quality(), latitude.working_quality()),
@@ -260,12 +260,12 @@ def calc_density(temperature: ocproc2.SingleElement,
             density_at_depth(
                 pressure=p,
                 temperature=t90,
-                practical_salinity=practical_salinity.to_float_with_uncertainty(
+                practical_salinity=practical_salinity.to_ufloat(
                     '0.001') if practical_salinity is not None and not practical_salinity.is_empty() else None,
-                absolute_salinity=absolute_salinity.to_float_with_uncertainty(
+                absolute_salinity=absolute_salinity.to_ufloat(
                     'g kg-1') if absolute_salinity is not None and not absolute_salinity.is_empty() else None,
-                latitude=latitude.to_float_with_uncertainty() if latitude is not None and not latitude.is_empty() else None,
-                longitude=longitude.to_float_with_uncertainty() if longitude is not None and not longitude.is_empty() else None,
+                latitude=latitude.to_ufloat() if latitude is not None and not latitude.is_empty() else None,
+                longitude=longitude.to_ufloat() if longitude is not None and not longitude.is_empty() else None,
                 units=units
             ),
             _compress_quality_scores(

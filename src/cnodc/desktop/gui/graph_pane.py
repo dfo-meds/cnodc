@@ -134,7 +134,7 @@ class _GraphPane(BasePane):
                 continue
             if r.coordinates[self._current_coordinate].to_float() < coordinate_value:
                 continue
-            cwq = r.parameters[self._current_parameter].metadata.best_value('WorkingQuality', 0)
+            cwq = r.parameters[self._current_parameter].metadata.best('WorkingQuality', 0)
             if cwq == flag:
                 continue
             if cwq == 9:
@@ -399,11 +399,11 @@ class _GraphPane(BasePane):
         if not val.is_numeric():
             return None, 9
         raw_value = val.to_float()
-        wq = int(val.metadata.best_value('WorkingQuality', 0))
+        wq = int(val.metadata.best('WorkingQuality', 0))
         if wq == 5:
             wq = 1
         if val.metadata.has_value('Units'):
-            units = val.metadata.best_value('Units')
+            units = val.metadata.best('Units')
             if value_name not in unit_map:
                 unit_map[value_name] = units
             if unit_map[value_name] != units:

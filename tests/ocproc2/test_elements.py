@@ -48,7 +48,7 @@ class TestSingleElement(ut.TestCase):
 
     def test_best_value(self):
         x = SingleElement('five')
-        self.assertEqual(x.best_value(), 'five')
+        self.assertEqual(x.best(), 'five')
 
     def test_is_numeric(self):
         values = [
@@ -118,7 +118,7 @@ class TestSingleElement(ut.TestCase):
     def test_to_ufloat(self):
         element = SingleElement("1234.1")
         element.metadata['Uncertainty'] = "0.05"
-        uf = element.to_float_with_uncertainty()
+        uf = element.to_ufloat()
         self.assertIsInstance(uf, UFloat)
         self.assertEqual(uf.nominal_value, 1234.1)
         self.assertEqual(uf.std_dev, 0.05)
@@ -127,7 +127,7 @@ class TestSingleElement(ut.TestCase):
         element = SingleElement("1234.1")
         element.metadata['Uncertainty'] = "0.05"
         element.metadata['Units'] = 'm'
-        uf = element.to_float_with_uncertainty('km')
+        uf = element.to_ufloat('km')
         self.assertIsInstance(uf, UFloat)
         self.assertEqual(uf.nominal_value, 1.2341)
         self.assertEqual(uf.std_dev, 0.00005)
@@ -135,7 +135,7 @@ class TestSingleElement(ut.TestCase):
     def test_to_ufloat_negative(self):
         element = SingleElement("1234.1")
         element.metadata['Uncertainty'] = "-0.05"
-        uf = element.to_float_with_uncertainty()
+        uf = element.to_ufloat()
         self.assertIsInstance(uf, UFloat)
         self.assertEqual(uf.nominal_value, 1234.1)
         self.assertEqual(uf.std_dev, 0.05)
@@ -143,14 +143,14 @@ class TestSingleElement(ut.TestCase):
     def test_to_ufloat_missing(self):
         element = SingleElement("1234.1")
         element.metadata['Uncertainty'] = None
-        uf = element.to_float_with_uncertainty()
+        uf = element.to_ufloat()
         self.assertIsInstance(uf, float)
         self.assertEqual(uf, 1234.1)
 
     def test_to_ufloat_zero(self):
         element = SingleElement("1234.1")
         element.metadata['Uncertainty'] = 0
-        uf = element.to_float_with_uncertainty()
+        uf = element.to_ufloat()
         self.assertIsInstance(uf, float)
         self.assertEqual(uf, 1234.1)
 
@@ -158,14 +158,14 @@ class TestSingleElement(ut.TestCase):
         element = SingleElement("1234.1")
         element.metadata['Uncertainty'] = "0.05"
         element.metadata['UncertaintyType'] = 'uniform'
-        uf = element.to_float_with_uncertainty()
+        uf = element.to_ufloat()
         self.assertIsInstance(uf, UFloat)
         self.assertEqual(uf.nominal_value, 1234.1)
         self.assertEqual(uf.std_dev, float(decimal.Decimal("0.05") * UNIFORM_CONVERSION_FACTOR))
 
     def test_to_ufloat_no_unc(self):
         element = SingleElement("1234.1")
-        uf = element.to_float_with_uncertainty()
+        uf = element.to_ufloat()
         self.assertIsInstance(uf, float)
         self.assertEqual(uf, 1234.1)
 
@@ -406,7 +406,7 @@ class TestSingleElement(ut.TestCase):
     def test_build_meta(self):
         e = SingleElement.build('1234', {'Units': 'km'})
         self.assertEqual(e.value, '1234')
-        self.assertEqual(e.metadata.best_value('Units'), 'km')
+        self.assertEqual(e.metadata.best('Units'), 'km')
 
 
 class TestMultiElement(ut.TestCase):
@@ -458,7 +458,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertIsInstance(by_get, ocproc2.SingleElement)
         self.assertEqual(by_get, by_getitem)
         self.assertEqual(by_get.value, 'one')
-        self.assertEqual(by_get.best_value(), 'one')
+        self.assertEqual(by_get.best(), 'one')
 
     def test_parameter_setting(self):
         dr = ocproc2.ParentRecord()
@@ -473,7 +473,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertIsInstance(by_get, ocproc2.SingleElement)
         self.assertEqual(by_get, by_getitem)
         self.assertEqual(by_get.value, 'one')
-        self.assertEqual(by_get.best_value(), 'one')
+        self.assertEqual(by_get.best(), 'one')
 
     def test_coordinate_setting(self):
         dr = ocproc2.ParentRecord()
@@ -488,7 +488,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertIsInstance(by_get, ocproc2.SingleElement)
         self.assertEqual(by_get, by_getitem)
         self.assertEqual(by_get.value, 'one')
-        self.assertEqual(by_get.best_value(), 'one')
+        self.assertEqual(by_get.best(), 'one')
 
     def test_set_string(self):
         dr = ocproc2.ParentRecord()
@@ -580,7 +580,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue(dr.metadata['TestValue'].is_numeric())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
         self.assertEqual([x.value for x in dr.metadata['TestValue'].values()], [5, 6, 7])
-        self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
+        self.assertEqual(dr.metadata['TestValue'].best(), 5)
 
     def test_set_multi_value_combo(self):
         dr = ocproc2.ParentRecord()
@@ -588,11 +588,11 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue('TestValue' in dr.metadata)
 
         self.assertFalse(dr.metadata['TestValue'].is_empty())
-        self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
+        self.assertEqual(dr.metadata['TestValue'].best(), 5)
         self.assertTrue(dr.metadata['TestValue'].is_numeric())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
         self.assertEqual([x.value for x in dr.metadata['TestValue'].values()], [None, 5, '6', 7, ''])
-        self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
+        self.assertEqual(dr.metadata['TestValue'].best(), 5)
 
     def test_set_multi_numeric(self):
         dr = ocproc2.ParentRecord()
@@ -601,7 +601,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertTrue(dr.metadata['TestValue'].is_numeric())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
+        self.assertEqual(dr.metadata['TestValue'].best(), 5)
 
     def test_set_multi_date(self):
         dr = ocproc2.ParentRecord()
@@ -616,7 +616,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertFalse(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_numeric())
         self.assertTrue(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertEqual(dr.metadata['TestValue'].best_value(), '2023-01-01T00:00:00')
+        self.assertEqual(dr.metadata['TestValue'].best(), '2023-01-01T00:00:00')
 
     def test_set_multi_empty(self):
         dr = ocproc2.ParentRecord()
@@ -625,11 +625,11 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_numeric())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertIsNone(dr.metadata['TestValue'].best_value())
+        self.assertIsNone(dr.metadata['TestValue'].best())
 
     def test_value_metadata(self):
         dr = ocproc2.ParentRecord()
-        dr.metadata.set_element('TestValue', 5, {'Units': 'm s-1'})
+        dr.metadata.set('TestValue', 5, {'Units': 'm s-1'})
         self.assertTrue('TestValue' in dr.metadata)
         self.assertTrue('Units' in dr.metadata['TestValue'].metadata)
         self.assertEqual(dr.metadata['TestValue'].metadata['Units'].value, 'm s-1')
@@ -648,7 +648,7 @@ class TestOCProc2ValueMap(ut.TestCase):
     def test_set_multiple(self):
         dr = ocproc2.ParentRecord()
         notes = ['abc', 'def', 'ghi']
-        dr.metadata.set_multiple(
+        dr.metadata.set_many(
             'TestValue',
             values=['', 5, 6],
             common_metadata={'Units': 'm s-1'},
@@ -666,7 +666,7 @@ class TestOCProc2ValueMap(ut.TestCase):
                 self.assertNotIn('Note2', obj.metadata)
                 self.assertEqual(obj.metadata['Note'].value, notes[i])
                 self.assertEqual(obj.metadata['Units'].value, 'm s-1')
-        self.assertEqual(dr.metadata['TestValue'].best_value(), 5)
+        self.assertEqual(dr.metadata['TestValue'].best(), 5)
         self.assertTrue('Note2' in dr.metadata['TestValue'].metadata)
         self.assertFalse('Units' in dr.metadata['TestValue'].metadata)
         self.assertEqual(dr.metadata['TestValue'].metadata['Note2'].value, 'jkl')
@@ -725,14 +725,14 @@ class TestOCProc2ValueMap(ut.TestCase):
             SingleElement.build(1, {'Quality': 2}),
             SingleElement.build(2, {'Quality': 5}),
         ])
-        self.assertIs(me.ideal_single_value(), me._value[1])
+        self.assertIs(me.ideal(), me._value[1])
 
     def test_ideal_single_value_same(self):
         me = MultiElement([
             SingleElement.build(1, {'Quality': 0}),
             SingleElement.build(2, {'Quality': 0}),
         ])
-        self.assertIs(me.ideal_single_value(), me._value[0])
+        self.assertIs(me.ideal(), me._value[0])
 
     def test_find_child(self):
         me = MultiElement([
@@ -779,7 +779,7 @@ class TestElementMap(ut.TestCase):
 
     def test_find_child(self):
         em = ocproc2.ElementMap()
-        em.set_element('Hello', 'World')
+        em.set('Hello', 'World')
         self.assertIs(em.find_child([]), em)
         self.assertIs(em.find_child(['Hello']), em['Hello'])
         self.assertIsNone(em.find_child(['None']))

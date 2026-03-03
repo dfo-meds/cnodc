@@ -48,4 +48,4 @@ class GliderEGOMapper(NetCDFCommonMapper):
                 'SensorLocation': info['location'] if 'location' in info else None
             })
         for key in extra_metadata.keys():
-            element.metadata.set_element(key, extra_metadata[key])
+            element.metadata.set(key, extra_metadata[key])

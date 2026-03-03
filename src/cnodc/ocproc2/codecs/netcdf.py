@@ -180,7 +180,7 @@ class NetCDFCommonMapper:
 
     def _build_record(self, ocproc_map: dict, index: int, data: dict[str, t.Any]):
         record = ParentRecord()
-        record.coordinates.set_element('RecordNumber', index + 1)
+        record.coordinates.set('RecordNumber', index + 1)
         for key in ocproc_map['record']:
             map_info = ocproc_map['record'][key]
             element = self._build_element(map_info, data)
@@ -207,9 +207,9 @@ class NetCDFCommonMapper:
             for sub_target in target_name:
                 self._apply_element(record, element, map_info, sub_target)
         else:
-            action = record.set_element
+            action = record.set
             if 'allow_multiple' in map_info and map_info['allow_multiple']:
-                action = record.add_element
+                action = record.append_to
             try:
                 action(target_name, element)
             except ValueError as ex:
@@ -308,7 +308,7 @@ class NetCDFCommonMapper:
         ename = pieces[-1]
         element_info = self.ontology.element_info(ename)
         if element_info is not None:
-            current_units = element.metadata.best_value('Units', None)
+            current_units = element.metadata.best('Units', None)
             if current_units and element_info.preferred_unit:
                 try:
                     if not self.units.compatible(current_units, element_info.preferred_unit):

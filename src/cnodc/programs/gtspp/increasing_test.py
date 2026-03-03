@@ -25,7 +25,7 @@ class GTSPPIncreasingProfileTest(BaseTestSuite):
         self.precheck_value_in_map(record.coordinates, 'Depth')
         value = record.coordinates['Depth']
         if data_map['last_depth'][1] is None:
-            data_map['last_depth'][1] = value.metadata.best_value('Units', 'm')
+            data_map['last_depth'][1] = value.metadata.best('Units', 'm')
         current_depth = self.value_in_units(value, data_map['last_depth'][1])
         try:
             if data_map['last_depth'][0] is not None:
@@ -37,7 +37,7 @@ class GTSPPIncreasingProfileTest(BaseTestSuite):
         self.precheck_value_in_map(record.coordinates, 'Pressure')
         value = record.coordinates['Pressure']
         if data_map['last_pressure'][1] is None:
-            data_map['last_pressure'][1] = value.metadata.best_value('Units', 'Pa')
+            data_map['last_pressure'][1] = value.metadata.best('Units', 'Pa')
         current_pressure = self.value_in_units(value, data_map['last_pressure'][1])
         try:
             if data_map['last_pressure'][0] is not None:

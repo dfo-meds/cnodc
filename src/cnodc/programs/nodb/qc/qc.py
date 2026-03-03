@@ -399,7 +399,7 @@ class _ValueTest(_TestWrapper):
         self.skip_dubious = skip_dubious
 
     def execute_on_value(self, obj, value: ocproc2.SingleElement, ctx: TestContext):
-        current_qc_quality = value.metadata.best_value('WorkingQuality', 0)
+        current_qc_quality = value.metadata.best('WorkingQuality', 0)
         if self.skip_empty and (value.is_empty() or current_qc_quality == 9):
             return
         if self.skip_bad and current_qc_quality == 4:
@@ -703,7 +703,7 @@ class BaseTestSuite:
                                 skip_null: bool = True):
         if compatible_units is None:
             return
-        un = v.metadata.best_value('Units', None)
+        un = v.metadata.best('Units', None)
         if un is None or un == '':
             if not skip_null:
                 self.report_for_review(error_code, qc_flag, ref_value=compatible_units)
@@ -798,7 +798,7 @@ class BaseTestSuite:
 
     def load_station(self, context: TestContext) -> t.Optional[structures.NODBStation]:
         if context._station is None:
-            context._station = self._load_station(context.top_record.metadata.best_value('CNODCStation'))
+            context._station = self._load_station(context.top_record.metadata.best('CNODCStation'))
         return context._station
 
     def _load_station(self, station_uuid: str) -> t.Optional[structures.NODBStation]:
@@ -875,10 +875,10 @@ class BaseTestSuite:
             if not self.precheck_value(v, raise_ex=False, allow_dubious=allow_dubious):
                 continue
             if v.is_numeric():
-                raw_v = v.to_float_with_uncertainty()
-                raw_un = v.metadata.best_value('Units', None)
+                raw_v = v.to_ufloat()
+                raw_un = v.metadata.best('Units', None)
                 if temp_scale is not None:
-                    ref_scale = v.metadata.best_value('TemperatureScale', None)
+                    ref_scale = v.metadata.best('TemperatureScale', None)
                     if ref_scale is not None and ref_scale != temp_scale:
                         from cnodc.science.seawater import eos80_convert_temperature
                         if raw_un != '°C':
@@ -894,7 +894,7 @@ class BaseTestSuite:
         return None
 
     def copy_original_quality(self, value: ocproc2.Element):
-        value.metadata['WorkingQuality'] = value.metadata.best_value('Quality', 1)
+        value.metadata['WorkingQuality'] = value.metadata.best('Quality', 1)
 
 
 class QCTestRunner:

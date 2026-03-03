@@ -334,21 +334,21 @@ class CNODCServerAPI:
             ts_qc = None
             station_id = None
             if record.metadata.has_value('CNODCStation'):
-                station_id = record.metadata.best_value('CNODCStation')
+                station_id = record.metadata.best('CNODCStation')
             elif record.metadata.has_value('CNODCStationString'):
-                station_id = record.metadata.best_value('CNODCStationString')
+                station_id = record.metadata.best('CNODCStationString')
             if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
                 try:
                     lat = record.coordinates['Latitude'].to_float()
                     lon = record.coordinates['Longitude'].to_float()
-                    lat_qc = int(record.coordinates['Latitude'].metadata.best_value('WorkingQuality', 0))
-                    lon_qc = int(record.coordinates['Longitude'].metadata.best_value('WorkingQuality', 0))
+                    lat_qc = int(record.coordinates['Latitude'].metadata.best('WorkingQuality', 0))
+                    lon_qc = int(record.coordinates['Longitude'].metadata.best('WorkingQuality', 0))
                 except (ValueError, TypeError):
                     pass
             if record.coordinates.has_value('Time'):
                 try:
                     ts = record.coordinates['Time'].to_datetime().isoformat()
-                    ts_qc = int(record.coordinates['Time'].metadata.best_value('WorkingQuality', 0))
+                    ts_qc = int(record.coordinates['Time'].metadata.best('WorkingQuality', 0))
                 except (ValueError, TypeError):
                     pass
             cur.insert('records', {
@@ -375,14 +375,14 @@ class CNODCServerAPI:
     def _build_display(self, record: ocproc2.ParentRecord, working_id: str):
         s = []
         if record.coordinates.has_value('Time'):
-            s.append(f'T:{record.coordinates.best_value("Time")}')
+            s.append(f'T:{record.coordinates.best("Time")}')
         if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
-            s.append(f'X:{record.coordinates.best_value("Longitude")}')
-            s.append(f'Y:{record.coordinates.best_value("Latitude")}')
+            s.append(f'X:{record.coordinates.best("Longitude")}')
+            s.append(f'Y:{record.coordinates.best("Latitude")}')
         if record.coordinates.has_value('Depth'):
-            s.append(f'Z:{record.coordinates.best_value("Depth")}')
+            s.append(f'Z:{record.coordinates.best("Depth")}')
         elif record.coordinates.has_value('Pressure'):
-            s.append(f'P:{record.coordinates.best_value("Pressure")}')
+            s.append(f'P:{record.coordinates.best("Pressure")}')
         if not s:
             s.append(f"I:{working_id}")
         return '  '.join(s)

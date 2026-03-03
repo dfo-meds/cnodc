@@ -6,6 +6,7 @@ import hashlib
 import math
 import typing as t
 import datetime
+from xml.dom.minidom import Element
 
 from uncertainties import ufloat, UFloat
 
@@ -79,15 +80,15 @@ class AbstractElement:
 
     def working_quality(self) -> int:
         """Retrieve the working quality of the value."""
-        return self.ideal_single_value().metadata.best_value('WorkingQuality', default=0, coerce=int)
+        return self.ideal().metadata.best('WorkingQuality', default=0, coerce=int)
 
     def units(self) -> t.Optional[str]:
         """Retrieve the units of the value."""
-        return self.ideal_single_value().metadata.best_value('Units')
+        return self.ideal().metadata.best('Units')
 
-    def best_value(self, coerce: t.Optional[callable] = None) -> t.Any:
+    def best(self, coerce: t.Optional[callable] = None) -> t.Any:
         """Find the best value and coerce it if needed."""
-        v = self.ideal_single_value().value
+        v = self.ideal().value
         if coerce is not None and v is not None:
             return coerce(v)
         return v
@@ -109,7 +110,7 @@ class AbstractElement:
 
     def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
         """Convert this value to a decimal number"""
-        bv = self.ideal_single_value()
+        bv = self.ideal()
         try:
             if units:
                 return convert(decimal.Decimal(bv.value), bv.units(), units)
@@ -117,14 +118,14 @@ class AbstractElement:
         except decimal.DecimalException as ex:
             raise ValueError(f"Invalid decimal number [{bv.value}]") from ex
 
-    def to_float_with_uncertainty(self, units: t.Optional[str] = None) -> t.Union[UFloat, float]:
+    def to_ufloat(self, units: t.Optional[str] = None) -> t.Union[UFloat, float]:
         """Convert this value to a UFloat."""
-        bv = self.ideal_single_value()
+        bv = self.ideal()
         value = bv.to_decimal(units)
         unc = None
         if bv.metadata.has_value('Uncertainty'):
-            unc = abs(bv.metadata.best_value('Uncertainty', coerce=decimal.Decimal))
-            if bv.metadata.best_value('UncertaintyType', 'normal') == 'uniform':
+            unc = abs(bv.metadata.best('Uncertainty', coerce=decimal.Decimal))
+            if bv.metadata.best('UncertaintyType', 'normal') == 'uniform':
                 unc = unc * UNIFORM_CONVERSION_FACTOR
         if unc is not None and unc > 0:
             return ufloat(value, convert(unc, bv.units(), units))
@@ -144,10 +145,10 @@ class AbstractElement:
 
     def to_datetime(self) -> datetime.datetime:
         """Convert this value to a datetime."""
-        return datetime.datetime.fromisoformat(self.ideal_single_value().value)
+        return datetime.datetime.fromisoformat(self.ideal().value)
 
     def to_string(self) -> str:
-        return str(self.ideal_single_value().value)
+        return str(self.ideal().value)
 
     @staticmethod
     def build_from_mapping(map_: t.Any):
@@ -191,7 +192,7 @@ class AbstractElement:
                     return True
                 else:
                     continue
-            wq = v.metadata.best_value('WorkingQuality', 0, int)
+            wq = v.metadata.best('WorkingQuality', 0, int)
             if wq in (0, 1, 2, 5):
                 return True
             if wq == 3 and allow_dubious:
@@ -203,7 +204,7 @@ class AbstractElement:
     def passed_qc(self) -> bool:
         """Check if this value is good and has completed QC."""
         for v in self.all_values():
-            wq = v.metadata.best_value('WorkingQuality', 0, int)
+            wq = v.metadata.best('WorkingQuality', 0, int)
             if wq not in (1, 2, 5):
                 return False
         return True
@@ -221,7 +222,7 @@ class AbstractElement:
     def is_multivalue(self) -> bool:
         return False
 
-    def ideal_single_value(self) -> SingleElement:
+    def ideal(self) -> SingleElement:
         """Find the ideal representation of this value."""
         raise NotImplementedError  # pragma: no coverage
 
@@ -244,9 +245,9 @@ class AbstractElement:
     @property
     def quality(self):
         if self.metadata.has_value('Quality'):
-            return self.metadata.best_value('Quality')
+            return self.metadata.best('Quality')
         if self.metadata.has_value('WorkingQuality'):
-            return self.metadata.best_value('WorkingQuality')
+            return self.metadata.best('WorkingQuality')
         if self.is_empty():
             return 9
         return 0
@@ -292,10 +293,10 @@ class SingleElement(AbstractElement):
         else:
             return None
 
-    def all_values(self, srt: bool = False) -> t.Iterable:
+    def all_values(self, srt: bool = False) -> t.Iterable[AbstractElement]:
         yield self
 
-    def ideal_single_value(self) -> SingleElement:
+    def ideal(self) -> SingleElement:
         return self
 
     @property
@@ -375,7 +376,7 @@ class MultiElement(AbstractElement):
         else:
             return False
 
-    def ideal_single_value(self) -> t.Optional[SingleElement]:
+    def ideal(self) -> t.Optional[SingleElement]:
         # TODO: do we need to handle the case where there are no values? seems unlikely
         best_value, best_wq = None, 9
         for v in self.all_values():
@@ -448,7 +449,7 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         if not path:
             return self
         try:
-            return self.load(path[0]).find_child(path[1:])
+            return self._load(path[0]).find_child(path[1:])
         except KeyError:
             return None
 
@@ -456,12 +457,12 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         """Update a hash with all the values of this map"""
         for k in sorted(self.keys()):
             h.update(k.encode('utf-8', 'replace'))
-            self.load(k).update_hash(h)
+            self._load(k).update_hash(h)
 
-    def best_value(self, item, default=None, coerce=None):
+    def best(self, item, default=None, coerce=None):
         """Find the best value for the given element name, or the default if it is not set."""
         try:
-            return self.load(item).best_value(coerce=coerce)
+            return self._load(item).best(coerce=coerce)
         except KeyError:
             return default
 
@@ -469,43 +470,41 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         """Check if the item exists in the map and has a non-empty value."""
         if item not in self:
             return False
-        return not self.load(item).is_empty()
+        return not self._load(item).is_empty()
 
-    def add_element(self,
-                    element_name: str,
-                    value: OCProcValue,
-                    metadata: t.Optional[DefaultValueDict] = None,
-                    **kwargs):
-        element = ElementMap.ensure_element(value, metadata, **kwargs)
+    def append_to(self,
+                  element_name: str,
+                  value: OCProcValue,
+                  metadata: t.Optional[DefaultValueDict] = None,
+                  **kwargs):
         if element_name not in self:
-            self.set(element_name, element, _check=False)
+            self.set(element_name, value, metadata, **kwargs)
         else:
-            e = self.load(element_name)
+            element = ElementMap.ensure_element(value, metadata, **kwargs)
+            e = self._load(element_name)
             if isinstance(e, MultiElement):
                 e.append(element)
             elif e.value != element.value:
                 ne = MultiElement((e, element))
-                self.set(element_name, ne, _check=False)
+                super().__setitem__(element_name, ne)
 
-    def set_element(self,
-                    element_name: str,
-                    value: OCProcValue,
-                    metadata: t.Optional[DefaultValueDict] = None,
-                    **kwargs):
+    def set(self,
+            element_name: str,
+            value: OCProcValue,
+            metadata: t.Optional[DefaultValueDict] = None,
+            **kwargs):
         """Set an element to the given value and metadata."""
-        self.set(element_name, ElementMap.ensure_element(value, metadata, **kwargs), _check=False)
+        super().__setitem__(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
 
-    def set(self, item: str, value, _check: bool = True):
-        if _check and not isinstance(value, AbstractElement):
-            value = SingleElement(value)
-        super().set(item, value)
+    def __setitem__(self, key, value):
+        super().__setitem__(key, ElementMap.ensure_element(value))
 
-    def set_multiple(self,
-                     element_name: str,
-                     values: t.Sequence[OCProcValue],
-                     common_metadata: t.Optional[DefaultValueDict] = None,
-                     specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None,
-                     metadata: t.Optional[DefaultValueDict] = None):
+    def set_many(self,
+                 element_name: str,
+                 values: t.Sequence[OCProcValue],
+                 common_metadata: t.Optional[DefaultValueDict] = None,
+                 specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None,
+                 metadata: t.Optional[DefaultValueDict] = None):
         """Build a multi-valued element from the given values."""
         for i in range(0, len(values)):
             value_metadata = {}
@@ -514,7 +513,7 @@ class ElementMap(LazyLoadDict[AbstractElement]):
             if specific_metadata:
                 value_metadata.update(specific_metadata[i])
             element = self.ensure_element(values[i], value_metadata)
-            self.add_element(element_name, element)
+            self.append_to(element_name, element)
         if metadata:
             obj = self.get(element_name)
             for key in metadata:
@@ -523,10 +522,10 @@ class ElementMap(LazyLoadDict[AbstractElement]):
     def update(self, map_: dict = None, **kwargs):
         if map_ is not None:
             for key in map_:
-                self.set_element(key, map_[key])
+                self[key] = map_[key]
         if kwargs:
             for key in kwargs:
-                self.set_element(key, kwargs[key])
+                self[key] = kwargs[key]
 
     @staticmethod
     def ensure_element(value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):

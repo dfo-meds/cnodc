@@ -91,8 +91,8 @@ class GTSPPParameterRangeTest(BaseTestSuite):
         self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
         self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
         references, regions = self._ref.build_parameter_references(
-            record.coordinates['Latitude'].to_float_with_uncertainty(),
-            record.coordinates['Longitude'].to_float_with_uncertainty()
+            record.coordinates['Latitude'].to_ufloat(),
+            record.coordinates['Longitude'].to_ufloat()
         )
         if not references:
             return

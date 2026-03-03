@@ -139,7 +139,7 @@ class RecordListPane(BasePane):
             for c_name in c_names:
                 if record.coordinates.has_value(c_name):
                     value = record.coordinates[c_name]
-                    units = value.metadata.best_value('Units')
+                    units = value.metadata.best('Units')
                     if units:
                         display += f" [{value.to_float()} {units}]"
                     else:
