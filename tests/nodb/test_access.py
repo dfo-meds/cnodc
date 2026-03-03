@@ -1,14 +1,22 @@
 import datetime
-import unittest as ut
-import cnodc.nodb.structures as structures
-import zirconium as zr
-from autoinject import injector
+import json
 
-from cnodc.nodb import NODBUser
+from cnodc.nodb import structures as structures, NODBUser
 from cnodc.util import CNODCError
+from core import BaseTestCase
 
 
-class UserTest(ut.TestCase):
+class UserTest(BaseTestCase):
+
+    def test_from_kwargs(self):
+        user = structures.NODBUser(username="foo", is_new=False)
+        self.assertEqual("foo", user.username)
+        self.assertNotIn('username', user.modified_values)
+
+    def test_from_kwargs_new(self):
+        user = structures.NODBUser(username="foo")
+        self.assertEqual("foo", user.username)
+        self.assertIn('username', user.modified_values)
 
     def test_username(self):
         user = structures.NODBUser()
@@ -24,6 +32,7 @@ class UserTest(ut.TestCase):
         user.username = 12345
         self.assertNotEqual(user.username, 12345)
         self.assertEqual(user.username, "12345")
+        self.assertEqual(user.get_for_db("username"), "12345")
 
     def test_password(self):
         # speed up password hashing
@@ -105,6 +114,7 @@ class UserTest(ut.TestCase):
         self.assertEqual(len(user.roles), 1)
         user.assign_role('foobar2')
         user.clear_modified()
+        self.assertEqual(["foobar", "foobar2"], json.loads(user.get_for_db("roles")))
         user.unassign_role('foobar')
         self.assertEqual(len(user.roles), 1)
         self.assertIn('foobar2', user.roles)
@@ -114,3 +124,53 @@ class UserTest(ut.TestCase):
         self.assertEqual(len(user.roles), 1)
         self.assertIn('foobar2', user.roles)
         self.assertNotIn('foobar', user.roles)
+
+    def test_status(self):
+        user = structures.NODBUser()
+        user.status = structures.UserStatus.ACTIVE
+        self.assertIs(user.status, structures.UserStatus.ACTIVE)
+        self.assertEqual(structures.UserStatus.ACTIVE.value, user.get_for_db("status"))
+
+    def test_load_permissions(self):
+        self.db.grant_permission('foo', 'bar')
+        self.db.grant_permission('foo2', 'bar2')
+        self.db.grant_permission('foo3', 'bar3')
+        user = structures.NODBUser()
+        user.assign_role('foo')
+        user.assign_role('foo2')
+        self.assertIn('foo', user.roles)
+        self.assertIn('foo2', user.roles)
+        self.assertNotIn('foo3', user.roles)
+        perms = user.permissions(self.db)
+        self.assertIn('permissions', user._cache)
+        self.assertEqual(2, len(perms))
+        self.assertIn('bar', perms)
+        self.assertIn('bar2', perms)
+        self.assertNotIn('bar3', perms)
+        user.unassign_role('foo2')
+        perms2 = user.permissions(self.db)
+        self.assertEqual(1, len(perms2))
+        self.assertIn('bar', perms2)
+        self.assertNotIn('bar2', perms2)
+        self.assertNotIn('bar3', perms2)
+
+    def test_find_all(self):
+        self.db.insert_object(structures.NODBUser(username="foo"))
+        self.db.insert_object(structures.NODBUser(username="foo2"))
+        users = [x.username for x in structures.NODBUser.find_all(self.db)]
+        self.assertIn('foo', users)
+        self.assertIn('foo2', users)
+
+    def test_by_username(self):
+        self.db.insert_object(structures.NODBUser(username="foo"))
+        self.db.insert_object(structures.NODBUser(username="foo2"))
+        foo = structures.NODBUser.find_by_username(self.db, 'foo')
+        self.assertIsNotNone(foo)
+        self.assertIsInstance(foo, structures.NODBUser)
+        self.assertEqual(foo.username, 'foo')
+
+    def test_missing_by_username(self):
+        self.db.insert_object(structures.NODBUser(username="foo"))
+        self.db.insert_object(structures.NODBUser(username="foo2"))
+        foo3 = structures.NODBUser.find_by_username(self.db, 'foo3')
+        self.assertIsNone(foo3)

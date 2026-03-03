@@ -27,6 +27,23 @@ class DatabaseMock:
 
     def __init__(self):
         self.tables: dict[str, list] = {}
+        self._permissions: dict[str, set[str]] = {}
+
+    def grant_permission(self, role_name, perm_name):
+        if role_name not in self._permissions:
+            self._permissions[role_name] = set()
+        self._permissions[role_name].add(perm_name)
+
+    def remove_permission(self, role_name, perm_name):
+        if role_name in self._permissions and perm_name in self._permissions[role_name]:
+            self._permissions[role_name].remove(perm_name)
+
+    def load_permissions(self, roles: list[str]):
+        perms = set()
+        for r in roles:
+            if r in self._permissions:
+                perms.update(self._permissions[r])
+        return perms
 
     def reset(self):
         self.tables = {}
@@ -37,7 +54,8 @@ class DatabaseMock:
         return self.tables[table_name]
 
     def fast_renew_queue_item(self, queue_uuid):
-        return datetime.datetime.now(datetime.timezone.utc)
+        renew = datetime.datetime.now(datetime.timezone.utc)
+        return renew
 
     def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level):
         pass

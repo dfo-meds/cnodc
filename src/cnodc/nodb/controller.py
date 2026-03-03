@@ -15,6 +15,7 @@ from autoinject import injector
 import typing as t
 from psycopg2._psycopg import cursor as PGCursor
 import cnodc.nodb.structures as structures
+from cnodc.nodb.base import NODBBaseObject
 from cnodc.util import CNODCError
 
 RECOVERABLE_ERRORS: list[str] = [
@@ -234,7 +235,7 @@ class NODBControllerInstance:
                     locked_by = NULL,
                     locked_since = NULL,
                     delay_release = %s,
-                    priority = priority - %s,
+                    priority = priority + %s,
                     escalation_level = %s
                 WHERE 
                     queue_uuid = %s
@@ -442,7 +443,7 @@ class NODBControllerInstance:
             cur.rollback_to_savepoint("fetch_queue_item")
             raise ex
 
-    def delete_object(self, obj: structures._NODBBaseObject):
+    def delete_object(self, obj: NODBBaseObject):
         """Delete an object."""
         query = f'DELETE FROM {obj.get_table_name()} WHERE '
         key_names = obj.get_primary_keys()
@@ -575,7 +576,7 @@ class NODBControllerInstance:
             return " FOR KEY SHARE"
         return ""
 
-    def upsert_object(self, obj: structures._NODBBaseObject) -> bool:
+    def upsert_object(self, obj: NODBBaseObject) -> bool:
         """Upsert an object, if necessary."""
         if obj.is_new:
             return self.insert_object(obj)
@@ -584,7 +585,7 @@ class NODBControllerInstance:
         else:
             return True
 
-    def update_object(self, obj: structures._NODBBaseObject):
+    def update_object(self, obj: NODBBaseObject):
         """Update an object, if necessary."""
         if not obj.modified_values:
             return True
@@ -605,7 +606,7 @@ class NODBControllerInstance:
         obj.clear_modified()
         return True
 
-    def insert_object(self, obj: structures._NODBBaseObject):
+    def insert_object(self, obj: NODBBaseObject):
         """Insert an object into its table."""
         args = []
         primary_keys = obj.get_primary_keys()
@@ -656,6 +657,18 @@ class NODBControllerInstance:
                 role_name,
                 permission_name
             ])
+
+    def load_permissions(self, roles: list[str]) -> set[str]:
+        permissions = set()
+        if roles:
+            with self.cursor() as cur:
+                role_placeholders = ', '.join('%s' for _ in roles)
+                cur.execute(f"""
+                                SELECT permission FROM 
+                                nodb_permissions WHERE role_name IN ({role_placeholders})
+                            """, [*roles])
+                permissions.update(row[0] for row in cur.fetch_stream())
+        return permissions
 
     def delete_session(self, session_id: str):
         """Delete a user session."""
