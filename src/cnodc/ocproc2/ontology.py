@@ -74,7 +74,7 @@ class _BaseInfo:
     @staticmethod
     def build_one_from_ref(ref_value: ReferenceValue) -> str:
         if isinstance(ref_value, set):
-            return _BaseInfo._remove_prefix(list(ref_value)[0])
+            return _BaseInfo._remove_prefix(list(ref_value)[0]) # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
             return _BaseInfo._remove_prefix(ref_value)
 
@@ -89,7 +89,7 @@ class _BaseInfo:
     @staticmethod
     def build_one_from_literal(ref_value: LiteralValue) -> t.Union[str, int, float, None]:
         if isinstance(ref_value, set):
-            return list(ref_value)[0].value
+            return list(ref_value)[0].value # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
             return ref_value.value
 
@@ -104,7 +104,7 @@ class _BaseInfo:
     @staticmethod
     def _remove_prefix(x: t.Optional[str]):
         if x is None:
-            return x
+            return x    # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
             return x if '#' not in x else x[x.rfind('#')+1:]
 
@@ -181,18 +181,16 @@ class OCProc2ElementInfo(_BaseInfo):
 @injector.injectable_global
 class OCProc2Ontology:
 
-    def __init__(self, ontology_files: t.Optional[t.Union[t.Sequence[pathlib.Path], pathlib.Path]] = None):
-        self._onto_file = []
-        if isinstance(ontology_files, (set, tuple, list)):
-            self._onto_file.extend(ontology_files)
-        elif ontology_files:
-            self._onto_file.append(ontology_files)
+    def __init__(self, ontology_file: t.Optional[pathlib.Path] = None):
+        self._onto_files = []
+        if ontology_file:
+            self._onto_files.append(ontology_file)
         else:
             vocab_dir = pathlib.Path(__file__).absolute().parent.parent.parent.parent / 'vocab'
-            self._onto_file.append(vocab_dir / 'eov.ttl')
-            self._onto_file.append(vocab_dir / 'ioos.ttl')
-            self._onto_file.append(vocab_dir / 'cnodc.ttl')
-            self._onto_file.append(vocab_dir / 'rstypes.ttl')
+            self._onto_files.append(vocab_dir / 'eov.ttl')
+            self._onto_files.append(vocab_dir / 'ioos.ttl')
+            self._onto_files.append(vocab_dir / 'cnodc.ttl')
+            self._onto_files.append(vocab_dir / 'rstypes.ttl')
         self._parameters: t.Optional[dict[str, OCProc2ElementInfo]] = None
         self._recordset_types: t.Optional[dict, str, OCProc2ChildRecordTypeInfo] = None
         self._load_lock = threading.Lock()
@@ -205,7 +203,7 @@ class OCProc2Ontology:
                     self._parameters = {}
                     self._recordset_types = {}
                     graph = rdflib.Graph()
-                    for f in self._onto_file:
+                    for f in self._onto_files:
                         graph.parse(str(f))
                     graph_dict: dict[str, dict] = {}
                     for a, b, c in graph:

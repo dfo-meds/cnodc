@@ -187,6 +187,8 @@ cnodc:Parameter11 rdf:type skos:Concept ;
   skos:inScheme cnodc:elements .
   
 ioos:Parameter12 rdf:type skos:Concept ;
+  cnodc:dataType xsd:string ;
+  cnodc:allowedValue "one" ;
   skos:inScheme cnodc:elements .
   
 rstypes:recordSetTypes rdf:type skos:ConceptScheme .
@@ -212,18 +214,18 @@ rstypes:Type3  rdf:type skos:Concept ;
         """)
 
     TEST_INFO = [
-        ('Parameter',True, "m", "decimal", 5.0, 10.0, None, "parameters", "Time", {'seaSurfaceSalinity'}, True),
-        ('Parameter2',False,),
-        ('Parameter3',True, None, "string", None, None, {"one", "two", "three"}, "metadata", None, {'subSurfaceSalinity', 'seaSurfaceSalinity'}, True),
-        ('Parameter4',True, None, "dateTimeStamp", None, None, None, "coordinates", None, None, True),
-        ('Parameter5', True, None, "integer", 5, None, None, "metadata:platform", None, None, True),
-        ('Parameter6', True, None, "List", None, None, None, "metadata:element", None, None, True),
-        ('Parameter7', True, None, "date", None, None, None, "metadata:mission", None, None, True),
-        ('Parameter8', True, None, "Element", None, None, None, "metadata:parent", None, None, False),
-        ('Parameter9',False,),
-        ('Parameter10', True, None, "integer", None, 10, {2, 4, 6, 8}, "metadata:product", None, None, False),
-        ('Parameter11', True, None, "integer", None, None, None, "metadata:record", None, None, False),
-        ('Parameter12', True, None, None, None, None, None, None, None, None, True),
+        ('Parameter',   True,   "m",    "decimal",          5.0,    10.0,   None,                       "parameters",           "Time", {'seaSurfaceSalinity'},                         True),
+        ('Parameter2',  False,),
+        ('Parameter3',  True,   None,   "string",           None,   None,   {"one", "two", "three"},    "metadata",             None,   {'subSurfaceSalinity', 'seaSurfaceSalinity'},   True),
+        ('Parameter4',  True,   None,   "dateTimeStamp",    None,   None,   None,                       "coordinates",          None,   None,                                           True),
+        ('Parameter5',  True,   None,   "integer",          5,      None,   None,                       "metadata:platform",    None,   None,                                           True),
+        ('Parameter6',  True,   None,   "List",             None,   None,   None,                       "metadata:element",     None,   None,                                           True),
+        ('Parameter7',  True,   None,   "date",             None,   None,   None,                       "metadata:mission",     None,   None,                                           True),
+        ('Parameter8',  True,   None,   "Element",          None,   None,   None,                       "metadata:parent",      None,   None,                                           False),
+        ('Parameter9',  False,),
+        ('Parameter10', True,   None,   "integer",          None,   10,     {2, 4, 6, 8},               "metadata:product",     None,   None,                                           False),
+        ('Parameter11', True,   None,   "integer",          None,   None,   None,                       "metadata:record",      None,   None,                                           False),
+        ('Parameter12', True,   None,   "string",           None,   None,   {"one"},                    None,                   None,   None,                                           True),
     ]
 
     def test_ontology_is_defined(self):
