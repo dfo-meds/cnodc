@@ -39,7 +39,6 @@ class WorkflowController:
     """Manages the flow of an object through a workflow based on its configuration.
      """
 
-    nodb: NODBController = None
     storage: StorageController = None
 
     @injector.construct
@@ -55,16 +54,7 @@ class WorkflowController:
         self.halt_flag = halt_flag
         self._log = zrlog.get_logger("cnodc.workflow")
 
-    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable] = None, db: NODBControllerInstance = None, unique_queue_id: t.Optional[str] = None):
-        """Start the workflow for a file stored on the local hard disk."""
-        if db is not None:
-            self._handle_incoming_file(local_path, metadata, post_hook, db, unique_queue_id)
-        else:
-            with self.nodb as db:
-                self._handle_incoming_file(local_path, metadata, post_hook, db, unique_queue_id)
-                db.commit()
-
-    def _handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance, unique_queue_id: t.Optional[str] = None):
+    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance, unique_queue_id: t.Optional[str] = None):
         """Start the workflow for a file."""
         self._log.debug(f"Processing file [{local_path}]")
         file_handles = []
@@ -169,7 +159,7 @@ class WorkflowController:
                 payload.set_unique_key(hashlib.md5(unique_file_key.encode('utf-8', errors='replace')).hexdigest())
             else:
                 payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
-            self._queue_step(payload, db)
+            self.queue_step(payload, db)
 
     def _finish_file_handles(self, file_handles):
         """Set the tier on all file handles."""
@@ -182,17 +172,6 @@ class WorkflowController:
                     self._log.exception(f"Exception setting tier on [{handle.path()}] to [{tier}]")
 
     def queue_step(self,
-                   payload: WorkflowPayload,
-                   db: NODBControllerInstance = None):
-        """Queue the payload for its given step."""
-        if db is not None:
-            self._queue_step(payload, db)
-        else:
-            with self.nodb as db:
-                self._queue_step(payload, db)
-                db.commit()
-
-    def _queue_step(self,
                     payload: WorkflowPayload,
                     db: NODBControllerInstance):
         if payload.current_step_done:

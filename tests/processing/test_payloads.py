@@ -181,11 +181,29 @@ class TestFilePayload(BaseTestCase):
         actual_file = fp.download(self.temp_dir)
         self.assertTrue(actual_file.exists())
 
+    def test_file_download_as_str(self):
+        fp = FilePayload.from_path(str(pathlib.Path(__file__).absolute()))
+        actual_file = fp.download(str(self.temp_dir))
+        self.assertTrue(actual_file.exists())
+
+
     def test_gzipped_file_download(self):
         gzip_file = self.temp_dir / "hello.txt.gz"
         with gzip.open(gzip_file, "wb") as h:
             h.write(b"hello world")
         fp = FilePayload(file_info=FileInfo(str(gzip_file), filename="hello2.txt.gz", is_gzipped=True))
+        actual_file = fp.download(self.temp_dir)
+        self.assertTrue(actual_file.exists())
+        self.assertTrue(actual_file.name, 'hello2.txt')
+        with open(actual_file, "rb") as h:
+            content = h.read()
+            self.assertEqual(content, b"hello world")
+
+    def test_gzipped_file_download_no_name(self):
+        gzip_file = self.temp_dir / "hello.txt"
+        with gzip.open(gzip_file, "wb") as h:
+            h.write(b"hello world")
+        fp = FilePayload(file_info=FileInfo(str(gzip_file), filename="hello2.txt", is_gzipped=True))
         actual_file = fp.download(self.temp_dir)
         self.assertTrue(actual_file.exists())
         self.assertTrue(actual_file.name, 'hello2.txt')

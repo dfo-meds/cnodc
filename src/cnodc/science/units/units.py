@@ -248,11 +248,19 @@ def convert(v, from_units: str, to_units: str):
     return _convert(v, from_units, to_units)
 
 
-@injector.inject
-def _convert(*args, uc: UnitConverter = None, **kwargs):
-    return uc.convert(*args, **kwargs)
+class _Convert:
+
+    def __init__(self):
+        self._converter = None
+
+    def __call__(self, *args, **kwargs):
+        if self._converter is None:
+            self._converter = self._build_converter()
+        return self._converter.convert(*args, **kwargs)
+
+    @injector.inject
+    def _build_converter(self, c: UnitConverter = None):
+        return c
 
 
-@injector.inject
-def convert_units(quantity: t.Union[float, int, decimal.Decimal], units_in: str, units_out: str, converter: UnitConverter = None) -> decimal.Decimal:
-    return converter.convert(quantity, units_in, units_out)
+_convert = _Convert()

@@ -350,7 +350,7 @@ class TestWorkflowController(BaseTestCase):
             }
         })
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step=None, current_step_done=True)
-        workflow._queue_step(payload, self.db)
+        workflow.queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step1')
         self.assertFalse(payload.current_step_done)
         queue_item = self.db.fetch_next_queue_item('step1')
@@ -364,7 +364,7 @@ class TestWorkflowController(BaseTestCase):
 
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step1', current_step_done=False)
-        workflow._queue_step(payload, self.db)
+        workflow.queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step1')
         self.assertFalse(payload.current_step_done)
         queue_item = self.db.fetch_next_queue_item('step1')
@@ -377,7 +377,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(queue_item.priority, 0)
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step1', current_step_done=True)
-        workflow._queue_step(payload, self.db)
+        workflow.queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step2')
         self.assertFalse(payload.current_step_done)
         queue_item = self.db.fetch_next_queue_item('step2')
@@ -391,7 +391,7 @@ class TestWorkflowController(BaseTestCase):
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step2', current_step_done=True)
         with self.assertLogs('cnodc.workflow', 'ERROR'):
-            workflow._queue_step(payload, self.db)
+            workflow.queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step4')
         self.assertFalse(payload.current_step_done)
         queue_item = self.db.fetch_next_queue_item('step4')
@@ -406,7 +406,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(queue_item.priority, 0)
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step4', current_step_done=True)
-        self.assertRaises(CNODCError, workflow._queue_step, payload, self.db)
+        self.assertRaises(CNODCError, workflow.queue_step, payload, self.db)
 
     def test_queue_working_file(self):
         workflow = WorkflowController("test", {
@@ -496,6 +496,49 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsInstance(item, NODBQueueItem)
         self.assertIsNotNone(item.unique_item_name)
         self.assertEqual(item.unique_item_name, hashlib.md5('foobar'.encode('utf-8')).hexdigest())
+        payload = WorkflowPayload.from_queue_item(item)
+        self.assertIsNotNone(payload.file_info.last_modified_date)
+
+    def test_queue_working_file_with_bad_priority(self):
+        workflow = WorkflowController("test", {
+            "processing_steps": {
+                'step2': {
+                    'name': 'step2',
+                    'order': 2,
+                },
+                'step1': {
+                    'name': 'step1',
+                    'order': 1,
+                    'priority': ["15bar"],
+                },
+                'step4': {
+                    'name': 'step4',
+                    'order': 10,
+                    'worker_metadata': {
+                        'hello': 'world',
+                    }
+                }
+            }
+        })
+        file = LocalHandle(self.temp_dir / "hello.txt")
+        with open(file.path(), 'w') as h:
+            h.write("hello")
+        with self.assertLogs("cnodc.workflow", level="WARNING"):
+            workflow._queue_working_file(
+                working_file=file,
+                metadata={
+                },
+                filename='hello.txt',
+                with_gzip=False,
+                unique_file_key='foobar',
+                db=self.db
+            )
+        item = self.db.fetch_next_queue_item('step1')
+        self.assertIsNotNone(item)
+        self.assertIsInstance(item, NODBQueueItem)
+        self.assertIsNotNone(item.unique_item_name)
+        self.assertEqual(item.unique_item_name, hashlib.md5('foobar'.encode('utf-8')).hexdigest())
+        self.assertEqual(item.priority, 0)
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsNotNone(payload.file_info.last_modified_date)
 
@@ -690,7 +733,7 @@ class TestWorkflowController(BaseTestCase):
         file = self.temp_dir / 'file.txt'
         with open(file, 'w') as h:
             h.write('foobar')
-        workflow._handle_incoming_file(
+        workflow.handle_incoming_file(
             local_path=file,
             metadata={
                 'filename': 'world.txt',

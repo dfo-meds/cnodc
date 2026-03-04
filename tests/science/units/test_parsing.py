@@ -4,6 +4,7 @@ import unittest as ut
 import cnodc.science.units.structures as uns
 import cnodc.science.units.parsing as unp
 import cnodc.science.units.units as un
+from cnodc.science.units.structures import UnitError
 
 from cnodc.util import CNODCError
 
@@ -15,6 +16,8 @@ class TestUnitParsing(ut.TestCase):
         ("m", uns.SimpleUnit("m")),
         ("m2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
         ("m^2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
+        ("m / kg^-2", uns.Product(uns.SimpleUnit("m"), uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")))),
+        ("m / kg^-1", uns.Product(uns.SimpleUnit("m"), uns.SimpleUnit("kg"))),
         ("m**2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
         ("m-2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
         ("m^-2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
@@ -62,7 +65,7 @@ class TestLowLevel(ut.TestCase):
     INTEGERS = ["+0", "-1", "0", "1234567"]
     DECIMALS = ["3.0", "-3.0", "3.7", "+3.7"]
     LITERALS = ['+3E7', '-4.21E9', '+3.3E-12', '3.4e9', '-2.31e-12']
-    NOT_NUMBERS = ["foo", "hello", "bar", "3.4.1", "+-8", "", "2.3E2.1", "-2.3e2.7"]
+    NOT_NUMBERS = ["foo", "hello", "bar", "3.4.1", "+-8", "", "2.3E2.1", "-2.3e2.7", "+", "-"]
 
     def test_is_integer(self):
         for case in itertools.chain(TestLowLevel.NOT_NUMBERS, TestLowLevel.DECIMALS):
@@ -136,6 +139,8 @@ class TestLowLevel(ut.TestCase):
             ('kg^2', 'kg', '2'),
             ('kg2', 'kg', '2'),
             ('kg²', 'kg', '2'),
+            ('kg²²', 'kg', '22'),
+            ('kg1⁻²', 'kg1', '-2'),
         ]
         for in_value, base_unit, exponent in tests:
             with self.subTest(input=in_value):
@@ -202,6 +207,36 @@ class TestLowLevel(ut.TestCase):
         with self.assertRaises(CNODCError):
             unp._decompose_bracket_pairs("kg)")
 
+    def test_parse_leading_operators(self):
+        self.assertEqual(["*", "2"], unp._parse_leading_operators(["*2"]))
+        self.assertEqual(["/", "2"], unp._parse_leading_operators(["/2"]))
+        self.assertEqual(["2", "*"], unp._parse_leading_operators(["2*"]))
+        self.assertEqual(["2", "/"], unp._parse_leading_operators(["2/"]))
+        self.assertEqual(["/", "2", "*"], unp._parse_leading_operators(["/2*"]))
+        self.assertEqual(["*", "2", "/"], unp._parse_leading_operators(["*2/"]))
+
+    def test_parse_unit_groups(self):
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["^2", "kg"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["2", "*", "^2"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["*", "2"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["2", "*", "/", "2"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["2", "*", "*", "2"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["/", "2"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["2", "/", "/", "2"])
+        with self.assertRaises(UnitError):
+            unp._parse_unit_groups(["2", "/", "*", "2"])
+        self.assertEqual(uns.SimpleUnit("kg"), unp._parse_unit_groups(["kg", "^1"]))
+        self.assertEqual(uns.SimpleUnit("kg"), unp._parse_unit_groups(["kg", "^001"]))
+        self.assertEqual(uns.SimpleUnit("kg"), unp._parse_unit_groups(["kg", "^+1"]))
+        self.assertEqual(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")), unp._parse_unit_groups(["kg", "^2"]))
+
     def test_parse_logs(self):
         tests = [
             ("log(re 1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
@@ -213,6 +248,7 @@ class TestLowLevel(ut.TestCase):
             ("log(re1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
             ("log(re:1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
             ("log(1 V)", [uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))]),
+            ("2 log(1 V)", ["2", uns.Log(uns.Product(uns.Integer("1"), uns.SimpleUnit("V")), uns.Integer("10"))])
         ]
         for test, result in tests:
             with self.subTest(input=test):

@@ -57,27 +57,35 @@ def _parse_unit_for_groups(units: str) -> UnitExpression:
     strings = _parse_logs(strings)
     strings = _parse_leading_exponents(strings)
     strings = _parse_leading_operators(strings)
+    return _parse_unit_groups(strings)
+
+def _parse_unit_groups(strings: list[str]) -> UnitExpression:
     expr, op = None, None
     for piece in strings:
-        if expr is None:
-            expr = piece if isinstance(piece, UnitExpression) else parse_unit_string(piece)
-        elif piece[0] == "^":
+        if isinstance(piece, str) and piece[0] == "^":
             if op is not None:
                 raise UnitError(f"Operation cannot be followed by an exponentiation immediately", 1000)
-            if expr is None:
+            elif expr is None:
                 raise UnitError(f"Exponentiation cannot be at the start", 1001)
-            expr = Exponent(expr, Integer(str(int(piece[1:]))))
+            if int(piece[1:]) != 1:
+                expr = Exponent(expr, Integer(str(int(piece[1:]))))
         elif piece in UDUNITS_MULTIPLICATION:
             if op is not None:
                 raise UnitError(f"Operation cannot be followed by multiplication immediately", 1002)
+            elif expr is None:
+                raise UnitError(f"Multiplication cannot be at the start", 1002)
             op = '*'
         elif piece in UDUNITS_DIVISION:
             if op is not None:
                 raise UnitError(f"Operation cannot be followed by a division immediately", 1003)
+            elif expr is None:
+                raise UnitError(f"Division cannot be at the start", 1003)
             op = '/'
         else:
             expr2 = piece if isinstance(piece, UnitExpression) else parse_unit_string(piece)
-            if op is None or op == '*':
+            if expr is None:
+                expr = expr2
+            elif op is None or op == '*':
                 expr = Product(expr, expr2)
                 op = None
             elif op == '/':
@@ -99,11 +107,12 @@ def _parse_leading_operators(pieces: list[str]) -> list[str]:
                 if new_end is None and piece.endswith(op):
                     new_end = op
                     piece = piece[:len(op) * -1]
-                if new_start is None and new_end is None:
+                if new_start is not None and new_end is not None:
                     break
         if new_start is not None:
             new_pieces.append(new_start)
-        new_pieces.append(piece)
+        if piece != '':
+            new_pieces.append(piece)
         if new_end is not None:
             new_pieces.append(new_end)
     return new_pieces
@@ -221,7 +230,9 @@ def _parse_simple_unit_string(units: str) -> UnitExpression:
                 if isinstance(expr2, SimpleUnit):
                     expr = Product(expr, Exponent(expr2, Integer("-1")))
                 elif isinstance(expr2, Exponent):
-                    if expr2.exponent.value[0] == "-":
+                    if expr2.exponent.value == "-1":
+                        expr = Product(expr, expr2.base)
+                    elif expr2.exponent.value[0] == "-":
                         expr = Product(expr, Exponent(expr2.base, Integer(expr2.exponent.value[1:])))
                     else:
                         expr = Product(expr, Exponent(expr2.base, Integer("-" + expr2.exponent.value.strip("+"))))
@@ -282,10 +293,11 @@ def _parse_unit_for_exponents_and_leading(units: str) -> UnitExpression:
         return _build_exponent(units[:p], units[p+1:])
     elif units[-1].isdigit() or units[-1] in '+-':
         exp_pos = len(units) - 2
-        while exp_pos >= 0 and (units[exp_pos].isdigit() or units[exp_pos] in '+-'):
-            exp_pos -= 1
-            if units[exp_pos] in "+-":
+        while exp_pos >= 0 and (units[exp_pos].isdigit() or units[exp_pos] in '+-⁺⁻'):
+            if units[exp_pos] in '+-⁺⁻':
+                exp_pos -= 1
                 break
+            exp_pos -= 1
         return _build_exponent(units[:exp_pos+1], units[exp_pos+1:])
     else:
         return SimpleUnit(units)
@@ -355,7 +367,7 @@ def _is_integer_number(s: str) -> bool:
     if s == '':
         return False
     if s.startswith("+") or s.startswith("-"):
-        if len(s) == 0:
+        if len(s) == 1:
             return False
         return s[1:].isdigit()
     return s.isdigit()

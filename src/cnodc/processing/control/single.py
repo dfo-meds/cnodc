@@ -15,7 +15,7 @@ class _SingleProcessRunner(BaseProcess):
         self._worker = super()._build_and_run()
 
     def start(self):
-        pass
+        pass  # pragma: no coverage
 
     def is_alive(self) -> bool:
         return False

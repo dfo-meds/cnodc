@@ -154,8 +154,7 @@ class _ProcessSet:
             while current < self._quota:
                 proc, proc_uuid = self._build_process()
                 self._active_processes[proc_uuid] = proc
-                if not self._no_start:
-                    proc.start()
+                proc.start()
                 current += 1
 
 
@@ -293,6 +292,7 @@ class BaseController:
                     proc_config = config[process_name]['config']
                 else:
                     self._log.warning(f"Process [{process_name}] does not define a dictionary for its configuration, ignoring configuration")
+                    continue
             # Validate count
             count = 1
             if 'count' in config[process_name] and config[process_name]['count']:

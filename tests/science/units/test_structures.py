@@ -56,3 +56,33 @@ class TestStructures(ut.TestCase):
     def test_bad_product(self):
         with self.assertRaises(CNODCError):
             LINEAR_FUNCTION1.product(SIMPLE_UNIT)
+
+    def test_standardize(self):
+        p = uns.Product(uns.Integer("5"), uns.Integer("6"))
+        self.assertEqual(uns.Real("30"), p.standardize())
+
+    def test_standardize_exp(self):
+        p = uns.Product(uns.Exponent(uns.Integer("5"), uns.Integer("2")), uns.Integer("6"))
+        self.assertEqual(uns.Real(f"150"), p.standardize())
+
+    def test_standardize_exp_rev(self):
+        p = uns.Product(uns.Integer("6"), uns.Exponent(uns.Integer("5"), uns.Integer("2")))
+        self.assertEqual(uns.Real(f"150"), p.standardize())
+
+    def test_standardize_long(self):
+        p = uns.Product(uns.Integer("6"), uns.Product(uns.Integer("10"), uns.Product(uns.Integer("5"), uns.SimpleUnit("km"))))
+        self.assertEqual(uns.Product(uns.Real(f"300"), uns.SimpleUnit("km")), p.standardize())
+
+    def test_standardize_exponents(self):
+        self.assertEqual(uns.Real("9"), uns.Exponent(uns.Integer("3"), uns.Integer("2")).standardize())
+        self.assertEqual(uns.SimpleUnit("kg"), uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("1")).standardize())
+        self.assertEqual(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("6")), uns.Exponent(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")), uns.Integer("3")).standardize())
+        self.assertEqual(
+            uns.Product(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")), uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
+            uns.Exponent(uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m")), uns.Integer("2")).standardize()
+        )
+        self.assertEqual(
+            uns.Product(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")),
+                        uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
+            uns.Exponent(uns.Quotient(uns.SimpleUnit("kg"), uns.SimpleUnit("m")), uns.Integer("2")).standardize()
+        )

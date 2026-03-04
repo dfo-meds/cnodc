@@ -138,8 +138,7 @@ class WorkflowPayload:
                 queue_name = self.metadata['followup-queue']
         if queue_name is None:
             raise CNODCError("Missing queue name")
-        if self.metadata is None:
-            self.metadata = {}
+        self.metadata = self.metadata or {}
         self.metadata['send_time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         kwargs = {
             'queue_name': queue_name,

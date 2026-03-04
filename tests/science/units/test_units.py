@@ -3,6 +3,8 @@ import unittest as ut
 import cnodc.science.units.units as un
 import typing as t
 
+from cnodc.science.units.structures import UnitError
+from cnodc.science.units.units import convert
 from cnodc.util.exceptions import CNODCError
 from science.units.test_parsing import TestUnitParsing
 
@@ -38,7 +40,7 @@ class TestConversions(ut.TestCase):
         'Hz': 'Hz',
         'degree': 'arc_degree',
         'degree_east': 'degrees_east',
-        'degree_north': 'degrees_north'
+        'degree_north': 'degrees_north',
     }
 
     @classmethod
@@ -73,6 +75,7 @@ class TestConversions(ut.TestCase):
         self.assertEqual(self._converter.convert(1, 'dbar', 'Pa'), 10000)
         self.assertEqual(self._converter.convert(1, 'bar', 'Pa'), 100000)
         self.assertEqual(self._converter.convert(1, 'mbar', 'Pa'), 100)
+        self.assertEqual(self._converter.convert(1, 'mbar', 'mbar'), 1)
 
     def test_pressure_delta(self):
         self.assertEqual(self._converter.convert(36, 'hPa h-1', 'Pa s-1'), 1)
@@ -113,3 +116,31 @@ class TestConversions(ut.TestCase):
         self.assertTrue(self._converter.compatible('Pa', 'bar'))
         self.assertTrue(self._converter.compatible('N', 'kg m s-2'))
         self.assertTrue(self._converter.compatible('°C m-1', 'K m-1'))
+
+    def test_quick_convert(self):
+        self.assertEqual(1, convert(1000, "m", "km"))
+
+    def test_quick_convert_same_units(self):
+        self.assertEqual(1000, convert(1000, "m", "m"))
+
+    def test_infinite_loop(self):
+        self._converter._load_tables()
+        self._converter._nested_tracker.add('m')
+        with self.assertRaises(UnitError):
+            self._converter._conversion_info('m')
+        self._converter._nested_tracker.remove('m')
+
+    def test_bad_file_load(self):
+        with self.assertLogs("cnodc.units", "ERROR"):
+            self._converter._load_units_table("not_a_file.xml")
+        with self.assertLogs("cnodc.units", "ERROR"):
+            self._converter._load_prefix_table("not_a_file.xml")
+
+    def test_reload_units(self):
+        self._converter._load_tables()
+
+        with self.assertLogs("cnodc.units", "WARNING"):
+            self._converter._load_units_table("udunits2-common.xml")
+
+        with self.assertLogs("cnodc.units", "WARNING"):
+            self._converter._load_prefix_table("udunits2-prefixes.xml")
