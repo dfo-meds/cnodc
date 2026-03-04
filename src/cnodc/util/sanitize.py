@@ -85,7 +85,5 @@ def unnumpy(numpy_val):
             return [None if math.isnan(float(x)) else float(x) for x in numpy_val]
         else:
             raise ValueError(f'unknown dtype: [{type(numpy_val.dtype)}]')
-    elif isinstance(numpy_val, (int, float)):
-        return numpy_val if not math.isnan(numpy_val) else None
     else:
         return numpy_val

@@ -1,7 +1,7 @@
 """Local file handle"""
 import pathlib
 import datetime
-from .base import BaseStorageHandle, local_file_error_wrap
+from .base import BaseStorageHandle, local_file_error_wrap, local_file_generator_error_wrap
 from cnodc.util import HaltFlag
 import typing as t
 import shutil
@@ -52,6 +52,7 @@ class LocalHandle(BaseStorageHandle):
     def _name(self) -> str:
         return self._path.name
 
+    @local_file_error_wrap
     def remove(self):
         self._path.unlink(True)
         self.clear_cache()
@@ -59,6 +60,7 @@ class LocalHandle(BaseStorageHandle):
     def path(self):
         return str(self._path)
 
+    @local_file_error_wrap
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
         m_time = self.stat(clear_cache).st_mtime
         if m_time is not None:
@@ -71,7 +73,7 @@ class LocalHandle(BaseStorageHandle):
     def child(self, sub_path: str, as_dir: bool = False):
         return LocalHandle(self._path / sub_path, force_dir=as_dir, halt_flag=self._halt_flag)
 
-    @local_file_error_wrap
+    @local_file_generator_error_wrap
     def walk(self, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
         work = [self._path]
         while work:

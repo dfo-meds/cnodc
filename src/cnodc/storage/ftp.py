@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfoNotFoundError
 
 from autoinject import injector
 import zirconium as zr
+from pandas.core.dtypes.inference import is_re
 
 from cnodc.storage.base import BaseStorageHandle, UrlBaseHandle, StorageError
 from cnodc.util.halts import HaltFlag
@@ -22,14 +23,18 @@ def ftplib_error_wrap(cb):
     def _inner(*args, **kwargs):
         try:
             return cb(*args, **kwargs)
+        # file doesnt exist, etc
         except ftplib.error_perm as ex:
-            raise StorageError(str(ex), 2000, is_recoverable=True)
+            raise StorageError(str(ex), 2000, is_recoverable=True) from ex
         except ftplib.error_temp as ex:
-            raise StorageError(str(ex), 2001, is_recoverable=True)
+            raise StorageError(str(ex), 2001, is_recoverable=True) from ex
         except ftplib.error_proto as ex:
-            raise StorageError(str(ex), 2002, is_recoverable=False)
+            raise StorageError(str(ex), 2002, is_recoverable=False) from ex
         except ftplib.error_reply as ex:
-            raise StorageError(str(ex), 2003, is_recoverable=False)
+            raise StorageError(str(ex), 2003, is_recoverable=False) from ex
+        # actual error connecting to server
+        except ConnectionError as ex:
+            raise StorageError(str(ex), 2006, is_recoverable=True) from ex
 
     return _inner
 
@@ -48,9 +53,9 @@ class FTPConnectionPool:
         if parts.netloc not in self._server_notes:
             self._server_notes[parts.netloc] = {}
         if parts.scheme in ('ftps', 'ftpse') and 'tls' not in self._server_notes[parts.netloc]:
-            self._server_notes[parts.netloc]['tls'] = 'explicit'
+            self._server_notes[parts.netloc]['tls'] = 'explicit'    # pragma: no coverage (I have no TLS server to test this on)
         if parts.port and 'port' not in self._server_notes[parts.netloc]:
-            self._server_notes[parts.netloc]['port'] = parts.port
+            self._server_notes[parts.netloc]['port'] = parts.port   # pragma: no coverage
         return _FTPWrapper(parts.netloc, self._server_notes[parts.netloc])
 
 
@@ -74,7 +79,7 @@ class _FTPWrapper:
         self._server.connect(self._host, self._config['port'])
         self._server.login(self._config['username'], self._config['password'])
         if hasattr(self._server, 'prot_p'):
-            self._server.prot_p()
+            self._server.prot_p()  # pragma: no coverage (I have no TLS server to test this on)
         self.test_features()
 
     def test_features(self):
@@ -82,7 +87,7 @@ class _FTPWrapper:
             try:
                 self._server.voidcmd('MLST /')
                 self._config['rfc3659_support'] = True
-            except ftplib.error_perm as ex:
+            except ftplib.error_perm as ex:  # pragma: no coverage (I have no non-RFC3659 compliant server to test with)
                 if ex.args[0][0:2] == '50':
                     self._config['rfc3659_support'] = False
                 else:
@@ -113,7 +118,7 @@ class _FTPWrapper:
             for name, facts in self._server.mlsd(dir_path, facts):
                 yield name, self.extend_info(facts)
         else:
-            if dir_path and not dir_path.endswith('/'):
+            if dir_path and not dir_path.endswith('/'): # pragma: no coverage
                 dir_path += '/'
             pwd = self._server.pwd()
             for file in self._server.nlst(dir_path):
@@ -126,7 +131,7 @@ class _FTPWrapper:
                     if ex.args[0][0:3] == '550':
                         yield file, self.extend_info({'type': 'file'})
                     else:
-                        raise ex from ex
+                        raise ex from ex  # pragma: no coverage
             self._server.cwd(pwd)
 
     def stat(self, file_path) -> t.Optional[dict[str, t.Any]]:
@@ -146,7 +151,7 @@ class _FTPWrapper:
             except ftplib.error_perm as ex:
                 if ex.args[0][0:2] == '55':
                     return None
-                raise ex from ex
+                raise ex from ex  # pragma: no coverage (difficult to test)
         else:
             parts = file_path.split('/')
             for file, info in self.list_dir('/'.join(parts[:-1])):
@@ -157,10 +162,10 @@ class _FTPWrapper:
     def __enter__(self):
         if self._server is None:
             if self._config['tls'] == 'explicit':
-                self._server = ftplib.FTP_TLS()
+                self._server = ftplib.FTP_TLS()  # pragma: no coverage (no TLS server to test with)
             elif self._config['tls'] == 'none':
                 self._server = ftplib.FTP()
-            else:
+            else:   # pragma: no coverage (no TLS server to test with)
                 raise StorageError("Invalid tls setting for FTP", 2005, False)
         self._depth += 1
         return self
@@ -169,7 +174,10 @@ class _FTPWrapper:
         self._depth -= 1
         if self._depth <= 0:
             self._depth = 0
-            self._server.quit()
+            try:
+                self._server.quit()
+            except AttributeError:
+                pass
             self._server = None
 
 
@@ -209,7 +217,7 @@ class FTPHandle(UrlBaseHandle):
                     yield data
                     if self._halt_flag:
                         self._halt_flag.breakpoint()
-                if isinstance(conn, ssl.SSLSocket):
+                if isinstance(conn, ssl.SSLSocket):  # pragma: no coverage (no TLS server to test with)
                     conn.unwrap()
 
     @ftplib_error_wrap
@@ -219,7 +227,7 @@ class FTPHandle(UrlBaseHandle):
             with ftp.transfer_command(f"STOR {self.name()}") as conn:
                 for chunk in chunks:
                     conn.sendall(chunk)
-                if isinstance(conn, ssl.SSLSocket):
+                if isinstance(conn, ssl.SSLSocket):  # pragma: no coverage (no TLS to test with)
                     conn.unwrap()
 
     @ftplib_error_wrap
@@ -248,8 +256,7 @@ class FTPHandle(UrlBaseHandle):
                     yield rel_path, False
 
     def _exists(self) -> bool:
-        my_name = self.name()
-        if my_name == '':
+        if self.name() == '':
             return True
         return self.stat() is not None
 
@@ -259,7 +266,8 @@ class FTPHandle(UrlBaseHandle):
     @ftplib_error_wrap
     def _stat(self):
         with self._connection() as ftp:
-            return ftp.stat(self.name())
+            p = self.parse_url()
+            return ftp.stat(p.path)
 
     def _is_dir(self) -> bool:
         if self.name() == '':
@@ -281,13 +289,13 @@ class FTPHandle(UrlBaseHandle):
         stat = self.stat()
         if stat and 'modify' in stat:
             format_ = '%Y%m%d%H%M%S'
-            if '.' in stat['modify']:
+            if '.' in stat['modify']:  # pragma: no coverage (test server doesn't return this)
                 format_ = '%Y%m%d%H%M%S.%f'
             dt = datetime.datetime.strptime(stat['modify'], format_)
             if 'server_timezone' in stat and stat['server_timezone']:
                 try:
                     dt = dt.replace(tzinfo=zoneinfo.ZoneInfo(stat['server_timezone']))
-                except ZoneInfoNotFoundError as ex:
+                except ZoneInfoNotFoundError as ex:  # pragma: no coverage (test server doesn't have timezone)
                     logging.getLogger("cnodc.storage.ftp").error(f"Cannot parse server timezone [{stat['server_timezone']}]")
             return dt
         return None

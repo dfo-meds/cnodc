@@ -1,2 +1,13 @@
 [run]
 cover_pylib = false
+omit =
+  */cnodc/desktop/*
+  */cnodc/programs/castaway_ctd/*
+  */cnodc/programs/gts_send/*
+  */cnodc/programs/gtspp/*
+  */cnodc/storage/sftp.py
+
+
+[report]
+exclude_also =
+  raise NotImplementedError

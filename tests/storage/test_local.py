@@ -1,16 +1,51 @@
 import os
+import pathlib
 
-from cnodc.storage.base import StorageError
-from core import BaseTestCase
+from cnodc.storage import StorageController
+from cnodc.storage.base import StorageError, local_file_error_wrap
+from cnodc.util import HaltInterrupt
+from core import BaseTestCase, ConstantHaltFlag
 from cnodc.storage.local import LocalHandle
 
 
+@local_file_error_wrap
+def wrap_and_raise(ex):
+    raise ex
+
+
 class TestLocalHandle(BaseTestCase):
+
+    def test_not_a_dir(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(NotADirectoryError("oh no"))
+
+    def test_file_not_found(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(FileNotFoundError("oh no"))
+
+    def test_is_a_dir(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(IsADirectoryError("oh no"))
+
+    def test_perm_error(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(PermissionError("oh no"))
+
+    def test_other_os(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(OSError("oh no"))
 
     def test_properties(self):
         handle = LocalHandle(self.temp_dir)
         self.assertFalse(handle.supports_tiering())
         self.assertFalse(handle.supports_metadata())
+
+    def test_get_handle(self):
+        sc = StorageController()
+        self.assertIsInstance(sc.get_handle(pathlib.Path(self.temp_dir)), LocalHandle)
+        self.assertIsInstance(sc.get_handle("C:/my/cnodc"), LocalHandle)
+        self.assertIsInstance(sc.get_handle("file://C:/my/cnodc"), LocalHandle)
+        self.assertIsInstance(sc.get_handle("/foo/bar"), LocalHandle)
 
     def test_exists(self):
         handle = LocalHandle(self.temp_dir)
@@ -52,8 +87,13 @@ class TestLocalHandle(BaseTestCase):
 
     def test_child_dir(self):
         handle = LocalHandle(self.temp_dir)
-        file = handle.child('foo', True)
+        file = handle.subdir('foo')
         self.assertTrue(file.is_dir())
+
+    def test_default_entries(self):
+        handle = LocalHandle(self.temp_dir)
+        self.assertEqual({}, handle.get_metadata())
+        self.assertIsNone(handle.get_tier())
 
     def test_file_size(self):
         handle = LocalHandle(self.temp_dir / 'file.txt')
@@ -231,3 +271,69 @@ class TestLocalHandle(BaseTestCase):
             with self.subTest(platform="posix"):
                 handle = LocalHandle.build("file:///srv/opt/test")
                 self.assertEqual(handle.path(), "/srv/opt/test")
+
+    def test_supports(self):
+        self.assertTrue(LocalHandle.supports('C:/12345.txt'))
+        self.assertTrue(LocalHandle.supports('C:\\12345.txt'))
+        self.assertTrue(LocalHandle.supports('/foo/bar/two'))
+        self.assertTrue(LocalHandle.supports('file://C:/12345.txt'))
+        self.assertTrue(LocalHandle.supports('file:///foo/bar/two'))
+        self.assertFalse(LocalHandle.supports('http://test.com/file.html'))
+        self.assertFalse(LocalHandle.supports('ftp://test.com/file.html'))
+        self.assertFalse(LocalHandle.supports('ftps://test.com/file.html'))
+
+    def test_read_dir(self):
+        h = LocalHandle(self.temp_dir)
+        with self.assertRaises(StorageError):
+            h.download(self.temp_dir / "file.txt")
+
+    def test_read_bad_dir(self):
+        h = LocalHandle(self.temp_dir)
+        with self.assertRaises(StorageError):
+            h.download(self.temp_dir / "file.txt")
+
+    def test_list_file(self):
+        with open(self.temp_dir / "file.txt", "w") as h:
+            h.write("a")
+        h = LocalHandle(self.temp_dir / "file.txt")
+        with self.assertRaises(StorageError):
+            _ = [x for x in h.walk()]
+
+    def test_read_chunks_bytes(self):
+        handle = LocalHandle(self.temp_dir / "test.txt")
+        t = [x for x in handle._local_read_chunks(b'12345')]
+        self.assertEqual([b'12345'], t)
+
+    def test_read_array(self):
+        handle = LocalHandle(self.temp_dir)
+        t = [x for x in handle._local_read_chunks([b'fo', b'ob', b'ar'], 2)]
+        self.assertEqual([b'fo', b'ob', b'ar'], t)
+
+    def test_read_chunks_open_file(self):
+        p = self.temp_dir / "test.txt"
+        with open(p, "w") as h:
+            h.write("foobar")
+        handle = LocalHandle(p)
+        with open(p, "rb") as h:
+            t = [x for x in handle._local_read_chunks(h, 2)]
+        self.assertEqual([b'fo', b'ob', b'ar'], t)
+
+    def test_halt_read(self):
+        hf = ConstantHaltFlag(True)
+        class Test:
+
+            def __init__(self):
+                self.c = 0
+
+            def read(self, *args, **kwargs):
+                self.c += 1
+                if self.c >= 2:
+                    hf.should_continue = False
+                return str(self.c).encode('utf-8')
+
+        handle = LocalHandle(self.temp_dir, halt_flag=hf)
+        data_read = []
+        with self.assertRaises(HaltInterrupt):
+            for b in handle._local_read_chunks(Test()):
+                data_read.append(b)
+        self.assertEqual([b'1', b'2'], data_read)

@@ -7,8 +7,7 @@ import fnmatch
 import enum
 from urllib.parse import urlparse, ParseResult
 
-from cnodc.util import HaltFlag, CNODCError
-
+from cnodc.util import HaltFlag, CNODCError, HaltInterrupt
 
 DEFAULT_CHUNK_SIZE = 4194304
 
@@ -28,6 +27,18 @@ class StorageError(CNODCError):
     def __init__(self, msg, code, is_recoverable: bool = False):
         super().__init__(msg, "STORAGE", code, is_recoverable=is_recoverable)
 
+def _convert_local_error(ex):
+    if isinstance(ex, NotADirectoryError):
+        raise StorageError(f"Local directory is not a directory", 1005) from ex
+    elif isinstance(ex, FileNotFoundError):
+        raise StorageError(f"Local file not found", 1002) from ex
+    elif isinstance(ex, IsADirectoryError):
+        raise StorageError(f"Local file is a directory", 1004) from ex
+    elif isinstance(ex, PermissionError):
+        raise StorageError(f"Access to local file denied", 1003, True) from ex
+    else:
+        raise StorageError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", 1006) from ex
+
 
 def local_file_error_wrap(cb):
     """Converts typical local file-system errors into appropriate CNODCErrors with recoverable set properly."""
@@ -36,16 +47,21 @@ def local_file_error_wrap(cb):
     def _inner(*args, **kwargs):
         try:
             return cb(*args, **kwargs)
-        except FileNotFoundError as ex:
-            raise StorageError(f"Local file not found", 1002) from ex
-        except PermissionError as ex:
-            raise StorageError(f"Access to local file denied", 1003, True) from ex
-        except IsADirectoryError as ex:
-            raise StorageError(f"Local file is a directory", 1004) from ex
-        except NotADirectoryError as ex:
-            raise StorageError(f"Local directory is not a directory", 1005) from ex
-        except Exception as ex:
-            raise StorageError(f"Exception processing local file: {ex.__class__.__name__}: {str(ex)}", 1006) from ex
+        except OSError as ex:
+            _convert_local_error(ex)
+
+    return _inner
+
+
+def local_file_generator_error_wrap(cb):
+    """Converts typical local file-system errors into appropriate CNODCErrors with recoverable set properly."""
+
+    @functools.wraps(cb)
+    def _inner(*args, **kwargs):
+        try:
+            yield from cb(*args, **kwargs)
+        except OSError as ex:
+            _convert_local_error(ex)
 
     return _inner
 
@@ -92,8 +108,9 @@ class BaseStorageHandle:
             self._local_write_chunks(local_path, self._read_chunks(buffer_size))
             self._complete_download(local_path)
         except Exception as ex:
+            print(ex)
             local_path.unlink(True)
-            raise ex
+            raise ex from ex
 
     def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         """Read the file in chunks given a buffer size."""
@@ -112,23 +129,21 @@ class BaseStorageHandle:
         """Upload a local file to the location represented by this handle."""
         if (not allow_overwrite) and self.exists():
             raise StorageError(f"Path [{self.name()}] already exists, cannot overwrite", 1001, True)
-        metadata = metadata or {}
-        self._add_default_metadata(metadata, storage_tier)
+        if self.supports_tiering():
+            storage_tier = storage_tier or StorageTier.FREQUENT
+        else:
+            storage_tier = None
+        if self.supports_metadata():
+            metadata = metadata or {}
+            self._add_default_metadata(metadata, storage_tier)
+        else:
+            metadata = None
         self._upload(local_path, buffer_size, metadata, storage_tier)
 
     def _add_default_metadata(self, metadata: dict, storage_tier: t.Optional[StorageTier] = None):
         """Add default metadata to the file based on NODB standards."""
-        if 'AccessLevel' not in metadata:
-            metadata['AccessLevel'] = 'GENERAL'
-        if 'SecurityLabel' not in metadata:
-            metadata['SecurityLabel'] = 'UNCLASSIFIED'
-        if storage_tier is not None and self.supports_tiering():
-            if storage_tier == StorageTier.ARCHIVAL:
-                metadata['StoragePlan'] = 'ARCHIVAL'
-            elif storage_tier == StorageTier.FREQUENT:
-                metadata['StoragePlan'] = 'HOT'
-            elif storage_tier == StorageTier.INFREQUENT:
-                metadata['StoragePlan'] = 'COOL'
+        from cnodc.storage import StorageController
+        StorageController.apply_default_metadata(metadata, storage_tier=storage_tier)
 
     def _upload(self,
                local_path,
@@ -141,13 +156,13 @@ class BaseStorageHandle:
         try:
             self._write_chunks(self._local_read_chunks(local_path, buffer_size))
             self._complete_upload(local_path)
-            if self.supports_metadata() and metadata is not None:
+            if self.supports_metadata() and metadata is not None:  # pragma: no coverage (azure blobs handle this differently)
                 self.set_metadata(metadata)
-            if self.supports_tiering() and storage_tier is not None:
+            if self.supports_tiering() and storage_tier is not None:  # pragma: no coverage (azure blobs handle this differently)
                 self.set_tier(storage_tier)
         except Exception as ex:
             self.remove()
-            raise ex
+            raise ex from ex  # pragma: no coverage
 
     def _write_chunks(self, chunks: t.Iterable[bytes]):
         """Write an iterable bytes to the given file."""
@@ -175,21 +190,21 @@ class BaseStorageHandle:
     @local_file_error_wrap
     def _read_in_chunks(self, readable, buffer_size: int) -> t.Iterable[bytes]:
         """Read in chunks from a readable object."""
-        if self._halt_flag:
-            self._halt_flag.check_continue(True)
-        x = readable.read(buffer_size)
-        while x != b'':
+        while x := readable.read(buffer_size):
             yield x
             if self._halt_flag:
-                self._halt_flag.check_continue(True)
-            x = readable.read(buffer_size)
+                self._halt_flag.breakpoint()
 
     @local_file_error_wrap
     def _local_write_chunks(self, local_path: pathlib.Path, chunks: t.Iterable[bytes]):
         """Write chunks to a local file."""
-        with open(local_path, "wb") as dest:
-            for chunk in HaltFlag.iterate(chunks, self._halt_flag, True):
-                dest.write(chunk)
+        try:
+            with open(local_path, "wb") as dest:
+                for chunk in HaltFlag.iterate(chunks, self._halt_flag, True):
+                    dest.write(chunk)
+        except HaltInterrupt as ex:
+            local_path.unlink(True)
+            raise ex from ex
 
     def search(self, pattern: t.Optional[str] = None, recursive: bool = True) -> t.Iterable[BaseStorageHandle]:
         """Find all files that match the given pattern."""
@@ -301,7 +316,7 @@ class UrlBaseHandle(BaseStorageHandle):
 
     def child(self, sub_path: str, as_dir: bool = False) -> UrlBaseHandle:
         part1, part2 = self._split_url()
-        if not part1.endswith('/'):
+        if not part1.endswith('/'):  # pragma: no coverage (usually fine, is here just in case)
             part1 += '/'
         return self._build_child(
             f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}"
@@ -316,9 +331,9 @@ class UrlBaseHandle(BaseStorageHandle):
 
     def _split_url_actual(self):
         url_end = None
-        if '?' in self._url:
+        if '?' in self._url:  # pragma: no coverage (not relevant for FTP, may be relevant elsewhere)
             url_end = self._url.find("?")
-        if '#' in self._url:
+        if '#' in self._url:  # pragma: no coverage (not relevant for FTP, may be relevant elsewhere)
             percent_end = self._url.find('#')
             if url_end is None or url_end > percent_end:
                 url_end = percent_end

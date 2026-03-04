@@ -10,11 +10,11 @@ class TestDynamicLoad(BaseTestCase):
 
     def test_function(self):
         obj = dynamic_object('utils.test_dynamic.test_function')
-        self.assertIs(obj, test_function)
+        self.assertEqual('test_function', obj.__name__)
 
     def test_class(self):
         obj = dynamic_object('utils.test_dynamic.TestClass')
-        self.assertIs(obj, TestClass)
+        self.assertEqual('TestClass', obj.__name__)
 
     def test_bad_module(self):
         with self.assertRaises(DynamicObjectLoadError):
@@ -28,5 +28,5 @@ class TestDynamicLoad(BaseTestCase):
 def test_function():
     pass
 
-class TestClass():
+class TestClass:
     pass

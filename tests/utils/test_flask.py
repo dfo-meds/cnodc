@@ -1,3 +1,5 @@
+import itertools
+import logging
 import shutil
 import subprocess
 
@@ -6,139 +8,184 @@ from autoinject import injector
 
 from cnodc.system.boot import build_cnodc_webapp
 from cnodc.util.flask import TrustedProxyFix, RequestInfo
-from core import BaseTestCase
+from core import BaseTestCase, InjectableDict
+
+
+class BoringApp:
+
+    def __call__(self, environ, start_response):
+        return 'foobar'
+
+
+class ProxyFixDummy:
+
+    def __init__(self, x):
+        self._x = x
+        self._proxy_called = 0
+
+    def __call__(self, *args, **kwargs):
+        self._proxy_called += 1
+        return self._x(*args, **kwargs)
+
+
 
 
 class TestProxyFix(BaseTestCase):
 
-    def test_no_upstream(self):
-        tpf = TrustedProxyFix(None, "")
-        def can_trust(ip):
-            return tpf._is_upstream_trustworthy({'REMOTE_ADDR': ip}, None)
-        self.assertFalse(can_trust('127.0.0.1'))
-        self.assertFalse(can_trust('0.0.0.0'))
-        self.assertFalse(can_trust('192.168.0.0'))
-        self.assertFalse(can_trust('192.168.0.1'))
-        self.assertFalse(can_trust('8.8.8.8'))
-        self.assertFalse(can_trust('255.255.255.255'))
-        self.assertFalse(can_trust('256.256.256'))
-        self.assertFalse(can_trust(''))
-        self.assertFalse(can_trust(None))
-        self.assertFalse(can_trust('foobar'))
-        self.assertFalse(can_trust("5"))
-        self.assertFalse(can_trust('256.256.256.256'))
+    VALID_IPS = [
+        "0.0.0.0",
+        "8.8.8.8",
+        "9.1.2.255",
+        "10.0.2.255",
+        "10.1.2.3",
+        "10.1.2.2",
+        "10.1.1.3",
+        "10.1.1.255",
+        "10.1.2.99",
+        "10.1.2.255",
+        "10.1.2.0",
+        "10.2.2.3",
+        "11.1.2.3",
+        "127.0.0.1",
+        "192.168.0.0",
+        "196.168.0.1",
+        "255.255.255.255",
+    ]
+    INVALID_IPS = [
+        "256.256.256",
+        "",
+        None,
+        'foobar',
+        "5",
+        "256.256.256.256",
+    ]
 
-    def test_one_ip_upstream(self):
-        tpf = TrustedProxyFix(None, "10.1.2.3")
-        def can_trust(ip):
-            return tpf._is_upstream_trustworthy({'REMOTE_ADDR': ip}, None)
-        self.assertFalse(can_trust('127.0.0.1'))
-        self.assertTrue(can_trust('10.1.2.3'))
-        self.assertFalse(can_trust('10.1.2.2'))
-        self.assertFalse(can_trust('10.1.1.3'))
-        self.assertFalse(can_trust('10.2.2.3'))
-        self.assertFalse(can_trust('11.1.2.3'))
-        self.assertFalse(can_trust('0.0.0.0'))
-        self.assertFalse(can_trust('192.168.0.0'))
-        self.assertFalse(can_trust('192.168.0.1'))
-        self.assertFalse(can_trust('8.8.8.8'))
-        self.assertFalse(can_trust('255.255.255.255'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('256.256.256'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust(''))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust(None))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('foobar'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust("5"))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('256.256.256.256'))
+    TEST_SUBNETS = {
+        "": [],
+        "*": VALID_IPS,
+        "127.0.0.1": ["127.0.0.1"],
+        "10.1.2.3": ["10.1.2.3"],
+        "10.1.2.0/24": ["10.1.2.3", "10.1.2.99", "10.1.2.255", "10.1.2.0", "10.1.2.2"]
+    }
 
-    def test_subnet_upstream(self):
-        tpf = TrustedProxyFix(None, "10.1.2.0/24")
-        def can_trust(ip):
-            return tpf._is_upstream_trustworthy({'REMOTE_ADDR': ip}, None)
-        self.assertFalse(can_trust('127.0.0.1'))
-        self.assertTrue(can_trust('10.1.2.3'))
-        self.assertTrue(can_trust('10.1.2.99'))
-        self.assertTrue(can_trust('10.1.2.255'))
-        self.assertTrue(can_trust('10.1.2.0'))
-        self.assertFalse(can_trust('10.1.1.255'))
-        self.assertFalse(can_trust('10.0.2.255'))
-        self.assertFalse(can_trust('9.1.2.255'))
-        self.assertFalse(can_trust('0.0.0.0'))
-        self.assertFalse(can_trust('192.168.0.0'))
-        self.assertFalse(can_trust('192.168.0.1'))
+    TEST_BAD_SUBNETS = [
+        "foobared",
+        "256.256.256.256",
+        "127.0.0.0/99"
+    ]
 
+    def setUp(self):
+        super().setUp()
+        logging.disable(logging.ERROR)
+
+    def tearDown(self):
+        super().tearDown()
+        logging.disable(logging.NOTSET)
+
+    def test_call_trusted(self):
+        tpf = TrustedProxyFix(BoringApp(), "*")
+        tpf._proxy = ProxyFixDummy(BoringApp())
+        k = 0
+        self.assertEqual(k, tpf._proxy._proxy_called)
+        for ip in TestProxyFix.VALID_IPS:
+            with self.subTest(ip=ip):
+                self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
+                k += 1
+                self.assertEqual(k, tpf._proxy._proxy_called)
+        for ip in TestProxyFix.INVALID_IPS:
+            with self.subTest(ip=ip):
+                self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
+                self.assertEqual(k, tpf._proxy._proxy_called)
+
+    def test_call_mix(self):
+        tpf = TrustedProxyFix(BoringApp(), "10.1.2.0/24")
+        tpf._proxy = ProxyFixDummy(BoringApp())
+        k = 0
+        self.assertEqual(k, tpf._proxy._proxy_called)
+        for ip in TestProxyFix.VALID_IPS:
+            if ip in TestProxyFix.TEST_SUBNETS['10.1.2.0/24']:
+                k += 1
+            with self.subTest(ip=ip):
+                self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
+                self.assertEqual(k, tpf._proxy._proxy_called)
+
+    def test_call_untrusted(self):
+        tpf = TrustedProxyFix(BoringApp(), "")
+        tpf._proxy = ProxyFixDummy(BoringApp())
+        self.assertEqual(0, tpf._proxy._proxy_called)
+        for ip in TestProxyFix.VALID_IPS:
+            with self.subTest(ip=ip):
+                self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
+                self.assertEqual(0, tpf._proxy._proxy_called)
+        for ip in TestProxyFix.INVALID_IPS:
+            with self.subTest(ip=ip):
+                self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
+                self.assertEqual(0, tpf._proxy._proxy_called)
+
+
+    def test_good_subnets(self):
+        for subnet in TestProxyFix.TEST_SUBNETS:
+            tpf = TrustedProxyFix(None, subnet)
+            for ip in TestProxyFix.VALID_IPS:
+                with self.subTest(subnet=subnet, ip=ip):
+                    self.assertIs(ip in TestProxyFix.TEST_SUBNETS[subnet], tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}))
+            for ip in TestProxyFix.INVALID_IPS:
+                with self.subTest(subnet=subnet, ip=ip):
+                    self.assertFalse(tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}))
 
     def test_two_subnet_upstream(self):
         tpf = TrustedProxyFix(None, ["10.1.2.0/24", "127.0.0.1"])
-        def can_trust(ip):
-            return tpf._is_upstream_trustworthy({'REMOTE_ADDR': ip}, None)
-        self.assertTrue(can_trust('127.0.0.1'))
-        self.assertTrue(can_trust('10.1.2.3'))
-        self.assertTrue(can_trust('10.1.2.99'))
-        self.assertTrue(can_trust('10.1.2.255'))
-        self.assertTrue(can_trust('10.1.2.0'))
-        self.assertFalse(can_trust('10.1.1.255'))
-        self.assertFalse(can_trust('10.0.2.255'))
-        self.assertFalse(can_trust('9.1.2.255'))
-        self.assertFalse(can_trust('0.0.0.0'))
-        self.assertFalse(can_trust('192.168.0.0'))
-        self.assertFalse(can_trust('192.168.0.1'))
+        for ip in TestProxyFix.VALID_IPS:
+            with self.subTest(ip=ip):
+                self.assertIs(
+                    ip in TestProxyFix.TEST_SUBNETS["10.1.2.0/24"] or ip in TestProxyFix.TEST_SUBNETS["127.0.0.1"],
+                        tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip})
+                )
+        for ip in TestProxyFix.INVALID_IPS:
+            with self.subTest(ip=ip):
+                self.assertFalse(tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}))
 
     def test_bad_subnet_upstream(self):
-        tpf = TrustedProxyFix(None, "foobared")
-        def can_trust(ip):
-            return tpf._is_upstream_trustworthy({'REMOTE_ADDR': ip}, None)
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('127.0.0.1'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('10.1.2.3'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('10.1.2.99'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('10.1.2.255'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('10.1.2.0'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('10.1.1.255'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('10.0.2.255'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('9.1.2.255'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('0.0.0.0'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('192.168.0.0'))
-        with self.assertLogs("cnodc.trusted_proxy", "WARNING"):
-            self.assertFalse(can_trust('192.168.0.1'))
+        for subnet in TestProxyFix.TEST_BAD_SUBNETS:
+            tpf = TrustedProxyFix(None, subnet)
+            for ip in itertools.chain(TestProxyFix.INVALID_IPS, TestProxyFix.VALID_IPS):
+                with self.subTest(subnet=subnet, ip=ip):
+                    self.assertFalse(tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}))
 
-    def test_all_ip_upstream(self):
-        tpf = TrustedProxyFix(None, "*")
-        def can_trust(ip):
-            return tpf._is_upstream_trustworthy({'REMOTE_ADDR': ip}, None)
-        self.assertTrue(can_trust('127.0.0.1'))
-        self.assertTrue(can_trust('10.1.2.3'))
-        self.assertTrue(can_trust('10.1.2.2'))
-        self.assertTrue(can_trust('10.1.1.3'))
-        self.assertTrue(can_trust('10.2.2.3'))
-        self.assertTrue(can_trust('11.1.2.3'))
-        self.assertTrue(can_trust('0.0.0.0'))
-        self.assertTrue(can_trust('192.168.0.0'))
-        self.assertTrue(can_trust('192.168.0.1'))
-        self.assertTrue(can_trust('8.8.8.8'))
-        self.assertTrue(can_trust('255.255.255.255'))
-        self.assertTrue(can_trust('256.256.256'))
-        self.assertTrue(can_trust(''))
-        self.assertTrue(can_trust(None))
-        self.assertTrue(can_trust('foobar'))
-        self.assertTrue(can_trust("5"))
-        self.assertTrue(can_trust('256.256.256.256'))
 
 class TestRequestInfo(BaseTestCase):
+
+    def test_parse_proc_info(self):
+        # fake full information coming from linux
+        info = RequestInfo()
+        info._parse_process_info("testuser x 2015-10-01 01:03:02 (10.1.2.3)")
+        info._parse_emulated_user("root")
+        info._proc_info_loaded = True
+        self.assertEqual(info.sys_username(), "testuser")
+        self.assertEqual(info.sys_emulated_username(), "root")
+        self.assertEqual(info.sys_logon_time(), "2015-10-01 01:03:02")
+        self.assertEqual(info.sys_remote_addr(), "10.1.2.3")
+
+    def test_parse_partial_info(self):
+        # fake full information coming from linux, but no remote IP
+        info = RequestInfo()
+        info._parse_process_info("testuser  x  \t2015-10-01 01:03:02")
+        info._parse_emulated_user("")
+        info._proc_info_loaded = True
+        self.assertEqual(info.sys_username(), "testuser")
+        self.assertEqual(info.sys_emulated_username(), "testuser")
+        self.assertEqual(info.sys_logon_time(), "2015-10-01 01:03:02")
+        self.assertIsNone(info.sys_remote_addr())
+
+    def test_parse_no_date(self):
+        # fake full information coming from linux, but no date
+        info = RequestInfo()
+        info._parse_process_info("testuser")
+        info._proc_info_loaded = True
+        self.assertEqual(info.sys_username(), "testuser")
+        self.assertEqual(info.sys_emulated_username(), "testuser")
+        self.assertIsNone(info.sys_logon_time())
+        self.assertIsNone(info.sys_remote_addr())
 
     def test_no_request(self):
         info = RequestInfo()

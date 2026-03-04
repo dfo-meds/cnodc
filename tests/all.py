@@ -2,6 +2,7 @@ import pathlib
 import unittest
 import coverage
 import sys
+import logging
 
 TEST_DIR = pathlib.Path(__file__).absolute().parent
 

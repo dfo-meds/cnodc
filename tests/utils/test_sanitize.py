@@ -89,3 +89,7 @@ class TestDataSanitization(BaseTestCase):
                 self.assertEqual(expected, result)
                 if exact_cls is not None:
                     self.assertIsInstance(result, exact_cls)
+
+    def test_bad_unnumpy(self):
+        with self.assertRaises(ValueError):
+            unnumpy(np.array(["a", "b", "c"], dtype=np.dtypes.StringDType))

@@ -1,4 +1,5 @@
 import datetime
+import ftplib
 import logging
 import threading
 
@@ -11,13 +12,20 @@ import pathlib
 
 from zirconium import test_with_config
 
+from cnodc.storage import StorageController
 from cnodc.storage.base import StorageError
-from cnodc.storage.ftp import FTPHandle
+from cnodc.storage.ftp import FTPHandle, ftplib_error_wrap
 import unittest as ut
 
-from core import BaseTestCase
+from cnodc.util import HaltInterrupt
+from core import BaseTestCase, ConstantHaltFlag
 
 FTP_HOME = pathlib.Path(__file__).absolute().parent / 'test'
+
+
+@ftplib_error_wrap
+def wrap_and_raise(ex):
+    raise ex
 
 class FTPServerThread(threading.Thread):
 
@@ -52,6 +60,39 @@ class FTPServerThread(threading.Thread):
                 self._server.close_all()
                 self._server = None
             self.join()
+
+
+class TestFTPHandleNoServer(BaseTestCase):
+
+    def test_not_running(self):
+        handle = FTPHandle('ftp://localhost/test_remove.txt')
+        with self.assertRaises(StorageError):
+            handle.exists(True)
+
+    def test_isdm_anon_ftp_connection(self):
+        handle = FTPHandle('ftp://ftp.isdm.gc.ca/pub')
+        self.assertTrue(handle.exists())
+
+    def test_error_perm(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(ftplib.error_perm("hello"))
+
+    def test_error_temp(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(ftplib.error_temp("hello"))
+
+    def test_error_proto(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(ftplib.error_proto("hello"))
+
+    def test_error_reply(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(ftplib.error_reply("hello"))
+
+    def test_error_conn(self):
+        with self.assertRaises(StorageError):
+            wrap_and_raise(ConnectionError("oh no"))
+
 
 
 class TestFTPHandle(BaseTestCase):
@@ -95,6 +136,11 @@ class TestFTPHandle(BaseTestCase):
         self.assertEqual(d.name(), 'hello')
         self.assertEqual(d.path(), 'ftp://localhost/hello')
 
+    def test_get_handle(self):
+        sc = StorageController()
+        handle = sc.get_handle('ftp://localhost/')
+        self.assertIsInstance(handle, FTPHandle)
+
     def test_remove_no_perms(self):
         fp = None
         try:
@@ -132,6 +178,32 @@ class TestFTPHandle(BaseTestCase):
         handle.download(self.temp_dir / "hello.txt")
         with open(self.temp_dir / "hello.txt") as h:
             self.assertEqual(h.read(), "foobar")
+
+    def test_size(self):
+        handle = FTPHandle('ftp://localhost/test.txt')
+        self.assertTrue(handle.exists())
+        self.assertEqual(6, handle.size())
+
+    def test_read_halt(self):
+        handle = FTPHandle('ftp://localhost/test.txt', halt_flag=ConstantHaltFlag(False))
+        self.assertTrue(handle.exists())
+        file = self.temp_dir / "hello2.txt"
+        self.assertFalse(file.exists())
+        with self.assertRaises(HaltInterrupt):
+            handle.download(file, buffer_size=2)
+        self.assertFalse(file.exists())
+
+    def test_read_halt2(self):
+        handle = FTPHandle('ftp://localhost/test.txt', halt_flag=ConstantHaltFlag(False))
+        self.assertTrue(handle.exists())
+        with self.assertRaises(HaltInterrupt):
+            _ = [x for x in handle._read_chunks(2)]
+
+    def test_remove_dir(self):
+        handle = FTPHandle('ftp://localhost/subdir/')
+        self.assertTrue(handle.exists())
+        with self.assertRaises(StorageError):
+            handle.remove()
 
     def test_write_no_access(self):
         f = self.temp_dir / "foobar.txt"
@@ -185,7 +257,7 @@ class TestFTPHandle(BaseTestCase):
 
     @injector.test_case
     @test_with_config(("storage", "servers", "ftp", "localhost"), {"server_timezone": "America/Toronto"})
-    def test_good_file(self):
+    def test_good_file2(self):
         good_file = FTPHandle('ftp://localhost/test.txt')
         lmt = good_file.modified_datetime()
         self.assertIsNotNone(lmt)
@@ -221,6 +293,18 @@ class TestFTPHandle(BaseTestCase):
         self.assertIn('ftp://localhost/subdir/test2.txt', files)
         self.assertIn('ftp://localhost/subdir/subdir2/test5.txt', files)
         self.assertEqual(len(files), 4)
+
+    def test_walk_recursive_with_dirs(self):
+        handle = FTPHandle("ftp://localhost/")
+        with handle._connection() as ftp:
+            files = [x for x, _ in handle._walk('/', False, True, ftp)]
+            self.assertIn('/subdir', files)
+            self.assertNotIn('/subdir/subdir2', files)
+
+    def test_walk_not_dirs(self):
+        handle = FTPHandle("ftp://localhost/test.txt")
+        files = [x for x in handle.walk()]
+        self.assertEqual(0, len(files))
 
     def test_support(self):
         self.assertTrue(FTPHandle.supports, 'ftp://localhost')

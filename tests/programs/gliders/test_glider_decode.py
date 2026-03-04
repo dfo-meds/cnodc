@@ -1,4 +1,5 @@
 import json
+import logging
 import pathlib
 
 from cnodc.ocproc2 import ParentRecord, MultiElement
@@ -271,7 +272,9 @@ class TestGliderDecode(BaseTestCase):
             self._add_ego_parameter(ds, 'TEMP_DOXY', [13, 14, 15], [1, 1, 1], 'degree_Celsius')
 
             mapper = GliderEGOMapper(ds, GliderEGOMapper.DEFAULT_MAPPING_FILE)
+            logging.disable(logging.WARNING)
             records = [x for x in mapper.build_records()]
+            logging.disable(logging.NOTSET)
             self.assertEqual(3, len(records))
             record = records[0]
             self.assertIsInstance(record, ParentRecord)

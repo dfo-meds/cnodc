@@ -59,16 +59,23 @@ class StorageController:
             return self.default_handle.build(file_path, halt_flag=halt_flag)
         return None
 
-    def build_metadata(self,
-                       program_name: str = "??",
-                       dataset_name: str = "??",
+    @staticmethod
+    def build_metadata(program_name: str = "UNKNOWN",
+                       dataset_name: str = "UNKNOWN",
                        cost_unit: str = "MEDS",
                        gzip: bool = False,
-                       access_level: AccessLevel = AccessLevel.General,
+                       access_level: AccessLevel = None,
                        security_label: SecurityLevel = SecurityLevel.Unclassified,
                        release_date: t.Optional[datetime.datetime] = None,
                        automate_release: bool = False,
                        storage_tier: t.Optional[StorageTier] = StorageTier.FREQUENT):
+        if access_level is None:
+            if security_label == SecurityLevel.ProtectedA:
+                access_level = AccessLevel.Controlled
+            elif release_date:
+                access_level = AccessLevel.Embargoed
+            else:
+                access_level = AccessLevel.General
         metadata = {
             'Program': program_name,
             'Dataset': dataset_name,
@@ -81,3 +88,25 @@ class StorageController:
             'StorageTier': storage_tier.value if storage_tier else ''
         }
         return metadata
+
+    @staticmethod
+    def apply_default_metadata(md: dict, **kwargs):
+        if 'AccessLevel' in md and md['AccessLevel']:
+            kwargs['access_level'] = AccessLevel(md['AccessLevel'])
+        if 'SecurityLabel' in md and md['SecurityLabel']:
+            kwargs['security_label'] = SecurityLevel(md['SecurityLabel'])
+        if 'CostUnit' in md and md['CostUnit']:
+            kwargs['cost_unit'] = md['CostUnit']
+        if 'Program' in md and md['Program']:
+            kwargs['program_name'] = md['Program']
+        if 'Dataset' in md and md['Dataset']:
+            kwargs['dataset_name'] = md['Dataset']
+        if 'Gzip' in md:
+            kwargs['gzip'] = md['Gzip'] == 'YES'
+        if 'AutomatedRelease' in md:
+            kwargs['automate_release'] = md['AutomatedRelease'] == 'YES'
+        if 'ReleaseDate' in md and md['ReleaseDate']:
+            kwargs['release_date'] = datetime.datetime.fromisoformat(md['ReleaseDate'])
+        if 'StorageTier' in md and md['StorageTier']:
+            kwargs['storage_tier'] = StorageTier(md['StorageTier'])
+        md.update(StorageController.build_metadata(**kwargs))

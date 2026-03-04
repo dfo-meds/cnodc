@@ -1,7 +1,9 @@
 import gzip
 import pathlib
+import shutil
 import typing as t
 import abc
+from typing import TextIO
 
 from cnodc.util import HaltFlag, HaltInterrupt
 
@@ -45,23 +47,18 @@ def vlq_decode(bytes_: bytes) -> tuple[int, int]:
     return total, pos + 1
 
 
-def copy_with_halt(source_handle: Readable, destination_handle: Writable, chunk_size: t.Optional[int] = None, halt_flag: t.Optional[HaltFlag] = None):
+def copy_with_halt(source_handle: t.Union[Readable, TextIO], destination_handle: Writable, chunk_size: t.Optional[int] = None, halt_flag: t.Optional[HaltFlag] = None):
     """Copy a file with halt flag support"""
     if chunk_size is None:
         chunk_size = 2621440
-    if halt_flag:
-        def check_continue():
-            halt_flag.check_continue(True)
+    if not halt_flag:
+        shutil.copyfileobj(source_handle, destination_handle, chunk_size)
     else:
-        def check_continue():
-            pass
-    check_continue()
-    src_bytes = source_handle.read(chunk_size)
-    while src_bytes != b'':
-        check_continue()
-        destination_handle.write(src_bytes)
-        check_continue()
         src_bytes = source_handle.read(chunk_size)
+        while src_bytes:
+            destination_handle.write(src_bytes)
+            src_bytes = source_handle.read(chunk_size)
+            halt_flag.breakpoint()
 
 
 def gzip_with_halt(source_file: pathlib.Path, target_file: pathlib.Path, chunk_size=None, halt_flag: HaltFlag = None):

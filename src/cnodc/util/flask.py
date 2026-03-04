@@ -14,39 +14,43 @@ class TrustedProxyFix:
         self._proxy = ProxyFix(app, **kwargs)
         self._trusted = trust_from_ips
         self._log = zrlog.get_logger("cnodc.trusted_proxy")
-        self._history = {}
+        self._cache = {}
 
-    def _is_upstream_trustworthy(self, environ, start_response):
-        if self._trusted == "*" or self._trusted is True:
-            return True
-        if self._trusted == "" or self._trusted is False or self._trusted is None:
-            return False
+    def _is_upstream_trustworthy(self, environ):
         _ip = environ.get("REMOTE_ADDR")
         try:
             upstream_ip = ipaddress.ip_address(_ip)
         except (ipaddress.AddressValueError, ValueError):
             self._log.warning(f"Upstream address could not be parsed: {_ip}")
             return False
-        if isinstance(self._trusted, str):
+        if self._trusted == "*" or self._trusted is True:
+            return True
+        elif self._trusted == "" or self._trusted is False or self._trusted is None:
+            return False
+        elif isinstance(self._trusted, str):
             return self._match_ip_address(upstream_ip, self._trusted)
-        return any(self._match_ip_address(upstream_ip, x) for x in self._trusted)
+        else:
+            return any(self._match_ip_address(upstream_ip, x) for x in self._trusted)
 
     def _match_ip_address(self, actual: ipaddress, network_def):
-        try:
-            subnet = ipaddress.ip_network(network_def, strict=True)
-            return actual in subnet
-        except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError) as ex:
-            self._log.warning(f"Trusted IP or subnet could not be parsed: {network_def}")
-            return False
+        if network_def not in self._cache:
+            try:
+                self._cache[network_def] = ipaddress.ip_network(network_def, strict=True)
+            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError) as ex:
+                self._log.warning(f"Trusted IP or subnet could not be parsed: {network_def}")
+                self._cache[network_def] = None
+        if self._cache[network_def] is not None:
+            return actual in self._cache[network_def]
+        return False
 
-    def __call__(self, environ, start_response):
+    def __call__(self, environ, *args, **kwargs):
         """Applies proxy configuration only if the upstream IP is allowed."""
-        if self._is_upstream_trustworthy(environ, start_response):
+        if self._is_upstream_trustworthy(environ):
             self._log.debug("trusting upstream...")
-            return self._proxy(environ, start_response)
+            return self._proxy(environ, *args, **kwargs)
         else:
             self._log.debug("not trusting upstream...")
-            return self._app(environ, start_response)
+            return self._app(environ, *args, **kwargs)
 
 
 class RequestInfo:
@@ -120,21 +124,29 @@ class RequestInfo:
     def _load_process_info(self):
         if self._proc_info_loaded is False:
             res = subprocess.run([shutil.which("whoami")], capture_output=True)  # noqa: S603
-            txt = res.stdout.decode("utf-8").replace("\t", " ").strip("\r\n\t ")
-            while "  " in txt:
-                txt = txt.replace("  ", " ")
-            pieces = txt.split(" ")
-            self._system_username = pieces[0]
-            self._emulated_user = pieces[0]
-            if len(pieces) > 2:
-                self._logon_time = pieces[2] + " " + pieces[3]
-            if len(pieces) > 4:
-                self._system_remote_addr = pieces[4].strip("()")
-            if os.name == "posix":
+            self._parse_process_info(res.stdout.decode("utf-8"))
+            if os.name == "posix":  # pragma: no coverage (windows testing only)
                 res = subprocess.run([shutil.which("who")], capture_output=True)  # noqa: S603
                 if res.returncode == 0 and res.stdout:
-                    self._emulated_user = res.stdout.decode("utf-8")
+                    self._parse_emulated_user(res.stdout.decode("utf-8"))
             self._proc_info_loaded = True
+
+    def _parse_emulated_user(self, txt: str):
+        txt = txt.strip()
+        if txt and txt != self._emulated_user:
+            self._emulated_user = txt
+
+    def _parse_process_info(self, txt: str):
+        txt = txt.replace("\t", " ").strip("\r\n\t ")
+        while "  " in txt:
+            txt = txt.replace("  ", " ")
+        pieces = txt.split(" ")
+        self._system_username = pieces[0]
+        self._emulated_user = pieces[0]
+        if len(pieces) > 2:
+            self._logon_time = pieces[2] + " " + pieces[3]
+        if len(pieces) > 4:
+            self._system_remote_addr = pieces[4].strip("()")
 
     def sys_username(self):
         self._load_process_info()
