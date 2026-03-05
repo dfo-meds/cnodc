@@ -26,14 +26,17 @@ class WorkflowWorker(QueueWorker):
     def progress_payload(self,
                          new_payload: t.Optional[WorkflowPayload] = None,
                          next_queue: t.Optional[str] = None,
-                         prevent_default_progression: bool = False):
+                         prevent_default_progression: bool = False,
+                         complete_step: t.Optional[bool] = None):
         if next_queue is None:
             next_queue = self.get_config('next_queue', 'workflow_continue')
+        if complete_step is None:
+            complete_step = next_queue == "workflow_continue"
         if new_payload is None:
             new_payload = self.copy_payload(self.current_payload)
-            new_payload.current_step_done = next_queue == "workflow_continue"
+            new_payload.current_step_done = complete_step
         else:
-            new_payload.copy_details_from(self.current_payload, next_queue == "workflow_continue")
+            new_payload.copy_details_from(self.current_payload, complete_step)
             self.add_payload_metadata(new_payload)
         new_payload.enqueue(self._db, next_queue)
         if prevent_default_progression:
@@ -52,13 +55,16 @@ class WorkflowWorker(QueueWorker):
         payload = WorkflowPayload.from_queue_item(item)
         if self._require_type is not None and not isinstance(payload, self._require_type):
             raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
-        self._skip_autoprogress_payload = False
         self.current_payload = payload
         return self.process_payload(payload)
+
+    def before_cycle(self):
+        self._skip_autoprogress_payload = False
 
     def after_cycle(self):
         super().after_cycle()
         self.current_payload = None
+        self._skip_autoprogress_payload = False
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         """Override to add payload logic."""

@@ -1,9 +1,12 @@
+import logging
 import pathlib
 import shutil
 import tempfile
 import uuid
 import unittest as ut
 import typing as t
+
+from prometheus_client.decorator import contextmanager
 
 from cnodc.nodb import QueueStatus
 import datetime
@@ -28,6 +31,7 @@ class DatabaseMock:
     def __init__(self):
         self.tables: dict[str, list] = {}
         self._permissions: dict[str, set[str]] = {}
+        self._rolled_back = False
 
     def grant_permission(self, role_name, perm_name):
         if role_name not in self._permissions:
@@ -47,6 +51,8 @@ class DatabaseMock:
 
     def reset(self):
         self.tables = {}
+        self._rolled_back = False
+        self._permissions = {}
 
     def table(self, table_name: str):
         if table_name not in self.tables:
@@ -148,85 +154,36 @@ class DatabaseMock:
                               retries: int = 0):
         for idx, item in enumerate(self.table(NODBQueueItem.TABLE_NAME)):
             if item.queue_name == queue_name and (subqueue_name is None or item.subqueue_name == subqueue_name):
-                return self.table(NODBQueueItem.TABLE_NAME).pop(idx)
+                with item._readonly_access():
+                    item.status = QueueStatus.LOCKED
+                    item.locked_by = 'mock'
+                    item.locked_since = datetime.datetime.now()
+                return item
 
     def commit(self):
         pass
 
+    def rollback(self):
+        self._rolled_back = True
 
-class WorkerTestController:
+class DummyNODB:
 
     def __init__(self, db):
         self._db = db
 
-    def payload_to_queue_item(self,
-                              payload: WorkflowPayload,
-                              queue_name: str = '',
-                              priority: int = 0,
-                              subqueue_name: t.Optional[str] = None,
-                              unique_item_name: t.Optional[str] = None):
-        return NODBQueueItem(
-            is_new=False,
-            queue_name=queue_name,
-            subqueue_name=subqueue_name,
-            unique_item_name=unique_item_name,
-            data=payload.to_map(),
-            priority=priority,
-            queue_uuid=str(uuid.uuid4()),
-            created_date=datetime.datetime.now(datetime.timezone.utc),
-            modified_date=datetime.datetime.now(datetime.timezone.utc),
-            status=QueueStatus.LOCKED,
-            locked_since=datetime.datetime.now(datetime.timezone.utc),
-            locked_by='test',
-            escalation_level=0
-        )
+    def __enter__(self):
+        return self._db
 
-    def test_queue_worker(self, worker_cls: type, worker_config: dict, queue_item: NODBQueueItem):
-        worker: QueueWorker = self._build_test_worker(worker_cls, worker_config)
-        return self._test_harness(worker, self._test_queue_worker, queue_item)
-
-    def _test_queue_worker(self, worker, queue_item):
-        def retrieve_item():
-            return queue_item
-        worker._db = self._db
-        worker._fetch_next_queue_item = retrieve_item
-        worker._process_next_queue_item()
-
-    def test_scheduled_task(self, worker_cls: type, worker_config: dict):
-        worker: ScheduledTask = self._build_test_worker(worker_cls, worker_config)
-        return self._test_harness(worker, self._test_scheduled_task)
-
-    def _test_scheduled_task(self, worker):
-        worker._run_scheduled_task(datetime.datetime.now(datetime.timezone.utc))
-
-    def _test_harness(self, worker, action: callable, *args, **kwargs):
-        exc = None
-        try:
-            worker.on_start()
-            action(worker, *args, **kwargs)
-        except Exception as ex:
-            exc = ex
-            raise ex
-        finally:
-            worker.on_exit(exc)
-        return worker
-
-    def _build_test_worker(self, worker_cls: type, worker_config: dict):
-        return worker_cls(
-            _halt_flag=ConstantHaltFlag(True),
-            _end_flag=ConstantHaltFlag(True),
-            _process_uuid=str(uuid.uuid4()),
-            _config=worker_config,
-        )
-
-
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 class BaseTestCase(ut.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.db = DatabaseMock()
-        cls.worker_controller = WorkerTestController(cls.db)
+        cls.nodb = DummyNODB(cls.db)
+        logging.disable(logging.WARNING)
 
     def setUp(self):
         self.temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
@@ -241,6 +198,21 @@ class BaseTestCase(ut.TestCase):
     def tearDownClass(cls):
         del cls.db
 
+    @contextmanager
+    def assertLogs(self, logger=None, level=None):
+        old_level = logging.root.disabled
+        try:
+            if level:
+                if isinstance(level, str):
+                    logging.disable(getattr(logging, level) - 1)
+                else:
+                    logging.disable(level - 1)
+            else:
+                logging.disable(logging.NOTSET)
+            with super().assertLogs(logger, level) as h:
+                yield h
+        finally:
+            logging.disable(old_level)
 
 class ConstantHaltFlag(HaltFlag):
 

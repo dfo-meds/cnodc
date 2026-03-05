@@ -90,8 +90,8 @@ class TestBaseProcessController(BaseTestCase):
             process_name="foo",
             config_file=file
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CNODCError):
+        with self.assertRaises(CNODCError):
+            with self.assertLogs("cnodc.single_process", "ERROR"):
                 nc.reload_check()
 
     def test_bad_process_file(self):
@@ -100,8 +100,8 @@ class TestBaseProcessController(BaseTestCase):
             process_name="foo",
             config_file_dir=file
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CNODCError):
+        with self.assertRaises(CNODCError):
+            with self.assertLogs("cnodc.single_process", "ERROR"):
                 nc.reload_check()
 
     def test_bad_process_no_class(self):

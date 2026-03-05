@@ -475,7 +475,9 @@ class BaseWorker:
         self._process_name = process_name
         self._process_version = process_version
         self._config = _config or {}
-        self._defaults = {}
+        self._defaults = {
+            'save_file': None
+        }
         self._log: t.Optional[ImprovedLogger] = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
         zrlog.set_extras({
             'process_uuid': self._process_uuid,

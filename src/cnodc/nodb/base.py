@@ -4,6 +4,8 @@ import enum
 import functools
 import json
 import typing as t
+from contextlib import contextmanager
+
 from cnodc.util import CNODCError
 
 
@@ -56,6 +58,15 @@ class NODBBaseObject:
         s += ";".join(self.modified_values)
         s += "]"
         return s
+
+    @contextmanager
+    def _readonly_access(self):
+        """ Allows temporary read-only access. Not to be used unless you know what you're doing. """
+        try:
+            self._allow_set_readonly = True
+            yield self
+        finally:
+            self._allow_set_readonly = False
 
     def _with_cache(self, key: str, cb: callable, *args, **kwargs) -> t.Any:
         """Check if the key exists in the cache."""

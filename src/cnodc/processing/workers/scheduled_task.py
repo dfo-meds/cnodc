@@ -22,7 +22,6 @@ class ScheduledTask(BaseWorker):
         super().__init__(*args, **kwargs)
         self._next_execution: t.Optional[datetime.datetime] = None
         self.set_defaults({
-            "save_file": None,
             "delay_fuzz_milliseconds": 1000,
             "run_on_boot": False,
             "delay_seconds": None,
@@ -31,12 +30,18 @@ class ScheduledTask(BaseWorker):
 
     def _run(self):
         """Implement _run() by regularly checking if it is time to run the script."""
-        self._update_next_execution_time()
         while self.continue_loop():
-            now = datetime.datetime.now(datetime.timezone.utc)
-            if self._check_execution(now):
-                now = self._run_scheduled_task(now)
-            self.responsive_sleep(self._sleep_time(now))
+            self._run_loop()
+
+    def _run_loop(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if self._check_execution(now):
+            now = self._run_scheduled_task(now)
+        self.responsive_sleep(self._sleep_time(now))
+
+    def on_start(self):
+        super().on_start()
+        self._update_next_execution_time()
 
     def _update_next_execution_time(self):
         """Decide on the next scheduled execution time."""
@@ -66,13 +71,13 @@ class ScheduledTask(BaseWorker):
         """Calculate the delay from a given time point (start or end) to the next execution."""
         try:
             delay = int(self.get_config("delay_seconds"))
-        except TypeError:
+        except (ValueError, TypeError):
             raise CNODCError('Invalid delay', 'SCHEDTASK', 1002)
         if first_run and self.get_config("run_on_boot"):
             delay = 0
         try:
             fuzz = int(self.get_config("delay_fuzz_milliseconds"))
-        except TypeError:
+        except (ValueError, TypeError):
             raise CNODCError('Invalid fuzz delay', 'SCHEDTASK', 1003)
         if fuzz > 0:
             delay += random.randint(0, fuzz) / 1000.0

@@ -6,15 +6,17 @@
     Queue items have a "unique_item_name" which, when non-null, will prevent two items
     with the same value for that field from being locked at the same time.
 """
+import uuid
+import typing as t
+import enum
+
+from autoinject import injector
+
 from cnodc.processing.control.base import BaseWorker
 from cnodc.util import CNODCError, HaltInterrupt
-from autoinject import injector
-import uuid
 from cnodc.nodb import NODBController, NODBControllerInstance
 import cnodc.nodb.structures as structures
-import typing as t
 from cnodc.nodb.controller import NODBError
-import enum
 
 
 class QueueItemResult(enum.Enum):
@@ -50,17 +52,20 @@ class QueueWorker(BaseWorker):
 
     def _run(self):
         """Grab and process a queue item repeatedly"""
-        self._current_delay_time = self.get_config("delay_time_seconds")
-        self._app_id = str(uuid.uuid4())
         while self.continue_loop():
             with self.nodb as db:
                 try:
-                    # This lets us re-use the database connection later instead of making a second one.
                     self._db = db
-                    if not self._process_next_queue_item():
-                        self.responsive_sleep(self._delay_time())
+                    self._run_loop()
                 finally:
                     self._db = None
+
+    def _run_loop(self):
+        # This lets us re-use the database connection later instead of making a second one.
+        if not self._process_next_queue_item():
+            self.responsive_sleep(self._delay_time())
+        else:
+            self._current_delay_time = self.get_config("delay_time_seconds")
 
     def _fetch_next_queue_item(self):
         return self._db.fetch_next_queue_item(
@@ -72,16 +77,16 @@ class QueueWorker(BaseWorker):
         """Process a queue item and return True if there was an item otherwise False."""
         self._log.debug(f"Checking for new items in [{self.get_config('queue_name')}]")
         self._current_item = None
+        found_item = False
+        self.before_cycle()
         try:
             # Get an item
             self._current_item = self._fetch_next_queue_item()
             # Run the process on the item
             if self._current_item is not None:
-                self.before_cycle()
-                self._current_delay_time = self.get_config("delay_time_seconds")
+                found_item = True
+                self._log.debug(f"found item [{self._current_item.queue_uuid}]")
                 self._process_result(self._current_item, self.process_queue_item(self._current_item))
-                return True
-            return False
         except CNODCError as ex:
             # NB: NODB errors require us to rollback so that we can fix them.
             if isinstance(ex, NODBError):
@@ -89,19 +94,19 @@ class QueueWorker(BaseWorker):
             # Recoverable errors may be fixable later, so we requeue the item for retrying
             if ex.is_recoverable:
                 self._process_result(self._current_item, QueueItemResult.RETRY, ex)
-                return True
             # Non-recoverable mean the entire item should fail
             else:
                 self._process_result(self._current_item, QueueItemResult.FAILED, ex)
-        except (KeyboardInterrupt, HaltInterrupt) as ex:
-            self._process_result(self._current_item, QueueItemResult.RETRY)
-            self._log.exception(f"Processing halt reqeusted")
-            raise ex
         except Exception as ex:
             self._process_result(self._current_item, QueueItemResult.FAILED, ex)
+        except (KeyboardInterrupt, HaltInterrupt) as ex:
+            self._process_result(self._current_item, QueueItemResult.RETRY)
+            self._log.critical(f"HaltInterrupt detected")
+            raise HaltInterrupt from ex
         finally:
             self.after_cycle()
             self._current_item = None
+        return found_item
 
     def autocomplete(self, queue_item):
         queue_item.mark_complete(self._db)
@@ -110,7 +115,7 @@ class QueueWorker(BaseWorker):
         """Handle the result of calling the queue processing function."""
         if queue_item is not None:
             if ex is not None:
-                self._log.exception(f"An exception occurred while processing {queue_item.queue_uuid}: {str(ex)}")
+                self._log.error(f"An exception occurred while processing [{queue_item.queue_uuid}]: {type(ex)}: {str(ex)}")
             if result is None or result == QueueItemResult.SUCCESS:
                 self.autocomplete(queue_item)
                 self.on_success(queue_item)
@@ -160,8 +165,11 @@ class QueueWorker(BaseWorker):
         pass  # pragma: no coverage
 
     def on_start(self):
+        super().on_start()
         if not self.get_config("queue_name"):
             raise CNODCError("No queue specified for a queue worker")
+        self._current_delay_time = self.get_config("delay_time_seconds")
+        self._app_id = str(uuid.uuid4())
 
     def _delay_time(self) -> float:
         """Calculate the delay time"""

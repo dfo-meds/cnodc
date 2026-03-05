@@ -1,3 +1,4 @@
+import logging
 import threading
 import unittest as ut
 
@@ -31,7 +32,7 @@ class TestSaveData(BaseTestCase):
         file = self.temp_dir / 'file'
         file.mkdir()
         sf = SaveData(file)
-        with self.assertLogs('cnodc.save_file', 'ERROR'):
+        with self.assertLogs('cnodc.save_file', 'ERROR') as h:
             sf.load_file()
         self.assertNotIn('hello', sf)
         sf['hello'] = 'world'
