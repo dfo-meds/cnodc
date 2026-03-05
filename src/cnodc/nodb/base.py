@@ -243,16 +243,14 @@ class MetadataMixin:
             self.metadata[key] = value
             self.modified_values.add("metadata")
 
-    def clear_metadata(self, key):
+    def delete_metadata(self, key):
         """Clear a metadata property."""
         if self.metadata is None:
             return
         if key not in self.metadata:
             return
         del self.metadata[key]
-        self.modified_values.add("metadata")
-        if not self.metadata:
-            self.metadata = None
+        self.modified_values.add("metadata")\
 
     def get_metadata(self, key, default=None):
         """Get a metadata property."""
@@ -260,17 +258,6 @@ class MetadataMixin:
             return default
         return self.metadata[key]
 
-    def add_to_metadata(self, key, value):
-        """Add a value to a metadata set if not in that set already."""
-        if self.metadata is None:
-            self.metadata = {key: [value]}
-            self.modified_values.add("metadata")
-        elif key not in self.metadata:
-            self.metadata[key] = [value]
-            self.modified_values.add("metadata")
-        elif value not in self.metadata[key]:
-            self.metadata[key].append(value)
-            self.modified_values.add("metadata")
 
 
 IntColumn = functools.partial(NODBBaseObject.make_property, coerce=int)

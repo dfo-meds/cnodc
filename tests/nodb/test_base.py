@@ -107,6 +107,13 @@ class TestBaseObject(ut.TestCase):
         self.assertEqual(x.ro, "bar")
         self.assertIn('ro', x.modified_values)
 
+    def test_readonly_context_override(self):
+        x = TestStuff()
+        with x._readonly_access():
+            x.ro = "bar"
+        self.assertEqual(x.ro, "bar")
+        self.assertIn('ro', x.modified_values)
+
     def test_modified(self):
         x = TestStuff()
         x.mark_modified('ro')

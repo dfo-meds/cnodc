@@ -498,7 +498,7 @@ class NODBControllerInstance:
                     lock_type: LockType = LockType.NONE,
                     key_only: bool = False,
                     order_by: t.Optional[list[str]] = None,
-                    raw: bool = False) -> t.Optional[object]:
+                    raw: bool = False) -> t.Iterable[NODBBaseObject]:
         """Load an object."""
         limit_fields = self.extend_selected_fields(limit_fields, filters, key_only, obj_cls)
         query = self.build_select_clause(obj_cls.get_table_name(), limit_fields)

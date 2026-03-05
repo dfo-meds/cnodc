@@ -66,15 +66,17 @@ class DatabaseMock:
     def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level):
         pass
 
-    def stream_objects(self, cls, filters: t.Optional[dict] = None, order_by: t.Optional[t.Union[list[str], str]] = None, **kwargs):
-        for idx in self._find_object_indexes(cls.TABLE_NAME, filters or {}, order_by):
-            yield self.table(cls.TABLE_NAME)[idx]
+    def stream_objects(self, obj_cls, **kwargs):
+        for idx in self._find_object_indexes(obj_cls.TABLE_NAME, **kwargs):
+            yield self.table(obj_cls.TABLE_NAME)[idx]
 
-    def count_objects(self, cls, filters: t.Optional[dict] = None, **kwargs):
-        return len([x for x in self.stream_objects(cls, filters, **kwargs)])
+    def count_objects(self, obj_cls, filters: t.Optional[dict] = None, **kwargs):
+        return sum(1 for _ in self._find_object_indexes(obj_cls.TABLE_NAME, filters))
 
     def bulk_update(self, cls, updates, key_field, key_values):
-        raise NotImplementedError
+        for obj in self.stream_objects(cls, filters={key_field: (key_values, 'IN', False)}):
+            for name in updates:
+                setattr(obj, name, updates[name])
 
     def update_object(self, obj):
         pass
@@ -111,27 +113,38 @@ class DatabaseMock:
             return idx
         return None
 
-    def _find_object_indexes(self, table_name, filters: dict, order_by=None):
+    def _find_object_indexes(self, table_name, filters: dict=None, filter_type=' AND ', **kwargs):
+        filters = filters or {}
         # TODO: handle ordering
         for idx, obj in enumerate(self.table(table_name)):
-            for filter_name in filters:
-                test_value = obj.get_for_db(filter_name)
-                if filters[filter_name] is None and test_value is not None:
-                    break
-                elif isinstance(filters[filter_name], tuple):
-                    if test_value is None:
-                        if len(filters[filter_name]) < 3 or not filters[filter_name][2]:
-                            break
-                    else:
-                        if filters[filter_name][1] == '<=' and not test_value <= filters[filter_name]:
-                            break
-                        elif filters[filter_name][1] == '>=' and not test_value >= filters[filter_name]:
-                            break
-
-                elif test_value != filters[filter_name]:
-                    break
+            if filter_type == ' OR ':
+                if any(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
+                    yield idx
             else:
-                yield idx
+                if all(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
+                    yield idx
+
+    def _check_filter(self, test_value, filter_info):
+        if filter_info is None:
+            return test_value is None
+        elif isinstance(filter_info, tuple):
+            if test_value is None:
+                return len(filter_info) > 2 and filter_info[2]
+            else:
+                if filter_info[1] == '<=':
+                    return test_value <= filter_info[0]
+                elif filter_info[1] == '>=':
+                    return test_value >= filter_info[0]
+                elif filter_info[1] == '>':
+                    return test_value > filter_info[0]
+                elif filter_info[1] == '<':
+                    return test_value < filter_info[0]
+                elif filter_info[1] == 'IN':
+                    return test_value in filter_info[0]
+                else:
+                    raise ValueError(f'op [{filter_info[1]}] not recognized [mock DB]')
+        else:
+            return test_value == filter_info
 
     def create_queue_item(self, **kwargs):
         kwargs['queue_uuid'] = str(uuid.uuid4())

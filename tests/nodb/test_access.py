@@ -1,9 +1,45 @@
 import datetime
 import json
 
-from cnodc.nodb import structures as structures, NODBUser
+from cnodc.nodb import structures as structures, NODBUser, NODBSession
 from cnodc.util import CNODCError
 from core import BaseTestCase
+
+class SessionTest(BaseTestCase):
+
+    def test_from_kwargs(self):
+        session = NODBSession(
+            session_id='foobar',
+            start_time=datetime.datetime(2015, 1, 2, 3, 4, 5),
+            expiry_time=datetime.datetime(2015, 1, 2, 4, 4, 5),
+            username="foobar"
+        )
+        self.assertEqual(session.session_id, "foobar")
+        self.assertEqual(session.start_time, datetime.datetime(2015, 1, 2, 3, 4, 5))
+        self.assertEqual(session.expiry_time, datetime.datetime(2015, 1, 2, 4, 4, 5))
+
+    def test_is_expired(self):
+        session = NODBSession(
+            starttime=datetime.datetime.now(datetime.timezone.utc),
+            expiry_time=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(60),
+        )
+        self.assertFalse(session.is_expired())
+
+    def test_session_data(self):
+        session = NODBSession()
+        session.set_session_value('foo', 'bar')
+        self.assertEqual(session.get_session_value('foo'), 'bar')
+        self.assertIsNone(session.get_session_value('bar'))
+
+    def test_save_load(self):
+        session = NODBSession(
+            session_id='foobar',
+            session_data={'foo': 'bar'}
+        )
+        self.db.insert_object(session)
+        sess2 = NODBSession.find_by_session_id(self.db, 'foobar')
+        self.assertIsInstance(sess2, NODBSession)
+        self.assertEqual(sess2.get_session_value('foo'), 'bar')
 
 
 class UserTest(BaseTestCase):

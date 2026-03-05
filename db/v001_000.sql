@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS nodb_qc_batches (
     batch_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    qc_metadata         JSON,
+    metadata         JSON,
     status              qc_status     NOT NULL
 );
 
@@ -326,7 +326,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
 
     data_record         BYTEA,
 
-    process_metadata    JSON,
+    metadata    JSON,
     qc_tests            JSON,
 
     duplicate_uuid      UUID,
@@ -369,7 +369,7 @@ CREATE TABLE IF NOT EXISTS nodb_working (
     message_idx             INTEGER         NOT NULL,
     record_idx              INTEGER         NOT NULL,
 
-    qc_metadata             JSON,
+    metadata             JSON,
     qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
     data_record             BYTEA,
     platform_uuid            VARCHAR(126),
