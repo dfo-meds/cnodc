@@ -17,7 +17,7 @@ class NODBUploadWorkflow(s.NODBBaseObject):
 
     def permissions(self):
         """Retrieve the permissions associated with this workflow."""
-        return self.get_config('permission', default=None)
+        return self.get_config('permissions') or []
 
     def get_config(self, config_key: str, default=None):
         """Get a configuration value for this workflow."""
@@ -79,7 +79,7 @@ class NODBUploadWorkflow(s.NODBBaseObject):
                     raise s.NODBValidationError(f"Step {step_name} cannot be moved after {other_step}", 2017)
 
     @injector.inject
-    def check_config(self, files: StorageController):
+    def check_config(self, files: cnodc.storage.core.StorageController = None):
         """Validate the configuration for this workflow."""
         if 'label' not in self.configuration:
             raise s.NODBValidationError(f"A label is required for workflows", 2020)
@@ -102,9 +102,16 @@ class NODBUploadWorkflow(s.NODBBaseObject):
             has_upload = True
             self._check_upload_target_config(self.configuration['working_target'], files, 'working')
         if 'additional_targets' in self.configuration and self.configuration['additional_targets']:
-            has_upload = True
-            for idx, target in enumerate(self.configuration['additional_targets']):
-                self._check_upload_target_config(target, files, f'additional{idx}')
+            if isinstance(self.configuration['additional_targets'], list):
+                for idx, target in enumerate(self.configuration['additional_targets']):
+                    has_upload = True
+                    self._check_upload_target_config(target, files, f'additional_targets[{idx}]')
+            elif isinstance(self.configuration['additional_targets'], dict):
+                for key in self.configuration['additional_targets']:
+                    has_upload = True
+                    self._check_upload_target_config(self.configuration['additional_targets'][key], files, f'additional_targets[{key}]')
+            else:
+                raise s.NODBValidationError(f"invalid value for [additional_targets], must be dict or list", 2027)
         if not has_upload:
             raise s.NODBValidationError(f"Workflow missing either upload or archive URL", 2002)
         if 'processing_steps' in self.configuration and self.configuration['processing_steps'] is not None:
@@ -133,15 +140,22 @@ class NODBUploadWorkflow(s.NODBBaseObject):
             dm = self.configuration['default_metadata']
             if not isinstance(dm, dict):
                 raise s.NODBValidationError("The default_metadata must be a dictionary", 2019)
+        if 'permissions' in self.configuration and self.configuration['permissions'] is not None:
+            if not isinstance(self.configuration['permissions'], list):
+                raise s.NODBValidationError("Permissions must be a list", 2024)
+            for item in self.configuration['permissions']:
+                if not isinstance(item, str):
+                    raise s.NODBValidationError("Permissions must be a list of strings", 2025)
 
     def _check_upload_target_config(self, config: dict, files: StorageController, tn: str):
         """Validate an upload target."""
+        if not isinstance(config, dict):
+            raise s.NODBValidationError(f'Upload target [{tn}] must be a dict', 2026)
         if 'directory' not in config:
             raise s.NODBValidationError(f'Target directory missing in [{tn}]', 2007)
-        try:
-            _ = files.get_handle(config['directory'])
-        except Exception as ex:
-            raise s.NODBValidationError(f'Target directory is not supported by storage subsystem in [{tn}]', 2008) from ex
+        handle = files.get_handle(config['directory'])
+        if handle is None:
+            raise s.NODBValidationError(f'Target directory is not supported by storage subsystem in [{tn}]', 2008)
         if 'allow_overwrite' in config and config['allow_overwrite'] not in ('user', 'always', 'never'):
             raise s.NODBValidationError(f'Overwrite setting must be one of [user|always|never] in [{tn}]', 2009)
         if 'tier' in config:
@@ -152,11 +166,11 @@ class NODBUploadWorkflow(s.NODBBaseObject):
         if 'metadata' in config and config['metadata']:
             if not isinstance(config['metadata'], dict):
                 raise s.NODBValidationError(f"Invalid value for [metadata] in [{tn}]: must be a dictionary", 2005)
-            for x in self.configuration['metadata'].keys():
+            for x in config['metadata'].keys():
                 if not isinstance(x, str):
                     raise s.NODBValidationError(f"Invalid key for [metadata] in [{tn}]: {x}, must be a string", 2004)
-                if not isinstance(self.configuration['metadata'][x], str):
-                    raise s.NODBValidationError(f'Invalid value for [metadata.{x}] in [{tn}]: {self.configuration["metadata"][x]}, must be a string', 2003)
+                if not isinstance(config['metadata'][x], str):
+                    raise s.NODBValidationError(f'Invalid value for [metadata.{x}] in [{tn}]: {config["metadata"][x]}, must be a string', 2003)
 
     def check_access(self, user_permissions: t.Union[list, set, tuple]) -> bool:
         """Check if a user has access to this workflow based on their permissions."""

@@ -24,7 +24,7 @@ class NODBValidationError(CNODCError):
     """Base exception for validation issues."""
 
     def __init__(self, msg, num, **kwargs):  # pragma: no coverage
-        super().__init__(msg, 'NODB_VALIDATION', num, **kwargs)
+        super().__init__(msg, 'NODB-VALIDATION', num, **kwargs)
 
 
 class NODBBaseObject:
