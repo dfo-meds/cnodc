@@ -197,14 +197,14 @@ class NODBSourceFile(s.NODBBaseObject, s.MetadataMixin):
     @classmethod
     def find_by_source_path(cls, db: NODBControllerInstance, source_path: str, **kwargs):
         """Locate a source file by the source path."""
-        return db.load_object(cls, {
+        return db.load_object(cls, filters={
             'source_path': source_path
         }, **kwargs)
 
     @classmethod
     def find_by_original_info(cls, db: NODBControllerInstance, original_uuid: str, received_date: t.Union[datetime.date, str], message_idx: int, **kwargs):
         """Locate a source file that was a part of another source file by the original file info."""
-        return db.load_object(cls, {
+        return db.load_object(cls, filters={
             'original_idx': message_idx,
             'received_date': s.parse_received_date(received_date),
             'original_uuid': original_uuid
@@ -213,7 +213,7 @@ class NODBSourceFile(s.NODBBaseObject, s.MetadataMixin):
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, source_uuid: str, received: t.Union[datetime.date, str], **kwargs):
         """Locate a source file by UUID."""
-        return db.load_object(cls, {
+        return db.load_object(cls, filters={
             'source_uuid': source_uuid,
             'received_date': s.parse_received_date(received)
         }, **kwargs)
@@ -302,7 +302,7 @@ class NODBPlatform(s.NODBBaseObject, MetadataMixin):
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, platform_uuid: str, **kwargs) -> t.Optional[NODBPlatform]:
         """Locate a platform by its unique identifier."""
-        return db.load_object(cls, {
+        return db.load_object(cls, filters={
             'platform_uuid': platform_uuid
         }, **kwargs)
 
@@ -315,6 +315,7 @@ class NODBPlatform(s.NODBBaseObject, MetadataMixin):
 class NODBBatch(s.NODBBaseObject):
 
     TABLE_NAME = 'nodb_qc_batches'
+    PRIMARY_KEYS = ("batch_uuid",)
 
     batch_uuid: str = s.UUIDColumn("batch_uuid")
     metadata: dict = s.JsonColumn("metadata")
@@ -334,7 +335,7 @@ class NODBBatch(s.NODBBaseObject):
 
     @classmethod
     def find_by_uuid(cls, db: NODBControllerInstance, batch_uuid: str, **kwargs):
-        return db.load_object(cls, {
+        return db.load_object(cls, filters={
             'batch_uuid': batch_uuid
         }, **kwargs)
 

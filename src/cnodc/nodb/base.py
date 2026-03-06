@@ -98,6 +98,13 @@ class NODBBaseObject:
             return json.dumps(retval)
         return retval
 
+    def set_from_db(self, item, value):
+        if hasattr(self, item):
+            setattr(self, item, value)
+        else:
+            self._data[item] = value
+
+
     def set(self, value, item, coerce=None, readonly: bool = False):
         """Set a value on the data dictionary."""
         if readonly and not self._allow_set_readonly:

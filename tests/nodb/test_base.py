@@ -333,3 +333,8 @@ class TestBaseObject(ut.TestCase):
         self.assertEqual(x.json_, {"hello": "world"})
         self.assertIn("json", x.modified_values)
         self.assertEqual(x.get_for_db("json"), json.dumps({"hello": "world"}))
+
+    def test_set_unknown_from_db(self):
+        x = TestStuff()
+        x.set_from_db('not_a_value', 'foobar')
+        self.assertEqual(x._data['not_a_value'], 'foobar')
