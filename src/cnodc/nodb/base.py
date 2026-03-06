@@ -187,11 +187,11 @@ class NODBBaseObject:
         )
 
     @classmethod
-    def make_json_property(cls, item: str):
+    def make_json_property(cls, item: str, readonly: bool = False):
         """Create a property that will contain a JSON list or object."""
         return property(
             functools.partial(NODBBaseObject.get, item=item),
-            functools.partial(NODBBaseObject.set, item=item, coerce=NODBBaseObject.to_json)
+            functools.partial(NODBBaseObject.set, item=item, coerce=NODBBaseObject.to_json, readonly=readonly)
         )
 
     @staticmethod

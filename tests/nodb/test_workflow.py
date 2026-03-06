@@ -7,9 +7,10 @@ class TestWorkflow(BaseTestCase):
 
     def test_configuration(self):
         wf = NODBUploadWorkflow()
-        wf.configuration = {
-            'hello': 'bar'
-        }
+        with wf._readonly_access():
+            wf.configuration = {
+                'hello': 'bar'
+            }
         self.assertEqual(wf.get_config('hello'), 'bar')
         self.assertIsNone(wf.get_config('foo'))
 
@@ -21,36 +22,96 @@ class TestWorkflow(BaseTestCase):
 
     def test_default_no_access(self):
         wf = NODBUploadWorkflow()
-        wf.configuration = {}
+        with wf._readonly_access():
+            wf.configuration = {}
         self.assertFalse(wf.check_access([]))
 
     def test_admin_override(self):
         wf = NODBUploadWorkflow()
-        wf.configuration = {}
+        with wf._readonly_access():
+            wf.configuration = {}
         self.assertTrue(wf.check_access(['__admin__']))
 
     def test_open_override(self):
         wf = NODBUploadWorkflow()
-        wf.configuration = {
-            'permissions': ['__any__']
-        }
+        with wf._readonly_access():
+            wf.configuration = {
+                'permissions': ['__any__']
+            }
         self.assertTrue(wf.check_access([]))
 
     def test_has_perm(self):
         wf = NODBUploadWorkflow()
-        wf.configuration = {
-            'permissions': ['foobar', 'monkey']
-        }
+        with wf._readonly_access():
+            wf.configuration = {
+                'permissions': ['foobar', 'monkey']
+            }
         self.assertTrue(wf.check_access(['foobar', 'ape']))
 
     def test_no_has_perm(self):
         wf = NODBUploadWorkflow()
-        wf.configuration = {
-            'permissions': ['foobar', 'monkey']
-        }
+        with wf._readonly_access():
+            wf.configuration = {
+                'permissions': ['foobar', 'monkey']
+            }
         self.assertFalse(wf.check_access(['barfoo', 'ape']))
 
-    def test_bad_configs(self):
+    def test_build_ordered_processing_steps(self):
+        tests = [
+            ({}, []),
+            ({'1': {'order': 1, 'name': '1'}}, ['1']),
+            ({'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}}, ['1', '2']),
+            ({'1': {'order': 2, 'name': '1'}, '2': {'order': 1, 'name': '2'}}, ['2', '1']),
+        ]
+        for data, result in tests:
+            with self.subTest():
+                wf = NODBUploadWorkflow()
+                with wf._readonly_access():
+                    wf.configuration = {'processing_steps': data}
+                self.assertEqual(result, wf.ordered_processing_steps())
+                self.assertEqual(result, wf.build_ordered_processing_steps(data))
+
+    def test_blank_steps(self):
+        wf = NODBUploadWorkflow()
+        with wf._readonly_access():
+            self.assertEqual(0, len(wf.ordered_processing_steps()))
+            wf.configuration = {}
+            self.assertEqual(0, len(wf.ordered_processing_steps()))
+            wf.configuration['processing_steps'] = {}
+            self.assertEqual(0, len(wf.ordered_processing_steps()))
+
+    def test_change_step_order(self):
+        base_config = {
+            'label': {'und': 'test'},
+            'working_target': {'directory': str(self.temp_dir)}
+        }
+        tests = [
+            ({}, {'1': {'order': 1, 'name': '1'}}, None, "add new step"),
+            ({'1': {'order': 1, 'name': '1'}}, {'1': {'order': 1, 'name': '1'}}, None, "no changes, one step"),
+            ({'1': {'order': 1, 'name': '1'}}, {'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}}, None, "add step to existing"),
+            ({'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}}, {'2': {'order': 2, 'name': '2'}, '1': {'order': 1, 'name': '1'}}, None, "add step to existing, change order" ),
+            ({'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}}, {'2': {'order': 2, 'name': '2'}, '1': {'order': 1, 'name': '1'}}, None, "add step to existing, change order" ),
+            ({'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}}, {'2': {'order': 2, 'name': '2'}}, 'NODB-VALIDATION-2020', "cannot remove step"),
+            ({'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}, '3': {'order': 3, 'name': '3'}}, {'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}, '3': {'order': 0, 'name': '3'}}, 'NODB-VALIDATION-2016', "cannot move step before"),
+            ({'1': {'order': 1, 'name': '1'}, '2': {'order': 2, 'name': '2'}, '3': {'order': 3, 'name': '3'}}, {'1': {'order': 1, 'name': '1'}, '2': {'order': 4, 'name': '2'}, '3': {'order': 3, 'name': '3'}}, 'NODB-VALIDATION-2016', "cannot move step after"),
+        ]
+        for old_steps, new_steps, exc, msg in tests:
+            old_config = base_config.copy()
+            old_config['processing_steps'] = old_steps
+            new_config = base_config.copy()
+            new_config['processing_steps'] = new_steps
+            with self.subTest(msg=msg):
+                wf = NODBUploadWorkflow()
+                with wf._readonly_access():
+                    wf.configuration = old_config
+                if exc is not None:
+                    with self.assertRaises(NODBValidationError) as h:
+                        wf.set_config(new_config)
+                    self.assertEqual(h.exception.internal_code, exc)
+                else:
+                    wf.set_config(new_config)
+
+    def test_config_problems(self):
         tests = [
             ({}, 'NODB-VALIDATION-2020', 'missing label'),
             ({'label': 'foobar'}, 'NODB-VALIDATION-2021', 'label as str'),
@@ -96,7 +157,8 @@ class TestWorkflow(BaseTestCase):
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': 'foobar'}, 'NODB-VALIDATION-2010', 'bad processing steps'),
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': 'bar'}}, 'NODB-VALIDATION-2011', 'step must be a dict'),
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'foo': 'bar'}}}, 'NODB-VALIDATION-2012', 'step must have an order'),
-            ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'order': 2.2}}}, 'NODB-VALIDATION-2013', 'order must be an int'),
+            ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'order': 'bar'}}}, 'NODB-VALIDATION-2013', 'order must be an int'),
+            ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'order': 1, 'name': '1'}, 'key2': {'order': 1, 'name': '2'}}}, 'NODB-VALIDATION-2017', 'duplicate orders'),
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'order': 2}}}, 'NODB-VALIDATION-2014', 'step must have a name'),
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'order': 2, 'name': ''}}}, 'NODB-VALIDATION-2014', 'name cannot be blank'),
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'processing_steps': {'key': {'order': 2, 'name': 'foobar', 'priority': '1e13qwewsd'}}}, 'NODB-VALIDATION-2015', 'priority must be a number'),
@@ -112,10 +174,10 @@ class TestWorkflow(BaseTestCase):
         wf = NODBUploadWorkflow()
         for config, error_key, msg in tests:
             with self.subTest(msg=msg):
-                wf.configuration = config
                 if error_key is not None:
                     with self.assertRaises(NODBValidationError) as h:
-                        wf.check_config()
+                        wf.set_config(config)
                     self.assertEqual(h.exception.internal_code, error_key)
                 else:
+                    wf.set_config(config)
                     wf.check_config()

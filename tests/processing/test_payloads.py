@@ -70,7 +70,6 @@ class TestWorkflowPayload(BaseTestCase):
     def test_load_workflow(self):
         workflow = NODBUploadWorkflow(is_new=True)
         workflow.workflow_name = 'test'
-        workflow.configuration = {}
         self.db.insert_object(workflow)
         wp = WorkflowPayload(workflow_name='test')
         workflow = wp.load_workflow(self.db)

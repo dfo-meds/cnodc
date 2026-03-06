@@ -21,13 +21,14 @@ class TestProgressor(WorkerTestCase):
     def test_valid_workflow(self):
         wf = NODBUploadWorkflow(is_new=True)
         wf.workflow_name = 'test'
-        wf.configuration = {
+        wf.set_config({
             'working_target': { 'directory': self.temp_dir / 'hello', },
             "processing_steps": {
                 'step1': { 'name': 'step1a', 'order': 1, },
                 'step2': { 'name': 'step2a', 'order': 2, },
             },
-        }
+            'label': {'und': 'test'}
+        })
         self.db.insert_object(wf)
         bp = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step1', current_step_done=True)
         bp.metadata['5'] = '4'
@@ -46,13 +47,14 @@ class TestProgressor(WorkerTestCase):
     def test_valid_workflow_last(self):
         wf = NODBUploadWorkflow(is_new=True)
         wf.workflow_name = 'test'
-        wf.configuration = {
+        wf.set_config({
             'working_target': { 'directory': self.temp_dir / 'hello', },
             "processing_steps": {
                 'step1': { 'name': 'step1a', 'order': 1, },
                 'step2': { 'name': 'step2a', 'order': 2, },
             },
-        }
+            'label': {'und': 'test'}
+        })
         self.db.insert_object(wf)
         bp = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step2', current_step_done=True)
         bp.metadata['5'] = '4'
