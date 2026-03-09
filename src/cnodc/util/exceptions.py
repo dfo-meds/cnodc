@@ -20,3 +20,14 @@ class ConfigError(CNODCError):
     def __init__(self, missing_key: str, code_number: int = None):
         super().__init__(f"Missing configuration key [{missing_key}]", "CONFIG", code_number)
 
+
+class NotSupportedError(Exception):
+    pass
+
+
+class HaltInterrupt(KeyboardInterrupt):
+    pass  # pragma: no cover
+
+
+class DynamicObjectLoadError(CNODCError):
+    pass

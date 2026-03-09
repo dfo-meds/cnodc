@@ -1,5 +1,7 @@
 import unittest as ut
 from cnodc.ocproc2.codecs.base import ByteSequenceReader
+from cnodc.util.exceptions import HaltInterrupt
+from cnodc.util.halts import DummyHaltFlag
 
 
 class ByteSequenceTests(ut.TestCase):
@@ -10,6 +12,84 @@ class ByteSequenceTests(ut.TestCase):
         self.assertEqual(output_, b'abcdefghijklmnopqrstuvwxyz')
         self.assertTrue(stream.at_eof())
         self.assertEqual(stream.offset(), 26)
+
+    def test_iterate_rest(self):
+        stream = ByteSequenceReader([b'123', b'456', b'789'])
+        rest = [x for x in stream.iterate_rest()]
+        self.assertEqual([b'123', b'456', b'789'], rest)
+
+    def test_continue(self):
+        flag = DummyHaltFlag()
+        stream = ByteSequenceReader([b'123', b'456', b'789'], halt_flag=flag)
+        flag.event.set()
+        for _ in range(0, 49):
+            stream.check_continue()
+        with self.assertRaises(HaltInterrupt):
+            stream.check_continue()
+
+    def test_consume_rest_after_done(self):
+        stream = ByteSequenceReader([b'123', b'456', b'789'])
+        self.assertEqual(0, len(stream._buffer))
+        stream._read_rest()
+        self.assertEqual(9, len(stream._buffer))
+        stream._read_rest()
+        self.assertEqual(9, len(stream._buffer))
+
+    def test_consume_vlq_int_test_no_more(self):
+        stream = ByteSequenceReader([b'\xF9', b'\xFA', b'\xFB'])
+        self.assertEqual(2030969, stream.consume_vlq_int())
+
+    def test_peek_line_rest_only(self):
+        stream = ByteSequenceReader([b'12345'])
+        self.assertEqual(stream.peek_line(), b'12345')
+
+    def test_peek_line_include_endings(self):
+        stream = ByteSequenceReader([b'12345\n67890'])
+        self.assertEqual(stream.peek_line(False), b'12345\n')
+
+    def test_consume_lines_windows_with_endings(self):
+        stream = ByteSequenceReader([b'123\r\n456\r\n789'])
+        self.assertEqual(stream.consume_line(False), b'123\r\n')
+        self.assertEqual(stream.consume_line(False), b'456\r\n')
+        self.assertEqual(stream.consume_line(False), b'789')
+
+    def test_lstrip_with_max(self):
+        stream = ByteSequenceReader([b'111234'])
+        stream.lstrip(b'1', 2)
+        self.assertEqual(stream.consume_all(), b'1234')
+
+    def test_find_first_match_with_nothing(self):
+        stream = ByteSequenceReader([b'123456'])
+        self.assertEqual((None, None), stream.find_first_match([b'', b'']))
+
+    def test_find_no_matches(self):
+        stream = ByteSequenceReader([b'123456789', b'1234'])
+        self.assertEqual((None, None), stream.find_first_match([b'AB', b'CD']))
+
+    def test_bad_split(self):
+        stream = ByteSequenceReader([b'12345'])
+        with self.assertRaises(ValueError):
+            _ = [x for x in stream.split_and_iterate([b'', b''])]
+
+    def test_split_iterate_rest(self):
+        stream = ByteSequenceReader([b'123|456|789', b'0ABCDEF'])
+        bits = [x for x in stream.split_and_iterate(b'|')]
+        self.assertEqual([b'123', b'456', b'7890ABCDEF'], bits)
+        self.assertTrue(stream.at_eof())
+
+    def test_check_any_at_edge_cast(self):
+        stream = ByteSequenceReader([b'123\r\n456\r\n789\n0'])
+        bits = [x for x in stream.split_and_iterate([b'\r\n', b'\n'])]
+        self.assertEqual([b'123', b'456', b'789', b'0'], bits)
+
+    def test_bad_getitem(self):
+        stream = ByteSequenceReader([b'12345'])
+        with self.assertRaises(KeyError):
+            _ = stream[6]
+
+    def test_get_slice(self):
+        stream = ByteSequenceReader([b'123', b'45'])
+        self.assertEqual(b'234', stream[1:4])
 
     def test_consume_until(self):
         stream = ByteSequenceReader([b'abcde', b'fghij', b'klmno', b'pqrst', b'uvwxy', b'z'])

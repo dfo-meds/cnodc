@@ -9,7 +9,7 @@ class TestBufrParsing(ut.TestCase):
     def test_315004_1(self):
         f = pathlib.Path(__file__).absolute().parent / 'test_files/315004_1.bufr'
         codec = GtsCodec()
-        records = [x for x in codec.load_all(f)]
+        records = [x for x in codec.load(f)]
         self.assertEqual(len(records), 1)
         self.assertIsInstance(records[0], ocproc2.ParentRecord)
         r = records[0]

@@ -1,10 +1,6 @@
 import importlib
 
-from cnodc.util.exceptions import CNODCError
-
-
-class DynamicObjectLoadError(CNODCError):
-    pass
+from cnodc.util.exceptions import DynamicObjectLoadError
 
 
 def dynamic_object(cls_name):

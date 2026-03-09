@@ -14,7 +14,8 @@ class StreamWrapper:
 
 
 class OCProc2BinCodec(BaseCodec):
-    FILE_EXTENSION = ('.ocp2',)
+
+    FILE_EXTENSION = '.ocp2'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.bin", is_encoder=True, is_decoder=True, **kwargs)
@@ -29,15 +30,17 @@ class OCProc2BinCodec(BaseCodec):
             out_stream = wrapper.wrap_stream(out_stream)
         yield from out_stream
 
-    def _encode_records_for_streaming(self, data: t.Iterable[ocproc2.ParentRecord], codec: BaseCodec, **kwargs):
-        for record in data:
-            record_bytes = codec.encode_single_record(record, **kwargs)
+    def _encode_records_for_streaming(self, data: t.Iterable[ocproc2.ParentRecord], codec: BaseCodec, **kwargs) -> ByteIterable:
+        for record_data in codec._encode_records(data, **kwargs):
+            record_bytes = bytearray()
+            for bytes_ in record_data:
+                record_bytes.extend(bytes_)
             yield vlq_encode(len(record_bytes))
             yield record_bytes
 
-    def _decode(self,
-                data: ByteIterable,
-                **kwargs) -> t.Iterable[ocproc2.ParentRecord]:
+    def _decode_records(self,
+                        data: ByteIterable,
+                        **kwargs) -> t.Iterable[ocproc2.ParentRecord]:
         stream = ByteSequenceReader(data)
         leading_bytes = stream.consume(2)
         if not len(leading_bytes) == 2:
@@ -61,7 +64,7 @@ class OCProc2BinCodec(BaseCodec):
         stream = self._as_byte_sequence(data)
         while not stream.at_eof():
             content = stream.consume(stream.consume_vlq_int())
-            yield codec.decode_single_record(content, **kwargs)
+            yield codec._decode_record(content, **kwargs)
 
     def _separate_kwargs(self, kwargs) -> tuple[dict, dict]:
         bin_kwargs = {

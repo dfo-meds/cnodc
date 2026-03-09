@@ -23,7 +23,7 @@ from cnodc.util import CNODCError
 class OCProc2JsonCodec(BaseCodec):
 
     JSON_WHITESPACE = b" \r\n\t"
-    FILE_EXTENSION = ('.json',)
+    FILE_EXTENSION = ".json"
 
     def __init__(self, **kwargs):
         super().__init__(log_name="cnodc.codecs.json", support_single=True, is_encoder=True, is_decoder=True, **kwargs)
@@ -31,8 +31,8 @@ class OCProc2JsonCodec(BaseCodec):
     def _encode_start(self, **kwargs) -> t.Union[None, bytes, bytearray]:
         return b'['
 
-    def encode_single_record(self, record: ocproc2.ParentRecord, encoding='utf-8', **kwargs) -> t.Union[bytes, bytearray]:
-        return json_dumps(BaseCodec.record_to_map(record))
+    def encode_single_record(self, record: ocproc2.ParentRecord, encoding='utf-8', **kwargs) -> ByteIterable:
+        yield json_dumps(BaseCodec.record_to_map(record))
 
     def _encode_separator(self, **kwargs) -> t.Union[None, bytes, bytearray]:
         return b','
@@ -40,18 +40,17 @@ class OCProc2JsonCodec(BaseCodec):
     def _encode_end(self, **kwargs) -> t.Union[None, bytes, bytearray]:
         return b']'
 
-    def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
-        encoding = kwargs.pop('encoding') if 'encoding' in kwargs else 'utf-8'
+    def parse_into_record_bytes(self, data: ByteIterable, **kwargs) -> ByteIterable:
         stream = self._as_byte_sequence(data)
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
         if stream.at_eof():
             return []
         elif stream[0] == b'[':
-            yield from self._decode_streaming_records(stream, encoding)
+            yield from self._decode_streaming_records(stream)
         else:
-            yield self.decode_single_record(stream.consume_all(), encoding)
+            yield stream.consume_all()
 
-    def _decode_streaming_records(self, stream: ByteSequenceReader, encoding: str) -> t.Iterable[DecodeResult]:
+    def _decode_streaming_records(self, stream: ByteSequenceReader) -> ByteIterable:
         # Skip the initial byte, its a square bracket
         depth = 0
         buffer = bytearray()
@@ -69,7 +68,7 @@ class OCProc2JsonCodec(BaseCodec):
                 if depth == 1:
                     buffer = buffer.strip()
                     # First character is either a comma or a square bracket that isn't closed, so finish it
-                    yield self.decode_single_record(buffer[1:], encoding=encoding)
+                    yield buffer[1:]
                     buffer = bytearray()
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
         buffer = buffer.strip()
@@ -78,8 +77,8 @@ class OCProc2JsonCodec(BaseCodec):
             self.log.warning(f"More data detected")
         if buffer == b'':
             self.log.warning(f"Missing trailing bracket")
-        elif buffer != b']':
+        elif buffer != b']':  # pragma: no coverage (fallback for malformed JSON)
             self.log.warning(f"More data detected")
 
-    def _decode_single_record(self, stream: t.Union[bytes, bytearray], encoding: str = 'utf-8', *args, **kwargs) -> t.Optional[ocproc2.ParentRecord]:
+    def decode_single_record(self, stream: t.Union[bytes, bytearray], encoding: str = 'utf-8', *args, **kwargs) -> t.Optional[ocproc2.ParentRecord]:
         return BaseCodec.map_to_record(json_loads(stream))

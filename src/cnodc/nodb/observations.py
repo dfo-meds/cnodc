@@ -87,7 +87,7 @@ class _RecordMixin:
         if self.data_record is None:
             return None
         decoder = OCProc2BinCodec()
-        records = [x for x in decoder.load_all(self.data_record)]
+        records = [x for x in decoder.load(self.data_record)]
         return records[0] if records else None
 
     @record.setter

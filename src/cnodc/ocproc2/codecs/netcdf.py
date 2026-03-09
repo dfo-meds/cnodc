@@ -28,7 +28,7 @@ class NetCDFDecoder(BaseCodec):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, is_decoder=True, **kwargs)
 
-    def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
+    def _decode_records(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
         nc_data = b''.join(data)
         try:
             with nc.Dataset('inmemory.nc', "r", memory=nc_data) as netcdf:
@@ -379,14 +379,12 @@ class NetCDFCommonMapper:
                 value = obj(value, minfo, self)
         return value
 
-    def map_value(self, map_name_or_dict, item_name, sub_key: t.Optional[str] = None, coerce=None, raise_ex: bool = False):
+    def map_value(self, map_name_or_dict, item_name, sub_key: t.Optional[str] = None, raise_ex: bool = False):
         # empty items are empty
         if item_name is None or item_name == '':
             return None  # pragma: no coverage
         # coerce if needed
         item_name = item_name.lower()
-        if coerce:
-            item_name = coerce(item_name)
         # find the appropriate data map
         if isinstance(map_name_or_dict, dict):
             data_map = map_name_or_dict

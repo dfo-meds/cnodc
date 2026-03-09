@@ -137,7 +137,7 @@ class AzureBlobHandle(UrlBaseHandle):
     @wrap_azure_errors
     def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         stream = self.client().download_blob()
-        for chunk in HaltFlag.iterate(stream.chunks(), self._halt_flag, True):
+        for chunk in HaltFlag._iterate(stream.chunks(), self._halt_flag, True):
             yield chunk
 
     def _write_chunks(self, chunks: t.Iterable[bytes], halt_flag: HaltFlag = None):
@@ -192,7 +192,7 @@ class AzureBlobHandle(UrlBaseHandle):
             full_name = '/'
         if full_name[-1] != '/':  # pragma: no coverage (just a fallback)
             full_name += '/'
-        for blob_properties in HaltFlag.iterate(client.list_blobs(name_starts_with=full_name), self._halt_flag, True):
+        for blob_properties in HaltFlag._iterate(client.list_blobs(name_starts_with=full_name), self._halt_flag, True):
             # TODO: recursive=False isn't handled
             bc = client.get_blob_client(blob_properties.name)
             yield AzureBlobHandle(bc.url, blob_properties, halt_flag=self._halt_flag)

@@ -18,7 +18,8 @@ from cnodc.storage.ftp import FTPHandle, ftplib_error_wrap
 import unittest as ut
 
 from cnodc.util import HaltInterrupt
-from core import BaseTestCase, ConstantHaltFlag
+from core import BaseTestCase
+from cnodc.util.halts import DummyHaltFlag
 
 FTP_HOME = pathlib.Path(__file__).absolute().parent / 'test'
 
@@ -185,7 +186,8 @@ class TestFTPHandle(BaseTestCase):
         self.assertEqual(6, handle.size())
 
     def test_read_halt(self):
-        handle = FTPHandle('ftp://localhost/test.txt', halt_flag=ConstantHaltFlag(False))
+        handle = FTPHandle('ftp://localhost/test.txt', halt_flag=DummyHaltFlag())
+        handle._halt_flag.event.set()
         self.assertTrue(handle.exists())
         file = self.temp_dir / "hello2.txt"
         self.assertFalse(file.exists())
@@ -194,7 +196,8 @@ class TestFTPHandle(BaseTestCase):
         self.assertFalse(file.exists())
 
     def test_read_halt2(self):
-        handle = FTPHandle('ftp://localhost/test.txt', halt_flag=ConstantHaltFlag(False))
+        handle = FTPHandle('ftp://localhost/test.txt', halt_flag=DummyHaltFlag())
+        handle._halt_flag.event.set()
         self.assertTrue(handle.exists())
         with self.assertRaises(HaltInterrupt):
             _ = [x for x in handle._read_chunks(2)]

@@ -13,11 +13,6 @@ import datetime
 from cnodc.nodb.structures import NODBQueueItem
 from autoinject import injector
 
-from cnodc.processing.workers.queue_worker import QueueWorker
-from cnodc.processing.workers.scheduled_task import ScheduledTask
-from cnodc.util import HaltFlag
-from cnodc.processing.workflow.payloads import WorkflowPayload
-
 
 @injector.injectable
 class InjectableDict:
@@ -227,10 +222,3 @@ class BaseTestCase(ut.TestCase):
         finally:
             logging.disable(old_level)
 
-class ConstantHaltFlag(HaltFlag):
-
-    def __init__(self, sc: bool):
-        self.should_continue = sc
-
-    def _should_continue(self) -> bool:
-        return self.should_continue

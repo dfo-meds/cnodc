@@ -2,8 +2,10 @@ import unittest as ut
 import cnodc.ocproc2 as ocproc2
 import datetime
 
+from core import BaseTestCase
 
-class CodecTestCase(ut.TestCase):
+
+class CodecTestCase(BaseTestCase):
 
     def _build_standard_records(self):
         record = ocproc2.ParentRecord()

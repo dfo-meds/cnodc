@@ -14,7 +14,7 @@ from zrlog.logger import ImprovedLogger
 from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt, ungzip_with_halt
 import json
 
-from cnodc.util.halts import EventProtocol
+from cnodc.util.protocols import EventProtocol
 
 
 class _ProcessProtocol(typing.Protocol):

@@ -477,7 +477,7 @@ class TestObservationData(BaseTestCase):
         decoder = OCProc2BinCodec()
         self.assertIsNotNone(obs_data.data_record)
         self.assertIsInstance(obs_data.data_record, bytearray)
-        records = [x for x in decoder.load_all(obs_data.data_record)]
+        records = [x for x in decoder.load(obs_data.data_record)]
         self.assertEqual(1, len(records))
         self.assertEqual(records[0].coordinates['Time'].value, '2015-01-02T00:00:00+00:00')
         obs_data.clear_cache('loaded_record')

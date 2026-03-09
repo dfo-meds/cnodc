@@ -111,7 +111,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
         # Decode each entry and save them
         with open(temp_file, "rb") as h:
-            for result in self._decoder.decode_to_results(
+            for result in self._decoder._buffered_decode_records(
                     self._decoder._read_in_chunks(h),
                     include_skipped=False,
                     skip_to_message_idx=skip_to_message_idx,

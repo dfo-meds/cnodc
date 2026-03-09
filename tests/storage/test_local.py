@@ -4,7 +4,8 @@ import pathlib
 from cnodc.storage import StorageController
 from cnodc.storage.base import StorageError, local_file_error_wrap
 from cnodc.util import HaltInterrupt
-from core import BaseTestCase, ConstantHaltFlag
+from core import BaseTestCase
+from cnodc.util.halts import DummyHaltFlag
 from cnodc.storage.local import LocalHandle
 
 
@@ -319,7 +320,7 @@ class TestLocalHandle(BaseTestCase):
         self.assertEqual([b'fo', b'ob', b'ar'], t)
 
     def test_halt_read(self):
-        hf = ConstantHaltFlag(True)
+        hf = DummyHaltFlag()
         class Test:
 
             def __init__(self):
@@ -328,7 +329,7 @@ class TestLocalHandle(BaseTestCase):
             def read(self, *args, **kwargs):
                 self.c += 1
                 if self.c >= 2:
-                    hf.should_continue = False
+                    hf.event.set()
                 return str(self.c).encode('utf-8')
 
         handle = LocalHandle(self.temp_dir, halt_flag=hf)

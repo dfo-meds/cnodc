@@ -1,44 +1,49 @@
+1001:
+  name: "metadata/WMOID"
+  data_processor: "_parse_wmo_id"
+1003:
+  name: "metadata/WMOID"
+  data_processor: "_parse_wmo_id"
+1007: "metadata/WMOSatelliteIdentifier"
+1011: "metadata/StationID"
+1012: "metadata/PlatformDirection"
+1013: "metadata/PlatformSpeed"
+1014: "metadata/PlatformSpeed"
+1015: "metadata/StationName"
+1019: "metadata/StationName"
+1023: "metadata/SequenceNumber"
+1036: "metadata/WMOAgencyCode"
+1051: "metadata/TransmitterID"
+1079: "metadata/ProfileID"
+1080: "metadata/ShipLineNumber"
+1085: "metadata/PlatformModel"
+1086: "metadata/PlatformSerialNumber"
+1087:
+  name: "metadata/WMOID"
+  data_processor: "_parse_wmo_id"
+1103: "metadata/IMONumber"
+1115: "metadata/CruiseID"
 
-1007: "metadata:WMOSatelliteIdentifier"
-1011: "metadata:StationID"
-1012: "metadata:PlatformDirection"
-1013: "metadata:PlatformSpeed"
-1014: "metadata:PlatformSpeed"
-1015: "metadata:StationName"
-1019: "metadata:StationName"
-1023: "metadata:SequenceNumber"
-1036: "metadata:WMOAgencyCode"
-1051: "metadata:TransmitterID"
-1079: "metadata:ProfileID"
-1080: "metadata:ShipLineNumber"
-1085: "metadata:PlatformModel"
-1086: "metadata:PlatformSerialNumber"
-1103: "metadata:IMONumber"
-1115: "metadata:CruiseID"
-
-2001: "metadata:WMOStationType"
+2001: "metadata/WMOStationType"
 2002:
-  type: metadata
   name: WMOWindInstrumentType
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - WindDirection
     - WindSpeed
     - WindGustMaxSpeed
     - WindGustMaxDirection
 2005:
-  type: metadata
   name: Uncertainty
-  apply_to: following
+  instruction: apply_to_parameters
   remove_metadata:
     - Units
     - Uncertainty
   filter:
     - Temperature
 2030:
-  type: metadata
   name: WMOCurrentMeasurementMethod
-  apply_to: following
+  instruction: apply_to_parameters
   value_map:
     0: 0
     1: 1
@@ -52,272 +57,246 @@
     - CurrentDirection
     - CurrentSpeed
 2031:
-  type: metadata
   name: WMOCurrentMeasurementDuration
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - CurrentDirection
     - CurrentSpeed
-2032: "next_recs:metadata:WMODigitization"
+2032: "next_recs:metadata/WMODigitization"
 2033:
-  type: metadata
   name: WMOSalinityDepthMeasurementMethod
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - PracticalSalinity
     - AbsoluteSalinity
     - Depth
-2034: "metadata:WMODrogueType"
-2036: "metadata:WMOBuoyType"
+2034: "metadata/WMODrogueType"
+2036: "metadata/WMOBuoyType"
 2038:
-  type: metadata
   name: WMOTemperatureSalinityMeasurementMethod
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - Temperature
     - PracticalSalinity
     - AbsoluteSalinity
 2039:
-  type: metadata
   name: WMOWebBulbMeasurementMethod
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - WetBulbTemperature
 2040:
-  type: metadata
   name: WMOPlatformMotionRemovalMethod
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - CurrentDirection
     - CurrentSpeed
-2044:
-  type: metadata
-  name: WMOSpectralWaveMethod
-  apply_to: target
-2045:
-  type: metadata
-  name: WMOPlatformType
-  apply_to: target
+2044: "metadata/WMOSpectralWaveMethod"
+2045: "metadata/WMOPlatformType"
 2046:
-  type: coordinates
-  name: WaveSensor
-  apply_to: target
+  name: coordinates/WaveSensor
   subrecord_type: "SENSORS"
-2148: "metadata:WMODataSystem"
-2149: "metadata:WMODataBuoyType"
+2148: "metadata/WMODataSystem"
+2149: "metadata/WMODataBuoyType"
 2169:
-  type: metadata
   name: WMOAnemometerType
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - WindDirection
     - WindSpeed
     - WindGustMaxSpeed
     - WindgustMaxDirection
 2171:
-  type: metadata
   name: ProfilerSerialNumber
-  apply_to: following  # todo: this should probably be on the profile
+  instruction: apply_to_parameters  # todo: this should probably be on the profile
   filter:
     - Temperature
-2190: "metadata:SubmergenceTime"
+2190: "metadata/SubmergenceTime"
 
 3010:
-  type: metadata
   name: WMOCurrentMeasurementMethod
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - CurrentDirection
     - CurrentSpeed
 3011:
-  type: metadata
   name: WMODepthMethod
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - Depth
 3012:
-  type: metadata
   name: WMODissolvedOxygenSensorType
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - DissolvedOxygen
 
+4001:
+  name: coordinates/Time
+  data_processor: _parse_datetime_sequence
+
 5001:
-  type: coordinates
-  name: Latitude
-  apply_to: target
+  name: coordinates/Latitude
   metadata:
     Units: "degree_north"
 5002:
-  type: coordinates
-  name: Latitude
-  apply_to: target
+  name: coordinates/Latitude
   metadata:
     Units: "degree_north"
-5036: "metadata:ShipTransectNumber"
+5036: "metadata/ShipTransectNumber"
 
 6001:
-  type: coordinates
-  name: Longitude
-  apply_to: target
+  name: coordinates/Longitude
   metadata:
     Units: "degree_east"
 6002:
-  type: coordinates
-  name: Longitude
-  apply_to: target
+  name: coordinates/Longitude
   metadata:
     Units: "degree_east"
 
 7004: noop
-7030: "metadata:StationHeight"
-7031: "metadata:BarometerHeight"
-7032: "next_vars:metadata:SensorHeightLocal"
-7033: "next_vars:metadata:SensorHeightAboveWater"
+7030: "metadata/StationHeight"
+7031: "metadata/BarometerHeight"
+7032: "next_vars:SensorHeightLocal"
+7033: "next_vars:SensorHeightAboveWater"
 7062:
-  type: "coordinates"
-  name: "Depth"
-  apply_to: "target"
+  name: "coordinates/Depth"
   subrecord_type: "PROFILE"
 7063:
-  type: "coordinates"
-  name: "Depth"
-  apply_to: "target"
+  name: "coordinates/Depth"
   subrecord_type: "PROFILE"
   context:
-    306038: "next_vars:metadata:SensorDepth"
-    302056: "next_vars:metadata:SensorDepth"
-    302090: "next_vars:metadata:SensorDepth"
+    306038: "next_vars:SensorDepth"
+    302056: "next_vars:SensorDepth"
+    302090: "next_vars:SensorDepth"
 7065:
-  type: "coordinates"
-  name: "Pressure"
-  apply_to: "target"
+  name: "coordinates/Pressure"
   subrecord_type: "PROFILE"
-7070: "metadata:DrogueDepth"
+7070: "metadata/DrogueDepth"
 
 8021:
-  apply_to: raise
+  instruction: "mapped"
+  instruction_map:
+    "":
+      instruction: "clear_following"
+      name: "AggregationMethod"
+    2:
+      instruction: "apply_to_parameters"
+      name: "AggregationMethod"
+      value: "AVERAGE"
+    25:
+      name: "coordinates/Time"
+      data_processor: "_parse_following_datetime_sequence"
+    26:
+      name: "metadata/LastKnownPositionTime"
+      data_processor: "_parse_following_datetime_sequence"
   context:
-    306038:
-      type: noop
-      name: noop
-      apply_to: noop
-8029: "metadata:WMOSurfaceType"
+    306038: "noop"
+8041:
+  instruction: "mapped"
+  instruction_map:
+    "":
+      instruction: "noop"
+      data_processor: "_parse_following_datetime_sequence"
+    13:
+      name: "metadata/InstrumentManufacturingDate"
+      data_processor: "_parse_following_datetime_sequence"
+
+8029: "metadata/WMOSurfaceType"
 8034:
-  apply_to: following
   name: WMOTemperatureSalinityQualifier
-  type: metadata
+  instruction: apply_to_parameters
   filter:
     - Temperature
     - PracticalSalinity
     - AbsoluteSalinity
+8090:
+  instruction: set_scale_factor
+  raw: yes
 
-10004: "variables:AirPressure"
+10004: "parameters/AirPressure"
 10009: noop
-10051: "variables:AirPressureAtSeaLevel"
+10051: "parameters/AirPressureAtSeaLevel"
 10061:
-  apply_to: target
-  type: variables
-  name: AirPressureDelta
+  name: parameters/AirPressureDelta
   metadata:
     ObservationPeriod: 10800
 10062:
-  apply_to: target
-  type: variables
-  name: AirPressureDelta
+  name: parameters/AirPressureDelta
   metadata:
     ObservationPeriod: 86400
 
-10063: "variables:WMOAirPressureCharacteristic"
+10063: "parameters/WMOAirPressureCharacteristic"
 
-11001: "variables:WindDirection"
-11002: "variables:WindSpeed"
-11041: "variables:WindGustMaxSpeed"
-11043: "variables:WindGustMaxDirection"
+11001: "parameters/WindDirection"
+11002: "parameters/WindSpeed"
+11041: "parameters/WindGustMaxSpeed"
+11043: "parameters/WindGustMaxDirection"
 
 12101:
-  type: variables
-  apply_to: target
-  name: AirTemperature
+  name: parameters/AirTemperature
   metadata:
     TemperatureScale: "ITS-90"
 12102:
-  type: variables
-  apply_to: target
-  name: WetBulbTemperature
+  name: parameters/WetBulbTemperature
   metadata:
     TemperatureScale: "ITS-90"
 12103:
-  type: variables
-  apply_to: target
-  name: DewpointTemperature
+  name: parameters/DewpointTemperature
   metadata:
     TemperatureScale: "ITS-90"
 
-13003: "variables:RelativeHumidity"
-13011: "variables:TotalPrecipitation"
+13003: "parameters/RelativeHumidity"
+13011: "parameters/TotalPrecipitation"
 13023:
-  type: variables
-  apply_to: target
-  name: TotalPrecipitation
+  name: parameters/TotalPrecipitation
   metadata:
     ObservationPeriod: 86400
-13115: "variables:IceThickness"
+13115: "parameters/IceThickness"
 
-14002: "variables:LongwaveRadiation"
-14004: "variables:ShortwaveRadiation"
-14016: "variables:NetRadiation"
-14028: "variables:GlobalSolarRadiation"
-14029: "variables:DiffuseSolarRadiation"
-14030: "variables:DirectSolarRadiation"
+14002: "parameters/LongwaveRadiation"
+14004: "parameters/ShortwaveRadiation"
+14016: "parameters/NetRadiation"
+14028: "parameters/GlobalSolarRadiation"
+14029: "parameters/DiffuseSolarRadiation"
+14030: "parameters/DirectSolarRadiation"
 
-20001: "variables:HorizontalVisibility"
+20001: "parameters/HorizontalVisibility"
 20031: noop
 20032: noop
 20033: noop
-20034: "variables:SeaIceConcentration"
+20034: "parameters/SeaIceConcentration"
 20035: noop
 20036: noop
 20037: noop
 20038: noop
 20058: noop
 
-22001: "variables:WaveDirection"
-22004: "variables:CurrentDirection"
-22005: "variables:CurrentDirection"
-22011: "variables:WavePeriod"
-22021: "variables:WaveHeight"
-22031: "variables:CurrentSpeed"
-22032: "variables:CurrentSpeed"
+22001: "parameters/WaveDirection"
+22004: "parameters/CurrentDirection"
+22005: "parameters/CurrentDirection"
+22011: "parameters/WavePeriod"
+22021: "parameters/WaveHeight"
+22031: "parameters/CurrentSpeed"
+22032: "parameters/CurrentSpeed"
 22042:
-  type: variables
-  apply_to: target
-  name: Temperature
+  name: parameters/Temperature
   metadata:
     TemperatureScale: "ITS-90"
 22043:
-  type: variables
-  apply_to: target
-  name: Temperature
+  name: parameters/Temperature
   metadata:
     TemperatureScale: "ITS-90"
 22045:
-  type: variables
-  apply_to: target
-  name: Temperature
+  name: parameters/Temperature
   metadata:
     TemperatureScale: "ITS-90"
 22049:
-  type: variables
-  apply_to: target
-  name: Temperature
+  name: parameters/Temperature
   metadata:
     TemperatureScale: "ITS-90"
-22055: "metadata:FloatCycleNumber"
+22055: "metadata/FloatCycleNumber"
 22056:
-  type: metadata
-  name: ProfileDirection
-  apply_to: subrecords
+  name: metadata/ProfileDirection
+  instruction: apply_to_subrecords
   value_map:
     0: UP
     1: DOWN
@@ -325,70 +304,66 @@
   filter:
     - Depth
     - Pressure
-22059: "variables:PracticalSalinity"
-22060: "metadata:WMODrogueStatus"
+22059: "parameters/PracticalSalinity"
+22060: "metadata/WMODrogueStatus"
 22061: noop
-22062: "variables:PracticalSalinity"
-22063: "variables:SeaDepth"
-22064: "variables:PracticalSalinity"
+22062: "parameters/PracticalSalinity"
+22063: "parameters/SeaDepth"
+22064: "parameters/PracticalSalinity"
 22067:
-  type: metadata
   name: WMOProfileInstrumentType
-  apply_to: following
+  instruction: apply_to_parameters
   filter:
     - Temperature
     - Salinity
 22068:
-  type: metadata
-  name: WMOProfileRecorderType
-  apply_to: subrecords
+  name: metadata/WMOProfileRecorderType
+  instruction: apply_to_subrecords
   filter:
     - Temperature
-22069: "variables:SpectralWaveDensity"
-22070: "variables:WaveSignificantHeight"
-22071: "variables:SpectralWavePeakPeriod"
-22073: "variables:WaveMaximumHeight"
-22074: "variables:WaveAveragePeriod"
-22076: "variables:WaveDominantDirection"
-22077: "variables:WaveDominantSpread"
-22078: "next_vars:metadata:ObservationPeriod"
+22069: "parameters/SpectralWaveDensity"
+22070: "parameters/WaveSignificantHeight"
+22071: "parameters/SpectralWavePeakPeriod"
+22073: "parameters/WaveMaximumHeight"
+22074: "parameters/WaveAveragePeriod"
+22076: "parameters/WaveDominantDirection"
+22077: "parameters/WaveDominantSpread"
+22078: "next_vars:metadata/ObservationPeriod"
 22080:
-  type: "coordinates"
-  name: "CentralFrequency"
-  apply_to: "target"
+  name: "coordinates/CentralFrequency"
   subrecord_type: "SPEC_WAVE"
-22082: "variables:SpectralWaveMaxDensityByFrequency"
-22084: "variables:SpectralWaveMaxWaveBand"
-22086: "variables:WaveMeanDirection"
-22087: "variables:WavePrincipalDirection"
-22088: "variables:SpectralWaveFourier1"
-22089: "variables:SpectralWaveFourier2"
-22094: "variables:SpectralWaveBandCount"
-22096: "variables:SpectralWaveBandWidth"
-22102: "variables:SpectralWaveMaxDensityByFrequency"
-22104: "variables:SpectralWaveDensityByFrequency"
-22106: "variables:SpectralWaveDirDensityByFrequency"
-22108: "variables:SpectralWaveDensityRatio"
-22177: "metadata:XBTHeight"
-22178: "metadata:WMOXBTType"
-22186: "variables:WaveDirection"
-22187: "variables:WaveSpread"
-22188: "variables:DissolvedOxygen"
+22082: "parameters/SpectralWaveMaxDensityByFrequency"
+22084: "parameters/SpectralWaveMaxWaveBand"
+22086: "parameters/WaveMeanDirection"
+22087: "parameters/WavePrincipalDirection"
+22088: "parameters/SpectralWaveFourier1"
+22089: "parameters/SpectralWaveFourier2"
+22094: "parameters/SpectralWaveBandCount"
+22096: "parameters/SpectralWaveBandWidth"
+22102: "parameters/SpectralWaveMaxDensityByFrequency"
+22104: "parameters/SpectralWaveDensityByFrequency"
+22106: "parameters/SpectralWaveDirDensityByFrequency"
+22108: "parameters/SpectralWaveDensityRatio"
+22177: "metadata/XBTHeight"
+22178: "metadata/WMOXBTType"
+22186: "parameters/WaveDirection"
+22187: "parameters/WaveSpread"
+22188: "parameters/DissolvedOxygen"
 
-25025: "metadata:BatteryVoltage"
-25026: "metadata:BatteryVoltage"
-25043: "metadata:WaveSamplingTime"
-25061: "metadata:SoftwareID"
+25025: "metadata/BatteryVoltage"
+25026: "metadata/BatteryVoltage"
+25043: "metadata/WaveSamplingTime"
+25061: "metadata/SoftwareID"
 
-33022: "metadata:WMOQualitySatellite"
-33023: "metadata:WMOQualityLocation"
-33027: "metadata:WMOQualityLocationClass"
+33022: "metadata/WMOQualitySatellite"
+33023: "metadata/WMOQualityLocation"
+33027: "metadata/WMOQualityLocationClass"
 
-42011: "variables:FourierA1"
-42012: "variables:FourierB1"
-42013: "variables:FourierA2"
-42014: "variables:FourierB2"
-42015: "variables:FourierK"
+42011: "parameters/FourierA1"
+42012: "parameters/FourierB1"
+42013: "parameters/FourierA2"
+42014: "parameters/FourierB2"
+42015: "parameters/FourierK"
 
 302004: "noop"
 302005: "noop"
@@ -403,53 +378,41 @@
 302047: "noop"
 302048: "noop"
 
+301011:
+  name: coordinates/Time
+  data_processor: _parse_datetime_sequence
+
 315003:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: ProfileFloat
+  name: metadata/CNODCInstrumentType
+  value: ProfileFloat
   iterate_after: yes
 315004:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: XBT
+  name: metadata/CNODCInstrumentType
+  value: XBT
   iterate_after: yes
 315007:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: Ship
+  name: metadata/CNODCInstrumentType
+  value: Ship
   iterate_after: yes
 315008:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: MooredBuoy
+  name: metadata/CNODCInstrumentType
+  value: MooredBuoy
   iterate_after: yes
 315009:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: DriftingBuoy
+  name: metadata/CNODCInstrumentType
+  value: DriftingBuoy
   iterate_after: yes
 315011:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: ASV
+  name: metadata/CNODCInstrumentType
+  value: ASV
   iterate_after: yes
 308015:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: WAVEOB
+  name: metadata/CNODCInstrumentType
+  value: WAVEOB
   iterate_after: yes
 307079:
-  apply_to: target
-  type: metadata_map
-  map:
-    CNODCInstrumentType: CoastalStation
+  name: metadata/CNODCInstrumentType
+  value: CoastalStation
   iterate_after: yes
 
 

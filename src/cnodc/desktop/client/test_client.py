@@ -144,7 +144,7 @@ class TestClient:
             raise Exception('invalid app id')
         file_path = pathlib.Path(__file__).absolute().parent / 'ocproc2_examples' / f'{filename}.yaml'
         codec = OCProc2YamlCodec()
-        for idx, record in enumerate(codec.load_all(file_path)):
+        for idx, record in enumerate(codec.load(file_path)):
             yield str(idx), record.generate_hash(), record, []
 
     def _get_lat(self, x: int):

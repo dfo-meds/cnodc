@@ -11,6 +11,10 @@ from core import BaseTestCase
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder
 
 
+def dynamic_int_processor(value, *args, **kwargs):
+    return int(value)
+
+
 class TestNetCDFCommonDecode(BaseTestCase):
 
     def test_full_decoder(self):
@@ -49,7 +53,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 bytes_iterable.append(r)
                 r = h.read(128)
         decoder = NetCDFCommonDecoder()
-        records = [x for x in decoder.decode_messages(bytes_iterable, mapping_file=str(config_file))]
+        records = [x for x in decoder.decode_records(bytes_iterable, mapping_file=str(config_file))]
         self.assertEqual(5, len(records))
         for idx, record in enumerate(records):
             with self.subTest(record_no=idx):
@@ -78,7 +82,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 r = h.read(128)
         decoder = NetCDFCommonDecoder()
         with self.assertLogs("cnodc.netcdf_common_decoder", "ERROR"):
-            _ = [x for x in decoder.decode_messages(bytes_iterable)]
+            _ = [x for x in decoder.decode_records(bytes_iterable)]
 
     def test_default_mapping_file_and_class(self):
         nc_file = self.temp_dir / "test.nc"
@@ -97,7 +101,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 r = h.read(128)
         decoder = NetCDFCommonDecoder()
         with self.assertLogs("cnodc.programs.glider.ego_decode", "INFO"):
-            records = [x for x in decoder.decode_messages(bytes_iterable, mapping_class="cnodc.programs.glider.ego_decode.GliderEGOMapper")]
+            records = [x for x in decoder.decode_records(bytes_iterable, mapping_class="cnodc.programs.glider.ego_decode.GliderEGOMapper")]
         self.assertEqual(5, len(records))
 
     def test_bad_file(self):
@@ -375,6 +379,34 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     self.assertIn('Bar2', record.metadata)
                     self.assertEqual('hello world', record.metadata['Bar2'].value)
 
+    def test_global_variable_dynamic_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.createVariable('test2', 'i4')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            ds.variables['test2'][:] = [6]
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'globalvar:test2': {
+                        'target': 'metadata/Bar2',
+                        'data_processor': 'decode.test_netcdf.dynamic_int_processor'
+                    }
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertIn('Bar2', record.metadata)
+                    self.assertEqual(6, record.metadata['Bar2'].value)
+
     def test_global_variable_int_mapping(self):
         with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
             ds.createDimension('FOO')
@@ -419,8 +451,10 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
+            self.assertEqual('hello world', mapper.var_to_string('test2'))
             records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
+
             for idx, record in enumerate(records):
                 with self.subTest(record_no=idx):
                     self.assertIn('Bar2', record.metadata)

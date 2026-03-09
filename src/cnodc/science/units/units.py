@@ -15,6 +15,7 @@ from cnodc.science.units.structures import LinearFunction, Converter, UnitExpres
 ADDITIONAL_UNITS = {
     'psu': '0.001',
     'mhos': 'S',
+    '0/00': '0.001',
 }
 
 # normally we just let it pick the first one it finds, but I don't like some of them

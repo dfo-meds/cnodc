@@ -3,7 +3,8 @@ import threading
 
 from cnodc.util import HaltFlag, HaltInterrupt, gzip_with_halt
 from cnodc.util.io import copy_with_halt, ungzip_with_halt
-from core import BaseTestCase, ConstantHaltFlag
+from core import BaseTestCase
+from cnodc.util.halts import DummyHaltFlag
 
 
 class TestHaltFlag(BaseTestCase):
@@ -27,12 +28,12 @@ class TestHaltFlag(BaseTestCase):
             hf.breakpoint()
 
     def test_protocol(self):
-        chf = ConstantHaltFlag(True)
+        chf = DummyHaltFlag()
         self.assertTrue(chf._should_continue())
         self.assertTrue(chf.check_continue())
         self.assertTrue(chf.check_continue(raise_ex=False))
         self.assertIsNone(chf.breakpoint())
-        chf.should_continue = False
+        chf.event.set()
         self.assertFalse(chf._should_continue())
         self.assertFalse(chf.check_continue(raise_ex=False))
         self.assertFalse(chf.check_continue(False))
@@ -40,25 +41,26 @@ class TestHaltFlag(BaseTestCase):
         self.assertRaises(HaltInterrupt, chf.breakpoint)
 
     def test_iterate(self):
-        chf = ConstantHaltFlag(True)
+        chf = DummyHaltFlag()
         items = [1, 2, 3, 4, 5]
         new_items = []
-        for item in HaltFlag.iterate(items, chf, False):
+        for item in HaltFlag._iterate(items, chf, False):
             new_items.append(item)
             if item == 3:
-                chf.should_continue = False
+                chf.event.set()
         self.assertEqual(new_items, [1, 2, 3])
 
     def test_iterate_interrupt(self):
         def add_items(items, new_items, halt_flag):
-            for item in HaltFlag.iterate(items, chf, True):
+            for item in HaltFlag._iterate(items, chf):
                 new_items.append(item)
                 if item == 3:
-                    halt_flag.should_continue = False
-        chf = ConstantHaltFlag(True)
+                    halt_flag.event.set()
+        chf = DummyHaltFlag()
         items = [1, 2, 3, 4, 5]
         new_items = []
-        self.assertRaises(HaltInterrupt, add_items, items, new_items, chf)
+        with self.assertRaises(HaltInterrupt):
+            add_items(items, new_items, chf)
         self.assertEqual(new_items, [1, 2, 3])
 
 
@@ -69,7 +71,7 @@ class TestHaltableIO(BaseTestCase):
         with open(f1, "w") as h:
             h.write("foobar")
         f2 = self.temp_dir / "test2"
-        hf = ConstantHaltFlag(True)
+        hf = DummyHaltFlag()
         with open(f1, "r") as in_:
             with open(f2, "w") as out_:
                 copy_with_halt(in_, out_, halt_flag=hf)
@@ -80,7 +82,7 @@ class TestHaltableIO(BaseTestCase):
         with open(f1, "w") as h:
             h.write("foobar")
         f2 = self.temp_dir / "test2"
-        hf = ConstantHaltFlag(True)
+        hf = DummyHaltFlag()
         with open(f1, "rb") as in_:
             with open(f2, "wb") as out_:
                 copy_with_halt(in_, out_, halt_flag=hf)
@@ -111,7 +113,8 @@ class TestHaltableIO(BaseTestCase):
         with open(f1, "w") as h:
             h.write("foobar")
         f2 = self.temp_dir / "test1.gz"
-        hf = ConstantHaltFlag(False)
+        hf = DummyHaltFlag()
+        hf.event.set()
         with self.assertRaises(HaltInterrupt):
             gzip_with_halt(f1, f2, 2, halt_flag=hf)
         self.assertFalse(f2.exists())
@@ -121,7 +124,8 @@ class TestHaltableIO(BaseTestCase):
         with gzip.open(f1, "wb") as h:
             h.write(b"foobar")
         f2 = self.temp_dir / "test1"
-        hf = ConstantHaltFlag(False)
+        hf = DummyHaltFlag()
+        hf.event.set()
         with self.assertRaises(HaltInterrupt):
             ungzip_with_halt(f1, f2, 2, halt_flag=hf)
         self.assertFalse(f2.exists())

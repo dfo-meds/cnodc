@@ -1,4 +1,3 @@
-import array
 import mmap
 import pathlib
 import typing as t
@@ -9,13 +8,12 @@ from cnodc.ocproc2 import ParentRecord
 import os
 
 from cnodc.util import CNODCError, vlq_decode
-from cnodc.util import HaltFlag, HaltInterrupt
+from cnodc.util import HaltFlag
+from cnodc.util.exceptions import NotSupportedError
+from cnodc.util.halts import DummyHaltFlag
 
-ByteIterable = t.Iterable[t.Union[bytes, bytearray]]
-
-
-class NotSupported(Exception):
-    pass
+ByteData = t.Union[bytes, bytearray]
+ByteIterable = t.Iterable[ByteData]
 
 
 class ByteSequenceReader:
@@ -49,9 +47,9 @@ class ByteSequenceReader:
     def check_continue(self):
         if self._halt_flag is not None:
             self._last_check += 1
-            if self._last_check > 50:
-                self._halt_flag.check_continue(True)
+            if self._last_check >= 50:
                 self._last_check = 0
+                self._halt_flag.check_continue(True)
 
     def offset(self):
         return self._offset
@@ -139,12 +137,7 @@ class ByteSequenceReader:
     def consume_lines(self, exclude_line_endings: bool = True) -> t.Iterable[bytearray]:
         while not self.at_eof():
             self.check_continue()
-            res = self.consume_until([b"\n", b"\r"], include_target=True)
-            if res[-1] == 13 and self[0] == b"\n":
-                self._discard_leading(1)
-                if not exclude_line_endings:
-                    res += b"\n"
-            yield res.rstrip(b"\r\n") if exclude_line_endings else res
+            yield self.consume_line(exclude_line_endings)
 
     def consume_all(self) -> bytearray:
         self._read_rest()
@@ -235,19 +228,27 @@ class ByteSequenceReader:
             if not self._read_next():
                 return None, None
 
-    def split_and_iterate(self, matches: t.Union[list, bytes], include_target: bool = False):
+    def split_and_iterate(self, matches: t.Union[list[bytes], bytes, bytearray], include_target: bool = False):
         options, min_length, max_length, checker = self._build_option_list(
             [matches] if isinstance(matches, (bytes, bytearray)) else matches
         )
         if not options:
             raise ValueError('invalid matches')
+        return self._split_and_iterate(options, min_length, max_length, checker, include_target)
+
+    def _split_and_iterate(self, options, min_length, max_length, checker, include_target):
         while not self.at_eof():
             matching, actual_offset = checker(options, min_length, max_length)
             if actual_offset is None:
                 yield self.consume_all()
                 break
             else:
-                yield self.consume(actual_offset + (len(matching) if include_target else 0))
+                if include_target:
+                    yield self.consume(actual_offset + len(matching))
+                else:
+                    yield self.consume(actual_offset)
+                    self._discard_leading(len(matching))
+
 
     def _check_any_at(self, options: set[tuple[bytes, int]], start_idx: int, max_length: int) -> t.Optional[bytes]:
         self._read_up_to(start_idx + max_length)
@@ -260,7 +261,8 @@ class ByteSequenceReader:
 
     def __getitem__(self, user_index: t.Union[slice, int]) -> t.Union[t.Iterator[bytes], bytes]:
         if isinstance(user_index, slice):
-            raise NotImplementedError()
+            self._read_up_to(user_index.stop)
+            return self._buffer[user_index]
         else:
             if not self._read_up_to(user_index):
                 raise KeyError(user_index)
@@ -270,13 +272,13 @@ class ByteSequenceReader:
 class Readable(t.Protocol):
 
     def read(self, chunk_size: t.Optional[int] = None) -> bytes:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage (protocol)
 
 
 class Writable(t.Protocol):
 
     def write(self, data: bytes):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no coverage (protocol)
 
 
 class DecodeResult:
@@ -315,17 +317,11 @@ class BaseCodec:
         self.is_encoder = is_encoder
         self.is_decoder = is_decoder
         self.support_single_record = support_single
-        self._halt_flag = halt_flag
+        self._halt_flag = halt_flag or DummyHaltFlag()
         self.log = zrlog.get_logger(log_name)
 
-    @classmethod
-    def check_file_type(cls, file_path: str) -> bool:
-        if hasattr(cls, 'FILE_EXTENSION'):
-            if isinstance(cls.FILE_EXTENSION, (set, list)):
-                return any(file_path.endswith(x) for x in cls.FILE_EXTENSION)
-            else:
-                return file_path.endswith(cls.FILE_EXTENSION)
-        return False
+    def _as_byte_sequence(self, bytes_: ByteIterable) -> ByteSequenceReader:
+        return ByteSequenceReader(bytes_, self._halt_flag)
 
     def dump(self,
              output_file: t.Union[Writable, str, os.PathLike],
@@ -337,56 +333,39 @@ class BaseCodec:
             with open(output_file, "wb", buffering=524288) as h:
                 self._write_in_chunks(h, self.encode_records(record_set, **kwargs))
 
-    def load_all(self,
-                 file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
-                 chunk_size: int = 524288,
-                 use_mmap: bool = True,
-                 **kwargs) -> t.Iterable[ParentRecord]:
-        if hasattr(file, 'read'):
-            yield from self.decode_messages(self._read_in_chunks(file, chunk_size), **kwargs)
-        elif isinstance(file, (bytes, bytearray)):
-            yield from self.decode_messages(BaseCodec._yield_bytes(file), **kwargs)
-        elif isinstance(file, (str, os.PathLike, pathlib.Path)):
-            with open(file, "rb") as h:
-                if use_mmap:
-                    with mmap.mmap(h.fileno(), length=0, access=mmap.ACCESS_READ) as hm:
-                        yield from self.decode_messages(self._read_in_chunks(hm, chunk_size), **kwargs)
-                else:
-                    yield from self.decode_messages(self._read_in_chunks(h, chunk_size), **kwargs)
-        else:
-            yield from self.decode_messages(file, **kwargs)
-
-    @staticmethod
-    def _yield_bytes(b: t.Union[bytes, bytearray]):
-        yield b
-
     def encode_records(self,
                        data: t.Iterable[ParentRecord],
                        **kwargs) -> ByteIterable:
-        fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
         on_first = True
         st = self._encode_start(**kwargs)
         sep = self._encode_separator(**kwargs)
         en = self._encode_end(**kwargs)
         if st:
             yield st
-        for record_idx, record in enumerate(HaltFlag.iterate(data, self._halt_flag, True)):
+        for record_data in self._encode_records(data, **kwargs):
+            if sep and not on_first:
+                yield sep
+            yield from self._encode_record_data_for_file(record_data)
+            on_first = False
+        if en:
+            yield en
+
+    def _encode_record_data_for_file(self, record_data: ByteIterable):
+        yield from record_data
+
+    def _encode_records(self, data: t.Iterable[ParentRecord], **kwargs) -> t.Iterable[ByteIterable]:
+        fail_on_error = bool(kwargs.pop('fail_on_error', False))
+        for record_idx, record in enumerate(self._halt_flag.iterate(data)):
             result = self._encode_record(record)
             if result.success:
-                if sep and not on_first:
-                    yield sep
-                yield from result.data_stream
-                on_first = False
+                yield result.data_stream
             elif fail_on_error:
                 if result.from_exception:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1000) from result.from_exception
                 else:
                     raise CNODCError(f"Error encoding data from file, record [{record_idx}]", "CODECS", 1001)
-        if en:
-            yield en
-
-    def _encode_start(self, **kwargs) -> t.Union[bytes, bytearray, None]:
-        pass
+            else:
+                self.log.error(f"Error encoding data from file, record [{record_idx}]: {'unknown' if not result.from_exception else repr(result.from_exception)}")
 
     def _encode_record(self,
                        record: ParentRecord,
@@ -394,7 +373,7 @@ class BaseCodec:
         try:
             return EncodeResult(
                 original=record,
-                data_stream=self.encode_single_record_for_decode(record, **kwargs)
+                data_stream=self.encode_single_record(record, **kwargs)
             )
         except Exception as ex:
             return EncodeResult(
@@ -402,26 +381,42 @@ class BaseCodec:
                 exc=ex
             )
 
-    def encode_single_record_for_decode(self, record: ParentRecord, **kwargs) -> ByteIterable:
-        yield self.encode_single_record(record, **kwargs)
+    def encode_single_record(self, record: ParentRecord, **kwargs) -> ByteIterable:
+        raise NotSupportedError  # pragma: no coverage (default implementation)
 
-    def encode_single_record(self, record: ParentRecord, **kwargs) -> t.Union[bytes, bytearray]:
-        raise NotSupported
+    def _encode_start(self, **kwargs) -> t.Union[bytes, bytearray, None]:
+        pass  # pragma: no coverage (default implementation)
 
     def _encode_separator(self, **kwargs) -> t.Union[bytes, bytearray, None]:
-        pass
+        pass  # pragma: no coverage (default implementation)
 
     def _encode_end(self, **kwargs) -> t.Union[bytes, bytearray, None]:
-        pass
+        pass  # pragma: no coverage (default implementation)
 
-    def _as_byte_sequence(self, bytes_: ByteIterable) -> ByteSequenceReader:
-        return ByteSequenceReader(bytes_, self._halt_flag)
+    def load(self,
+             file: t.Union[Readable, bytes, bytearray, str, os.PathLike, ByteIterable],
+             chunk_size: int = 524288,
+             use_mmap: bool = True,
+             **kwargs) -> t.Iterable[ParentRecord]:
+        if hasattr(file, 'read'):
+            yield from self.decode_records(self._read_in_chunks(file, chunk_size), **kwargs)
+        elif isinstance(file, (bytes, bytearray)):
+            yield from self.decode_records(BaseCodec._yield_bytes(file), **kwargs)
+        elif isinstance(file, (str, os.PathLike, pathlib.Path)):
+            with open(file, "rb") as h:
+                if use_mmap:
+                    with mmap.mmap(h.fileno(), length=0, access=mmap.ACCESS_READ) as hm:
+                        yield from self.decode_records(self._read_in_chunks(hm, chunk_size), **kwargs)
+                else:
+                    yield from self.decode_records(self._read_in_chunks(h, chunk_size), **kwargs)
+        else:
+            yield from self.decode_records(file, **kwargs)
 
-    def decode_messages(self,
-                        data: ByteIterable,
-                        **kwargs) -> t.Iterable[ParentRecord]:
+    def decode_records(self,
+                       data: ByteIterable,
+                       **kwargs) -> t.Iterable[ParentRecord]:
         fail_on_error = bool(kwargs.pop('fail_on_error')) if 'fail_on_error' in kwargs else False
-        for result in HaltFlag.iterate(self.decode_to_results(data, **kwargs), self._halt_flag, True):
+        for result in self._halt_flag.iterate(self._buffered_decode_records(data, **kwargs)):
             if result.success:
                 yield from result.records
             elif fail_on_error:
@@ -429,71 +424,62 @@ class BaseCodec:
                     raise CNODCError(f"Error decoding data from file", "CODECS", 1002) from result.from_exception
                 else:
                     raise CNODCError(f"Error decoding data from file", "CODECS", 1003)
+            elif result.from_exception:
+                self.log.error(f"Error decoding data from file: {result.from_exception.__class__.__name__}: {str(result.from_exception)}")
             else:
-                if result.from_exception:
-                    self.log.error(f"Error decoding data from file: {result.from_exception.__class__.__name__}: {str(result.from_exception)}")
-                else:
-                    self.log.error(f"Unknown error decoding data from file", "CODECS", 1005)
+                self.log.error(f"Unknown error decoding data from file")
 
-    def decode_to_results(self, data: ByteIterable, include_skipped: bool = True, **kwargs) -> t.Iterable[DecodeResult]:
-        idx = 0
-        buffered_result = None
-        for result in self._decode(data, **kwargs):
-            if result is None:
-                continue
-            result.message_idx = idx
-            idx += 1
-            # skip the first result for now
-            if buffered_result is None and idx == 1:
-                buffered_result = result
-                continue
-            # otherwise, we have two results so continue
-            if buffered_result is not None:
-                yield buffered_result
-                buffered_result = None
-            if include_skipped or not result.skipped:
-                yield result
-        # This only happens if there is a single message generated by the file.
-        if buffered_result is not None:
-            buffered_result.single_message = True
-            yield buffered_result
+    def _buffered_decode_records(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
+        decoded_records = self._decode_records(data, **kwargs)
+        first = next(decoded_records, None)
+        second = next(decoded_records, None)
+        if first is None:
+            pass
+        elif second is None:
+            first.single_message = True
+            yield first
+        else:
+            yield first
+            yield second
+            yield from decoded_records
 
-    def _decode(self,
-                data: ByteIterable,
-                **kwargs) -> t.Iterable[t.Optional[DecodeResult]]:
-        raise NotSupported
+    def _decode_records(self,
+                        data: ByteIterable,
+                        **kwargs) -> t.Iterable[DecodeResult]:
+        for record_data in self.parse_into_record_bytes(data, **kwargs):
+            yield self._decode_record(record_data, **kwargs)
 
-    def decode_single_record(self, data: t.Union[bytes, bytearray], *args, **kwargs) -> t.Optional[DecodeResult]:
+    def _decode_record(self, record_data, **kwargs):
         try:
-            res = self._decode_single_record(data, *args, **kwargs)
-            if res is None:
-                return None
+            res = self.decode_single_record(record_data, **kwargs)
             return DecodeResult(
-                records=[res],
-                original=data
+                records=[res] if res else None,
+                original=record_data
             )
         except Exception as ex:
-            self.log.error(f"An exception occurred while decoding")
-            self.log.exception(f"{type(ex)}: {str(ex)}")
             return DecodeResult(
                 exc=ex,
-                original=data
+                original=record_data
             )
 
-    def _decode_single_record(self, data: t.Union[bytes, bytearray], *args, **kwargs) -> ParentRecord:
-        raise NotSupported
+    def parse_into_record_bytes(self, data: ByteIterable, **kwargs) -> ByteIterable:
+        raise NotSupportedError  # pragma: no coverage (default implementation)
+
+    def decode_single_record(self, data: ByteData, **kwargs) -> ParentRecord:
+        raise NotSupportedError  # pragma: no coverage (default implementation)
 
     def _write_in_chunks(self, file_handle: Writable, output: ByteIterable):
-        for bytes_ in HaltFlag.iterate(output, self._halt_flag, True):
+        for bytes_ in self._halt_flag.iterate(output):
             file_handle.write(bytes_)
 
-    def _read_in_chunks(self, file_handle: Readable, chunk_size: int = 16384) -> ByteIterable:
-        chunk = file_handle.read(chunk_size)
-        while chunk != b'':
-            if self._halt_flag:
-                self._halt_flag.check_continue(True)
-            yield chunk
-            chunk = file_handle.read(chunk_size)
+    def _read_in_chunks(self, file_handle: Readable, chunk_size: int = None) -> ByteIterable:
+        yield from self._halt_flag.read_all(file_handle, chunk_size)
+
+    @classmethod
+    def check_file_type(cls, file_path: str) -> bool:
+        if hasattr(cls, 'FILE_EXTENSION'):
+            return file_path.endswith(cls.FILE_EXTENSION)
+        return False
 
     @staticmethod
     def map_to_record(record_map: dict) -> ParentRecord:
@@ -504,4 +490,9 @@ class BaseCodec:
     @staticmethod
     def record_to_map(record: ParentRecord, compress: bool = False) -> dict:
         return record.to_mapping()
+
+    @staticmethod
+    def _yield_bytes(b: t.Union[bytes, bytearray]):
+        yield b
+
 

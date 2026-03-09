@@ -8,7 +8,8 @@ from cnodc.processing.workers.payload_worker import ObservationWorkflowWorker
 from cnodc.processing.workers.queue_worker import QueueWorker
 from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workflow.payloads import WorkflowPayload
-from core import BaseTestCase, ConstantHaltFlag, InjectableDict
+from core import BaseTestCase, InjectableDict
+from cnodc.util.halts import DummyHaltFlag
 
 
 class WorkerTestController:
@@ -90,9 +91,9 @@ class WorkerTestCase(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.halt_flag = ConstantHaltFlag(True)
+        cls.halt_flag = DummyHaltFlag()
         cls.worker_controller = WorkerTestController(cls.db, cls.halt_flag)
 
     def tearDown(self, d: InjectableDict = None):
         super().tearDown()
-        self.halt_flag.should_continue= True
+        self.halt_flag.event.clear()

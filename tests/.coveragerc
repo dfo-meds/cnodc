@@ -6,6 +6,7 @@ omit =
   */cnodc/programs/gts_send/*
   */cnodc/programs/gtspp/*
   */cnodc/storage/sftp.py
+  */cnodc/ocproc2/codecs/ocproc2debug.py
 
 
 [report]

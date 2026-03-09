@@ -13,14 +13,10 @@ import cnodc.ocproc2 as ocproc2
 
 class OCProc2DebugCodec(BaseCodec):
 
-    FILE_EXTENSION = ('.txt',)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.debug", is_encoder=True, is_decoder=False, **kwargs)
 
-    def _encode(self,
-                record: ocproc2.ParentRecord,
-                **kwargs) -> t.Iterable[bytes]:
+    def encode_single_record(self, record: ocproc2.ParentRecord, **kwargs) -> ByteIterable:
         yield self._record_to_text(record).encode('utf-8')
 
     def _record_to_text(self, record: ocproc2.ParentRecord):

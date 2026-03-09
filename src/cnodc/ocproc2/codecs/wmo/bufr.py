@@ -2,8 +2,10 @@ import datetime
 import typing as t
 import pybufrkit.descriptors
 import zrlog
+
+from cnodc.ocproc2 import BaseRecord
 from cnodc.ocproc2.codecs.gts import GtsSubDecoder
-from cnodc.ocproc2.codecs.base import DecodeResult
+from cnodc.ocproc2.codecs.base import DecodeResult, ByteIterable, ByteSequenceReader
 import math
 import yaml
 from pybufrkit.tables import TableGroupCacheManager, TableGroupKey
@@ -14,12 +16,17 @@ from pybufrkit.decoder import Decoder
 from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
     ValueDataNode, NoValueDataNode
 from autoinject import injector
+
+from cnodc.science.units import UnitConverter
 from cnodc.util import CNODCError
 
 
 @injector.injectable_global
 class BufrCDSTables:
 
+    converter: UnitConverter = None
+
+    @injector.construct
     def __init__(self):
         root = pathlib.Path(__file__).absolute().parent
         with open(root / "bufr_map.yaml", "r") as h:
@@ -28,8 +35,6 @@ class BufrCDSTables:
                 str(x): self.standardize_instruction(raw[x])
                 for x in raw
             }
-        with open(root / "unit_map.yaml", "r") as h:
-            self._unit_map = yaml.safe_load(h.read()) or {}
 
     def lookup(self, descriptor_id):
         key = str(int(descriptor_id))
@@ -40,51 +45,46 @@ class BufrCDSTables:
     def standardize_units(self, unit):
         if unit in ('Numeric', 'CCITT IA5', 'CODE TABLE'):
             return None
-        if unit in self._unit_map:
-            return self._unit_map[unit]
-        return unit
+        return self.converter.standardize(unit)
 
     def standardize_instruction(self, instruction):
         if isinstance(instruction, str):
             pieces = instruction.split(":")
             if pieces[0] == "noop":
                 return {
-                    "apply_to": "noop",
-                    "type": "noop",
-                    "name": "noop"
-                }
-            if pieces[0] in ("metadata", "coordinates", "variables"):
-                return {
-                    "type": pieces[0],
-                    "name": pieces[1],
-                    "apply_to": "target"
+                    "instruction": "noop",
+                    "raw": True
                 }
             elif pieces[0] == 'next_recs':
                 return {
-                    "type": pieces[1],
-                    "name": pieces[2],
-                    "apply_to": "subrecords"
+                    "name": pieces[1],
+                    "instruction": "apply_to_subrecords"
                 }
             elif pieces[0] == "next_vars":
                 return {
-                    "type": pieces[1],
-                    "name": pieces[2],
-                    "apply_to": "following"
+                    "name": pieces[1],
+                    "instruction": "apply_to_parameters"
                 }
             else:
-                return None
-        elif not isinstance(instruction, dict):
+                return {
+                    "name": pieces[0],
+                    "instruction": "apply_to_target"
+                }
+        elif not isinstance(instruction, dict):  # pragma: no coverage (fallback)
             return None
-        base = {
-            "apply_to": "target",
-            "type": "metadata",
-            "name": "noop"
-        }
-        base.update(instruction)
-        if 'context' in base and base['context']:
-            for x in base['context']:
-                base['context'][x] = self.standardize_instruction(base['context'][x])
-        return base
+        else:
+            base = {
+                "instruction": "apply_to_target",
+            }
+            base.update(instruction)
+            base["raw"] = base["instruction"] in ("instruction_map", "noop", "set_scale_factor", "error", "mapped")
+            if 'context' in base and base['context']:
+                for x in base['context']:
+                    base['context'][x] = self.standardize_instruction(base['context'][x])
+            if 'instruction_map' in base and base['instruction_map']:
+                for x in base['instruction_map']:
+                    base['instruction_map'][x] = self.standardize_instruction(base['instruction_map'][x])
+            return base
 
 
 class Bufr4Decoder(GtsSubDecoder):
@@ -95,12 +95,31 @@ class Bufr4Decoder(GtsSubDecoder):
     def __init__(self):
         pass
 
-    def decode_message(self, header: str, bufr_message: bytearray) -> DecodeResult:
-        instance = _Bufr4Decoder(header, bufr_message, self.bufr_tables)
-        return DecodeResult(
-            records=[x for x in instance.convert_to_records()],
-            original=header.encode('ascii') + b'\n' + bufr_message
-        )
+    def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool) -> DecodeResult:
+        content = bytearray()
+        try:
+            reader.consume(4)
+            message_length = int.from_bytes(reader.consume(3), 'big')
+            bufr_version = int(reader.consume(1)[0])
+            content.extend(b'BUFR')
+            content.extend(message_length.to_bytes(3, 'big'))
+            content.extend(bufr_version.to_bytes(1, 'big'))
+            content.extend(reader.consume(message_length - 8))
+            original_data = header.encode('ascii') + b'\n' + content
+            if skip_decode:
+                return DecodeResult(skipped=True, original=original_data)
+            if bufr_version != 4:
+                raise CNODCError("Only BUFR4 is supported", "BUFR_DECODE", 2000)
+            instance = _Bufr4Decoder(header, content, self.bufr_tables)
+            return DecodeResult(
+                records=[x for x in instance.convert_to_records()],
+                original=original_data,
+            )
+        except Exception as ex:
+            return DecodeResult(
+                exc=ex,
+                original=header.encode('ascii') + b"\n" + content
+            )
 
 
 class _Bufr4DecoderContext:
@@ -140,6 +159,44 @@ class _Bufr4DecoderContext:
             if 0 <= new_idx <= len(self.node_list):
                 return self.node_list[new_idx]
         return None
+
+    def start_new_record(self):
+        self.close_subrecord()
+        self.target = ocproc2.ChildRecord()
+
+    def close_subrecord(self):
+        if self.target:
+            if self.record_metadata:
+                for x in self.record_metadata:
+                    if self.record_metadata[x][1] is None or any(
+                        x in self.parent_target.parameters or x in self.parent_target.coordinates
+                        for x in self.record_metadata[x][1]
+                    ):
+                        self.target.set(x, self.record_metadata[x][0])
+            self.target_subset.records.append(self.target)
+            self.target = None
+
+    def set_record_property(self, property_full_name: str, value: ocproc2.AbstractElement):
+        if value.value is None or self.target is None:
+            return
+        if self.var_metadata:
+            pieces = property_full_name.split('/')
+            for x in self.var_metadata:
+                if self.var_metadata[x][1] is None or pieces[-1] in self.var_metadata[x][1]:
+                    value.metadata[x] = self.var_metadata[x][0]
+        self.target.set(property_full_name, value)
+
+    def add_future_parameter_metadata(self, property_name, value, limit_to_parameters: t.Optional[list[str]] = None):
+        if value.value is not None:
+            self.var_metadata[property_name] = (value, limit_to_parameters or None)
+        elif property_name in self.var_metadata:
+            del self.var_metadata[property_name]
+
+    def add_future_subrecord_data(self, property_name, value, limit_to_subrecord_types: t.Optional[list[str]] = None):
+        if value.value is not None:
+            self.record_metadata[property_name] = (value, limit_to_subrecord_types)
+        elif property_name in self.record_metadata:
+            del self.record_metadata[property_name]
 
 
 class _Bufr4Decoder:
@@ -365,7 +422,7 @@ class _Bufr4Decoder:
     def _parse_repetition_info(self, node: t.Union[DelayedReplicationNode, FixedReplicationNode], ctx):
         n_total = len(node.members)
         if isinstance(node, DelayedReplicationNode):
-            n_repeats = self._get_node_value(node.factor, ctx, True)
+            n_repeats = self._get_node_value(node.factor, ctx)
         else:
             n_repeats = int(str(node.descriptor.id)[3:])
         n_elements = int(n_total / n_repeats)
@@ -389,62 +446,39 @@ class _Bufr4Decoder:
             ctx2.target = None
             ctx2.child_record_type = child_record_type
             ctx2.target_subset = record_set
-            self._start_new_record(ctx2)
+            ctx2.start_new_record()
             self._iterate_on_nodes(node.members[(i*n_elements):((i+1)*n_elements)], ctx2)
-            self._close_subrecord(ctx2)
-
-    def _start_new_record(self, ctx: _Bufr4DecoderContext):
-        if ctx.target is not None:
-            self._close_subrecord(ctx)
-        ctx.target = ocproc2.ChildRecord()
-
-    def _close_subrecord(self, ctx: _Bufr4DecoderContext):
-        if ctx.record_metadata:
-            for x in ctx.record_metadata:
-                if ctx.record_metadata[x][1] is None or any(
-                        x in ctx.parent_target.parameters or x in ctx.parent_target.coordinates
-                        for x in ctx.record_metadata[x][1]
-                ):
-                    ctx.target.metadata[x] = ctx.record_metadata[x][0]
-        ctx.target_subset.records.append(ctx.target)
+            ctx2.close_subrecord()
 
     def _parse_value_node(self, node: ValueDataNode, ctx: _Bufr4DecoderContext):
         instruction = self.bufr_tables.lookup(node.descriptor.id)
         if instruction is None:
-            self.warn(f"Unhandled node descriptor: {node.descriptor.id}: {self._get_node_value(node, ctx, True)}", ctx)
+            self.warn(f"Unhandled node descriptor: {node.descriptor.id}: {self._get_node_value(node, ctx)}", ctx)
         else:
             self._apply_instruction(instruction, self._get_node_value(node, ctx), ctx, node)
 
-    def _sequence_to_values(self, node: SequenceNode, ctx: _Bufr4DecoderContext, raw: bool = False):
-        return [
-            self._get_node_value(n, ctx, raw)
-            for n in node.members
-        ]
-
-    def _clean_instruction(self, instruction, ctx):
-        if not isinstance(instruction, dict):
-            self.warn(f"Poorly formatted instruction[{instruction}] ({type(instruction)}", ctx)
-            return None
+    def _contextualize_instruction(self, instruction, ctx):
         if 'context' in instruction:
             for x in instruction['context']:
                 str_x = str(x)
                 if any(str_x in h for h in ctx.hierarchy):
-                    return self._clean_instruction(instruction['context'][x], ctx)
+                    return self._contextualize_instruction(instruction['context'][x], ctx)
         return instruction
 
-    def _apply_instruction(self, instruction, value, ctx, node=None):
+    def _build_value(self, value, instruction, node, ctx):
         if 'value' in instruction:
             value = instruction['value']
+        elif 'value_map' in instruction:
+            if value in instruction['value_map']:
+                value = instruction['value_map'][value]
+            elif value is not None:
+                self.warn(f"Instruction provides a value_map but [{value}] is not in it", ctx)
+        elif 'data_processor' in instruction:
+            value = getattr(self, instruction['data_processor'])(value, node, ctx)
+        if 'raw' in instruction and instruction['raw']:
+            return value
         if not isinstance(value, ocproc2.AbstractElement):
             value = ocproc2.SingleElement(value)
-        instruction = self._clean_instruction(instruction, ctx)
-        if instruction is None:
-            return
-        if 'value_map' in instruction:
-            if value.value in instruction['value_map']:
-                value.value = instruction['value_map'][value.value]
-            elif value.value is not None:
-                self.warn(f"Instruction provides a value_map but [{value.value}] is not in it", ctx)
         if 'remove_metadata' in instruction and instruction['remove_metadata']:
             for key in instruction['remove_metadata']:
                 if key in value.metadata:
@@ -452,79 +486,56 @@ class _Bufr4Decoder:
         if 'metadata' in instruction and instruction['metadata']:
             for key in instruction['metadata']:
                 value.metadata[key] = instruction['metadata'][key]
-        if 'apply_to' not in instruction:
-            self.error(f"Instruction is missing 'apply_to'", ctx)
-        elif instruction['apply_to'] == 'target':
-            if instruction['type'] == 'metadata':
-                self._add_record_metadata(instruction['name'], value, ctx, instruction)
-            elif instruction['type'] == 'metadata_map':
-                for k in instruction['map']:
-                    self._add_record_metadata(k, instruction['map'][k], ctx, instruction)
-            elif instruction['type'] == 'coordinates':
-                self._add_record_coordinate(instruction['name'], value, ctx, instruction)
-            elif instruction['type'] == 'variables':
-                self._add_record_variable(instruction['name'], value, ctx, instruction)
-            else:
-                self.warn(f"Unrecognized target type {instruction['type']}", ctx)
-        elif instruction['apply_to'] == 'following':
-            if instruction['type'] == 'metadata':
-                self._add_future_variable_metadata(instruction['name'], value, ctx, instruction)
-            else:
-                self.warn(f"Unrecognized following variables application type {instruction['type']}", ctx)
-        elif instruction['apply_to'] == 'subrecords':
-            if instruction['type'] == 'metadata':
-                self._add_future_subrecord_metadata(instruction['name'], value, ctx, instruction)
-            else:
-                self.warn(f"Unrecognized following subrecords application type {instruction['type']}", ctx)
-        elif instruction['apply_to'] == 'noop':
-            pass
-        elif instruction['apply_to'] == 'raise':
-            self.warn(f"No instruction provided for [{node.descriptor.id if node else 'unknown'}]", ctx)
-        else:
-            self.warn(f"Unrecognized instruction application {instruction['apply_to']}", ctx)
+        units = self._get_node_units(node)
+        if units:
+            value.metadata['Units'] = units
+        scale = self._get_node_scale(node)
+        if scale:
+            value.metadata['Uncertainty'] = scale
+            value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'uniform'
+        return value
+
+    def _get_node_units(self, node: ValueDataNode):
+        if hasattr(node.descriptor, 'unit'):
+            return self.bufr_tables.standardize_units(node.descriptor.unit)
+
+    def _get_node_scale(self, node: ValueDataNode):
+        if hasattr(node.descriptor, 'scale'):
+            return math.pow(10, (-1 * node.descriptor.scale)) / 2
+
+    def _apply_instruction(self, instruction, value, ctx: _Bufr4DecoderContext, node=None):
+        instruction = self._contextualize_instruction(instruction, ctx)
+        if instruction is None:
+            return
+        value = self._build_value(value, instruction, node, ctx)
+        match instruction['instruction']:
+            case "noop":
+                pass
+            case "apply_to_target":
+                ctx.set_record_property(instruction['name'], value)
+            case "apply_to_parameters":
+                ctx.add_future_parameter_metadata(instruction['name'], value, instruction['filter'] if 'filter' in instruction else None)
+            case "apply_to_subrecords":
+                ctx.add_future_subrecord_data(instruction['name'], value, instruction['filter'] if 'filter' in instruction else None)
+            case "set_scale_factor":
+                ctx.scale_factor = value
+            case "mapped":
+                map_key = str(value) if value is not None else ""
+                for x in instruction["instruction_map"]:
+                    if str(x) == map_key:
+                        self._apply_instruction(instruction["instruction_map"][map_key], value, ctx, node)
+                        break
+                else:
+                    self.warn(f"No instruction found for [{map_key}] (really {value}) in {node.descriptor.id if node else 'unknown'}", ctx)
+            case "error":
+                self.warn(f"No instruction provided for [{node.descriptor.id if node is not None else 'unknown'}]", ctx)
+            case _:
+                self.warn(f"Unrecognized instruction: {instruction['instruction']}", ctx)
         if 'iterate_after' in instruction and instruction['iterate_after'] and node and hasattr(node, 'members'):
             if node.members:
                 self._iterate_on_nodes(node.members, ctx)
 
-    def _set_record_property(self, property_type, property_map, property_name, value, ctx, instruction, set_var_metadata: bool = False):
-        if not isinstance(value, ocproc2.AbstractElement):
-            value = ocproc2.SingleElement(value)
-        if value.value is None:
-            return
-        if set_var_metadata and ctx.var_metadata:
-            for x in ctx.var_metadata:
-                if ctx.var_metadata[x][1] is None or property_name in ctx.var_metadata[x][1]:
-                    value.metadata[x] = ctx.var_metadata[x][0]
-        if 'metadata' in instruction and instruction['metadata']:
-            value.metadata.update(instruction['metadata'])
-        property_map.append_to(property_name, value)
-
-    def _add_record_metadata(self, property_name, value, ctx, instruction):
-        self._set_record_property("metadata", ctx.target.metadata, property_name, value, ctx, instruction, False)
-
-    def _add_record_coordinate(self, property_name, value, ctx, instruction):
-        self._set_record_property("coordinate", ctx.target.coordinates, property_name, value, ctx, instruction, True)
-
-    def _add_record_variable(self, property_name, value, ctx, instruction):
-        self._set_record_property("variable", ctx.target.parameters, property_name, value, ctx, instruction, True)
-
-    def _add_future_variable_metadata(self, property_name, value, ctx, instruction):
-        if not isinstance(value, ocproc2.AbstractElement):
-            value = ocproc2.SingleElement(value)
-        if value.value is not None:
-            ctx.var_metadata[property_name] = (value, instruction['filter'] if 'filter' in instruction else None)
-        elif property_name in ctx.var_metadata:
-            del ctx.var_metadata[property_name]
-
-    def _add_future_subrecord_metadata(self, property_name, value, ctx, instruction):
-        if not isinstance(value, ocproc2.AbstractElement):
-            value = ocproc2.SingleElement(value)
-        if value.value is not None:
-            ctx.record_metadata[property_name] = (value, instruction['filter'] if 'filter' in instruction else None)
-        elif property_name in ctx.record_metadata:
-            del ctx.record_metadata[property_name]
-
-    def _get_node_value(self, node: ValueDataNode, ctx: _Bufr4DecoderContext, raw: bool = False, extra_metadata: dict = None):
+    def _get_node_value(self, node: ValueDataNode, ctx: _Bufr4DecoderContext):
         value = self.raw_data.decoded_values_all_subsets[ctx.subset][node.index]
         if isinstance(value, bytes):
             value = bytes([x for x in value if 0 < x < 128]).decode('ascii', errors='replace').strip(' ')
@@ -532,232 +543,72 @@ class _Bufr4Decoder:
             value *= math.pow(10, ctx.scale_factor)
         if value == '' or value == b'':
             value = None
-        if raw:
-            return value
-        metadata = {}
-        if extra_metadata:
-            metadata.update(extra_metadata)
-        units = None
-        if hasattr(node.descriptor, 'unit'):
-            units = self.bufr_tables.standardize_units(node.descriptor.unit)
-            if units is not None:
-                metadata['Units'] = units
-        if hasattr(node.descriptor, 'scale') and units is not None:
-            metadata['Uncertainty'] = math.pow(10, (-1 * node.descriptor.scale)) / 2
-        return ocproc2.SingleElement.build(value, metadata=metadata)
+        return value
 
-    def _parse_node_301011(self, node, ctx: _Bufr4DecoderContext):
-        self._apply_instruction({
-            'type': 'coordinates',
-            'name': 'Time',
-            'apply_to': 'target'
-        }, self._parse_dt_sequence(ctx, 0), ctx)
-
-    def _node_sequences_to_datetime(self, ctx, ymd_node, hms_node=None):
-        nodes = [*ymd_node.members]
-        if hms_node and hms_node.members:
-            nodes.extend(hms_node.members)
-        return self._node_list_to_datetime(ctx, nodes)
-
-    def _node_list_to_datetime(self, ctx, nodes):
-        node_values = [self._get_node_value(n, ctx, True) for n in nodes]
-        while node_values and node_values[-1] is None:
-            node_values = node_values[:-1]
-
-        if node_values:
-            dt_len = len(node_values)
-            date_str = "-".join([str(node_values[0]), str(node_values[1]).zfill(2), str(node_values[2]).zfill(2)])
-            if dt_len > 3:
-                date_str += "T"
-                date_str += ":".join(str(x).zfill(2) for x in node_values[3:])
-                date_str += "+00:00"
-            return date_str
+    def _parse_wmo_id(self, raw_value, node, ctx):
+        if node.descriptor.id == 1087:
+            if raw_value is None:
+                return None
+            if len(raw_value) < 2:
+                return raw_value
+            return f"{raw_value[0:2]}{raw_value[2:].zfill(5)}"
+        peek1 = ctx.peek(1)
+        if not (peek1 and peek1.descriptor.id in (1002, 1020, 1004)):
+            return raw_value
+        if peek1.descriptor != 1002:
+            peek2 = ctx.peek(2)
+            if not (peek2 and peek2.descriptor.id == 1005):
+                return raw_value
+            elements = [raw_value or "", self._get_node_value(peek1, ctx) or "", self._get_node_value(peek2, ctx) or ""]
+            ctx.skip = 2
         else:
+            elements = [raw_value or "", "", self._get_node_value(peek1, ctx) or ""]
+            ctx.skip = 1
+        if all(x is None or x == "" for x in elements):
             return None
-
-    def _parse_node_1125(self, node, ctx):
-        peek_nodes = [ctx.peek(1), ctx.peek(2), ctx.peek(3)]
-        expected = [1126, 1127, 1128]
-        if any(n is None or n.descriptor.id != expected[idx] for idx, n in enumerate(peek_nodes)):
-            return self._parse_node(node, ctx, _skip_custom_check=True)
-        node_vals = [self._get_node_value(n, ctx, True) for n in peek_nodes]
-        if all(v is None for v in node_vals):
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'WIGOSID',
-                'apply_to': 'target'
-            }, None, ctx)
-            ctx.skip = 3
-        elif any(v is None for v in node_vals):
-            return self._parse_node(node, ctx, _skip_custom_check=True)
         else:
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'WIGOSID',
-                'apply_to': 'target'
-            }, '-'.join(str(x) for x in node_vals), ctx)
+            return f'{elements[0] or ""}{elements[1] or ""}{str(elements[2] or "").zfill(5)}'
 
-    def _parse_node_1087(self, node, ctx):
-        val = self._get_node_value(node, ctx, True)
-        if val is not None:
-            val = str(val)
-            if len(val) < 7:
-                val = f"{val[0:2]}{val[2:].zfill(5)}"
-        self._apply_instruction({
-            'type': 'metadata',
-            'name': 'WMOID',
-            'apply_to': 'target'
-        }, val, ctx)
-
-    def _parse_node_1001(self, node, ctx):
-        peek1 = ctx.peek(1)
-        if not (peek1 and peek1.descriptor.id == 1002):
-            return self._parse_node(node, ctx, _skip_custom_check=True)
-        elements = [
-            self._get_node_value(node, ctx, True),
-            self._get_node_value(peek1, ctx, True)
-        ]
-
-        if all(x is None for x in elements):
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'WMOID',
-                'apply_to': 'target'
-            }, None, ctx)
-            ctx.skip = 1
-        elif any(x is None for x in elements):
-            self._parse_node(node, ctx, _skip_custom_check=True)
-        else:
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'WMOID',
-                'apply_to': 'target'
-            }, f'{elements[0]}{str(elements[1]).zfill(5)}', ctx)
-            ctx.skip = 1
-
-    def _parse_node_1003(self, node, ctx):
-        peek1 = ctx.peek(1)
-        if not (peek1 and peek1.descriptor.id in (1020, 1004)):
-            return self._parse_node(node, ctx, _skip_custom_check=True)
-        peek2 = ctx.peek(2)
-        if not (peek2 and peek2.descriptor.id == 1005):
-            return self._parse_node(node, ctx, _skip_custom_check=True)
-        elements = [
-            self._get_node_value(node, ctx, True),
-            self._get_node_value(peek1, ctx, True),
-            self._get_node_value(peek2, ctx, True)
-        ]
-        if all(x is None for x in elements):
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'WMOID',
-                'apply_to': 'target'
-            }, None, ctx)
-            ctx.skip = 2
-        elif any(x is None for x in elements):
-            self._parse_node(node, ctx, _skip_custom_check=True)
-        else:
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'WMOID',
-                'apply_to': 'target'
-            }, f'{elements[0]}{elements[1]}{str(elements[2]).zfill(5)}', ctx)
-            ctx.skip = 2
-
-    def _parse_node_8080(self, node, ctx):
+    def _parse_node_8080(self, node, ctx: _Bufr4DecoderContext):
         nxt = ctx.peek(1)
         flag_value = None
-        applies_to = self._get_node_value(node, ctx, True)
+        applies_to = self._get_node_value(node, ctx)
         if nxt and nxt.descriptor.id == 33050:
             ctx.skip += 1
-            flag_value = self._get_node_value(nxt, ctx, True)
-            if flag_value is not None:
-                flag_value = str(flag_value)
+            v = self._get_node_value(nxt, ctx)
+            flag_value = ocproc2.SingleElement(v) if v is not None else v
         if applies_to == 20:
-            self._add_coordinate_quality_flag(ctx, 'Latitude', flag_value)
-            self._add_coordinate_quality_flag(ctx, 'Longitude', flag_value)
+            ctx.set_record_property("coordinates/Latitude/metadata/Quality", flag_value)
+            ctx.set_record_property("coordinates/Longitude/metadata/Quality", flag_value)
         elif applies_to == 4:
-            self._add_parameter_quality_flag(ctx, 'SeaDepth', flag_value)
+            ctx.set_record_property("parameters/SeaDepth/metadata/Quality", flag_value)
         elif applies_to == 10:
-            self._add_coordinate_quality_flag(ctx, 'Pressure', flag_value)
+            ctx.set_record_property("coordinates/Pressure/metadata/Quality", flag_value)
         elif applies_to == 11:
-            self._add_parameter_quality_flag(ctx, 'Temperature', flag_value)
+            ctx.set_record_property("parameters/Temperature/metadata/Quality", flag_value)
         elif applies_to == 12:
-            self._add_parameter_quality_flag(ctx, 'PracticalSalinity', flag_value)
+            ctx.set_record_property("parameters/PracticalSalinity/metadata/Quality", flag_value)
         elif applies_to == 13:
-            self._add_coordinate_quality_flag(ctx, 'Depth', flag_value)
+            ctx.set_record_property("coordinates/Depth/metadata/Quality", flag_value)
         elif applies_to == 14:
-            self._add_parameter_quality_flag(ctx, 'CurrentSpeed', flag_value)
+            ctx.set_record_property("parameters/CurrentSpeed/metadata/Quality", flag_value)
         elif applies_to == 15:
-            self._add_parameter_quality_flag(ctx, 'CurrentDirection', flag_value)
+            ctx.set_record_property("parameters/CurrentDirection/metadata/Quality", flag_value)
         elif applies_to == 16:
-            self._add_parameter_quality_flag(ctx, 'DissolvedOxygen', flag_value)
+            ctx.set_record_property("parameters/DissolvedOxygen/metadata/Quality", flag_value)
         elif applies_to is None:
             if flag_value is not None:
-                self.warn(f"GTSPP quality flag applies to was none, but flag value was not none", ctx)
+                self.warn(f"GTSPP quality flag applies to was none, but flag value was not-none", ctx)
         else:
             self.warn(f"unhandled GTSPP quality flag [{applies_to}]", ctx)
 
-    def _add_parameter_quality_flag(self, ctx, parameter, quality):
-        param = ctx.target.parameters.get(parameter)
-        if param:
-            param.metadata['Quality'] = quality
-        elif quality is not None and quality != "0":
-            self.warn(f"cannot find parameter {parameter}", ctx)
+    def _parse_datetime_sequence(self, raw_value, node, ctx):
+        return self._parse_dt_sequence(ctx, 0)
 
-    def _add_coordinate_quality_flag(self, ctx, parameter, quality):
-        param = ctx.target.coordinates.get(parameter)
-        if param:
-            param.metadata['Quality'] = quality
-        elif quality is not None and quality != "0":
-            self.warn(f"cannot find coordinate {parameter}", ctx)
+    def _parse_following_datetime_sequence(self, raw_value, node, ctx):
+        return self._parse_dt_sequence(ctx, 1)
 
-    def _parse_node_8041(self, node, ctx: _Bufr4DecoderContext):
-        value = self._get_node_value(node, ctx, True)
-        if value == 13:
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'InstrumentManufacturingDate',
-                'apply_to': 'target'
-            }, self._parse_dt_sequence(ctx, 1), ctx)
-        elif value is None:
-            return
-        else:
-            self.warn(f"Unhandled 8041 value: {value}", ctx)
-
-    def _parse_node_8021(self, node, ctx):
-        value = self._get_node_value(node, ctx, True)
-        if value == 2:
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'AggregationMethod',
-                'apply_to': 'following'
-            }, 'AVERAGE', ctx)
-        elif value is None:
-            self._apply_instruction({
-                'type': 'metadata',
-                'name': 'AggregationMethod',
-                'apply_to': 'following'
-            }, None, ctx)
-        elif value == 25:
-            self._apply_instruction({
-                "type": "coordinates",
-                "name": "Time",
-                "apply_to": "target"
-            }, self._parse_dt_sequence(ctx, 1), ctx)
-        elif value == 26:
-            self._apply_instruction({
-                "type": "metadata",
-                "name": "LastKnownPositionTime",
-                "apply_to": "target"
-            }, self._parse_dt_sequence(ctx, 1), ctx)
-        else:
-            self.warn(f"Unhandled 8021 value: {value}", ctx)
-
-    def _parse_node_8090(self, node, ctx: _Bufr4DecoderContext):
-        ctx.scale_factor = self._get_node_value(node, ctx, True)
-
-    def _parse_dt_sequence(self, ctx, start_at: int = 1):
+    def _parse_dt_sequence(self, ctx, start_at: int = 0):
         start = ctx.peek(start_at)
         if start:
             if start.descriptor.id == 301011:
@@ -793,6 +644,28 @@ class _Bufr4Decoder:
                         break
                 return self._node_list_to_datetime(ctx, seq)
         return None
+
+    def _node_sequences_to_datetime(self, ctx, ymd_node, hms_node=None):
+        nodes = [*ymd_node.members]
+        if hms_node and hms_node.members:
+            nodes.extend(hms_node.members)
+        return self._node_list_to_datetime(ctx, nodes)
+
+    def _node_list_to_datetime(self, ctx, nodes):
+        node_values = [self._get_node_value(n, ctx) for n in nodes]
+        while node_values and node_values[-1] is None:
+            node_values = node_values[:-1]
+
+        if node_values:
+            dt_len = len(node_values)
+            date_str = "-".join([str(node_values[0]), str(node_values[1]).zfill(2), str(node_values[2]).zfill(2)])
+            if dt_len > 3:
+                date_str += "T"
+                date_str += ":".join(str(x).zfill(2) for x in node_values[3:])
+                date_str += "+00:00"
+            return date_str
+        else:
+            return None
 
     def _parse_node_4021(self, node, ctx):
         self._parse_time_period_node(node, ctx)
@@ -843,22 +716,38 @@ class _Bufr4Decoder:
         val = ocproc2.SingleElement(val)
         if ctx.child_record_type == "TSERIES" and "Time" not in ctx.target.coordinates:
             if "TimeOffset" in ctx.target.coordinates and val.value != ctx.target.coordinates["TimeOffset"].value:
-                self._start_new_record(ctx)
+                ctx.start_new_record()
             self._apply_instruction({
-                "type": "coordinates",
-                "name": "TimeOffset",
-                "apply_to": "target"
+                "name": "coordinates/TimeOffset",
+                "instruction": "apply_to_target",
             }, val, ctx)
         else:
             self._apply_instruction({
-                "type": "metadata",
                 "name": "ObservationPeriod",
-                "apply_to": "following"
+                "instruction": "apply_to_parameters"
             }, val, ctx)
 
-    def _parse_node_4001(self, node, ctx: _Bufr4DecoderContext):
-        self._apply_instruction({
-            'type': 'coordinates',
-            'name': 'Time',
-            'apply_to': 'target'
-        }, self._parse_dt_sequence(ctx, 0), ctx)
+    def _parse_node_1125(self, node, ctx):
+        peek_nodes = [node, ctx.peek(1), ctx.peek(2), ctx.peek(3)]
+        expected = [1125, 1126, 1127, 1128]
+        if any(n is None or n.descriptor.id != expected[idx] for idx, n in enumerate(peek_nodes)):
+            return self._parse_node(node, ctx, _skip_custom_check=True)
+        node_vals = [self._get_node_value(n, ctx) for n in peek_nodes]
+
+        if all(v is None for v in node_vals):
+            self._apply_instruction({
+                'name': 'metadata/WIGOSID',
+                'instruction': 'apply_to_target'
+            }, None, ctx)
+            ctx.skip = 3
+        elif any(v is None for v in node_vals):
+            return self._parse_node(node, ctx, _skip_custom_check=True)
+        else:
+            self._apply_instruction({
+                'name': 'metadata/WIGOSID',
+                'instruction': 'apply_to_target'
+            }, '-'.join(str(x) for x in node_vals), ctx)
+            ctx.skip = 3
+
+"""
+"""

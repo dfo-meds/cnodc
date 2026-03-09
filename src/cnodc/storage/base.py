@@ -7,9 +7,9 @@ import fnmatch
 import enum
 from urllib.parse import urlparse, ParseResult
 
+from cnodc.util.constants import DEFAULT_CHUNK_SIZE
 from cnodc.util import HaltFlag, CNODCError, HaltInterrupt
 
-DEFAULT_CHUNK_SIZE = 4194304
 
 
 class StorageTier(enum.Enum):
@@ -108,7 +108,6 @@ class BaseStorageHandle:
             self._local_write_chunks(local_path, self._read_chunks(buffer_size))
             self._complete_download(local_path)
         except Exception as ex:
-            print(ex)
             local_path.unlink(True)
             raise ex from ex
 
@@ -185,7 +184,7 @@ class BaseStorageHandle:
         elif hasattr(local_path, 'read'):
             yield from self._read_in_chunks(local_path, buffer_size)
         elif hasattr(local_path, '__iter__'):
-            yield from HaltFlag.iterate(local_path, self._halt_flag, True)
+            yield from HaltFlag._iterate(local_path, self._halt_flag, True)
 
     @local_file_error_wrap
     def _read_in_chunks(self, readable, buffer_size: int) -> t.Iterable[bytes]:
@@ -200,7 +199,7 @@ class BaseStorageHandle:
         """Write chunks to a local file."""
         try:
             with open(local_path, "wb") as dest:
-                for chunk in HaltFlag.iterate(chunks, self._halt_flag, True):
+                for chunk in HaltFlag._iterate(chunks, self._halt_flag, True):
                     dest.write(chunk)
         except HaltInterrupt as ex:
             local_path.unlink(True)

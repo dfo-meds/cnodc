@@ -78,7 +78,7 @@ class LocalHandle(BaseStorageHandle):
         work = [self._path]
         while work:
             d = work.pop()
-            for file in HaltFlag.iterate(d.iterdir(), self._halt_flag, True):
+            for file in HaltFlag._iterate(d.iterdir(), self._halt_flag, True):
                 if file.is_dir():
                     if recursive:
                         work.append(file)

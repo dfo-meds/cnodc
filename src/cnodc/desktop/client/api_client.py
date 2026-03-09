@@ -67,7 +67,7 @@ class _WebAPIClient:
             if action_content != b'':
                 actions = json.loads(action_content.decode('utf-8'))
 
-            yield record_id, record_hash, codec.decode_messages([record_content]), actions
+            yield record_id, record_hash, codec.decode_records([record_content]), actions
 
     def make_json_dict_list_request(self, *args, **kwargs) -> t.Iterable[dict]:
         response = self._make_raw_request(*args, **kwargs)

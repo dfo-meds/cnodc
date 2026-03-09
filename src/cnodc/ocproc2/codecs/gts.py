@@ -1,11 +1,13 @@
-from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader
+from uncertainties.umath_core import message
+
+from cnodc.ocproc2.codecs.base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader
 import typing as t
 
 
 class GtsSubDecoder:
 
-    def decode_message(self, header: str, input_) -> DecodeResult:
-        raise NotImplementedError()
+    def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool) -> DecodeResult:
+        raise NotImplementedError  # pragma: no coverage (default)
 
 
 class GtsCodec(BaseCodec):
@@ -16,17 +18,18 @@ class GtsCodec(BaseCodec):
 
     def __init__(self, *args, **kwargs):
         from cnodc.ocproc2.codecs.wmo.bufr import Bufr4Decoder
+        from cnodc.ocproc2.codecs.wmo.ascii import DriftingBuoyZZYY,TrackObNNXX, BathyJJVV, TesacKKYY
         super().__init__(log_name="cnodc.codecs.gts", is_decoder=True, *args, **kwargs)
-        self._sub_codecs: dict[str, GtsSubDecoder] = {
-            'BUFR4': Bufr4Decoder(),
-            'ZZYY': DriftingBuoyZZYY(),
-            'NNXX': TrackObNNXX(),
-            'JJVV': BathyJJVV(),
-            'KKYY': TesacKKYY()
+        self._sub_codecs: dict[bytes, GtsSubDecoder] = {
+            b'BUFR': Bufr4Decoder(),
+            b'ZZYY': DriftingBuoyZZYY(),
+            b'NNXX': TrackObNNXX(),
+            b'JJVV': BathyJJVV(),
+            b'KKYY': TesacKKYY()
         }
         self._skip_ascii = []
 
-    def _decode(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
+    def _decode_records(self, data: ByteIterable, **kwargs) -> t.Iterable[DecodeResult]:
         reader = ByteSequenceReader(data)
         header = ''
         reader.lstrip(GtsCodec.WHITESPACE)
@@ -37,64 +40,20 @@ class GtsCodec(BaseCodec):
             if self._is_gts_header(test_line):
                 header = reader.consume_line(True).decode('ascii')
             reader.lstrip(GtsCodec.WHITESPACE)
-            if skip_to is not None:
-                x = self._attempt_decode_next_gts_message(reader, header, skip_to > current_idx)
-                if x is not None:
-                    yield x
-                current_idx += 1
-            else:
-                x = self._attempt_decode_next_gts_message(reader, header)
-                if x is not None:
-                    yield x
+            x = self._attempt_decode_next_gts_message(reader, header, skip_to is not None and (skip_to > current_idx))
+            if x is not None:
+                yield x
+            current_idx += 1
             reader.lstrip(GtsCodec.WHITESPACE)
 
     def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> t.Optional[DecodeResult]:
         message_type = reader.peek(5)
-        if message_type.startswith(b'BUFR'):
-            return self._decode_bufr(reader, header, skip_decode)
-        elif message_type == b'KKYY ':
-            return self._decode_basic_ascii('KKYY', reader, header, skip_decode)
-        elif message_type == b'JJVV ':
-            return self._decode_basic_ascii('JJVV', reader, header, skip_decode)
-        elif message_type == b'NNXX ':
-            return self._decode_basic_ascii('NNXX', reader, header, skip_decode)
-        elif message_type == b'ZZYY ':
-            return self._decode_basic_ascii('ZZYY', reader, header, skip_decode)
-        else:
-            discard_line = reader.consume_line(True)
-            self.log.debug(f"Discarding line {discard_line.decode('ascii', 'replace')}, unrecognized start sequence")
-            return None
-
-    def _decode_bufr(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
-        reader.consume(4)
-        message_length = int.from_bytes(reader.consume(3), 'big')
-        bufr_version = int(reader.consume(1)[0])
-        content = bytearray()
-        content.extend(b'BUFR')
-        content.extend(message_length.to_bytes(3, 'big'))
-        content.extend(bufr_version.to_bytes(1, 'big'))
-        content.extend(reader.consume(message_length - 8))
-        if skip_decode:
-            return DecodeResult(skipped=True)
-        if bufr_version == 4:
-            try:
-                return self._sub_codecs['BUFR4'].decode_message(header, content)
-            except Exception as ex:
-                return DecodeResult(exc=ex, original=header.encode('ascii') + b'\n' + content)
-        else:
-            return DecodeResult(
-                exc=Exception(f'Invalid BUFR version [{bufr_version}]'),
-                original=content
-            )
-
-    def _decode_basic_ascii(self, message_type: str, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> DecodeResult:
-        body = reader.consume_until(b'=')
-        if skip_decode:
-            return DecodeResult(skipped=True)
-        try:
-            return self._sub_codecs[message_type].decode_message(header, body)
-        except Exception as ex:
-            return DecodeResult(exc=ex, original=header.encode('ascii') + b"\n" + body)
+        for key in self._sub_codecs:
+            if message_type.startswith(key):
+                return self._sub_codecs[key].decode_from_bytes(reader, header, skip_decode)
+        discard_line = reader.consume_line(True)
+        self.log.debug(f"Discarding line {discard_line.decode('ascii', 'replace')}, unrecognized start sequence")
+        return None
 
     def _is_gts_header(self, s: str) -> bool:
         s = s.strip(GtsCodec.WHITESPACE.decode('ascii'))
@@ -124,43 +83,3 @@ class GtsCodec(BaseCodec):
             if not s[19:].isupper():
                 return False
         return True
-
-
-class DriftingBuoyZZYY(GtsSubDecoder):
-
-    def __init__(self):
-        pass
-
-    def decode_message(self, header: str, ascii_message: bytearray) -> DecodeResult:
-        original = header.encode('ascii') + b'\n' + ascii_message
-        return DecodeResult(exc=Exception("not supported yet"), original=original)
-
-
-class TrackObNNXX(GtsSubDecoder):
-
-    def __init__(self):
-        pass
-
-    def decode_message(self, header: str, ascii_message: bytearray) -> DecodeResult:
-        original = header.encode('ascii') + b'\n' + ascii_message
-        return DecodeResult(exc=Exception("not supported yet"), original=original)
-
-
-class BathyJJVV(GtsSubDecoder):
-
-    def __init__(self):
-        pass
-
-    def decode_message(self, header: str, ascii_message: bytearray) -> DecodeResult:
-        original = header.encode('ascii') + b'\n' + ascii_message
-        return DecodeResult(exc=Exception("not supported yet"), original=original)
-
-
-class TesacKKYY(GtsSubDecoder):
-
-    def __init__(self):
-        pass
-
-    def decode_message(self, header: str, ascii_message: bytearray) -> DecodeResult:
-        original = header.encode('ascii') + b'\n' + ascii_message
-        return DecodeResult(exc=Exception("not supported yet"), original=original)

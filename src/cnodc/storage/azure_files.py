@@ -120,7 +120,7 @@ class AzureFileHandle(UrlBaseHandle):
     @wrap_azure_errors
     def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         stream = self.file_client().download_file()
-        for chunk in HaltFlag.iterate(stream.chunks(), self._halt_flag, True):
+        for chunk in HaltFlag._iterate(stream.chunks(), self._halt_flag, True):
             yield chunk
 
     def _write_chunks(self, chunks: t.Iterable[bytes]):
@@ -169,7 +169,7 @@ class AzureFileHandle(UrlBaseHandle):
     def walk(self, recursive: bool = True) -> t.Iterable:
         client = self.directory_client()
         more_work: list[AzureFileHandle] = []
-        for file in HaltFlag.iterate(client.list_directories_and_files(), self._halt_flag, True):
+        for file in HaltFlag._iterate(client.list_directories_and_files(), self._halt_flag, True):
             if isinstance(file, FileProperties):
                 yield self.child(file.name, False)
             elif isinstance(file, DirectoryProperties):

@@ -14,7 +14,7 @@ def transcode(source_file: str,
     destination_file = pathlib.Path(destination_file) if not isinstance(destination_file, pathlib.Path) else destination_file
     source_codec = find_codec(source_file.name, source_encoding)
     destination_codec = find_codec(destination_file.name, destination_encoding)
-    destination_codec.dump(destination_file, source_codec.load_all(source_file, fail_on_error=True, **source_kwargs), **destination_kwargs)
+    destination_codec.dump(destination_file, source_codec.load(source_file, fail_on_error=True, **source_kwargs), **destination_kwargs)
 
 
 def find_codec(file_name: str, encoding: t.Optional[str] = None) -> BaseCodec:
