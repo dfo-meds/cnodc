@@ -19,5 +19,3 @@
     should give better results.
 """
 
-from cnodc.processing.workers.payload_worker import WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker, BatchWorkflowWorker
-from cnodc.processing.control.single import SingleProcessController

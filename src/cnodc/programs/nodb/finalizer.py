@@ -1,5 +1,5 @@
 from cnodc.processing.workers.payload_worker import BatchWorkflowWorker
-import cnodc.nodb.structures as structures
+import cnodc.nodb as nodb
 import typing as t
 
 from cnodc.processing.workers.queue_worker import QueueItemResult
@@ -27,19 +27,19 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
     def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]:
         batch = payload.load_batch(self._db)
         memory = {}
-        if batch.status != structures.BatchStatus.COMPLETE:
+        if batch.status != nodb.BatchStatus.COMPLETE:
             for working in batch.stream_working_records(self._db):
                 self._finalizer.create_completed_entry(
                     self._db,
-                    working.record,
-                    working.received_date,
-                    working.message_idx,
-                    working.record_idx,
-                    working.source_file_uuid,
-                    memory
+                    record=working.record,
+                    received_date=working.received_date,
+                    message_idx=working.message_idx,
+                    record_idx=working.record_idx,
+                    source_file_uuid=working.source_file_uuid,
+                    memory=memory
                 )
                 self._db.delete_object(working)
-            batch.status = structures.BatchStatus.COMPLETE
+            batch.status = nodb.BatchStatus.COMPLETE
             self._db.update_object(batch)
             self.progress_payload(prevent_default_progression=True)
 

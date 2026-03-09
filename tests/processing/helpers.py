@@ -3,8 +3,7 @@ import typing as t
 import uuid
 
 from cnodc.nodb import NODBQueueItem, QueueStatus
-from cnodc.processing import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
-from cnodc.processing.workers.payload_worker import ObservationWorkflowWorker
+from cnodc.processing.workers.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker, ObservationWorkflowWorker
 from cnodc.processing.workers.queue_worker import QueueWorker
 from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workflow.payloads import WorkflowPayload
@@ -69,6 +68,7 @@ class WorkerTestController:
         finally:
             worker.after_cycle()
             worker.on_exit(exc)
+            self._db.commit()
         return worker
 
     def build_test_worker(self, worker_cls: type, worker_config: dict = None):

@@ -6,11 +6,9 @@ import threading
 import zrlog
 
 import itsdangerous
-import zirconium as zr
-from cnodc.nodb import NODBController, LockType
 from autoinject import injector
 from cnodc.util import CNODCError
-import cnodc.nodb.structures as structures
+from cnodc.nodb import NODBSession, NODBUser, NODBController, LockType, UserStatus
 
 
 @injector.injectable_global
@@ -24,7 +22,7 @@ class LoginController:
         self._serializer_lock = threading.Lock()
         self._logger = zrlog.get_logger("cnodc.loginctrl")
 
-    def do_login(self, username: str, password: str) -> structures.NODBSession:
+    def do_login(self, username: str, password: str) -> NODBSession:
         if not flask.has_request_context():
             self._logger.error(f"Login failed for user [{username}], no request context")
             raise CNODCError("Login only available in request context", "LOGINCTRL", 1000)
@@ -37,7 +35,7 @@ class LoginController:
             raise CNODCError("Already logged in", "LOGINCTRL", 1002)
         session_time = self._get_session_time()
         with self.nodb as db:
-            user: structures.NODBUser = structures.NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
+            user: NODBUser = NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             if not user:
                 self._logger.error(f"Login failed for user [{username}], invalid username")
                 raise CNODCError(f"Invalid username or password", "LOGINCTRL", 1003)
@@ -45,7 +43,7 @@ class LoginController:
                 self._logger.error(f"Login failed for user [{username}], invalid password")
                 raise CNODCError(f"Invalid username or password", "LOGINCTRL", 1003)
             user.cleanup()
-            session = structures.NODBSession()
+            session = NODBSession()
             session.username = user.username
             session.session_id = secrets.token_hex(32)
             session.start_time = datetime.datetime.now(datetime.timezone.utc)
@@ -61,7 +59,7 @@ class LoginController:
             self._logger.notice(f"User [{username}] logged in")
             return session
 
-    def renew_session(self) -> structures.NODBSession:
+    def renew_session(self) -> NODBSession:
         if not flask.has_request_context():
             self._logger.error(f"Renewal for current user failed, no request context")
             raise CNODCError("Session renewal only available in request context", "LOGINCTRL", 1006)
@@ -93,7 +91,7 @@ class LoginController:
             session_time = 86400
         return int(session_time)
 
-    def generate_token(self, session: structures.NODBSession):
+    def generate_token(self, session: NODBSession):
         serializer = self._get_serializer()
         return serializer.dumps(session.session_id)
 
@@ -138,7 +136,7 @@ class LoginController:
 
     def _load_session(self, session_id: str):
         with self.nodb as db:
-            flask.g.session = structures.NODBSession.find_by_session_id(
+            flask.g.session = NODBSession.find_by_session_id(
                 db,
                 session_id,
                 lock_type=LockType.FOR_NO_KEY_UPDATE
@@ -150,7 +148,7 @@ class LoginController:
                 db.delete_session(session_id)
                 db.commit()
                 return False
-            flask.g.user = structures.NODBUser.find_by_username(
+            flask.g.user = NODBUser.find_by_username(
                 db,
                 flask.g.session.username
             )
@@ -163,12 +161,12 @@ class LoginController:
             self._logger.debug(f"User roles: [{';'.join(flask.g.user.roles or [])}]; permissions: [{';'.join(flask.g.permissions)}]")
             return True
 
-    def current_session(self) -> t.Optional[structures.NODBSession]:
+    def current_session(self) -> t.Optional[NODBSession]:
         if flask.has_request_context() and self.verify_token():
             return flask.g.session
         return None
 
-    def current_user(self) -> t.Optional[structures.NODBUser]:
+    def current_user(self) -> t.Optional[NODBUser]:
         if flask.has_request_context() and self.verify_token():
             return flask.g.user
         return None
@@ -204,24 +202,24 @@ class UserController:
             )
         with self.nodb as db:
             # Regain lock for password update
-            user = structures.NODBUser.find_by_username(db, user.username, lock_type=LockType.FOR_NO_KEY_UPDATE)
+            user = NODBUser.find_by_username(db, user.username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             user.set_password(password)
             db.upsert_object(user)
             db.commit()
 
     def create_user(self, username: str, password: str):
         with self.nodb as db:
-            existing = structures.NODBUser.find_by_username(db, username)
+            existing = NODBUser.find_by_username(db, username)
             if existing:
                 raise CNODCError(
                     "Cannot create user, username already exists",
                     "USERCTRL",
                     1001
                 )
-            new_user = structures.NODBUser()
+            new_user = NODBUser()
             new_user.username = username
             new_user.set_password(password)
-            new_user.status = structures.UserStatus.ACTIVE
+            new_user.status = UserStatus.ACTIVE
             db.upsert_object(new_user)
             db.commit()
 
@@ -233,7 +231,7 @@ class UserController:
                 1002
             )
         with self.nodb as db:
-            existing: structures.NODBUser = structures.NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
+            existing: NODBUser = NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             if not existing:
                 raise CNODCError(
                     "Cannot update user, no such user",
@@ -243,15 +241,15 @@ class UserController:
             if password is not None:
                 existing.set_password(password, old_expiry_seconds=old_expiry_seconds)
             if is_active is True:
-                existing.status = structures.UserStatus.ACTIVE
+                existing.status = UserStatus.ACTIVE
             elif is_active is False:
-                existing.status = structures.UserStatus.INACTIVE
+                existing.status = UserStatus.INACTIVE
             db.upsert_object(existing)
             db.commit()
 
     def assign_role(self, username: str, role_name: str):
         with self.nodb as db:
-            existing: structures.NODBUser = structures.NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
+            existing: NODBUser = NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             if not existing:
                 raise CNODCError(
                     "Cannot assign user to role, no such user",
@@ -264,7 +262,7 @@ class UserController:
 
     def unassign_role(self, username: str, role_name: str):
         with self.nodb as db:
-            existing: structures.NODBUser = structures.NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
+            existing: NODBUser = NODBUser.find_by_username(db, username, lock_type=LockType.FOR_NO_KEY_UPDATE)
             if not existing:
                 raise CNODCError(
                     "Cannot remove user from role, no such user",

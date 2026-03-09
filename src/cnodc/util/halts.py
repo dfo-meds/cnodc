@@ -30,19 +30,17 @@ class HaltFlag:
             if not self.check_continue(raise_ex):
                 break
 
-    def read_all(self, readable: Readable, chunk_size: int = None, raise_ex: bool = False):
+    def read_all(self, readable: Readable, chunk_size: int = None):
         chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
         while (data := readable.read(chunk_size)) not in (b'', ''):
             yield data
-            if not self.check_continue(raise_ex):
-                break
+            self.check_continue()
 
-    def copy_data(self, readable: Readable, writable: Writable, chunk_size: int = None, raise_ex: bool = True):
+    def copy_data(self, readable: Readable, writable: Writable, chunk_size: int = None):
         chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
         while (data := readable.read(chunk_size)) not in (b'', ''):
             writable.write(data)
-            if not self.check_continue(raise_ex):
-                break
+            self.check_continue()
 
     @staticmethod
     def _iterate(iterable: t.Iterable, halt_flag=None, raise_ex: bool = True):

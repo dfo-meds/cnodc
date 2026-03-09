@@ -4,11 +4,12 @@ import hashlib
 import uuid
 
 from cnodc.nodb import LockType
+from cnodc.nodb.observations import NODBWorkingRecord
 from cnodc.processing.workers.payload_worker import WorkflowWorker
 import typing as t
-import cnodc.nodb.structures as structures
+import cnodc.nodb as nodb
 from cnodc.processing.workers.queue_worker import QueueItemResult
-from cnodc.programs.nodb.qc import QCTestRunner
+from cnodc.programs.nodb.qc.qc import QCTestRunner
 from cnodc.util import dynamic_object, CNODCError
 from cnodc.processing.workflow.payloads import WorkflowPayload, SourceFilePayload, BatchPayload
 import cnodc.ocproc2 as ocproc2
@@ -67,11 +68,11 @@ class NODBQCWorker(WorkflowWorker):
         payload.enqueue(self._db, queue_name)
 
     def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
-        batch = structures.NODBBatch()
+        batch = nodb.NODBBatch()
         batch.batch_uuid = str(uuid.uuid4())
-        batch.status = structures.BatchStatus.QUEUED
+        batch.status = nodb.BatchStatus.QUEUED
         self._db.insert_object(batch)
-        structures.NODBWorkingRecord.bulk_set_batch_uuid(self._db, working_uuids, batch.batch_uuid)
+        NODBWorkingRecord.bulk_set_batch_uuid(self._db, working_uuids, batch.batch_uuid)
         self.submit_existing_batch(batch.batch_uuid, batch_outcome, group_key)
 
     def _build_batcher(self, payload: WorkflowPayload):
@@ -113,14 +114,14 @@ class NODBQCWorker(WorkflowWorker):
         else:
             raise CNODCError(f'Invalid payload type for QC processing (must be batch or source file, found {payload.__class__.__name__})')
 
-    def _process_records(self, records: t.Iterable[structures.NODBWorkingRecord], separator):
+    def _process_records(self, records: t.Iterable[NODBWorkingRecord], separator):
         for wr, dr, outcome, is_modified in self._test_runner.process_batch(records):
             if is_modified:
                 self._update_working_record(wr, dr)
             separator.add_result(wr, dr, outcome)
 
     def _update_working_record(self,
-                               working_record: structures.NODBWorkingRecord,
+                               working_record: NODBWorkingRecord,
                                data_record: ocproc2.ParentRecord):
         if data_record.metadata.has_value('CNODCStation'):
             working_record.station_uuid = data_record.metadata.best('CNODCStation')
@@ -168,7 +169,7 @@ class BaseResultBatcher:
             return record.metadata.best('CNODCStationString')
         return None
 
-    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
+    def add_result(self, working: NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
         raise NotImplementedError
 
     def flush_all(self):
@@ -181,7 +182,7 @@ class SimpleResultBatcher(BaseResultBatcher):
         super().__init__(**kwargs, remove_original_batch=False)
         self._batch_ids = {}
 
-    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
+    def add_result(self, working: NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
         if working.qc_batch_id is None:
             raise ValueError('missing batch id')
         batch_outcome = self._determine_batch_outcome(outcome)
@@ -207,7 +208,7 @@ class StationResultBatcher(BaseResultBatcher):
         self._result_batches = {}
         self._current_total = 0
 
-    def add_result(self, working: structures.NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
+    def add_result(self, working: NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):
         group_key = self._generate_unique_group(record)
         target_queue = self._determine_batch_outcome(outcome)
         batch_key = self._generate_batch_key(group_key)

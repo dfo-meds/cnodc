@@ -188,12 +188,13 @@ class ParentRecord(BaseRecord):
                               outcome: QCResult,
                               messages: list[QCMessage],
                               notes: str = None,
-                              test_tags: t.Optional[list[str]] = None):
+                              test_tags: t.Optional[list[str]] = None,
+                              test_time: t.Optional[datetime.datetime] = None):
         self.mark_test_results_stale(test_name)
         self.qc_tests.append(QCTestRunInfo(
             test_name,
             test_version,
-            datetime.datetime.now(datetime.timezone.utc),
+            test_time or datetime.datetime.now(datetime.timezone.utc),
             outcome,
             messages,
             notes,

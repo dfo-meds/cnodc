@@ -12,7 +12,7 @@ from cnodc.ocproc2.operations import QCOperator
 import cnodc.ocproc2 as ocproc2
 from cnodc.util import CNODCError, clean_for_json, vlq_encode
 import uuid
-import cnodc.nodb.structures as structures
+import cnodc.nodb as structures
 import threading
 import itsdangerous
 

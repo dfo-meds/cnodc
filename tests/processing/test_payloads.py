@@ -5,7 +5,7 @@ import datetime
 
 from cnodc.nodb import NODBBatch, NODBObservation, NODBObservationData, NODBUploadWorkflow
 from cnodc.processing.workflow.payloads import FileInfo, WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, ObservationPayload
-from cnodc.nodb.structures import NODBSourceFile
+from cnodc.nodb import NODBSourceFile
 from cnodc.util import CNODCError
 
 from core import BaseTestCase

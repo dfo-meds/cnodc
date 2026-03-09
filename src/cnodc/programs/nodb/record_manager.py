@@ -5,7 +5,7 @@ import uuid
 from autoinject import injector
 
 from cnodc import ocproc2 as ocproc2
-from cnodc.nodb import structures as structures
+from cnodc.nodb.observations import NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, NODBMission
 from cnodc.ocproc2.ontology import OCProc2Ontology
 from cnodc.science.units import UnitConverter
 
@@ -20,77 +20,56 @@ class NODBRecordManager:
         self._log = logging.getLogger("cnodc.nodb.record_manager")
 
     def create_completed_entry(self, db, record: ocproc2.ParentRecord, source_file_uuid: str, received_date: datetime.date, message_idx: int, record_idx: int, memory: dict):
-        check = structures.NODBObservationData.find_by_source_info(
+        check = NODBObservationData.find_by_source_info(
             db, source_file_uuid, received_date, message_idx, record_idx, record.metadata.best('CNODCLevel', 'UNKNOWN'), key_only=True
         )
         if check is not None:
             return False
-        if record.metadata.has_value('CNODCPlatform'):
-            self._prune_platform_metadata(db, record, memory)
-        if record.metadata.has_value('CNODCMission'):
-            self._prune_mission_metadata(db, record, memory)
+        self._prune_platform_metadata(db, record, memory)
+        self._prune_mission_metadata(db, record, memory)
         obs, obs_data = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx)
         db.insert_object(obs)
         db.insert_object(obs_data)
         return True
 
     def _prune_platform_metadata(self, db, record: ocproc2.ParentRecord, memory: dict):
-        if not record.metadata.has_value('CNODCPlatform'):
-            return
-        platform_uuid = record.metadata['CNODCPlatform'].value
-        if 'platform_info' not in memory:
-            memory['platform_info'] = {}
-        platform = None
-        if platform_uuid not in memory['platform_info']:
-            platform = structures.NODBPlatform.find_by_uuid(db, platform_uuid)
-            if platform:
-                memory['platform_info'][platform_uuid] = (platform.metadata, {})
-            else:
-                memory['platform_info'][platform_uuid] = None
-        if memory['platform_info'][platform_uuid] is None:
-            return
-        unloaded, loaded = memory['platform_info'][platform_uuid]
-        changed = False
-        for element_name in record.metadata.keys():
-            element_group = self.ontology.group_name(element_name)
-            if element_group == 'metadata:platform':
-                if element_name not in unloaded:
-                    unloaded[element_name] = record.metadata[element_name].to_mapping()
-                    changed = True
-                    loaded[element_name] = record.metadata[element_name]
-                    del record.metadata[element_name]
-                else:
-                    if element_name not in loaded:
-                        loaded[element_name] = ocproc2.AbstractElement.build_from_mapping(unloaded[element_name])
-                    if loaded[element_name] == record.metadata[element_name]:
-                        del record.metadata[element_name]
-        if changed:
-            if platform is None:
-                platform = structures.NODBPlatform.find_by_uuid(db, platform_uuid)
-            platform.metadata = unloaded
-            db.update_object(platform)
-
+        self._prune_metadata(
+            db,
+            record,
+            memory,
+            'CNODCPlatform',
+            'metadata:platform',
+            NODBPlatform.find_by_uuid
+        )
 
     def _prune_mission_metadata(self, db, record: ocproc2.ParentRecord, memory: dict):
-        if not record.metadata.has_value('CNODCMission'):
+        self._prune_metadata(
+            db,
+            record,
+            memory,
+            'CNODCMission',
+            'metadata:mission',
+            NODBMission.find_by_uuid
+        )
+
+    def _prune_metadata(self, db, record: ocproc2.ParentRecord, memory, lookup_key_name, group_name, finder: callable):
+        if not record.metadata.has_value(lookup_key_name):
             return
-        mission_uuid = record.metadata['CNODCMission'].value
-        if 'mission_info' not in memory:
-            memory['mission_info'] = {}
-        mission = None
-        if mission_uuid not in memory['mission_info']:
-            mission = structures.NODBMission.find_by_uuid(db, mission_uuid)
-            if mission:
-                memory['mission_info'][mission_uuid] = (mission.metadata, {})
-            else:
-                memory['mission_info'][mission_uuid] = None
-        if memory['mission_info'][mission_uuid] is None:
+        obj_uuid = record.metadata[lookup_key_name].value
+        if lookup_key_name not in memory:
+            memory[lookup_key_name] = {}
+        mem = memory[lookup_key_name]
+        obj = None
+        if obj_uuid not in mem:
+            obj = finder(db, obj_uuid)
+            mem[obj_uuid] = (obj.metadata or {}, {}) if obj else None
+        if mem[obj_uuid] is None:
             return
-        unloaded, loaded = memory['mission_info'][mission_uuid]
+        unloaded, loaded = mem[obj_uuid]
         changed = False
-        for element_name in record.metadata.keys():
+        for element_name in list(record.metadata.keys()):
             element_group = self.ontology.group_name(element_name)
-            if element_group == 'metadata:mission':
+            if element_group == group_name:
                 if element_name not in unloaded:
                     unloaded[element_name] = record.metadata[element_name].to_mapping()
                     changed = True
@@ -102,13 +81,13 @@ class NODBRecordManager:
                     if loaded[element_name] == record.metadata[element_name]:
                         del record.metadata[element_name]
         if changed:
-            if mission is None:
-                mission = structures.NODBMission.find_by_uuid(db, mission_uuid)
-            mission.metadata = unloaded
-            db.update_object(mission)
+            if obj is None:
+                obj = finder(db, obj_uuid)
+            obj.metadata = unloaded
+            db.update_object(obj)
 
     def create_working_entry(self, db, record: ocproc2.ParentRecord, source_file_uuid: str, received_date: datetime.date, message_idx: int, record_idx: int):
-        check = structures.NODBWorkingRecord.find_by_source_info(
+        check = NODBWorkingRecord.find_by_source_info(
             db, source_file_uuid, received_date, message_idx, record_idx, key_only=True
         )
         if check is not None:
@@ -122,27 +101,24 @@ class NODBRecordManager:
                                  source_file_uuid: str,
                                  received_date: datetime.date,
                                  message_idx: int,
-                                 record_idx: int) -> structures.NODBWorkingRecord:
-        working_record = structures.NODBWorkingRecord()
+                                 record_idx: int) -> NODBWorkingRecord:
+        working_record = NODBWorkingRecord()
         working_record.working_uuid = str(uuid.uuid4())
         working_record.received_date = received_date
         working_record.message_idx = message_idx
         working_record.record_idx = record_idx
         working_record.source_file_uuid = source_file_uuid
-        self._populate_working_observation_data(working_record, record)
-        return working_record
-
-    def _populate_working_observation_data(self, working_record: structures.NODBWorkingRecord, record: ocproc2.ParentRecord):
         working_record.record = record
+        return working_record
 
     def build_nodb_entry(self,
                          record: ocproc2.ParentRecord,
                          source_file_uuid: str,
                          received_date: datetime.date,
                          message_idx: int,
-                         record_idx: int) -> tuple[structures.NODBObservation, structures.NODBObservationData]:
+                         record_idx: int) -> tuple[NODBObservation, NODBObservationData]:
         self.finalize(record, True)
-        obs_data = structures.NODBObservationData()
+        obs_data = NODBObservationData()
         obs_data.obs_uuid = str(uuid.uuid4())
         obs_data.received_date = received_date
         record.metadata['CNODCID'] = f"{obs_data.received_date.strftime('%Y%m%d')}/{obs_data.obs_uuid}"
@@ -151,9 +127,10 @@ class NODBRecordManager:
         obs_data.source_file_uuid = source_file_uuid
         obs_data.record = record
 
-        obs = structures.NODBObservation()
+        obs = NODBObservation()
         obs.obs_uuid = obs_data.obs_uuid
         obs.received_date = obs_data.received_date
+        obs.update_from_record(record)
 
         return obs, obs_data
 

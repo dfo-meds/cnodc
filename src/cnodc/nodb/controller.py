@@ -13,8 +13,8 @@ import psycopg2.extras as pge
 import zirconium as zr
 from autoinject import injector
 import typing as t
-from psycopg2._psycopg import cursor as PGCursor
-import cnodc.nodb.structures as structures
+
+from cnodc.nodb import NODBQueueItem
 from cnodc.nodb.base import NODBBaseObject
 from cnodc.util import CNODCError
 
@@ -453,10 +453,10 @@ class NODBControllerInstance:
             yield values[x:x+self._max_in_size]
             x += self._max_in_size
 
-    def load_queue_item(self, queue_uuid) -> t.Optional[structures.NODBQueueItem]:
+    def load_queue_item(self, queue_uuid) -> t.Optional[NODBQueueItem]:
         """Find a queue item."""
         return self.load_object(
-            obj_cls=structures.NODBQueueItem,
+            obj_cls=NODBQueueItem,
             filters={"queue_uuid": queue_uuid}
         )
 
@@ -464,7 +464,7 @@ class NODBControllerInstance:
                               queue_name: str,
                               app_id: str,
                               subqueue_name: t.Optional[str] = None,
-                              retries: int = 1) -> t.Optional[structures.NODBQueueItem]:
+                              retries: int = 1) -> t.Optional[NODBQueueItem]:
         """Get the next queue item."""
         with self.cursor() as cur:
             while retries > 0:

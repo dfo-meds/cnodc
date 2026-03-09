@@ -7,10 +7,10 @@ import zrlog
 import cnodc.ocproc2 as ocproc2
 import cnodc.science.amath
 from cnodc.nodb import NODBController, NODBControllerInstance
+from cnodc.nodb.observations import NODBWorkingRecord, NODBPlatform
 from cnodc.science.seawater import eos80_pressure
 from cnodc.science.units import UnitConverter
 from autoinject import injector
-import cnodc.nodb.structures as structures
 import cnodc.science.amath as amath
 
 
@@ -56,7 +56,7 @@ class TestContext:
     def __init__(self,
                  record: ocproc2.ParentRecord,
                  batch_context: dict,
-                 working_record: structures.NODBWorkingRecord = None):
+                 working_record: NODBWorkingRecord = None):
         self.batch_context: dict = batch_context
         self.qc_messages: list[ocproc2.QCMessage] = []
         self.top_record: ocproc2.ParentRecord = record
@@ -69,7 +69,7 @@ class TestContext:
         self.result = ocproc2.QCResult.PASS
         self.working_record = working_record
         self.test_tags = set()
-        self._station: t.Optional[structures.NODBStation] = None
+        self._station: t.Optional[NODBPlatform] = None
 
     @contextlib.contextmanager
     def self_context(self):
@@ -451,8 +451,8 @@ class ParameterTest(_ValueTest):
 @injector.injectable_global
 class StationSearcher:
 
-    def find_by_uuid(self, db: NODBControllerInstance, station_uuid: str) -> t.Optional[structures.NODBStation]:
-        return structures.NODBStation.find_by_uuid(db, station_uuid)
+    def find_by_uuid(self, db: NODBControllerInstance, station_uuid: str) -> t.Optional[NODBPlatform]:
+        return NODBPlatform.find_by_uuid(db, station_uuid)
 
     def search_stations(self,
                         db: NODBControllerInstance,
@@ -461,7 +461,7 @@ class StationSearcher:
                         station_name=None,
                         wmo_id=None,
                         wigos_id=None):
-        return structures.NODBStation.search(
+        return NODBPlatform.search(
             db,
             in_service_time=in_service_time,
             station_id=station_id,
@@ -796,12 +796,12 @@ class BaseTestSuite:
         if not cnodc.science.amath.is_greater_than(v, expected, rel_tol, abs_tol):
             self.report_for_review(error_code, qc_flag, expected)
 
-    def load_station(self, context: TestContext) -> t.Optional[structures.NODBStation]:
+    def load_station(self, context: TestContext) -> t.Optional[NODBPlatform]:
         if context._station is None:
-            context._station = self._load_station(context.top_record.metadata.best('CNODCStation'))
+            context._station = self._load_station(context.top_record.metadata.best('CNODCPlatform'))
         return context._station
 
-    def _load_station(self, station_uuid: str) -> t.Optional[structures.NODBStation]:
+    def _load_station(self, station_uuid: str) -> t.Optional[NODBPlatform]:
         if station_uuid is not None:
             if self._db is None:
                 with self.nodb as db:
@@ -832,7 +832,7 @@ class BaseTestSuite:
             with ctx.self_context() as ctx:
                 cb(subrecord, ctx, *args, **kwargs)
 
-    def iterate_on_subvalues(self, context: TestContext) -> t.Iterable[ocproc2.SingleElement, TestContext]:
+    def iterate_on_subvalues(self, context: TestContext) -> t.Iterable[tuple[ocproc2.SingleElement, TestContext]]:
         if isinstance(context.current_value, ocproc2.MultiElement):
             for idx, subv in enumerate(context.current_value.values()):
                 with context.multivalue_context(idx) as ctx:
@@ -893,7 +893,7 @@ class BaseTestSuite:
                 return v.value
         return None
 
-    def copy_original_quality(self, value: ocproc2.Element):
+    def copy_original_quality(self, value: ocproc2.AbstractElement):
         value.metadata['WorkingQuality'] = value.metadata.best('Quality', 1)
 
 
@@ -922,10 +922,10 @@ class QCTestRunner:
     def test_names(self):
         return [t.test_name for t in self._qc_tests]
 
-    def process_batch(self, batch: t.Iterable[structures.NODBWorkingRecord]) -> t.Iterable[tuple[structures.NODBWorkingRecord, ocproc2.ParentRecord, ocproc2.QCResult, bool]]:
+    def process_batch(self, batch: t.Iterable[NODBWorkingRecord]) -> t.Iterable[tuple[NODBWorkingRecord, ocproc2.ParentRecord, ocproc2.QCResult, bool]]:
         batch_context = {}
         if self._has_batch_tests:
-            working_batch: dict[str, tuple[structures.NODBWorkingRecord, ocproc2.ParentRecord]] = {}
+            working_batch: dict[str, tuple[NODBWorkingRecord, ocproc2.ParentRecord]] = {}
             for wr in batch:
                 record = wr.record
                 skip_result = self._check_skip_all(wr, record)
@@ -970,7 +970,7 @@ class QCTestRunner:
                     results[record_uuid][1] = True
         return results
 
-    def _check_skip_all(self, wr: structures.NODBWorkingRecord, record: ocproc2.ParentRecord) -> t.Optional[tuple[ocproc2.QCResult, bool]]:
+    def _check_skip_all(self, wr: NODBWorkingRecord, record: ocproc2.ParentRecord) -> t.Optional[tuple[ocproc2.QCResult, bool]]:
         return None
 
     def set_db_instance(self, db: NODBControllerInstance):

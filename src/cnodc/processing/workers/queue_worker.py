@@ -14,8 +14,7 @@ from autoinject import injector
 
 from cnodc.processing.control.base import BaseWorker
 from cnodc.util import CNODCError, HaltInterrupt
-from cnodc.nodb import NODBController, NODBControllerInstance
-import cnodc.nodb.structures as structures
+from cnodc.nodb import NODBController, NODBControllerInstance, NODBQueueItem
 from cnodc.nodb.controller import NODBError
 
 
@@ -47,7 +46,7 @@ class QueueWorker(BaseWorker):
         self._queue_name = None
         self._app_id = None
         self._current_delay_time = None
-        self._current_item: t.Optional[structures.NODBQueueItem] = None
+        self._current_item: t.Optional[NODBQueueItem] = None
         self._db: t.Optional[NODBControllerInstance] = None
 
     def _run(self):
@@ -111,11 +110,11 @@ class QueueWorker(BaseWorker):
     def autocomplete(self, queue_item):
         queue_item.mark_complete(self._db)
 
-    def _process_result(self, queue_item: structures.NODBQueueItem, result: t.Optional[QueueItemResult], ex: Exception = None):
+    def _process_result(self, queue_item: NODBQueueItem, result: t.Optional[QueueItemResult], ex: Exception = None):
         """Handle the result of calling the queue processing function."""
         if queue_item is not None:
             if ex is not None:
-                self._log.error(f"An exception occurred while processing [{queue_item.queue_uuid}]: {type(ex)}: {str(ex)}")
+                self._log.exception(f"An exception occurred while processing [{queue_item.queue_uuid}]: {type(ex)}: {str(ex)}")
             if result is None or result == QueueItemResult.SUCCESS:
                 self.autocomplete(queue_item)
                 self.on_success(queue_item)
@@ -140,34 +139,34 @@ class QueueWorker(BaseWorker):
         elif ex is not None:
             self._log.exception(f"An exception occurred while retrieving a queue item: {str(ex)}")
 
-    def on_retry(self, queue_item: structures.NODBQueueItem):
+    def on_retry(self, queue_item: NODBQueueItem):
         """Override to add logic when an item is about to be released to be retried."""
         pass  # pragma: no coverage
 
-    def on_failure(self, queue_item: structures.NODBQueueItem):
+    def on_failure(self, queue_item: NODBQueueItem):
         """Override to add logic when an item is about to be marked as a failure."""
         pass  # pragma: no coverage
 
-    def on_success(self, queue_item: structures.NODBQueueItem):
+    def on_success(self, queue_item: NODBQueueItem):
         """Override to add logic when an item is about to be marked as a success."""
         pass  # pragma: no coverage
 
-    def after_retry(self, queue_item: structures.NODBQueueItem):
+    def after_retry(self, queue_item: NODBQueueItem):
         """Override to add logic after an object has been released to be retried (i.e. after commit)."""
         pass  # pragma: no coverage
 
-    def after_failure(self, queue_item: structures.NODBQueueItem):
+    def after_failure(self, queue_item: NODBQueueItem):
         """Override to add logic after an object has been marked as a failure (i.e. after commit)."""
         pass  # pragma: no coverage
 
-    def after_success(self, queue_item: structures.NODBQueueItem):
+    def after_success(self, queue_item: NODBQueueItem):
         """Override to add logic after an object has been marked as a success (i.e. after commit)."""
         pass  # pragma: no coverage
 
     def on_start(self):
         super().on_start()
         if not self.get_config("queue_name"):
-            raise CNODCError("No queue specified for a queue worker")
+            raise CNODCError("No queue specified for a queue worker", 'QUEUE-WORKER', 1000)
         self._current_delay_time = self.get_config("delay_time_seconds")
         self._app_id = str(uuid.uuid4())
 
@@ -180,6 +179,6 @@ class QueueWorker(BaseWorker):
             self._current_delay_time = _max_time
         return curr_time
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
         """Handle a specific queue item."""
         raise NotImplementedError  # pragma: no coverage

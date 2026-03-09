@@ -446,8 +446,12 @@ class BaseCodec:
     def _decode_records(self,
                         data: ByteIterable,
                         **kwargs) -> t.Iterable[DecodeResult]:
+        idx = 0
         for record_data in self.parse_into_record_bytes(data, **kwargs):
-            yield self._decode_record(record_data, **kwargs)
+            result = self._decode_record(record_data, **kwargs)
+            result.message_idx = idx
+            idx += 1
+            yield result
 
     def _decode_record(self, record_data, **kwargs):
         try:

@@ -260,7 +260,8 @@ class TestParentRecord(ut.TestCase):
             '1_0',
             QCResult.FAIL,
             [QCMessage('hello', 'metadata/Stuff')],
-            ''
+            '',
+            test_time=datetime.datetime(2015, 1, 2, 3, 4, 5)
         )
         pr2 = ParentRecord()
         pr2.record_qc_test_result(
@@ -268,7 +269,8 @@ class TestParentRecord(ut.TestCase):
             '1_0',
             QCResult.FAIL,
             [QCMessage('hello', 'metadata/Stuff')],
-            ''
+            '',
+            test_time=datetime.datetime(2015, 1, 2, 3, 4, 5)
         )
         self.assertEqual(pr2.generate_hash(), pr.generate_hash())
 

@@ -2,6 +2,7 @@
 cover_pylib = false
 omit =
   */cnodc/desktop/*
+  */cnodc/system/web/*
   */cnodc/programs/castaway_ctd/*
   */cnodc/programs/gts_send/*
   */cnodc/programs/gtspp/*

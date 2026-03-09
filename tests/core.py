@@ -5,13 +5,13 @@ import tempfile
 import uuid
 import unittest as ut
 import typing as t
+from contextlib import contextmanager
 
-from prometheus_client.decorator import contextmanager
-
-from cnodc.nodb import QueueStatus
+from cnodc.nodb import QueueStatus, NODBQueueItem
 import datetime
-from cnodc.nodb.structures import NODBQueueItem
 from autoinject import injector
+
+from cnodc.util import CNODCError
 
 
 @injector.injectable
@@ -96,7 +96,7 @@ class DatabaseMock:
 
     def delete_object(self, obj):
         filters = {
-            key: getattr(obj, obj.get_for_db(key))
+            key: obj.get_for_db(key)
             for key in obj.get_primary_keys()
         }
         index = self._find_object_index(obj.get_table_name(), filters)
@@ -205,6 +205,12 @@ class BaseTestCase(ut.TestCase):
     @classmethod
     def tearDownClass(cls):
         del cls.db
+
+    @contextmanager
+    def assertRaisesCNODCError(self, error_code: str):
+        with self.assertRaises(CNODCError) as h:
+            yield h
+        self.assertEqual(error_code, h.exception.internal_code)
 
     @contextmanager
     def assertLogs(self, logger=None, level=None):

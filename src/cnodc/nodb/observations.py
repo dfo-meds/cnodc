@@ -111,23 +111,23 @@ class _RecordMixin:
             self.mark_modified('data_record')
 
     def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
-        _RecordMixin.update_common_from_data_record(self, data_record)
+        update_common_from_data_record(self, data_record)
 
-    @staticmethod
-    def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
-        if hasattr(obj, 'processing_level'):
-            obj.processing_level = ProcessingLevel.UNKNOWN
-            level = data_record.metadata.best('CNODCLevel', None)
-            if level is not None and hasattr(ProcessingLevel, level):
-                obj.processing_level = getattr(ProcessingLevel, level)
-        if hasattr(obj, 'obs_time') and data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
-            obj.obs_time = data_record.coordinates['Time'].to_datetime()
-        if hasattr(obj, 'location') and data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
-            lat = data_record.coordinates['Latitude'].to_float()
-            lon = data_record.coordinates['Longitude'].to_float()
-            obj.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
-        if hasattr(obj, 'platform_uuid') and data_record.metadata.has_value('CNODCPlatform'):
-            obj.platform_uuid = data_record.metadata.best('CNODCPlatform', None)
+
+def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
+    if hasattr(obj, 'processing_level'):
+        obj.processing_level = ProcessingLevel.UNKNOWN
+        level = data_record.metadata.best('CNODCLevel', None)
+        if level is not None and hasattr(ProcessingLevel, level):
+            obj.processing_level = getattr(ProcessingLevel, level)
+    if hasattr(obj, 'obs_time') and data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
+        obj.obs_time = data_record.coordinates['Time'].to_datetime()
+    if hasattr(obj, 'location') and data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
+        lat = data_record.coordinates['Latitude'].to_float()
+        lon = data_record.coordinates['Longitude'].to_float()
+        obj.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
+    if hasattr(obj, 'platform_uuid') and data_record.metadata.has_value('CNODCPlatform'):
+        obj.platform_uuid = data_record.metadata.best('CNODCPlatform', None)
 
 
 class NODBSourceFile(s.NODBBaseObject, s.MetadataMixin):
@@ -375,8 +375,11 @@ class NODBObservation(s.NODBBaseObject):
     processing_level: ProcessingLevel = s.EnumColumn("processing_level", ProcessingLevel)
     embargo_date: datetime.datetime = s.DateTimeColumn("embargo_date")
 
+    def find_observation_data(self, db):
+        return NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date)
+
     def update_from_record(self, record: ocproc2.ParentRecord):
-        _RecordMixin.update_common_from_data_record(self, record)
+        update_common_from_data_record(self, record)
         self.program_name = record.metadata.best('CNODCProgram', None)
         self.source_name = record.metadata.best('CNODCSource', None)
         self.mission_uuid = record.metadata.best('CNODCMission', None)
@@ -465,6 +468,9 @@ class NODBObservationData(s.NODBBaseObject, _RecordMixin, MetadataMixin):
     duplicate_received_date: datetime.date = s.DateColumn("duplicate_received_date")
     status: ObservationStatus = s.EnumColumn("status", ObservationStatus)
     processing_level: ProcessingLevel = s.EnumColumn("processing_level", ProcessingLevel)
+
+    def find_observation(self, db):
+        return NODBObservation.find_by_uuid(db, self.obs_uuid, self.received_date)
 
     def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
         super()._update_from_data_record(data_record)

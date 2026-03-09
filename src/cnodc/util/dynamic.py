@@ -4,7 +4,7 @@ from cnodc.util.exceptions import DynamicObjectLoadError
 
 
 def dynamic_object(cls_name):
-    if "." not in cls_name:
+    if cls_name is None or "." not in cls_name:
         raise DynamicObjectLoadError(f"cls_name should be in format package.class [actual {cls_name}]", "DOBJ", 1000)
     package_dot_pos = cls_name.rfind(".")
     package = cls_name[0:package_dot_pos]

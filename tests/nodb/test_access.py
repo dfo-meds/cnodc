@@ -1,7 +1,7 @@
 import datetime
 import json
 
-from cnodc.nodb import structures as structures, NODBUser, NODBSession
+from cnodc.nodb import NODBSession, NODBUser, UserStatus
 from cnodc.util import CNODCError
 from core import BaseTestCase
 
@@ -45,17 +45,17 @@ class SessionTest(BaseTestCase):
 class UserTest(BaseTestCase):
 
     def test_from_kwargs(self):
-        user = structures.NODBUser(username="foo", is_new=False)
+        user = NODBUser(username="foo", is_new=False)
         self.assertEqual("foo", user.username)
         self.assertNotIn('username', user.modified_values)
 
     def test_from_kwargs_new(self):
-        user = structures.NODBUser(username="foo")
+        user = NODBUser(username="foo")
         self.assertEqual("foo", user.username)
         self.assertIn('username', user.modified_values)
 
     def test_username(self):
-        user = structures.NODBUser()
+        user = NODBUser()
         self.assertEqual(len(user.modified_values), 0)
         user.username = "foobar"
         self.assertEqual(user.username, "foobar")
@@ -73,7 +73,7 @@ class UserTest(BaseTestCase):
     def test_password(self):
         # speed up password hashing
         NODBUser.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
-        user = structures.NODBUser()
+        user = NODBUser()
 
         # Check setting the password
         self.assertIsNone(user.phash)
@@ -141,7 +141,7 @@ class UserTest(BaseTestCase):
         self.assertRaises(CNODCError, user.set_password, '')
 
     def test_roles(self):
-        user = structures.NODBUser()
+        user = NODBUser()
         self.assertEqual(len(user.modified_values), 0)
         user.assign_role('foobar')
         self.assertIn('roles', user.modified_values)
@@ -162,16 +162,16 @@ class UserTest(BaseTestCase):
         self.assertNotIn('foobar', user.roles)
 
     def test_status(self):
-        user = structures.NODBUser()
-        user.status = structures.UserStatus.ACTIVE
-        self.assertIs(user.status, structures.UserStatus.ACTIVE)
-        self.assertEqual(structures.UserStatus.ACTIVE.value, user.get_for_db("status"))
+        user = NODBUser()
+        user.status = UserStatus.ACTIVE
+        self.assertIs(user.status, UserStatus.ACTIVE)
+        self.assertEqual(UserStatus.ACTIVE.value, user.get_for_db("status"))
 
     def test_load_permissions(self):
         self.db.grant_permission('foo', 'bar')
         self.db.grant_permission('foo2', 'bar2')
         self.db.grant_permission('foo3', 'bar3')
-        user = structures.NODBUser()
+        user = NODBUser()
         user.assign_role('foo')
         user.assign_role('foo2')
         self.assertIn('foo', user.roles)
@@ -191,22 +191,22 @@ class UserTest(BaseTestCase):
         self.assertNotIn('bar3', perms2)
 
     def test_find_all(self):
-        self.db.insert_object(structures.NODBUser(username="foo"))
-        self.db.insert_object(structures.NODBUser(username="foo2"))
-        users = [x.username for x in structures.NODBUser.find_all(self.db)]
+        self.db.insert_object(NODBUser(username="foo"))
+        self.db.insert_object(NODBUser(username="foo2"))
+        users = [x.username for x in NODBUser.find_all(self.db)]
         self.assertIn('foo', users)
         self.assertIn('foo2', users)
 
     def test_by_username(self):
-        self.db.insert_object(structures.NODBUser(username="foo"))
-        self.db.insert_object(structures.NODBUser(username="foo2"))
-        foo = structures.NODBUser.find_by_username(self.db, 'foo')
+        self.db.insert_object(NODBUser(username="foo"))
+        self.db.insert_object(NODBUser(username="foo2"))
+        foo = NODBUser.find_by_username(self.db, 'foo')
         self.assertIsNotNone(foo)
-        self.assertIsInstance(foo, structures.NODBUser)
+        self.assertIsInstance(foo, NODBUser)
         self.assertEqual(foo.username, 'foo')
 
     def test_missing_by_username(self):
-        self.db.insert_object(structures.NODBUser(username="foo"))
-        self.db.insert_object(structures.NODBUser(username="foo2"))
-        foo3 = structures.NODBUser.find_by_username(self.db, 'foo3')
+        self.db.insert_object(NODBUser(username="foo"))
+        self.db.insert_object(NODBUser(username="foo2"))
+        foo3 = NODBUser.find_by_username(self.db, 'foo3')
         self.assertIsNone(foo3)

@@ -1,11 +1,9 @@
 import datetime
 import typing as t
 
-from prometheus_client.decorator import contextmanager
-
-from cnodc.nodb import NODBBatch, NODBSourceFile, structures as structures, NODBQueueItem, QueueStatus
+from cnodc.nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus
 from cnodc.nodb.controller import NODBError
-from cnodc.processing import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
+from cnodc.processing.workers.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
 from cnodc.processing.control.base import SaveData
 from cnodc.processing.workers.payload_worker import ObservationWorkflowWorker
 from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
@@ -24,7 +22,7 @@ class BoringQueueWorker(QueueWorker):
         self._called_methods = set()
         self._ret_value = None
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
         if self._ret_value is None or isinstance(self._ret_value, QueueItemResult):
             return self._ret_value
         raise self._ret_value
@@ -42,22 +40,22 @@ class BoringQueueWorker(QueueWorker):
         self._called_methods.add('after_cycle')
         super().after_cycle()
 
-    def on_retry(self, queue_item: structures.NODBQueueItem):
+    def on_retry(self, queue_item: NODBQueueItem):
         self._called_methods.add('on_retry')
 
-    def on_failure(self, queue_item: structures.NODBQueueItem):
+    def on_failure(self, queue_item: NODBQueueItem):
         self._called_methods.add('on_failure')
 
-    def on_success(self, queue_item: structures.NODBQueueItem):
+    def on_success(self, queue_item: NODBQueueItem):
         self._called_methods.add('on_success')
 
-    def after_retry(self, queue_item: structures.NODBQueueItem):
+    def after_retry(self, queue_item: NODBQueueItem):
         self._called_methods.add('after_retry')
 
-    def after_failure(self, queue_item: structures.NODBQueueItem):
+    def after_failure(self, queue_item: NODBQueueItem):
         self._called_methods.add('after_failure')
 
-    def after_success(self, queue_item: structures.NODBQueueItem):
+    def after_success(self, queue_item: NODBQueueItem):
         self._called_methods.add('after_success')
 
 class BoringTask(ScheduledTask):

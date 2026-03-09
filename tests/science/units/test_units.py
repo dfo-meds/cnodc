@@ -6,10 +6,10 @@ import typing as t
 from cnodc.science.units.structures import UnitError
 from cnodc.science.units.units import convert
 from cnodc.util.exceptions import CNODCError
-from science.units.test_parsing import TestUnitParsing
+from core import BaseTestCase
 
 
-class TestConversions(ut.TestCase):
+class TestConversions(BaseTestCase):
 
     VALID_UNITS = {
         'hPa': 'hPa',
@@ -45,6 +45,7 @@ class TestConversions(ut.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        super().setUpClass()
         cls._converter = un.UnitConverter()
 
     def assertAlmostEqual(self, first: t.Union[float, decimal.Decimal], second: t.Union[float, decimal.Decimal], *args, **kwargs) -> None:

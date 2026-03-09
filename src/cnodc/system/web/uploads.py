@@ -17,7 +17,7 @@ import yaml
 from .auth import LoginController
 from cnodc.processing.workflow import WorkflowController
 
-from cnodc.nodb import NODBControllerInstance, structures, NODBController
+from cnodc.nodb import NODBControllerInstance, NODBController, NODBUploadWorkflow
 
 NO_SAVE_HEADERS = [
     'x-cnodc-token',
@@ -35,7 +35,7 @@ class UploadResult(enum.Enum):
 def list_all_workflows_with_access(nodb: NODBController = None, login: LoginController = None) -> list[str]:
     user_perms = login.current_permissions()
     with nodb as db:
-        for workflow in structures.NODBUploadWorkflow.find_all(db):
+        for workflow in NODBUploadWorkflow.find_all(db):
             if workflow.check_access(user_perms):
                 yield workflow.workflow_name
 
@@ -66,7 +66,7 @@ class UploadController:
             workflow = self._load_workflow(db)
             return self._check_access(workflow)
 
-    def _check_access(self, workflow: structures.NODBUploadWorkflow):
+    def _check_access(self, workflow: NODBUploadWorkflow):
         user_permissions = self.login.current_permissions()
         return workflow.check_access(user_permissions)
 
@@ -193,7 +193,7 @@ class UploadController:
         self._cleanup_request()
 
     def _load_workflow(self, db: NODBControllerInstance):
-        workflow: structures.NODBUploadWorkflow = structures.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
+        workflow: NODBUploadWorkflow = NODBUploadWorkflow.find_by_name(db, self.workflow_name)
         if not self._check_access(workflow):
             raise CNODCError('Access denied', 'UPLOADCTRL', 1020)
         return workflow

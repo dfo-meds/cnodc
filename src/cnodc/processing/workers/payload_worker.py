@@ -5,7 +5,7 @@
 import datetime
 import pathlib
 
-from cnodc.nodb import structures
+from cnodc.nodb import NODBQueueItem, NODBBatch, NODBSourceFile
 from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 
@@ -50,7 +50,7 @@ class WorkflowWorker(QueueWorker):
         if not self._skip_autoprogress_payload:
             self.progress_payload()
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
         """Handles extracting the payload and checking that it is of the correct type"""
         payload = WorkflowPayload.from_queue_item(item)
         if self._require_type is not None and not isinstance(payload, self._require_type):
@@ -76,13 +76,13 @@ class WorkflowWorker(QueueWorker):
         self.add_payload_metadata(payload)
         return payload
 
-    def batch_payload_from_nodb(self, batch: structures.NODBBatch) -> BatchPayload:
+    def batch_payload_from_nodb(self, batch: NODBBatch) -> BatchPayload:
         """Create a new payload from a batch object."""
         payload = BatchPayload.from_batch(batch)
         self.add_payload_metadata(payload)
         return payload
 
-    def source_payload_from_nodb(self, source_file: structures.NODBSourceFile) -> SourceFilePayload:
+    def source_payload_from_nodb(self, source_file: NODBSourceFile) -> SourceFilePayload:
         """Create a new payload from an NODB source file."""
         payload = SourceFilePayload.from_source_file(source_file)
         self.add_payload_metadata(payload)
