@@ -591,10 +591,8 @@ ocproc2_map:
     target: metadata/DataUpdateInterval
     data_map: update_frequencies
 
-  globalvar:DEPLOYMENT_END_DATE: metadata/EndDate
   globalvar:DEPLOYMENT_END_LATITUDE: metadata/EndLatitude
   globalvar:DEPLOYMENT_END_LONGITUDE: metadata/EndLongitude
-  globalvar:DEPLOYMENT_START_DATE: metadata/StartDate
   globalvar:DEPLOYMENT_START_LATITUDE: metadata/StartLatitude
   globalvar:DEPLOYMENT_START_LONGITUDE: metadata/StartLongitude
   globalvar:DEPLOYMENT_REFERENCE_STATION_ID: metadata/ReferenceStationNames
@@ -603,6 +601,14 @@ ocproc2_map:
   globalvar:CUSTOMIZATION: metadata/PlatformCustomization
   globalvar:SPECIAL_FEATURES: metadata/PlatformDetails
   globalvar:GLIDER_SERIAL_NO: metadata/PlatformSerial
+
+  globalvar:DEPLOYMENT_END_DATE:
+    target: metadata/EndDate
+    data_processor: _isoformat_ego_date
+
+  globalvar:DEPLOYMENT_START_DATE:
+    target: metadata/StartDate
+    data_processor: _isoformat_ego_date
 
   globalvar:PLATFORM_FAMILY:
     target: metadata/PlatformCategory
@@ -705,6 +711,7 @@ ocproc2_map:
     target: coordinates/Time
     source: TIME_GPS
     qc_source: TIME_GPS_QC
+    data_processor: _time_since
     metadata:
       SensorType: satnav
     allow_multiple: yes
@@ -852,22 +859,22 @@ data_maps:
       model: Teledyne Webb Research Slocum G2 glider
       ocproc2_model: "Slocum G2"
       prefix: 'unit_'
-      maker: "Teledyne Web Research"
+      maker: "Teledyne Webb Research"
     slocum_g2:
       model: Teledyne Webb Research Slocum G2 glider
       ocproc2_model: "Slocum G2"
       prefix: 'unit_'
-      maker: "Teledyne Web Research"
+      maker: "Teledyne Webb Research"
     slocum_g3:
       model: Teledyne Webb Research Slocum G3 glider
       ocproc2_model: "Slocum G3"
       prefix: 'unit_'
-      maker: "Teledyne Web Research"
+      maker: "Teledyne Webb Research"
     slocum_sg3:
       model: Teledyne Webb Research Slocum G3 glider
       ocproc2_model: "Slocum G3"
       prefix: 'unit_'
-      maker: "Teledyne Web Research"
+      maker: "Teledyne Webb Research"
     seaexplorer:
       model: "Alseamar SeaExplorer X2 glider"
       ocproc2_model: "X2"

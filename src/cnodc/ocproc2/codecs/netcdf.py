@@ -289,7 +289,8 @@ class NetCDFCommonMapper:
                 self._log.warning(f"Missing unadjusted variable [{unadjusted_name}]")  # pragma: no coverage (not used)
 
         element = self._build_element_common(value, minfo, unadjusted_value)
-
+        if element is None:
+            return None
 
         # Check for QC variable
         if 'qc_source' in minfo and minfo['qc_source'] and minfo['qc_source'] in data:
@@ -351,15 +352,23 @@ class NetCDFCommonMapper:
 
     def _process_value(self, value, minfo):
         value = unnumpy(value)
+        if isinstance(value, float) and math.isnan(value):
+            value = None
         if value == '' and not ('blank_to_none' in minfo and not minfo['blank_is_none']):
             value = None
         if 'separator' in minfo and minfo['separator'] and value is not None:
             sep = minfo['separator']
-            return [
-                self._process_individual_value(y, minfo) for y in
+            raw_values = [
+                y for y in
                 (x.strip() for x in (value.split(sep) if len(sep) == 1 else re.split(sep, value)))
                 if y
             ]
+            if not raw_values:
+                value = None
+            elif len(raw_values) == 1:
+                value = raw_values[0]
+            else:
+                return [self._process_individual_value(y, minfo) for y in raw_values]
         return self._process_individual_value(value, minfo)
 
     def _process_individual_value(self, value, minfo):
@@ -446,5 +455,7 @@ class NetCDFCommonMapper:
 
     @staticmethod
     def _decode_time_since(value, increments: str, epoch: datetime.datetime):
+        if value is None or math.isnan(value):
+            return None
         return epoch + datetime.timedelta(**{increments: float(value)})
 

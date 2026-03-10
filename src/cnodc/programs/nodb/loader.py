@@ -87,6 +87,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         temp_file = self.download_to_temp_file()
 
         total_created = 0
+        total_skipped = 0
+        had_any_errors = False
+        was_single_file = False
 
         # Decode each entry and save them
         with open(temp_file, "rb") as h:
@@ -95,15 +98,24 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                     include_skipped=False,
                     skip_to_message_idx=skip_to_message_idx,
                     **self._decoder_kwargs):
-                total_created += self._create_nodb_record_from_result(source_file, result)
+                success, skipped, had_error = self._create_nodb_record_from_result(source_file, result)
+                total_created += success
+                total_skipped += skipped
+                had_any_errors = had_any_errors or had_error
+                was_single_file = result.single_message
+                self.breakpoint()
 
-        self._log.info(f"{total_created} records created")
+        self._log.info(f"{total_created} records created, {total_skipped} skipped")
 
-        # Mark the file as complete and queue it for record verification
-        source_file.status = nodb.SourceFileStatus.COMPLETE
+        create_next_queue = total_created > 0
+        if had_any_errors and was_single_file:
+            source_file.status = nodb.SourceFileStatus.ERROR
+            create_next_queue = False
+        else:
+            source_file.status = nodb.SourceFileStatus.COMPLETE
         self._db.update_object(source_file)
-        # Only need to create a source payload if records were found
-        if total_created > 0:
+
+        if create_next_queue:
             self.progress_payload(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
 
     def _fetch_source_file(self, payload: WorkflowPayload) -> nodb.NODBSourceFile:
@@ -135,18 +147,20 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def _create_nodb_record_from_result(self,
                                         source_file: nodb.NODBSourceFile,
-                                        result: DecodeResult) -> int:
-        total_success = 0
-        errored = False
+                                        result: DecodeResult) -> tuple[int, int, bool]:
+        success = 0
+        skipped = 0
+        had_error = False
         make_completed_records = self.get_config('autocomplete_records', False)
         self._before_message(source_file, result)
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
                     self._before_record(source_file, record)
-                    self.breakpoint()
                     if self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records):
-                        total_success += 1
+                        success += 1
+                    else:
+                        skipped += 1
                 self._after_success(source_file, result)
                 self._db.commit()
             except CNODCError as ex:
@@ -155,16 +169,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 else:
                     self._handle_decode_failure(source_file, result, ex)
                     self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
-                    errored = True
+                    had_error = True
             except Exception as ex:
                 self._handle_decode_failure(source_file, result, ex)
                 self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
-                errored = True
+                had_error = True
         else:
             self._handle_decode_failure(source_file, result)
-            self._log.error(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
-            errored = True
-        return 0 if errored and result.single_message else total_success
+            self._log.error(f"An error occurred while decoding file [{source_file.source_uuid}] message [{result.message_idx}]")
+            had_error = True
+        return success, skipped, had_error
 
     def _create_nodb_record(self,
                             source_file: nodb.NODBSourceFile,

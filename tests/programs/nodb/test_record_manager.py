@@ -17,6 +17,19 @@ class TestRecordManager(BaseTestCase):
         self.assertNotIn('WorkingQuality', se)
         self.assertEqual(se.metadata['Quality'].value, 5)
 
+    def test_finalize_multiple_value(self):
+        se = ocproc2.SingleElement(5)
+        se.metadata['WorkingQuality'] = 5
+        se2 = ocproc2.SingleElement(5)
+        se2.metadata['WorkingQuality'] = 4
+        me = ocproc2.MultiElement([se, se2])
+        rm = NODBRecordManager()
+        rm._finalize_value(me)
+        self.assertNotIn('WorkingQuality', se)
+        self.assertEqual(se.metadata['Quality'].value, 5)
+        self.assertNotIn('WorkingQuality', se2)
+        self.assertEqual(se2.metadata['Quality'].value, 4)
+
     def test_finalize(self):
         record = ocproc2.ParentRecord()
         record.coordinates['Longitude'] = 54
@@ -98,6 +111,23 @@ class TestRecordManager(BaseTestCase):
         obs = we.find_observation(self.db)
         self.assertIsNotNone(obs)
 
+    def test_create_completed_entry_no_duplicate(self):
+        record = ocproc2.ParentRecord()
+        rm = NODBRecordManager()
+        self.assertTrue(rm.create_completed_entry(self.db, record, '12345', datetime.date(2015, 1, 2), 0, 1, {}))
+        self.assertEqual(1, len(self.db.table(NODBObservationData.TABLE_NAME)))
+        we: NODBObservationData = NODBObservationData.find_by_source_info(self.db, '12345', '2015-01-02', 0, 1)
+        self.assertIsNotNone(we)
+        self.assertEqual(we.received_date, datetime.date(2015, 1, 2))
+        self.assertEqual(we.message_idx, 0)
+        self.assertEqual(we.record_idx, 1)
+        self.assertEqual(we.source_file_uuid, '12345')
+        self.assertIsNotNone(we.data_record)
+        obs = we.find_observation(self.db)
+        self.assertIsNotNone(obs)
+        self.assertFalse(rm.create_completed_entry(self.db, record, '12345', datetime.date(2015, 1, 2), 0, 1, {}))
+        self.assertEqual(1, len(self.db.table(NODBObservationData.TABLE_NAME)))
+
     def test_prune_mission_data(self):
         mission = NODBMission()
         mission.metadata = {
@@ -145,3 +175,47 @@ class TestRecordManager(BaseTestCase):
         self.assertIn('BatteryDescription', record2.metadata)
         plat2 = NODBPlatform.find_by_uuid(self.db, '1234')
         self.assertEqual(plat2.get_metadata('IMONumber'), 99)
+
+    def test_prune_mission_data_no_mission(self):
+        record = ocproc2.ParentRecord()
+        record.metadata['CNODCMission'] = '123'
+        record.metadata['PlatformFinalStatus'] = 'lost'
+        record.metadata['OperatingInstitution'] = 'cproof'
+        record.metadata['PlatformMissionNumber'] = 97
+        rm = NODBRecordManager()
+        self.assertTrue(rm.create_completed_entry(self.db, record, '12345', datetime.date(2015, 1, 2), 0, 1, {}))
+        we: NODBObservationData = NODBObservationData.find_by_source_info(self.db, '12345', '2015-01-02', 0, 1)
+        self.assertIsNotNone(we)
+        record2 = we.record
+        self.assertIn('PlatformFinalStatus', record2.metadata)
+        self.assertIn('PlatformMissionNumber', record2.metadata)
+        self.assertIn('OperatingInstitution', record2.metadata)
+
+    def test_prune_multiple_mission_data(self):
+        mission = NODBMission()
+        mission.metadata = {
+            'PlatformFinalStatus': 'lost',
+            'OperatingInstitution': 'dfo',
+        }
+        mission.mission_uuid = '123'
+        self.db.insert_object(mission)
+        record = ocproc2.ParentRecord()
+        record.metadata['CNODCMission'] = '123'
+        record.metadata['PlatformFinalStatus'] = 'lost'
+        record.metadata['OperatingInstitution'] = 'cproof'
+        record.metadata['PlatformMissionNumber'] = 97
+        record2 = ocproc2.ParentRecord()
+        record2.metadata['CNODCMission'] = '123'
+        record2.metadata['PlatformFinalStatus'] = 'lost'
+        rm = NODBRecordManager()
+        memory = {}
+        self.assertTrue(rm.create_completed_entry(self.db, record2, '12345', datetime.date(2015, 1, 2), 0, 2, memory))
+        self.assertTrue(rm.create_completed_entry(self.db, record, '12345', datetime.date(2015, 1, 2), 0, 1, memory))
+        we: NODBObservationData = NODBObservationData.find_by_source_info(self.db, '12345', '2015-01-02', 0, 1)
+        self.assertIsNotNone(we)
+        record2 = we.record
+        self.assertNotIn('PlatformFinalStatus', record2.metadata)
+        self.assertNotIn('PlatformMissionNumber', record2.metadata)
+        self.assertIn('OperatingInstitution', record2.metadata)
+        miss2 = NODBMission.find_by_uuid(self.db, '123')
+        self.assertEqual(miss2.get_metadata('PlatformMissionNumber'), 97)

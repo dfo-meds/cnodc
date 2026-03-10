@@ -1,14 +1,39 @@
 import datetime
 import os
 
-from cnodc.nodb import NODBQueueItem, NODBSourceFile, SourceFileStatus, NODBObservation
+from cnodc import nodb as nodb
+from cnodc.nodb import NODBQueueItem, NODBSourceFile, SourceFileStatus, NODBObservation, QueueStatus
 from cnodc.nodb.observations import NODBWorkingRecord, NODBObservationData
+from cnodc.ocproc2 import ParentRecord
 from cnodc.ocproc2.codecs import OCProc2JsonCodec
-from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload, BatchPayload, ObservationPayload
+from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload, BatchPayload, ObservationPayload, \
+    WorkflowPayload
 from cnodc.programs.nodb import NODBDecodeLoadWorker
 from cnodc.util import CNODCError, DynamicObjectLoadError
 from processing.helpers import WorkerTestCase
 import cnodc.ocproc2 as ocproc2
+
+
+class NODBLoaderBadRecordCreation(NODBDecodeLoadWorker):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.res = True
+
+    def on_start(self):
+        self.res = self.get_config('_test_result', True)
+        super().on_start()
+
+    def _create_nodb_record(self,
+                            source_file: nodb.NODBSourceFile,
+                            message_idx: int,
+                            record_idx: int,
+                            record: ocproc2.ParentRecord,
+                            make_completed_records) -> bool:
+        if self.res is True or self.res is False:
+            return self.res
+        raise self.res
+
 
 
 class TestLoader(WorkerTestCase):
@@ -202,23 +227,251 @@ class TestLoader(WorkerTestCase):
         self.assertIsNotNone(obj)
 
     def test_already_completed_source_file(self):
-        pass
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        pr = ocproc2.ParentRecord()
+        pr.metadata['Hello'] = 'World'
+        file = self.temp_dir / 'file.json'
+        codec = OCProc2JsonCodec()
+        codec.dump(file, [pr])
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.COMPLETE
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        self.worker_controller.test_queue_worker(
+            NODBDecodeLoadWorker,
+            {
+                'queue_name': 'test_intake',
+                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'error_directory': str(err_dir),
+            },
+            self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        )
+        obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
+        self.assertIsNone(obj)
 
     def test_already_completed_source_but_reprocessing(self):
-        pass
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        pr = ocproc2.ParentRecord()
+        pr.metadata['Hello'] = 'World'
+        file = self.temp_dir / 'file.json'
+        codec = OCProc2JsonCodec()
+        codec.dump(file, [pr])
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.COMPLETE
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        self.worker_controller.test_queue_worker(
+            NODBDecodeLoadWorker,
+            {
+                'queue_name': 'test_intake',
+                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'error_directory': str(err_dir),
+                'allow_reprocessing': True
+            },
+            self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        )
+        self.assertEqual(1, len(self.db.tables[NODBWorkingRecord.TABLE_NAME]))
+        self.assertEqual(1, len(self.db.tables[NODBQueueItem.TABLE_NAME]))
+        obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
+        self.assertIsNotNone(obj)
 
     def test_errored_source_file(self):
-        pass
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        pr = ocproc2.ParentRecord()
+        pr.metadata['Hello'] = 'World'
+        file = self.temp_dir / 'file.json'
+        codec = OCProc2JsonCodec()
+        codec.dump(file, [pr])
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.ERROR
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        self.worker_controller.test_queue_worker(
+            NODBDecodeLoadWorker,
+            {
+                'queue_name': 'test_intake',
+                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'error_directory': str(err_dir),
+            },
+            self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        )
+        obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
+        self.assertIsNone(obj)
+        self.assertEqual(1, len(self.db.table(NODBSourceFile.TABLE_NAME)))
 
     def test_raise_recoverable_error_during_save(self):
-        pass
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        pr = ocproc2.ParentRecord()
+        pr.metadata['Hello'] = 'World'
+        file = self.temp_dir / 'file.json'
+        codec = OCProc2JsonCodec()
+        codec.dump(file, [pr])
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.NEW
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        qi = self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        qi.status = QueueStatus.LOCKED
+        self.db.insert_object(qi)
+        with self.assertLogs('cnodc.worker.decoder', 'ERROR'):
+            self.worker_controller.test_queue_worker(
+                NODBLoaderBadRecordCreation,
+                {
+                    'queue_name': 'test_intake',
+                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'error_directory': str(err_dir),
+                    '_test_result': CNODCError('foo', 'bar', 1, is_recoverable=True)
+                },
+                qi
+            )
+        self.assertIs(qi.status, QueueStatus.UNLOCKED)
+        obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
+        self.assertIsNone(obj)
+        self.assertEqual(1, len(self.db.table(NODBSourceFile.TABLE_NAME)))
 
     def test_raise_unrecoverable_error_during_save(self):
-        pass
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        pr = ocproc2.ParentRecord()
+        pr.metadata['Hello'] = 'World'
+        file = self.temp_dir / 'file.json'
+        codec = OCProc2JsonCodec()
+        codec.dump(file, [pr])
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.NEW
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        qi = self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        qi.status = QueueStatus.LOCKED
+        self.db.insert_object(qi)
+        with self.assertLogs('cnodc.worker.decoder', 'ERROR'):
+            self.worker_controller.test_queue_worker(
+                NODBLoaderBadRecordCreation,
+                {
+                    'queue_name': 'test_intake',
+                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'error_directory': str(err_dir),
+                    '_test_result': CNODCError('foo', 'bar', 1, is_recoverable=False)
+                },
+                qi
+            )
+        self.assertIs(qi.status, QueueStatus.COMPLETE)
+        qi2 = self.db.table(NODBQueueItem.TABLE_NAME)[-1]
+        self.assertEqual(qi2.queue_name, 'nodb_decode_failure')
+        pl = WorkflowPayload.from_queue_item(qi2)
+        self.assertIsInstance(pl, SourceFilePayload)
+        self.assertEqual(pl.source_uuid, '12345')
+        self.assertEqual(pl.received_date, datetime.date(2015, 1, 2))
+        obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
+        self.assertIsNone(obj)
+        self.assertEqual(1, len(self.db.table(NODBSourceFile.TABLE_NAME)))
 
     def test_raise_non_cnodc_error_during_save(self):
-        pass
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        pr = ocproc2.ParentRecord()
+        pr.metadata['Hello'] = 'World'
+        file = self.temp_dir / 'file.json'
+        codec = OCProc2JsonCodec()
+        codec.dump(file, [pr])
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.NEW
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        qi = self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        qi.status = QueueStatus.LOCKED
+        self.db.insert_object(qi)
+        with self.assertLogs('cnodc.worker.decoder', 'ERROR'):
+            self.worker_controller.test_queue_worker(
+                NODBLoaderBadRecordCreation,
+                {
+                    'queue_name': 'test_intake',
+                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'error_directory': str(err_dir),
+                    '_test_result': ValueError('oh no'),
+                },
+                qi
+            )
+        self.assertIs(qi.status, QueueStatus.COMPLETE)
+        qi2 = self.db.table(NODBQueueItem.TABLE_NAME)[-1]
+        self.assertEqual(qi2.queue_name, 'nodb_decode_failure')
+        pl = WorkflowPayload.from_queue_item(qi2)
+        self.assertIsInstance(pl, SourceFilePayload)
+        self.assertEqual(pl.source_uuid, '12345')
+        self.assertEqual(pl.received_date, datetime.date(2015, 1, 2))
+        obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
+        self.assertIsNone(obj)
+        self.assertEqual(1, len(self.db.table(NODBSourceFile.TABLE_NAME)))
 
-    def test_bad_decode_single_file(self):
-        pass
+    def test_record_already_exists(self):
+        err_dir = self.temp_dir / 'errors'
+        err_dir.mkdir()
+        file = self.temp_dir / 'file.json'
+        with open(file, "w") as h:
+            h.write('[')
+            h.write('{"_metadata": {"foo": "bar2"}},')
+            h.write('{"_metadata": {"foo": "bar3"}},')
+            h.write('{"_metadata": {"foo": "bar"}}')
+            h.write(']')
+        sf = NODBSourceFile()
+        sf.source_uuid = '12345'
+        sf.received_date = datetime.date(2015, 1, 2)
+        sf.status = SourceFileStatus.NEW
+        sf.file_name = 'file.json'
+        sf.source_path = str(file)
+        self.db.insert_object(sf)
+        sp = SourceFilePayload.from_source_file(sf)
+        wr = NODBWorkingRecord()
+        wr.source_file_uuid = '12345'
+        wr.received_date = datetime.date(2015, 1, 2)
+        wr.message_idx = 1
+        wr.record_idx = 0
+        pr = ParentRecord()
+        pr.metadata['foo'] = 'bar4'
+        wr.record = pr
+        self.db.insert_object(wr)
+        self.worker_controller.test_queue_worker(
+            NODBDecodeLoadWorker,
+            {
+                'queue_name': 'test_intake',
+                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'error_directory': str(err_dir),
+            },
+            self.worker_controller.payload_to_queue_item(sp, 'test_intake')
+        )
+        self.assertEqual(3, len(self.db.table(NODBWorkingRecord.TABLE_NAME)))
+        foo_values = []
+        for obj in self.db.table(NODBWorkingRecord.TABLE_NAME):
+            foo_values.append(obj.record.metadata.best('foo'))
+        self.assertEqual(3, len(foo_values))
+        self.assertNotIn('bar3', foo_values)
+
 
