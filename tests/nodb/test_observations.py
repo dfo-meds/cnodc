@@ -460,6 +460,15 @@ class TestObservation(BaseTestCase):
         self.assertEqual(obs.min_depth, 0)
         self.assertEqual(obs.max_depth, 75)
 
+    def test_find_observation_data(self):
+        obs = NODBObservation()
+        obs.obs_uuid = '12345'
+        obs.received_date = datetime.date(2015, 1, 2)
+        obs_data = NODBObservationData()
+        obs_data.obs_uuid = '12345'
+        obs_data.received_date = datetime.date(2015, 1, 2)
+        self.db.insert_object(obs_data)
+        self.assertIs(obs.find_observation_data(self.db), obs_data)
 
 class TestObservationData(BaseTestCase):
 
@@ -575,6 +584,16 @@ class TestObservationData(BaseTestCase):
         self.assertIs(obs_data2, s2)
         s3 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
         self.assertIsNone(s3)
+
+    def test_find_observation(self):
+        obs = NODBObservation()
+        obs.obs_uuid = '12345'
+        obs.received_date = datetime.date(2015, 1, 2)
+        self.db.insert_object(obs)
+        obs_data = NODBObservationData()
+        obs_data.obs_uuid = '12345'
+        obs_data.received_date = datetime.date(2015, 1, 2)
+        self.assertIs(obs_data.find_observation(self.db), obs)
 
 
 class TestWorkingRecord(BaseTestCase):

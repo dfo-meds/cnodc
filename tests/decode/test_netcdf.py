@@ -953,6 +953,32 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     self.assertIn('world', values)
 
 
+    def test_split_value_empty(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', '')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                    'attribute:test2': {
+                        'target': 'metadata/Bar2',
+                        'separator': ';',
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            records = [x for x in mapper.build_records()]
+            self.assertEqual(5, len(records))
+            for idx, record in enumerate(records):
+                with self.subTest(record_no=idx):
+                    self.assertNotIn('Bar2', record.metadata)
+
     def test_split_value_one_list(self):
         with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
             ds.createDimension('FOO')

@@ -455,7 +455,5 @@ class NetCDFCommonMapper:
 
     @staticmethod
     def _decode_time_since(value, increments: str, epoch: datetime.datetime):
-        if value is None or math.isnan(value):
-            return None
         return epoch + datetime.timedelta(**{increments: float(value)})
 
