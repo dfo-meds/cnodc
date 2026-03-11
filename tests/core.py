@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import uuid
 import unittest as ut
+from unittest import mock
 import typing as t
 from contextlib import contextmanager
 
@@ -12,6 +13,11 @@ import datetime
 from autoinject import injector
 
 from cnodc.util import CNODCError
+import functools
+import requests
+
+import requests.exceptions
+from requests import HTTPError
 
 
 @injector.injectable
@@ -174,6 +180,7 @@ class DatabaseMock:
     def rollback(self):
         self._rolled_back = True
 
+
 class DummyNODB:
 
     def __init__(self, db):
@@ -185,13 +192,81 @@ class DummyNODB:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
+
+class MockResponse:
+
+    def __init__(self, content: bytes, status_code: int, encoding='utf-8', headers=None):
+        self.url = None
+        self.headers = headers
+        self.content = content
+        self.encoding = encoding
+        self.status_code = status_code
+        self.ok = self.status_code < 400
+
+    @property
+    def text(self):
+        return self.content.decode(self.encoding)
+
+    def json(self):
+        return json.loads(self.text)
+
+    def raise_for_status(self):
+        if self.status_code < 400:
+            pass
+        else:
+            raise requests.exceptions.HTTPError(f"{self.status_code}")
+
+
+class QuickWebMock:
+
+    def __init__(self):
+        self._refs = {}
+
+    def __call__(self, url, method="GET"):
+        def _inner(cb):
+            self._refs[f'{method.upper()}::{url}'] = cb
+            return cb
+        return _inner
+
+    def mock_request(self, method, url, **kwargs):
+        key = f'{method.upper()}::{url}'
+        if key in self._refs:
+            try:
+                res = self._refs[key](method, url, **kwargs)
+                if not isinstance(res, MockResponse):
+                    res = MockResponse(str(res).encode('utf-8'), 200)
+            except Exception as ex:
+                res = MockResponse(str(ex).encode('utf-8'), 500)
+        else:
+            res = MockResponse(b"not found", 404)
+        res.url = url
+        return res
+
+    def mock_get(self, url, **kwargs):
+        return self.mock_request('GET', url, **kwargs)
+
+    def mock_post(self, url, **kwargs):
+        return self.mock_request('POST', url, **kwargs)
+
+def with_security(cb):
+    @functools.wraps(cb)
+    def _inner(method, url, **kwargs):
+        h = kwargs.pop('headers', {})
+        if 'Authorization' not in h:
+            return MockResponse(b"Forbidden", 403)
+        if h['Authorization'] != '12345':
+            return MockResponse(b"Forbidden", 403)
+        return cb(method, url, **kwargs)
+    return _inner
+
+
 class BaseTestCase(ut.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.db = DatabaseMock()
         cls.nodb = DummyNODB(cls.db)
-        logging.disable(logging.WARNING)
+        cls.web = QuickWebMock()
 
     def setUp(self):
         self.temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
@@ -205,6 +280,13 @@ class BaseTestCase(ut.TestCase):
     @classmethod
     def tearDownClass(cls):
         del cls.db
+
+    @contextmanager
+    def mock_web_test(self):
+        with mock.patch('requests.get', side_effect=self.web.mock_get):
+            with mock.patch('requests.post', side_effect=self.web.mock_post):
+                with mock.patch('requests.request', side_effect=self.web.mock_request) as x:
+                    yield x
 
     @contextmanager
     def assertRaisesCNODCError(self, error_code: str):
