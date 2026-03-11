@@ -1,6 +1,7 @@
 from __future__ import annotations
 import decimal
 import enum
+import functools
 import logging
 import typing as t
 import datetime
@@ -14,15 +15,13 @@ from cnodc.util import unnumpy
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
 
-def mltext(*, english: t.Optional[str] = None, french: t.Optional[str] = None, generic: t.Optional[str] = None) -> dict[str, str]:
-    txt = {}
-    if english is not None:
-        txt['en'] = english
-    if french is not None:
-        txt['fr'] = french
-    if generic is not None:
-        txt['und'] = generic
-    return txt
+
+def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
+    attr = {}
+    for suffix in locale_map.keys():
+        if f"{attribute_name}{suffix}" in attribute_dict:
+            attr[locale_map[suffix]] = attribute_dict.pop(f"{attribute_name}{suffix}")
+    return attr
 
 
 class Encoding(enum.Enum):
@@ -33,6 +32,7 @@ class Encoding(enum.Enum):
 
     @staticmethod
     def from_string(encoding: str):
+        encoding = encoding.lower()
         if encoding == 'utf-8':
             return Encoding.UTF8
         return Encoding(encoding)
@@ -46,7 +46,7 @@ class Axis(enum.Enum):
 
     @staticmethod
     def from_string(s: str):
-        return Axis(s)
+        return Axis(s.upper())
 
 class NetCDFDataType(enum.Enum):
     String = "String"
@@ -66,31 +66,33 @@ class NetCDFDataType(enum.Enum):
     def from_string(name):
         if not name:
             return None
+        elif isinstance(name, nc.VLType):
+            return NetCDFDataType.from_string(name.dtype.name)
+        elif name is str:
+            return NetCDFDataType.String
         elif name in ('float64', 'f8', 'd'):
             return NetCDFDataType.Double
         elif name in ('float32', 'f4', 'f'):
             return NetCDFDataType.Float
-        elif name in ('int8',' i8'):
+        elif name in ('int64', 'i8'):
             return NetCDFDataType.Long
-        elif name in ('int4', 'i4', 'i'):
+        elif name in ('int32', 'i4', 'i'):
             return NetCDFDataType.Integer
-        elif name in ('int2', 'i2', 's', 'h'):
+        elif name in ('int16', 'i2', 's', 'h'):
             return NetCDFDataType.Short
-        elif name in ('int1', 'i1', 'b', 'B'):
+        elif name in ('int8', 'i1', 'b', 'B'):
             return NetCDFDataType.Byte
-        elif name in ('uint8', 'u8'):
+        elif name in ('uint64', 'u8'):
             return NetCDFDataType.LongUnsigned
-        elif name in ('uint4', 'u4'):
+        elif name in ('uint32', 'u4'):
             return NetCDFDataType.IntegerUnsigned
-        elif name in ('uint2', 'u2'):
+        elif name in ('uint16', 'u2'):
             return NetCDFDataType.ShortUnsigned
-        elif name in ('uint1', 'u1'):
+        elif name in ('uint8', 'u1'):
             return NetCDFDataType.ByteUnsigned
         elif name in ('S1', 'c'):
             return NetCDFDataType.Character
         elif name[0] == 'S' and name[1:].isdigit():
-            return NetCDFDataType.String
-        elif isinstance(name, nc.VLType):
             return NetCDFDataType.String
         else:
             return NetCDFDataType(name)
@@ -193,6 +195,15 @@ class Calendar(enum.Enum):
     Days366 = "all_leap"
     Days360 = "360_day"
     Nonstandard = "nonstandard"
+
+    @staticmethod
+    def from_string(calendar: str):
+        if calendar is None or calendar == '':
+            return None
+        calendar = calendar.lower()
+        if calendar == 'gregorian':
+            return Calendar.Standard
+        return Calendar(calendar)
 
 
 class Direction(enum.Enum):
@@ -388,7 +399,7 @@ class CommonDataModelType(enum.Enum):
     Other = "Other"  # data that does not have geographical coordinates
 
     @staticmethod
-    def from_netcdf(attr_value):
+    def from_string(attr_value):
         if not attr_value:
             return None
         lower_attr = attr_value.lower()
@@ -612,7 +623,9 @@ class CoordinateReferenceSystem(enum.Enum):
 
     @staticmethod
     def from_string(value: str):
-        value = value.upper().replace(" ", "")
+        if value is None or value == '':
+            return None
+        value = str(value).upper().replace(" ", "")
         if value in ('4326', 'EPSG:4326'):
             return CoordinateReferenceSystem.WGS84
         elif value in ('4267', 'EPSG:4267'):
@@ -625,7 +638,9 @@ class CoordinateReferenceSystem(enum.Enum):
             return CoordinateReferenceSystem.MSL_Depth
         elif value in ('5714', 'EPSG:5714'):
             return CoordinateReferenceSystem.MSL_Heights
-        return None
+        elif value in ('STANDARD', 'GREGORIAN'):
+            return CoordinateReferenceSystem.Gregorian
+        raise ValueError(f'Unknown CRS: [{value}]')
 
 
 
@@ -826,7 +841,7 @@ class ContactRole(enum.Enum):
     """ A person who uses the data. """
 
     @staticmethod
-    def build_from_str(value: str):
+    def from_string(value: str):
         # W08 approximate mapping
         if value == 'CONT0001':
             return ContactRole.Stakeholder
@@ -1032,31 +1047,41 @@ class KeywordType(enum.Enum):
 
 class EntityRef:
 
-    def __init__(self, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
+    def __init__(self,
+                 guid: t.Optional[str] = None,
+                 display_name: t.Optional[MultiLanguageString] = None,
+                 **kwargs):
         self._guid = None
-        self._display_name = {}
+        self._display_name = None
         self._metadata = {}
         self._children: dict[str, t.Union[t.Optional[EntityRef], list[EntityRef]]] = {}
-        self.set_guid(guid)
-        self.set_display_name(display_names)
+        self.guid = guid
+        self.display_name = display_name
+        for kwarg in kwargs:
+            setattr(self, kwarg, kwargs[kwarg])
 
-    def set_guid(self, guid):
-        """
-        :param guid: A unique identifier for this entity
-        """
+    @property
+    def guid(self):
+        return self._guid
+
+    @guid.setter
+    def guid(self, guid):
         self._guid = guid
 
-    def set_display_name(self, display_name: MultiLanguageString):
-        """
-        :param display_name: A string or multi-language dict containing the internal display name of the entity.
-        """
+    @property
+    def display_name(self):
+        return self._display_name
+
+    @display_name.setter
+    def display_name(self, display_name: MultiLanguageString):
         self._display_name = EntityRef.format_multilingual_text(display_name)
 
     def build_request_body(self):
-        d = {
-            '_guid': self._guid,
-            '_display_name': self._display_name
-        }
+        d = {}
+        if self._guid is not None:
+            d['_guid'] = self._guid
+        if self._display_name is not None:
+            d['_display_name'] = self._display_name
         d.update(self._metadata)
         for key in self._children.keys():
             if self._children[key] is None:
@@ -1083,510 +1108,245 @@ class EntityRef:
     def format_date(d: t.Optional[t.Union[datetime.date, datetime.datetime]]):
         if d is None:
             return None
-        return d.isoformat('T')
+        if isinstance(d, str):
+            if len(d) == 10:
+                d = datetime.date.fromisoformat(d)
+            else:
+                d = datetime.datetime.fromisoformat(d)
+        return d.isoformat()
+
+    def get(self, metadata_key, coerce=None):
+        value = self._metadata.get(metadata_key, None)
+        if coerce:
+            return coerce(value)
+        return value
+
+    def set(self, value, metadata_key, coerce=None):
+        self._metadata[metadata_key] = value if not coerce else coerce(value)
+
+    def get_children(self, metadata_key):
+        if metadata_key not in self._children:
+            self._children[metadata_key] = []
+        return self._children[metadata_key]
+
+    def add_child(self, child_type: str, v: EntityRef):
+        self.get_children(child_type).append(v)
+
+    def get_child(self, child_type: str):
+        return self._children.get(child_type, None)
+
+    def set_child(self, v: EntityRef, child_type: str):
+        self._children[child_type] = v
+
+    def set_id_and_system(self, code, system: IDSystem, remove_prefixes: t.Optional[list[str]]):
+        if remove_prefixes:
+            for prefix in remove_prefixes:
+                if code.startswith(prefix):
+                    code = code[len(prefix):]
+                    break
+        self.id_code = code
+        self.id_system = system
+
+    @staticmethod
+    def make_id_property(system: IDSystem, remove_prefixes=None):
+        return property(
+            functools.partial(EntityRef.get, metadata_key='id_code'),
+            functools.partial(EntityRef.set_id_and_system, system=system, remove_prefixes=remove_prefixes)
+        )
+
+    @staticmethod
+    def make_property(metadata_key, coerce=None):
+        return property(
+            functools.partial(EntityRef.get, metadata_key=metadata_key),
+            functools.partial(EntityRef.set, metadata_key=metadata_key, coerce=coerce)
+        )
+
+    @staticmethod
+    def make_child_property(metadata_key):
+        return property(
+            functools.partial(EntityRef.get_child, child_type=metadata_key),
+            functools.partial(EntityRef.set_child, child_type=metadata_key)
+        )
+
+    @staticmethod
+    def make_children_property(metadata_key):
+        return property(
+            functools.partial(EntityRef.get_children, metadata_key=metadata_key)
+        )
+
+    @staticmethod
+    def make_enum_property(metadata_key: str, enum_type: type, coerce_list: bool = False):
+        return property(
+            functools.partial(EntityRef.get, metadata_key=metadata_key, coerce=functools.partial(EntityRef._coerce_to_enum, enum_type=enum_type, coerce_list=coerce_list)),
+            functools.partial(EntityRef.set, metadata_key=metadata_key, coerce=functools.partial(EntityRef._coerce_from_enum, enum_type=enum_type, coerce_list=coerce_list))
+        )
+
+    @staticmethod
+    def _coerce_from_enum(v, enum_type, coerce_list: bool = False):
+        if not isinstance(v, enum_type):
+            if isinstance(v, (list, tuple, set)) and coerce_list:
+                return [EntityRef._coerce_from_enum(x, enum_type) for x in v]
+            elif v is None or v == '':
+                if coerce_list:
+                    return [None]
+                return None
+            elif hasattr(enum_type, 'from_string'):
+                v = enum_type.from_string(v)
+            else:
+                v = enum_type(v)
+        return [v.value] if coerce_list else v.value
+
+    @staticmethod
+    def _coerce_to_enum(v, enum_type, coerce_list: bool = False):
+        if v is None:
+            return None
+        if not isinstance(v, enum_type):
+            if isinstance(v, list) and coerce_list:
+                return [EntityRef._coerce_to_enum(x, enum_type) for x in v]
+            return enum_type(v)
+        return v
 
 
 class Variable(EntityRef):
 
-    def __init__(self,
-                 var_name: str,
-                 var_data_type: NetCDFDataType,
-                 *,
-                 destination_name: t.Optional[str] = None,
-                 destination_type: t.Optional[NetCDFDataType] = None,
-                 dimensions: t.Optional[t.Sequence[str]] = None,
-                 long_name: t.Optional[MultiLanguageString] = None,
-                 standard_name: t.Optional[StandardName] = None,
-                 units: t.Optional[Unit] = None,
-                 time_precision: t.Optional[TimePrecision] = None,
-                 calendar: t.Optional[Calendar] = None,
-                 time_zone: t.Optional[TimeZone] = None,
-                 unit_epoch: t.Optional[datetime.datetime] = None,
-                 numeric_time_units: t.Optional[NumericTimeUnits] = None,
-                 missing_value: t.Optional[str] = None,
-                 scale_factor: t.Optional[NumberLike] = None,
-                 ioos_category: t.Optional[IOOSCategory] = None,
-                 actual_min: t.Optional[NumberLike] = None,
-                 actual_max: t.Optional[NumberLike] = None,
-                 valid_min: t.Optional[NumberLike] = None,
-                 valid_max: t.Optional[NumberLike] = None,
-                 add_offset: t.Optional[NumberLike] = None,
-                 encoding: t.Optional[Encoding] = None,
-                 allow_subsets: t.Optional[bool] = None,
-                 role: t.Optional[t.Union[ERDDAPVariableRole, CFVariableRole]] = None,
-                 comment: t.Optional[str] = None,
-                 references: t.Optional[str] = None,
-                 sources: t.Optional[str] = None,
-                 coverage_content_type: t.Optional[CoverageContentType] = None,
-                 order: t.Optional[int] = None,
-                 is_axis: t.Optional[bool] = None,
-                 is_altitude_proxy: t.Optional[bool] = None,
-                 guid: t.Optional[str] = None,
-                 display_names: t.Optional[MultiLanguageString] = None):
-        """
-        :param var_name: The name of the variable
-        :param var_data_type: The datatype of the variable
-        :param destination_name: If the variable is renamed in ERDDAP, the name of the destination variable
-        :param destination_type: If the variables type changes because it is unpacked, the data type of the unpacked variable.
-        :param dimensions: A list of the dimensions for this variable
-        :param long_name: The long name of the variable
-        :param standard_name: The standard name of the variable
-        :param units: The units of the variable
-        :param time_precision: The time precision of the variable
-        :param calendar: The calendar of the variable
-        :param time_zone: The time zone of the variable
-        :param unit_epoch: If the units are of the format "[time_units] since [epoch]" this is the epoch
-        :param numeric_time_units: If the units are of the format [time_units] since [epoch] this is the time_units
-        :param missing_value: The value to consider a value as "missing" in the dataset
-        :param scale_factor:  The scale factor to scale all the data by.
-        :param ioos_category: The IOOS category of the variable
-        :param actual_min: The actual minimum value of the variable
-        :param actual_max: The actual maximum value of the variable
-        :param valid_min: The minimum valid value of the variable
-        :param valid_max: The maximum valid value of the variable
-        :param add_offset: An offset to add to all the data
-        :param encoding: The encoding of a String variable
-        :param allow_subsets: Whether to allow ERDDAP to make subsets with this variable
-        :param role: The CF or ERDDAP role that this variable plays.
-        :param comment: A comment about the variable
-        :param references: References for the variable
-        :param sources: Sources for the variable
-        :param coverage_content_type: The coverage content type of the variable
-        :param order: The order of the variable in ERDDAP
-        :param is_axis: True if the variable is an axis in a gridded data file
-        :param is_altitude_proxy: True if the variable is a proxy for altitude (but not altitude or depth itself)
-        :param guid: The GUID of the variable
-        :param display_names: The display name of the variable.
-        """
-        super().__init__(guid=guid, display_names=display_names)
-        self.set_source_name(var_name)
-        self.set_source_data_type(var_data_type)
-        if encoding is not None:
-            self.set_encoding(encoding)
-        if destination_name is not None:
-            self.set_destination_name(destination_name)
-        if destination_type is not None:
-            self.set_destination_data_type(destination_type)
-        if dimensions is not None:
-            self.set_dimensions(dimensions)
-        if long_name is not None:
-            self.set_long_name(long_name)
-        if standard_name is not None:
-            self.set_standard_name(standard_name)
-        if time_precision is not None:
-            self.set_time_precision(time_precision)
-        if calendar is not None:
-            self.set_calendar(calendar)
-        if time_zone is not None:
-            self.set_time_zone(time_zone)
-        if units is not None:
-            self.set_units(units)
-        elif unit_epoch is not None and numeric_time_units is not None:
-            self.set_numeric_time_units(numeric_time_units, unit_epoch)
-        if missing_value is not None:
-            self.set_missing_value(missing_value)
-        if scale_factor is not None or add_offset is not None:
-            self.set_conversion(scale_factor, add_offset)
-        if ioos_category is not None:
-            self.set_ioos_category(ioos_category)
-        if actual_min is not None or actual_max is not None:
-            self.set_actual_range(actual_min, actual_max)
-        if valid_min is not None or valid_max is not None:
-            self.set_valid_range(valid_min, valid_max)
-        if allow_subsets is not None:
-            self.set_allow_subsets(allow_subsets)
-        if role is not None:
-            self.set_role(role)
-        if comment is not None:
-            self.set_comment(comment)
-        if references is not None:
-            self.set_references(references)
-        if sources is not None:
-            self.set_source(sources)
-        if coverage_content_type is not None:
-            self.set_coverage_content_type(coverage_content_type)
-        if order is not None:
-            self.set_variable_order(order)
-        if is_axis is not None:
-            self.set_is_axis(is_axis)
-        if is_altitude_proxy is not None:
-            self.set_is_altitude_proxy(is_altitude_proxy)
+    cnodc_name = EntityRef.make_property('cnodc_name')
+    axis = EntityRef.make_enum_property('axis', Axis)
+    units = EntityRef.make_property('units')
+    actual_min = EntityRef.make_property('actual_min')
+    actual_max = EntityRef.make_property('actual_max')
+    positive_direction = EntityRef.make_enum_property('positive', Direction)
+    encoding = EntityRef.make_enum_property('encoding', Encoding)
+    source_name = EntityRef.make_property('source_name')
+    source_data_type = EntityRef.make_enum_property('source_data_type', NetCDFDataType)
+    destination_name = EntityRef.make_property('destination_name')
+    destination_data_type = EntityRef.make_enum_property('destination_data_type', NetCDFDataType)
+    dimensions = EntityRef.make_property('dimensions', lambda x: ','.join(x))
+    long_name = EntityRef.make_property('long_name', EntityRef.format_multilingual_text)
+    standard_name = EntityRef.make_property('standard_name')
+    time_precision = EntityRef.make_enum_property('time_precision', TimePrecision)
+    calendar = EntityRef.make_enum_property('calendar', Calendar)
+    time_zone = EntityRef.make_enum_property('time_zone', TimeZone)
+    missing_value = EntityRef.make_property('missing_value', unnumpy)
+    scale_factor = EntityRef.make_property('scale_factor', unnumpy)
+    add_offset = EntityRef.make_property('add_offset', unnumpy)
+    ioos_category = EntityRef.make_enum_property('ioos_category', IOOSCategory)
+    valid_min = EntityRef.make_property('valid_min', unnumpy)
+    valid_max = EntityRef.make_property('valid_max', unnumpy)
+    allow_subsets = EntityRef.make_property('allow_subsets', bool)
+    cf_role = EntityRef.make_enum_property('cf_role', CFVariableRole)
+    erddap_role = EntityRef.make_enum_property('erddap_role', ERDDAPVariableRole)
+    comment = EntityRef.make_property('comment')
+    references = EntityRef.make_property('references')
+    source = EntityRef.make_property('source')
+    coverage_content_type = EntityRef.make_enum_property('coverage_content_type', CoverageContentType)
+    variable_order = EntityRef.make_property('variable_order', int)
+    is_axis = EntityRef.make_property('is_axis', bool)
+    is_altitude_proxy = EntityRef.make_property('altitude_proxy', bool)
 
-    def get_cnodc_name(self):
-        if 'cnodc_name' in self._metadata:
-            return self._metadata['cnodc_name']
+    @property
+    def additional_properties(self):
+        return self._metadata.get('custom_metadata', {})
 
-    def set_cnodc_name(self, name: str):
-        self._metadata['cnodc_name'] = name
+    @additional_properties.setter
+    def additional_properties(self, properties: dict):
+        self._metadata['custom_metadata'] = {}
+        for key in properties:
+            val = unnumpy(properties[key])
+            if val is not None and val != '':
+                self._metadata['custom_metadata'][key] = val
 
-    def get_axis(self):
-        if 'axis' in self._metadata:
-            return self._metadata['axis']
-
-    def get_units(self):
-        if 'units' in self._metadata:
-            return self._metadata['units']
-
-    def get_range(self):
-        return (self._metadata['actual_min'] if 'actual_min' in self._metadata else None), (self._metadata['actual_max'] if 'actual_max' in self._metadata else None)
-
-    def set_positive_direction(self, dir: Direction):
-        """
-        :param dir: The direction of positive values.
-        """
-        self._metadata['positive'] = dir.value
-
-    def set_encoding(self, enc: Encoding):
-        """
-        :param enc: The text encoding for this text field
-        """
-        self._metadata['encoding'] = enc.value
-
-    def get_source_name(self) -> t.Optional[str]:
-        if 'source_name' in self._metadata:
-            return self._metadata['source_name']
-
-    def set_source_name(self, name: str):
-        """
-        :param name: The name of this variable as it appears in the NetCDF file
-        """
-        self._metadata['source_name'] = name
-
-    def set_source_data_type(self, data_type: NetCDFDataType):
-        """
-        :param data_type: The type of the data as it is stored in a NetCDF file
-        """
-        self._metadata['source_data_type'] = data_type.value
-
-    def set_destination_data_type(self, data_type: NetCDFDataType):
-        """
-        :param data_type: The type of data once unpacked.
-        """
-        self._metadata['destination_data_type'] = data_type.value
-
-    def set_destination_name(self, name: str):
-        """
-        :param name: The name of the variable as it should appear in ERDDAP
-        """
-        self._metadata['destination_name'] = name
-
-    def set_dimensions(self, dims: list[str]):
-        """
-        :param dims: A list of dimensions that apply to this variable
-        """
-        self._metadata['dimensions'] = ",".join(dims)
-
-    def set_long_name(self, long_name: MultiLanguageString):
-        """
-        :param long_name: A string or multilanguage dict with the long name of the variable
-        """
-        self._metadata['long_name'] = EntityRef.format_multilingual_text(long_name)
-
-    def set_standard_name(self, standard_name: t.Union[StandardName, str]):
-        """
-        :param standard_name: The standard name of the variable
-        """
-        self._metadata['standard_name'] = standard_name.value if isinstance(standard_name, StandardName) else standard_name
-
-    def get_standard_name(self) -> t.Optional[str]:
-        if 'standard_name' in self._metadata:
-            return self._metadata['standard_name']
-        return None
-
-    def set_units(self, units: t.Union[Unit, str]):
-        """
-        :param units: The units for this variable
-        """
-        self._metadata['units'] = units.value if isinstance(units, Unit) else units
-
-    def set_time_precision(self,time_precision: TimePrecision):
-        """
-        :param time_precision: The precision of the time variable (e.g. is it every hour, every day, etc.)
-        """
-        self._metadata['time_precision'] = time_precision.value
-
-    def set_calendar(self, calendar: Calendar = Calendar.Standard):
-        """
-        :param calendar: The calendar used (the mixed Gregorian/Julian calendar typically used is the default)
-        """
-        self._metadata['calendar'] = calendar.value
-
-    def set_time_zone(self, time_zone: TimeZone = TimeZone.UTC):
-        """
-        :param time_zone: The time zone used (the default standard is UTC - caution: ERDDAP does not work well with numeric non-UTC times)
-        """
-        self._metadata['time_zone'] = time_zone.value
-
-    def set_numeric_time_units(self, base_units: NumericTimeUnits, epoch: datetime.datetime):
+    def set_time_units(self, base_units: NumericTimeUnits, epoch: datetime.datetime):
         """
         :param base_units: The basic units of duration (e.g. "seconds since")
         :param epoch: The reference time
         """
-        self._metadata['units'] = f"{base_units.value} since {epoch.isoformat("T")}"
-
-    def set_missing_value(self, missing_value: NumberLike):
-        """
-        :param missing_value: What should null values look like in the NetCDF file
-        """
-        self._metadata['missing_value'] = unnumpy(missing_value)
-
-    def set_conversion(self, scale_factor: t.Optional[NumberLike] = "", add_offset: t.Optional[NumberLike] = ""):
-        """
-        :param scale_factor: The value to multiply the stored value by (default 1)
-        :param add_offset: The value to add to the stored value (default 0)
-        """
-        self._metadata['scale_factor'] = unnumpy(scale_factor)
-        self._metadata['add_offset'] = unnumpy(add_offset)
-
-    def set_ioos_category(self, category: IOOSCategory):
-        """
-        :param category: The IOOS category that best describes this variable
-        """
-        self._metadata['ioos_category'] = category.value
-
-    def set_actual_range(self, min_val: t.Optional[NumberLike] = None, max_val: t.Optional[NumberLike] = None):
-        """
-        :param min_val: The actual minimum value in the dataset
-        :param max_val: The actual maximum value in the dataset
-        """
-        self._metadata['actual_min'] = unnumpy(min_val)
-        self._metadata['actual_max'] = unnumpy(max_val)
-
-    def set_valid_range(self, min_val: t.Optional[NumberLike] = None, max_val: t.Optional[NumberLike] = None):
-        """
-        :param min_val: The minimum possible valid value in the dataset
-        :param max_val: The maximum possible valid value in the dataset
-        """
-        self._metadata['valid_min'] = unnumpy(min_val)
-        self._metadata['valid_max'] = unnumpy(max_val)
-
-    def set_allow_subsets(self, subsets: bool):
-        """
-        :param subsets: Whether to let users build subsets of data using this variable (recommended only for variables with a limited number of options)
-        """
-        self._metadata['allow_subsets'] = not not subsets
-
-    def set_role(self, role: t.Union[ERDDAPVariableRole, CFVariableRole]):
-        """
-        :param role: The role the variable plays in the dataset
-        """
-        if isinstance(role, ERDDAPVariableRole):
-            self._metadata['erddap_role'] = role.value
-        else:
-            self._metadata['cf_role'] = role.value
-
-    def set_comment(self, comment: str):
-        """
-        :param comment: Additional information on the variable
-        """
-        self._metadata['comment'] = comment
-
-    def set_references(self, references: str):
-        """
-        :param references: References for the variable
-        """
-        self._metadata['references'] = references
-
-    def set_source(self, source: str):
-        """
-        :param source: Where does the variable come from
-        """
-        self._metadata['source'] = source
-
-    def set_coverage_content_type(self, content_type: CoverageContentType):
-        """
-        :param content_type: Information about what the variable represents
-        """
-        self._metadata['coverage_content_type'] = content_type.value
-
-    def set_variable_order(self, order: int):
-        """
-        :param order: Higher numbers means the variable appears lower in the list of variables
-        """
-        self._metadata['variable_order'] = order
-
-    def set_is_axis(self, is_axis: bool):
-        """
-        :param is_axis: Set to true only in gridded datasets and only when the value is one of the axes
-        """
-        self._metadata['is_axis'] = not not is_axis
-
-    def set_is_altitude_proxy(self, is_proxy: bool):
-        """
-        :param is_proxy: Set to true if the variable is not altitude or depth but it can be a stand-in for them (like pressure)
-        """
-        self._metadata['altitude_proxy'] = not not is_proxy
-
-    def set_axis(self, axis: Axis):
-        self._metadata['axis'] = axis.value
-
-    def set_additional_properties(self, properties: dict):
-        if 'custom_metadata' not in self._metadata:
-            self._metadata['custom_metadata'] = {}
-        for key in properties:
-            self._metadata['custom_metadata'][key] = unnumpy(properties[key])
+        self._metadata['units'] = f"{base_units.value} since {epoch.isoformat()}"
 
     @staticmethod
     def build_from_netcdf(ds_var: nc.Variable, locale_map) -> Variable:
-        var_attributes = {x: ds_var.getncattr(x) for x, v in ds_var.ncattrs()}
-        dtype = NetCDFDataType.from_string(ds_var.dtype)
+        var_attributes = {x: ds_var.getncattr(x) for x in ds_var.ncattrs()}
         var = Variable(
-            var_name=ds_var.name,
-            var_data_type=dtype,
+            source_name=ds_var.name,
+            source_data_type=ds_var.dtype,
             dimensions=ds_var.dimensions,
             long_name=get_bilingual_attribute(var_attributes, 'long_name', locale_map),
-            display_names={"und": ds_var.name}
+            display_name={"und": ds_var.name},
+            guid=ds_var.name,
+            comment=var_attributes.pop('comment', None),
+            references=var_attributes.pop('references', None),
+            source=var_attributes.pop('source', None),
+            coverage_content_type=var_attributes.pop('coverage_content_type', None),
+            units=var_attributes.pop('units', None),
+            valid_min=var_attributes.pop('valid_min', None),
+            valid_max=var_attributes.pop('valid_max', None),
+            standard_name=var_attributes.pop('standard_name', None),
+            calendar=var_attributes.pop('calendar', None),
+            positive_direction=var_attributes.pop('positive', None),
+            scale_factor=var_attributes.pop('scale_factor', None),
+            add_offset=var_attributes.pop('add_offset', None),
+            time_precision=var_attributes.pop('time_precision', None),
+            time_zone=var_attributes.pop('time_zone', None),
+            cf_role=var_attributes.pop('cf_role', None),
+            axis=var_attributes.pop('axis', None),
+            cnodc_name=var_attributes.pop('cnodc_standard_name', None)
         )
-        var.set_guid(ds_var.name)
-        var.set_comment(var_attributes.pop('comment', ''))
-        var.set_references(var_attributes.pop('references', ''))
-        var.set_source(var_attributes.pop('source', ''))
-        if 'coverage_content_type' in var_attributes:
-            var.set_coverage_content_type(CoverageContentType.from_string(var_attributes.pop('coverage_content_type', '')))
-        var.set_units(var_attributes.pop('units', ''))
-        if 'missing_value' in var_attributes:
-            var.set_missing_value(var_attributes.pop('missing_value'))
-            var_attributes.pop("_FillValue", "")
-        elif '_FillValue' in var_attributes:
-            var.set_missing_value(var_attributes.pop('_FillValue'))
-        if '_Encoding' in var_attributes:
-            var.set_encoding(Encoding.from_string(var_attributes.pop('_Encoding')))
-        elif dtype == NetCDFDataType.String or dtype == NetCDFDataType.Character:
-            var.set_encoding(Encoding.UTF8)
-        valid_min = var_attributes.pop('valid_min', None)
-        valid_max = var_attributes.pop('valid_max', None)
-        if valid_min is not None or valid_max is not None:
-            var.set_valid_range(valid_min, valid_max)
-        var.set_standard_name(var_attributes.pop('standard_name', ''))
-        if 'calendar' in var_attributes:
-            cal_name = var_attributes.pop('calendar')
-            if cal_name == 'gregorian':
-                var.set_calendar(Calendar.Standard)
-            else:
-                var.set_calendar(Calendar(var_attributes.pop('calendar')))
-        if 'positive' in var_attributes:
-            var.set_positive_direction(Direction(var_attributes.pop('positive')))
-        scale_factor = var_attributes.pop('scale_factor', None)
-        add_offset = var_attributes.pop('add_offset', None)
-        if scale_factor is not None or add_offset is not None:
-            var.set_conversion(scale_factor, add_offset)
-        if 'time_precision' in var_attributes:
-            var.set_time_precision(var_attributes.pop('time_precision'))
-        if 'time_zone' in var_attributes:
-            var.set_time_zone(var_attributes.pop('time_zone'))
-        if 'cf_role' in var_attributes:
-            var.set_role(CFVariableRole(var_attributes.pop('cf_role')))
-        if 'axis' in var_attributes:
-            var.set_axis(Axis(var_attributes.pop('axis')))
-        if 'cnodc_standard_name' in var_attributes:
-            var.set_cnodc_name(var_attributes.pop('cnodc_standard_name'))
-        if dtype != NetCDFDataType.String and dtype != NetCDFDataType.Character:
+        if var.source_data_type not in (NetCDFDataType.String, NetCDFDataType.Character):
             values = ds_var[:]
-            var.set_actual_range(np.min(values), np.max(values))
-            var_attributes.pop('actual_min', None)
-            var_attributes.pop('actual_max', None)
-        var.set_additional_properties(var_attributes)
+            var.actual_min = np.min(values)
+            var.actual_max = np.max(values)
+        var_attributes.pop('actual_min', None)
+        var_attributes.pop('actual_max', None)
+        if 'missing_value' in var_attributes:
+            var.missing_value = var_attributes.pop('missing_value')
+            var_attributes.pop("_FillValue", "")
+        elif '_FillValue' in var_attributes:    # pragma: no coverage (fallback)
+            var.missing_value = var_attributes.pop('_FillValue')
+        if '_Encoding' in var_attributes:
+            var.encoding = var_attributes.pop('_Encoding')
+        elif var.source_data_type in (NetCDFDataType.String, NetCDFDataType.Character):
+            var.encoding = Encoding.UTF8
+        var.additional_properties = var_attributes
         return var
 
-def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
-    attr = {}
-    for suffix in locale_map.keys():
-        if f"{attribute_name}{suffix}" in attribute_dict:
-            attr[locale_map[suffix]] = attribute_dict.pop(f"{attribute_name}{suffix}")
-    return attr
 
 
 class MaintenanceRecord(EntityRef):
 
-    def __init__(self, date: datetime, notes: str, scope: MaintenanceScope = MaintenanceScope.Dataset):
-        super().__init__()
-        self.set_date(date)
-        self.set_scope(scope)
-        self.set_notes(notes)
-
-    def set_date(self, date: datetime):
-        """
-        :param date: The date the change was made
-        """
-        self._metadata['date'] = EntityRef.format_date(date)
-
-    def set_notes(self, notes: MultiLanguageString):
-        """
-        :param notes: Describe what was changed about the dataset or metadata
-        """
-        self._metadata['notes'] = EntityRef.format_multilingual_text(notes)
-
-    def set_scope(self, scope: MaintenanceScope):
-        """
-        :param scope: Whether this is a maintenance record for the dataset or the metadata
-        """
-        self._metadata['scope'] = scope.value
+    date = EntityRef.make_property('date', EntityRef.format_date)
+    notes = EntityRef.make_property('notes', EntityRef.format_multilingual_text)
+    scope = EntityRef.make_enum_property('scope', MaintenanceScope)
 
 
 class QuickWebPage(EntityRef):
 
-    def __init__(self,
-                 url: str,
-                 *,
-                 resource_type: t.Optional[ResourceType] = None,
-                 name: t.Optional[MultiLanguageString] = None,
-                 description: t.Optional[MultiLanguageString] = None,
-                 purpose: t.Optional[ResourcePurpose] = None,
-                 guid: t.Optional[str] = None,
-                 display_names: t.Optional[MultiLanguageString]=None):
-        """
-        :param url: The URL for the resource
-        :param resource_type: The type of resource
-        :param purpose: The purpose of the resource
-        :param name: The name of the resource
-        :param description: The description of the resource
-        """
-        super().__init__(guid=guid, display_names=display_names)
-        self.set_url(url)
-        if resource_type is not None:
-            self.set_resource_type(resource_type)
-        if name is not None:
-            self.set_name(name)
-        if description is not None:
-            self.set_description(description)
-        if purpose is not None:
-            self.set_link_purpose(purpose)
+    name = EntityRef.make_property('name', EntityRef.format_multilingual_text)
+    description = EntityRef.make_property('description', EntityRef.format_multilingual_text)
+    link_purpose = EntityRef.make_enum_property('function', ResourcePurpose)
 
-    def set_url(self, url: str):
-        """
-        :param url: The URL of the resource
-        """
-        self._metadata['url'] = EntityRef.format_multilingual_text(url or "")
+    @property
+    def url(self):
+        return self.get('url')
+
+    @url.setter
+    def url(self, url: MultiLanguageString):
+        self.set(EntityRef.format_multilingual_text(url), 'url')
         if url:
-            if 'protocol' not in self._metadata or not self._metadata['protocol']:
-                self.set_resource_type()
+            self._auto_update_from_url()
 
-    def set_resource_type(self, res_type: ResourceType = ResourceType.Auto):
-        """
-        :param res_type: The type of resource (i.e. the protocol used to access it)
-        """
+    def _auto_update_from_url(self):
+        if self.resource_type is None:
+            self.resource_type = ResourceType.Auto
+
+    @property
+    def resource_type(self):
+        return self.get('protocol')
+
+    @resource_type.setter
+    def resource_type(self, res_type: ResourceType):
         if res_type != ResourceType.Auto:
-            self._metadata['protocol'] = res_type.value
+            self.set(res_type.value if res_type else None, 'protocol')
         else:
-            self._metadata['protocol'] = Resource.autodetect_resource_type(self._metadata['url'])
-
-    def set_name(self, name: MultiLanguageString):
-        """
-        :param name: The name of the resource
-        """
-        self._metadata['name'] = EntityRef.format_multilingual_text(name)
-
-    def set_description(self, desc: MultiLanguageString):
-        """
-        :param desc: A description of the resource
-        """
-        self._metadata['description'] = EntityRef.format_multilingual_text(desc)
-
-    def set_link_purpose(self, purpose: ResourcePurpose):
-        """
-        :param purpose:  Why would somebody want to use this resource?
-        """
-        self._metadata['function'] = purpose.value
+            self.set(Resource.autodetect_resource_type(self.url), 'protocol')
 
     @staticmethod
     def autodetect_resource_type(full_url: t.Optional[dict]):
@@ -1605,7 +1365,7 @@ class QuickWebPage(EntityRef):
             return "https"
         elif url.startswith("http://"):
             return "http"
-        elif url.startswith("ftp://"):
+        elif url.startswith(("ftp://", "ftps://", "ftpse://")):
             return "ftp"
         elif url.startswith("git://"):
             return 'git'
@@ -1613,96 +1373,32 @@ class QuickWebPage(EntityRef):
             return 'file'
         return None
 
+
 class Resource(QuickWebPage):
 
-    def __init__(self,
-                 url: str,
-                 *,
-                 resource_type: t.Optional[ResourceType] = None,
-                 gc_content_format: t.Optional[GCContentFormat] = None,
-                 name: t.Optional[MultiLanguageString] = None,
-                 description: t.Optional[MultiLanguageString] = None,
-                 request_info: t.Optional[MultiLanguageString] = None,
-                 app_info: t.Optional[MultiLanguageString] = None,
-                 purpose: t.Optional[ResourcePurpose] = None,
-                 gc_content_type: t.Optional[GCContentType] = None,
-                 gc_language: t.Optional[GCLanguage] = None,
-                 guid: t.Optional[str] = None,
-                 display_name: t.Optional[MultiLanguageString] = None):
-        """
-        :param url: The URL for the resource
-        :param resource_type: The type of resource
-        :param purpose: The purpose of the resource
-        :param name: The name of the resource
-        :param description: The description of the resource
-        :param request_info: Additional information about how to make a request to the URL
-        :param app_info: Additional information about an application required to make a request to the URL
-        :param gc_content_format: The content format of the resource
-        :param gc_content_type: The content type of the resource
-        :param gc_language: The language of the resource
-        :param guid: A unique identifier for the resource
-        :param display_name: The display name of the resource
-        """
-        super().__init__(
-            url=url,
-            guid=guid,
-            display_names=display_name,
-            resource_type=resource_type,
-            purpose=purpose,
-            name=name,
-            description=description
-        )
-        if gc_content_format is not None:
-            self.set_gc_content_format(gc_content_format)
-        if request_info is not None:
-            self.set_additional_request_info(request_info)
-        if app_info is not None:
-            self.set_additional_app_info(app_info)
-        if gc_content_type is not None:
-            self.set_gc_content_type(gc_content_type)
-        if gc_language is not None:
-            self.set_gc_language(gc_language)
+    additional_request_info = EntityRef.make_property('protocol_request', EntityRef.format_multilingual_text)
+    additional_app_info = EntityRef.make_property('app_profile', EntityRef.format_multilingual_text)
+    gc_content_type = EntityRef.make_enum_property('goc_content_type', GCContentType)
+    gc_language = EntityRef.make_enum_property('goc_languages', GCLanguage)
 
-    def set_url(self, url: str):
-        """
-        :param url: The URL of the resource
-        """
-        super().set_url(url)
-        if url and ('goc_formats' not in self._metadata or not self._metadata['goc_formats']):
-            self.set_gc_content_format()
+    def _auto_update_from_url(self):
+        super()._auto_update_from_url()
+        if self.gc_content_format is None:
+            self.gc_content_format = GCContentFormat.Auto
 
-    def set_gc_content_format(self, content_format: GCContentFormat = GCContentFormat.Auto):
-        """
-        :param content_format: The format of the content according to GC
-        """
+    @property
+    def gc_content_format(self):
+        gc_format = self.get('goc_formats', None)
+        if not gc_format:
+            return None
+        return GCContentFormat(gc_format[0]) if gc_format[0] is not None else None
+
+    @gc_content_format.setter
+    def gc_content_format(self, content_format: GCContentFormat = GCContentFormat.Auto):
         if content_format != GCContentFormat.Auto:
-            self._metadata['goc_formats'] = [content_format.value]
+            self.set([content_format.value if content_format else None], 'goc_formats')
         else:
-            self._metadata['goc_formats'] = [Resource.autodetect_gc_content_format(self._metadata['url'])]
-
-    def set_additional_request_info(self, info: MultiLanguageString):
-        """
-        :param info: Any additional information needed to make requests
-        """
-        self._metadata['protocol_request'] = EntityRef.format_multilingual_text(info)
-
-    def set_additional_app_info(self, info: MultiLanguageString):
-        """
-        :param info: Any additional information needed to open the URL
-        """
-        self._metadata['app_profile'] = EntityRef.format_multilingual_text(info)
-
-    def set_gc_content_type(self, content_type: GCContentType):
-        """
-        :param content_type: Why would somebody want to use this resource, but more complicated
-        """
-        self._metadata['goc_content_type'] = content_type.value
-
-    def set_gc_language(self, language: GCLanguage):
-        """
-        :param language: What languages is this resource available in?
-        """
-        self._metadata['goc_languages'] = language.value
+            self.set([Resource.autodetect_gc_content_format(self.url)], 'goc_formats')
 
     @staticmethod
     def autodetect_gc_content_format(full_url: t.Optional[dict]):
@@ -1712,7 +1408,7 @@ class Resource(QuickWebPage):
         if 'und' in full_url:
             url = full_url['und']
         elif 'en' in full_url:
-            url = full_url['und']
+            url = full_url['en']
         else:
             for key in full_url.keys():
                 url = full_url[key]
@@ -1731,92 +1427,38 @@ class Resource(QuickWebPage):
                 if any(x.value == extension for x in GCContentFormat):
                     return extension
             if url.startswith("https://") or url.startswith("http://"):
-                return "html"
+                return GCContentFormat.Hypertext.value
         return None
 
 
 class _Contact(EntityRef):
 
-    def __init__(self,
-                 *,
-                 email: t.Optional[str] = None,
-                 phone_numbers: t.Optional[t.Iterable[tuple[TelephoneType, str]]] = None,
-                 address_line: t.Optional[MultiLanguageString] = None,
-                 city: t.Optional[str] = None,
-                 province_state: t.Optional[MultiLanguageString] = None,
-                 country: t.Optional[Country] = None,
-                 service_hours: t.Optional[MultiLanguageString] = None,
-                 instructions: t.Optional[MultiLanguageString] = None,
-                 website_url: t.Optional[MultiLanguageString] = None,
-                 website_name: t.Optional[MultiLanguageString] = None,
-                 website_desc: t.Optional[MultiLanguageString] = None,
-                 resources: t.Optional[t.Union[Resource, t.Iterable[Resource]]] = None,
-                 id_code: t.Optional[str] = None,
-                 id_system: t.Optional[IDSystem] = None,
-                 id_desc: t.Optional[MultiLanguageString] = None,
-                 guid: t.Optional[str] = None,
-                 display_name: t.Optional[MultiLanguageString] = None):
-        """
-        :param email: The email address for the contact
-        :param phone_numbers: A list of phone numbers for the contact
-        :param address_line: The street address for the contact's mailing address
-        :param city: The city for the contact's mailing address
-        :param province_state: The state/province for the contact's mailing address
-        :param country: The country for the contact's mailing address
-        :param service_hours: The hours the contact can be contacted between
-        :param instructions: Additional instructions for the contact
-        :param website_url: The URL of the contact's website
-        :param website_name: The name of the contact's website
-        :param website_desc: A description of the contact's website
-        :param resources: A resource or a list of resources related to the contact
-        :param id_code: The contact's unique identifier (e.g. ROR or ORCID)
-        :param id_system: The system of unique identifiers that the ID code comes from
-        :param id_desc: A description of the ID code
-        :param guid: A unique identifier for the contact
-        :param display_name: The display name for the contact
-        """
-        super().__init__(guid=guid, display_names=display_name)
-        self._metadata['phone'] = []
-        self._children['web_resources'] = []
-        if email is not None:
-            self.set_email(email)
-        if resources is not None:
-            if isinstance(resources, Resource):
-                self.add_resource(resources)
-            else:
-                for x in resources:
-                    self.add_resource(x)
-        if website_url is not None:
-            self.set_web_page(website_url, website_name, website_desc)
-        if phone_numbers is not None:
-            for phone_type, phone in phone_numbers:
-                self.add_telephone_number(phone_type, phone)
-        if address_line is not None or city is not None or province_state is not None or country is not None:
-            self.set_address(address_line, city, province_state, country)
-        if service_hours is not None:
-            self.set_service_hours(service_hours)
-        if instructions is not None:
-            self.set_instructions(instructions)
-        if id_code is not None or id_system is not None or id_desc is not None:
-            self.set_identifier(id_code, id_system, id_desc)
-
-    def add_resource(self, resource: Resource):
-        """
-        :param resource: A resource (e.g. a web page) with more information about the contact.
-        """
-        self._children['web_resources'].append(resource)
+    email = EntityRef.make_property('email', EntityRef.format_multilingual_text)
+    service_hours = EntityRef.make_property('service_hours', EntityRef.format_multilingual_text)
+    instructions = EntityRef.make_property('instructions', EntityRef.format_multilingual_text)
+    resources = EntityRef.make_children_property('web_resources')
+    id_description = EntityRef.make_property('id_description', EntityRef.format_multilingual_text)
+    id_system = EntityRef.make_enum_property('id_system', IDSystem)
+    id_code = EntityRef.make_property('id_code')
 
     def add_telephone_number(self, tel_type: TelephoneType, tel_num: str):
         """
         :param tel_type: The type of telephone number
         :param tel_num: The telephone number where this contact can be reached
         """
+        if 'phone' not in self._metadata:
+            self._metadata['phone'] = []
         self._metadata['phone'].append({
             'phone_number_type': tel_type.value,
             'phone_number': tel_num,
         })
 
-    def set_address(self, address_line: MultiLanguageString, city: str, province_state: MultiLanguageString, country: Country):
+    def set_address(self,
+                    address_line: MultiLanguageString,
+                    city: str,
+                    province_state: MultiLanguageString,
+                    country: Country,
+                    postal_code: str):
         """
         :param address_line: Typically the street name and number along with any other additional information that would appear before the city. Use the new line character ("\n") to separate lines
         :param city: The city where the address is located
@@ -1827,14 +1469,9 @@ class _Contact(EntityRef):
             'delivery_point': EntityRef.format_multilingual_text(address_line),
             'city': city,
             'admin_area': EntityRef.format_multilingual_text(province_state),
-            'country': country.value
+            'country': country.value,
+            'postal_code': postal_code
         })
-
-    def set_email(self, email_address: MultiLanguageString):
-        """
-        :param email_address: The email address to reach the contact.
-        """
-        self._metadata['email'] = email_address
 
     def set_web_page(self,
                      url: MultiLanguageString,
@@ -1858,388 +1495,129 @@ class _Contact(EntityRef):
             'protocol': res_type.value if res_type != ResourceType.Auto else Resource.autodetect_resource_type(actual_url)
         }
 
-    def set_service_hours(self, txt: MultiLanguageString):
-        """
-        :param txt: A description of the hours when the contact is available to be contacted.
-        """
-        self._metadata['service_hours'] = EntityRef.format_multilingual_text(txt)
-
-    def set_instructions(self, txt: MultiLanguageString):
-        """
-        :param txt: Any additional instructions on contacting this person or organization.
-        """
-        self._metadata['instructions'] = EntityRef.format_multilingual_text(txt)
-
-    def set_identifier(self, code: str, system: t.Optional[IDSystem] = None, desc: t.Optional[MultiLanguageString] = None):
-        """
-        :param code: A unique identifier for this contact
-        :param system: The system of unique identifiers used (e.g. ROR or ORCID)
-        :param desc: An additional description of the identifier, if needed.
-        :return:
-        """
-        self._metadata['id_code'] = code
-        self._metadata['id_system'] = system.value if system is not None else None
-        self._metadata['id_description'] = EntityRef.format_multilingual_text(desc)
 
 
 class Individual(_Contact):
 
-    def __init__(self, name: t.Optional[str] = None, email: t.Optional[str] = None, orcid: t.Optional[str] = None, orcid_desc: t.Optional[MultiLanguageString] = None, **kwargs):
-        """
-        :param name: The full name of the person
-        :param email: The email address where the person can be reached
-        :param kwargs: See _Contact class for full details
-        """
-        super().__init__(email=email, **kwargs)
-        if name is not None:
-            self.set_name(name)
-        if orcid is not None:
-            self.set_orcid(orcid, orcid_desc)
-
-    def set_name(self, name: str):
-        """
-        :param name: The full name of the eperson
-        """
-        self._metadata['individual_name'] = name
-
-    def set_orcid(self, orcid: str, desc: t.Optional[MultiLanguageString] = None):
-        """
-        :param orcid: The Open Researcher and Contributor ID of the individual. Do not include the https://orcid.org/ prefix.
-        :param desc: Any additional description to attach to it.
-        """
-        if orcid.startswith("https://orcid.org/"):
-            orcid = orcid[18:]
-        elif orcid.startswith("http://orcid.org/"):
-            orcid = orcid[17:]
-        self.set_identifier(orcid, IDSystem.ORCID, desc)
+    name = EntityRef.make_property('individual_name')
+    orcid = EntityRef.make_id_property(IDSystem.ORCID, ['https://orcid.org/', 'http://orcid.org/'])
 
 
 class Organization(_Contact):
 
-    def __init__(self, name: t.Optional[MultiLanguageString] = None, email: t.Optional[str] = None, ror_id: t.Optional[str] = None, ror_desc: t.Optional[MultiLanguageString] = None, individuals: t.Optional[t.Iterable[Individual]] = None, **kwargs):
-        """
-        :param name: The name of the organization
-        :param email: A generic email for the organization, if applicable
-        """
-        super().__init__(email=email, **kwargs)
-        self._children['individuals'] = []
-        if name is not None:
-            self.set_name(name)
-        if ror_id is not None:
-            self.set_ror(ror_id, ror_desc)
-        if individuals is not None:
-            for x in individuals:
-                self.add_individual(x)
-
-    def add_individual(self, individual: Individual):
-        """
-        :param individual: An individual who can be contacted on behalf of the organization
-        """
-        self._children['individuals'].append(individual)
-
-    def set_name(self, name: MultiLanguageString):
-        """
-        :param name: The name of the organization
-        """
-        self._metadata['organization_name'] = EntityRef.format_multilingual_text(name)
-
-    def set_ror(self, ror: str, desc: t.Optional[MultiLanguageString] = None):
-        """
-        :param ror: The Research Organization Registry ID belonging to the organization. Do not include the https://ror.org/ prefix.
-        :param desc: Any additional description to provide alongside the ROR
-        """
-        if ror.startswith("https://ror.org/"):
-            ror = ror[16:]
-        elif ror.startswith("http://ror.org/"):
-            ror = ror[15:]
-        self.set_identifier(ror, IDSystem.ROR, desc)
+    name = EntityRef.make_property('organization_name', EntityRef.format_multilingual_text)
+    ror = EntityRef.make_id_property(IDSystem.ROR, ['https://ror.org/', 'http://ror.org/'])
+    individuals = EntityRef.make_children_property('individuals')
 
 
 class Position(_Contact):
 
-    def __init__(self, name: t.Optional[MultiLanguageString] = None, email: t.Optional[str] = None, **kwargs):
-        """
-        :param name: The name of the position
-        :param email: A generic email address for the position, if applicable.
-        """
-        super().__init__(email=email, **kwargs)
-        if name is not None:
-            self.set_name(name)
-
-    def set_name(self, name: MultiLanguageString):
-        self._metadata['position_name'] = EntityRef.format_multilingual_text(name)
+    name = EntityRef.make_property('position_name', EntityRef.format_multilingual_text)
 
 
 class _ResponsibleParty(EntityRef):
 
     def __init__(self, role: ContactRole, contact: _Contact):
         super().__init__()
-        self._metadata['role'] = role
+        self._metadata['role'] = role.value
         self._children['contact'] = contact
 
 
 class Citation(EntityRef):
 
-    def __init__(self, title: t.Optional[MultiLanguageString] = None, *, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
-        super().__init__(guid=guid, display_names=display_names)
-        self._children['responsibles'] = []
-        self._children['resource'] = None
-        if title is not None:
-            self.set_title(title)
+    title = EntityRef.make_property('title', EntityRef.format_multilingual_text)
+    alt_title = EntityRef.make_property('alt_title', EntityRef.format_multilingual_text)
+    details = EntityRef.make_property('details', EntityRef.format_multilingual_text)
+    edition = EntityRef.make_property('edition', EntityRef.format_multilingual_text)
+    publication_date = EntityRef.make_property('publication_date', EntityRef.format_date)
+    revision_date = EntityRef.make_property('revision_date', EntityRef.format_date)
+    creation_date = EntityRef.make_property('creation_date', EntityRef.format_date)
+    edition_date = EntityRef.make_property('edition_date', EntityRef.format_date)
+    isbn = EntityRef.make_property('isbn')
+    issn = EntityRef.make_property('issn')
+    resource = EntityRef.make_child_property('resource')
+    id_code = EntityRef.make_property('id_code')
+    id_system = EntityRef.make_enum_property('id_system', IDSystem)
+    id_description = EntityRef.make_property('id_description', EntityRef.format_multilingual_text)
+    responsibles = EntityRef.make_children_property('responsibles')
 
-    def add_responsible_party(self, role: ContactRole, contact: _Contact):
+    def add_contact(self, role: ContactRole, contact: _Contact):
         """
         :param role: The role the person plays for this citation
         :param contact: Their contact information
         """
-        self._children['responsibles'].append(_ResponsibleParty(role, contact))
-
-    def set_title(self, title: MultiLanguageString):
-        """
-        :param title: The title of the citation
-        """
-        self._metadata['title'] = EntityRef.format_multilingual_text(title)
-
-    def set_alt_title(self, alt_title: MultiLanguageString):
-        """
-        :param alt_title: The alternative title of the citation
-        """
-        self._metadata['alt_title'] = EntityRef.format_multilingual_text(alt_title)
-
-    def set_publication_date(self, pub_date: datetime.date):
-        """
-        :param pub_date: The date the citation was published
-        """
-        self._metadata['publication_date'] = EntityRef.format_date(pub_date)
-
-    def set_revision_date(self, revision_date: datetime.date):
-        """
-        :param revision_date: The date the citation was last revised
-        """
-        self._metadata['revision_date'] = EntityRef.format_date(revision_date)
-
-    def set_creation_date(self, creation_date: datetime.date):
-        """
-        :param creation_date: The date the citation was published
-        """
-        self._metadata['creation_date'] = EntityRef.format_date(creation_date)
-
-    def set_edition_info(self, ed_name: t.Optional[MultiLanguageString] = None, ed_date: t.Optional[datetime.date] = None):
-        """
-        :param ed_name: The name of the edition
-        :param ed_date: The date the citation was published
-        """
-        self._metadata['edition'] = EntityRef.format_multilingual_text(ed_name)
-        self._metadata['publication_date'] = EntityRef.format_date(ed_date)
-
-    def set_details(self, details: MultiLanguageString):
-        """
-        :param details: More details about this citation
-        """
-        self._metadata['details'] = EntityRef.format_multilingual_text(details)
-
-    def set_isbn(self, isbn: str):
-        self._metadata['isbn'] = isbn
-
-    def set_issn(self, issn: str):
-        self._metadata['issn'] = issn
-
-    def set_resource(self, resource: Resource):
-        """
-        :param resource: A resource which the citation is in reference to (e.g. a web link to it)
-        """
-        self._children['resource'] = resource
-
-    def set_identifier(self, code: str, id_system: IDSystem, description: t.Optional[MultiLanguageString] = None):
-        """
-        :param code: A unique identifier for this citation, e.g. a DOI
-        :param id_system: The system used for the code (e.g. the DOI system)
-        :param description: Optionally a description of what the ID code represents
-        """
-        self._metadata['id_code'] = code
-        self._metadata['id_system'] = id_system
-        self._metadata['description'] = EntityRef.format_multilingual_text(description)
+        self.responsibles.append(_ResponsibleParty(role, contact))
 
 
 class GeneralUseConstraint(EntityRef):
 
-    def __init__(self,
-                 *,
-                 guid: t.Optional[str] = None,
-                 display_names: t.Optional[MultiLanguageString] = None):
-        super().__init__(guid=guid, display_names=display_names)
-        self._children['reference'] = []
-        self._children['responsibles'] = []
-
-    def add_reference(self, ref: Citation):
-        """
-        :param ref: A citation with more information about the use constraint (e.g. a link to the license)
-        """
-        self._children['reference'].append(ref)
-
-    def set_description(self, text: MultiLanguageString):
-        """
-        :param text: Additional information about the UseConstraint
-        """
-        self._metadata['description'] = EntityRef.format_multilingual_text(text)
+    description = EntityRef.make_property('description', EntityRef.format_multilingual_text)
+    plain_text_version = EntityRef.make_property('plain_text', EntityRef.format_multilingual_text)
+    citations = EntityRef.make_children_property('reference')
+    responsibles = EntityRef.make_children_property('responsibles')
 
     def add_contact(self, role: ContactRole, contact: _Contact):
         """
         :param role: The role the contact plays for this use constraint.
         :param contact: The contact information
         """
-        self._children['responsibles'].append(_ResponsibleParty(role, contact))
-
-    def set_plain_text_version(self, txt: MultiLanguageString):
-        """
-        :param txt: The plain text version of the license, for use in NetCDF files.
-        """
-        self._metadata['plain_text'] = EntityRef.format_multilingual_text(txt)
+        self.responsibles.append(_ResponsibleParty(role, contact))
 
 
 class LegalConstraint(GeneralUseConstraint):
 
-    def set_access_constraint(self, constraint: t.Union[RestrictionCode, list[RestrictionCode]]):
-        """
-        :param constraint: Limits on who can access the data (e.g. is it classified / protected) - may be a list of values instead.
-        """
-        self._metadata['access_constraints'] = constraint.value if isinstance(constraint, RestrictionCode) else [x.value for x in constraint]
-
-    def set_use_constraint(self, constraint: t.Union[RestrictionCode, list[RestrictionCode]]):
-        """
-        :param constraint: Limits on who can use the data (e.g. is it classified / protected) - may be a list of values instead.
-        """
-        self._metadata['use_constraints'] = constraint.value if isinstance(constraint, RestrictionCode) else [x.value for x in constraint]
-
-    def set_other_constraints(self, constraint_info: MultiLanguageString):
-        """
-        :param constraint_info: Additional information on the constraints. You should use RestrictionCode.Other in the access or use constraints.
-        """
-        self._metadata['other_constraints'] = EntityRef.format_multilingual_text(constraint_info)
+    access_constraints = EntityRef.make_enum_property('access_constraints', RestrictionCode, coerce_list=True)
+    use_constraints = EntityRef.make_enum_property('use_constraints', RestrictionCode, coerce_list=True)
+    other_constraints = EntityRef.make_property('other_constraints', EntityRef.format_multilingual_text)
 
 
 class SecurityConstraint(GeneralUseConstraint):
 
-    def __init__(self, classification: t.Optional[ClassificationCode] = None, *, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
-        super().__init__(guid=guid, display_names=display_names)
-        if classification is not None:
-            self.set_classification(classification)
 
-    def set_classification(self, classification: ClassificationCode):
-        """
-        :param classification: The classification of the data.
-        """
-        self._metadata['classification'] = classification.value
-
-    def set_user_notes(self, notes: MultiLanguageString):
-        """
-        :param notes: Notes about how the data can be used.
-        """
-        self._metadata['user_notes'] = EntityRef.format_multilingual_text(notes)
-
-    def set_handling_notes(self, notes: MultiLanguageString):
-        """
-        :param notes: Notes about how the data must be handled.
-        """
-        self._metadata['handling_description'] = EntityRef.format_multilingual_text(notes)
-
-    def set_classification_system(self, sys: MultiLanguageString):
-        """
-        :param sys: A description of the classification system used.
-        """
-        self._metadata['classification_system'] = EntityRef.format_multilingual_text(sys)
+    classification = EntityRef.make_enum_property('classification', ClassificationCode)
+    user_notes = EntityRef.make_property('user_notes', EntityRef.format_multilingual_text)
+    classification_system = EntityRef.make_property('classification_system', EntityRef.format_multilingual_text)
 
 
 class ERDDAPServer(EntityRef):
 
-    def __init__(self, base_url: t.Optional[str] = None, guid: t.Optional[str] = None, display_names: t.Optional[MultiLanguageString] = None):
-        super().__init__(guid=guid, display_names=display_names)
-        if base_url is not None:
-            self.set_base_url(base_url)
-        self._children['responsibles'] = []
-
-    def set_base_url(self, base_url: str):
-        """
-            :param base_url: The base URL of the ERDDAP server.
-        """
-        self._metadata['base_url'] = base_url
+    base_url = EntityRef.make_property('base_url')
+    responsibles = EntityRef.make_children_property('responsibles')
 
     def add_contact(self, role: ContactRole, contact: _Contact):
         """
         :param role: The role the contact plays
         :param contact: The contact
         """
-        self._children['responsibles'].append(_ResponsibleParty(role, contact))
+        self.responsibles.append(_ResponsibleParty(role, contact))
 
 
 class Thesaurus(EntityRef):
 
-    def __init__(self):
-        super().__init__()
-
-    def set_citation(self, citation: Citation):
-        """
-        :param citation: A citation for the thesaurus.
-        """
-        self._children['citation'] = citation
-
-    def set_type(self, keyword_type: KeywordType):
-        """
-        :param keyword_type: The type of keywords associated with this thesaurus.
-        """
-        self._metadata['type'] = keyword_type.value
-
-    def set_prefix(self, prefix: str):
-        """
-        :param prefix: The prefix used in NetCDF files for keywords from this thesaurus.
-        """
+    keyword_type = EntityRef.make_enum_property('type', KeywordType)
+    prefix = EntityRef.make_property('prefix')
+    citation = EntityRef.make_child_property('citation')
 
 
 class Keyword(EntityRef):
 
-    def __init__(self, thesaurus: Thesaurus, text: MultiLanguageString, description: t.Optional[MultiLanguageString] = None):
-        """
-        :param thesaurus: The thesaurus that the keyword is from.
-        :param text: The keyword text. If the keyword has a "programmatic value" use "und" for this value. You may also add internationalized versions for display purposes.
-        :param description: The description of the keyword.
-        """
-        super().__init__()
-        self.set_thesaurus(thesaurus)
-        self.set_text(text)
-        self.set_description(description)
-
-    def set_thesaurus(self, t: Thesaurus):
-        self._children['thesaurus'] = t
-
-    def set_text(self, t: MultiLanguageString):
-        self._metadata['keyword'] = EntityRef.format_multilingual_text(t)
-
-    def set_description(self, d: t.Optional[MultiLanguageString]):
-        self._metadata['description'] = EntityRef.format_multilingual_text(d)
+    text = EntityRef.make_property('keyword', EntityRef.format_multilingual_text)
+    description = EntityRef.make_property('description', EntityRef.format_multilingual_text)
+    thesaurus = EntityRef.make_child_property('thesaurus')
 
 
 class DistributionChannel(EntityRef):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._children['responsibles']: list[_ResponsibleParty] = []
-        self._children['primary_web_link']: t.Optional[Resource] = None
-        self._children['links']: list[Resource] = []
+    description = EntityRef.make_property('description', EntityRef.format_multilingual_text)
+    primary_link = EntityRef.make_child_property('primary_web_link')
+    links = EntityRef.make_children_property('links')
+    responsibles = EntityRef.make_children_property('responsibles')
 
-    def set_description(self, description: MultiLanguageString):
-        self._metadata['description'] = description
-
-    def add_responsible(self, role: ContactRole, contact: _Contact):
-        self._children['responsibles'].append(_ResponsibleParty(role, contact))
-
-    def set_primary_link(self, res: Resource):
-        self._children['primary_web_link'] = res
-
-    def add_link(self, res: Resource):
-        self._children['links'].append(res)
+    def add_contact(self, role: ContactRole, contact: _Contact):
+        self.responsibles.append(_ResponsibleParty(role, contact))
 
 
-class DatasetMetadata:
+class DatasetMetadata(EntityRef):
 
     ontology: "cnodc.ocproc2.ontology.OCProc2Ontology" = None
 
@@ -2252,149 +1630,355 @@ class DatasetMetadata:
         CommonDataModelType.Point: SpatialRepresentation.TextTable,
         CommonDataModelType.Grid: SpatialRepresentation.Grid,
         CommonDataModelType.MovingGrid: SpatialRepresentation.Grid,
-
     }
 
 
     @injector.construct
-    def __init__(self):
-        self._guid: t.Optional[str] = None
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self._authority: t.Optional[str] = None
-        self._metadata: dict[str, t.Any] = {}
         self._act_workflow: t.Optional[str] = None
         self._pub_workflow: t.Optional[str] = None
         self._security_level: t.Optional[str] = None
         self._org_name: t.Optional[str] = None
-        self._display_name: dict[str, str] = {}
         self._users: set[str] = set()
         self._profiles: set[str] = set()
         self._profiles.add('cnodc')
-        self._children: dict[str, t.Union[EntityRef, list[EntityRef], None]] = {
-            'iso_maintenance': [],
-            'variables': [],
-            'canon_urls': [],
-            'additional_docs': [],
-            'metadata_profiles': [],
-            'metadata_standards': [],
-            'alt_metadata': [],
-            'info_link': None,
-            'responsibles': [],
-            'licenses': [],
-            'metadata_licenses': [],
-            'erddap_servers': [],
-            'custom_keywords': [],
-            'distributors': [],
-        }
         self._log = logging.getLogger("cnodc.dmd.metadata")
 
-    def set_info_link(self,
-                      url: MultiLanguageString,
-                      name: t.Optional[MultiLanguageString] = None,
-                      description: t.Optional[MultiLanguageString] = None,
-                      function: ResourcePurpose = ResourcePurpose.Information,
-                      protocol: ResourceType = ResourceType.Auto):
-        self._children['info_link'] = QuickWebPage(
-            url=url,
-            name=name,
-            description=description,
-            purpose=function,
-            resource_type=protocol
-        )
+    erddap_servers = EntityRef.make_children_property('erddap_servers')
+    distributors = EntityRef.make_children_property('distributors')
+    variables = EntityRef.make_children_property('variables')
+    custom_keywords = EntityRef.make_children_property('custom_keywords')
+    goc_publisher = EntityRef.make_enum_property('goc_publisher', GCPublisher)
+    data_constraints = EntityRef.make_children_property('licenses')
+    metadata_constraints = EntityRef.make_children_property('metadata_licenses')
+    responsibles = EntityRef.make_children_property('responsibles')
+    metadata_owner = EntityRef.make_child_property('metadata_owner')
+    publisher = EntityRef.make_child_property('publisher')
+    parent_metadata = EntityRef.make_child_property('parent_metadata')
+    alt_metadata_citations = EntityRef.make_children_property('alt_metadata')
+    metadata_standards = EntityRef.make_children_property('metadata_standards')
+    metadata_profiles = EntityRef.make_children_property('metadata_profiles')
+    additional_docs = EntityRef.make_children_property('additional_docs')
+    maintenance_records = EntityRef.make_children_property('iso_maintenance')
+    canon_urls = EntityRef.make_children_property('canon_urls')
+    title = EntityRef.make_property('title', EntityRef.format_multilingual_text)
+    institution = EntityRef.make_property('institution')
+    program = EntityRef.make_property('program')
+    project = EntityRef.make_property('project')
+    conventions = EntityRef.make_property('conventions', lambda x: ','.join(x))
+    cf_standard_name_vocab = EntityRef.make_property('standard_name_vocab')
+    credit = EntityRef.make_property('acknowledgement', EntityRef.format_multilingual_text)
+    comment = EntityRef.make_property('comment', EntityRef.format_multilingual_text)
+    id_code = EntityRef.make_property('dataset_id_code')
+    id_system = EntityRef.make_enum_property('dataset_id_system', IDSystem)
+    id_description = EntityRef.make_property('dataset_id_description', EntityRef.format_multilingual_text)
+    doi = EntityRef.make_id_property(IDSystem.DOI, ['https://doi.org/', 'http://doi.org/', 'doi:'])
+    processing_level = EntityRef.make_property('processing_level')
+    processing_description = EntityRef.make_property('processing_description', EntityRef.format_multilingual_text)
+    processing_environment = EntityRef.make_property('processing_environment', EntityRef.format_multilingual_text)
+    processing_system = EntityRef.make_enum_property('processing_system', IDSystem)
+    purpose = EntityRef.make_property('purpose', EntityRef.format_multilingual_text)
+    references = EntityRef.make_property('references', EntityRef.format_multilingual_text)
+    source = EntityRef.make_property('source')
+    abstract = EntityRef.make_property('summary')
+    geospatial_lat_min = EntityRef.make_property('geospatial_lat_min', unnumpy)
+    geospatial_lon_min = EntityRef.make_property('geospatial_lat_max', unnumpy)
+    geospatial_lat_max = EntityRef.make_property('geospatial_lon_min', unnumpy)
+    geospatial_lon_max = EntityRef.make_property('geospatial_lon_max', unnumpy)
+    geospatial_bounds = EntityRef.make_property('geospatial_bounds')
+    geospatial_crs = EntityRef.make_enum_property('geospatial_bounds_crs', CoordinateReferenceSystem)
+    geospatial_vertical_min = EntityRef.make_property('geospatial_vertical_max', unnumpy)
+    geospatial_vertical_max = EntityRef.make_property('geospatial_vertical_min', unnumpy)
+    geospatial_vertical_crs = EntityRef.make_enum_property('geospatial_bounds_vertical_crs', CoordinateReferenceSystem)
+    time_coverage_start = EntityRef.make_property('time_coverage_start', EntityRef.format_date)
+    time_coverage_end = EntityRef.make_property('time_coverage_end', EntityRef.format_date)
+    is_ongoing = EntityRef.make_property('is_ongoing', bool)
+    temporal_crs = EntityRef.make_enum_property('temporal_crs', CoordinateReferenceSystem)
+    date_issued = EntityRef.make_property('date_issued', EntityRef.format_date)
+    date_created = EntityRef.make_property('date_created', EntityRef.format_date)
+    date_modified = EntityRef.make_property('date_modified', EntityRef.format_date)
+    primary_data_locale = EntityRef.make_enum_property('data_locale', Locale)
+    secondary_data_locales = EntityRef.make_enum_property('data_extra_locales', Locale, coerce_list=True)
+    primary_metadata_locale = EntityRef.make_enum_property('metadata_locale', Locale)
+    secondary_metadata_locales = EntityRef.make_enum_property('metadata_extra_locales', Locale, coerce_list=True)
+    metadata_maintenance_frequency = EntityRef.make_enum_property('metadata_maintenance_frequency', MaintenanceFrequency)
+    data_maintenance_frequency = EntityRef.make_enum_property('resource_maintenance_frequency', MaintenanceFrequency)
+    topic_category = EntityRef.make_enum_property('topic_category', TopicCategory)
+    status = EntityRef.make_enum_property('status', StatusCode)
+    spatial_representation = EntityRef.make_enum_property('spatial_representation_type', SpatialRepresentation)
+    file_storage_location = EntityRef.make_property('file_storage_location', EntityRef.format_multilingual_text)
+    internal_notes = EntityRef.make_property('internal_notes', EntityRef.format_multilingual_text)
+    is_available_via_meds_request_form = EntityRef.make_property('via_meds_request_form', bool)
+    goc_publication_places = EntityRef.make_enum_property('goc_publication_place', GCPlace, coerce_list=True)
+    goc_audiences = EntityRef.make_enum_property('goc_audience', GCAudience, coerce_list=True)
+    goc_collection = EntityRef.make_enum_property('goc_collection_type', GCCollectionType)
+    goc_subject = EntityRef.make_enum_property('goc_subject', GCSubject)
 
-    def add_distribution_channel(self, dist: DistributionChannel):
-        self._children['distributors'].append(dist)
+    @property
+    def feature_type(self):
+        return CommonDataModelType.from_string(self.get('feature_type', ''))
 
-    def get_variables(self):
-        return self._children['variables']
+    @feature_type.setter
+    def feature_type(self, feature_type: CommonDataModelType):
+        self.set(feature_type.value, 'feature_type')
+        if feature_type in DatasetMetadata.REPRESENTATION_MAP and self.spatial_representation is None:
+            self.spatial_representation = DatasetMetadata.REPRESENTATION_MAP[feature_type]
+
+    @property
+    def cf_standard_names(self):
+        if 'cf_standard_names' not in self._metadata:
+            self._metadata['cf_standard_names'] = []
+        return self.get('cf_standard_names')
+
+    def set_spatial_resolution(self,
+                               scale: t.Optional[int] = None,
+                               level_of_detail: t.Optional[MultiLanguageString] = None,
+                               horizontal: t.Optional[NumberLike] = None,
+                               vertical: t.Optional[NumberLike] = None,
+                               angular: t.Optional[NumberLike] = None,
+                               horizontal_units: DistanceUnit = DistanceUnit.Meters,
+                               vertical_units: DistanceUnit = DistanceUnit.Meters,
+                               angular_units: AngularUnit = AngularUnit.ArcDegrees,
+                               ):
+        """
+        :param scale: The spatial resolution in 1:[SCALE] format (e.g. use 10000 for a 1:10000 scale)
+        :param level_of_detail: A text description of the level of detail
+        :param horizontal: The horizontal resolution of the dataset in the given units
+        :param vertical: The vertical resolution of the dataset in the given units
+        :param angular: The angular resolution of the dataset in the given units
+        :param horizontal_units: Units for horizontal resolution (defaults to metres)
+        :param vertical_units: Units for the vertical resolution (defaults to metres)
+        :param angular_units: Units for the angular resolution (defaults to arc degrees)
+        """
+        self._metadata['spatial_resolution'] = {}
+        if scale is not None:
+            self._metadata['spatial_resolution']['scale'] = scale
+        if level_of_detail is not None:
+            self._metadata['spatial_resolution']['level_of_detail'] = EntityRef.format_multilingual_text(level_of_detail)
+        if horizontal is not None:
+            self._metadata['spatial_resolution']['distance'] = str(horizontal)
+            self._metadata['spatial_resolution']['distance_units'] = horizontal_units.value
+        if vertical is not None:
+            self._metadata['spatial_resolution']['vertical'] = str(vertical)
+            self._metadata['spatial_resolution']['vertical_units'] = vertical_units.value
+        if angular is not None:
+            self._metadata['spatial_resolution']['angular'] = str(angular)
+            self._metadata['spatial_resolution']['angular_units'] = angular_units.value
+
+    def add_cf_standard_name(self, keyword: t.Union[str, StandardName]):
+        """
+        :param keyword: A keyword to add
+        """
+        if hasattr(keyword, 'value'):
+            keyword = keyword.value
+        if 'cf_standard_names' not in self._metadata:
+            self._metadata['cf_standard_names'] = list()
+        if keyword not in self._metadata['cf_standard_names']:
+            self._metadata['cf_standard_names'].append(keyword)
+
+    def set_time_resolution_from_iso(self, iso_duration: str):
+        tcr = iso_duration.replace("-", "").replace(":", "").upper()
+        if tcr[0] != 'P':
+            raise ValueError('ISO formats begin with a P')
+        else:
+            parts = [0, 0, 0, 0, 0, 0]
+            weeks = 0
+            buffer = ''
+            in_time = False
+            used_alt_format = False
+            for i in range(1, len(tcr)):
+                if tcr[i].isdigit():
+                    buffer += tcr[i]
+                elif tcr[i] == 'T':
+                    in_time = True
+                    if buffer:
+                        if len(buffer) != 8:
+                            raise ValueError(f'Invalid alternate duration date length')
+                        parts[0] = int(buffer[0:4])
+                        parts[1] = int(buffer[4:6])
+                        parts[2] = int(buffer[6:8])
+                        buffer = ''
+                        used_alt_format = True
+                elif tcr[i] == 'Y':
+                    parts[0] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'M':
+                    parts[4 if in_time else 1] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'D':
+                    parts[2] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'H':
+                    parts[3] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'S':
+                    parts[5] = int(buffer)
+                    buffer = ''
+                elif tcr[i] == 'W':
+                    weeks = int(buffer)
+                    buffer = ''
+                else:
+                    raise ValueError(f'Invalid character found at position [{i}] in [{tcr}]')
+            if buffer and used_alt_format:
+                if len(buffer) in (2, 4, 6):
+                    parts[3] = int(buffer[0:2])
+                else:
+                    raise ValueError(f'Invalid alternate duration time length [{buffer}]')
+                if len(buffer) in (4, 6):
+                    parts[4] = int(buffer[2:4])
+                if len(buffer) == 6:
+                    parts[5] = int(buffer[4:6])
+            if weeks > 0:
+                if any(x > 0 for x in parts):
+                    raise ValueError('Cannot specify weeks and other time parts')
+                self.set_time_resolution(0, 0, weeks * 7)
+            else:
+                self.set_time_resolution(*parts)
+
+    def set_time_resolution(self,
+                            years: t.Optional[int] = None,
+                            months: t.Optional[int] = None,
+                            days: t.Optional[int] = None,
+                            hours: t.Optional[int] = None,
+                            minutes: t.Optional[int] = None,
+                            seconds: t.Optional[int] = None):
+        """
+        """
+        self._metadata['temporal_resolution'] = {
+            'years': years or None,
+            'months': months or None,
+            'days': days or None,
+            'hours': hours or None,
+            'minutes': minutes or None,
+            'seconds': int(seconds) if seconds else None
+        }
+
+    def add_essential_ocean_variable(self, keyword: t.Union[str, EssentialOceanVariable]):
+        """
+        :param keyword: The essential ocean variable to add to this dataset.
+        """
+        if hasattr(keyword, 'value'):
+            keyword = keyword.value
+        if 'cioos_eovs' not in self._metadata:
+            self._metadata['cioos_eovs'] = list()
+        if keyword not in self._metadata['cioos_eovs']:
+            self._metadata['cioos_eovs'].append(keyword)
+
+    def set_erddap_info(self, server: t.Union[ERDDAPServer, list[ERDDAPServer]], dataset_id: str, dataset_type: ERDDAPDatasetType, file_path: t.Optional[str] = None, file_pattern: t.Optional[str] = None):
+        """
+        :param server: The server(s) that will host the dataset
+        :param dataset_id: The ID of the dataset as it should be used in ERDDAP (must be unique)
+        :param file_path: The path of the files on the ERDDAP server
+        :param file_pattern: If multiple files are stored in that path, the file pattern to match (otherwise all files are used)
+        """
+        self.add_profile('erddap')
+        if isinstance(server, ERDDAPServer):
+            self.erddap_servers.append(server)
+        else:
+            self.erddap_servers.extend(server)
+        self._metadata['erddap_data_file_path'] = file_path
+        self._metadata['erddap_data_file_pattern'] = file_pattern
+        self._metadata['erddap_dataset_id'] = dataset_id
+        self._metadata['erddap_dataset_type'] = dataset_type.value
 
     def set_meds_defaults(self):
-        self.add_metadata_constraint(Common.Constraint_Unclassified)
-        self.add_metadata_constraint(Common.Constraint_OpenGovernmentLicense)
-        self.add_data_constraint(Common.Constraint_Unclassified)
-        self.add_data_constraint(Common.Constraint_OpenGovernmentLicense)
-        self.add_metadata_profile(Common.MetadataProfile_CIOOS)
-        self.add_metadata_standard(Common.MetadataStandard_ISO19115)
-        self.add_metadata_standard(Common.MetadataStandard_ISO191151)
-        self.set_metadata_owner(Common.Contact_CNODC)
-        self.set_publisher(Common.Contact_CNODC)
-        self.set_metadata_maintenance_frequency(MaintenanceFrequency.NotPlanned)
-        self.set_dataset_maintenance_frequency(MaintenanceFrequency.NotPlanned)
-        self.set_status(StatusCode.Final)
-        self.set_topic_category(TopicCategory.Oceans)
+        self.metadata_constraints.append(Common.Constraint_Unclassified)
+        self.metadata_constraints.append(Common.Constraint_OpenGovernmentLicense)
+        self.data_constraints.append(Common.Constraint_Unclassified)
+        self.data_constraints.append(Common.Constraint_OpenGovernmentLicense)
+        self.metadata_profiles.append(Common.MetadataProfile_CIOOS)
+        self.metadata_standards.append(Common.MetadataStandard_ISO19115)
+        self.metadata_standards.append(Common.MetadataStandard_ISO191151)
+        self.metadata_owner = Common.Contact_CNODC
+        self.publisher = Common.Contact_CNODC
+        self.metadata_maintenance_frequency = MaintenanceFrequency.NotPlanned
+        self.data_maintenance_frequency = MaintenanceFrequency.NotPlanned
+        self.status = StatusCode.Final
+        self.topic_category = TopicCategory.Oceans
         self.set_activation_workflow("cnodc_activation")
         self.set_publication_workflow("cnodc_publish")
-        self.set_cf_standard_name_vocab("CF 1.13")
+        self.cf_standard_name_vocab = "CF 1.13"
         self._security_level = 'unclassified'
-        self.set_goc_publisher(GCPublisher.MEDS)
-        self.set_government_metadata(
-            GCPlace.Ottawa,
-            GCSubject.Oceanography,
-            GCCollectionType.Geospatial,
-            GCAudience.Scientists
-        )
+        self.goc_publisher = GCPublisher.MEDS
+        self.goc_subject = GCSubject.Oceanography
+        self.goc_publication_places = [GCPlace.Ottawa]
+        self.goc_audiences = [GCAudience.Scientists]
+        self.goc_collection = GCCollectionType.Geospatial
 
     def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en'):
         attrs = { x: dataset.getncattr(x) for x, v in dataset.ncattrs()}
         locale_map = self._set_locales_from_netcdf(attrs, default_lang)
         depths = self._identify_levels(dataset)
         for ds_var in dataset.variables:
-            self.add_variable(Variable.build_from_netcdf(ds_var, locale_map), depths)
+            self.add_variable(Variable.build_from_netcdf(dataset.variables[ds_var], locale_map), depths)
         title = get_bilingual_attribute(attrs, 'title', locale_map)
-        self.set_title(title)
-        self.set_display_name(title)
-        self.set_program(attrs.pop('program', ""))
-        self.set_project(attrs.pop('project', ""))
-        self.set_conventions(attrs.pop('Conventions', "").split(","))
-        self.set_institution(attrs.pop('institution', ""))
-        self.set_guid(attrs.pop('id', ""), attrs.pop('naming_authority', ""))
-        self.set_credit(get_bilingual_attribute(attrs, 'acknowledgement', locale_map))
-        self.set_comment(get_bilingual_attribute(attrs, 'comment', locale_map))
-        self.set_references(get_bilingual_attribute(attrs, 'references', locale_map))
-        self.set_source(get_bilingual_attribute(attrs, 'source', locale_map))
-        self.set_abstract(get_bilingual_attribute(attrs, 'summary', locale_map))
-        self.set_purpose(get_bilingual_attribute(attrs, 'purpose', locale_map))
-        self._set_optional_netcdf(attrs, 'standard_name_vocabulary', self.set_cf_standard_name_vocab)
-        self._set_optional_netcdf(attrs, 'date_issued', self.set_date_issued, datetime.datetime.fromisoformat)
-        self._set_optional_netcdf(attrs, 'date_created', self.set_date_created, datetime.datetime.fromisoformat)
-        self._set_optional_netcdf(attrs, 'date_modified', self.set_date_modified, datetime.datetime.fromisoformat)
-        self._set_optional_netcdf(attrs, 'featureType', self.set_feature_type, CommonDataModelType.from_netcdf)
-        if 'processing_level' in attrs or 'processing_description' in attrs or 'processing_environment' in attrs:
-            self.set_processing_info(
-                attrs.pop('processing_level', ''),
-                get_bilingual_attribute(attrs, 'processing_description', locale_map),
-                get_bilingual_attribute(attrs, 'processing_environment', locale_map),
-            )
-        self._build_from_enum_value(attrs, "dataset_maintenance_frequency", MaintenanceFrequency, self.set_dataset_maintenance_frequency)
-        self._build_from_enum_value(attrs, "metadata_maintenance_frequency", MaintenanceFrequency, self.set_metadata_maintenance_frequency)
-        self._build_from_enum_value(attrs, "status", StatusCode, self.set_status)
-        self._build_from_enum_value(attrs, "topic_category", TopicCategory, self.set_topic_category)
-        self._build_from_enum_value(attrs, "gc_audiences", GCAudience, self.set_government_audiences, True)
-        self._build_from_enum_value(attrs, "gc_collection", GCCollectionType, self.set_government_collection)
-        self._build_from_enum_value(attrs, 'gc_publication_places', GCPlace, self.set_government_publication_places, True)
-        self._build_from_enum_value(attrs, "gc_subject", GCSubject, self.set_government_subject)
-        self._set_optional_netcdf(attrs, 'infoUrl', self.set_info_link)
-        self._set_optional_netcdf(attrs, 'doi', self.set_doi)
-        self._set_optional_netcdf(attrs, "geospatial_bounds")
+        self.title = title
+        self.display_name = title
+        self.program = attrs.pop('program', None)
+        self.project = attrs.pop('project', None)
+        self.institution = attrs.pop('institution', None)
+        self.guid = attrs.pop('id', None)
+        self.feature_type = attrs.pop('featureType', None)
+        self.processing_level = attrs.pop('processing_level', None)
+        self.geospatial_bounds = attrs.pop('geospatial_bounds', None)
+        self.conventions = attrs.pop('Conventions', "").split(",")
+        self.processing_description = get_bilingual_attribute(attrs, 'processing_description', locale_map)
+        self.processing_environment = get_bilingual_attribute(attrs, 'processing_environment', locale_map)
+        self.credit = get_bilingual_attribute(attrs, 'acknowledgement', locale_map)
+        self.comment = get_bilingual_attribute(attrs, 'comment', locale_map)
+        self.references = get_bilingual_attribute(attrs, 'references', locale_map)
+        self.source = get_bilingual_attribute(attrs, 'source', locale_map)
+        self.abstract = get_bilingual_attribute(attrs, 'summary', locale_map)
+        self.purpose = get_bilingual_attribute(attrs, 'purpose', locale_map)
+        if 'standard_name_vocabulary' in attrs and attrs['standard_name_vocabulary']:
+            self.cf_standard_name_vocab = attrs.pop('standard_name_vocabulary')
+        if 'date_issued' in attrs and attrs['date_issued']:
+            self.date_issued = datetime.datetime.fromisoformat(attrs.pop('date_issued'))
+        if 'date_created' in attrs and attrs['date_created']:
+            self.date_created = datetime.datetime.fromisoformat(attrs.pop('date_created'))
+        if 'date_modified' in attrs and attrs['date_modified']:
+            self.date_modified = datetime.datetime.fromisoformat(attrs.pop('date_modified'))
+        if 'data_maintenance_frequency' in attrs and attrs['data_maintenance_frequency']:
+            self.data_maintenance_frequency = attrs.pop('dataset_maintenance_frequency')
+        if 'metadata_maintenance_frequency' in attrs and attrs['metadata_maintenance_frequency']:
+            self.metadata_maintenance_frequency = attrs.pop('metadata_maintenance_frequency')
+        if 'status' in attrs and attrs['status']:
+            self.status = attrs.pop('status')
+        if 'topic_category' in attrs and attrs['topic_category']:
+            self.topic_category = attrs.pop('topic_category')
+        if 'gc_audiences' in attrs and attrs['gc_audiences']:
+            self.goc_audiences = attrs.pop('gc_audiences').split(';')
+        if 'gc_subject' in attrs and attrs['gc_subject']:
+            self.goc_subject = attrs.pop('gc_subject')
+        if 'gc_publication_places' in attrs and attrs['gc_publication_places']:
+            self.goc_publication_places = attrs.pop('gc_publication_places')
+        self.set_info_link(attrs.pop('infoUrl', ''))
+        if 'doi' in attrs and attrs['doi']:
+            self.doi = attrs.pop('doi', '')
         if 'metadata_link' in attrs:
             val = attrs.pop('metadata_link')
             if val:
-                citation = Citation()
-                resource = Resource(val)
-                resource.set_link_purpose(ResourcePurpose.CompleteMetadata)
-                resource.set_gc_content_type(GCContentType.SupportingDocumentation)
-                citation.set_resource(resource)
-                self.add_alt_metadata(citation)
-        try:
-            self._set_optional_netcdf(attrs, 'time_coverage_resolution', self.set_time_resolution_from_iso)
-        except ValueError as ex:
-            self._log.exception("Invalid value for time_coverage_resolution")
-        self._set_netcdf_crs(attrs, 'geospatial_bounds_crs')
-        self._set_netcdf_crs(attrs, 'geospatial_bounds_vertical_crs')
+                self.alt_metadata_citations.append(Citation(resource=Resource(
+                    url=val,
+                    link_purpose=ResourcePurpose.CompleteMetadata,
+                    gc_content_type = GCContentType.SupportingDocumentation
+                )))
+        if 'time_coverage_resolution' in attrs and attrs['time_coverage_resolution']:
+            try:
+                self.set_time_resolution_from_iso(attrs.pop('time_coverage_resolution'))
+            except ValueError as ex:
+                self._log.exception("Invalid value for time_coverage_resolution")
+        if 'geospatial_bounds_crs' in attrs and attrs['geospatial_bounds_crs']:
+            self.geospatial_crs = attrs.pop('geospatial_bounds_crs')
+        if 'geospatial_bounds_vertical_crs' in attrs and attrs['geospatial_bounds_vertical_crs']:
+            self.geospatial_vertical_crs = attrs.pop('geospatial_bounds_vertical_crs')
         self._build_from_netcdf_contacts(locale_map, attrs, 'creator', contact_default_role=ContactRole.Originator, contact_default_type='individual')
         self._build_from_netcdf_contacts(locale_map, attrs, 'publisher', contact_default_role=ContactRole.Publisher, contact_default_type='individual')
         self._build_from_netcdf_contacts(locale_map, attrs, 'contributor', contact_default_role=ContactRole.Contributor, contact_default_type='individual')
         self._build_from_netcdf_contacts(locale_map, attrs, 'contributing_institutions', contact_default_role=ContactRole.Contributor, contact_default_type='institution')
-        self.set_additional_properties(attrs)
+        self.update_additional_properties(attrs)
 
     def _set_locales_from_netcdf(self, attrs: dict, default_lang: str):
         locale_map = {}
@@ -2417,8 +2001,10 @@ class DatasetMetadata:
                 secondary_locales.append(Locale.CanadianEnglish)
             else:
                 secondary_locales.append(Locale.CanadianFrench)
-        self.set_data_locales(primary_locale, secondary_locales)
-        self.set_metadata_locales(primary_locale, secondary_locales)
+        self.primary_data_locale = primary_locale
+        self.primary_metadata_locale = primary_locale
+        self.secondary_metadata_locales = secondary_locales
+        self.secondary_data_locales = secondary_locales
         if 'locales' in attrs:
             for locale in attrs.pop('locales').split(','):
                 suffix, bcptag = locale.split(':', maxsplit=1)
@@ -2451,47 +2037,6 @@ class DatasetMetadata:
                         depths.append('subSurface')
                 break
         return depths
-
-    def _set_optional_netcdf(self, attrs, attr_name, setter: t.Union[callable, str, None] = None, processing: t.Optional[callable] = None):
-        if setter is None:
-            setter = attr_name
-        if attr_name in attrs:
-            value = attrs.pop(attr_name)
-            if value:
-                if processing is not None:
-                    value = processing(value)
-                if isinstance(setter, str):
-                    self._metadata[setter] = value
-                else:
-                    setter(value)
-
-    def _set_netcdf_crs(self, attrs, attribute_name, metadata_name=None):
-        metadata_name = metadata_name or attribute_name
-        if attribute_name in attrs:
-            crs_name = attrs.pop(attribute_name)
-            if crs_name:
-                actual_crs = CoordinateReferenceSystem.from_string(crs_name)
-                if actual_crs is not None:
-                    self._metadata[metadata_name] = actual_crs
-                else:
-                    self._log.warning(f"Unrecognized CRS: {crs_name}")
-
-
-    def _build_from_enum_value(self, attrs, attribute_name, enum_type, setter: callable, allow_many: bool = False):
-        def set_enum_value(v):
-            if v in enum_type:
-                setter(enum_type[v])
-            else:
-                self._log.warning(f"Unrecognized value [{v}] for [{str(enum_type)}")
-        if attribute_name in attrs:
-            value = attrs.pop(attribute_name)
-            if value:
-                if allow_many:
-                    values = value.split(",")
-                    for value in values:
-                        set_enum_value(value)
-                else:
-                    set_enum_value(value)
 
     def _build_from_netcdf_contacts(self, locale_map, attrs: dict, prefix: str, **kwargs):
         self._add_netcdf_contacts(
@@ -2562,7 +2107,7 @@ class DatasetMetadata:
             contact = Organization(name=name)
             if contact_id is not None and contact_id != "":
                 if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://ror.org"):
-                    contact.set_ror(contact_id)
+                    contact.ror = contact_id
                 else:
                     self._log.warning(f"Unknown ID vocabulary for organization: {id_vocabulary}")
         elif contact_type == 'position':
@@ -2573,118 +2118,28 @@ class DatasetMetadata:
             contact = Individual(name=name)
             if contact_id is not None and contact_id != "":
                 if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://orcid.org"):
-                    contact.set_orcid(contact_id)
+                    contact.orcid = contact_id
                 else:
                     self._log.warning(f"Unknown ID vocabulary for individual: {id_vocabulary}")
         if url is not None:
             contact.set_web_page(url)
         if email is not None:
             if isinstance(email, str):
-                contact.set_guid(email)
+                contact.guid = email
             elif 'und' in email:
-                contact.set_guid(email['und'])
+                contact.guid = email['und']
             elif 'en' in email:
-                contact.set_guid(email['en'])
+                contact.guid = email['en']
             elif 'fr' in email:
-                contact.set_guid(email['fr'])
-            contact.set_email(email)
+                contact.guid = email['fr']
+            contact.email = email
         # There's no ISO support for institution, but maybe we should add one?
         if isinstance(role, str):
-            role = ContactRole.build_from_str(role)
+            role = ContactRole.from_string(role)
         if role is None:
             self._log.warning(f"Missing contact role for [{name}]")
         else:
-            self.add_responsible_party(role, contact)
-
-
-    def set_additional_properties(self, attrs: dict):
-        if 'custom_metadata' not in self._metadata:
-            self._metadata['custom_metadata'] = {}
-        for key in attrs:
-            self._metadata['custom_metadata'] = unnumpy(attrs[key])
-
-    def set_guid(self, guid: str, authority: t.Optional[str] = None):
-        self._guid = guid
-        self._authority = authority
-
-    def add_custom_keyword(self, keyword: Keyword):
-        """
-        :param keyword: The keyword to add.
-        """
-        self._children['custom_keywords'].append(keyword)
-
-    def set_goc_publisher(self, publisher: GCPublisher):
-        """
-        :param publisher: The group responsible for publishing this data on GC Data.
-        """
-        self._metadata['goc_publisher'] = publisher.value
-
-    def add_data_constraint(self, constraint: GeneralUseConstraint):
-        """
-        :param constraint: A use constraint that applies to the dataset described.
-        """
-        self._children['licenses'].append(constraint)
-
-    def add_metadata_constraint(self, constraint: GeneralUseConstraint):
-        """
-        :param constraint: A use constraint that applies to the metadata itself.
-        """
-        self._children['metadata_licenses'].append(constraint)
-
-    def add_responsible_party(self, role: ContactRole, contact: _Contact):
-        """
-        :param role: The nature of the relationship
-        :param contact: A person who has some relationship to this dataset
-        """
-        self._children['responsibles'].append(_ResponsibleParty(role, contact))
-
-    def set_metadata_owner(self, contact: _Contact):
-        """
-        :param contact: The contact information of the person who owns the metadata.
-        """
-        self._children['metadata_owner'] = contact
-
-    def set_publisher(self, publisher: _Contact):
-        """
-        :param publisher: The contact information of the person who publishes the metadata.
-        """
-        self._children['publisher'] = publisher
-
-    def set_parent_metadata(self, citation: Citation):
-        """
-        :param citation: If this dataset is a subset of another dataset, where can the parent metadata be found?
-        """
-        self._children['parent_metadata'] = citation
-
-    def add_alt_metadata(self, citation: Citation):
-        """
-        :param citation: An alternative location of the metadata.
-        """
-        self._children['alt_metadata'].append(citation)
-
-    def add_metadata_standard(self, citation: Citation):
-        """
-        :param citation: A citation for a metadata standard that this dataset follows.
-        """
-        self._children['metadata_standards'].append(citation)
-
-    def add_metadata_profile(self, citation: Citation):
-        """
-        :param citation: A citation for a metadata profile that this dataset follows.
-        """
-        self._children['metadata_profiles'].append(citation)
-
-    def add_additional_documentation(self, citation: Citation):
-        """
-        :param citation: An additional piece of documentation you'd like to provide with more information about the dataset.
-        """
-        self._children['additional_docs'].append(citation)
-
-    def add_record(self, record: MaintenanceRecord):
-        """
-        :param record: A maintenance record to add
-        """
-        self._children['iso_maintenance'].append(record)
+            self.add_contact(role, contact)
 
     def add_variable(self, var: Variable, eov_prefixes: t.Optional[list[str]] = None):
         """
@@ -2692,7 +2147,7 @@ class DatasetMetadata:
         :param eov_prefixes: Provide either or both of "seaSurface" or "subSurface" to set the EOVs properly. Otherwise you'll need to set the EOVs manually depending on the depths sampled.
         """
         self._children['variables'].append(var)
-        cnodc_name = var.get_cnodc_name()
+        cnodc_name = var.cnodc_name
         if cnodc_name:
             if ':' in cnodc_name:
                 _, cnodc_name = cnodc_name.rsplit(":", maxsplit=1)
@@ -2702,7 +2157,7 @@ class DatasetMetadata:
                     ioos_cat = IOOSCategory.Other
                 else:
                     ioos_cat = IOOSCategory(element.ioos_category)
-                var.set_ioos_category(ioos_cat)
+                var.ioos_category = ioos_cat
                 if element.essential_ocean_vars:
                     if len(element.essential_ocean_vars) == 1:
                         self.add_essential_ocean_variable(EssentialOceanVariable(list(element.essential_ocean_vars)[0]))
@@ -2711,51 +2166,73 @@ class DatasetMetadata:
                             if any(eov.startswith(x) for x in eov_prefixes):
                                 self.add_essential_ocean_variable(EssentialOceanVariable(eov))
             else:
-                var.set_ioos_category(IOOSCategory.Other)
-
-        sn = var.get_standard_name()
-        if sn is not None:
-            self.add_cf_standard_name(sn)
-        axis = var.get_axis()
-        if axis == 'X':
-            var_min, var_max = var.get_range()
-            self._metadata['geospatial_lon_min'] = unnumpy(var_min)
-            self._metadata['geospatial_lon_max'] = unnumpy(var_max)
+                var.ioos_category = IOOSCategory.Other
+        if var.standard_name is not None:
+            self.add_cf_standard_name(var.standard_name)
+        axis = var.axis
+        if axis == Axis.Longitude:
+            self.geospatial_lon_min = var.actual_min
+            self.geospatial_lon_max = var.actual_max
         elif axis == 'Y':
-            var_min, var_max = var.get_range()
-            self._metadata['geospatial_lat_min'] = unnumpy(var_min)
-            self._metadata['geospatial_lat_max'] = unnumpy(var_max)
+            self.geospatial_lat_min = var.actual_min
+            self.geospatial_lat_max = var.actual_max
         elif axis == 'Z':
-            var_min, var_max = var.get_range()
-            self._metadata['geospatial_vertical_min'] = unnumpy(var_min)
-            self._metadata['geospatial_vertical_max'] = unnumpy(var_max)
+            self.geospatial_vertical_min = var.actual_min
+            self.geospatial_vertical_max = var.actual_max
         elif axis == 'T':
-            units = var.get_units()
+            units = var.units
             if ' since ' in units.lower():
                 pieces = units.lower().split(' ')
-                epoch = datetime.datetime.fromisoformat(pieces[2].upper())
-                var_min, var_max = var.get_range()
-                if pieces[0] == "seconds":
-                    self.set_temporal_bounds(epoch + datetime.timedelta(seconds=unnumpy(var_min)), epoch + datetime.timedelta(seconds=unnumpy(var_max)))
-                elif pieces[0] == "minutes":
-                    self.set_temporal_bounds(epoch + datetime.timedelta(minutes=unnumpy(var_min)), epoch + datetime.timedelta(minutes=unnumpy(var_max)))
-                elif pieces[0] == "hours":
-                    self.set_temporal_bounds(epoch + datetime.timedelta(hours=unnumpy(var_min)), epoch + datetime.timedelta(hours=unnumpy(var_max)))
-                elif pieces[0] == "days":
-                    self.set_temporal_bounds(epoch + datetime.timedelta(days=unnumpy(var_min)), epoch + datetime.timedelta(days=unnumpy(var_max)))
-                elif pieces[0] == "months":
-                    pass # TODO
-                    self._log.warning(f"months since EPOCH not implemented")
-                elif pieces[0] == "years":
-                    pass # TODO
-                    self._log.warning(f"years since EPOCH not implemented")
-                else:
-                    self._log.warning(f"Unrecognized time units {units}")
+                try:
+                    epoch = datetime.datetime.fromisoformat(pieces[2].upper())
+                    match pieces[0]:
+                        case 'seconds':
+                            self.time_coverage_start = epoch + datetime.timedelta(seconds=var.actual_min)
+                            self.time_coverage_end = epoch + datetime.timedelta(seconds=var.actual_max)
+                        case 'minutes':
+                            self.time_coverage_start = epoch + datetime.timedelta(minutes=var.actual_min)
+                            self.time_coverage_end = epoch + datetime.timedelta(minutes=var.actual_max)
+                        case 'hours':
+                            self.time_coverage_start = epoch + datetime.timedelta(hours=var.actual_min)
+                            self.time_coverage_end = epoch + datetime.timedelta(hours=var.actual_max)
+                        case 'days':
+                            self.time_coverage_start = epoch + datetime.timedelta(days=var.actual_min)
+                            self.time_coverage_end = epoch + datetime.timedelta(days=var.actual_max)
+                        case _:
+                            self._log.warning(f"Unsupported time increment {units}")
+                except Exception as ex:
+                    self._log.exception(f"Exception handling time units: [{units}]: {type(ex)}: {str(ex)}")
             else:
                 self._log.warning(f"Unrecognized time units {units}")
 
-    def add_canon_url(self, canon_url: Resource):
-        self._children['canon_urls'].append(canon_url)
+    def set_info_link(self,
+                      url: MultiLanguageString,
+                      name: t.Optional[MultiLanguageString] = None,
+                      description: t.Optional[MultiLanguageString] = None,
+                      function: ResourcePurpose = ResourcePurpose.Information,
+                      protocol: ResourceType = ResourceType.Auto):
+        self._children['info_link'] = QuickWebPage(
+            url=url,
+            name=name,
+            description=description,
+            purpose=function,
+            resource_type=protocol
+        )
+
+    def update_additional_properties(self, attrs: dict):
+        if 'custom_metadata' not in self._metadata:
+            self._metadata['custom_metadata'] = {}
+        for key in attrs:
+            val = unnumpy(attrs[key])
+            if val is not None and val != '':
+                self._metadata['custom_metadata'][key] = val
+
+    def add_contact(self, role: ContactRole, contact: _Contact):
+        """
+        :param role: The nature of the relationship
+        :param contact: A person who has some relationship to this dataset
+        """
+        self.responsibles.append(_ResponsibleParty(role, contact))
 
     def add_profile(self, profile_name):
         """
@@ -2786,471 +2263,6 @@ class DatasetMetadata:
         :param org_name: The short name of an organization in DMD.
         """
         self._org_name = org_name
-
-    def set_display_name(self, display_name: MultiLanguageString):
-        """
-        :param display_name: A string or multi-language dict containing the internal display name of the dataset.
-        """
-        self._display_name = EntityRef.format_multilingual_text(display_name)
-
-    def set_english_display_name(self,display_name: str):
-        """
-        :param display_name: The English display name
-        """
-        self._display_name['en'] = display_name
-
-    def set_french_display_name(self, display_name: str):
-        """
-        :param display_name: The French display name
-        """
-        self._display_name['fr'] = display_name
-
-    def set_title(self, title: MultiLanguageString):
-        """
-        :param title: A string or multi-language dict containing the title of the dataset as displayed to the public/
-        """
-        self._metadata['title'] = EntityRef.format_multilingual_text(title)
-
-    def set_english_title(self, title: str):
-        """
-        :param title: The English title
-        """
-        if 'title' not in self._metadata:
-            self._metadata['title'] = {}
-        self._metadata['title']['en'] = title
-
-    def set_french_title(self, title: str):
-        """
-        :param title: The French title
-        """
-        if 'title' not in self._metadata:
-            self._metadata['title'] = {}
-        self._metadata['title']['fr'] = title
-
-    # ACDD only stuff
-
-    def set_institution(self, institution: str):
-        """
-        :param institution: The name of the institution that owns the data (NetCDF only)
-        """
-        self._metadata['institution'] = institution
-
-    def set_program(self, program: str):
-        """
-        :param program: The name of the program that collected the data (NetCDF only)
-        """
-        self._metadata['program'] = program
-
-    def set_project(self, project: str):
-        self._metadata['project'] = project
-
-    def set_conventions(self, conventions: list[str]):
-        """
-        :param conventions: A list of convention names (NetCDF only)
-        """
-        self._metadata['conventions'] = ','.join(conventions)
-
-    def add_cf_standard_name(self, keyword: t.Union[str, StandardName]):
-        """
-        :param keyword: A keyword to add
-        """
-        if hasattr(keyword, 'value'):
-            keyword = keyword.value
-        if 'cf_standard_names' not in self._metadata:
-            self._metadata['cf_standard_names'] = list()
-        if keyword not in self._metadata['cf_standard_names']:
-            self._metadata['cf_standard_names'].append(keyword)
-
-    def set_cf_standard_name_vocab(self, cf_version = "CF 1.13"):
-        self._metadata['standard_name_vocab'] = cf_version
-
-    def set_feature_type(self, feature_type: CommonDataModelType):
-        """
-        :param feature_type: The type of data that is contained in this dataset. Only set it if using a NetCDF format
-                             recognized by the CF Conventions that is compatible with the feature type.
-        """
-        self._metadata['feature_type'] = feature_type.value
-        if feature_type in DatasetMetadata.REPRESENTATION_MAP:
-            self.set_spatial_representation(DatasetMetadata.REPRESENTATION_MAP[feature_type])
-
-    # Combined stuff
-
-    def set_credit(self, credit: MultiLanguageString):
-        """
-        :param credit: A string or multi-language dict providing acknowledgement of contributions, extra work done, etc.
-        """
-        self._metadata['acknowledgement'] = EntityRef.format_multilingual_text(credit)
-
-    def set_comment(self, comment: MultiLanguageString):
-        """
-        :param comment: A string or multi-language dict with additional less-important information on the dataset.
-        """
-        self._metadata['comment'] = EntityRef.format_multilingual_text(comment)
-
-    def set_doi(self, doi: str, desc: t.Optional[MultiLanguageString] = None):
-        """
-        :param doi: The DOI, ideally without a prefix like "https://doi.org" or "doi:"
-        :param desc: Any additional information about the DOI you'd like to provide.
-        """
-        if doi.startswith("https://doi.org/"):
-            doi = doi[16:]
-        elif doi.startswith("http://doi.org/"):
-            doi = doi[15:]
-        elif doi.startswith("doi:"):
-            doi = doi[4:]
-        self.set_identifier(doi, IDSystem.DOI, desc)
-
-    def set_identifier(self, code: str, id_system: IDSystem, desc: t.Optional[MultiLanguageString] = None):
-        """
-        :param code: The identifier for the dataset (e.g. the DOI)
-        :param id_system: The system of unique identifiers used (e.g. the DOI system)
-        :param desc: Any additional description to be added
-        """
-        self._metadata['dataset_id_code'] = code
-        self._metadata['dataset_id_system'] = id_system
-        self._metadata['dataset_id_description'] = EntityRef.format_multilingual_text(desc)
-
-    def set_processing_info(self, processing_level: t.Optional[str] = None, processing_desc: t.Optional[MultiLanguageString] = None, processing_environment: t.Optional[MultiLanguageString] = None, processing_system: t.Optional[IDSystem] = None):
-        """
-        :param processing_level: A short code indicating the processing level of the  data.
-        :param processing_desc: A string or multi-language dict describing the processing done on this dataset.
-        :param processing_environment: A string or multi-language dict describing the environment in which the processing was done.
-        """
-        self._metadata['processing_level'] = processing_level
-        self._metadata['processing_description'] = EntityRef.format_multilingual_text(processing_desc)
-        self._metadata['processing_environment'] = EntityRef.format_multilingual_text(processing_environment)
-        self._metadata['processing_system'] = processing_system if processing_system is not None else None
-
-    def set_purpose(self, purpose: MultiLanguageString):
-        """
-        :param purpose: A string or multi-language dict describing the purpose of the dataset
-        """
-        self._metadata['purpose'] = EntityRef.format_multilingual_text(purpose)
-
-    def set_references(self, references: MultiLanguageString):
-        """
-        :param references: A string or multi-language dict describing any relevant references for the dataset.
-        """
-        self._metadata['references'] = EntityRef.format_multilingual_text(references)
-
-    def set_source(self, source: MultiLanguageString):
-        """
-        :param source: A string or multi-language dict describing the source of the data.
-        """
-        self._metadata['source'] = EntityRef.format_multilingual_text(source)
-
-    def set_abstract(self, abstract: MultiLanguageString):
-        """
-        :param abstract: A string or multi-language dict with a short summary or abstract of the dataset.
-        """
-        self._metadata['summary'] = EntityRef.format_multilingual_text(abstract)
-
-    def set_horizontal_bounds(self, lat_min: decimal.Decimal, lat_max: decimal.Decimal, lon_min: decimal.Decimal, lon_max: decimal.Decimal, boundary_wkt: t.Optional[str] = None, ref_system: CoordinateReferenceSystem = CoordinateReferenceSystem.WGS84):
-        """
-        :param lat_min: The minimum latitude of the dataset
-        :param lat_max: The maximum latitude of the dataset
-        :param lon_min: The minimum longitude of the dataset
-        :param lon_max: The maximum longitude of the dataset
-        :param boundary_wkt: The WKT polygon shape of the dataset, if available
-        :param ref_system: The coordinate reference system used, defaults to WGS84
-        """
-        self._metadata["geospatial_lat_min"] = unnumpy(lat_min)
-        self._metadata["geospatial_lat_max"] = unnumpy(lat_max)
-        self._metadata["geospatial_lon_min"] = unnumpy(lon_min)
-        self._metadata["geospatial_lon_max"] = unnumpy(lon_max)
-        self._metadata["geospatial_bounds"] = boundary_wkt
-        self._metadata["geospatial_bounds_crs"] = ref_system.value
-
-    def set_vertical_bounds(self, vertical_min: decimal.Decimal, vertical_max: decimal.Decimal, ref_system: CoordinateReferenceSystem = CoordinateReferenceSystem.MSL_Depth):
-        """
-        Note that minimum and maximum refer to the value of the number, not to the deepest or shallowest value.
-        :param vertical_min: The minimum depth of the dataset
-        :param vertical_max: The maximum depth of the dataset
-        :param ref_system: The vertical coordinate reference system used, defaults to MSL_Depth (positive values from an unspecified MSL reference datum)
-        """
-        self._metadata['geospatial_vertical_min'] = unnumpy(vertical_min)
-        self._metadata['geospatial_vertical_max'] = unnumpy(vertical_max)
-        self._metadata['geospatial_bounds_vertical_crs'] = ref_system.value
-
-    def set_temporal_bounds(self, start_time: datetime.datetime, end_time: t.Optional[datetime.datetime] = None, calendar: CoordinateReferenceSystem = CoordinateReferenceSystem.Gregorian):
-        """
-        :param start_time: The start time for the dataset. Include timezone.
-        :param end_time: The end time for the dataset. Include timezone. Optional; if not provided, dataset is flagged as "ongoing".
-        :param calendar: The temporal coordinate reference system used, defaults to Gregorian calendar.
-        """
-        self._metadata['time_coverage_start'] = EntityRef.format_date(unnumpy(start_time))
-        if end_time is not None:
-            self._metadata['time_coverage_end'] = EntityRef.format_date(unnumpy(end_time))
-            self._metadata['is_ongoing'] = False
-        else:
-            self._metadata['is_ongoing'] = True
-        self._metadata['temporal_crs'] = calendar.value
-
-    def mark_as_ongoing(self):
-        if 'time_coverage_end' in self._metadata:
-            self._metadata['time_coverage_end'] = None
-        self._metadata['is_ongoing'] = True
-
-    def set_date_issued(self, date: datetime.date):
-        """
-        :param date: The date the dataset was first made available to the public.
-        """
-        self._metadata['date_issued'] = EntityRef.format_date(date)
-
-    def set_date_created(self, date: datetime.date):
-        """
-        :param date: The date the dataset was first created.
-        """
-        self._metadata['date_created'] = EntityRef.format_date(date)
-
-    def set_date_modified(self, date: datetime.date):
-        """
-        :param date: The date the dataset was last modified.
-        """
-        self._metadata['date_modified'] = EntityRef.format_date(date)
-
-    def set_data_locales(self, primary_locale: Locale, secondary_locales: t.Optional[list[Locale]] = None):
-        """
-        :param primary_locale: The locale that the majority of the data was provided in (if applicable)
-        :param secondary_locales: Any additional locales that the data is provided in or will be after translation.
-        """
-        self._metadata['data_locale'] = primary_locale.value
-        if secondary_locales:
-            self._metadata['data_extra_locales'] = [x.value for x in secondary_locales]
-
-    def set_metadata_locales(self, primary_locale: Locale, secondary_locales: t.Optional[list[Locale]] = None):
-        """
-        :param primary_locale: The locale that the majority of the metadata was originally written in.
-        :param secondary_locales: Any additional locales that the metadata provides or will provide after translation.
-        """
-        self._metadata['metadata_locale'] = primary_locale.value
-        if secondary_locales:
-            self._metadata['metadata_extra_locales'] = [x.value for x in secondary_locales]
-
-    def set_spatial_resolution(self,
-                               scale: t.Optional[int] = None,
-                               level_of_detail: t.Optional[MultiLanguageString] = None,
-                               horizontal: t.Optional[NumberLike] = None,
-                               vertical: t.Optional[NumberLike] = None,
-                               angular: t.Optional[NumberLike] = None,
-                               horizontal_units: DistanceUnit = DistanceUnit.Meters,
-                               vertical_units: DistanceUnit = DistanceUnit.Meters,
-                               angular_units: AngularUnit = AngularUnit.ArcDegrees,
-                               ):
-        """
-        :param scale: The spatial resolution in 1:[SCALE] format (e.g. use 10000 for a 1:10000 scale)
-        :param level_of_detail: A text description of the level of detail
-        :param horizontal: The horizontal resolution of the dataset in the given units
-        :param vertical: The vertical resolution of the dataset in the given units
-        :param angular: The angular resolution of the dataset in the given units
-        :param horizontal_units: Units for horizontal resolution (defaults to metres)
-        :param vertical_units: Units for the vertical resolution (defaults to metres)
-        :param angular_units: Units for the angular resolution (defaults to arc degrees)
-        """
-        if 'spatial_resolution' not in self._metadata:
-            self._metadata['spatial_resolution'] = {}
-        if scale is not None:
-            self._metadata['spatial_resolution']['scale'] = scale
-        if level_of_detail is not None:
-            self._metadata['spatial_resolution']['level_of_detail'] = EntityRef.format_multilingual_text(level_of_detail)
-        if horizontal is not None:
-            self._metadata['spatial_resolution']['distance'] = str(horizontal)
-            self._metadata['spatial_resolution']['distance_units'] = horizontal_units.value
-        if vertical is not None:
-            self._metadata['spatial_resolution']['vertical'] = str(vertical)
-            self._metadata['spatial_resolution']['vertical_units'] = vertical_units.value
-        if angular is not None:
-            self._metadata['spatial_resolution']['angular'] = str(angular)
-            self._metadata['spatial_resolution']['angular_units'] = angular_units.value
-
-    def set_time_resolution_from_iso(self, iso_duration: str):
-        tcr = iso_duration.replace("-", "").replace(":", "").upper()
-        if tcr[0] != 'P':
-            self._log.warning(f"Invalid time resolution [{tcr}]")
-        else:
-            parts = [0, 0, 0, 0, 0, 0]
-            weeks = 0
-            buffer = ''
-            in_time = False
-            used_alt_format = False
-            for i in range(1, len(tcr)):
-                if tcr[i].isdigit():
-                    buffer += tcr[i]
-                elif tcr[i] == 'T':
-                    in_time = True
-                    if buffer:
-                        if len(buffer) != 8:
-                            raise ValueError(f'Invalid alternate duration date length')
-                        parts[0] = int(buffer[0:4])
-                        parts[1] = int(buffer[4:6])
-                        parts[2] = int(buffer[6:8])
-                        used_alt_format = True
-                elif tcr[i] == 'Y':
-                    parts[0] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'M':
-                    parts[4 if in_time else 1] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'D':
-                    parts[2] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'H':
-                    parts[3] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'S':
-                    parts[5] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'W':
-                    weeks = int(buffer)
-                    buffer = ''
-                else:
-                    raise ValueError(f'Invalid character found at position [{i}] in [{tcr}]')
-            if buffer and used_alt_format:
-                if len(buffer) in (2, 4, 6):
-                    parts[3] = int(buffer[0:2])
-                else:
-                    raise ValueError('Invalid alternate duration time length')
-                if len(buffer) in (4, 6):
-                    parts[4] = int(buffer[2:4])
-                if len(buffer) == 6:
-                    parts[5] = int(buffer[4:6])
-            if weeks > 0:
-                if any(x > 0 for x in parts):
-                    raise ValueError('Cannot specify weeks and other time parts')
-                self.set_time_resolution(0, 0, weeks * 7)
-            else:
-                self.set_time_resolution(*parts)
-
-    def set_time_resolution(self,
-                            years: t.Optional[int] = None,
-                            months: t.Optional[int] = None,
-                            days: t.Optional[int] = None,
-                            hours: t.Optional[int] = None,
-                            minutes: t.Optional[int] = None,
-                            seconds: t.Optional[int] = None):
-        """
-        """
-        self._metadata['temporal_resolution'] = {
-            'years': years,
-            'months': months,
-            'days': days,
-            'hours': hours,
-            'minutes': minutes,
-            'seconds': int(seconds)
-        }
-
-
-    # ISO stuff
-
-    def set_metadata_maintenance_frequency(self, freq: MaintenanceFrequency):
-        """
-        :param freq: How often is the metadata updated?
-        """
-        self._metadata['metadata_maintenance_frequency'] = freq.value
-
-    def set_dataset_maintenance_frequency(self, freq: MaintenanceFrequency):
-        """
-        :param freq: How often is the dataset updated?
-        """
-        self._metadata['resource_maintenance_frequency'] = freq.value
-
-    def set_topic_category(self, cat: TopicCategory):
-        """
-        :param cat: The topic category (usually TopicCategory.Oceans)
-        """
-        self._metadata['topic_category'] = cat.value
-
-    def set_status(self, status: StatusCode):
-        """
-        :param status: The status of the dataset (e.g. StatusCode.Final if no changes are expected)
-        """
-        self._metadata['status'] = status.value
-
-    def set_spatial_representation(self, spatial_rep: SpatialRepresentation):
-        """
-        :param spatial_rep: For datasets with coordinates, what does the data look like (tabular, gridded, vector, etc).
-        """
-        self._metadata['spatial_representation_type'] = spatial_rep.value
-
-
-    # CNODC stuff
-
-    def add_essential_ocean_variable(self, keyword: t.Union[str, EssentialOceanVariable]):
-        """
-        :param keyword: The essential ocean variable to add to this dataset.
-        """
-        if hasattr(keyword, 'value'):
-            keyword = keyword.value
-        if 'cioos_eovs' not in self._metadata:
-            self._metadata['cioos_eovs'] = list()
-        if keyword not in self._metadata['cioos_eovs']:
-            self._metadata['cioos_eovs'].append(keyword)
-
-    def set_file_storage_location(self, storage_path: MultiLanguageString):
-        """
-        :param storage_path: A string or multi-language dict describing the location where the files are stored.
-        """
-        self._metadata['file_storage_location'] = EntityRef.format_multilingual_text(storage_path)
-
-    def set_internal_notes(self, notes: MultiLanguageString):
-        """
-        :param notes: A string or multi-language dict with internal notes (not published).
-        """
-        self._metadata['internal_notes'] = EntityRef.format_multilingual_text(notes)
-
-    def set_is_available_via_request_form(self, val: bool):
-        """
-        :param val: True if you can request this data via our request form.
-        """
-        self._metadata['via_meds_request_form'] = not not val
-
-    def set_government_metadata(self,
-                                publication_places: t.Union[GCPlace, list[GCPlace], set[GCPlace]] = GCPlace.Ottawa,
-                                subject: GCSubject = GCSubject.Oceanography,
-                                collection: GCCollectionType = GCCollectionType.Geospatial,
-                                audiences: t.Union[GCAudience, list[GCAudience], set[GCAudience]] = GCAudience.Scientists):
-        """
-        :param publication_places: The place(s) this dataset was published from (defaults to Ottawa)
-        :param subject: The subject of this dataset (defaults to Oceanography)
-        :param collection: The collection of this dataset (defaults to Geospatial data)
-        :param audiences: The audience(s) this dataset is intended for (defaults to Scientists)
-        """
-        self.set_government_publication_places(publication_places)
-        self.set_government_audiences(audiences)
-        self.set_government_collection(collection)
-        self.set_government_subject(subject)
-
-    def set_government_audiences(self, audiences: t.Union[GCAudience, t.Iterable[GCAudience]]):
-        self._metadata['goc_audience'] = [audiences.value] if isinstance(audiences, GCAudience) else [x.value for x in audiences]
-
-    def set_government_collection(self, collection: GCCollectionType):
-        self._metadata['goc_collection_type'] = collection.value
-
-    def set_government_subject(self, subject: GCSubject):
-        self._metadata['goc_subject'] = subject.value
-
-    def set_government_publication_places(self, publication_places: t.Union[GCPlace, t.Iterable[GCPlace]]):
-        self._metadata['goc_publication_place'] = [publication_places.value] if isinstance(publication_places, GCPlace) else [x.value for x in publication_places]
-
-    # ERDDAP stuff
-
-    def set_erddap_info(self, server: t.Union[ERDDAPServer, list[ERDDAPServer]], dataset_id: str, dataset_type: ERDDAPDatasetType, file_path: t.Optional[str] = None, file_pattern: t.Optional[str] = None):
-        """
-        :param server: The server(s) that will host the dataset
-        :param dataset_id: The ID of the dataset as it should be used in ERDDAP (must be unique)
-        :param file_path: The path of the files on the ERDDAP server
-        :param file_pattern: If multiple files are stored in that path, the file pattern to match (otherwise all files are used)
-        """
-        self.add_profile('erddap')
-        if isinstance(server, ERDDAPServer):
-            self._children['erddap_servers'].append(server)
-        else:
-            self._children['erddap_servers'].extend(server)
-        self._metadata['erddap_data_file_path'] = file_path
-        self._metadata['erddap_data_file_pattern'] = file_pattern
-        self._metadata['erddap_dataset_id'] = dataset_id
-        self._metadata['erddap_dataset_type'] = dataset_type.value
-
 
     def build_request_body(self) -> dict:
         body = {
