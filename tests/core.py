@@ -310,3 +310,63 @@ class BaseTestCase(ut.TestCase):
         finally:
             logging.disable(old_level)
 
+    def assertDictSimilar(self, d1, d2, msg = None):
+        errors = self._compare_dicts(d1, d2)
+        if errors:
+            msg = msg or 'Dictionaries are not equal'
+            msg += '\n- ' + '\n- '.join(errors)
+            msg += f'\n ({len(errors)} errors found)'
+            raise AssertionError(msg)
+
+    def assertListSimilar(self, l1, l2, msg = None):
+        errors = self._compare_lists(l1, l2)
+        if errors:
+            msg = msg or 'Lists are not equal'
+            msg += '\n' + '\n'.join(errors)
+            raise AssertionError(msg)
+
+    def _compare_item(self, i1, i2, prefix='') -> list[str]:
+        errors = []
+        if isinstance(i1, dict):
+            if not isinstance(i2, dict):
+                errors.append(f'Item {prefix} is a dict in first, but not in second')
+            else:
+                errors.extend(self._compare_dicts(i1, i2, prefix))
+        elif isinstance(i1, (list, set, tuple)):
+            if not isinstance(i1, (list, set, tuple)):
+                errors.append(f'Item {prefix} is a list in the first, but not in second')
+            else:
+                errors.extend(self._compare_lists(i1, i2, prefix))
+        elif i1 != i2:
+            errors.append(f'first{prefix} ({i1}) != second[{prefix} ({i2})')
+        return errors
+
+
+    def _compare_lists(self, l1, l2, prefix='') -> list[str]:
+        errors = []
+        for item in l1:
+            if item not in l2:
+                errors.append(f'item {item} missing in second{prefix}')
+        for item in l2:
+            if item not in l1:
+                errors.append(f'item {item} missing in first{prefix}')
+        return errors
+
+
+    def _compare_dicts(self, d1, d2, prefix='') -> list[str]:
+        keys1 = list(d1.keys())
+        keys2 = list(d2.keys())
+        errors = []
+        for key in keys1:
+            if key not in keys2:
+                errors.append(f"Key {prefix}[{key}] found in first, but not in second")
+        for key in keys2:
+            if key not in keys1:
+                errors.append(f"Key {prefix}[{key}] found in second, but not in first")
+            else:
+                errors.extend(self._compare_item(d1[key], d2[key], prefix + f'[{key}]'))
+        return errors
+
+
+
+

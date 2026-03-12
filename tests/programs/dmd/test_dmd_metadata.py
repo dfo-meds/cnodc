@@ -10,7 +10,7 @@ from cnodc.programs.dmd.metadata import Encoding, Axis, NetCDFDataType, Coverage
     GeneralUseConstraint, LegalConstraint, RestrictionCode, SecurityConstraint, ClassificationCode, ERDDAPServer, \
     Thesaurus, KeywordType, Keyword, DistributionChannel, DatasetMetadata, SpatialRepresentation, DistanceUnit, \
     AngularUnit, EssentialOceanVariable, StandardName, ERDDAPDatasetType, GCCollectionType, GCAudience, GCPlace, \
-    GCSubject, TopicCategory, MaintenanceFrequency, StatusCode, GCPublisher
+    GCSubject, TopicCategory, MaintenanceFrequency, StatusCode, GCPublisher, Locale, _Contact
 from core import BaseTestCase
 
 
@@ -94,6 +94,24 @@ class TestDMDMetadataBasics(BaseTestCase):
                     self.assertIs(result, CoordinateReferenceSystem.from_string(in_val))
         self.assertIsNone(CoordinateReferenceSystem.from_string(None))
         self.assertIsNone(CoordinateReferenceSystem.from_string(''))
+        with self.assertRaises(ValueError):
+            CoordinateReferenceSystem.from_string('NOT A CRS')
+
+    def test_gc_place(self):
+        tests = {
+            GCPlace.Canada: ['canada', 'CANADA', 'Canada'],
+            GCPlace.Burlington: ['ontario - halton', 'Halton, ON', 'Halton, Ontario', 'Ontario -  Halton', 'ontario_-_halton'],
+            GCPlace.Ottawa: ['Ottawa, ON', 'Ottawa, Ontario', 'Ontario - Ottawa'],
+            GCPlace.Dartmouth: ['Halifax, NS', 'Halifax, Nova Scotia', 'Nova  Scotia  - Halifax '],
+            GCPlace.Moncton: ['Westmorland, NS', '  Westmorland,  Nova Scotia', '  westmorland,nova scotia'],
+
+        }
+        for result in tests:
+            for in_val in tests[result]:
+                with self.subTest(input=in_val):
+                    self.assertIs(result, GCPlace.from_string(in_val))
+        self.assertIsNone(GCPlace.from_string(''))
+        self.assertIsNone(GCPlace.from_string(None))
 
     def test_roles(self):
         self.assertIs(ContactRole.Stakeholder, ContactRole.from_string('CONT0001'))
@@ -153,7 +171,14 @@ class TestCoreEntityRef(BaseTestCase):
         self.assertEqual(EntityRef.format_date(datetime.date(2015, 1, 2)), '2015-01-02')
         self.assertEqual(EntityRef.format_date(datetime.datetime(2015, 1, 2, 3, 4, 5)), '2015-01-02T03:04:05')
         self.assertEqual(EntityRef.format_date(datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)), '2015-01-02T03:04:05+00:00')
+        self.assertEqual(EntityRef.format_date('2015-01-02'), '2015-01-02')
+        self.assertEqual(EntityRef.format_date('2015-01-02T01:02:03'), '2015-01-02T01:02:03')
 
+    def test_coerce_from_enum(self):
+        self.assertListSimilar([None], EntityRef._coerce_from_enum(None, Locale, coerce_list=True))
+
+    def test_coerce_to_enum(self):
+        self.assertIs(EntityRef._coerce_to_enum(Locale.CanadianFrench, Locale), Locale.CanadianFrench)
 
 class TestVariable(BaseTestCase):
 
@@ -580,6 +605,27 @@ class TestCitation(BaseTestCase):
         self.assertEqual(cit.id_description, {'und': 'code for my luggage'})
         self.assertIs(cit.id_system, IDSystem.DOI)
 
+    def test_resource_none_to_dict(self):
+        cit = Citation()
+        cit.title = 'foobar'
+        cit.resource = None
+        self.assertEqual({
+            'title': {'und': 'foobar'}
+        }, cit.build_request_body())
+
+    def test_resource_something_to_dict(self):
+        cit = Citation()
+        cit.title = 'foobar'
+        cit.resource = Resource(url='http://foobar.com')
+        self.assertDictSimilar({
+            'title': {'und': 'foobar'},
+            'resource': {
+                'url': {'und': 'http://foobar.com'},
+                'goc_formats': ['HTML'],
+                'protocol': 'http',
+            }
+        }, cit.build_request_body())
+
     def test_responsibles(self):
         cit = Citation()
         contact = Individual(name='Oscar Wilde')
@@ -911,3 +957,494 @@ class TestMetadata(BaseTestCase):
         self.assertIsNone(md._org_name)
         md.set_parent_organization('meds')
         self.assertEqual(md._org_name, 'meds')
+
+    def test_add_variable_eov_surface(self):
+        v = Variable()
+        v.cnodc_name = 'parameters/Temperature'
+        v.standard_name = 'seawater_temperature'
+        md = DatasetMetadata()
+        md.add_variable(v, ['seaSurface'])
+        self.assertIs(v.ioos_category, IOOSCategory.Temperature)
+        self.assertIn('seawater_temperature', md.cf_standard_names)
+        self.assertIn(EssentialOceanVariable.SurfaceTemperature.value, md._metadata['cioos_eovs'])
+        self.assertNotIn(EssentialOceanVariable.SubSurfaceTemperature.value, md._metadata['cioos_eovs'])
+
+    def test_add_variable_eov_subsurface(self):
+        v = Variable()
+        v.cnodc_name = 'Temperature'
+        md = DatasetMetadata()
+        md.add_variable(v, ['subSurface'])
+        self.assertIs(v.ioos_category, IOOSCategory.Temperature)
+        self.assertNotIn(EssentialOceanVariable.SurfaceTemperature.value, md._metadata['cioos_eovs'])
+        self.assertIn(EssentialOceanVariable.SubSurfaceTemperature.value, md._metadata['cioos_eovs'])
+
+    def test_add_variable_eov_both(self):
+        v = Variable()
+        v.cnodc_name = 'Temperature'
+        md = DatasetMetadata()
+        md.add_variable(v, ['subSurface', 'seaSurface'])
+        self.assertIn(EssentialOceanVariable.SurfaceTemperature.value, md._metadata['cioos_eovs'])
+        self.assertIn(EssentialOceanVariable.SubSurfaceTemperature.value, md._metadata['cioos_eovs'])
+
+    def test_add_variable_eov_none(self):
+        v = Variable()
+        v.cnodc_name = 'Temperature'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertNotIn('cioos_eovs', md._metadata)
+
+    def test_add_variable_ioos_unknown(self):
+        v = Variable()
+        v.cnodc_name = 'Temp'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertIs(v.ioos_category, IOOSCategory.Other)
+        self.assertNotIn('cioos_eovs', md._metadata)
+
+    def test_add_variable_known_missing(self):
+        v = Variable()
+        v.cnodc_name = 'CNODCDuplicateId'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertIs(v.ioos_category, IOOSCategory.Other)
+        self.assertNotIn('cioos_eovs', md._metadata)
+
+    def test_set_longitude_from_var(self):
+        v = Variable(axis='X')
+        v.actual_min = 5
+        v.actual_max = 15
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.geospatial_lon_max, 15)
+        self.assertEqual(md.geospatial_lon_min, 5)
+
+    def test_set_latitude_from_var(self):
+        v = Variable(axis='Y')
+        v.actual_min = 50
+        v.actual_max = 60
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.geospatial_lat_max, 60)
+        self.assertEqual(md.geospatial_lat_min, 50)
+
+    def test_set_depth_from_var(self):
+        v = Variable(axis='Z')
+        v.actual_min = 75
+        v.actual_max = 125
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.geospatial_vertical_max, 125)
+        self.assertEqual(md.geospatial_vertical_min, 75)
+
+    def test_set_time_from_var_days(self):
+        v = Variable(axis='T')
+        v.actual_min = 10
+        v.actual_max = 20
+        v.units = 'days since 1950-01-01T00:00:00+00:00'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.time_coverage_start, '1950-01-11T00:00:00+00:00')
+        self.assertEqual(md.time_coverage_end, '1950-01-21T00:00:00+00:00')
+
+    def test_set_time_from_var_seconds(self):
+        v = Variable(axis='T')
+        v.actual_min = 90
+        v.actual_max = 600
+        v.units = 'seconds since 1950-01-01T00:00:00+00:00'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.time_coverage_start, '1950-01-01T00:01:30+00:00')
+        self.assertEqual(md.time_coverage_end, '1950-01-01T00:10:00+00:00')
+
+    def test_set_time_from_var_minutes(self):
+        v = Variable(axis='T')
+        v.actual_min = 90
+        v.actual_max = 630.5
+        v.units = 'minutes since 1950-01-01T00:00:00+00:00'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.time_coverage_start, '1950-01-01T01:30:00+00:00')
+        self.assertEqual(md.time_coverage_end, '1950-01-01T10:30:30+00:00')
+
+    def test_set_time_from_var_hours(self):
+        v = Variable(axis='T')
+        v.actual_min = 48
+        v.actual_max = 48 + 5 + (30 / 60) + (45/3600)
+        v.units = 'hours since 1950-01-01T00:00:00+00:00'
+        md = DatasetMetadata()
+        md.add_variable(v)
+        self.assertEqual(md.time_coverage_start, '1950-01-03T00:00:00+00:00')
+        self.assertEqual(md.time_coverage_end, '1950-01-03T05:30:45+00:00')
+
+    def test_set_time_from_var_unsupported(self):
+        v = Variable(axis='T')
+        v.actual_min = 1
+        v.actual_max = 2
+        v.units = 'months since 1950-01-01T00:00:00+00:00'
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', level='WARNING'):
+            md.add_variable(v)
+        self.assertIsNone(md.time_coverage_end)
+        self.assertIsNone(md.time_coverage_start)
+
+    def test_set_time_from_var_weird_units(self):
+        v = Variable(axis='T')
+        v.actual_min = 1
+        v.actual_max = 2
+        v.units = 'days'
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', level='WARNING'):
+            md.add_variable(v)
+        self.assertIsNone(md.time_coverage_end)
+        self.assertIsNone(md.time_coverage_start)
+
+    def test_set_time_from_var_bad_epoch(self):
+        v = Variable(axis='T')
+        v.actual_min = 1
+        v.actual_max = 2
+        v.units = 'seconds since 1950-13-41'
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', level='ERROR'):
+            md.add_variable(v)
+        self.assertIsNone(md.time_coverage_end)
+        self.assertIsNone(md.time_coverage_start)
+
+    def test_set_from_english_netcdf_file(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            attrs = {
+                'default_locale': 'en-CA',
+                'locales': '_fr: fr-CA',
+                'title': 'Hello',
+                'title_fr': 'Bonjour',
+                'program': 'Program',
+                'project': 'Project',
+                'institution': 'dfo',
+                'id': '12345',
+                'featureType': 'profile',
+                'processing_level': 'raw',
+                'geospatial_bounds': 'POINT(1 2)',
+                'Conventions': 'hello,world,shenanigans',
+                'processing_description': 'i did stuff',
+                'processing_environment': 'my computer',
+                'acknowledgement': 'my computer did stuff',
+                'comment': 'oh no',
+                'references': 'yes i have them',
+                'source': 'i made it up',
+                'summary': 'what i did but briefly',
+                'purpose': 'why i made this',
+                'standard_name_vocabulary': 'CF-1.12',
+                'date_issued': '2015-01-02',
+                'date_created': '2016-01-02',
+                'date_modified': '2017-01-02',
+                'data_maintenance_frequency': 'daily',
+                'metadata_maintenance_frequency': 'asNeeded',
+                'status': 'onGoing',
+                'topic_category': 'oceans',
+                'gc_audiences': 'scientists;parents',
+                'gc_subject': 'oceanography',
+                'gc_publication_places': 'Ottawa, Ontario;Nanaimo, BC;Newfoundland and Labrador - Division No. 1;ontario_-_halton',
+                'infoUrl': 'https://dfo-mpo.gc.ca',
+                'doi': 'doi:10.1.2.3/456',
+                'metadata_link': 'https://cnodc/full_metadata.xml',
+                'time_coverage_resolution': 'P60S',
+                'geospatial_bounds_crs': 'wgs84',
+                'geospatial_bounds_vertical_crs': 'msld',
+                'creator_name': 'Erin Turnbull',
+                'creator_email': 'erin@fake.com',
+                'creator_id': '12345',
+                'publisher_name': 'Marine Environmental Data Section',
+                'publisher_name_fr': 'SDMM',
+                'publisher_email': 'meds@fake.com',
+                'publisher_email_fr': 'sdmm@fake.com',
+                'publisher_id': '234567',
+                'publisher_url': 'https://meds.com',
+                'publisher_type': 'institution',
+                'contributor_name': 'Anh Tran,Jenny Chiu,BIO,MEDS Coordinator',
+                'contributor_name_fr': ',,,Coordinateur de SDMM',
+                'contributor_email': 'anh@fake.com,jenny@fake.com,bio@fake.com,coordinator@fake.com',
+                'contributor_id': '123,456,7890,',
+                'contributor_type': 'individual,individual,institution,position',
+                'contributor_role': 'contributor,editor,funder,mediator',
+                'contributor_id_vocabulary': 'https://orcid.org,https://orcid.org,https://ror.org,',
+                'contributing_institutions_name': 'C-PROOF',
+            }
+            for attr in attrs:
+                ds.setncattr(attr, attrs[attr])
+            md = DatasetMetadata()
+            md.set_meds_defaults()
+            md.set_from_netcdf_file(ds, 'en')
+            self.assertIs(md.primary_metadata_locale, Locale.CanadianEnglish)
+            self.assertIs(md.secondary_metadata_locales[0], Locale.CanadianFrench)
+            self.assertIs(md.primary_data_locale, Locale.CanadianEnglish)
+            self.assertIs(md.secondary_data_locales[0], Locale.CanadianFrench)
+            self.assertEqual(md.title, {'en': 'Hello', 'fr': 'Bonjour'})
+            self.assertEqual(md.display_name, {'en': 'Hello', 'fr': 'Bonjour'})
+            self.assertEqual(md.program, 'Program')
+            self.assertEqual(md.project, 'Project')
+            self.assertEqual(md.institution, 'dfo')
+            self.assertEqual(md.guid, '12345')
+            self.assertEqual(md.processing_level, 'raw')
+            self.assertEqual(md.geospatial_bounds, 'POINT(1 2)')
+            self.assertEqual(md.conventions, 'hello,world,shenanigans')
+            self.assertEqual(md.processing_description, {'en': 'i did stuff'})
+            self.assertEqual(md.processing_environment, {'en': 'my computer'})
+            self.assertEqual(md.credit, {'en': 'my computer did stuff'})
+            self.assertEqual(md.comment, {'en': 'oh no'})
+            self.assertEqual(md.references, {'en': 'yes i have them'})
+            self.assertEqual(md.source, {'en': 'i made it up'})
+            self.assertEqual(md.abstract, {'en': 'what i did but briefly'})
+            self.assertEqual(md.purpose, {'en': 'why i made this'})
+            self.assertEqual(md.cf_standard_name_vocab, 'CF-1.12')
+            self.assertEqual(md.date_issued, '2015-01-02T00:00:00')
+            self.assertEqual(md.date_created, '2016-01-02T00:00:00')
+            self.assertEqual(md.date_modified, '2017-01-02T00:00:00')
+            self.assertIs(md.feature_type, CommonDataModelType.Profile)
+            self.assertIs(md.data_maintenance_frequency, MaintenanceFrequency.Daily)
+            self.assertIs(md.metadata_maintenance_frequency, MaintenanceFrequency.AsNeeded)
+            self.assertIs(md.status, StatusCode.OnGoing)
+            self.assertIs(md.topic_category, TopicCategory.Oceans)
+            self.assertIs(md.goc_subject, GCSubject.Oceanography)
+            self.assertListEqual(md.goc_audiences, [GCAudience.Scientists, GCAudience.Parents])
+            self.assertListEqual(md.goc_publication_places, [GCPlace.Ottawa, GCPlace.Nanaimo, GCPlace.StJohns, GCPlace.Burlington])
+            self.assertEqual({'en': 'https://dfo-mpo.gc.ca'}, md._children['info_link'].url)
+            self.assertEqual('10.1.2.3/456', md.doi)
+            self.assertEqual({'en': 'https://cnodc/full_metadata.xml'}, md.alt_metadata_citations[0].resource.url)
+            self.assertEqual(md._metadata['temporal_resolution'], {
+                'years': None,
+                'months': None,
+                'days': None,
+                'hours': None,
+                'minutes': None,
+                'seconds': 60
+            })
+            self.assertIs(md.geospatial_crs, CoordinateReferenceSystem.WGS84)
+            self.assertIs(md.geospatial_vertical_crs, CoordinateReferenceSystem.MSL_Depth)
+            self.assertEqual(7, len(md.responsibles))
+            resps: dict[str, tuple[str, _Contact]] = {
+                (resp._children['contact'].name if isinstance(resp._children['contact'].name, str) else resp._children['contact'].name['en']): (resp._metadata['role'], resp._children['contact'])
+                for resp in md.responsibles
+            }
+            with self.subTest(msg='creator'):
+                self.assertIn('Erin Turnbull', resps)
+                creator_role, creator = resps['Erin Turnbull']
+                self.assertIsInstance(creator, Individual)
+                self.assertEqual(creator_role, 'originator')
+                self.assertEqual(creator.name, 'Erin Turnbull')
+                self.assertEqual(creator.email, {'en': 'erin@fake.com'})
+                self.assertEqual(creator.orcid, '12345')
+            with self.subTest(msg='publisher'):
+                self.assertIn('Marine Environmental Data Section', resps)
+                pub_role, publisher = resps['Marine Environmental Data Section']
+                self.assertEqual(pub_role, 'publisher')
+                self.assertIsInstance(publisher, Organization)
+                self.assertEqual(publisher.name, {'en': 'Marine Environmental Data Section', 'fr': 'SDMM'})
+                self.assertEqual(publisher.email, {'en': 'meds@fake.com', 'fr': 'sdmm@fake.com'})
+                self.assertEqual(publisher.ror, '234567')
+                self.assertEqual(publisher._metadata['web_page']['url'], {'en': 'https://meds.com'})
+            with self.subTest(msg='contributor1'):
+                self.assertIn('Anh Tran', resps)
+                role, contact = resps['Anh Tran']
+                self.assertIsInstance(contact, Individual)
+                self.assertEqual(contact.name, 'Anh Tran')
+                self.assertEqual(contact.email, {'en': 'anh@fake.com'})
+                self.assertEqual(contact.orcid, '123')
+                self.assertEqual(role, 'contributor')
+            with self.subTest(msg='contributor2'):
+                self.assertIn('Jenny Chiu', resps)
+                role, contact = resps['Jenny Chiu']
+                self.assertIsInstance(contact, Individual)
+                self.assertEqual(contact.name, 'Jenny Chiu')
+                self.assertEqual(contact.email, {'en': 'jenny@fake.com'})
+                self.assertEqual(contact.orcid, '456')
+                self.assertEqual(role, 'editor')
+            with self.subTest(msg='contributor3'):
+                self.assertIn('BIO', resps)
+                role, contact = resps['BIO']
+                self.assertIsInstance(contact, Organization)
+                self.assertEqual(role, 'funder')
+                self.assertEqual(contact.name, {'en': 'BIO'})
+                self.assertEqual(contact.email, {'en': 'bio@fake.com'})
+                self.assertEqual(contact.ror, '7890')
+            with self.subTest(msg='contributor4'):
+                self.assertIn('MEDS Coordinator', resps)
+                role, contact = resps['MEDS Coordinator']
+                self.assertIsInstance(contact, Position)
+                self.assertEqual(role, 'mediator')
+                self.assertEqual(contact.name, {'en': 'MEDS Coordinator', 'fr': 'Coordinateur de SDMM'})
+                self.assertEqual(contact.email, {'en': 'coordinator@fake.com'})
+                self.assertIsNone(contact.id_code)
+            with self.subTest(msg='contributing institution'):
+                 self.assertIn('C-PROOF', resps)
+                 role, contact = resps['C-PROOF']
+                 self.assertIsInstance(contact, Organization)
+                 self.assertEqual(contact.name, {'en': 'C-PROOF'})
+                 self.assertEqual(role, 'contributor')
+                 self.assertIsNone(contact.email)
+                 self.assertIsNone(contact.id_code)
+        body = md.build_request_body()
+        self.assertIsInstance(body, dict)
+        self.assertDictSimilar({
+            'guid': '12345',
+            'authority': None,
+            'profiles': ['cnodc'],
+            'org_name': None,
+            'display_names': {'en': 'Hello', 'fr': 'Bonjour'},
+            'users': [],
+            'metadata': {
+                'project': 'Project',
+                'program': 'Program',
+                'title': {'en': 'Hello', 'fr': 'Bonjour'},
+                'conventions': 'hello,world,shenanigans',
+                'data_locale': {'_guid': 'canadian_english_utf8'},
+                'metadata_locale': {'_guid': 'canadian_english_utf8'},
+                'metadata_extra_locales': [{'_guid': 'canadian_french_utf8'}],
+                'data_extra_locales': [{'_guid': 'canadian_french_utf8'}],
+                'institution': 'dfo',
+                'feature_type': 'Profile',
+                'spatial_representation_type': 'textTable',
+                'processing_level': 'raw',
+                'geospatial_bounds': 'POINT(1 2)',
+                'processing_description': {'en': 'i did stuff'},
+                'processing_environment': {'en': 'my computer'},
+                'acknowledgement': {'en': 'my computer did stuff'},
+                'comment': {'en': 'oh no'},
+                'references': {'en': 'yes i have them'},
+                'source': {'en': 'i made it up'},
+                'summary': {'en': 'what i did but briefly'},
+                'purpose': {'en': 'why i made this'},
+                'standard_name_vocab': 'CF-1.12',
+                'date_issued': '2015-01-02T00:00:00',
+                'date_created': '2016-01-02T00:00:00',
+                'date_modified': '2017-01-02T00:00:00',
+                'resource_maintenance_frequency': 'daily',
+                'metadata_maintenance_frequency': 'asNeeded',
+                'status': 'onGoing',
+                'topic_category': 'oceans',
+                'goc_audience': ['scientists', 'parents'],
+                'goc_subject': 'oceanography',
+                'goc_publication_place': ['ontario_-_ottawa', 'british_columbia_-_nanaimo', 'newfoundland_and_labrador_-_division_no._1', 'ontario_-_halton'],
+                'dataset_id_code': '10.1.2.3/456',
+                'dataset_id_system': {'_guid': 'DOI'},
+                'temporal_resolution': {'years': None, 'months': None, 'days': None, 'hours': None, 'minutes': None, 'seconds': 60},
+                'geospatial_bounds_crs': {'_guid': 'wgs84'},
+                'geospatial_bounds_vertical_crs': {'_guid': 'msl_depth'},
+                'custom_metadata': {},
+                'info_link': {
+                    'url': {'en': 'https://dfo-mpo.gc.ca'},
+                    'protocol': 'https',
+                    'name': None,
+                    'description': None,
+                },
+                'alt_metadata': [
+                    {
+                        'resource': {
+                            'url': {'en': 'https://cnodc/full_metadata.xml'},
+                            'protocol': 'https',
+                            'goc_formats': ['XML'],
+                            'function': 'completeMetadata',
+                            'goc_content_type': 'support_doc',
+                        }
+                    }
+                ],
+                'responsibles': [
+                    {
+                        'role': 'originator',
+                        'contact': {
+                            '_guid': 'erin@fake.com',
+                            'individual_name': 'Erin Turnbull',
+                            'id_code': '12345',
+                            'id_system': {'_guid': 'ORCID'},
+                            'email': {'en': 'erin@fake.com'},
+                        }
+                    },
+                    {
+                        'role': 'publisher',
+                        'contact': {
+                            '_guid': 'meds@fake.com',
+                            'organization_name': {'en': 'Marine Environmental Data Section', 'fr': 'SDMM'},
+                            'id_code': '234567',
+                            'id_system': {'_guid': 'ROR'},
+                            'web_page': {
+                                'url': {'en': 'https://meds.com'},
+                                'name': None,
+                                'description': None,
+                                'function': 'information',
+                                'protocol': 'https'
+                            },
+                            'email': {'en': 'meds@fake.com', 'fr': 'sdmm@fake.com'}
+                        }
+                    },{
+                        'role': 'contributor',
+                        'contact': {
+                            '_guid': 'anh@fake.com',
+                            'individual_name': 'Anh Tran',
+                            'id_code': '123',
+                            'id_system': {'_guid': 'ORCID'},
+                            'email': {'en': 'anh@fake.com'},
+                        }
+                    },{
+                        'role': 'editor',
+                        'contact': {
+                            '_guid': 'jenny@fake.com',
+                            'individual_name': 'Jenny Chiu',
+                            'id_code': '456',
+                            'id_system': {'_guid': 'ORCID'},
+                            'email': {'en': 'jenny@fake.com'},
+                        }
+                    },{
+                        'role': 'funder',
+                        'contact': {
+                            '_guid': 'bio@fake.com',
+                            'organization_name': {'en': 'BIO'},
+                            'id_code': '7890',
+                            'id_system': {'_guid': 'ROR'},
+                            'email': {'en': 'bio@fake.com'},
+                        }
+                    },{
+                        'role': 'mediator',
+                        'contact': {
+                            '_guid': 'coordinator@fake.com',
+                            'position_name': {'en': 'MEDS Coordinator', 'fr': 'Coordinateur de SDMM'},
+                            'email': {'en': 'coordinator@fake.com'},
+                        }
+                    },{
+                        'role': 'contributor',
+                        'contact': {
+                            'organization_name': {'en': 'C-PROOF'}
+                        }
+                    }
+                ],
+                'publisher': {
+                    '_guid': 'cnodc'
+                },
+                'metadata_owner': {
+                    '_guid': 'cnodc'
+                },
+                'metadata_standards': [
+                    {'_guid': 'metadata_standard_iso19115'},
+                    {'_guid': 'metadata_standard_iso19115-1'}
+                ],
+                'metadata_profiles': [
+                    {'_guid': 'metadata_profile_cioos'}
+                ],
+                'licenses': [
+                    {'_guid': 'open_government_license'},
+                    {'_guid': 'unclassified_data'},
+                ],
+                'metadata_licenses': [
+                    {'_guid': 'open_government_license'},
+                    {'_guid': 'unclassified_data'},
+                ],
+                'goc_collection_type': 'geogratis',
+                'goc_publisher': {
+                    '_guid': 'meds'
+                },
+            },
+            'activation_workflow': 'cnodc_activation',
+            'publication_workflow': 'cnodc_publish',
+            'security_level': 'unclassified',
+        }, body)
+
+    def test_fresh_cf_names(self):
+        md = DatasetMetadata()
+        self.assertIsInstance(md.cf_standard_names, list)

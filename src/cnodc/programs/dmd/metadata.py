@@ -10,6 +10,9 @@ import netCDF4 as nc
 import numpy as np
 
 from autoinject import injector
+
+import cnodc
+from cnodc.ocproc2 import OCProc2Ontology
 from cnodc.util import unnumpy
 
 MultiLanguageString = t.Union[str, dict[str, str]]
@@ -361,6 +364,22 @@ class GCSubject(enum.Enum):
     Oceanography = "oceanography"
 
 
+PROVINCES = {
+    'BC': 'British Columbia',
+    'ON': 'Ontario',
+    'NS': 'Nova Scotia',
+    'NL': 'Newfoundland and Labrador',
+    'NB': 'New Brunswick',
+    'AB': 'Alberta',
+    'MB': 'Manitoba',
+    'QC': 'Quebec',
+    'PE': 'Prince Edward Island',
+    'SK': 'Saskatchewan',
+    'NT': 'Northwest Territories',
+    'NU': 'Nunavut',
+    'YT': 'Yukon',
+}
+
 class GCPlace(enum.Enum):
     Canada = "canada"  # General
     Burlington = "ontario_-_halton"  # CCIW
@@ -371,6 +390,22 @@ class GCPlace(enum.Enum):
     Nanaimo = "british_columbia_-_nanaimo"  # PBS
     Sidney = "british_columbia_-_capital"  # IOS
     StJohns = "newfoundland_and_labrador_-_division_no._1"  # NAFC
+
+    @staticmethod
+    def from_string(s):
+        if s is None or s == '':
+            return None
+        s = s.strip()
+        if ',' in s:
+            city, province = s.split(',', maxsplit=1)
+            province = province.strip()
+            if province.upper() in PROVINCES:
+                province = PROVINCES[province.upper()]
+            s = f"{province} - {city.strip()}"
+        while '  ' in s:
+            s = s.replace('  ', ' ')
+        s = s.lower().replace(' ', '_')
+        return GCPlace(s)
 
 
 class ERDDAPDatasetType(enum.Enum):
@@ -626,17 +661,17 @@ class CoordinateReferenceSystem(enum.Enum):
         if value is None or value == '':
             return None
         value = str(value).upper().replace(" ", "")
-        if value in ('4326', 'EPSG:4326'):
+        if value in ('4326', 'EPSG:4326', 'WGS84'):
             return CoordinateReferenceSystem.WGS84
-        elif value in ('4267', 'EPSG:4267'):
+        elif value in ('4267', 'EPSG:4267', 'NAD27'):
             return CoordinateReferenceSystem.NAD27
         elif value in ('5829', 'EPSG:5829'):
             return CoordinateReferenceSystem.Instant_Heights
         elif value in ('5831', 'EPSG:5831'):
             return CoordinateReferenceSystem.Instant_Depth
-        elif value in ('5715', 'EPSG:5715'):
+        elif value in ('5715', 'EPSG:5715', 'MSLD'):
             return CoordinateReferenceSystem.MSL_Depth
-        elif value in ('5714', 'EPSG:5714'):
+        elif value in ('5714', 'EPSG:5714', 'MSLH'):
             return CoordinateReferenceSystem.MSL_Heights
         elif value in ('STANDARD', 'GREGORIAN'):
             return CoordinateReferenceSystem.Gregorian
@@ -1003,26 +1038,6 @@ class GCPublisher(enum.Enum):
 
     MEDS = {
         "_guid": "meds",
-        "_display_name": {
-            "en": "MEDS",
-            "fr": "SDMM",
-        },
-        "section_name": {
-            "en": "Marine Environmental Data Section",
-            "fr": "Section des données sur le milieu marine",
-        },
-        "publisher": {
-            "_guid": "dfo",
-            "_display_name": {
-                "en": "DFO",
-                "fr": "MPO",
-            },
-            "publisher_name": {
-                "en": "Fisheries and Oceans Canada",
-                "fr": "Pêches et Océans Canada",
-            },
-            "publisher_code": "DFO"
-        }
     }
 
 
@@ -1105,7 +1120,7 @@ class EntityRef:
         return {'und': text}
 
     @staticmethod
-    def format_date(d: t.Optional[t.Union[datetime.date, datetime.datetime]]):
+    def format_date(d: t.Optional[t.Union[datetime.date, datetime.datetime, str]]):
         if d is None:
             return None
         if isinstance(d, str):
@@ -1129,9 +1144,6 @@ class EntityRef:
             self._children[metadata_key] = []
         return self._children[metadata_key]
 
-    def add_child(self, child_type: str, v: EntityRef):
-        self.get_children(child_type).append(v)
-
     def get_child(self, child_type: str):
         return self._children.get(child_type, None)
 
@@ -1147,10 +1159,13 @@ class EntityRef:
         self.id_code = code
         self.id_system = system
 
+    def get_id_code(self):
+        return self.id_code
+
     @staticmethod
     def make_id_property(system: IDSystem, remove_prefixes=None):
         return property(
-            functools.partial(EntityRef.get, metadata_key='id_code'),
+            functools.partial(EntityRef.get_id_code),
             functools.partial(EntityRef.set_id_and_system, system=system, remove_prefixes=remove_prefixes)
         )
 
@@ -1619,7 +1634,7 @@ class DistributionChannel(EntityRef):
 
 class DatasetMetadata(EntityRef):
 
-    ontology: "cnodc.ocproc2.ontology.OCProc2Ontology" = None
+    ontology: cnodc.ocproc2.ontology.OCProc2Ontology = None
 
     REPRESENTATION_MAP = {
         CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
@@ -1721,8 +1736,10 @@ class DatasetMetadata(EntityRef):
         return CommonDataModelType.from_string(self.get('feature_type', ''))
 
     @feature_type.setter
-    def feature_type(self, feature_type: CommonDataModelType):
-        self.set(feature_type.value, 'feature_type')
+    def feature_type(self, feature_type: t.Union[str,CommonDataModelType]):
+        if isinstance(feature_type, str):
+            feature_type = CommonDataModelType.from_string(feature_type)
+        self.set(feature_type.value if feature_type else None, 'feature_type')
         if feature_type in DatasetMetadata.REPRESENTATION_MAP and self.spatial_representation is None:
             self.spatial_representation = DatasetMetadata.REPRESENTATION_MAP[feature_type]
 
@@ -1908,7 +1925,7 @@ class DatasetMetadata(EntityRef):
         self.goc_collection = GCCollectionType.Geospatial
 
     def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en'):
-        attrs = { x: dataset.getncattr(x) for x, v in dataset.ncattrs()}
+        attrs = { x: dataset.getncattr(x) for x in dataset.ncattrs()}
         locale_map = self._set_locales_from_netcdf(attrs, default_lang)
         depths = self._identify_levels(dataset)
         for ds_var in dataset.variables:
@@ -1941,7 +1958,7 @@ class DatasetMetadata(EntityRef):
         if 'date_modified' in attrs and attrs['date_modified']:
             self.date_modified = datetime.datetime.fromisoformat(attrs.pop('date_modified'))
         if 'data_maintenance_frequency' in attrs and attrs['data_maintenance_frequency']:
-            self.data_maintenance_frequency = attrs.pop('dataset_maintenance_frequency')
+            self.data_maintenance_frequency = attrs.pop('data_maintenance_frequency')
         if 'metadata_maintenance_frequency' in attrs and attrs['metadata_maintenance_frequency']:
             self.metadata_maintenance_frequency = attrs.pop('metadata_maintenance_frequency')
         if 'status' in attrs and attrs['status']:
@@ -1949,22 +1966,26 @@ class DatasetMetadata(EntityRef):
         if 'topic_category' in attrs and attrs['topic_category']:
             self.topic_category = attrs.pop('topic_category')
         if 'gc_audiences' in attrs and attrs['gc_audiences']:
-            self.goc_audiences = attrs.pop('gc_audiences').split(';')
+            self.goc_audiences = attrs.pop('gc_audiences', '').split(';')
         if 'gc_subject' in attrs and attrs['gc_subject']:
             self.goc_subject = attrs.pop('gc_subject')
         if 'gc_publication_places' in attrs and attrs['gc_publication_places']:
-            self.goc_publication_places = attrs.pop('gc_publication_places')
-        self.set_info_link(attrs.pop('infoUrl', ''))
+            self.goc_publication_places = attrs.pop('gc_publication_places', '').split(';')
+        info_url = get_bilingual_attribute(attrs, 'infoUrl', locale_map)
+        if info_url:
+            self.set_info_link(info_url)
         if 'doi' in attrs and attrs['doi']:
             self.doi = attrs.pop('doi', '')
-        if 'metadata_link' in attrs:
-            val = attrs.pop('metadata_link')
-            if val:
-                self.alt_metadata_citations.append(Citation(resource=Resource(
-                    url=val,
-                    link_purpose=ResourcePurpose.CompleteMetadata,
-                    gc_content_type = GCContentType.SupportingDocumentation
-                )))
+        md_link = get_bilingual_attribute(attrs, 'metadata_link', locale_map)
+        if md_link:
+            cit = Citation()
+            res = Resource(
+                url=md_link,
+                link_purpose=ResourcePurpose.CompleteMetadata,
+                gc_content_type = GCContentType.SupportingDocumentation
+            )
+            cit.resource = res
+            self.alt_metadata_citations.append(cit)
         if 'time_coverage_resolution' in attrs and attrs['time_coverage_resolution']:
             try:
                 self.set_time_resolution_from_iso(attrs.pop('time_coverage_resolution'))
@@ -2063,16 +2084,20 @@ class DatasetMetadata(EntityRef):
                              specific_types: str,
                              id_vocabulary: str):
         def split_multilingual_attribute(attr: dict[str, str], split_on: str = ",") -> list[dict[str, str]]:
-            split_attrs = {}
-            for key in attr:
-                split_attrs[key] = attr[key].split(split_on)
+            split_attrs = {
+                key: attr[key].split(split_on)
+                for key in attr
+            }
             values = []
-            # TODO: double quote extraction.
-            for x in range(0, max(len(split_attrs[key]) for key in split_attrs)):
-                values.append({
-                    key: split_attrs[key][x] if x < len(split_attrs[key]) else None
-                    for key in split_attrs
-                })
+            if split_attrs:
+                # TODO: double quote extraction.
+                for x in range(0, max(len(split_attrs[key]) for key in split_attrs)):
+                    values.append({
+                        key: split_attrs[key][x]
+                        for key in split_attrs
+                        if x < len(split_attrs[key]) and split_attrs[key][x]
+                    })
+
             return values
 
         names = split_multilingual_attribute(names)
@@ -2082,6 +2107,7 @@ class DatasetMetadata(EntityRef):
         institutions = split_multilingual_attribute(institutions)
         specific_roles = specific_roles.split(",")
         specific_types = specific_types.split(",")
+        id_vocabulary = id_vocabulary.split(',') if ',' in id_vocabulary else [id_vocabulary for _ in names]
         for idx in range(0, len(names)):
             self._add_netcdf_contact(
                 name=names[idx],
@@ -2091,7 +2117,7 @@ class DatasetMetadata(EntityRef):
                 institution=institutions[idx] if idx < len(institutions) else None,
                 role=specific_roles[idx] if idx < len(specific_roles) and specific_roles[idx] else contact_default_role,
                 contact_type=specific_types[idx] if idx < len(specific_types) and specific_types[idx] else contact_default_type,
-                id_vocabulary=id_vocabulary
+                id_vocabulary=id_vocabulary[idx]
             )
 
     def _add_netcdf_contact(self,
@@ -2115,6 +2141,16 @@ class DatasetMetadata(EntityRef):
             if contact_id:
                 self._log.warning(f"ID provided for position: {contact_id} [{id_vocabulary}]")
         else:
+            if isinstance(name, dict):
+                if 'und' in name and name['und']:
+                    name = name['und']
+                elif 'en' in name and name['en']:
+                    name = name['en']
+                else:
+                    for k in name:
+                        if name[k]:
+                            name = name[k]
+                            break
             contact = Individual(name=name)
             if contact_id is not None and contact_id != "":
                 if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://orcid.org"):
@@ -2146,11 +2182,12 @@ class DatasetMetadata(EntityRef):
         :param var: A variable to add to the dataset
         :param eov_prefixes: Provide either or both of "seaSurface" or "subSurface" to set the EOVs properly. Otherwise you'll need to set the EOVs manually depending on the depths sampled.
         """
-        self._children['variables'].append(var)
+        self.variables.append(var)
         cnodc_name = var.cnodc_name
         if cnodc_name:
-            if ':' in cnodc_name:
-                _, cnodc_name = cnodc_name.rsplit(":", maxsplit=1)
+            if '/' in cnodc_name:
+                pieces = cnodc_name.rsplit("/")
+                cnodc_name = pieces[-1]
             if self.ontology.exists(cnodc_name):
                 element = self.ontology.info(cnodc_name)
                 if element.ioos_category is None:
@@ -2173,13 +2210,13 @@ class DatasetMetadata(EntityRef):
         if axis == Axis.Longitude:
             self.geospatial_lon_min = var.actual_min
             self.geospatial_lon_max = var.actual_max
-        elif axis == 'Y':
+        elif axis == Axis.Latitude:
             self.geospatial_lat_min = var.actual_min
             self.geospatial_lat_max = var.actual_max
-        elif axis == 'Z':
+        elif axis == Axis.Depth:
             self.geospatial_vertical_min = var.actual_min
             self.geospatial_vertical_max = var.actual_max
-        elif axis == 'T':
+        elif axis == Axis.Time:
             units = var.units
             if ' since ' in units.lower():
                 pieces = units.lower().split(' ')
