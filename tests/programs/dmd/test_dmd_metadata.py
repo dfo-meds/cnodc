@@ -1,4 +1,5 @@
 import datetime
+import math
 
 import netCDF4
 
@@ -21,6 +22,13 @@ class TestDMDMetadataBasics(BaseTestCase):
         self.assertIs(Encoding.from_string('utf8'), Encoding.UTF8)
         self.assertIs(Encoding.from_string('utf16'), Encoding.UTF16)
         self.assertEqual(Encoding.from_string('iso-8859-1'), Encoding.ISO_8859_1)
+
+    def test_ioos_category(self):
+        self.assertIs(IOOSCategory.from_string('DissolvedNutrients'), IOOSCategory.DissolvedNutrients)
+        self.assertIs(IOOSCategory.from_string('dissolved nutrients'), IOOSCategory.DissolvedNutrients)
+        self.assertIsNone(IOOSCategory.from_string(''))
+        with self.assertRaises(ValueError):
+            IOOSCategory.from_string('definitely not and never will be an ioos category thanks')
 
     def test_axis(self):
         self.assertIs(Axis.from_string('T'), Axis.Time)
@@ -152,9 +160,9 @@ class TestCoreEntityRef(BaseTestCase):
         sub_ref.guid = '23456'
         obj._children['foo2'] = sub_ref
         obj._children['foo3'] = [EntityRef('12'), EntityRef('34'), EntityRef('56')]
-        self.assertEqual(obj.build_request_body(), {
+        self.assertDictSimilar(obj.build_request_body(), {
             '_guid': '12345',
-            '_display_name': {'und': 'hello'},
+            '_display_names': {'und': 'hello'},
             'foo': 'bar',
             'foo2': {'_guid': '23456'},
             'foo3': [{'_guid': '12'}, {'_guid': '34'}, {'_guid': '56'}]
@@ -1111,6 +1119,16 @@ class TestMetadata(BaseTestCase):
 
     def test_set_from_english_netcdf_file(self):
         with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'down'
+            depths[:] = [5,6,7,8]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
             attrs = {
                 'default_locale': 'en-CA',
                 'locales': '_fr: fr-CA',
@@ -1281,6 +1299,8 @@ class TestMetadata(BaseTestCase):
                  self.assertEqual(role, 'contributor')
                  self.assertIsNone(contact.email)
                  self.assertIsNone(contact.id_code)
+        self.assertEqual(md.geospatial_vertical_min, 5)
+        self.assertEqual(md.geospatial_vertical_max, 8)
         body = md.build_request_body()
         self.assertIsInstance(body, dict)
         self.assertDictSimilar({
@@ -1291,6 +1311,35 @@ class TestMetadata(BaseTestCase):
             'display_names': {'en': 'Hello', 'fr': 'Bonjour'},
             'users': [],
             'metadata': {
+                'variables': [
+                    {
+                        '_guid': 'temp',
+                        'source_name': 'temp',
+                        '_display_names': {'und': 'temp'},
+                        'source_data_type': 'double',
+                        'dimensions': 'N_COUNT',
+                        'ioos_category': 'Temperature',
+                        'actual_min': 1.0,
+                        'actual_max': 4.0,
+                        'units': 'degrees_C',
+                        'cnodc_name': 'Temperature',
+                    },
+                    {
+                        '_guid': 'depth',
+                        'source_name': 'depth',
+                        '_display_names': {'und': 'depth'},
+                        'source_data_type': 'double',
+                        'dimensions': 'N_COUNT',
+                        'axis': 'Z',
+                        'actual_min': 5.0,
+                        'actual_max': 8.0,
+                        'units': 'm',
+                        'positive': 'down',
+                    }
+                ],
+                'cioos_eovs': ['subSurfaceTemperature'],
+                'geospatial_vertical_min': 5,
+                'geospatial_vertical_max': 8,
                 'project': 'Project',
                 'program': 'Program',
                 'title': {'en': 'Hello', 'fr': 'Bonjour'},
@@ -1325,15 +1374,12 @@ class TestMetadata(BaseTestCase):
                 'goc_publication_place': ['ontario_-_ottawa', 'british_columbia_-_nanaimo', 'newfoundland_and_labrador_-_division_no._1', 'ontario_-_halton'],
                 'dataset_id_code': '10.1.2.3/456',
                 'dataset_id_system': {'_guid': 'DOI'},
-                'temporal_resolution': {'years': None, 'months': None, 'days': None, 'hours': None, 'minutes': None, 'seconds': 60},
+                'temporal_resolution': {'seconds': 60},
                 'geospatial_bounds_crs': {'_guid': 'wgs84'},
                 'geospatial_bounds_vertical_crs': {'_guid': 'msl_depth'},
-                'custom_metadata': {},
                 'info_link': {
                     'url': {'en': 'https://dfo-mpo.gc.ca'},
                     'protocol': 'https',
-                    'name': None,
-                    'description': None,
                 },
                 'alt_metadata': [
                     {
@@ -1366,8 +1412,6 @@ class TestMetadata(BaseTestCase):
                             'id_system': {'_guid': 'ROR'},
                             'web_page': {
                                 'url': {'en': 'https://meds.com'},
-                                'name': None,
-                                'description': None,
                                 'function': 'information',
                                 'protocol': 'https'
                             },
@@ -1448,3 +1492,249 @@ class TestMetadata(BaseTestCase):
     def test_fresh_cf_names(self):
         md = DatasetMetadata()
         self.assertIsInstance(md.cf_standard_names, list)
+
+    def test_set_bad_time_res_from_iso(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.setncattr('time_coverage_resolution', 'P1W2D')
+            md = DatasetMetadata()
+            with self.assertLogs('cnodc.dmd.metadata', 'ERROR'):
+                md.set_from_netcdf_file(ds, 'en')
+            self.assertNotIn('temporal_resolution', md._metadata)
+
+    def test_set_from_french_netcdf_file(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            attrs = {
+                'default_locale': 'fr-CA',
+                'locales': '_en: en-CA',
+                'title': 'Bonjour',
+                'title_en': 'Hello',
+            }
+            for attr in attrs:
+                ds.setncattr(attr, attrs[attr])
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertEqual(md.title, {'en': 'Hello', 'fr': 'Bonjour'})
+            self.assertIs(md.primary_metadata_locale, Locale.CanadianFrench)
+            self.assertIs(md.primary_data_locale, Locale.CanadianFrench)
+
+    def test_set_from_default_french_netcdf_file(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            attrs = {
+                'locales': '_en: en-CA',
+                'title': 'Bonjour',
+                'title_en': 'Hello',
+            }
+            for attr in attrs:
+                ds.setncattr(attr, attrs[attr])
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds, 'fr')
+            self.assertEqual(md.title, {'en': 'Hello', 'fr': 'Bonjour'})
+            self.assertIs(md.primary_metadata_locale, Locale.CanadianFrench)
+            self.assertIs(md.primary_data_locale, Locale.CanadianFrench)
+
+    def test_set_from_no_depths_netcdf_file(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'down'
+            depths.valid_min = 0
+            depths.valid_max = 20
+            depths[:] = [math.nan, math.nan, math.nan, math.nan]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertNotIn('cioos_eovs', md._metadata)
+
+    def test_set_from_no_depths_netcdf_file_empty(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'down'
+            depths.valid_min = 0
+            depths.valid_max = 20
+            depths[:] = []
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = []
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertNotIn('cioos_eovs', md._metadata)
+
+    def test_set_from_zero_depths_netcdf_file(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'down'
+            depths.valid_min = 0
+            depths.valid_max = 20
+            depths[:] = [0, 0, 0, 0]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertEqual(md._metadata['cioos_eovs'], ['seaSurfaceTemperature'])
+
+    def test_set_from_surface_to_depth_netcdf_file(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'down'
+            depths.valid_min = 0
+            depths.valid_max = 20
+            depths[:] = [0, 5, 10, 15]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertListSimilar(md._metadata['cioos_eovs'], ['seaSurfaceTemperature', 'subSurfaceTemperature'])
+
+    def test_set_from_depths_netcdf_file_up(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'up'
+            depths.valid_min = -20
+            depths.valid_max = 0
+            depths[:] = [-5, -10, -15, -17]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertEqual(md._metadata['cioos_eovs'], ['subSurfaceTemperature'])
+
+    def test_set_from_surface_and_depths_netcdf_file_up(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'up'
+            depths.valid_min = -20
+            depths.valid_max = 0
+            depths[:] = [-5, -10, -15, 0]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertListSimilar(md._metadata['cioos_eovs'], ['seaSurfaceTemperature', 'subSurfaceTemperature'])
+
+    def test_set_from_surface_only_netcdf_file_up(self):
+        with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT',)
+            depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
+            depths.units = 'm'
+            depths.axis = 'Z'
+            depths.positive = 'up'
+            depths.valid_min = -20
+            depths.valid_max = 0
+            depths[:] = [0, 0, 0, 0]
+            temps = ds.createVariable('temp', 'f8', ('N_COUNT',))
+            temps.units = 'degrees_C'
+            temps.cnodc_standard_name = 'Temperature'
+            temps[:] = [1,2,3,4]
+            md = DatasetMetadata()
+            md.set_from_netcdf_file(ds)
+            self.assertListSimilar(md._metadata['cioos_eovs'], ['seaSurfaceTemperature'])
+
+    def test_bad_org_id_vocab(self):
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'institution', 'DOI')
+            self.assertEqual(len(md.responsibles), 1)
+            self.assertIsNone(md.responsibles[0]._children['contact'].ror)
+
+    def test_bad_individual_id_vocab(self):
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'individual', 'ROR')
+            self.assertEqual(len(md.responsibles), 1)
+            self.assertIsNone(md.responsibles[0]._children['contact'].orcid)
+            self.assertEqual(md.responsibles[0]._children['contact'].guid, 'hello@hello')
+
+    def test_bad_any_id_for_position(self):
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'position', None)
+            self.assertEqual(len(md.responsibles), 1)
+            self.assertIsNone(md.responsibles[0]._children['contact'].id_code)
+
+    def test_name_from_und(self):
+        md = DatasetMetadata()
+        md._add_netcdf_contact({'und': 'me'}, '', '', None, None, 'editor', 'individual', 'https://orcid.org')
+        self.assertEqual(len(md.responsibles), 1)
+        self.assertEqual(md.responsibles[0]._children['contact'].name, 'me')
+
+    def test_name_from_fr(self):
+        md = DatasetMetadata()
+        md._add_netcdf_contact({'fr': 'me'}, '', '', None, None, 'editor', 'individual', 'https://orcid.org')
+        self.assertEqual(len(md.responsibles), 1)
+        self.assertEqual(md.responsibles[0]._children['contact'].name, 'me')
+
+    def test_name_from_blank(self):
+        md = DatasetMetadata()
+        md._add_netcdf_contact({}, '', '', None, None, 'editor', 'individual', 'https://orcid.org')
+        self.assertEqual(len(md.responsibles), 1)
+        self.assertIsNone(md.responsibles[0]._children['contact'].name)
+
+    def test_email_from_und(self):
+        md = DatasetMetadata()
+        md._add_netcdf_contact('me', {'und': 'hello@hello.com'}, '', None, None, 'editor', 'individual', 'https://orcid.org')
+        self.assertEqual(len(md.responsibles), 1)
+        self.assertEqual(md.responsibles[0]._children['contact'].guid, 'hello@hello.com')
+
+    def test_email_from_fr(self):
+        md = DatasetMetadata()
+        md._add_netcdf_contact('me', {'fr': 'hello@hello.com'}, '', None, None, 'editor', 'individual', 'https://orcid.org')
+        self.assertEqual(len(md.responsibles), 1)
+        self.assertEqual(md.responsibles[0]._children['contact'].guid, 'hello@hello.com')
+
+    def test_email_from_blank(self):
+        md = DatasetMetadata()
+        md._add_netcdf_contact('me', {}, '', None, None, 'editor', 'individual', 'https://orcid.org')
+        self.assertEqual(len(md.responsibles), 1)
+        self.assertIsNone(md.responsibles[0]._children['contact'].guid)
+
+    def test_no_role(self):
+        md = DatasetMetadata()
+        with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, None, 'institution', 'DOI')
+            self.assertEqual(len(md.responsibles), 0)
+
+    def test_single_eov(self):
+        md = DatasetMetadata()
+        v = Variable()
+        v.cnodc_name = 'AmmoniaMolar'
+        v.source_name = 'foo'
+        md.add_variable(v)
+        self.assertIs(v.ioos_category, IOOSCategory.DissolvedNutrients)
+        self.assertEqual(md._metadata['cioos_eovs'], ['nutrients'])
+
+    def test_no_ioos_category(self):
+        md = DatasetMetadata()
+        v = Variable()
+        v.cnodc_name = 'CreationTime'
+        v.source_name = 'foo'
+        md.add_variable(v)
+        self.assertIs(v.ioos_category, IOOSCategory.Other)

@@ -258,6 +258,15 @@ class IOOSCategory(enum.Enum):
     ZooplanktonSpecies = "Zooplankton Species"
     ZooplanktonAbundance = "Zooplankton Abundance"
 
+    @staticmethod
+    def from_string(s: str):
+        if s is None or s == '':
+            return None
+        for v in IOOSCategory:
+            if v.value.lower().replace(' ', '') == s.lower().replace(' ', ''):
+                return v
+        raise ValueError(f'Invalid IOOS Category: [{s}]')
+
 
 class TimePrecision(enum.Enum):
     Month = "month"
@@ -1096,10 +1105,11 @@ class EntityRef:
         if self._guid is not None:
             d['_guid'] = self._guid
         if self._display_name is not None:
-            d['_display_name'] = self._display_name
+            d['_display_names'] = self._display_name
+        EntityRef._clean_dict(self._metadata)
         d.update(self._metadata)
         for key in self._children.keys():
-            if self._children[key] is None:
+            if not self._children[key]:
                 continue
             elif isinstance(self._children[key], EntityRef):
                 d[key] = self._children[key].build_request_body()
@@ -1110,6 +1120,24 @@ class EntityRef:
                     if x is not None
                 ]
         return d
+
+    @staticmethod
+    def _clean_dict(d):
+        if isinstance(d, dict):
+            for key in list(d.keys()):
+                if d[key] is None or d[key] == '':
+                    del d[key]
+                elif isinstance(d[key], (list, tuple, set, dict)):
+                    if len(d[key]) == 0:
+                        del d[key]
+                    else:
+                        EntityRef._clean_dict(d[key])
+            return d
+        elif isinstance(d, (list, tuple, set)):
+            return [
+                EntityRef._clean_dict(x) if isinstance(x, (dict, list, tuple, set)) else x
+                for x in d
+            ]
 
     @staticmethod
     def format_multilingual_text(text: t.Optional[MultiLanguageString]):
@@ -1227,8 +1255,8 @@ class Variable(EntityRef):
     cnodc_name = EntityRef.make_property('cnodc_name')
     axis = EntityRef.make_enum_property('axis', Axis)
     units = EntityRef.make_property('units')
-    actual_min = EntityRef.make_property('actual_min')
-    actual_max = EntityRef.make_property('actual_max')
+    actual_min = EntityRef.make_property('actual_min', unnumpy)
+    actual_max = EntityRef.make_property('actual_max', unnumpy)
     positive_direction = EntityRef.make_enum_property('positive', Direction)
     encoding = EntityRef.make_enum_property('encoding', Encoding)
     source_name = EntityRef.make_property('source_name')
@@ -1307,8 +1335,9 @@ class Variable(EntityRef):
         )
         if var.source_data_type not in (NetCDFDataType.String, NetCDFDataType.Character):
             values = ds_var[:]
-            var.actual_min = np.min(values)
-            var.actual_max = np.max(values)
+            if values.size > 0:
+                var.actual_min = np.min(values)
+                var.actual_max = np.max(values)
         var_attributes.pop('actual_min', None)
         var_attributes.pop('actual_max', None)
         if 'missing_value' in var_attributes:
@@ -1704,8 +1733,8 @@ class DatasetMetadata(EntityRef):
     geospatial_lon_max = EntityRef.make_property('geospatial_lon_max', unnumpy)
     geospatial_bounds = EntityRef.make_property('geospatial_bounds')
     geospatial_crs = EntityRef.make_enum_property('geospatial_bounds_crs', CoordinateReferenceSystem)
-    geospatial_vertical_min = EntityRef.make_property('geospatial_vertical_max', unnumpy)
-    geospatial_vertical_max = EntityRef.make_property('geospatial_vertical_min', unnumpy)
+    geospatial_vertical_min = EntityRef.make_property('geospatial_vertical_min', unnumpy)
+    geospatial_vertical_max = EntityRef.make_property('geospatial_vertical_max', unnumpy)
     geospatial_vertical_crs = EntityRef.make_enum_property('geospatial_bounds_vertical_crs', CoordinateReferenceSystem)
     time_coverage_start = EntityRef.make_property('time_coverage_start', EntityRef.format_date)
     time_coverage_end = EntityRef.make_property('time_coverage_end', EntityRef.format_date)
@@ -2038,24 +2067,23 @@ class DatasetMetadata(EntityRef):
         return locale_map
 
     def _identify_levels(self, dataset: nc.Dataset):
-        depths = ['seaSurface']
+        depths = []
         for var_name in dataset.variables:
             ds_var = dataset.variables[var_name]
             if hasattr(ds_var, 'axis') and ds_var.axis == 'Z':
-                vals = ds_var[:]
-                min_z, max_z = np.min(vals), np.max(vals)
+                vals: np.array = ds_var[:]
+                if vals.size == 0:
+                    continue
+                min_z, max_z = unnumpy(np.min(vals)), unnumpy(np.max(vals))
                 if min_z is None and max_z is None:
                     continue
+                depths = ['seaSurface']
                 if hasattr(ds_var, 'positive') and ds_var.positive == 'up':
-                    if min_z < 0:
-                        depths = ['subSurface']
-                    elif max_z < 0:
-                        depths.append('subSurface')
-                else:
-                    if min_z > 0:
-                        depths = ['subSurface']
-                    elif max_z > 0:
-                        depths.append('subSurface')
+                    min_z, max_z = max_z * -1, min_z * -1
+                if min_z > 0:
+                    depths = ['subSurface']
+                elif max_z > 0:
+                    depths.append('subSurface')
                 break
         return depths
 
@@ -2151,6 +2179,8 @@ class DatasetMetadata(EntityRef):
                         if name[k]:
                             name = name[k]
                             break
+                    else:
+                        name = None
             contact = Individual(name=name)
             if contact_id is not None and contact_id != "":
                 if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://orcid.org"):
@@ -2190,10 +2220,10 @@ class DatasetMetadata(EntityRef):
                 cnodc_name = pieces[-1]
             if self.ontology.exists(cnodc_name):
                 element = self.ontology.info(cnodc_name)
-                if element.ioos_category is None:
+                if not element.ioos_category:
                     ioos_cat = IOOSCategory.Other
                 else:
-                    ioos_cat = IOOSCategory(element.ioos_category)
+                    ioos_cat = IOOSCategory.from_string(element.ioos_category)
                 var.ioos_category = ioos_cat
                 if element.essential_ocean_vars:
                     if len(element.essential_ocean_vars) == 1:
@@ -2302,28 +2332,21 @@ class DatasetMetadata(EntityRef):
         self._org_name = org_name
 
     def build_request_body(self) -> dict:
-        body = {
-            'guid': self._guid,
+        body = {}
+        body['metadata'] = super().build_request_body()
+        for key in ('_guid', '_display_names'):
+            if key in body['metadata']:
+                body[key[1:]] = body['metadata'][key]
+                del body['metadata'][key]
+        body.update({
             'authority': self._authority,
             'profiles': list(self._profiles),
             'org_name': self._org_name,
-            'display_names': self._display_name,
             'users': list(self._users),
-            'metadata': self._metadata,
             'activation_workflow': self._act_workflow,
             'publication_workflow': self._pub_workflow,
             'security_level': self._security_level,
-        }
-        for key in self._children.keys():
-            if self._children[key] is None:
-                continue
-            elif isinstance(self._children[key], EntityRef):
-                body['metadata'][key] = self._children[key].build_request_body()
-            else:
-                body['metadata'][key] = [
-                    x.build_request_body()
-                    for x in self._children[key]
-                ]
+        })
         return body
 
 

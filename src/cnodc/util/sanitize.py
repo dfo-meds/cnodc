@@ -64,9 +64,9 @@ def unnumpy(numpy_val):
     elif isinstance(numpy_val, str):
         return normalize_string(numpy_val)
     elif isinstance(numpy_val, np.float64):
-        return numpy_val.item()
+        return None if math.isnan(numpy_val) else numpy_val.item()
     elif isinstance(numpy_val, np.int64):
-        return int(numpy_val)
+        return None if math.isnan(numpy_val) else int(numpy_val)
     elif np.isscalar(numpy_val):
         if hasattr(numpy_val, "item"):
             item = numpy_val.item()
