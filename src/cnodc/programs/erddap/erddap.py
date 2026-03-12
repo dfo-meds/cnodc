@@ -1,4 +1,6 @@
 """Integration with ERDDAP to reload a dataset."""
+import base64
+
 import requests
 import zirconium as zr
 import zrlog
@@ -95,7 +97,7 @@ class ErddapController:
             json_data['_broadcast'] = 1
         elif config['broadcast_mode'] == 'global':
             json_data['_broadcast'] = 2
-        auth_key = f'{config["username"]}:{config["password"]}'.encode('utf-8')
+        auth_key = base64.b64encode(f'{config["username"]}:{config["password"]}'.encode('utf-8'))
         headers = {
             'Authorization': f'Basic {auth_key}'
         }

@@ -352,8 +352,6 @@ class NetCDFCommonMapper:
 
     def _process_value(self, value, minfo):
         value = unnumpy(value)
-        if isinstance(value, float) and math.isnan(value):
-            value = None
         if value == '' and not ('blank_to_none' in minfo and not minfo['blank_is_none']):
             value = None
         if 'separator' in minfo and minfo['separator'] and value is not None:

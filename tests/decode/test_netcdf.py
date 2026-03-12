@@ -979,6 +979,26 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 with self.subTest(record_no=idx):
                     self.assertNotIn('Bar2', record.metadata)
 
+    def test_process_value_empty(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            ds.createDimension('FOO')
+            ds.createVariable('test', 'i4', ('FOO',))
+            ds.setncattr('test2', 'foo;bar;hello;world')
+            values = [1, 2, 3, 4, 5]
+            ds.variables['test'][:] = values
+            mapper = NetCDFCommonMapper(ds, {
+                'ocproc2_map': {
+                    'test': {
+                        'target': 'metadata/Bar',
+                        'is_index': True,
+                    },
+                },
+                'data_maps': {},
+            }, 'test')
+            self.assertIsNone(mapper._process_value(';;;', {
+                'separator': ';'
+            }))
+
     def test_split_value_one_list(self):
         with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
             ds.createDimension('FOO')

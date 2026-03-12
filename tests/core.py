@@ -214,7 +214,7 @@ class MockResponse:
         if self.status_code < 400:
             pass
         else:
-            raise requests.exceptions.HTTPError(f"{self.status_code}")
+            raise requests.exceptions.HTTPError(f"{self.status_code}: {self.text}")
 
 
 class QuickWebMock:
