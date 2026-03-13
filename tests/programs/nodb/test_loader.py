@@ -10,8 +10,8 @@ from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload, B
     WorkflowPayload
 from cnodc.programs.nodb import NODBDecodeLoadWorker
 from cnodc.util import CNODCError, DynamicObjectLoadError
-from processing.helpers import WorkerTestCase
 import cnodc.ocproc2 as ocproc2
+from helpers.base_test_case import BaseTestCase
 
 
 class NODBLoaderBadRecordCreation(NODBDecodeLoadWorker):
@@ -36,7 +36,7 @@ class NODBLoaderBadRecordCreation(NODBDecodeLoadWorker):
 
 
 
-class TestLoader(WorkerTestCase):
+class TestLoader(BaseTestCase):
 
     def _make_test_file(self, records):
         file = self.temp_dir / "file.json"

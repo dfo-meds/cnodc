@@ -2,7 +2,7 @@ import unittest as ut
 import cnodc.ocproc2 as ocproc2
 import datetime
 
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class CodecTestCase(BaseTestCase):

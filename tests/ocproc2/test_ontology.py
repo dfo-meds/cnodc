@@ -1,5 +1,5 @@
 from cnodc.ocproc2 import OCProc2Ontology, OCProc2ElementInfo, OCProc2ChildRecordTypeInfo
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 def _build_ontology(temp_dir, content: str):

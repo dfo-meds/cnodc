@@ -1,4 +1,4 @@
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 from cnodc.util import DynamicObjectLoadError, dynamic_object
 
 

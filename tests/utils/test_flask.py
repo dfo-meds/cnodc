@@ -8,7 +8,7 @@ from autoinject import injector
 
 from cnodc.system.boot import build_cnodc_webapp
 from cnodc.util.flask import TrustedProxyFix, RequestInfo
-from core import BaseTestCase, InjectableDict
+from helpers.base_test_case import BaseTestCase, InjectableDict
 
 
 class BoringApp:

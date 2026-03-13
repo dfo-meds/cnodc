@@ -6,7 +6,7 @@ from cnodc.ocproc2 import ParentRecord, MultiElement, SingleElement
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper
 from cnodc.programs.glider.ego_convert import ego_sensor_info
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf_vlen, str_to_netcdf
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 import netCDF4 as nc
 import typing as t
 from cnodc.programs.glider.ego_decode import GliderEGOMapper

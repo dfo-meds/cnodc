@@ -1,6 +1,6 @@
 from cnodc.nodb import NODBUploadWorkflow
 from cnodc.nodb.base import NODBValidationError
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestWorkflow(BaseTestCase):

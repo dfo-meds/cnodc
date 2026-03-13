@@ -4,7 +4,7 @@ import pathlib
 from cnodc.storage import StorageController
 from cnodc.storage.base import StorageError, local_file_error_wrap
 from cnodc.util import HaltInterrupt
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 from cnodc.util.halts import DummyHaltFlag
 from cnodc.storage.local import LocalHandle
 

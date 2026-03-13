@@ -1,5 +1,6 @@
 from cnodc.util import CNODCError, ConfigError
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
+
 
 class TestCNODCError(BaseTestCase):
 

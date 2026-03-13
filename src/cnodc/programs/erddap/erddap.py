@@ -9,6 +9,7 @@ import enum
 import typing as t
 
 from cnodc.util import CNODCError
+from cnodc.util.web import web_request
 
 
 class ReloadFlag(enum.Enum):
@@ -63,6 +64,8 @@ class ErddapController:
                     config['broadcast_mode'] = 'no'
                 if good_config:
                     self._valid_configs[cluster_name] = config
+            else:
+                self._log.error(f"No cluster defined named [{cluster_name}]")
         return self._valid_configs[cluster_name]
 
     def reload_dataset(self,
@@ -70,37 +73,31 @@ class ErddapController:
                        flag: ReloadFlag = ReloadFlag.SOFT,
                        cluster_name: str = None) -> bool:
         """Reload a given dataset."""
-        try:
-            resp = self._make_authenticated_request(
-                endpoint="datasets/reload",
-                method="POST",
-                json_data={
-                    'dataset_id': dataset_id,
-                    'flag': flag.value
-                },
-                cluster_name=cluster_name
-            )
-            if not resp['success']:
-                self._log.error(f"Remote error while requesting ERDDAP dataset reload: {resp['message'] if 'message' in resp else 'unknown'}")
-                return False
-            return True
-        except Exception as ex:
-            self._log.exception(f"Exception while requesting ERDDAP dataset reload")
-            return False
+        resp = self._make_authenticated_request(
+            endpoint="datasets/reload",
+            method="POST",
+            json_data={
+                'dataset_id': dataset_id,
+                'flag': flag.value
+            },
+            cluster_name=cluster_name
+        )
+        if not resp['success']:
+            raise CNODCError(f"Remote error while requesting ERDDAP dataset reload: {resp['message'] if 'message' in resp else 'unknown'}", 'ERDDAPUTIL', 1001)
+        return True
 
     def _make_authenticated_request(self, endpoint: str, method: str, json_data: dict, cluster_name: str = None):
         """Make an HTTP call to the endpoint with appropriate authentication."""
         config = self._get_config(cluster_name)
         if config is None:
-            raise CNODCError(f"Invalid ERDDAP configuration, see logs for more details", "ERDDAPUTIL", 1000, is_recoverable=True)
+            raise CNODCError(f"Invalid ERDDAP configuration, see logs for more details", "ERDDAPUTIL", 1000)
         if config['broadcast_mode'] == 'cluster':
             json_data['_broadcast'] = 1
         elif config['broadcast_mode'] == 'global':
             json_data['_broadcast'] = 2
-        auth_key = base64.b64encode(f'{config["username"]}:{config["password"]}'.encode('utf-8'))
+        auth_key = base64.b64encode(f'{config["username"]}:{config["password"]}'.encode('utf-8')).decode('ascii')
         headers = {
             'Authorization': f'Basic {auth_key}'
         }
-        resp = requests.request(method, f"{config['base_url']}/{endpoint}", json=json_data, headers=headers)
-        resp.raise_for_status()
+        resp = web_request(method, f"{config['base_url']}/{endpoint.lstrip('/')}", json=json_data, headers=headers)
         return resp.json()

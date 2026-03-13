@@ -6,7 +6,7 @@ import numpy as np
 
 import cnodc.util.sanitize
 from cnodc.util import clean_for_json, normalize_string, unnumpy
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestDataSanitization(BaseTestCase):

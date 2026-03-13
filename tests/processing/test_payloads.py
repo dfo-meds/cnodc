@@ -8,7 +8,7 @@ from cnodc.processing.workflow.payloads import FileInfo, WorkflowPayload, FilePa
 from cnodc.nodb import NODBSourceFile
 from cnodc.util import CNODCError
 
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestFileInfo(BaseTestCase):

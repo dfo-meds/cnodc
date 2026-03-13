@@ -11,8 +11,7 @@ from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workflow.payloads import FilePayload, FileInfo, BatchPayload, WorkflowPayload, SourceFilePayload, \
     ObservationPayload
 from cnodc.util import CNODCError, HaltInterrupt
-
-from processing.helpers import WorkerTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class BoringQueueWorker(QueueWorker):
@@ -80,7 +79,7 @@ class BoringTask(ScheduledTask):
         super().after_cycle()
 
 
-class TestScheduledTask(WorkerTestCase):
+class TestScheduledTask(BaseTestCase):
 
     def test_cron_mode(self):
         task: ScheduledTask = self.worker_controller.build_test_worker(ScheduledTask, {
@@ -283,7 +282,7 @@ class TestScheduledTask(WorkerTestCase):
         with self.assertLogs("cnodc.worker.test", "ERROR"):
             task.run()
 
-class TestQueueWorker(WorkerTestCase):
+class TestQueueWorker(BaseTestCase):
 
     def test_no_queue_name_error(self):
         worker: QueueWorker = self.worker_controller.build_test_worker(QueueWorker)
@@ -571,7 +570,7 @@ class TestQueueWorker(WorkerTestCase):
                 worker.run()
 
 
-class TestWorkflowWorker(WorkerTestCase):
+class TestWorkflowWorker(BaseTestCase):
 
     def test_build_batch_payload_from_uuid(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
@@ -658,7 +657,7 @@ class TestWorkflowWorker(WorkerTestCase):
         self.assertEqual(pl.get_metadata('hello'), 'world')
         self.assertEqual(pl.batch_uuid, '12345')
 
-class TestBatchWorker(WorkerTestCase):
+class TestBatchWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         bw: BatchWorkflowWorker = self.worker_controller.build_test_worker(BatchWorkflowWorker)
@@ -689,7 +688,7 @@ class TestBatchWorker(WorkerTestCase):
             bw.after_cycle()
 
 
-class TestSourceWorker(WorkerTestCase):
+class TestSourceWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         bw: SourceWorkflowWorker = self.worker_controller.build_test_worker(SourceWorkflowWorker)
@@ -736,7 +735,7 @@ class TestSourceWorker(WorkerTestCase):
 
 
 
-class TestFileWorker(WorkerTestCase):
+class TestFileWorker(BaseTestCase):
 
     def test_good_payload_type(self):
         fw: FileWorkflowWorker = self.worker_controller.build_test_worker(FileWorkflowWorker)
@@ -768,7 +767,7 @@ class TestFileWorker(WorkerTestCase):
             self.assertEqual(h.read(), "hello world")
 
 
-class TestObservationWorker(WorkerTestCase):
+class TestObservationWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         ow: ObservationWorkflowWorker = self.worker_controller.build_test_worker(ObservationWorkflowWorker)

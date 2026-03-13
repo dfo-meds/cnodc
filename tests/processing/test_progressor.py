@@ -1,11 +1,9 @@
 from cnodc.nodb import QueueStatus, NODBUploadWorkflow, NODBQueueItem
 from cnodc.processing.workflow.payloads import BatchPayload, WorkflowPayload
 from cnodc.processing.workflow.progressor import WorkflowProgressWorker
-from core import BaseTestCase
-from processing.helpers import WorkerTestCase
+from helpers.base_test_case import BaseTestCase
 
-
-class TestProgressor(WorkerTestCase):
+class TestProgressor(BaseTestCase):
 
     def test_invalid_workflow(self):
         bp = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step1', current_step_done=False)

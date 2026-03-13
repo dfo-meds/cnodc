@@ -2,15 +2,15 @@ import base64
 import functools
 import json
 
-from cnodc.programs.erddap import ErddapController
-from core import MockResponse
-from processing.helpers import WorkerTestCase
+from cnodc.programs.erddap import ErddapController, ReloadFlag
+from helpers.web_mock import MockResponse
+from helpers.base_test_case import BaseTestCase
 from autoinject import injector
 import zirconium as zr
 
 RELOADED = []
 
-def reload_dataset(method, url, reload_list, **kwargs):
+def reload_dataset(method, url, reload_list, username, password, **kwargs):
     headers = kwargs.pop('headers', {})
     json_data: dict = kwargs.pop('json', None)
     auth_header = headers.pop('Authorization', '')
@@ -18,7 +18,7 @@ def reload_dataset(method, url, reload_list, **kwargs):
         return MockResponse(b'Unauthorized: no valid auth header', 403)
     try:
         un, pw = base64.b64decode(auth_header[6:]).decode('utf-8').split(':')
-        if un != 'hello' or pw != 'world':
+        if un != username or pw != password:
             raise ValueError('wrong un/pw')
     except Exception as ex:
         return MockResponse(f'Unauthorized: {str(ex)}'.encode('utf-8'), 403)
@@ -28,20 +28,25 @@ def reload_dataset(method, url, reload_list, **kwargs):
         return MockResponse(b'malformed request', 400)
     if 'flag' in json_data and json_data['flag'] not in (0, 1, 2, "0", "1", "2"):
         return MockResponse(b'malformed request', 400)
-    if 'dataset_id' in json_data:
-        reload_list.append(json_data['dataset_id'])
-    else:
-        reload_list.append('__all__')
+    if 'dataset_id' in json_data and json_data['dataset_id'] == 'force_false':
+        return MockResponse(json.dumps({'success': False}).encode('utf-8'), 200)
+    reload_list.append((
+        str(json_data['dataset_id']) if 'dataset_id' in json_data else '__all__',
+        int(json_data['_broadcast']) if '_broadcast' in json_data else 0,
+        int(json_data['flag']) if 'flag' in json_data else 0)
+    )
     return MockResponse(json.dumps({'success': True}).encode('utf-8'), 200)
 
 
-class TestERDDAPWorkerAndConnection(WorkerTestCase):
+class TestERDDAPWorkerAndConnection(BaseTestCase):
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.reloaded = []
-        cls.web('http://test/api/datasets/reload', 'POST')(functools.partial(reload_dataset, reload_list=cls.reloaded))
+        cls.reloaded2 = []
+        cls.web('http://test/api/datasets/reload', 'POST')(functools.partial(reload_dataset, reload_list=cls.reloaded, username='hello', password='world'))
+        cls.web('http://test2/api/datasets/reload', 'POST')(functools.partial(reload_dataset, reload_list=cls.reloaded2, username='foo', password='bar'))
 
     def setUp(self):
         super().setUp()
@@ -49,13 +54,183 @@ class TestERDDAPWorkerAndConnection(WorkerTestCase):
 
     @injector.test_case
     @zr.test_with_config(('erddaputil', 'username'), 'hello')
-    @zr.test_with_config(('erddaputil', 'password'), 'word')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
     @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
     def test_good_config(self):
         with self.mock_web_test():
             control = ErddapController()
             self.assertTrue(control.reload_dataset('foo'))
-            self.assertIn('foo', self.reloaded)
+            self.assertIn(('foo', 0, 0), self.reloaded)
 
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'broadcast_mode'), 'cluster')
+    def test_good_config_broadcast_cluster(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            self.assertTrue(control.reload_dataset('foo'))
+            self.assertIn(('foo', 1, 0), self.reloaded)
 
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'broadcast_mode'), 'global')
+    def test_good_config_broadcast_global(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            self.assertTrue(control.reload_dataset('foo'))
+            self.assertIn(('foo', 2, 0), self.reloaded)
 
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_good_config_hard_flag(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            self.assertTrue(control.reload_dataset('foo', flag=ReloadFlag.HARD))
+            self.assertIn(('foo', 0, 2), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_good_config_bad_files_flag(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            self.assertTrue(control.reload_dataset('foo', flag=ReloadFlag.BAD_FILES))
+            self.assertIn(('foo', 0, 1), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'foobar')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_bad_password(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertRaisesCNODCError('WEB-1001'):
+                control.reload_dataset('foo')
+            self.assertNotIn(('foo', 0, 0), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_bad_password(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertRaisesCNODCError('ERDDAPUTIL-1001'):
+                control.reload_dataset('force_false')
+            self.assertNotIn(('foo', 0, 0), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_bad_config_no_username(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'ERROR'):
+                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                    control.reload_dataset('foo')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_bad_config_no_password(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'ERROR'):
+                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                    control.reload_dataset('foo')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    def test_bad_config_no_base_url(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'ERROR'):
+                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                    control.reload_dataset('foo')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 12345)
+    def test_bad_base_url_not_str(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'ERROR'):
+                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                    control.reload_dataset('foo')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'broadcast_mode'), 'foo')
+    def test_bad_broadcast_mode(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'WARNING'):
+                control.reload_dataset('foo')
+            self.assertIn(('foo', 0, 0), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'foobar')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'ftp://erddap/')
+    def test_bad_cluster(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'ERROR'):
+                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                    control.reload_dataset('foo')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/afoo')
+    def test_bad_api_path(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertRaisesCNODCError('WEB-1001'):
+                control.reload_dataset('foo')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_bad_config_no_cluster_defined(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            with self.assertLogs('cnodc.erddap', 'ERROR'):
+                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                    control.reload_dataset('foo', cluster_name='hello')
+            self.assertEqual(0, len(self.reloaded))
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'username'), 'foo')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'password'), 'bar')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'base_url'), 'http://test2/api/')
+    def test_multiple_clusters(self):
+        with self.mock_web_test():
+            control = ErddapController()
+            control.reload_dataset('foo')
+            self.assertIn(('foo', 0, 0), self.reloaded)
+            self.assertNotIn(('foo', 0, 0), self.reloaded2)
+            control.reload_dataset('foo2', cluster_name='cluster1')
+            self.assertNotIn(('foo2', 0, 0), self.reloaded)
+            self.assertIn(('foo2', 0, 0), self.reloaded2)

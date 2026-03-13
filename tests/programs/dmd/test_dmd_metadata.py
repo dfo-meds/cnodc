@@ -12,7 +12,7 @@ from cnodc.programs.dmd.metadata import Encoding, Axis, NetCDFDataType, Coverage
     Thesaurus, KeywordType, Keyword, DistributionChannel, DatasetMetadata, SpatialRepresentation, DistanceUnit, \
     AngularUnit, EssentialOceanVariable, StandardName, ERDDAPDatasetType, GCCollectionType, GCAudience, GCPlace, \
     GCSubject, TopicCategory, MaintenanceFrequency, StatusCode, GCPublisher, Locale, _Contact
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestDMDMetadataBasics(BaseTestCase):

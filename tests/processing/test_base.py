@@ -4,7 +4,7 @@ import unittest as ut
 
 from cnodc.processing.control.base import SaveData, BaseWorker, BaseProcess
 from cnodc.util import HaltInterrupt, HaltFlag
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestBaseProcess(BaseTestCase):

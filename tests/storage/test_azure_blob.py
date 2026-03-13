@@ -14,7 +14,7 @@ from cnodc.storage import StorageController, StorageTier
 from cnodc.storage.azure_blob import AzureBlobHandle, wrap_azure_errors
 from cnodc.storage.azure_files import AzureFileHandle
 from cnodc.storage.base import StorageError
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class _FakeBlobDownloader:

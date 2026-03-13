@@ -6,7 +6,7 @@ import typing as t
 from cnodc.science.units.structures import UnitError
 from cnodc.science.units.units import convert
 from cnodc.util.exceptions import CNODCError
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestConversions(BaseTestCase):

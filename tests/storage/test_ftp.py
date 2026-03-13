@@ -18,7 +18,7 @@ from cnodc.storage.ftp import FTPHandle, ftplib_error_wrap
 import unittest as ut
 
 from cnodc.util import HaltInterrupt
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 from cnodc.util.halts import DummyHaltFlag
 
 FTP_HOME = pathlib.Path(__file__).absolute().parent / 'test'

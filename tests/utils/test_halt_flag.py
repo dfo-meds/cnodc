@@ -3,7 +3,7 @@ import threading
 
 from cnodc.util import HaltFlag, HaltInterrupt, gzip_with_halt
 from cnodc.util.io import copy_with_halt, ungzip_with_halt
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 from cnodc.util.halts import DummyHaltFlag
 
 

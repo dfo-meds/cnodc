@@ -5,10 +5,11 @@ from cnodc.nodb.observations import NODBWorkingRecord, NODBObservationData
 from cnodc.ocproc2 import ParentRecord
 from cnodc.processing.workflow.payloads import BatchPayload
 from cnodc.programs.nodb import NODBFinalizeWorker
-from processing.helpers import WorkerTestCase
+
+from helpers.base_test_case import BaseTestCase
 
 
-class TestFinalizer(WorkerTestCase):
+class TestFinalizer(BaseTestCase):
 
     def test_finalizer(self):
         bp = BatchPayload('12345')

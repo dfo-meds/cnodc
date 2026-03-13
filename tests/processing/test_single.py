@@ -5,7 +5,7 @@ import yaml
 from cnodc.processing.control.single import SingleProcessController
 from cnodc.processing.control.base import BaseWorker
 from cnodc.util import CNODCError
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 
 
 class TestBaseProcessController(BaseTestCase):

@@ -6,7 +6,8 @@ from cnodc.nodb import NODBSourceFile, NODBObservation, NODBObservationData, NOD
 from cnodc.nodb.observations import NODBWorkingRecord, BatchStatus
 from cnodc.ocproc2 import ParentRecord, ChildRecord, QCResult
 from cnodc.ocproc2.codecs import OCProc2BinCodec
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
+
 
 class TestSourceFile(BaseTestCase):
 

@@ -3,7 +3,8 @@ import json
 
 from cnodc.nodb import NODBSession, NODBUser, UserStatus
 from cnodc.util import CNODCError
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
+
 
 class SessionTest(BaseTestCase):
 

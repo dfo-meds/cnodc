@@ -7,7 +7,7 @@ import yaml
 from cnodc.ocproc2 import MultiElement, SingleElement
 from cnodc.util import CNODCError
 from cnodc.util.sanitize import str_to_netcdf, str_to_netcdf_vlen
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder
 
 

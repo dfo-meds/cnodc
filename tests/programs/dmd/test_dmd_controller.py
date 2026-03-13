@@ -1,12 +1,26 @@
+import functools
 import json
 
 from autoinject import injector
 
 from cnodc.programs.dmd.dmd import DataManagerController
 from cnodc.programs.dmd.metadata import DatasetMetadata
-from core import BaseTestCase, with_security
+from helpers.base_test_case import BaseTestCase
 import zirconium as zr
 
+from helpers.web_mock import MockResponse
+
+
+def with_security(cb):
+    @functools.wraps(cb)
+    def _inner(method, url, **kwargs):
+        h = kwargs.pop('headers', {})
+        if 'Authorization' not in h:
+            return MockResponse(b"Forbidden", 403)
+        if h['Authorization'] != '12345':
+            return MockResponse(b"Forbidden", 403)
+        return cb(method, url, **kwargs)
+    return _inner
 
 @with_security
 def upsert_dataset(method, url, **kwargs):
@@ -30,7 +44,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_bad_auth_post(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('DMD-1000'):
+            with self.assertRaisesCNODCError('WEB-1001'):
                 x.upsert_dataset(DatasetMetadata())
 
     @injector.test_case
@@ -38,7 +52,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_good_auth_post_bad_url(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('DMD-1000'):
+            with self.assertRaisesCNODCError('WEB-1001'):
                 x.upsert_dataset(DatasetMetadata())
 
     @injector.test_case
@@ -54,7 +68,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_bad_auth_post_create(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('DMD-1000'):
+            with self.assertRaisesCNODCError('WEB-1001'):
                 x.create_dataset(DatasetMetadata())
 
     @injector.test_case
@@ -62,7 +76,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_good_auth_post_bad_url_create(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('DMD-1000'):
+            with self.assertRaisesCNODCError('WEB-1001'):
                 x.create_dataset(DatasetMetadata())
 
     @injector.test_case

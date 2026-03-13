@@ -9,7 +9,7 @@ from cnodc.processing.workflow import WorkflowController
 from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, BatchPayload
 from cnodc.nodb import NODBQueueItem
 from cnodc.util import CNODCError
-from core import BaseTestCase, InjectableDict
+from helpers.base_test_case import BaseTestCase, InjectableDict
 
 
 class TestWorkflowController(BaseTestCase):

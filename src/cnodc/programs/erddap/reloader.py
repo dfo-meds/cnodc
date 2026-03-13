@@ -3,7 +3,7 @@ import typing as t
 from autoinject import injector
 
 from cnodc.programs.erddap import ErddapController, ReloadFlag
-from cnodc.nodb import structures as structures
+import cnodc.nodb as nodb
 from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
 from cnodc.util.exceptions import CNODCError
 
@@ -24,7 +24,7 @@ class ERDDAPReloadWorker(QueueWorker):
             'default_cluster': None
         })
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: nodb.NODBQueueItem) -> t.Optional[QueueItemResult]:
         if 'dataset_id' not in item.data or not item.data['dataset_id']:
             raise CNODCError(f"Missing dataset ID", "ERDDAPRELOAD", 1000, False)
         flag = ReloadFlag.SOFT

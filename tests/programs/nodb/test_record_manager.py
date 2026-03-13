@@ -3,7 +3,7 @@ import datetime
 from cnodc.nodb import NODBObservationData, NODBObservation, NODBMission, NODBPlatform
 from cnodc.nodb.observations import NODBWorkingRecord
 from cnodc.programs.nodb.record_manager import NODBRecordManager
-from core import BaseTestCase
+from helpers.base_test_case import BaseTestCase
 import cnodc.ocproc2 as ocproc2
 
 

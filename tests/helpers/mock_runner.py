@@ -3,12 +3,11 @@ import typing as t
 import uuid
 
 from cnodc.nodb import NODBQueueItem, QueueStatus
-from cnodc.processing.workers.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker, ObservationWorkflowWorker
+from cnodc.processing.workers.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, \
+    ObservationWorkflowWorker, FileWorkflowWorker
 from cnodc.processing.workers.queue_worker import QueueWorker
 from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workflow.payloads import WorkflowPayload
-from core import BaseTestCase, InjectableDict
-from cnodc.util.halts import DummyHaltFlag
 
 
 class WorkerTestController:
@@ -84,16 +83,3 @@ class WorkerTestController:
         cls = worker_cls(**kwargs)
         cls._db = self._db
         return cls
-
-
-class WorkerTestCase(BaseTestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.halt_flag = DummyHaltFlag()
-        cls.worker_controller = WorkerTestController(cls.db, cls.halt_flag)
-
-    def tearDown(self, d: InjectableDict = None):
-        super().tearDown()
-        self.halt_flag.event.clear()
