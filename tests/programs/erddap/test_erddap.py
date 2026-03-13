@@ -1,8 +1,11 @@
 import base64
+import datetime
 import functools
 import json
 
+from cnodc.nodb import NODBQueueItem, QueueStatus
 from cnodc.programs.erddap import ErddapController, ReloadFlag
+from cnodc.programs.erddap.reloader import ERDDAPReloadWorker
 from helpers.web_mock import MockResponse
 from helpers.base_test_case import BaseTestCase
 from autoinject import injector
@@ -51,6 +54,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.reloaded.clear()
+        self.reloaded2.clear()
 
     @injector.test_case
     @zr.test_with_config(('erddaputil', 'username'), 'hello')
@@ -232,5 +236,168 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
             self.assertIn(('foo', 0, 0), self.reloaded)
             self.assertNotIn(('foo', 0, 0), self.reloaded2)
             control.reload_dataset('foo2', cluster_name='cluster1')
-            self.assertNotIn(('foo2', 0, 0), self.reloaded)
             self.assertIn(('foo2', 0, 0), self.reloaded2)
+            self.assertNotIn(('foo2', 0, 0), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_erddap_reload_worker(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo'
+            }
+            self.worker_controller.test_queue_worker(
+                ERDDAPReloadWorker,
+                {},
+                qi
+            )
+            self.assertIn(('foo', 0, 0), self.reloaded)
+            self.assertNotIn(('foo', 0, 0), self.reloaded2)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'username'), 'foo')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'password'), 'bar')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'base_url'), 'http://test2/api/')
+    def test_erddap_reload_worker_with_cluster(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo',
+                'cluster_name': 'cluster1'
+            }
+            self.worker_controller.test_queue_worker(
+                ERDDAPReloadWorker,
+                {},
+                qi
+            )
+            self.assertIn(('foo', 0, 0), self.reloaded2)
+            self.assertNotIn(('foo', 0, 0), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'username'), 'foo')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'password'), 'bar')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'base_url'), 'http://test2/api/')
+    def test_erddap_reload_worker_with_default_cluster(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo',
+            }
+            self.worker_controller.test_queue_worker(
+                ERDDAPReloadWorker,
+                {
+                    'default_cluster': 'cluster1'
+                },
+                qi
+            )
+            self.assertIn(('foo', 0, 0), self.reloaded2)
+            self.assertNotIn(('foo', 0, 0), self.reloaded)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'username'), 'foo')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'password'), 'bar')
+    @zr.test_with_config(('erddaputil', 'cluster1', 'base_url'), 'http://test2/api/')
+    def test_erddap_reload_worker_with_default_cluster_override(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo',
+                'cluster_name': '__default',
+            }
+            self.worker_controller.test_queue_worker(
+                ERDDAPReloadWorker,
+                {
+                    'default_cluster': 'cluster1'
+                },
+                qi
+            )
+            self.assertIn(('foo', 0, 0), self.reloaded)
+            self.assertNotIn(('foo', 0, 0), self.reloaded2)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_erddap_reload_worker_with_hard_flag(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo',
+                'flag': 2,
+            }
+            self.worker_controller.test_queue_worker(
+                ERDDAPReloadWorker,
+                {},
+                qi
+            )
+            self.assertIn(('foo', 0, 2), self.reloaded)
+            self.assertNotIn(('foo', 0, 2), self.reloaded2)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_erddap_reload_worker_with_bad_files_flag(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo',
+                'flag': 1,
+            }
+            self.worker_controller.test_queue_worker(
+                ERDDAPReloadWorker,
+                {},
+                qi
+            )
+            self.assertIn(('foo', 0, 1), self.reloaded)
+            self.assertNotIn(('foo', 0, 1), self.reloaded2)
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_erddap_reload_worker_with_incorrect_flag(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {
+                'dataset_id': 'foo',
+                'flag': 4,
+            }
+            with self.assertLogs('cnodc.worker.erddap_reload', 'WARNING'):
+                self.worker_controller.test_queue_worker(
+                    ERDDAPReloadWorker,
+                    {},
+                    qi
+                )
+            self.assertIn(('foo', 0, 0), self.reloaded)
+            self.assertNotIn(('foo', 0, 0), self.reloaded2)
+
+
+    @injector.test_case
+    @zr.test_with_config(('erddaputil', 'username'), 'hello')
+    @zr.test_with_config(('erddaputil', 'password'), 'world')
+    @zr.test_with_config(('erddaputil', 'base_url'), 'http://test/api/')
+    def test_erddap_reload_worker_with_bad_dataset_id(self):
+        with self.mock_web_test():
+            qi = NODBQueueItem()
+            qi.data = {}
+            with self.assertLogs('cnodc.worker.erddap_reload', 'ERROR'):
+                self.worker_controller.test_queue_worker(
+                    ERDDAPReloadWorker,
+                    {},
+                    qi
+                )
+            self.assertEqual(0, len(self.reloaded))
+            self.assertEqual(0, len(self.reloaded2))

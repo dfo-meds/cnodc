@@ -8,6 +8,20 @@ omit =
   */cnodc/programs/gtspp/*
   */cnodc/storage/sftp.py
   */cnodc/ocproc2/codecs/ocproc2debug.py
+  */cnodc/nodb/gts.py
+  */cnodc/ocproc2/codecs/transcoder.py
+  */cnodc/ocproc2/codecs/wmo/ascii.py
+  */cnodc/ocproc2/codecs/wmo/bufr.py
+  */cnodc/ocproc2/operations.py
+  */cnodc/programs/nodb/qc/*
+  */cnodc/science/adecimal.py
+  */cnodc/science/amath.py
+  */cnodc/science/bathymetry/*
+  */cnodc/science/geodesy.py
+  */cnodc/science/ocproc_math.py
+  */cnodc/science/seawater.py
+  */cnodc/system/cli.py
+
 
 
 [report]

@@ -33,6 +33,9 @@ class ERDDAPReloadWorker(QueueWorker):
                 flag = ReloadFlag.BAD_FILES
             elif item.data['flag'] == 2:
                 flag = ReloadFlag.HARD
-        cluster_name = item.data['cluster_name'] if 'cluster_name' in item.data else self.get_config('default_cluster', None)
-        if not self.erddap.reload_dataset(item.data['dataset_id'], flag=flag, cluster_name=cluster_name):
-            return QueueItemResult.RETRY
+            else:
+                self._log.warning(f'Unknown flag [{item.data['flag']}], defaulting to SOFT')
+        cluster_name = self.get_config('default_cluster', None)
+        if 'cluster_name' in item.data:
+            cluster_name = item.data['cluster_name']
+        self.erddap.reload_dataset(item.data['dataset_id'], flag=flag, cluster_name=cluster_name)

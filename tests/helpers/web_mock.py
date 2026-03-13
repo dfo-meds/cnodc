@@ -1,6 +1,7 @@
 import json
 
 import requests
+from requests import RequestException
 
 
 class MockResponse:
@@ -45,6 +46,8 @@ class QuickWebMock:
                 res = self._refs[key](method, url, **kwargs)
                 if not isinstance(res, MockResponse):
                     res = MockResponse(str(res).encode('utf-8'), 200)
+            except RequestException as ex:
+                raise ex
             except Exception as ex:
                 res = MockResponse(str(ex).encode('utf-8'), 500)
         else:
