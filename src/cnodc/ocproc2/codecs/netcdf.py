@@ -20,6 +20,7 @@ from cnodc.ocproc2.ontology import OCProc2Ontology
 from cnodc.util import CNODCError
 from cnodc.util.dynamic import dynamic_object
 from cnodc.util.sanitize import netcdf_bytes_to_string
+import cnodc.util.awaretime as awaretime
 
 
 class NetCDFDecoder(BaseCodec):
@@ -430,7 +431,7 @@ class NetCDFCommonMapper:
             if pieces[0].lower() not in ('seconds', 'minutes', 'hours', 'days', 'weeks'):
                 raise NetCDFCommonDecoderError(f'Invalid first part of time since units: [{units}]', 1005, True)
             try:
-                epoch = datetime.datetime.fromisoformat(pieces[2])
+                epoch = awaretime.utc_from_isoformat(pieces[2])
             except ValueError as ex:
                 raise NetCDFCommonDecoderError(f"Invalid last part of time since units: [{units}]", 1008, True) from ex
             self._cache[key] = functools.partial(NetCDFCommonMapper._decode_time_since, epoch=epoch, increments=pieces[0].lower())

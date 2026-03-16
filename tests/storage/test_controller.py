@@ -54,7 +54,7 @@ class TestStorageController(ut.TestCase):
         self.assertEqual(md['AccessLevel'], AccessLevel.Controlled.value)
         self.assertEqual(md['SecurityLabel'], SecurityLevel.ProtectedA.value)
         self.assertEqual(md['AutomatedRelease'], 'YES')
-        self.assertEqual(md['ReleaseDate'], '2015-01-02T03:04:05')
+        self.assertEqual(md['ReleaseDate'], '2015-01-02T03:04:05+00:00')
         self.assertEqual(md['StorageTier'], StorageTier.ARCHIVAL.value)
 
     def test_applying_metadata_on_metadata_with_tier(self):

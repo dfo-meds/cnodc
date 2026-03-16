@@ -228,9 +228,11 @@ class TestSingleElement(ut.TestCase):
 
     def test_to_datetime(self):
         element = SingleElement("2015-01-02T09:08:07")
-        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 2, 9, 8, 7))
+        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 2, 9, 8, 7, tzinfo=datetime.timezone.utc))
+        element = SingleElement("2015-01-02T09:08:07-01:00")
+        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 2, 9, 8, 7, tzinfo=datetime.timezone(datetime.timedelta(seconds=-3600))))
         element = SingleElement("2015-01-03")
-        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 3, 0, 0, 0))
+        self.assertEqual(element.to_datetime(), datetime.datetime(2015, 1, 3, 0, 0, 0, tzinfo=datetime.timezone.utc))
         with self.assertRaises(ValueError):
             element = SingleElement("foobar")
             element.to_datetime()

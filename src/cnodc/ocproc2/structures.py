@@ -7,6 +7,7 @@ from cnodc.ocproc2.elements import ElementMap, DefaultValueDict, OCProcValue
 from cnodc.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 from cnodc.ocproc2.lazy_load import LazyLoadList
 
+import cnodc.util.awaretime as awaretime
 
 class BaseRecord:
 
@@ -194,7 +195,7 @@ class ParentRecord(BaseRecord):
         self.qc_tests.append(QCTestRunInfo(
             test_name,
             test_version,
-            test_time or datetime.datetime.now(datetime.timezone.utc),
+            test_time or awaretime.utc_now(),
             outcome,
             messages,
             notes,
@@ -215,7 +216,7 @@ class ParentRecord(BaseRecord):
                           change_time: t.Optional[datetime.datetime] = None):
         self.history.append(HistoryEntry(
             message,
-            change_time or datetime.datetime.now(datetime.timezone.utc),
+            change_time or awaretime.utc_now(),
             source_name,
             source_version,
             source_instance,

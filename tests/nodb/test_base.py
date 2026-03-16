@@ -212,7 +212,7 @@ class TestBaseObject(ut.TestCase):
 
     def test_datetime_field_date_only(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 0, 0, 0)
+        test = datetime.datetime(2015, 10, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
         x.date_time = '2015-10-01'
         self.assertEqual(x.date_time, test)
         self.assertIn('datetime', x.modified_values)
@@ -220,7 +220,7 @@ class TestBaseObject(ut.TestCase):
 
     def test_datetime_field(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 1, 2, 3)
+        test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.timezone.utc)
         x.date_time = '2015-10-01T01:02:03'
         self.assertEqual(x.date_time, test)
         self.assertIn('datetime', x.modified_values)
@@ -236,7 +236,7 @@ class TestBaseObject(ut.TestCase):
 
     def test_datetime_field_no_t(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 1, 2, 3)
+        test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.timezone.utc)
         x.date_time = '2015-10-01 01:02:03'
         self.assertEqual(x.date_time, test)
         self.assertIn('datetime', x.modified_values)

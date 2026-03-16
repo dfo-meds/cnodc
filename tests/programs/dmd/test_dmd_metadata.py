@@ -180,7 +180,7 @@ class TestCoreEntityRef(BaseTestCase):
         self.assertEqual(EntityRef.format_date(datetime.datetime(2015, 1, 2, 3, 4, 5)), '2015-01-02T03:04:05')
         self.assertEqual(EntityRef.format_date(datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)), '2015-01-02T03:04:05+00:00')
         self.assertEqual(EntityRef.format_date('2015-01-02'), '2015-01-02')
-        self.assertEqual(EntityRef.format_date('2015-01-02T01:02:03'), '2015-01-02T01:02:03')
+        self.assertEqual(EntityRef.format_date('2015-01-02T01:02:03'), '2015-01-02T01:02:03+00:00')
 
     def test_coerce_from_enum(self):
         self.assertListSimilar([None], EntityRef._coerce_from_enum(None, Locale, coerce_list=True))
@@ -1213,9 +1213,9 @@ class TestMetadata(BaseTestCase):
             self.assertEqual(md.abstract, {'en': 'what i did but briefly'})
             self.assertEqual(md.purpose, {'en': 'why i made this'})
             self.assertEqual(md.cf_standard_name_vocab, 'CF-1.12')
-            self.assertEqual(md.date_issued, '2015-01-02T00:00:00')
-            self.assertEqual(md.date_created, '2016-01-02T00:00:00')
-            self.assertEqual(md.date_modified, '2017-01-02T00:00:00')
+            self.assertEqual(md.date_issued, '2015-01-02T00:00:00+00:00')
+            self.assertEqual(md.date_created, '2016-01-02T00:00:00+00:00')
+            self.assertEqual(md.date_modified, '2017-01-02T00:00:00+00:00')
             self.assertIs(md.feature_type, CommonDataModelType.Profile)
             self.assertIs(md.data_maintenance_frequency, MaintenanceFrequency.Daily)
             self.assertIs(md.metadata_maintenance_frequency, MaintenanceFrequency.AsNeeded)
@@ -1362,9 +1362,9 @@ class TestMetadata(BaseTestCase):
                 'summary': {'en': 'what i did but briefly'},
                 'purpose': {'en': 'why i made this'},
                 'standard_name_vocab': 'CF-1.12',
-                'date_issued': '2015-01-02T00:00:00',
-                'date_created': '2016-01-02T00:00:00',
-                'date_modified': '2017-01-02T00:00:00',
+                'date_issued': '2015-01-02T00:00:00+00:00',
+                'date_created': '2016-01-02T00:00:00+00:00',
+                'date_modified': '2017-01-02T00:00:00+00:00',
                 'resource_maintenance_frequency': 'daily',
                 'metadata_maintenance_frequency': 'asNeeded',
                 'status': 'onGoing',

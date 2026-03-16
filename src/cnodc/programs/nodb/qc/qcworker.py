@@ -127,8 +127,7 @@ class NODBQCWorker(WorkflowWorker):
             working_record.station_uuid = data_record.metadata.best('CNODCStation')
         if data_record.coordinates.has_value('Time'):
             try:
-                working_record.obs_time = datetime.datetime.fromisoformat(
-                    data_record.coordinates.best('Time'))
+                working_record.obs_time = data_record.coordinates['Time'].ideal().to_datetime()
             except (TypeError, ValueError):
                 working_record.obs_time = None
         if data_record.coordinates.has_value('Latitude') and data_record.coordinates.has_value('Longitude'):

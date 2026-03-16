@@ -14,6 +14,7 @@ from cnodc.processing.control.base import BaseWorker
 import datetime
 import typing as t
 from cnodc.util import CNODCError
+import cnodc.util.awaretime as awaretime
 
 
 class ScheduledTask(BaseWorker):
@@ -34,7 +35,7 @@ class ScheduledTask(BaseWorker):
             self._run_loop()
 
     def _run_loop(self):
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = awaretime.utc_now()
         if self._check_execution(now):
             now = self._run_scheduled_task(now)
         self.responsive_sleep(self._sleep_time(now))
@@ -49,15 +50,15 @@ class ScheduledTask(BaseWorker):
         if mode == "from_completion":
             last_end = self.save_data.get('last_end')
             if last_end is None:
-                self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
+                self._next_execution = awaretime.utc_now() + self._execution_delay(True)
             else:
-                self._next_execution = datetime.datetime.fromisoformat(last_end) + self._execution_delay()
+                self._next_execution = awaretime.from_isoformat(last_end) + self._execution_delay()
         elif mode == "from_start":
             last_start = self.save_data.get('last_start')
             if last_start is None:
-                self._next_execution = datetime.datetime.now(datetime.timezone.utc) + self._execution_delay(True)
+                self._next_execution = awaretime.utc_now() + self._execution_delay(True)
             else:
-                self._next_execution = datetime.datetime.fromisoformat(last_start) + self._execution_delay()
+                self._next_execution = awaretime.from_isoformat(last_start) + self._execution_delay()
         elif mode == "cron":
             # TODO: implement this
             raise CNODCError(f"Cron-based scheduling not yet available", "SCHEDTASK", 1001)
@@ -102,7 +103,7 @@ class ScheduledTask(BaseWorker):
                 self._log.exception(f"Recoverable error while executing scheduled task")
         finally:
             self.after_cycle()
-            now = datetime.datetime.now(datetime.timezone.utc)
+            now = awaretime.utc_now()
             self.save_data['last_end'] = now.isoformat()
             self.save_data.save_file()
             self._update_next_execution_time()

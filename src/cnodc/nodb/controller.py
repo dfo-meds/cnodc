@@ -17,6 +17,7 @@ import typing as t
 from cnodc.nodb import NODBQueueItem
 from cnodc.nodb.base import NODBBaseObject
 from cnodc.util import CNODCError
+import cnodc.util.awaretime as awaretime
 
 RECOVERABLE_ERRORS: list[str] = [
     '08***',  # Connection errors
@@ -344,7 +345,7 @@ class NODBControllerInstance:
 
     def fast_renew_queue_item(self, queue_uuid, now_: t.Optional[datetime.datetime] = None):
         with self.cursor() as cur:
-            now_ = now_ or datetime.datetime.now(datetime.timezone.utc)
+            now_ = now_ or awaretime.utc_now()
             cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [now_.isoformat(), queue_uuid])
             return now_
 
@@ -664,7 +665,7 @@ class NODBControllerInstance:
         elif isinstance(v, bool):
             return 't' if v else 'f'
         elif isinstance(v, datetime.datetime):
-            utc_v = v.astimezone(datetime.timezone(datetime.timedelta(seconds=0), "UTC"))
+            utc_v = v.astimezone(datetime.timezone.utc)
             return utc_v.strftime('%Y-%m-%d %H:%M:%SZ')
         elif isinstance(v, datetime.date):
             return v.strftime("%Y-%m-%d")

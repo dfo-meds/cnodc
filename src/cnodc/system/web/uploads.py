@@ -16,6 +16,7 @@ import yaml
 
 from .auth import LoginController
 from cnodc.processing.workflow import WorkflowController
+import cnodc.util.awaretime as awaretime
 
 from cnodc.nodb import NODBControllerInstance, NODBController, NODBUploadWorkflow
 
@@ -152,7 +153,7 @@ class UploadController:
         with open(bin_file, "wb") as h:
             h.write(data)
         with open(request_dir / ".timestamp", "w") as h:
-            h.write(datetime.datetime.now(datetime.timezone.utc).isoformat())
+            h.write(awaretime.utc_now().isoformat())
 
     def get_working_file(self) -> pathlib.Path:
         if self._assembled_file is None:

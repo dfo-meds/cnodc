@@ -349,10 +349,10 @@ class TestGliderDecodeFull(BaseTestCase):
             by_type[x.metadata.best('SensorType')] = x
         self.assertIn('interpolated', by_type)
         self.assertIn('satnav', by_type)
-        self.assertEqual('1950-01-06T00:00:00', by_type['interpolated'].value)
+        self.assertEqual('1950-01-06T00:00:00+00:00', by_type['interpolated'].value)
         self.assertEqual(2, by_type['interpolated'].metadata['Quality'].value)
         self.assertEqual('interpolated', by_type['interpolated'].metadata['SensorType'].value)
-        self.assertEqual('1950-01-06T00:14:24', by_type['satnav'].value)
+        self.assertEqual('1950-01-06T00:14:24+00:00', by_type['satnav'].value)
         self.assertEqual(2, by_type['satnav'].metadata['Quality'].value)
         self.assertEqual('satnav', by_type['satnav'].metadata['SensorType'].value)
 
@@ -543,7 +543,7 @@ class TestGliderDecodeMinimum(BaseTestCase):
         record = self.decoded_records[0]
         self.assertIsInstance(record.coordinates['Time'], SingleElement)
         time = record.coordinates['Time']
-        self.assertEqual('1950-01-06T00:00:00', time.value)
+        self.assertEqual('1950-01-06T00:00:00+00:00', time.value)
         self.assertEqual(2, time.metadata['Quality'].value)
         self.assertEqual('interpolated', time.metadata['SensorType'].value)
 

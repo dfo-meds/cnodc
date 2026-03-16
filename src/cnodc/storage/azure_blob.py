@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 import azure.core.exceptions as ace
 import zirconium as zr
 from autoinject import injector
+import cnodc.util.awaretime as awaretime
 
 
 def wrap_azure_errors(cb):
@@ -217,8 +218,9 @@ class AzureBlobHandle(UrlBaseHandle):
 
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
         props = self.properties(clear_cache)
+        # TODO: what timezone is returned here?
         if props:
-            return props.last_modified
+            return awaretime.ensure_timezone(props.last_modified, 'Etc/UTC')
 
     @wrap_azure_errors
     def set_metadata(self, metadata: dict[str, str]):

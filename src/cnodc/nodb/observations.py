@@ -8,7 +8,7 @@ from cnodc.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 import cnodc.ocproc2 as ocproc2
 from cnodc.science.seawater import eos80_depth
 import cnodc.nodb.base as s
-
+import cnodc.util.awaretime as awaretime
 
 if t.TYPE_CHECKING:  # pragma: no coverage
     from cnodc.nodb import NODBControllerInstance
@@ -168,7 +168,7 @@ class NODBSourceFile(s.NODBBaseObject, s.MetadataMixin):
             'ver': version,
             'ins': instance,
             'lvl': level,
-            'rpt': datetime.datetime.now(datetime.timezone.utc).isoformat()
+            'rpt': awaretime.utc_now()
         })
         self.modified_values.add('history')
 
@@ -384,7 +384,7 @@ class NODBObservation(s.NODBBaseObject):
         self.source_name = record.metadata.best('CNODCSource', None)
         self.mission_uuid = record.metadata.best('CNODCMission', None)
         if record.metadata.has_value('CNODCEmbargoUntil'):
-            self.embargo_date = datetime.datetime.fromisoformat(record.metadata.best('CNODCEmbargoUntil'))
+            self.embargo_date = record.metadata['CNODCEmbargoUntil'].to_datetime()
         self.surface_parameters = list(set(x for x in record.parameters))
         ref_info = {
             'profile_parameters': set(),
@@ -485,7 +485,7 @@ class NODBObservationData(s.NODBBaseObject, _RecordMixin, MetadataMixin):
             }
         self.qc_tests = qc_test_info
         if data_record.metadata.has_value('CNODCDuplicateId') and data_record.metadata.has_value('CNODCDuplicateDate'):
-            self.duplicate_received_date = datetime.date.fromisoformat(data_record.metadata.best('CNODCDuplicateDate'))
+            self.duplicate_received_date = data_record.metadata['CNODCDuplicateDate'].to_date()
             self.duplicate_uuid = data_record.metadata.best('CNODCDuplicateId')
         if data_record.metadata.has_value('CNODCStatus'):
             new_status = data_record.metadata.best('CNODCStatus')

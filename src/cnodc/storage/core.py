@@ -12,6 +12,7 @@ import typing as t
 import pathlib
 import enum
 from cnodc.util import HaltFlag
+import cnodc.util.awaretime as awaretime
 
 
 class AccessLevel(enum.Enum):
@@ -106,7 +107,7 @@ class StorageController:
         if 'AutomatedRelease' in md:
             kwargs['automate_release'] = md['AutomatedRelease'] == 'YES'
         if 'ReleaseDate' in md and md['ReleaseDate']:
-            kwargs['release_date'] = datetime.datetime.fromisoformat(md['ReleaseDate'])
+            kwargs['release_date'] = awaretime.utc_from_isoformat(md['ReleaseDate'])
         if 'StorageTier' in md and md['StorageTier']:
             kwargs['storage_tier'] = StorageTier(md['StorageTier'])
         md.update(StorageController.build_metadata(**kwargs))

@@ -6,6 +6,7 @@ from autoinject import injector
 
 import cnodc.nodb as nodb
 from cnodc.storage import StorageController
+import cnodc.util.awaretime as awaretime
 
 from cnodc.util import CNODCError, HaltFlag, ungzip_with_halt
 
@@ -53,7 +54,7 @@ class FileInfo:
             map_['file_path'],
             map_['filename'] if 'filename' in map_ else None,
             map_['is_gzipped'] if 'is_gzipped' in map_ else None,
-            datetime.datetime.fromisoformat(map_['mod_date']) if 'mod_date' in map_ and map_['mod_date'] else None
+            awaretime.from_isoformat(map_['mod_date']) if 'mod_date' in map_ and map_['mod_date'] else None
         )
 
 
@@ -139,7 +140,7 @@ class WorkflowPayload:
         if queue_name is None:
             raise CNODCError("Missing queue name")
         self.metadata = self.metadata or {}
-        self.metadata['send_time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self.metadata['send_time'] = awaretime.utc_now().isoformat()
         kwargs = {
             'queue_name': queue_name,
             'data': self.to_map(),

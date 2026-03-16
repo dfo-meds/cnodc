@@ -14,6 +14,7 @@ from cnodc.util import CNODCError, dynamic_object, normalize_string, unnumpy
 import cnodc.science.seawater as seawater
 import cnodc.programs.dmd.metadata as metadata
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf_vlen
+import cnodc.util.awaretime as awaretime
 
 
 def ego_sensor_info(ds: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
@@ -91,7 +92,7 @@ class OpenGliderConverter:
     def __init__(self, mapping_data, halt_flag=None):
         self._mapping_data = mapping_data
         self._data_maps = {}
-        self._base_time = datetime.datetime.fromisoformat('1970-01-01T00:00:00')
+        self._base_time = awaretime.utc_from_isoformat('1970-01-01T00:00:00')
         self._halt = halt_flag
 
     def breakpoint(self):
@@ -158,7 +159,7 @@ class OpenGliderConverter:
         self._build_deployment_info(open_nc, original_nc, platform, start_time)
         self._build_glider_info(open_nc, original_nc, platform)
         self._build_phase_info(original_nc, open_nc)
-        open_nc.setncattr('date_created', datetime.datetime.now().strftime('%Y%m%dT%H%M%SZ'))
+        open_nc.setncattr('date_created', awaretime.utc_now().strftime('%Y%m%dT%H%M%SZ'))
         mission_id = open_nc.getncattr('id')
         return file_name, mission_id
 
@@ -312,7 +313,7 @@ class OpenGliderConverter:
     def _build_times(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
         juld_var = original_nc.variables['JULD']
         period, _, epoch = getattr(juld_var, 'units').split(' ', maxsplit=2)
-        local_base_time = datetime.datetime.fromisoformat(epoch)
+        local_base_time = awaretime.utc_from_isoformat(epoch)
         times = original_nc.variables['JULD'][:]
         seconds = []
         min_time = None
@@ -407,11 +408,11 @@ class OpenGliderConverter:
     def _build_deployment_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: str, start_time: str):
         deploy_start = netcdf_bytes_to_string(original_nc.variable['DEPLOYMENT_START_DATE'][:]).strip()
         if len(deploy_start) == 8:
-            start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d')
+            start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d')
         elif len(deploy_start) == 12:
-            start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d%H%M')
+            start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M')
         elif len(deploy_start) == 14:
-            start_date = datetime.datetime.strptime(deploy_start, '%Y%m%d%H%M%S')
+            start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M%S')
         else:
             raise CNODCError(f"Unknown date format for [{deploy_start}]", 'EGO_CONVERT', 1002)
         open_nc.setncattr('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))

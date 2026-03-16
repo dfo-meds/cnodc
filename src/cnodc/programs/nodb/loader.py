@@ -14,6 +14,7 @@ from cnodc.util import CNODCError, HaltInterrupt, dynamic_object
 from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, SourceFilePayload
 from cnodc.processing.workers.queue_worker import QueueItemResult
 from cnodc.programs.nodb.record_manager import NODBRecordManager
+import cnodc.util.awaretime as awaretime
 
 
 class NODBDecodeLoadWorker(WorkflowWorker):
@@ -130,7 +131,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 rdate = (
                     file_info.last_modified_date.date()
                     if file_info.last_modified_date is not None else
-                    datetime.datetime.now(datetime.timezone.utc)
+                    awaretime.utc_now()
                 )
                 source_file = nodb.NODBSourceFile()
                 source_file.source_path = file_info.file_path

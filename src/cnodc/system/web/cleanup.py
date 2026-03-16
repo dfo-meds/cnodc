@@ -1,8 +1,9 @@
 import datetime
 import pathlib
 
-from cnodc.process.scheduled_task import ScheduledTask
 import zirconium as zr
+import cnodc.util.awaretime as awaretime
+from cnodc.processing.workers.scheduled_task import ScheduledTask
 
 
 class RequestCleanupTask(ScheduledTask):
@@ -35,7 +36,7 @@ class RequestCleanupTask(ScheduledTask):
         req_dir = self.get_requests_dir()
         if req_dir is None:
             return
-        threshold = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=self.get_config("max_request_age_seconds"))
+        threshold = awaretime.utc_now() - datetime.timedelta(seconds=self.get_config("max_request_age_seconds"))
         for workflow_dir in req_dir.iterdir():
             if not workflow_dir.is_dir():
                 continue
@@ -50,7 +51,7 @@ class RequestCleanupTask(ScheduledTask):
             return
         with open(timestamp_file, "r") as h:
             try:
-                dt = datetime.datetime.fromisoformat(h.read())
+                dt = awaretime.utc_from_isoformat(h.read())
                 if dt > threshold:
                     return
             except ValueError as ex:

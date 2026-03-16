@@ -14,6 +14,7 @@ import zirconium as zr
 from pandas.core.dtypes.inference import is_re
 
 from cnodc.storage.base import BaseStorageHandle, UrlBaseHandle, StorageError
+import cnodc.util.awaretime as awaretime
 from cnodc.util.halts import HaltFlag
 
 
@@ -291,13 +292,13 @@ class FTPHandle(UrlBaseHandle):
             format_ = '%Y%m%d%H%M%S'
             if '.' in stat['modify']:  # pragma: no coverage (test server doesn't return this)
                 format_ = '%Y%m%d%H%M%S.%f'
-            dt = datetime.datetime.strptime(stat['modify'], format_)
+            tzinfo = None
             if 'server_timezone' in stat and stat['server_timezone']:
                 try:
-                    dt = dt.replace(tzinfo=zoneinfo.ZoneInfo(stat['server_timezone']))
+                    tzinfo =zoneinfo.ZoneInfo(stat['server_timezone'])
                 except ZoneInfoNotFoundError as ex:  # pragma: no coverage (test server doesn't have timezone)
                     logging.getLogger("cnodc.storage.ftp").error(f"Cannot parse server timezone [{stat['server_timezone']}]")
-            return dt
+            return awaretime.from_string(stat['modify'], format_, tzinfo)
         return None
 
     def _size(self) -> t.Optional[int]:

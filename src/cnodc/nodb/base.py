@@ -5,6 +5,7 @@ import functools
 import json
 import typing as t
 from contextlib import contextmanager
+import cnodc.util.awaretime as awaretime
 
 from cnodc.util import CNODCError
 
@@ -221,7 +222,7 @@ class NODBBaseObject:
     def to_datetime(dt):
         """Convert a value to a datetime object."""
         if isinstance(dt, str):
-            return datetime.datetime.fromisoformat(dt)
+            return awaretime.utc_from_isoformat(dt)
         else:
             return dt
 

@@ -3,6 +3,7 @@ import datetime
 import typing as t
 import enum
 import cnodc.nodb.base as s
+import cnodc.util.awaretime as awaretime
 
 if t.TYPE_CHECKING:  # pragma: no coverage
     from cnodc.nodb import NODBControllerInstance
@@ -57,7 +58,7 @@ class NODBQueueItem(s.NODBBaseObject):
             self._set_queue_status(
                 db=db,
                 new_status=QueueStatus.DELAYED_RELEASE,
-                release_at=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=release_in_seconds),
+                release_at=awaretime.utc_now() + datetime.timedelta(seconds=release_in_seconds),
                 **kwargs
             )
 

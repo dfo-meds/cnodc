@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime
 import typing as t
+import cnodc.util.awaretime as awaretime
 
 if t.TYPE_CHECKING:
     import cnodc.ocproc2 as ocproc2
@@ -76,7 +77,7 @@ class QCAddHistory(QCOperator):
                  **kwargs):
         super().__init__(op_type='history', **kwargs)
         self._message = message
-        self._datetime = change_time or datetime.datetime.now(datetime.timezone.utc)
+        self._datetime = change_time or awaretime.utc_now()
         self._name = source_name
         self._version = source_version
         self._instance = source_instance
@@ -122,7 +123,7 @@ class QCAddHistory(QCOperator):
             map_['version'],
             map_['instance'],
             map_['type'],
-            datetime.datetime.fromisoformat(map_['change_time']),
+            awaretime.utc_from_isoformat(map_['change_time']),
             **kwargs
         )
 
@@ -139,7 +140,7 @@ class QCSetValue(QCOperator):
         super().__init__(**kwargs)
         self._value_path = ocproc2.normalize_qc_path(value_path)
         self._new_value = new_value
-        self._change_time = change_time or datetime.datetime.now(datetime.timezone.utc)
+        self._change_time = change_time or awaretime.utc_now()
 
     @property
     def name(self):

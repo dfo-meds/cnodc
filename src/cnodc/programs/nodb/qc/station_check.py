@@ -79,7 +79,7 @@ class NODBStationCheck(BaseTestSuite):
                 return []
             obs_time = None
             if record.coordinates.has_value('Time') and record.coordinates['Time'].is_iso_datetime():
-                obs_time = datetime.datetime.fromisoformat(record.coordinates['Time'].best())
+                obs_time = record.coordinates['Time'].ideal().to_datetime()
             station_options = {
                 x.station_uuid: x
                 for x in self.searcher.search_stations(

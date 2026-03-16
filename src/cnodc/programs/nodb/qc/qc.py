@@ -12,6 +12,7 @@ from cnodc.science.seawater import eos80_pressure
 from cnodc.science.units import UnitConverter
 from autoinject import injector
 import cnodc.science.amath as amath
+import cnodc.util.awaretime as awaretime
 
 
 class QCComplete(Exception):
@@ -690,8 +691,8 @@ class BaseTestSuite:
             self.report_for_review(error_code, qc_flag)
 
     def assert_in_past(self, value: ocproc2.SingleElement, error_code: str, qc_flag: t.Optional[int] = 14):
-        now = datetime.datetime.now(datetime.timezone.utc)
-        dt_value = datetime.datetime.fromisoformat(value.value)
+        now = awaretime.utc_now()
+        dt_value = awaretime.utc_from_isoformat(value.value)
         if dt_value > now:
             self.report_for_review(error_code, qc_flag)
 

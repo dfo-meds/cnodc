@@ -12,6 +12,7 @@ from uncertainties import ufloat, UFloat
 
 from cnodc.ocproc2.lazy_load import LazyLoadDict
 from cnodc.science.units.units import convert
+import cnodc.util.awaretime as awaretime
 
 
 UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
@@ -145,7 +146,11 @@ class AbstractElement:
 
     def to_datetime(self) -> datetime.datetime:
         """Convert this value to a datetime."""
-        return datetime.datetime.fromisoformat(self.ideal().value)
+        return awaretime.utc_from_isoformat(self.ideal().value)
+
+    def to_date(self) -> datetime.date:
+        """ Convert this value to a date. """
+        return datetime.date.fromisoformat(self.ideal().value)
 
     def to_string(self) -> str:
         return str(self.ideal().value)

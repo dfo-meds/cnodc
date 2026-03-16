@@ -204,10 +204,11 @@ class AzureFileHandle(UrlBaseHandle):
         return self.file_properties(clear_cache).size
 
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
+        # TODO: what tiemzone is returned here?
         if self._is_dir():
-            return self.dir_properties(clear_cache).last_modified
+            return self.dir_properties(clear_cache).last_modified.astimezone()
         else:
-            return self.file_properties(clear_cache).last_modified
+            return self.file_properties(clear_cache).last_modified.astimezone()
 
     @wrap_azure_errors
     def set_metadata(self, metadata: dict[str, str]):

@@ -15,6 +15,7 @@ from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload
 from cnodc.storage.base import StorageTier
 from cnodc.programs.glider.ego_convert import OpenGliderConverter
 import cnodc.programs.dmd.dmd as dmd
+import cnodc.util.awaretime as awaretime
 
 
 def add_glider_mission_platform_info(source_file, record: ParentRecord, db: NODBControllerInstance, memory: dict):
@@ -125,7 +126,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
                     unique_item_key=mission_id
                 )
 
-        payload = self.file_payload_from_path(target_file.path(), datetime.datetime.now(datetime.timezone.utc))
+        payload = self.file_payload_from_path(target_file.path(), awaretime.utc_now())
         payload.set_metadata("glider_erddap_file_path", target_erddap_file.path())
         payload.set_metadata("glider_ego_file_path", payload.file_info.file_path)
         payload.set_metadata("glider_file_name", file_name)

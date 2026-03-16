@@ -15,11 +15,12 @@ import cnodc.science.seawater as seawater_sub
 from cnodc.science.units.units import convert
 import cnodc.science.geodesy as geodesy
 import cnodc.science.amath as amath
+import cnodc.util.awaretime as awaretime
 
 ValQualUnits = tuple[t.Optional[amath.AnyNumber], int, t.Optional[str]]
 
-ITS90_START = datetime.datetime(1990, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-IPTS68_START = datetime.datetime(1968, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+ITS90_START = awaretime.utc_awaretime(1990, 1, 1, 0, 0, 0)
+IPTS68_START = awaretime.utc_awaretime(1968, 1, 1, 0, 0, 0)
 
 try:
     import gsw

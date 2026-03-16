@@ -451,7 +451,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(payload.file_info.file_path, str(self.temp_dir / 'hello.txt'))
         self.assertEqual(payload.file_info.filename, 'hello.txt')
         self.assertFalse(payload.file_info.is_gzipped)
-        self.assertEqual(payload.file_info.last_modified_date, datetime.datetime(2015, 1, 1, 0, 0, 2))
+        self.assertEqual(payload.file_info.last_modified_date, datetime.datetime(2015, 1, 1, 0, 0, 2).astimezone())
         self.assertEqual(payload.workflow_name, 'test')
         self.assertEqual(payload.current_step, 'step1')
         self.assertFalse(payload.current_step_done)

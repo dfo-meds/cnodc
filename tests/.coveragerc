@@ -1,6 +1,7 @@
 [run]
 cover_pylib = false
 omit =
+  */cnodc/__main__.py
   */cnodc/desktop/*
   */cnodc/system/web/*
   */cnodc/programs/castaway_ctd/*

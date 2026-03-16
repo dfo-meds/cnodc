@@ -5,6 +5,7 @@ from .base import BaseStorageHandle, local_file_error_wrap, local_file_generator
 from cnodc.util import HaltFlag
 import typing as t
 import shutil
+import cnodc.util.awaretime as awaretime
 
 
 class LocalHandle(BaseStorageHandle):
@@ -64,10 +65,7 @@ class LocalHandle(BaseStorageHandle):
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
         m_time = self.stat(clear_cache).st_mtime
         if m_time is not None:
-            return datetime.datetime.fromtimestamp(
-                m_time,
-                datetime.timezone.utc
-            )
+            return awaretime.from_timestamp(m_time)
         return None  # pragma: no coverage
 
     def child(self, sub_path: str, as_dir: bool = False):

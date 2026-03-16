@@ -16,6 +16,7 @@ from pybufrkit.decoder import Decoder
 from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
     ValueDataNode, NoValueDataNode
 from autoinject import injector
+import cnodc.util.awaretime as awaretime
 
 from cnodc.science.units import UnitConverter
 from cnodc.util import CNODCError
@@ -263,14 +264,13 @@ class _Bufr4Decoder:
             'BUFROriginSubcentre': self.message.originating_subcentre.value,
             'BUFRDataCategory': self.message.data_category.value,
             'BUFRIsObservation': 1 if self.message.is_observation.value else 0,
-            'BUFRMessageTime': datetime.datetime(
+            'BUFRMessageTime': awaretime.utc_awaretime(
                 year=self.message.year.value,
                 month=self.message.month.value,
                 day=self.message.day.value,
                 hour=self.message.hour.value,
                 minute=self.message.minute.value,
-                second=self.message.second.value,
-                tzinfo=datetime.timezone.utc
+                second=self.message.second.value
             ).isoformat()
         }
         for n in range(0, self.message.n_subsets.value):

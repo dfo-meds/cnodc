@@ -23,6 +23,7 @@ import pathlib
 import datetime
 
 from cnodc.processing.workflow.payloads import FileInfo, WorkflowPayload, FilePayload
+import cnodc.util.awaretime as awaretime
 
 VALID_METADATA_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:;.,\\/\"'?!(){}[]@<>=-+*#$&`|~^"
 
@@ -144,10 +145,10 @@ class WorkflowController:
         """Queue the working file."""
         if self.has_more_steps(None):
             if 'last-modified-time' in metadata and metadata['last-modified-time']:
-                lmt = datetime.datetime.fromisoformat(metadata['last-modified-time'])
+                lmt = awaretime.from_isoformat(metadata['last-modified-time'])
             else:
-                lmt = datetime.datetime.now(datetime.timezone.utc)
-                metadata['last-modified-time'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                lmt = awaretime.utc_now()
+                metadata['last-modified-time'] = lmt.isoformat()
             file_info = FileInfo(
                 working_file.path(),
                 filename,
@@ -253,7 +254,7 @@ class WorkflowController:
         """Sanitize and substitute headers"""
         for h in metadata:
             s = s.replace("%{" + h.lower() + "}", str(metadata[h]))
-        _now = _now or datetime.datetime.now(datetime.timezone.utc)
+        _now = _now or awaretime.utc_now()
         return s.replace('%{now}', _now.isoformat())
 
     @staticmethod

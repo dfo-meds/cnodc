@@ -15,6 +15,7 @@ from cnodc.storage.azure_blob import AzureBlobHandle, wrap_azure_errors
 from cnodc.storage.azure_files import AzureFileHandle
 from cnodc.storage.base import StorageError
 from helpers.base_test_case import BaseTestCase
+import datetime
 
 
 class _FakeBlobDownloader:
@@ -60,7 +61,7 @@ class _AzureBlob:
         return _BlobProperties(
             self.blob_name,
             stats.st_size,
-            stats.st_mtime,
+            datetime.datetime.fromtimestamp(stats.st_mtime),
             {k: md[k] for k in md if k != '__tier'},
             t
         )

@@ -9,6 +9,7 @@ import itsdangerous
 from autoinject import injector
 from cnodc.util import CNODCError
 from cnodc.nodb import NODBSession, NODBUser, NODBController, LockType, UserStatus
+import cnodc.util.awaretime as awaretime
 
 
 @injector.injectable_global
@@ -46,7 +47,7 @@ class LoginController:
             session = NODBSession()
             session.username = user.username
             session.session_id = secrets.token_hex(32)
-            session.start_time = datetime.datetime.now(datetime.timezone.utc)
+            session.start_time = awaretime.utc_now()
             session.expiry_time = session.start_time + datetime.timedelta(seconds=session_time)
             db.upsert_object(user)
             db.upsert_object(session)
@@ -68,7 +69,7 @@ class LoginController:
             session = self.current_session()
             if session is None:
                 raise CNODCError("No session available", "LOGINCTRL", 1004)
-            session.expiry_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=session_time)
+            session.expiry_time = awaretime.utc_now() + datetime.timedelta(seconds=session_time)
             db.update_object(session)
             db.commit()
             self._logger.notice(f"User session renewed")

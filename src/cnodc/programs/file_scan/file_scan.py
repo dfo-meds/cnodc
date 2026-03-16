@@ -5,15 +5,16 @@ import uuid
 import typing as t
 
 import cnodc.storage
-from cnodc.nodb import NODBController
+from cnodc.nodb import NODBController, NODBQueueItem
 from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus
 from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
 from cnodc.processing.workflow import WorkflowController
 from cnodc.storage import StorageController
-import cnodc.nodb.structures as structures
+import cnodc.nodb as nodb
 from cnodc.util import CNODCError
 from autoinject import injector
+import cnodc.util.awaretime as awaretime
 
 
 class FileScanTask(ScheduledTask):
@@ -39,34 +40,42 @@ class FileScanTask(ScheduledTask):
             'metadata': None
         })
         self._scan_target: t.Optional[cnodc.storage.BaseStorageHandle] = None
+        self._remove_when_complete = None
+        self._reprocess_updated_files = None
+        self._headers = None
+        self._pattern = None
+        self._recursive = None
 
     def on_start(self):
         scan_target = self.get_config('scan_target')
-        if scan_target is None:
-            raise CNODCError(f'Scan target is not configured', 'FILE_SCAN', 1000)
+        if not scan_target:
+            raise CNODCError(f'Scan target is not configured', 'FILESCAN', 1000)
         workflow_name = self.get_config('workflow_name')
-        if workflow_name is None:
-            raise CNODCError(f'Workflow name is not configured', 'FILE_SCAN', 1002)
+        if not workflow_name:
+            raise CNODCError(f'Workflow name is not configured', 'FILESCAN', 1002)
         queue_name = self.get_config('queue_name')
-        if queue_name is None:
-            raise CNODCError(f'Queue name is not configured', 'FILE_SCAN', 1003)
+        if not queue_name:
+            raise CNODCError(f'Queue name is not configured', 'FILESCAN', 1003)
         self._scan_target = self.storage.get_handle(scan_target, halt_flag=self._halt_flag)
         if self._scan_target is None:
-            raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILE_SCAN', 1001)
+            raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILESCAN', 1001)
+        self._remove_when_complete = bool(self.get_config("remove_downloaded_files"))
+        self._reprocess_updated_files = bool(self.get_config("reprocess_updated_files"))
+        self._headers = self.get_config("metadata", {})
+        self._pattern = self.get_config('pattern', '*')
+        self._recursive = bool(self.get_config('recursive', False))
 
     def execute(self):
-        self._log.debug(f'Scanning {self._scan_target.path()}')
-        batch_id = str(uuid.uuid4())
-        remove_when_complete = bool(self.get_config("remove_downloaded_files"))
-        reprocess_updated_files = bool(self.get_config("reprocess_updated_files"))
-        headers = self.get_config("metadata", {})
         with self.nodb as db:
-            for file in self._scan_target.search(
-                    self.get_config('pattern'),
-                    self.get_config('recursive')):
+            self.scan_files(db)
+
+    def scan_files(self, db):
+            self._log.debug(f'Scanning {self._scan_target.path()}')
+            batch_id = str(uuid.uuid4())
+            for file in self._scan_target.search(self._pattern, self._recursive):
                 try:
                     full_path = file.path()
-                    mod_time = file.modified_datetime() if reprocess_updated_files else None
+                    mod_time = file.modified_datetime() if self._reprocess_updated_files else None
                     status = db.scanned_file_status(full_path, mod_time)
                     if status == ScannedFileStatus.NOT_PRESENT:
                         self._log.info(f"Found new file {full_path} [{mod_time.isoformat() if mod_time else 'no-date'}]")
@@ -75,19 +84,19 @@ class FileScanTask(ScheduledTask):
                             'target_file': full_path,
                             'modified_time': mod_time.isoformat() if mod_time is not None else None,
                             'workflow_name': self.get_config('workflow_name'),
-                            'remove_on_completion': remove_when_complete,
-                            'metadata': headers,
+                            'remove_on_completion': self._remove_when_complete,
+                            'metadata': self._headers,
                         }
                         payload['metadata'].update({
                             '_source_info': (self._process_name, self._process_version, self._process_uuid),
                             'scan_target': self._scan_target.path(),
                             'correlation_id': batch_id,
-                            'scanned_time': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                            'scanned_time': awaretime.utc_now().isoformat()
                         })
                         db.create_queue_item(
                             queue_name=self.get_config('queue_name'),
                             data=payload,
-                            unique_item_key=hashlib.md5(full_path.encode('utf-8', 'replace')).hexdigest()
+                            unique_item_name=hashlib.md5(full_path.encode('utf-8', 'replace')).hexdigest()
                         )
                         db.commit()
                     else:
@@ -131,7 +140,7 @@ class FileDownloadWorker(QueueWorker):
             'allow_file_deletes': False,
         })
 
-    def process_queue_item(self, item: structures.NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
         if 'target_file' not in item.data or not item.data['target_file']:
             raise CNODCError(f'Queue item [{item.queue_uuid}] missing [target_file]', 'FILEFLOW', 1000)
         if 'workflow_name' not in item.data or not item.data['workflow_name']:
@@ -145,9 +154,9 @@ class FileDownloadWorker(QueueWorker):
         )
         return QueueItemResult.SUCCESS
 
-    def after_failure(self, item: structures.NODBQueueItem):
+    def after_failure(self, item: NODBQueueItem):
         if 'target_file' in item.data and item.data['target_file']:
-            self._db.mark_scanned_item_failed(item.data['target_file'], datetime.datetime.fromisoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
+            self._db.mark_scanned_item_failed(item.data['target_file'], awaretime.from_isoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
             self._db.commit()
 
     def handle_queued_file(self,
@@ -157,11 +166,11 @@ class FileDownloadWorker(QueueWorker):
                            metadata: dict,
                            remove_when_finished: bool = False):
         if modified_time:
-            modified_time = datetime.datetime.fromisoformat(modified_time)
+            modified_time = awaretime.from_isoformat(modified_time)
         with self.nodb as db:
             current_status = db.scanned_file_status(file_path, modified_time)
             if current_status == ScannedFileStatus.UNPROCESSED:
-                workflow = structures.NODBUploadWorkflow.find_by_name(db, workflow_name)
+                workflow = nodb.NODBUploadWorkflow.find_by_name(db, workflow_name)
                 if workflow is None:
                     raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
                 handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
@@ -202,7 +211,7 @@ class FileDownloadWorker(QueueWorker):
             if 'scanned_time' in metadata:
                 metadata['last-modified-date'] = metadata['scanned-time']
             else:
-                metadata['last-modified-date'] = datetime.datetime.now(datetime.timezone.utc)
+                metadata['last-modified-date'] = awaretime.utc_now()
         else:
             metadata['last-modified-date'] = md.isoformat()
         if 'correlation_id' not in metadata:

@@ -14,6 +14,7 @@ from autoinject import injector
 import cnodc
 from cnodc.ocproc2 import OCProc2Ontology
 from cnodc.util import unnumpy
+import cnodc.util.awaretime as awaretime
 
 MultiLanguageString = t.Union[str, dict[str, str]]
 NumberLike = t.Union[int, str, float, decimal.Decimal]
@@ -1155,7 +1156,7 @@ class EntityRef:
             if len(d) == 10:
                 d = datetime.date.fromisoformat(d)
             else:
-                d = datetime.datetime.fromisoformat(d)
+                d = awaretime.utc_from_isoformat(d)
         return d.isoformat()
 
     def get(self, metadata_key, coerce=None):
@@ -1981,11 +1982,11 @@ class DatasetMetadata(EntityRef):
         if 'standard_name_vocabulary' in attrs and attrs['standard_name_vocabulary']:
             self.cf_standard_name_vocab = attrs.pop('standard_name_vocabulary')
         if 'date_issued' in attrs and attrs['date_issued']:
-            self.date_issued = datetime.datetime.fromisoformat(attrs.pop('date_issued'))
+            self.date_issued = awaretime.utc_from_isoformat(attrs.pop('date_issued'))
         if 'date_created' in attrs and attrs['date_created']:
-            self.date_created = datetime.datetime.fromisoformat(attrs.pop('date_created'))
+            self.date_created = awaretime.utc_from_isoformat(attrs.pop('date_created'))
         if 'date_modified' in attrs and attrs['date_modified']:
-            self.date_modified = datetime.datetime.fromisoformat(attrs.pop('date_modified'))
+            self.date_modified =awaretime.utc_from_isoformat(attrs.pop('date_modified'))
         if 'data_maintenance_frequency' in attrs and attrs['data_maintenance_frequency']:
             self.data_maintenance_frequency = attrs.pop('data_maintenance_frequency')
         if 'metadata_maintenance_frequency' in attrs and attrs['metadata_maintenance_frequency']:
@@ -2251,7 +2252,7 @@ class DatasetMetadata(EntityRef):
             if ' since ' in units.lower():
                 pieces = units.lower().split(' ')
                 try:
-                    epoch = datetime.datetime.fromisoformat(pieces[2].upper())
+                    epoch = awaretime.utc_from_isoformat(pieces[2].upper())
                     match pieces[0]:
                         case 'seconds':
                             self.time_coverage_start = epoch + datetime.timedelta(seconds=var.actual_min)

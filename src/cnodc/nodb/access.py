@@ -7,6 +7,7 @@ import enum
 
 import zrlog
 from cnodc.util import CNODCError
+import cnodc.util.awaretime as awaretime
 import cnodc.nodb.base as s
 
 if t.TYPE_CHECKING:  # pragma: no coverage
@@ -64,7 +65,7 @@ class NODBUser(s.NODBBaseObject):
         if old_expiry_seconds > 0:
             self.old_salt = self.salt
             self.old_phash = self.phash
-            self.old_expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=old_expiry_seconds)
+            self.old_expiry = awaretime.utc_now() + datetime.timedelta(seconds=old_expiry_seconds)
         self.salt = secrets.token_bytes(salt_length)
         self.phash = NODBUser.hash_password(new_password, self.salt)
 
@@ -74,7 +75,7 @@ class NODBUser(s.NODBBaseObject):
         if secrets.compare_digest(check_hash, self.phash):
             return True
         if self.old_phash and self.old_salt and self.old_expiry:
-            if self.old_expiry > datetime.datetime.now(datetime.timezone.utc):
+            if self.old_expiry > awaretime.utc_now():
                 old_check_hash = NODBUser.hash_password(password, self.old_salt)
                 if secrets.compare_digest(old_check_hash, self.old_phash):
                     zrlog.get_logger("cnodc").notice(f"Old password used for login by {self.username}")
@@ -83,7 +84,7 @@ class NODBUser(s.NODBBaseObject):
 
     def cleanup(self):
         """Cleanup a user's password entry."""
-        if self.old_expiry is not None and self.old_expiry <= datetime.datetime.now(datetime.timezone.utc):
+        if self.old_expiry is not None and self.old_expiry <= awaretime.utc_now():
             self.old_phash = None
             self.old_salt = None
             self.old_expiry = None
@@ -132,7 +133,7 @@ class NODBSession(s.NODBBaseObject):
 
     def is_expired(self) -> bool:
         """Check if the session is expired."""
-        return self.expiry_time < datetime.datetime.now(datetime.timezone.utc)
+        return self.expiry_time < awaretime.utc_now()
 
     @classmethod
     def find_by_session_id(cls, db, session_id: str, **kwargs):

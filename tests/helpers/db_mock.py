@@ -2,7 +2,7 @@ import datetime
 import typing as t
 import uuid
 
-from cnodc.nodb import QueueStatus, NODBQueueItem
+from cnodc.nodb import QueueStatus, NODBQueueItem, ScannedFileStatus
 
 
 class DatabaseMock:
@@ -10,7 +10,59 @@ class DatabaseMock:
     def __init__(self):
         self.tables: dict[str, list] = {}
         self._permissions: dict[str, set[str]] = {}
+        self._scanned_files: list[dict[str, t.Any]] = []
         self._rolled_back = False
+
+    def scanned_file_status(self, file_path: str, mod_time: t.Optional[datetime.datetime] = None):
+        for x in self._scanned_files:
+            if x['file_path'] == file_path and x['modified_date'] == mod_time:
+                if x['was_processed']:
+                    return ScannedFileStatus.PROCESSED
+                else:
+                    return ScannedFileStatus.UNPROCESSED
+        return ScannedFileStatus.NOT_PRESENT
+
+    def note_scanned_file(self, file_path: str, mod_time: t.Optional[datetime.datetime] = None):
+        self._scanned_files.append({
+            'file_path': str(file_path),
+            'was_processed': False,
+            'modified_date': mod_time
+        })
+
+    def mark_scanned_item_success(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
+        file_path = str(file_path)
+        if mod_date is None:
+            for x in self._scanned_files:
+                if x['file_path'] == file_path and x['modified_date'] is None:
+                    x['was_processed'] = True
+        else:
+            found_exact = False
+            for x in self._scanned_files:
+                if x['file_path'] == file_path:
+                    if x['modified_date'] is None or x['modified_date'] < mod_date:
+                        x['was_processed'] = True
+                    if x['modified_date'] == mod_date:
+                        found_exact = True
+            if not found_exact:
+                self._scanned_files.append({
+                    'file_path': str(file_path),
+                    'was_processed': True,
+                    'modified_date': mod_date
+                })
+
+    def mark_scanned_item_failed(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
+        file_path = str(file_path)
+        remove_indices = set()
+        for idx, x in enumerate(self._scanned_files):
+            if x['file_path'] == file_path:
+                if x['was_procesesd']:
+                    continue
+                if x['modified_date'] is None and mod_date is None:
+                    remove_indices.add(idx)
+                elif x['modified_date'] is not None and mod_date is not None and x['modified_date'] <= mod_date:
+                    remove_indices.add(idx)
+        for idx in sorted(remove_indices, reverse=True):
+            self._scanned_files.pop(idx)
 
     def grant_permission(self, role_name, perm_name):
         if role_name not in self._permissions:
@@ -29,9 +81,10 @@ class DatabaseMock:
         return perms
 
     def reset(self):
-        self.tables = {}
         self._rolled_back = False
-        self._permissions = {}
+        self.tables.clear()
+        self._permissions.clear()
+        self._scanned_files.clear()
 
     def table(self, table_name: str):
         if table_name not in self.tables:
