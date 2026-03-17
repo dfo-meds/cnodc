@@ -29,6 +29,10 @@ class TestDateTime(BaseTestCase):
         self.assertEqual(n.second, 5)
         self.assertIs(n.tzinfo, zoneinfo.ZoneInfo('Etc/UTC'))
 
+    def test_from_string_with_timedelta(self):
+        n = from_string('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S', default_tz=datetime.timedelta(hours=-7))
+        self.assertSameTime(n, datetime.datetime(2015, 1, 2,3, 4, 5, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))))
+
     def test_from_string(self):
         n = from_string('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S', 'America/Vancouver')
         self.assertEqual(n.day, 2)

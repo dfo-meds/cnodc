@@ -140,7 +140,7 @@ class WorkflowPayload:
         if queue_name is None:
             raise CNODCError("Missing queue name")
         self.metadata = self.metadata or {}
-        self.metadata['send_time'] = awaretime.utc_now().isoformat()
+        self.metadata['queued-time'] = awaretime.utc_now().isoformat()
         kwargs = {
             'queue_name': queue_name,
             'data': self.to_map(),

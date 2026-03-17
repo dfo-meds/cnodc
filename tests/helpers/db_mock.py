@@ -39,7 +39,7 @@ class DatabaseMock:
             found_exact = False
             for x in self._scanned_files:
                 if x['file_path'] == file_path:
-                    if x['modified_date'] is None or x['modified_date'] < mod_date:
+                    if x['modified_date'] is None or x['modified_date'] <= mod_date:
                         x['was_processed'] = True
                     if x['modified_date'] == mod_date:
                         found_exact = True
@@ -55,7 +55,7 @@ class DatabaseMock:
         remove_indices = set()
         for idx, x in enumerate(self._scanned_files):
             if x['file_path'] == file_path:
-                if x['was_procesesd']:
+                if x['was_processed']:
                     continue
                 if x['modified_date'] is None and mod_date is None:
                     remove_indices.add(idx)
@@ -210,6 +210,11 @@ class DatabaseMock:
 
     def rollback(self):
         self._rolled_back = True
+
+    def rows(self, tbl_name: str):
+        if tbl_name in self.tables:
+            return len(self.tables[tbl_name])
+        return 0
 
 
 class DummyNODB:

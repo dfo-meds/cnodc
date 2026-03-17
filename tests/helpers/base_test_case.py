@@ -1,10 +1,13 @@
+import datetime
 import logging
 import pathlib
 import shutil
 import tempfile
 import unittest as ut
+from unittest.result import TestResult
+import zoneinfo
 from contextlib import contextmanager
-from unittest import mock
+from unittest import mock, TextTestResult
 
 from autoinject import injector
 from cnodc.util.halts import DummyHaltFlag
@@ -29,7 +32,7 @@ class BaseTestCase(ut.TestCase):
         cls.nodb = DummyNODB(cls.db)
         cls.web = QuickWebMock()
         cls.halt_flag = DummyHaltFlag()
-        cls.worker_controller = WorkerTestController(cls.db, cls.halt_flag)
+        cls.worker_controller = WorkerTestController(cls.db, cls.nodb, cls.halt_flag)
 
     def setUp(self):
         self.temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
@@ -70,20 +73,36 @@ class BaseTestCase(ut.TestCase):
         finally:
             logging.disable(old_level)
 
+    def assertEqual(self, first, second, msg = None):
+        if isinstance(first, dict) and isinstance(second, dict):
+            self.assertDictSimilar(first, second, msg)
+        super().assertEqual(first, second, msg)
+
     def assertDictSimilar(self, d1, d2, msg = None, strict_order: bool = False):
         errors = self._compare_dicts(d1, d2, strict_order=strict_order)
         if errors:
             msg = msg or 'Dictionaries are not equal'
             msg += '\n- ' + '\n- '.join(errors)
             msg += f'\n ({len(errors)} errors found)'
-            raise AssertionError(msg)
+            raise self.failureException(msg)
+
+    def assertSameTime(self, dt1: datetime.datetime, dt2: datetime.datetime, msg=None):
+        msg = msg or 'Datetime objects do not represent the same time'
+        if dt1.tzinfo and not dt2.tzinfo:
+            raise self.failureException(msg + " (cannot compare aware to naive datetimes")
+        elif dt2.tzinfo and not dt1.tzinfo:
+            raise self.failureException(msg + " (cannot compare naive to aware datetimes")
+        elif dt1.tzinfo is None and dt2.tzinfo is None:
+            self.assertEqual(dt1, dt2, msg=msg)
+        else:
+            self.assertEqual(dt1.astimezone(datetime.timezone.utc), dt2.astimezone(datetime.timezone.utc), msg=msg)
 
     def assertListSimilar(self, l1, l2, msg = None, strict_order: bool = False):
         errors = self._compare_lists(l1, l2, strict_order=strict_order)
         if errors:
             msg = msg or 'Lists are not equal'
             msg += '\n' + '\n'.join(errors)
-            raise AssertionError(msg)
+            raise self.failureException(msg)
 
     def _compare_item(self, i1, i2, prefix='', strict_order: bool = False) -> list[str]:
         errors = []

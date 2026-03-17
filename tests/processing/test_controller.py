@@ -1,6 +1,8 @@
 import functools
 import gzip
 import hashlib
+import zoneinfo
+
 from autoinject import injector
 import datetime
 
@@ -9,6 +11,7 @@ from cnodc.processing.workflow import WorkflowController
 from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, BatchPayload
 from cnodc.nodb import NODBQueueItem
 from cnodc.util import CNODCError
+from cnodc.util.awaretime import from_timestamp
 from helpers.base_test_case import BaseTestCase, InjectableDict
 
 
@@ -432,10 +435,11 @@ class TestWorkflowController(BaseTestCase):
         file = LocalHandle(self.temp_dir / "hello.txt")
         with open(file.path(), 'w') as h:
             h.write("hello")
+        m_time = from_timestamp((self.temp_dir / 'hello.txt').stat().st_mtime)
         workflow._queue_working_file(
             working_file=file,
             metadata={
-                'last-modified-time': '2015-01-01T00:00:02'
+                'last-modified-date': m_time.isoformat()
             },
             filename='hello.txt',
             with_gzip=False,
@@ -445,13 +449,12 @@ class TestWorkflowController(BaseTestCase):
         item = self.db.fetch_next_queue_item('step1')
         self.assertIsNotNone(item)
         self.assertIsInstance(item, NODBQueueItem)
-
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
         self.assertEqual(payload.file_info.file_path, str(self.temp_dir / 'hello.txt'))
         self.assertEqual(payload.file_info.filename, 'hello.txt')
         self.assertFalse(payload.file_info.is_gzipped)
-        self.assertEqual(payload.file_info.last_modified_date, datetime.datetime(2015, 1, 1, 0, 0, 2).astimezone())
+        self.assertSameTime(payload.file_info.last_modified_date, m_time)
         self.assertEqual(payload.workflow_name, 'test')
         self.assertEqual(payload.current_step, 'step1')
         self.assertFalse(payload.current_step_done)
@@ -612,7 +615,7 @@ class TestWorkflowController(BaseTestCase):
                 'filename': 'world.txt',
                 'last-modified-date': '2015-01-02T00:00:01',
             },
-            post_hook=functools.partial(post_hook_me, d=post_hook_dict),
+            success_hook=functools.partial(post_hook_me, d=post_hook_dict),
             db=self.db,
             unique_queue_id=None
         )
@@ -673,7 +676,7 @@ class TestWorkflowController(BaseTestCase):
                 'filename': 'world.txt',
                 'last-modified-date': '2015-01-02T00:00:01',
             },
-            post_hook=None,
+            success_hook=None,
             db=self.db,
             unique_queue_id='12345'
         )
@@ -739,7 +742,7 @@ class TestWorkflowController(BaseTestCase):
                 'filename': 'world.txt',
                 'last-modified-date': '2015-01-02T00:00:01',
             },
-            post_hook=None,
+            success_hook=None,
             db=self.db,
             unique_queue_id='12345'
         )

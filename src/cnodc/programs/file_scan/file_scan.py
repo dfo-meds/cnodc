@@ -88,10 +88,10 @@ class FileScanTask(ScheduledTask):
                             'metadata': self._headers,
                         }
                         payload['metadata'].update({
-                            '_source_info': (self._process_name, self._process_version, self._process_uuid),
-                            'scan_target': self._scan_target.path(),
-                            'correlation_id': batch_id,
-                            'scanned_time': awaretime.utc_now().isoformat()
+                            'source': (self._process_name, self._process_version, self._process_uuid),
+                            'scan-target': self._scan_target.path(),
+                            'correlation-id': batch_id,
+                            'scanned-time': awaretime.utc_now().isoformat()
                         })
                         db.create_queue_item(
                             queue_name=self.get_config('queue_name'),
@@ -149,8 +149,8 @@ class FileDownloadWorker(QueueWorker):
             item.data['workflow_name'],
             item.data['target_file'],
             item.data['modified_time'] if 'modified_time' in item.data else None,
-            item.data['metadata'] if 'metadata' in item.data else {},
-            (self.get_config('allow_file_deletes') and bool(item.data['remove_on_completion'])) if 'remove_on_completion' in item.data else False
+            item.data['metadata'] or {} if 'metadata' in item.data else {},
+            (self.get_config('allow_file_deletes', False) and bool(item.data['remove_on_completion'])) if 'remove_on_completion' in item.data else False
         )
         return QueueItemResult.SUCCESS
 
@@ -167,58 +167,52 @@ class FileDownloadWorker(QueueWorker):
                            remove_when_finished: bool = False):
         if modified_time:
             modified_time = awaretime.from_isoformat(modified_time)
-        with self.nodb as db:
-            current_status = db.scanned_file_status(file_path, modified_time)
-            if current_status == ScannedFileStatus.UNPROCESSED:
-                workflow = nodb.NODBUploadWorkflow.find_by_name(db, workflow_name)
-                if workflow is None:
-                    raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
-                handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
-                if not metadata:
-                    metadata = {}
-                lmt = handle.modified_datetime()
-                if lmt is not None:
-                    metadata['last-modified-time'] = lmt.isoformat()
-                self._update_payload_metadata(metadata, handle)
-                wf_controller = WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
-                temp_dir = self.temp_dir()
-                local_path = temp_dir / "file"
-                handle.download(local_path)
-                wf_controller.handle_incoming_file(
-                    local_path=local_path,
-                    metadata=metadata,
-                    post_hook=functools.partial(self._on_successful_handle, file_path=file_path, mod_time=lmt),
-                    unique_queue_id=file_path,
-                    db=db
-                )
-                if remove_when_finished:
-                    self._try_remove_file(handle)
-            elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished:
-                self._log.info(f"Item {file_path} already processed [result {current_status}], checking for removal")
-                handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
+        current_status = self._db.scanned_file_status(file_path, modified_time)
+        if current_status == ScannedFileStatus.UNPROCESSED:
+            workflow = nodb.NODBUploadWorkflow.find_by_name(self._db, workflow_name)
+            if workflow is None:
+                raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
+            handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
+            self._update_payload_metadata(metadata, handle)
+            wf_controller = WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
+            temp_dir = self.temp_dir()
+            local_path = temp_dir / "file"
+            handle.download(local_path)
+            wf_controller.handle_incoming_file(
+                local_path=local_path,
+                metadata=metadata,
+                success_hook=functools.partial(self._on_success_hook, file_path=file_path, mod_time=handle.modified_datetime()),
+                db=self._db
+            )
+            if remove_when_finished:
                 self._try_remove_file(handle)
-            else:
-                self._log.info(f"Item {file_path} already processed [result {current_status}], skipping")
+        elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished:
+            self._log.info(f"Item {file_path} already processed [result {current_status}], checking for removal")
+            handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
+            self._try_remove_file(handle)
+        else:
+            self._log.info(f"Item {file_path} already processed [result {current_status}], skipping")
 
-    def _on_successful_handle(self, db, file_path, mod_time):
-        db.mark_scanned_item_success(file_path, mod_time)
+    def _on_success_hook(self, file_path, mod_time):
+        self._db.mark_scanned_item_success(file_path, mod_time)
 
     def _update_payload_metadata(self, metadata: dict, handle):
-        metadata['source'] = (self._process_name, self._process_version, self._process_uuid)
+        if 'source' not in metadata:
+            metadata['source'] = (self._process_name, self._process_version, self._process_uuid)
         metadata['default-filename'] = handle.name()
         md = handle.modified_datetime()
-        if md is None:
-            if 'scanned_time' in metadata:
+        if md is None:  # pragma: no coverage (fallback for weird edge cases when the modified time can't be determined)
+            if 'scanned-time' in metadata:
                 metadata['last-modified-date'] = metadata['scanned-time']
             else:
                 metadata['last-modified-date'] = awaretime.utc_now()
         else:
             metadata['last-modified-date'] = md.isoformat()
-        if 'correlation_id' not in metadata:
-            metadata['correlation_id'] = str(uuid.uuid4())
+        if 'correlation-id' not in metadata:
+            metadata['correlation-id'] = str(uuid.uuid4())
 
     def _try_remove_file(self, handle):
         try:
             handle.remove()
-        except Exception:
-            self._log.exception(f"Error while removing file")
+        except Exception as ex:  # pragma: no coverage (fallback for weird edge cases)
+            self._log.exception(f"Error while removing file: [{handle.path()}]: {type(ex)}: {str(ex)}")

@@ -55,7 +55,7 @@ class WorkflowController:
         self.halt_flag = halt_flag
         self._log = zrlog.get_logger("cnodc.workflow")
 
-    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, post_hook: t.Optional[callable], db: NODBControllerInstance, unique_queue_id: t.Optional[str] = None):
+    def handle_incoming_file(self, local_path: pathlib.Path, metadata: dict, success_hook: t.Optional[callable], db: NODBControllerInstance, unique_queue_id: t.Optional[str] = None):
         """Start the workflow for a file."""
         self._log.debug(f"Processing file [{local_path}]")
         file_handles = []
@@ -65,7 +65,7 @@ class WorkflowController:
         # Validate the upload
         self._validate_file_upload(local_path, metadata)
         # Upload the file to various locations and queue the working file
-        self._upload_and_queue_file(local_path, metadata, post_hook, db, unique_queue_id)
+        self._upload_and_queue_file(local_path, metadata, success_hook, db, unique_queue_id)
 
     def _extend_metadata(self, metadata: dict):
         """Extend the input metadata with the default metadata"""
@@ -81,7 +81,7 @@ class WorkflowController:
             self._log.info(f"Validating uploaded file")
             dynamic_object(self.config['validation'])(local_path, metadata)
 
-    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, post_hook, db, unique_queue_id: t.Optional[str] = None):
+    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, success_hook, db, unique_queue_id: t.Optional[str] = None):
         """Upload the file and queue it if all succeed."""
         with tempfile.TemporaryDirectory() as td:
             gzip_made = False
@@ -116,8 +116,8 @@ class WorkflowController:
                 # NB: these are done in the try/except so that the file handles can be removed upon failure
                 if working_file:
                     self._queue_working_file(working_file, metadata, gzip_filename if with_gzip else filename, with_gzip, db, unique_queue_id)
-                if post_hook is not None:
-                    post_hook(db)
+                if success_hook is not None:
+                    success_hook()
                 db.commit()
                 # We save setting the tier for last because setting the tier on Blobs to ARCHIVE and then deleting them
                 # comes with a cost. It is better to briefly upload them as HOT, confirm every is good, then set them
@@ -144,11 +144,11 @@ class WorkflowController:
                             unique_file_key: t.Optional[str] = None):
         """Queue the working file."""
         if self.has_more_steps(None):
-            if 'last-modified-time' in metadata and metadata['last-modified-time']:
-                lmt = awaretime.from_isoformat(metadata['last-modified-time'])
+            if 'last-modified-date' in metadata and metadata['last-modified-date']:
+                lmt = awaretime.from_isoformat(metadata['last-modified-date'])
             else:
                 lmt = awaretime.utc_now()
-                metadata['last-modified-time'] = lmt.isoformat()
+                metadata['last-modified-date'] = lmt.isoformat()
             file_info = FileInfo(
                 working_file.path(),
                 filename,

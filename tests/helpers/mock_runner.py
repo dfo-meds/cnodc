@@ -12,7 +12,8 @@ from cnodc.processing.workflow.payloads import WorkflowPayload
 
 class WorkerTestController:
 
-    def __init__(self, db, halt):
+    def __init__(self, db, nodb, halt):
+        self._nodb = nodb
         self._db = db
         self._halt = halt
 
@@ -82,4 +83,6 @@ class WorkerTestController:
             kwargs['process_version'] = '0.1'
         cls = worker_cls(**kwargs)
         cls._db = self._db
+        if hasattr(cls, 'nodb'):
+            cls.nodb = self._nodb
         return cls

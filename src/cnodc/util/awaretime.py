@@ -22,11 +22,7 @@ def ensure_timezone(dt: datetime.datetime, default_tz: t.Optional[TZ_INFO] = Non
     if dt.tzinfo is not None:
         return dt
     if default_tz is None:
-        try:
-            return dt.astimezone()
-        except OSError as ex:
-            print(dt)
-            raise ex
+        return dt.astimezone()
     if isinstance(default_tz, str):
         default_tz = zoneinfo.ZoneInfo(default_tz)
     elif isinstance(default_tz, datetime.timedelta):
