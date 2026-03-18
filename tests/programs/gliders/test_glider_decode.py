@@ -5,6 +5,7 @@ import pathlib
 from cnodc.ocproc2 import ParentRecord, MultiElement, SingleElement
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper
 from cnodc.programs.glider.ego_convert import ego_sensor_info
+from cnodc.util import CNODCError
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf_vlen, str_to_netcdf
 from helpers.base_test_case import BaseTestCase
 import netCDF4 as nc
@@ -25,6 +26,33 @@ class TestGliderDecodeTools(BaseTestCase):
             with self.subTest(bad_date=test):
                 with self.assertRaisesCNODCError('EGO-DECODE-1000'):
                     GliderEGOMapper._isoformat_ego_date(test, None)
+
+    def test_old_ego_sensor_mapping_missing(self):
+        with nc.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
+            ds.createDimension('N_COUNT')
+            self._add_old_ego_sensor_info(ds, [
+                ('PRES', 'seabird electronics ctd 41cp', '12345'),
+                ('TEMP', 'seabird electronics ctd 41cp', '12345'),
+                ('COND', 'seabird electronics ctd 41cp', '23456'),
+                ('DOXY', 'aanderaa oxy 5013', '34567'),
+                ('MOLDOXY', 'aanderaa oxy 5013', '34567'),
+                ('OTHER', '', '12345'),
+                ('MISSING_SERIAL', 'flbbcd', ''),
+                ('BBP700', 'flbbcd', '45678'),
+                ('TEST', 'wetlabs flbbcdslc', '56789')
+            ])
+            with self.assertRaisesCNODCError('GLIDER-1000'):
+                sensor_info, param_map = ego_sensor_info(ds, {
+                    'seabird electronics ctd 41cp': {
+                        'make': 'SeaBird Electronics', 'model': 'CTD 41CP', 'type': 'CTD',
+                    },
+                    'flbbcd': {
+                        'make': 'Unknown', 'model': 'Unknown', 'type': 'FLUOROMETER',
+                    },
+                    'wetlabs flbbcdslc': {
+                        'make': 'Wetlabs', 'model': 'FLBBCD-SLC', 'type': 'FLUOROMETER',
+                    }
+                })
 
     def test_old_ego_sensor_mapping(self):
         with nc.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
@@ -168,6 +196,27 @@ class TestGliderDecodeTools(BaseTestCase):
                 self.assertIn('MOLDOXY', param_map)
                 self.assertEqual('SENSOR_DOXY_90', param_map['MOLDOXY'])
             self.assertNotIn('OTHER', param_map)
+
+    def test_bad_new_sensor_mapping(self):
+        with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
+            self._add_new_ego_sensor_info(ds, [
+                ('CTD_PRES', "Company B", "Model X", "12345", "", ""),
+                ('CTD_TEMP', "Company B", "Model X", "12345", "", ""),
+                ('CTD_COND', "Company B", "Model X", "12345", "", ""),
+                ('FLUOROMETER_24', "Company A", "Model Y", "678", "", ""),
+                ('NEW_SENSOR', "Company C", "Model Z", "90", "", "")
+            ], [
+                ('PRES', 'CTD_PRES'),
+                ('DOXY', 'OPTODE_DOXY'),
+                ('BBP700', 'FLUOROMETER_24'),
+                ('TEMP', 'CTD_TEMP'),
+                ('COND', 'CTD_COND'),
+                ('TEMPCOUNT', 'CTD_TEMP'),
+                ('MOLDOXY', 'OPTODE_DOXY'),
+                ('OTHER', ''),
+            ])
+            with self.assertRaisesCNODCError('GLIDER-1001'):
+                sensor_info, param_map = ego_sensor_info(ds, {})
 
     @staticmethod
     def _add_old_ego_sensor_info(ds: nc.Dataset, param_info: t.Sequence[tuple[str, str, str]]):

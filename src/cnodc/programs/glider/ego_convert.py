@@ -7,6 +7,7 @@ from copy import copy
 import numpy as np
 import yaml
 import netCDF4 as nc
+import zrlog
 
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonDecoderError
 from cnodc.programs.dmd.metadata import GCContentType, GCContentFormat
@@ -15,6 +16,12 @@ import cnodc.science.seawater as seawater
 import cnodc.programs.dmd.metadata as metadata
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf_vlen
 import cnodc.util.awaretime as awaretime
+
+
+class GliderError(CNODCError):
+
+    def __init__(self, msg, code, is_recoverable=False):
+        super().__init__(msg, 'GLIDER', code, is_recoverable)
 
 
 def ego_sensor_info(ds: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
@@ -33,7 +40,7 @@ def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str
             continue
         sensor_full_name = normalize_string(getattr(var, 'sensor_name').strip().lower())
         if sensor_full_name not in sensor_map:
-            raise NetCDFCommonDecoderError(f"Unknown sensor [{sensor_full_name}]", 3000)
+            raise GliderError(f"Unknown sensor [{sensor_full_name}]", 1000)
         info: dict = copy(sensor_map[sensor_full_name])
         info['serial'] = getattr(var, 'sensor_serial_number') if hasattr(var, 'sensor_serial_number') else 'unknown'
         key = f"SENSOR_{info['type']}_{info['serial']}"
@@ -64,7 +71,7 @@ def _ego_new_sensor_info(original_nc: nc.Dataset):
         elif sensor_names[x] == 'OPTODE_DOXY':
             sensor_type = 'DOXY'
         else:
-            raise NetCDFCommonDecoderError(f"Unknown glider instrument type: {sensor_names[x]}", 3001)
+            raise GliderError(f"Unknown glider instrument type: {sensor_names[x]}", 1001)
         key = f"SENSOR_{sensor_type}_{sensor_serials[x]}"
         for idx, val in enumerate(param_sensors):
             if val == sensor_names[x]:
@@ -94,6 +101,7 @@ class OpenGliderConverter:
         self._data_maps = {}
         self._base_time = awaretime.utc_from_isoformat('1970-01-01T00:00:00')
         self._halt = halt_flag
+        self._log = zrlog.get_logger('cnodc.gliders.ego_convert')
 
     def breakpoint(self):
         if self._halt is not None:
@@ -175,6 +183,8 @@ class OpenGliderConverter:
         for key in self._mapping_data['netcdf_conversion']['copy_metadata']:
             if key in attrs:
                 open_nc.setncattr(key, original_nc.getncattr(self._mapping_data['netcdf_conversion']['copy_metadata'][key]))
+            else:
+                self._log.warning(f"EGO file does not have the attribute [{key}]")
 
     def _set_metadata_from_file_name(self, open_nc: nc.Dataset, platform, start_time, data_mode):
         if data_mode == 'R':
@@ -188,16 +198,26 @@ class OpenGliderConverter:
             open_nc.setncattr("summary", f"Preliminary data from glider mission {platform}_{start_time}")
             open_nc.setncattr("summary_fr",f"Données préliminaire de la mission du planeur {platform}_{start_time}")
         open_nc.setncattr('title', f'Glider {platform} - {start_time} ({'Real Time' if data_mode == 'R' else 'Preliminary'})')
-        open_nc.setncattr('title_fr', f'PLaneur {platform} - {start_time} ({'temps réel' if data_mode == 'R' else 'préliminaire'})')
+        open_nc.setncattr('title_fr', f'Planeur {platform} - {start_time} ({'temps réel' if data_mode == 'R' else 'préliminaire'})')
         open_nc.setncattr('id', f"{platform}_{start_time}_{data_mode}")
 
     def _set_geospatial_bounds_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
+        if 'LATITUDE' not in original_nc.variables:
+            raise GliderError('Missing latitude variable', 2000)
         latitudes = original_nc.variables['LATITUDE'][:]
-        open_nc.setncattr('geospatial_lat_min', np.min(latitudes))
-        open_nc.setncattr('geospatial_lat_max', np.max(latitudes))
+        if latitudes.size > 0:
+            open_nc.setncattr('geospatial_lat_min', np.min(latitudes))
+            open_nc.setncattr('geospatial_lat_max', np.max(latitudes))
+        else:
+            self._log.warning(f'No latitude values detected')
+        if 'LONGITUDE' not in original_nc.variables:
+            raise GliderError('Missing longitude variable', 2001)
         longitudes = original_nc.variables['LONGITUDE'][:]
-        open_nc.setncattr('geospatial_lon_min', np.min(longitudes))
-        open_nc.setncattr('geospatial_lon_max', np.max(longitudes))
+        if longitudes.size > 0:
+            open_nc.setncattr('geospatial_lon_min', np.min(longitudes))
+            open_nc.setncattr('geospatial_lon_max', np.max(longitudes))
+        else:
+            self._log.warning(f'No longitude values detected')
 
     def _set_sensor_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
         sensor_info, param_map = ego_sensor_info(original_nc, self._get_data_map('sensors'))
@@ -207,14 +227,11 @@ class OpenGliderConverter:
     def _create_openglider_sensor_vars(self, open_nc: nc.Dataset, sensors: dict[str, dict[str, str]]):
         for key in sensors:
             info = sensors[key]
-            var = open_nc.createVariable(
-        f'SENSOR_{info['type']}_{info['serial']}',
-        'f4'
-            )
-            setattr(var, 'long_name', f"{info['make']} {info['model']}")
-            setattr(var, 'sensor_model', info['model'])
-            setattr(var, 'sensor_maker', info['make'])
-            setattr(var, 'sensor_serial_number', info['serial'])
+            var = open_nc.createVariable(f'SENSOR_{info['type']}_{info['serial']}', 'f4', ())
+            var.setncattr('long_name', f"{info['make']} {info['model']}")
+            var.setncattr('sensor_model', info['model'])
+            var.setncattr('sensor_maker', info['make'])
+            var.setncattr('sensor_serial_number', info['serial'])
             self.breakpoint()
 
     def _build_variables(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
@@ -225,14 +242,18 @@ class OpenGliderConverter:
             self._create_variable(open_nc, original_nc, var_name, var_config)
 
     def _create_variable(self, open_nc: nc.Dataset, original_nc: nc.Dataset, var_name: str, var_config: dict):
+        kwargs = {}
+        if var_config['attributes'] and 'missing_value' in var_config['attributes']:
+            kwargs['fill_value'] = var_config['attributes']['missing_value']
         var = open_nc.createVariable(
             var_name,
             str if var_config['type'] == 'str' else var_config['type'],
-            var_config['dimensions'] if 'dimensions' in var_config and var_config['dimensions'] else None,
+            var_config['dimensions'] if 'dimensions' in var_config and var_config['dimensions'] else (),
+            **kwargs
         )
         if var_config['attributes']:
             for attr_name in var_config['attributes']:
-                setattr(var, attr_name, var_config['attributes'][attr_name])
+                var.setncattr(attr_name, var_config['attributes'][attr_name])
         if 'copy_data_from' in var_config and var_config['copy_data_from']:
             copy_from = var_config['copy_data_from']
             if copy_from in original_nc.variables:
@@ -247,7 +268,10 @@ class OpenGliderConverter:
                 var[:] = original_data
                 if 'copy_attributes' in var_config and var_config['copy_attributes']:
                     for attr_name in var_config['copy_attributes']:
-                        setattr(var, attr_name, getattr(original_var, attr_name))
+                        if hasattr(original_var, attr_name):
+                            setattr(var, attr_name, getattr(original_var, attr_name))
+                        else:
+                            self._log.warning(f"Variable {original_var.name} is missing attribute {attr_name}")
         return var
 
     def _build_parameters(self, open_nc: nc.Dataset, original_nc: nc.Dataset, sensor_map: dict[str, str]):
@@ -284,6 +308,12 @@ class OpenGliderConverter:
             self.breakpoint()
 
     def _build_depths(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
+        if 'PRES' not in original_nc.variables:
+            raise GliderError('Missing PRES variable', 2002)
+        if 'PRES_QC' not in original_nc.variables:
+            raise GliderError('Missing PRES_QC variable', 2003)
+        if 'POSITION_QC' not in original_nc.variables:
+            raise GliderError('Missing POSITION_QC variable', 2004)
         pressures = original_nc.variables['PRES'][:]
         pressures_qc = original_nc.variables['PRES_QC'][:]
         latitudes = original_nc.variables['LATITUDE'][:]
@@ -311,9 +341,14 @@ class OpenGliderConverter:
         open_nc.variables['DEPTH'][:] = depths
 
     def _build_times(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
+        if 'JULD' not in original_nc.variables:
+            raise GliderError('Missing JULD variable', 2005)
         juld_var = original_nc.variables['JULD']
-        period, _, epoch = getattr(juld_var, 'units').split(' ', maxsplit=2)
-        local_base_time = awaretime.utc_from_isoformat(epoch)
+        try:
+            period, _, epoch = getattr(juld_var, 'units').split(' ', maxsplit=2)
+            local_base_time = awaretime.utc_from_isoformat(epoch)
+        except Exception as ex:
+            raise GliderError('JULD variable is missing or has invalid units', 2006) from ex
         times = original_nc.variables['JULD'][:]
         seconds = []
         min_time = None
@@ -363,10 +398,12 @@ class OpenGliderConverter:
         if hasattr(original_nc, 'principal_investigator'):
             for pi in original_nc.getncattr('principal_investigator').split(';'):
                 contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
-        for op in netcdf_bytes_to_string(original_nc.variables['OPERATING_INSTITUTION'][:]).split(';'):
-            institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
-        for owner in netcdf_bytes_to_string(original_nc.variables['GLIDER_OWNER'][:]).split(';'):
-            institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
+        if 'OPERATING_INSTITUTION' in original_nc.variables:
+            for op in netcdf_bytes_to_string(original_nc.variables['OPERATING_INSTITUTION'][:]).split(';'):
+                institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
+        if 'GLIDER_OWNER' in original_nc.variables:
+            for owner in netcdf_bytes_to_string(original_nc.variables['GLIDER_OWNER'][:]).split(';'):
+                institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
         for inst in institutions:
             if inst[0] == 'C-PROOF':
                 # CPROOF
@@ -381,7 +418,7 @@ class OpenGliderConverter:
                 open_nc.setncattr('infoUrl', '')
         else:
             mission_id = open_nc.getncattr('id')
-            network = open_nc.getncattr('network') if open_nc.has_attribute('network') else ''
+            network = open_nc.getncattr('network') if hasattr(open_nc, 'network') else ''
             if 'C-PROOF' in network or any(mission_id.startswith(x) for x in ('hal_1002', 'k_999', 'marvin_1003', 'rosie_713', 'Wall_E_652', 'mike_rorider',  'SEA035', 'SEA046')):
                 # CRPOOF
                 open_nc.setncattr("infoUrl", "https://cproof.uvic.ca/")
@@ -392,32 +429,37 @@ class OpenGliderConverter:
                 # BIO
                 open_nc.setncattr('infoUrl', '')
 
-
-        open_nc.setncattr('contributor_name', ','.join(c[0] for c in contributors))
-        open_nc.setncattr('contributor_email', ','.join(c[1] for c in contributors))
-        open_nc.setncattr('contributor_id', ','.join(c[2] for c in contributors))
-        open_nc.setncattr('contributor_id_vocabulary', 'https://orcid.org/')
-        open_nc.setncattr('contributor_role', ','.join(c[3] for c in contributors))
-        open_nc.setncattr('contributor_role_vocabulary','https://vocab.nerc.ac.uk/collection/W08/current/')
-        open_nc.setncattr('contributing_institutions', ','.join(c[0] for c in institutions))
-        open_nc.setncattr('contributing_institutions_id', ','.join(c[1] for c in institutions))
-        open_nc.setncattr('contributing_institutions_id_vocabulary', 'https://ror.org/')
-        open_nc.setncattr('contributing_institutions_role', ','.join(c[3] for c in institutions))
-        open_nc.setncattr('contributing_institutions_role_vocabulary', 'https://vocab.nerc.ac.uk/collection/W08/current/')
+        if contributors:
+            open_nc.setncattr('contributor_name', ','.join(c[0] for c in contributors))
+            open_nc.setncattr('contributor_email', ','.join(c[1] for c in contributors))
+            open_nc.setncattr('contributor_id', ','.join(c[2] for c in contributors))
+            open_nc.setncattr('contributor_id_vocabulary', 'https://orcid.org/')
+            open_nc.setncattr('contributor_role', ','.join(c[3] for c in contributors))
+            open_nc.setncattr('contributor_role_vocabulary','https://vocab.nerc.ac.uk/collection/W08/current/')
+        if institutions:
+            open_nc.setncattr('contributing_institutions', ','.join(c[0] for c in institutions))
+            open_nc.setncattr('contributing_institutions_id', ','.join(c[1] for c in institutions))
+            open_nc.setncattr('contributing_institutions_id_vocabulary', 'https://ror.org/')
+            open_nc.setncattr('contributing_institutions_role', ','.join(c[3] for c in institutions))
+            open_nc.setncattr('contributing_institutions_role_vocabulary', 'https://vocab.nerc.ac.uk/collection/W08/current/')
 
     def _build_deployment_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: str, start_time: str):
-        deploy_start = netcdf_bytes_to_string(original_nc.variable['DEPLOYMENT_START_DATE'][:]).strip()
-        if len(deploy_start) == 8:
-            start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d')
-        elif len(deploy_start) == 12:
-            start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M')
-        elif len(deploy_start) == 14:
-            start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M%S')
+        if 'DEPLOYMENT_START_DATE' in original_nc.variables:
+            deploy_start = netcdf_bytes_to_string(original_nc.variable['DEPLOYMENT_START_DATE'][:]).strip()
+            if len(deploy_start) == 8:
+                start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d')
+            elif len(deploy_start) == 12:
+                start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M')
+            elif len(deploy_start) == 14:
+                start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M%S')
+            else:
+                raise GliderError(f"Unknown date format for [{deploy_start}]", 2008)
+            open_nc.setncattr('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))
+            open_nc.variables['DEPLOYMENT_TIME'][:] = [(start_date - self._base_time).total_seconds()]
         else:
-            raise CNODCError(f"Unknown date format for [{deploy_start}]", 'EGO_CONVERT', 1002)
-        open_nc.setncattr('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))
+            self._log.warning('Missing DEPLOYMENT_START_DATE variable')
+            open_nc.variables['DEPLOYMENT_TIME'][:] = [0.0]
         open_nc.variables['TRAJECTORY'][:] = str_to_netcdf_vlen(f"{platform}_{start_time}")
-        open_nc.variables['DEPLOYMENT_TIME'][:] = [(start_date - self._base_time).total_seconds()]
 
     def _build_glider_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform_name: str):
         open_nc.variables['PLATFORM_NAME'][:] = str_to_netcdf_vlen(platform_name)

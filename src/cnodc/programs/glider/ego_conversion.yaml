@@ -29,14 +29,14 @@ netcdf_conversion:
       attributes:
         long_name: 'time of measurement'
         long_name_fr: 'moment de la mesure'
-        units: 'seconds since 1970-01-01T00:00:00Z'
+        units: 'seconds since 1970-01-01T00:00:00+00:00'
         standard_name: 'time'
         calendar: 'gregorian'
         valid_min: 1000000000.0
         valid_max: 4000000000.0
         axis: T
         ancillary_variables: 'TIME_QC'
-        _FillValue: -1.0
+        missing_value: -1.0
         cnodc_standard_name: Time
     TIME_QC:
       type: i1
@@ -49,7 +49,7 @@ netcdf_conversion:
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
         cnodc_standard_name: Time:Quality
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
       copy_attributes:
@@ -65,7 +65,7 @@ netcdf_conversion:
         long_name_fr: "latitude de chaque mesure et localisation GPS"
         standard_name: "latitude"
         units: "degrees_north"
-        _FillValue: -9999.9
+        missing_value: -9999.9
         valid_min: -90.0
         valid_max: 90.0
         axis: Y
@@ -83,7 +83,7 @@ netcdf_conversion:
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
         cnodc_standard_name: Latitude/Quality
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
       copy_attributes:
@@ -99,7 +99,7 @@ netcdf_conversion:
         long_name_fr: "longitude de chaque mesure et localisation GPS"
         standard_name: "longitude"
         units: "degrees_east"
-        _FillValue: -9999.9
+        missing_value: -9999.9
         valid_min: -180.0
         valid_max: 180.0
         axis: X
@@ -118,7 +118,7 @@ netcdf_conversion:
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
         cnodc_standard_name: Longitude/Quality
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
       copy_attributes:
@@ -132,7 +132,7 @@ netcdf_conversion:
         long_name: "Depth below surface of the water body by unknown instrument and correction to zero at sea level using unspecified algorithm"
         long_name_fr: "Profondeur sous la surface du plan d'eau mesurée par un instrument inconnu et correction à zéro au niveau de la mer à l'aide d'un algorithme non spécifié"
         units: "m"
-        _FillValue: -9999.9
+        missing_value: -9999.9
         valid_min: 0.0
         valid_max: 10000.0
         axis: Z
@@ -151,7 +151,7 @@ netcdf_conversion:
         long_name_fr: "heure de chaque position GPS"
         calendar: "gregorian"
         units: "seconds since 1970-01-01T00:00:00Z"
-        _FillValue: -1.0
+        missing_value: -1.0
         valid_min: 1000000000.0
         valid_max: 4000000000.0
         ancillary_variables: "TIME_GPS_QC"
@@ -166,7 +166,7 @@ netcdf_conversion:
         long_name_fr: "Drapeau de qualité pour l'heure de chaque position GPS"
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
         cnodc_standard_name: Time/Quality
@@ -181,7 +181,7 @@ netcdf_conversion:
         long_name: "longitude of each GPS location"
         long_name_fr: "longitude de chaque position GPS"
         units: "degrees_east"
-        _FillValue: -9999.9
+        missing_value: -9999.9
         valid_min: -180.0
         valid_max: 180.0
         ancillary_variables: "LONGITUDE_GPS_QC"
@@ -197,7 +197,7 @@ netcdf_conversion:
         long_name_fr: 'Drapeau de qualité pour longitude de chaque position GPS'
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
         cnodc_standard_name: Longitude/Quality
@@ -212,7 +212,7 @@ netcdf_conversion:
         long_name: "latitude of each GPS location"
         long_name_fr: "latitude de chaque position GPS"
         units: "degrees_north"
-        _FillValue: -9999.9
+        missing_value: -9999.9
         valid_min: -90.0
         valid_max: 90.0
         ancillary_variables: "LATITUDE_GPS_QC"
@@ -228,7 +228,7 @@ netcdf_conversion:
         long_name_fr: 'Drapeau de qualité pour latitude de chaque position GPS'
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
         cnodc_standard_name: Latitude/Quality
@@ -248,7 +248,10 @@ netcdf_conversion:
         long_name: 'date of deployment'
         long_name_fr: 'date de déploiement'
         calendar: gregorian
-        units: "seconds since 1970-01-01T00:00:00Z"
+        missing_value: 0.0
+        valid_min: 1000000000.0
+        valid_max: 4000000000.0
+        units: "seconds since 1970-01-01T00:00:00+00:00"
     DEPLOYMENT_LATITUDE:
       type: f8
       copy_data_from: DEPLOYMENT_START_LATITUDE
@@ -316,7 +319,7 @@ netcdf_conversion:
         long_name_fr: "comportement du planeur"
         phase_vocabulary: "https://github.com/OceanGlidersCommunity/OG-format-user-manual/blob/main/vocabularyCollection/phase.md#"
         ancillary_variables: "PHASE_QC"
-        _FillValue: -128
+        missing_value: -128
     PHASE_QC:
       type: i1
       dimensions:
@@ -324,7 +327,7 @@ netcdf_conversion:
       attributes:
         long_name: "Quality flag for glider behavior"
         long_name_fr: "Drapeau de qualité pour comportement du planeur"
-        _FillValue: -128
+        missing_value: -128
         valid_min: 0
         valid_max: 9
         flag_values:
@@ -349,7 +352,7 @@ netcdf_conversion:
         standard_name: sea_water_pressure
         valid_min: 0.0
         valid_max: 12000.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: Pressure
       copy_attributes:
         - units
@@ -365,7 +368,7 @@ netcdf_conversion:
         units: "0.001"
         valid_min: 2.0
         valid_max: 41.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: PracticalSalinity
     TEMP:
       type: "f8"
@@ -375,7 +378,7 @@ netcdf_conversion:
       attributes:
         valid_min: -2.5
         valid_max: 40.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         long_name: "Sea water temperature in-situ ITS-90 scale"
         long_name_fr: "Température de l'eau de mer in situ sur l'échelle ITS-90"
         standard_name: sea_water_temperature
@@ -390,7 +393,7 @@ netcdf_conversion:
       attributes:
         valid_min: 0.0
         valid_max: 8.5
-        _FillValue: -9999.9
+        missing_value: -9999.9
         units: S m-1
         long_name: "Conductivity"
         long_name_fr: "Conductivité"
@@ -404,7 +407,7 @@ netcdf_conversion:
       attributes:
         valid_min: 0.0
         valid_max: 650.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         units: "umol L-1"
         long_name: "Dissolved oxygen, molarity"
         long_name_fr: "Oxygène dissous, molarité"
@@ -418,7 +421,7 @@ netcdf_conversion:
       attributes:
         valid_min: 0.0
         valid_max: 25000.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         units: "Hz"
         long_name: "Frequency reported by the oxygen sensor"
         long_name_fr: "Fréquence signalée par le capteur d'oxygène"
@@ -432,7 +435,7 @@ netcdf_conversion:
       attributes:
         valid_min: -5.0
         valid_max: 600.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         units: "umol kg-1"
         long_name: "Dissolved oxygen"
         long_name_fr: "Oxygène dissous"
@@ -448,7 +451,7 @@ netcdf_conversion:
         long_name: "Chlorophyll-A raw signal count"
         long_name_fr: "Nombre brut de signaux de chlorophylle-A"
         valid_min: 0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: ChlorophyllAFluorescence
     CHLA:
       type: f8
@@ -461,7 +464,7 @@ netcdf_conversion:
         long_name: "Chlorophyll-A"
         long_name_fr: "Chlorophylle-A"
         valid_min: 0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: ChlorophyllA
     TURB:
       type: f8
@@ -474,7 +477,7 @@ netcdf_conversion:
         long_name: "Sea water turbidity (NTUs)"
         long_name_fr: "Turbidité de l'eau de mer (NTUs)"
         valid_min: 0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: Turbidity
     BBP700:
       type: f8
@@ -486,7 +489,7 @@ netcdf_conversion:
         long_name_fr: "Rétro-dispersion des particules à 700 nm"
         units: "m-1"
         valid_min: 0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: ParticleBackscatter
     CDOM:
       type: f8
@@ -498,7 +501,7 @@ netcdf_conversion:
         long_name_fr: "Concentration en matière organique dissoute colorée"
         units: "0.000000001"
         valid_min: 0.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
         cnodc_standard_name: ColoredDissolvedOrganicMatter
     DPHDOXY:
       type: f8
@@ -511,7 +514,7 @@ netcdf_conversion:
         units: "degree"
         valid_min: 10.0
         valid_max: 70.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
     RPHDOXY:
       type: f8
       dimensions:
@@ -523,7 +526,7 @@ netcdf_conversion:
         units: "degree"
         valid_min: 10.0
         valid_max: 70.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
     BPHDOXY:
       type: f8
       dimensions:
@@ -535,7 +538,7 @@ netcdf_conversion:
         units: "degree"
         valid_min: 10.0
         valid_max: 70.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
     TEMPDOXY:
       type: f8
       dimensions:
@@ -548,7 +551,7 @@ netcdf_conversion:
         units: "degree_C"
         valid_min: -2.0
         valid_max: 40.0
-        _FillValue: -9999.9
+        missing_value: -9999.9
 
 ocproc2_map:
 
