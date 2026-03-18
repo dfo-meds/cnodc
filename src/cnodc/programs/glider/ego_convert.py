@@ -456,8 +456,8 @@ class OpenGliderConverter:
                 self._log.warning(f'Cannot detect institution for setting infoUrl [institutions={'|'.join(inst[0] for inst in institutions)}] [network={network}] [mission_id={mission_id}]')
         if contributors:
             open_nc.setncattr('contributor_name', ','.join(c[0] for c in contributors))
-            open_nc.setncattr('contributor_email', ','.join(c[1] for c in contributors))
-            open_nc.setncattr('contributor_id', ','.join(c[2] for c in contributors))
+            open_nc.setncattr('contributor_id', ','.join(c[1] for c in contributors))
+            open_nc.setncattr('contributor_email', ','.join(c[2] for c in contributors))
             open_nc.setncattr('contributor_id_vocabulary', 'https://orcid.org/')
             open_nc.setncattr('contributor_role', ','.join(c[3] for c in contributors))
             open_nc.setncattr('contributor_role_vocabulary','https://vocab.nerc.ac.uk/collection/W08/current/')
@@ -526,7 +526,7 @@ class OpenGliderConverter:
                 if sys_name.lower() not in trans_system_map:
                     raise GliderError(f'Unknown transmission system: {sys_name}', 2017)
                 trans_systems.add(trans_system_map[sys_name.lower()])
-            open_nc.variables['TELECOM_TYPE'] = str_to_netcdf_vlen(','.join(trans_systems))
+            open_nc.variables['TELECOM_TYPE'][:] = str_to_netcdf_vlen(','.join(sorted(list(trans_systems))))
         else:
             self._log.warning('Missing variable TRANS_SYSTEM')
         if 'POSITIONING_SYSTEM' in original_nc.variables:
@@ -539,7 +539,7 @@ class OpenGliderConverter:
                 if sys_name.lower() not in pos_system_map:
                     raise GliderError(f'Unknown positioning system: {sys_name}', 2018)
                 track_systems.add(pos_system_map[sys_name.lower()])
-            open_nc.variables['TRACKING_SYSTEM'][:] = str_to_netcdf_vlen(','.join(track_systems))
+            open_nc.variables['TRACKING_SYSTEM'][:] = str_to_netcdf_vlen(','.join(sorted(list(track_systems))))
         else:
             self._log.warning('Missing variable POSITIONING_SYSTEM')
 
