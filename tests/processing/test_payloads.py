@@ -23,7 +23,7 @@ class TestFileInfo(BaseTestCase):
         self.assertEqual(info.file_path, '/hello/world/123456.txt')
         self.assertEqual(info.filename, '12345.txt')
         self.assertFalse(info.is_gzipped)
-        self.assertEqual(info.last_modified_date, datetime.datetime(2015, 12, 21, 1, 2, 3).astimezone())
+        self.assertSameTime(info.last_modified_date, datetime.datetime(2015, 12, 21, 1, 2, 3).astimezone())
 
     def test_from_partial_dict(self):
         info = FileInfo.from_map({

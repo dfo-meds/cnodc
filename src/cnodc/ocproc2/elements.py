@@ -32,22 +32,28 @@ SupportedValue = t.Union[
 ]
 
 
+CONVERTERS = {
+    'str': lambda x: x,
+    'float': lambda x: x,
+    'int': lambda x: x,
+    'bool': lambda x: x,
+    'NoneType': lambda x: x,
+    'list': lambda x: [normalize_data_value(y) for y in x],
+    'set':  lambda x: [normalize_data_value(y) for y in x],
+    'tuple': lambda x: [normalize_data_value(y) for y in x],
+    'dict': lambda x: {normalize_data_value(y): normalize_data_value(x[y]) for y in x},
+    'datetime': lambda x: x.isoformat(),
+    'date': lambda x: x.isoformat(),
+    'AwareDateTime': lambda x: x.isoformat(),
+    # for more datatypes, put the class name and then a lambda function to call that returns the noramlized value.
+}
+
 def normalize_data_value(dv: t.Any):
     """Convert a data value to its normalized form for OCPROC2."""
-    cls_name = dv.__class__.__name__
-    if cls_name == 'str' or cls_name == 'float' or cls_name == 'int' or cls_name == 'bool' or cls_name == 'NoneType':
-        return dv
-    elif cls_name == 'datetime' or cls_name == 'date':
-        return dv.isoformat()
-    elif cls_name == 'list' or cls_name == 'set' or cls_name == 'tuple':
-        return [normalize_data_value(x) for x in dv]
-    elif cls_name == 'dict':
-        return {
-            str(x): normalize_data_value(dv[x])
-            for x in dv
-        }
-    else:
-        raise ValueError(f'Invalid value [{cls_name}]')
+    try:
+        return CONVERTERS[dv.__class__.__name__](dv)
+    except KeyError:
+        raise ValueError(f"Invalid OCPROC2 value: [{dv}]")
 
 
 def duck_type_catch(cb: callable):

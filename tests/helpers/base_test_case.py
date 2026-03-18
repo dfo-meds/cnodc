@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from unittest import mock, TextTestResult
 
 from autoinject import injector
+
+from cnodc.util.awaretime import AwareDateTime
 from cnodc.util.halts import DummyHaltFlag
 from helpers.mock_runner import WorkerTestController
 from cnodc.util import CNODCError
@@ -25,6 +27,12 @@ class InjectableDict:
 
 
 class BaseTestCase(ut.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.addTypeEqualityFunc(datetime.datetime, self.assertSameTime)
+        self.addTypeEqualityFunc(AwareDateTime, self.assertSameTime)
+        self.addTypeEqualityFunc(dict, self.assertDictSimilar)
 
     @classmethod
     def setUpClass(cls):
@@ -73,10 +81,21 @@ class BaseTestCase(ut.TestCase):
         finally:
             logging.disable(old_level)
 
-    def assertEqual(self, first, second, msg = None):
-        if isinstance(first, dict) and isinstance(second, dict):
-            self.assertDictSimilar(first, second, msg)
-        super().assertEqual(first, second, msg)
+    def assertSameTime(self, dt1: datetime.datetime, dt2: datetime.datetime, msg=None):
+        msg = msg or f'[{dt1.isoformat() if dt1 else None}] != [{dt2.isoformat() if dt2 else None}]'
+        if dt1 is None and dt2 is not None:
+            raise self.failureException(msg + " (dt1 is none")
+        elif dt2 is None and dt1 is not None:
+            raise self.failureException(msg + " (dt2 is none")
+        elif dt1 is None and dt2 is None:
+            return
+        elif dt1.tzinfo and not dt2.tzinfo:
+            raise self.failureException(msg + " (cannot compare aware to naive datetimes")
+        elif dt2.tzinfo and not dt1.tzinfo:
+            raise self.failureException(msg + " (cannot compare naive to aware datetimes")
+        elif dt1.tzinfo is not None and dt2.tzinfo is not None:
+            dt2 = dt2.astimezone(dt1.tzinfo)
+        self.assertEqual((dt1 - dt2).total_seconds(), 0, msg=msg)
 
     def assertDictSimilar(self, d1, d2, msg = None, strict_order: bool = False):
         errors = self._compare_dicts(d1, d2, strict_order=strict_order)
@@ -86,18 +105,7 @@ class BaseTestCase(ut.TestCase):
             msg += f'\n ({len(errors)} errors found)'
             raise self.failureException(msg)
 
-    def assertSameTime(self, dt1: datetime.datetime, dt2: datetime.datetime, msg=None):
-        msg = msg or 'Datetime objects do not represent the same time'
-        if dt1.tzinfo and not dt2.tzinfo:
-            raise self.failureException(msg + " (cannot compare aware to naive datetimes")
-        elif dt2.tzinfo and not dt1.tzinfo:
-            raise self.failureException(msg + " (cannot compare naive to aware datetimes")
-        elif dt1.tzinfo is None and dt2.tzinfo is None:
-            self.assertEqual(dt1, dt2, msg=msg)
-        else:
-            self.assertEqual(dt1.astimezone(datetime.timezone.utc), dt2.astimezone(datetime.timezone.utc), msg=msg)
-
-    def assertListSimilar(self, l1, l2, msg = None, strict_order: bool = False):
+    def assertListEqualNoOrder(self, l1, l2, msg = None, strict_order: bool = False):
         errors = self._compare_lists(l1, l2, strict_order=strict_order)
         if errors:
             msg = msg or 'Lists are not equal'

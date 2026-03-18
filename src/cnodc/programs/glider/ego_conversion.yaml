@@ -886,3 +886,6 @@ data_maps:
 
   contacts:
     "erin turnbull":
+      proper_name: Erin Turnbull
+      id: 0009-0004-9696-0758
+      email: erin.turnbull@dfo-mpo.gc.ca

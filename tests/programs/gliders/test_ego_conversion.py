@@ -73,18 +73,16 @@ class TestEmptyGliderConversion(GliderConversionTestcase):
 
     def test_can_set_filename_metadata(self):
         self.converter._set_metadata_from_file_name(self.new_handle, 'TEST001', '20150102030405', 'R')
-        self.assertHasAttribute('rtqc_method', 'Real-time QC performed with Coriolis matlab toolbox')
-        self.assertHasAttribute('rtqc_method_fr', 'Contrôle qualité en temps réel réalisé avec la boîte à outils Coriolis Matlab')
+        self.assertHasAttribute('rtqc_method', 'Coriolis MATLAB Toolbox')
         self.assertHasAttribute('summary', 'Real-time data from glider mission TEST001_20150102030405')
         self.assertHasAttribute('summary_fr', 'Données en temps réel de la mission du planeur TEST001_20150102030405')
-        self.assertHasAttribute('title', 'Glider TEST001 - 20150102030405 (Real Time)')
+        self.assertHasAttribute('title', 'Glider TEST001 - 20150102030405 (Real-Time)')
         self.assertHasAttribute('title_fr', 'Planeur TEST001 - 20150102030405 (temps réel)')
         self.assertHasAttribute('id', 'TEST001_20150102030405_R')
 
     def test_can_set_filename_metadata_preliminary(self):
         self.converter._set_metadata_from_file_name(self.new_handle, 'TEST001', '20150102030405', 'P')
-        self.assertHasAttribute('rtqc_method', 'No QC applied')
-        self.assertHasAttribute('rtqc_method_fr', 'Aucun contrôle qualité appliqué')
+        self.assertHasAttribute('rtqc_method', 'Coriolis MATLAB Toolbox')
         self.assertHasAttribute('summary', 'Preliminary data from glider mission TEST001_20150102030405')
         self.assertHasAttribute('summary_fr', 'Données préliminaire de la mission du planeur TEST001_20150102030405')
         self.assertHasAttribute('title', 'Glider TEST001 - 20150102030405 (Preliminary)')
@@ -144,13 +142,8 @@ class TestEmptyGliderConversion(GliderConversionTestcase):
 
     def test_build_contributors(self):
         self.converter._set_metadata_from_file_name(self.new_handle, 'TEST001', '20150102030405', 'R')
-        self.converter._build_contributors(self.new_handle, self.old_handle)
-        for attr in ('infoUrl', 'contributor_name', 'contributor_email', 'contributor_id', 'contributor_id_vocabulary',
-                     'contributor_role', 'contributor_role_vocabulary', 'contributing_institutions',
-                     'contributing_institutions_id', 'contributing_institutions_id_vocabulary',
-                     'contributing_institutions_role' ,'contributing_institutions_role_vocabulary'):
-            with self.subTest(missing_attr=attr):
-                self.assertDoesNotHaveAttribute(attr)
+        with self.assertRaisesCNODCError('GLIDER-2012'):
+            self.converter._build_contributors(self.new_handle, self.old_handle)
 
     def test_build_deployment_info(self):
         with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
@@ -160,6 +153,28 @@ class TestEmptyGliderConversion(GliderConversionTestcase):
             self.assertDoesNotHaveAttribute('start_date')
             self.assertEqual(self.new_handle.variables['DEPLOYMENT_TIME'][:].item(), 0.0)
             self.assertEqual(netcdf_bytes_to_string(self.new_handle.variables['TRAJECTORY'][:]), 'TEST001_20150102030405')
+
+    def test_build_glider_info(self):
+        self.converter._create_dimensions(self.new_handle)
+        self.converter._build_variables(self.new_handle, self.old_handle)
+        self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
+
+
+    def test_build_contact_info(self):
+        self.assertEqual((
+            'Erin Turnbull',
+            '0009-0004-9696-0758',
+            'erin.turnbull@dfo-mpo.gc.ca',
+            'contributor'
+        ), self.converter._build_contact_info('ERIN TURNBULL', 'contributor'))
+
+    def test_build_no_contact_info(self):
+        self.assertEqual((
+            'John William Turnbull',
+            '',
+            '',
+            'editor'
+        ), self.converter._build_contact_info('John William Turnbull', 'editor'))
 
     def test_cannot_set_geospatial_bounds(self):
         with self.assertRaisesCNODCError('GLIDER-2000'):

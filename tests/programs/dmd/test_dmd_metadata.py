@@ -183,7 +183,7 @@ class TestCoreEntityRef(BaseTestCase):
         self.assertEqual(EntityRef.format_date('2015-01-02T01:02:03'), '2015-01-02T01:02:03+00:00')
 
     def test_coerce_from_enum(self):
-        self.assertListSimilar([None], EntityRef._coerce_from_enum(None, Locale, coerce_list=True))
+        self.assertListEqualNoOrder([None], EntityRef._coerce_from_enum(None, Locale, coerce_list=True))
 
     def test_coerce_to_enum(self):
         self.assertIs(EntityRef._coerce_to_enum(Locale.CanadianFrench, Locale), Locale.CanadianFrench)
@@ -1602,7 +1602,7 @@ class TestMetadata(BaseTestCase):
             temps[:] = [1,2,3,4]
             md = DatasetMetadata()
             md.set_from_netcdf_file(ds)
-            self.assertListSimilar(md._metadata['cioos_eovs'], ['seaSurfaceTemperature', 'subSurfaceTemperature'])
+            self.assertListEqualNoOrder(md._metadata['cioos_eovs'], ['seaSurfaceTemperature', 'subSurfaceTemperature'])
 
     def test_set_from_depths_netcdf_file_up(self):
         with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
@@ -1638,7 +1638,7 @@ class TestMetadata(BaseTestCase):
             temps[:] = [1,2,3,4]
             md = DatasetMetadata()
             md.set_from_netcdf_file(ds)
-            self.assertListSimilar(md._metadata['cioos_eovs'], ['seaSurfaceTemperature', 'subSurfaceTemperature'])
+            self.assertListEqualNoOrder(md._metadata['cioos_eovs'], ['seaSurfaceTemperature', 'subSurfaceTemperature'])
 
     def test_set_from_surface_only_netcdf_file_up(self):
         with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
@@ -1656,7 +1656,7 @@ class TestMetadata(BaseTestCase):
             temps[:] = [1,2,3,4]
             md = DatasetMetadata()
             md.set_from_netcdf_file(ds)
-            self.assertListSimilar(md._metadata['cioos_eovs'], ['seaSurfaceTemperature'])
+            self.assertListEqualNoOrder(md._metadata['cioos_eovs'], ['seaSurfaceTemperature'])
 
     def test_bad_org_id_vocab(self):
         md = DatasetMetadata()

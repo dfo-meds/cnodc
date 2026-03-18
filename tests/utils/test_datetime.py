@@ -10,7 +10,7 @@ class TestDateTime(BaseTestCase):
 
     def test_now_utc(self):
         n = utc_now()
-        self.assertIs(n.tzinfo, zoneinfo.ZoneInfo('Etc/UTC'))
+        self.assertIs(n.tzinfo, datetime.timezone.utc)
 
     def test_now(self):
         n = now()
