@@ -5,7 +5,7 @@ import netCDF4
 import numpy
 from zarr.core.dtype import dtype
 
-from cnodc.programs.glider.ego_convert import OpenGliderConverter
+from cnodc.programs.glider.ego_convert import OpenGliderConverter, validate_ego_glider_file
 from cnodc.util import unnumpy
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf, str_to_netcdf_vlen
 from helpers.base_test_case import BaseTestCase, InjectableDict
@@ -15,7 +15,7 @@ class GliderConversionTestcase(BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.old_file = self.temp_dir / 'ego.nc'
+        self.old_file = self.temp_dir / 'TEST001_20151001_R.nc'
         self.new_file = self.temp_dir / 'og.nc'
         self.converter = OpenGliderConverter.build(None, self.halt_flag)
         with netCDF4.Dataset(self.old_file, 'w') as old:
@@ -248,6 +248,10 @@ class TestEmptyGliderConversion(GliderConversionTestcase):
         with self.assertRaisesCNODCError('GLIDER-2005'):
             self.converter._build_times(self.new_handle, self.old_handle)
 
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+
 
 class TestPartialBadConversion(GliderConversionTestcase):
 
@@ -284,6 +288,10 @@ class TestPartialBadConversion(GliderConversionTestcase):
     def test_cannot_build_glider_info(self):
         with self.assertRaisesCNODCError('GLIDER-2010'):
             self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
+
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 
 
@@ -338,6 +346,9 @@ class TestPartial2BadConversion(GliderConversionTestcase):
         with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
             self.converter._build_contributors(self.new_handle, self.old_handle)
 
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 class TestPartial3BadConversion(GliderConversionTestcase):
 
@@ -374,6 +385,10 @@ class TestPartial3BadConversion(GliderConversionTestcase):
         with self.assertRaisesCNODCError('GLIDER-2004'):
             self.converter._build_depths(self.new_handle, self.old_handle)
 
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+
 
 class TestMinimalEmptyConversion(GliderConversionTestcase):
 
@@ -387,6 +402,8 @@ class TestMinimalEmptyConversion(GliderConversionTestcase):
         juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
         juld.units = 'days since 2015-01-02T03:04:05+00:00'
         dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
+        dslat = old.createVariable('DEPLOYMENT_START_LATITUDE', 'f8', ())
+        dslon = old.createVariable('DEPLOYMENT_START_LONGITUDE', 'f8', ())
         dsd[:] = str_to_netcdf_vlen('20150102')
         pt = old.createVariable('PLATFORM_TYPE', str, ())
         pt[:] = str_to_netcdf_vlen('SLOCUM_G2')
@@ -416,6 +433,9 @@ class TestMinimalEmptyConversion(GliderConversionTestcase):
         self.assertDoesNotHaveAttribute('geospatial_vertical_min')
         self.assertDoesNotHaveAttribute('geospatial_vertical_max')
 
+    def test_is_valid(self):
+        self.assertTrue(validate_ego_glider_file(self.old_file, {}))
+
 
 
 class TestBadPosSystem(GliderConversionTestcase):
@@ -428,6 +448,8 @@ class TestBadPosSystem(GliderConversionTestcase):
         old.createVariable('PRES', 'f8', ('N_COUNT',))
         old.createVariable('PRES_QC', 'i2', ('N_COUNT',))
         old.createVariable('POSITION_QC', 'i2', ('N_COUNT',))
+        dslat = old.createVariable('DEPLOYMENT_START_LATITUDE', 'f8', ())
+        dslon = old.createVariable('DEPLOYMENT_START_LONGITUDE', 'f8', ())
         juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
         juld.units = 'days since 2015-01-02T03:04:05+00:00'
         dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
@@ -450,6 +472,10 @@ class TestBadPosSystem(GliderConversionTestcase):
             with self.assertRaisesCNODCError('GLIDER-2018'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+
 
 class TestBadTrackSystem(GliderConversionTestcase):
 
@@ -461,6 +487,8 @@ class TestBadTrackSystem(GliderConversionTestcase):
         old.createVariable('PRES', 'f8', ('N_COUNT',))
         old.createVariable('PRES_QC', 'i2', ('N_COUNT',))
         old.createVariable('POSITION_QC', 'i2', ('N_COUNT',))
+        dslat = old.createVariable('DEPLOYMENT_START_LATITUDE', 'f8', ())
+        dslon = old.createVariable('DEPLOYMENT_START_LONGITUDE', 'f8', ())
         juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
         juld.units = 'days since 2015-01-02T03:04:05+00:00'
         dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
@@ -483,6 +511,10 @@ class TestBadTrackSystem(GliderConversionTestcase):
             with self.assertRaisesCNODCError('GLIDER-2017'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+
 
 
 class TestBadBatterySystem(GliderConversionTestcase):
@@ -495,6 +527,8 @@ class TestBadBatterySystem(GliderConversionTestcase):
         old.createVariable('PRES', 'f8', ('N_COUNT',))
         old.createVariable('PRES_QC', 'i2', ('N_COUNT',))
         old.createVariable('POSITION_QC', 'i2', ('N_COUNT',))
+        dslat = old.createVariable('DEPLOYMENT_START_LATITUDE', 'f8', ())
+        dslon = old.createVariable('DEPLOYMENT_START_LONGITUDE', 'f8', ())
         juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
         juld.units = 'days since 2015-01-02T03:04:05+00:00'
         dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
@@ -516,6 +550,10 @@ class TestBadBatterySystem(GliderConversionTestcase):
             self.converter._build_variables(self.new_handle, self.old_handle)
             with self.assertRaisesCNODCError('GLIDER-2016'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
+
+    def test_is_invalid(self):
+        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
+            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 
 class TestMinimalConversion(GliderConversionTestcase):
@@ -618,6 +656,9 @@ class TestMinimalConversion(GliderConversionTestcase):
     def setUp(self):
         super().setUp()
         self.converter._convert(self.new_handle, self.old_handle, 'TEST001_20150102030405_R.nc')
+
+    def test_is_valid(self):
+        self.assertTrue(validate_ego_glider_file(self.old_file, {}))
 
     def test_dimensions(self):
         self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)

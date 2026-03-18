@@ -8,6 +8,7 @@ import unicodedata
 
 import numpy as np
 
+from cnodc.util.awaretime import AwareDateTime
 
 JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
 
@@ -18,10 +19,7 @@ UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u
 def netcdf_bytes_to_string(byte_sequence, encoding='utf-8'):
     if isinstance(byte_sequence, str):
         return normalize_string(byte_sequence)
-    try:
-        return normalize_string(b''.join(bytes(x) for x in byte_sequence).replace(b'\x00', b'').decode(encoding))
-    except UnicodeDecodeError as ex:
-        raise ValueError(f'Invalid byte string for unicode [{str(byte_sequence)}]') from ex
+    return normalize_string(b''.join(bytes(x) for x in byte_sequence).replace(b'\x00', b'').decode(encoding))
 
 def str_to_netcdf_vlen(s: t.Union[t.Sequence[str], str]):
     if isinstance(s, str):
@@ -40,11 +38,10 @@ def clean_for_json(data):
         }
     elif isinstance(data, (set, list, tuple)):
         return [clean_for_json(x) for x in data]
-    elif isinstance(data, (datetime.datetime, datetime.date)):
+    elif isinstance(data, (datetime.datetime, datetime.date, AwareDateTime)):
         return data.isoformat()
     else:
         return data
-
 
 def normalize_string(value: str):
     value = unicodedata.normalize('NFC', value)
