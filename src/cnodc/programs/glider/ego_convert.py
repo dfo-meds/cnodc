@@ -148,9 +148,9 @@ class OpenGliderConverter:
     def convert(self, ego_file, og_file, file_name: t.Optional[str] = None):
         with nc.Dataset(ego_file, "r") as original_nc:
             with nc.Dataset(og_file, "w", format="NETCDF4") as open_nc:
-                return self._convert(original_nc, open_nc, file_name or pathlib.Path(ego_file).name)
+                return self._convert(open_nc, original_nc, file_name or pathlib.Path(ego_file).name)
 
-    def _convert(self, original_nc: nc.Dataset, open_nc: nc.Dataset, file_name: str):
+    def _convert(self, open_nc: nc.Dataset, original_nc: nc.Dataset, file_name: str):
         platform, start_time, data_mode = file_name[:-3].rsplit('_', maxsplit=2)
         self._create_dimensions(open_nc)
         self._map_static_metadata(open_nc)
@@ -166,7 +166,7 @@ class OpenGliderConverter:
         self._build_contributors(open_nc, original_nc)
         self._build_deployment_info(open_nc, original_nc, platform, start_time)
         self._build_glider_info(open_nc, original_nc, platform)
-        self._build_phase_info(original_nc, open_nc)
+        self._build_phase_info(open_nc, original_nc)
         open_nc.setncattr('date_created', awaretime.utc_now().strftime('%Y%m%dT%H%M%SZ'))
         mission_id = open_nc.getncattr('id')
         return file_name, mission_id
@@ -179,12 +179,12 @@ class OpenGliderConverter:
             open_nc.setncattr(key, self._mapping_data['netcdf_conversion']['static_metadata'][key])
 
     def _copy_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
-        attrs = [x for x in original_nc.ncattrs()]
         for key in self._mapping_data['netcdf_conversion']['copy_metadata']:
-            if key in attrs:
-                open_nc.setncattr(key, original_nc.getncattr(self._mapping_data['netcdf_conversion']['copy_metadata'][key]))
+            old_key = self._mapping_data['netcdf_conversion']['copy_metadata'][key]
+            if hasattr(original_nc, old_key):
+                open_nc.setncattr(key, original_nc.getncattr(old_key))
             else:
-                self._log.warning(f"EGO file does not have the attribute [{key}]")
+                self._log.warning(f"EGO file does not have the attribute [{old_key}]")
 
     def _set_metadata_from_file_name(self, open_nc: nc.Dataset, platform, start_time, data_mode):
         rtqc_method = None
@@ -198,12 +198,12 @@ class OpenGliderConverter:
             title_suffix = ('Preliminary', 'préliminaire')
         elif data_mode == 'A':
             summary_prefix = ('Adjusted data', 'Données ajustées')
-            title_suffix = ('Adjusted', 'adjustées')
+            title_suffix = ('Adjusted', 'ajustées')
         elif data_mode == 'D':
             summary_prefix = ('Delayed-mode data', 'Données en temps différé')
             title_suffix = ('Delayed-Mode', 'différé')
         elif data_mode == 'M':
-            summary_prefix = ('Mixed data', 'Mixed')
+            summary_prefix = ('Mixed data', 'Données mixte')
             title_suffix = ('Mixed', 'mixte')
         else:
             raise GliderError(f'Invalid glider data mode [{data_mode}]', 2019)
@@ -312,7 +312,7 @@ class OpenGliderConverter:
                         'coordinates': "TIME,LONGITUDE,LATITUDE,DEPTH",
                         'rtqc_methodology': "Coriolis MATLAB toolbox",
                         'rtqc_methodology_fr': "Boîte à outils Coriolis Matlab",
-                        '_FillValue': -127,
+                        'missing_value': -127,
                         'valid_min': 0,
                         'valid_max': 0,
                 },
@@ -322,6 +322,8 @@ class OpenGliderConverter:
             self.breakpoint()
 
     def _build_depths(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
+        if 'LATITUDE' not in original_nc.variables:
+            raise GliderError('Missing LATITUDE variable', 2020)
         if 'PRES' not in original_nc.variables:
             raise GliderError('Missing PRES variable', 2002)
         if 'PRES_QC' not in original_nc.variables:
@@ -343,14 +345,15 @@ class OpenGliderConverter:
             if pressure_qc in (4, 9) or latitude_qc in (4, 9) or pressure is None or latitude is None:
                 depths.append(-9999.9)
             else:
-                depth = seawater.eos80_depth(pressure, latitude)
+                depth = float(seawater.eos80_depth(pressure, latitude))
                 if min_depth is None or depth < min_depth:
                     min_depth = depth
                 if max_depth is None or depth > max_depth:
                     max_depth = depth
                 depths.append(depth)
-        if min_depth is not None or max_depth is not None:
+        if min_depth is not None:
             open_nc.setncattr('geospatial_vertical_min', min_depth)
+        if max_depth is not None:
             open_nc.setncattr('geospatial_vertical_max', max_depth)
         open_nc.variables['DEPTH'][:] = depths
 
@@ -361,6 +364,8 @@ class OpenGliderConverter:
         try:
             period, _, epoch = getattr(juld_var, 'units').split(' ', maxsplit=2)
             local_base_time = awaretime.utc_from_isoformat(epoch)
+            if period not in ('seconds', 'minutes', 'hours', 'days'):
+                raise ValueError(f'invalid period [{period}]')
         except Exception as ex:
             raise GliderError('JULD variable is missing or has invalid units', 2006) from ex
         times = original_nc.variables['JULD'][:]
@@ -383,8 +388,8 @@ class OpenGliderConverter:
             self.breakpoint()
         open_nc.variables['TIME'][:] = seconds
         if min_time is not None or max_time is not None:
-            open_nc.setncattr('time_coverage_start', min_time.strftime('%Y%m%dT%H%M%SZ'))
-            open_nc.setncattr('time_coverage_end', max_time.strftime('%Y%m%dT%H%M%SZ'))
+            open_nc.setncattr('time_coverage_start', min_time.strftime('%Y%m%dT%H%M%S%:z'))
+            open_nc.setncattr('time_coverage_end', min_time.strftime('%Y%m%dT%H%M%S%:z'))
 
     def _get_data_map(self, name):
         if name not in self._data_maps:
@@ -406,19 +411,16 @@ class OpenGliderConverter:
         )
 
     def _build_contributors(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
+        if not hasattr(original_nc, 'principal_investigator'):
+            raise GliderError('Missing mandatory [principal_investigator] attribute', 2012)
+        if 'OPERATING_INSTITUTION' not in original_nc.variables:
+            raise GliderError('Missing mandatory [OPERATING_INSTITUTION] variable', 2013)
         contributors = []
         institutions = []
-
-        if hasattr(original_nc, 'principal_investigator'):
-            for pi in original_nc.getncattr('principal_investigator').split(';'):
-                contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
-        else:
-            raise GliderError('Missing mandatory [principal_investigator] attribute', 2012)
-        if 'OPERATING_INSTITUTION' in original_nc.variables:
+        for pi in original_nc.getncattr('principal_investigator').split(';'):
+            contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
             for op in netcdf_bytes_to_string(original_nc.variables['OPERATING_INSTITUTION'][:]).split(';'):
                 institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
-        else:
-            raise GliderError('Missing mandatory [OPERATING_INSTITUTION] variable', 2013)
         if 'GLIDER_OWNER' in original_nc.variables:
             for owner in netcdf_bytes_to_string(original_nc.variables['GLIDER_OWNER'][:]).split(';'):
                 institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
@@ -452,8 +454,6 @@ class OpenGliderConverter:
                 open_nc.setncattr('infoUrl', '')
             else:
                 self._log.warning(f'Cannot detect institution for setting infoUrl [institutions={'|'.join(inst[0] for inst in institutions)}] [network={network}] [mission_id={mission_id}]')
-
-
         if contributors:
             open_nc.setncattr('contributor_name', ','.join(c[0] for c in contributors))
             open_nc.setncattr('contributor_email', ','.join(c[1] for c in contributors))
@@ -471,7 +471,7 @@ class OpenGliderConverter:
     def _build_deployment_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: str, start_time: str):
         if 'DEPLOYMENT_START_DATE' not in original_nc.variables:
             raise GliderError(f"Missing mandatory variable [DEPLOYMENT_START_DATE]", 2014)
-        deploy_start = netcdf_bytes_to_string(original_nc.variable['DEPLOYMENT_START_DATE'][:]).strip()
+        deploy_start = netcdf_bytes_to_string(original_nc.variables['DEPLOYMENT_START_DATE'][:]).strip()
         if len(deploy_start) == 8:
             start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d')
         elif len(deploy_start) == 12:
@@ -480,7 +480,7 @@ class OpenGliderConverter:
             start_date = awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M%S')
         else:
             raise GliderError(f"Unknown date format for [{deploy_start}]", 2008)
-        open_nc.setncattr('start_date', start_date.strftime('%Y%m%dT%H%M%SZ'))
+        open_nc.setncattr('start_date', start_date.isoformat())
         open_nc.variables['DEPLOYMENT_TIME'][:] = [(start_date - self._base_time).total_seconds()]
         open_nc.variables['TRAJECTORY'][:] = str_to_netcdf_vlen(f"{platform}_{start_time}")
 
@@ -502,42 +502,48 @@ class OpenGliderConverter:
         serial_no = netcdf_bytes_to_string(original_nc.variables['GLIDER_SERIAL_NO'][:])
         open_nc.variables['PLATFORM_SERIAL_NUMBER'][:] = str_to_netcdf_vlen(f"{model_info['prefix']}{serial_no}")
         open_nc.variables['PLATFORM_MAKER'][:] = str_to_netcdf_vlen(model_info['maker'])
-        battery_type = None
         if 'BATTERY_TYPE' in original_nc.variables:
             battery_type = netcdf_bytes_to_string(original_nc.variables['BATTERY_TYPE'][:])
+            if battery_type:
+                battery_types = self._get_data_map('battery_types')
+                if battery_type.lower() not in battery_types:
+                    raise GliderError(f'Unknown battery type: {battery_type}', 2016)
+                open_nc.variables['BATTERY_TYPE'][:] = str_to_netcdf_vlen(battery_types[battery_type.lower()])
         else:
             self._log.warning(f'Missing BATTERY_TYPE variable')
-        if battery_type:
-            battery_types = self._get_data_map('battery_types')
-            if battery_type.lower() not in battery_types:
-                raise GliderError(f'Unknown battery type: {battery_type}', 2016)
-            open_nc.variables['BATTERY_TYPE'][:] = str_to_netcdf_vlen(battery_types[battery_type.lower()])
+
         # BATTERY_PACKS??
         # FIRMWARE_VERSION_NAVIGATION
         # FIRMWAVE_VERSION_SCIENCE
         # GLIDER_MANUAL_VERSION
-        trans_systems = set()
-        trans_system_map = self._get_data_map('transmission_systems')
-        for sys_name in original_nc.variable['TRANS_SYSTEM'][:]:
-            sys_name = netcdf_bytes_to_string(sys_name)
-            if not sys_name:
-                continue
-            if sys_name.lower() not in trans_system_map:
-                raise GliderError(f'Unknown transmission system: {sys_name}', 2017)
-            trans_systems.add(trans_system_map[sys_name.lower()])
-        open_nc.variables['TELECOM_TYPE'] = str_to_netcdf_vlen(','.join(trans_systems))
-        track_systems = set()
-        pos_system_map = self._get_data_map('positioning_systems')
-        for sys_name in original_nc.variable['POSITIONING_SYSTEM'][:]:
-            sys_name = netcdf_bytes_to_string(sys_name)
-            if not sys_name:
-                continue
-            if sys_name.lower() not in pos_system_map:
-                raise GliderError(f'Unknown positioning system: {sys_name}', 2018)
-            track_systems.add(pos_system_map[sys_name.lower()])
-        open_nc.variables['TRACKING_SYSTEM'][:] = str_to_netcdf_vlen(','.join(track_systems))
+        if 'TRANS_SYSTEM' in original_nc.variables:
+            trans_systems = set()
+            trans_system_map = self._get_data_map('transmission_systems')
+            for sys_name in original_nc.variables['TRANS_SYSTEM'][:]:
+                sys_name = netcdf_bytes_to_string(sys_name)
+                if not sys_name:
+                    continue
+                if sys_name.lower() not in trans_system_map:
+                    raise GliderError(f'Unknown transmission system: {sys_name}', 2017)
+                trans_systems.add(trans_system_map[sys_name.lower()])
+            open_nc.variables['TELECOM_TYPE'] = str_to_netcdf_vlen(','.join(trans_systems))
+        else:
+            self._log.warning('Missing variable TRANS_SYSTEM')
+        if 'POSITIONING_SYSTEM' in original_nc.variables:
+            track_systems = set()
+            pos_system_map = self._get_data_map('positioning_systems')
+            for sys_name in original_nc.variables['POSITIONING_SYSTEM'][:]:
+                sys_name = netcdf_bytes_to_string(sys_name)
+                if not sys_name:
+                    continue
+                if sys_name.lower() not in pos_system_map:
+                    raise GliderError(f'Unknown positioning system: {sys_name}', 2018)
+                track_systems.add(pos_system_map[sys_name.lower()])
+            open_nc.variables['TRACKING_SYSTEM'][:] = str_to_netcdf_vlen(','.join(track_systems))
+        else:
+            self._log.warning('Missing variable POSITIONING_SYSTEM')
 
-    def _build_phase_info(self, original_nc: nc.Dataset, open_nc: nc.Dataset):
+    def _build_phase_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
         if 'PHASE' not in original_nc.variables:
             self._log.warning(f"No PHASE variable detected")
             return

@@ -61,20 +61,22 @@ def normalize_string(value: str):
 def unnumpy(numpy_val):
     if numpy_val is None:
         return None
-    elif isinstance(numpy_val, decimal.Decimal):
+    if isinstance(numpy_val, np.ma.MaskedArray):
+        numpy_val = np.ma.filled(numpy_val, fill_value=np.nan)
+    if isinstance(numpy_val, decimal.Decimal):
         return numpy_val
-    elif isinstance(numpy_val, str):
+    if isinstance(numpy_val, str):
         return normalize_string(numpy_val)
-    elif isinstance(numpy_val, np.float64):
+    if isinstance(numpy_val, np.float64):
         return None if math.isnan(numpy_val) else numpy_val.item()
-    elif isinstance(numpy_val, np.int64):
+    if isinstance(numpy_val, np.int64):
         return None if math.isnan(numpy_val) else int(numpy_val)
-    elif np.isscalar(numpy_val):
+    if np.isscalar(numpy_val):
         if hasattr(numpy_val, "item"):
             item = numpy_val.item()
             return None if math.isnan(item) else item
         return None if math.isnan(numpy_val) else numpy_val
-    elif isinstance(numpy_val, np.ndarray):
+    if isinstance(numpy_val, np.ndarray):
         if isinstance(numpy_val.dtype, (np.dtypes.Int8DType, np.dtypes.Int16DType, np.dtypes.Int32DType, np.dtypes.Int64DType)):
             if numpy_val.ndim == 0:
                 val = int(numpy_val)
