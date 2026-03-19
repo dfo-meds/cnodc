@@ -2253,21 +2253,10 @@ class DatasetMetadata(EntityRef):
                 pieces = units.lower().split(' ')
                 try:
                     epoch = awaretime.utc_from_isoformat(pieces[2].upper())
-                    match pieces[0]:
-                        case 'seconds':
-                            self.time_coverage_start = epoch + datetime.timedelta(seconds=var.actual_min)
-                            self.time_coverage_end = epoch + datetime.timedelta(seconds=var.actual_max)
-                        case 'minutes':
-                            self.time_coverage_start = epoch + datetime.timedelta(minutes=var.actual_min)
-                            self.time_coverage_end = epoch + datetime.timedelta(minutes=var.actual_max)
-                        case 'hours':
-                            self.time_coverage_start = epoch + datetime.timedelta(hours=var.actual_min)
-                            self.time_coverage_end = epoch + datetime.timedelta(hours=var.actual_max)
-                        case 'days':
-                            self.time_coverage_start = epoch + datetime.timedelta(days=var.actual_min)
-                            self.time_coverage_end = epoch + datetime.timedelta(days=var.actual_max)
-                        case _:
-                            self._log.warning(f"Unsupported time increment {units}")
+                    if var.actual_min is not None:
+                        self.time_coverage_start = epoch + datetime.timedelta(**{pieces[0]: var.actual_min})
+                    if var.actual_max is not None:
+                        self.time_coverage_end = epoch + datetime.timedelta(**{pieces[0]: var.actual_max})
                 except Exception as ex:
                     self._log.exception(f"Exception handling time units: [{units}]: {type(ex)}: {str(ex)}")
             else:

@@ -36,6 +36,7 @@ class BaseTestCase(ut.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.class_temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
         cls.db = DatabaseMock()
         cls.nodb = DummyNODB(cls.db)
         cls.web = QuickWebMock()
@@ -51,6 +52,10 @@ class BaseTestCase(ut.TestCase):
         self.db.reset()
         d.data.clear()
         self.halt_flag.event.clear()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.class_temp_dir)
 
     @contextmanager
     def mock_web_test(self):

@@ -1,9 +1,7 @@
+import datetime
 import math
-import pathlib
 
 import netCDF4
-import numpy
-from zarr.core.dtype import dtype
 
 from cnodc.programs.glider.ego_convert import OpenGliderConverter, validate_ego_glider_file
 from cnodc.util import unnumpy
@@ -11,27 +9,29 @@ from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf, str_to_ne
 from helpers.base_test_case import BaseTestCase, InjectableDict
 import typing as t
 
-class GliderConversionTestcase(BaseTestCase):
+class GliderBaseTest(BaseTestCase):
 
-    def setUp(self):
-        super().setUp()
-        self.old_file = self.temp_dir / 'TEST001_20151001_R.nc'
-        self.new_file = self.temp_dir / 'og.nc'
-        self.converter = OpenGliderConverter.build(None, self.halt_flag)
-        with netCDF4.Dataset(self.old_file, 'w') as old:
-            self.setup_ego_file(old)
-        self.old_handle = netCDF4.Dataset(self.old_file, 'r')
-        self.new_handle = netCDF4.Dataset(self.new_file, 'r+')
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.old_file = cls.class_temp_dir / 'TEST001_20151001_R.nc'
+        with netCDF4.Dataset(cls.old_file, 'w') as old:
+            cls.setup_ego_file(old)
+        cls.old_handle = netCDF4.Dataset(cls.old_file, 'r')
+        cls.converter = OpenGliderConverter.build(None, cls.halt_flag)
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         pass
 
-    def tearDown(self):
-        self.old_handle.close()
-        self.new_handle.close()
-        super().tearDown()
+    @classmethod
+    def tearDownClass(cls):
+        if cls.old_handle.isopen():
+            cls.old_handle.close()
+        super().tearDownClass()
 
-    def _add_old_ego_sensor_info(self, ds, param_info: t.Sequence[tuple[str, str, str]]):
+    @staticmethod
+    def _add_old_ego_sensor_info(ds, param_info: t.Sequence[tuple[str, str, str]]):
         for param in param_info:
             v = ds.createVariable(param[0], 'f8', ('N_COUNT',))
             if param[1]:
@@ -39,8 +39,8 @@ class GliderConversionTestcase(BaseTestCase):
             if param[2]:
                 v.setncattr('sensor_serial_number', param[2])
 
-    def _add_new_ego_sensor_info(self,
-                                 ds,
+    @staticmethod
+    def _add_new_ego_sensor_info(ds,
                                  sensor_info: t.Sequence[tuple[str, str, str, str, str, str]],
                                  parameter_info: t.Sequence[tuple[str, str]]):
         ds.createDimension('N_SENSORS', len(sensor_info))
@@ -77,8 +77,67 @@ class GliderConversionTestcase(BaseTestCase):
         self.assertEqual(netcdf_bytes_to_string(self.new_handle.variables[name][:]), value)
 
 
+class GliderManyTest(GliderBaseTest):
 
-class TestEmptyGliderConversion(GliderConversionTestcase):
+    def setUp(self):
+        super().setUp()
+        self.new_file = self.temp_dir / 'og.nc'
+        self.new_handle = netCDF4.Dataset(self.new_file, 'r+')
+
+    def tearDown(self):
+        if self.new_handle.isopen():
+            self.new_handle.close()
+        super().tearDown()
+
+
+class GliderOneTest(GliderBaseTest):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.new_file = cls.class_temp_dir / 'og.nc'
+        cls.new_handle = netCDF4.Dataset(cls.new_file, 'r+')
+        cls.converter._convert(cls.new_handle, cls.old_handle, cls.old_file.name)
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.new_handle.isopen():
+            cls.new_handle.close()
+        super().tearDownClass()
+
+
+class TestEmptyGliderConversion(GliderManyTest):
+
+    def test_get_info_url(self):
+        self.assertEqual(
+            self.converter._get_info_url('', '', [['C-PROOF']]),
+            'https://cproof.uvic.ca/'
+        )
+        self.assertEqual(
+            self.converter._get_info_url('', '', [['CEOTR']]),
+            'https://ceotr.ocean.dal.ca/gliders/'
+        )
+        self.assertEqual(
+            self.converter._get_info_url('', '', [['MEMORIAL']]),
+            'https://www.mun.ca/creait/autonomous-ocean-systems-centre/gliders--small-auvs/'
+        )
+        self.assertEqual(
+            self.converter._get_info_url('c-proof > stuff', '', []),
+            'https://cproof.uvic.ca/'
+        )
+        self.assertEqual(
+            self.converter._get_info_url('other > ceotr > stuff', '', []),
+            'https://ceotr.ocean.dal.ca/gliders/'
+        )
+        self.assertEqual(
+            self.converter._get_info_url('', 'hal_1002_19900102', []),
+            'https://cproof.uvic.ca/'
+        )
+        self.assertEqual(
+            self.converter._get_info_url('', 'sunfish_19900102', []),
+            'https://www.mun.ca/creait/autonomous-ocean-systems-centre/gliders--small-auvs/'
+        )
+
 
     def test_can_make_dimensions(self):
         self.converter._create_dimensions(self.new_handle)
@@ -252,10 +311,36 @@ class TestEmptyGliderConversion(GliderConversionTestcase):
         with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
             self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
+    def test_bad_data_mode(self):
+        with self.assertRaises(ValueError):
+            self.converter._validate_file_name('TEST001_0102030405_Z.nc')
 
-class TestPartialBadConversion(GliderConversionTestcase):
+    def test_bad_mission_time(self):
+        with self.assertRaises(ValueError):
+            self.converter._validate_file_name('TEST001_201501_R.nc')
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    def test_good_mission_time_ymd(self):
+        self.converter._validate_file_name('TEST001_20150102_R.nc')
+
+    def test_good_mission_time_ymdh(self):
+        self.converter._validate_file_name('TEST001_2015010203_R.nc')
+
+    def test_good_mission_time_ymdhm(self):
+        self.converter._validate_file_name('TEST001_201501020304_R.nc')
+
+    def test_good_mission_time_ymdhms(self):
+        self.converter._validate_file_name('TEST001_20150102030405_R.nc')
+
+    def test_parse_bad_filename(self):
+        with self.assertRaisesCNODCError('GLIDER-2021'):
+            self.converter._parse_file_name('MISSING_UNDERSCORE.nc')
+
+
+
+class TestPartialBadConversion(GliderManyTest):
+
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
         old.createVariable('JULD', 'f8', ('N_COUNT',))
@@ -295,9 +380,10 @@ class TestPartialBadConversion(GliderConversionTestcase):
 
 
 
-class TestPartial2BadConversion(GliderConversionTestcase):
+class TestPartial2BadConversion(GliderManyTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
         old.createVariable('LONGITUDE', 'f8', ('N_COUNT',))
@@ -350,9 +436,10 @@ class TestPartial2BadConversion(GliderConversionTestcase):
         with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
             self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
-class TestPartial3BadConversion(GliderConversionTestcase):
+class TestPartial3BadConversion(GliderManyTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
         old.createVariable('LONGITUDE', 'f8', ('N_COUNT',))
@@ -390,9 +477,10 @@ class TestPartial3BadConversion(GliderConversionTestcase):
             self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 
-class TestMinimalEmptyConversion(GliderConversionTestcase):
+class TestMinimalEmptyConversion(GliderManyTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
         old.createVariable('LONGITUDE', 'f8', ('N_COUNT',))
@@ -438,11 +526,12 @@ class TestMinimalEmptyConversion(GliderConversionTestcase):
 
 
 
-class TestBadPosSystem(GliderConversionTestcase):
+class TestBadPosSystem(GliderManyTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
-        old.createDimension('N_POS', 1)
+        old.createDimension('N_POS', 2)
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
         old.createVariable('LONGITUDE', 'f8', ('N_COUNT',))
         old.createVariable('PRES', 'f8', ('N_COUNT',))
@@ -463,7 +552,7 @@ class TestBadPosSystem(GliderConversionTestcase):
         old.setncattr('comment', 'wtf')
         old.setncattr('wmo_platform_code', '12345')
         ps = old.createVariable('POSITIONING_SYSTEM', str, ('N_POS',))
-        ps[:] = str_to_netcdf_vlen(['foobar'])
+        ps[:] = str_to_netcdf_vlen(['', 'foobar'])
 
     def test_bad_positioning_system(self):
         self.converter._create_dimensions(self.new_handle)
@@ -477,11 +566,12 @@ class TestBadPosSystem(GliderConversionTestcase):
             self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 
-class TestBadTrackSystem(GliderConversionTestcase):
+class TestBadTrackSystem(GliderManyTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
-        old.createDimension('N_TRANS', 1)
+        old.createDimension('N_TRANS', 2)
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
         old.createVariable('LONGITUDE', 'f8', ('N_COUNT',))
         old.createVariable('PRES', 'f8', ('N_COUNT',))
@@ -492,7 +582,7 @@ class TestBadTrackSystem(GliderConversionTestcase):
         juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
         juld.units = 'days since 2015-01-02T03:04:05+00:00'
         dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
-        dsd[:] = str_to_netcdf_vlen('20150102')
+        dsd[:] = str_to_netcdf_vlen('20150102030405')
         pt = old.createVariable('PLATFORM_TYPE', str, ())
         pt[:] = str_to_netcdf_vlen('SLOCUM_G2')
         old.createVariable('OPERATING_INSTITUTION', str, ())
@@ -502,7 +592,7 @@ class TestBadTrackSystem(GliderConversionTestcase):
         old.setncattr('comment', 'wtf')
         old.setncattr('wmo_platform_code', '12345')
         ps = old.createVariable('TRANS_SYSTEM', str, ('N_TRANS',))
-        ps[:] = str_to_netcdf_vlen(['foobar'])
+        ps[:] = str_to_netcdf_vlen(['', 'foobar'])
 
     def test_bad_telecom_system(self):
         self.converter._create_dimensions(self.new_handle)
@@ -511,15 +601,22 @@ class TestBadTrackSystem(GliderConversionTestcase):
             with self.assertRaisesCNODCError('GLIDER-2017'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
+    def test_deployment_info(self):
+        self.assertSameTime(
+            self.converter._validate_deployment_info(self.old_handle),
+            datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
+        )
+
     def test_is_invalid(self):
         with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
             self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 
 
-class TestBadBatterySystem(GliderConversionTestcase):
+class TestBadBatterySystem(GliderManyTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
         old.createDimension('N_TRANS', 1)
         old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
@@ -532,7 +629,7 @@ class TestBadBatterySystem(GliderConversionTestcase):
         juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
         juld.units = 'days since 2015-01-02T03:04:05+00:00'
         dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
-        dsd[:] = str_to_netcdf_vlen('20150102')
+        dsd[:] = str_to_netcdf_vlen('201501020304')
         pt = old.createVariable('PLATFORM_TYPE', str, ())
         pt[:] = str_to_netcdf_vlen('SLOCUM_G2')
         old.createVariable('OPERATING_INSTITUTION', str, ())
@@ -551,14 +648,21 @@ class TestBadBatterySystem(GliderConversionTestcase):
             with self.assertRaisesCNODCError('GLIDER-2016'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
+    def test_deployment_info(self):
+        self.assertSameTime(
+            self.converter._validate_deployment_info(self.old_handle),
+            datetime.datetime(2015, 1, 2, 3, 4, tzinfo=datetime.timezone.utc)
+        )
+
     def test_is_invalid(self):
         with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
             self.assertFalse(validate_ego_glider_file(self.old_file, {}))
 
 
-class TestMinimalConversion(GliderConversionTestcase):
+class TestMinimalConversion(GliderOneTest):
 
-    def setup_ego_file(self, old: netCDF4.Dataset):
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
         old.createDimension('N_COUNT', )
         old.createDimension('N_TRANS', 1)
         old.createDimension('N_POS', 3)
@@ -639,8 +743,8 @@ class TestMinimalConversion(GliderConversionTestcase):
         go = old.createVariable('GLIDER_OWNER', str, ())
         go[:] = str_to_netcdf_vlen('BIO;NAFC;DFO')
 
-        self._add_new_ego_sensor_info(old, [
-                ('CTD_PRES', 'Company A', 'Model X', '12345' ,'', '')
+        cls._add_new_ego_sensor_info(old, [
+                ('CTD_PRES', 'Company A', 'Model X', '12345' ,'', ''),
             ], [
                 ('PRES', 'CTD_PRES')
             ])
@@ -652,10 +756,6 @@ class TestMinimalConversion(GliderConversionTestcase):
         old.setncattr('program', 'Program')
         old.setncattr('project', 'Project')
         old.setncattr('network', 'Network')
-
-    def setUp(self):
-        super().setUp()
-        self.converter._convert(self.new_handle, self.old_handle, 'TEST001_20150102030405_R.nc')
 
     def test_is_valid(self):
         self.assertTrue(validate_ego_glider_file(self.old_file, {}))
@@ -733,7 +833,7 @@ class TestMinimalConversion(GliderConversionTestcase):
 
     def test_deployment_info(self):
         self.assertHasAttribute('start_date', '2015-01-02T00:00:00+00:00')
-        self.assertStringVariableEqual('TRAJECTORY', 'TEST001_20150102030405')
+        self.assertStringVariableEqual('TRAJECTORY', 'TEST001_20151001')
         self.assertEqual(self.new_handle.variables['DEPLOYMENT_TIME'][:].item(), 1420156800.0)
 
     def test_glider_info(self):
@@ -751,4 +851,126 @@ class TestMinimalConversion(GliderConversionTestcase):
         phase_qc = unnumpy(self.new_handle.variables['PHASE_QC'][:])
         self.assertEqual(phase, [2, 4, None])
         self.assertEqual(phase_qc, [0, 0, None])
+
+
+class TestFullConversionWithMetadata(GliderBaseTest):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.old_handle.close()
+        cls.new_file = cls.class_temp_dir / 'og.nc'
+        cls.converter.convert(cls.old_file, cls.new_file)
+        cls.metadata = cls.converter.build_metadata(cls.new_file, cls.old_file.name)
+        cls.new_handle = netCDF4.Dataset(cls.new_file, 'r')
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.new_handle.isopen():
+            cls.new_handle.close()
+        super().tearDownClass()
+
+    @classmethod
+    def setup_ego_file(cls, old: netCDF4.Dataset):
+        old.createDimension('N_COUNT', )
+        old.createDimension('N_TRANS', 1)
+        old.createDimension('N_POS', 3)
+
+        lats = old.createVariable('LATITUDE', 'f8', ('N_COUNT',))
+        lats.setncattr('units', 'degrees_north')
+        lats[:] = [45.1, 46.1, 47.1]
+
+        longs = old.createVariable('LONGITUDE', 'f8', ('N_COUNT',))
+        longs.setncattr('units', 'degrees_east')
+        longs[:] = [-126.1, -134.1, -119.2]
+
+        pres = old.createVariable('PRES', 'f8', ('N_COUNT',))
+        pres.setncattr('units', 'dbar')
+        pres[:] = [1234, 1235, 1236]
+
+        pres_qc = old.createVariable('PRES_QC', 'i2', ('N_COUNT',))
+        pres_qc.setncattr('flag_values', [0, 1, 2, 3, 4, 5])
+        pres_qc.setncattr('flag_meanings',
+                          '0: no 1: good, 2: probably_good, 3: probably_bad, 4: very_bad, 5: modified')
+        pres_qc[:] = [1, 1, 4]
+
+        temp = old.createVariable('TEMP', 'f8', 'N_COUNT', )
+        temp.setncattr('units', 'degrees_Celsius')
+        temp[:] = [math.nan, math.nan, math.nan]
+
+        temp_qc = old.createVariable('TEMP_QC', 'i2', ('N_COUNT',))
+        temp_qc.setncattr('flag_values', [0, 1, 2, 3, 4, 5, 9])
+        temp_qc.setncattr('flag_meanings',
+                          '0: no 1: good, 2: probably_good, 3: probably_bad, 4: very_bad, 5: modified')
+        temp_qc[:] = [9, 9, 9]
+
+        pos_qc = old.createVariable('POSITION_QC', 'i2', ('N_COUNT',))
+        pos_qc[:] = [1, 1, 1]
+        pos_qc.setncattr('flag_values', [0, 1, 2, 3, 4, 5])
+        pos_qc.setncattr('flag_meanings',
+                         '0: no 1: good, 2: probably_good, 3: probably_bad, 4: very_bad, 5: modified')
+
+        juld = old.createVariable('JULD', 'f8', ('N_COUNT',))
+        juld.units = 'days since 1950-01-01T00:00:00+00:00'
+        juld[:] = [27830.1, 27830.2, math.nan]
+
+        time_qc = old.createVariable('TIME_QC', 'i2', ('N_COUNT',))
+        time_qc[:] = [1, 1, 1]
+        time_qc.setncattr('flag_values', [0, 1, 2, 3, 4, 5])
+        time_qc.setncattr('flag_meanings',
+                          '0: no 1: good, 2: probably_good, 3: probably_bad, 4: very_bad, 5: modified')
+
+        dsl = old.createVariable('DEPLOYMENT_START_LATITUDE', 'f8', ())
+        dsl[:] = [44.9]
+
+        dslon = old.createVariable('DEPLOYMENT_START_LONGITUDE', 'f8', ())
+        dslon[:] = [-125.9]
+
+        pt = old.createVariable('PLATFORM_TYPE', str, ())
+        pt[:] = str_to_netcdf_vlen('SLOCUM_G2')
+
+        oi = old.createVariable('OPERATING_INSTITUTION', str, ())
+        oi[:] = str_to_netcdf_vlen('C-PROOF')
+
+        gsn = old.createVariable('GLIDER_SERIAL_NO', str, ())
+        gsn[:] = str_to_netcdf_vlen('123456')
+
+        dsd = old.createVariable('DEPLOYMENT_START_DATE', str, ())
+        dsd[:] = str_to_netcdf_vlen('20150102')
+
+        phases = old.createVariable('PHASE', 'i2', ('N_COUNT',))
+        phases.setncattr('missing_value', -1)
+        phases[:] = [1, 2, -1]
+
+        bt = old.createVariable('BATTERY_TYPE', str, ())
+        bt[:] = str_to_netcdf_vlen('LithiumION')
+
+        ts = old.createVariable('TRANS_SYSTEM', str, ('N_TRANS',))
+        ts[:] = str_to_netcdf_vlen(['iridium'])
+
+        ps = old.createVariable('POSITIONING_SYSTEM', str, ('N_POS',))
+        ps[:] = str_to_netcdf_vlen(['gps', 'argos', 'iridium'])
+
+        go = old.createVariable('GLIDER_OWNER', str, ())
+        go[:] = str_to_netcdf_vlen('BIO;NAFC;DFO')
+
+        cls._add_new_ego_sensor_info(old, [
+            ('CTD_PRES', 'Company A', 'Model X', '12345', '', '')
+        ], [
+                                         ('PRES', 'CTD_PRES')
+                                     ])
+
+        old.setncattr('principal_investigator', 'Erin Turnbull')
+        old.setncattr('comment', 'wtf')
+        old.setncattr('wmo_platform_code', '12345')
+        old.setncattr('deployment_code', 'My Mission')
+        old.setncattr('program', 'Program')
+        old.setncattr('project', 'Project')
+        old.setncattr('network', 'Network')
+
+    def test_is_valid(self):
+        self.assertTrue(validate_ego_glider_file(self.old_file, {}))
+
+    def test_dimensions(self):
+        self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)
 

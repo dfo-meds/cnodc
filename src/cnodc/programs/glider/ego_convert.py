@@ -108,43 +108,48 @@ class OpenGliderConverter:
         if self._halt is not None:
             self._halt.breakpoint()
 
-    def build_metadata(self, open_file, file_name: str) -> metadata.DatasetMetadata:
+    def build_metadata(self, open_file: pathlib.Path, file_name: str = None) -> metadata.DatasetMetadata:
         with nc.Dataset(open_file, "r") as ds:
-            return self._build_metadata(ds, file_name)
+            return self._build_metadata(ds, file_name or open_file.name)
 
     def _build_metadata(self, ds: nc.Dataset, file_name: str):
-            dmd = metadata.DatasetMetadata()
-            dmd.set_meds_defaults()
-            dmd.set_from_netcdf_file(ds)
-            dmd.set_processing_info("real-time")
-            mission_id = ds.getncattr('id')
-            dist = metadata.DistributionChannel()
-            dist.set_guid('direct_link')
-            dist.set_display_name({"en": "Direct Link", "fr": "Lien direct"})
-            main_link = metadata.Resource(f"https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/glider-planeur/{file_name}")
-            main_link.set_display_name({"en": "NetCDF File in OpenGlider format", "fr:": "Ficher NetCDF en format OpenGlider"})
-            main_link.set_name({"en": "NetCDF File in OpenGlider format", "fr:": "Ficher NetCDF en format OpenGlider"})
-            main_link.set_gc_language(metadata.GCLanguage.Bilingual)
-            main_link.set_link_purpose(metadata.ResourcePurpose.FileAccess)
-            main_link.set_gc_content_type(GCContentType.Dataset)
-            main_link.set_gc_content_format(GCContentFormat.DataNetCDF)
-            main_link.set_resource_type(metadata.ResourceType.File)
-            dist.set_primary_link(main_link)
-            dmd.add_distribution_channel(dist)
-            for var in dmd.get_variables():
-                if var.get_source_name() in ('LATITUDE', 'LONGITUDE', 'DEPTH', 'TIME'):
-                    var.set_destination_name(var.get_source_name().lower())
-            if 'users' in self._mapping_data['netcdf_conversion'] and self._mapping_data['netcdf_conversion']['users']:
-                for user in self._mapping_data['netcdf_conversion']['users']:
-                    dmd.add_user(user)
-            dmd.set_erddap_info(
-                server=metadata.Common.ERDDAP_Primary,
-                dataset_id=mission_id,
-                dataset_type=metadata.ERDDAPDatasetType.DSGTable,
-                file_path=f"/cloud_data/gliders/{mission_id.lower()}/",
-                file_pattern="*.nc.gz"
-            )
-            return dmd
+        glider_name, mission_time, data_mode = self._parse_file_name(file_name)
+        dmd = metadata.DatasetMetadata()
+        dmd.set_meds_defaults()
+        dmd.set_from_netcdf_file(ds)
+        if data_mode in 'RAP':
+            dmd.processing_level = 'real-time'
+        mission_id = ds.getncattr('id')
+        dist = metadata.DistributionChannel(
+            guid='direct_link',
+            display_name={"en": "Direct Link", "fr": "Lien direct"}
+        )
+        dist.primary_link = metadata.Resource(
+            url=f"https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/glider-planeur/{file_name}",
+            display_name={"en": "NetCDF File in OpenGlider format", "fr:": "Ficher NetCDF en format OpenGlider"},
+            name={"en": "NetCDF File in OpenGlider format", "fr:": "Ficher NetCDF en format OpenGlider"},
+            gc_language=metadata.GCLanguage.Bilingual,
+            gc_content_type=GCContentType.Dataset,
+            gc_content_format=GCContentFormat.DataNetCDF,
+            link_purpose=metadata.ResourcePurpose.FileAccess,
+            resource_type=metadata.ResourceType.File
+
+        )
+        dmd.distributors.append(dist)
+        for var in dmd.variables:
+            if var.source_name in ('LATITUDE', 'LONGITUDE', 'DEPTH', 'TIME'):
+                var.destination_name = var.source_name.lower()
+        if 'users' in self._mapping_data['netcdf_conversion'] and self._mapping_data['netcdf_conversion']['users']:
+            for user in self._mapping_data['netcdf_conversion']['users']:
+                dmd.add_user(user)
+        dmd.set_erddap_info(
+            server=metadata.Common.ERDDAP_Primary,
+            dataset_id=mission_id,
+            dataset_type=metadata.ERDDAPDatasetType.DSGTable,
+            file_path=f"/cloud_data/gliders/{mission_id.lower()}/",
+            file_pattern="*.nc.gz"
+        )
+        return dmd
 
     def convert(self, ego_file, og_file, file_name: t.Optional[str] = None):
         with nc.Dataset(ego_file, "r") as original_nc:
@@ -153,7 +158,8 @@ class OpenGliderConverter:
 
     def _parse_file_name(self, file_name: str):
         try:
-            return (file_name[:-3].rsplit('_', maxsplit=2))
+            gn, mt, dm = file_name[:-3].rsplit('_', maxsplit=2)
+            return gn, mt, dm
         except Exception as ex:
             raise GliderError(f'Invalid filename [{file_name}]', 2021) from ex
 
@@ -283,12 +289,6 @@ class OpenGliderConverter:
             if copy_from in original_nc.variables:
                 original_var = original_nc.variables[copy_from]
                 original_data = original_var[:]
-                if 'data_processor' in var_config and var_config['data_processor'] is not None:
-                    data_processor = dynamic_object(var_config['data_processor'])
-                    temp_data = []
-                    for x in original_data:
-                        temp_data.append(data_processor(x))
-                    original_data = temp_data
                 var[:] = original_data
                 if 'copy_attributes' in var_config and var_config['copy_attributes']:
                     for attr_name in var_config['copy_attributes']:
@@ -445,34 +445,15 @@ class OpenGliderConverter:
                 institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
         else:
             self._log.warning('Missing suggested [GLIDER_OWNER] variable')
-        for inst in institutions:
-            if inst[0] == 'C-PROOF':
-                # CPROOF
-                open_nc.setncattr('infoUrl', 'https://cproof.uvic.ca/')
-                break
-            elif inst[0] == 'CEOTR':
-                # CEOTR
-                open_nc.setncattr('infoUrl', 'https://ceotr.ocean.dal.ca/gliders/')
-                break
-            elif inst[0] == 'BIO':
-                # BIO
-                # TODO: BIO url?
-                open_nc.setncattr('infoUrl', '')
+        info_url = self._get_info_url(
+            open_nc.getncattr('network').lower() if hasattr(open_nc, 'network') else '',
+            open_nc.getncattr('id').lower() if hasattr(open_nc, 'id') else '',
+            institutions
+        )
+        if info_url:
+            open_nc.setncattr('infoUrl', info_url)
         else:
-            mission_id = open_nc.getncattr('id')
-            network = open_nc.getncattr('network') if hasattr(open_nc, 'network') else ''
-            if 'C-PROOF' in network or any(mission_id.startswith(x) for x in ('hal_1002', 'k_999', 'marvin_1003', 'rosie_713', 'Wall_E_652', 'mike_rorider',  'SEA035', 'SEA046')):
-                # CRPOOF
-                open_nc.setncattr("infoUrl", "https://cproof.uvic.ca/")
-            elif any(mission_id.startswith(x) for x in ('pearldiver', 'sunfish', 'Unit_334', 'unit_473')):
-                # MEMORIAL
-                open_nc.setncattr('infoUrl', 'https://www.mun.ca/creait/autonomous-ocean-systems-centre/gliders--small-auvs/')
-            elif any(mission_id.startswith(x) for x in ('SEA019', 'SEA021', 'SEA022', 'SEA024', 'SEA032')):
-                # BIO
-                # TODO: birl URL
-                open_nc.setncattr('infoUrl', '')
-            else:
-                self._log.warning(f'Cannot detect institution for setting infoUrl [institutions={'|'.join(inst[0] for inst in institutions)}] [network={network}] [mission_id={mission_id}]')
+            self._log.warning(f'No infoUrl found')
         if contributors:
             open_nc.setncattr('contributor_name', ','.join(c[0] for c in contributors))
             open_nc.setncattr('contributor_id', ','.join(c[1] for c in contributors))
@@ -486,6 +467,20 @@ class OpenGliderConverter:
             open_nc.setncattr('contributing_institutions_id_vocabulary', 'https://ror.org/')
             open_nc.setncattr('contributing_institutions_role', ','.join(c[3] for c in institutions))
             open_nc.setncattr('contributing_institutions_role_vocabulary', 'https://vocab.nerc.ac.uk/collection/W08/current/')
+
+    def _get_info_url(self, network, mission_id, institutions):
+        glider_names = self._get_data_map('institution_glider_names')
+        institution_urls = self._get_data_map('institution_urls')
+        for inst in institutions:
+            if inst[0].lower() in institution_urls:
+                return institution_urls[inst[0].lower()]
+        for glider_name in glider_names:
+            if mission_id.startswith(glider_name):
+                return institution_urls[glider_names[glider_name]]
+        for inst_name in institution_urls:
+            if inst_name in network:
+                return institution_urls[inst_name]
+        return None
 
     def _validate_deployment_info(self, original_nc: nc.Dataset) -> awaretime.AwareDateTime:
         if 'DEPLOYMENT_START_DATE' not in original_nc.variables:

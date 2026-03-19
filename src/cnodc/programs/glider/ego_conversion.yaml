@@ -889,3 +889,26 @@ data_maps:
       proper_name: Erin Turnbull
       id: 0009-0004-9696-0758
       email: erin.turnbull@dfo-mpo.gc.ca
+  institution_urls:
+    c-proof: https://cproof.uvic.ca/
+    ceotr: https://ceotr.ocean.dal.ca/gliders/
+    memorial: https://www.mun.ca/creait/autonomous-ocean-systems-centre/gliders--small-auvs/
+    bio: ''  # TBD
+  institution_glider_names:
+    hal_1002: 'c-proof'
+    k_999: 'c-proof'
+    marvin_1003: 'c-proof'
+    rosie_713: 'c-proof'
+    wall_e_652: 'c-proof'
+    mike_rorider: 'c-proof'
+    sea035: 'c-proof'
+    sea046: 'c-proof'
+    pearldiver: 'memorial'
+    sunfish: 'memorial'
+    unit_334: 'memorial'
+    unit_473: 'memorial'
+    sea019: 'bio'
+    sea021: 'bio'
+    sea022: 'bio'
+    sea024: 'bio'
+    sea032: 'bio'
