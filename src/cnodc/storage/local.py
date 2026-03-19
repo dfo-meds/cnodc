@@ -17,7 +17,7 @@ class LocalHandle(BaseStorageHandle):
 
     def __init__(self, path: pathlib.Path, *args, force_dir: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
-        self._path = path.expanduser().absolute()
+        self._path = path.expanduser().absolute().resolve()
         self._force_dir = force_dir
 
     @local_file_error_wrap
@@ -52,6 +52,16 @@ class LocalHandle(BaseStorageHandle):
 
     def _name(self) -> str:
         return self._path.name
+
+    def _mkdir(self, mode):
+        self._path.mkdir(mode)
+        self.clear_cache()
+
+    def parent(self) -> t.Self:
+        new_p = self._path.parent
+        if new_p == self._path:
+            return None
+        return self._build_descriptor(new_p, force_dir=True)
 
     @local_file_error_wrap
     def remove(self):

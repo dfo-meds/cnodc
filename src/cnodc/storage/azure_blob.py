@@ -228,6 +228,10 @@ class AzureBlobHandle(UrlBaseHandle):
         self.client().set_blob_metadata(metadata)
         self.clear_cache()
 
+    def mkdir(self, mode=0o777, parents: bool = True):
+        # never need to worry about making directories here.
+        pass
+
     def get_metadata(self, clear_cache: bool = False) -> dict[str, str]:
         return self.properties(clear_cache).metadata
 

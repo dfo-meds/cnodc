@@ -219,16 +219,16 @@ class BlobTest(BaseTestCase):
             b._get_connection_details()
 
     @injector.test_case
-    @test_with_config(("azure", "storage", "hello", "connection_string"), "ValueError")
+    @test_with_config(("azure", "storage", "test", "connection_string"), "ValueError")
     def test_bad_az_blob_conn_details(self):
-        b = AzureBlobHandle("https://hello.blob.core.windows.net/ValueError")
+        b = AzureBlobHandle("https://test.blob.core.windows.net/ValueError")
         with self.assertRaises(StorageError):
             b.client()
 
     @injector.test_case
-    @test_with_config(("azure", "storage", "hello", "connection_string"), "ValueError")
+    @test_with_config(("azure", "storage", "test", "connection_string"), "ValueError")
     def test_bad_az_container_conn_details(self):
-        b = AzureBlobHandle("https://hello.blob.core.windows.net/ValueError")
+        b = AzureBlobHandle("https://test.blob.core.windows.net/ValueError")
         with self.assertRaises(StorageError):
             b.container_client()
 
@@ -281,7 +281,7 @@ class BlobTest(BaseTestCase):
             self.assertIn('hello', md)
             self.assertEqual('world', md['hello'])
         finally:
-            p = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test99.txt'
+            p = self.get_test_root() / 'test99.txt'
             p.unlink()
 
     def test_set_tier(self):
@@ -296,13 +296,16 @@ class BlobTest(BaseTestCase):
                     file.set_tier(x)
                     self.assertIs(file.get_tier(), x)
                 finally:
-                    p = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test99.txt'
+                    p = self.get_test_root() / 'test99.txt'
                     p.unlink()
-
+                    
+    def get_test_root(self):
+        return pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container'
+        
     def test_delete_file(self):
         p = None
         try:
-            p = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test99.txt'
+            p = self.get_test_root() / 'test99.txt'
             with open(p, "w") as h:
                 h.write("foobar")
             file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test99.txt')
@@ -322,7 +325,7 @@ class BlobTest(BaseTestCase):
             file.remove()
 
     @injector.test_case
-    @test_with_config(("azure", "storage", "hello", "connection_string"), "GoodString")
+    @test_with_config(("azure", "storage", "test", "connection_string"), "GoodString")
     def test_existing_file(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test.txt')
         self.assertTrue(file.exists())
@@ -332,7 +335,7 @@ class BlobTest(BaseTestCase):
         self.assertIsNotNone(file.modified_datetime())
 
     @injector.test_case
-    @test_with_config(("azure", "storage", "hello", "connection_string"), "GoodString")
+    @test_with_config(("azure", "storage", "test", "connection_string"), "GoodString")
     def test_download(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test.txt')
         self.assertTrue(file.exists())
@@ -360,8 +363,8 @@ class BlobTest(BaseTestCase):
         self.assertIsInstance(handle, AzureBlobHandle)
 
     def test_upload(self):
-        blob_path = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt'
-        metadata_path = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt.metadata'
+        blob_path = self.get_test_root() / 'test2.txt'
+        metadata_path = self.get_test_root() / 'test2.txt.metadata'
         try:
             fp = self.temp_dir / 'bar.txt'
             with open(fp, 'w') as h:
@@ -381,8 +384,8 @@ class BlobTest(BaseTestCase):
             metadata_path.unlink(True)
 
     def test_upload_archival(self):
-        blob_path = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt'
-        metadata_path = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt.metadata'
+        blob_path = self.get_test_root() / 'test2.txt'
+        metadata_path = self.get_test_root() / 'test2.txt.metadata'
         try:
             fp = self.temp_dir / 'bar.txt'
             with open(fp, 'w') as h:
@@ -402,9 +405,8 @@ class BlobTest(BaseTestCase):
             metadata_path.unlink(True)
 
     def test_upload_cool(self):
-        blob_path = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt'
-        metadata_path = pathlib.Path(
-            __file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt.metadata'
+        blob_path = self.get_test_root() / 'test2.txt'
+        metadata_path = self.get_test_root() / 'test2.txt.metadata'
         try:
             fp = self.temp_dir / 'bar.txt'
             with open(fp, 'w') as h:
@@ -424,9 +426,8 @@ class BlobTest(BaseTestCase):
             metadata_path.unlink(True)
 
     def test_upload_hot(self):
-        blob_path = pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt'
-        metadata_path = pathlib.Path(
-            __file__).absolute().parent / 'azure_test' / 'container' / 'test2.txt.metadata'
+        blob_path = self.get_test_root() / 'test2.txt'
+        metadata_path = self.get_test_root() / 'test2.txt.metadata'
         try:
             fp = self.temp_dir / 'bar.txt'
             with open(fp, 'w') as h:

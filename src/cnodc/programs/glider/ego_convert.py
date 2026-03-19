@@ -303,8 +303,8 @@ class OpenGliderConverter:
             param_config = self._mapping_data['netcdf_conversion']['parameters'][param_name]
             if param_config['copy_data_from'] not in original_nc.variables:
                 continue
-            data = original_nc.variables[param_config['copy_data_from']][:]
-            if all(math.isnan(x) for x in data):
+            data = unnumpy(original_nc.variables[param_config['copy_data_from']][:])
+            if all(x is None for x in data):
                 continue
             var = self._create_variable(open_nc, original_nc, param_name, param_config)
             var.setncattr('coordinates', "TIME,LONGITUDE,LATITUDE,DEPTH")

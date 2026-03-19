@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 import zirconium as zr
 from autoinject import injector
 from .azure_blob import wrap_azure_errors
+from ..util.awaretime import awaretime, AwareDateTime
 
 
 class AzureFileHandle(UrlBaseHandle):
@@ -46,7 +47,7 @@ class AzureFileHandle(UrlBaseHandle):
         domain = url_parts.hostname
         if not domain.endswith(".file.core.windows.net"):
             raise StorageError(f"Invalid hostname", 4001)
-        path_parts = [x for x in url_parts.path.lstrip('/').split('/')]
+        path_parts = [x.strip() for x in url_parts.path.lstrip('/').split('/') if x.strip()]
         if len(path_parts) < 1 or path_parts[0] == "":
             raise StorageError(f"Missing share name", 4002)
         kwargs = {
@@ -73,7 +74,7 @@ class AzureFileHandle(UrlBaseHandle):
             else:
                 return AzureFileHandle._client_from_file_url(self._url)
         except ValueError as ex:
-            raise StorageError(f"Could not create file client", 4002) from ex
+            raise StorageError(f"Could not create file client", 4005) from ex
 
     def directory_client(self) -> ShareDirectoryClient:
         """Build a directory client."""
@@ -85,12 +86,15 @@ class AzureFileHandle(UrlBaseHandle):
                 return AzureFileHandle._directory_from_connection_string(
                     conn_str=connection_info["connection_string"],
                     share_name=connection_info["share_name"],
-                    directory_path=connection_info["file_path"][:-1]
+                    directory_path=connection_info["file_path"]
                 )
             else:
-                return AzureFileHandle._directory_from_file_url(self._url)
+                return AzureFileHandle._directory_from_url(self._url)
         except ValueError as ex:
             raise StorageError(f"Could not create directory client", 4003) from ex
+
+    def _mkdir(self, mode):
+        self.directory_client().create_directory()
 
     def _exists(self) -> bool:
         if self.is_dir():
@@ -98,11 +102,7 @@ class AzureFileHandle(UrlBaseHandle):
             return client.exists()
         else:
             client = self.file_client()
-            try:
-                client.get_file_properties()
-                return True
-            except ResourceNotFoundError:
-                return False
+            return client.exists()
 
     def _is_dir(self) -> bool:
         part1, _ = self._split_url()
@@ -112,19 +112,14 @@ class AzureFileHandle(UrlBaseHandle):
         part1, _ = self._split_url()
         if part1.endswith('/'):
             part1 = part1[:-1]
-        if '/' in part1:
-            last_slash = part1.rfind('/')
-            return part1[last_slash+1:]
-        return part1
+        pieces = part1.split('/')
+        return pieces[-1]
 
     @wrap_azure_errors
     def _read_chunks(self, buffer_size: int = None) -> t.Iterable[bytes]:
         stream = self.file_client().download_file()
         for chunk in HaltFlag._iterate(stream.chunks(), self._halt_flag, True):
             yield chunk
-
-    def _write_chunks(self, chunks: t.Iterable[bytes]):
-        pass
 
     @wrap_azure_errors
     def upload(self,
@@ -134,6 +129,7 @@ class AzureFileHandle(UrlBaseHandle):
                metadata: t.Optional[dict[str, str]] = None,
                storage_tier: t.Optional[StorageTier] = None):
         storage_tier = None
+        metadata = metadata or {}
         self._add_default_metadata(metadata, storage_tier)
         args = {
             'data': self._local_read_chunks(local_path, buffer_size),
@@ -153,11 +149,11 @@ class AzureFileHandle(UrlBaseHandle):
         self.clear_cache()
 
     @wrap_azure_errors
-    def full_name(self):
+    def full_path_within_share(self):
         if self._is_dir():
             return self.directory_client().directory_path
         else:
-            return self.file_client().file_path
+            return '/'.join(self.file_client().file_path)
 
     def supports_metadata(self) -> bool:
         return True
@@ -166,19 +162,16 @@ class AzureFileHandle(UrlBaseHandle):
         return False
 
     @wrap_azure_errors
-    def walk(self, recursive: bool = True) -> t.Iterable:
+    def walk(self, recursive: bool = True) -> t.Iterable[t.Self]:
         client = self.directory_client()
         more_work: list[AzureFileHandle] = []
         for file in HaltFlag._iterate(client.list_directories_and_files(), self._halt_flag, True):
-            if isinstance(file, FileProperties):
+            if not file.is_directory:
                 yield self.child(file.name, False)
-            elif isinstance(file, DirectoryProperties):
+            elif recursive:
+                dh = self.child(file.name, True)
                 if recursive:
-                    dh = self.child(file.name, True)
-                    if recursive:
-                        more_work.append(dh)
-            else:
-                raise StorageError(f"Unknown type of file listing results [{file.__class__.__name__}]", 4005)
+                    more_work.append(dh)
         for sub_dir in more_work:
             yield from sub_dir.walk(recursive)
 
@@ -198,17 +191,15 @@ class AzureFileHandle(UrlBaseHandle):
     def _directory_properties(self):
         return self.directory_client().get_directory_properties()
 
-    def size(self, clear_cache: bool = False) -> int:
+    def size(self, clear_cache: bool = False) -> t.Optional[int]:
         if self._is_dir():
-            return -1
+            return None
         return self.file_properties(clear_cache).size
 
     def modified_datetime(self, clear_cache: bool = False) -> t.Optional[datetime.datetime]:
-        # TODO: what tiemzone is returned here?
         if self._is_dir():
-            return self.dir_properties(clear_cache).last_modified.astimezone()
-        else:
-            return self.file_properties(clear_cache).last_modified.astimezone()
+            return AwareDateTime.from_datetime(self.dir_properties(clear_cache).last_modified, 'Etc/UTC')
+        return AwareDateTime.from_datetime(self.file_properties(clear_cache).last_modified, 'Etc/UTC')
 
     @wrap_azure_errors
     def set_metadata(self, metadata: dict[str, str]):
@@ -225,19 +216,19 @@ class AzureFileHandle(UrlBaseHandle):
             return self.file_properties(clear_cache).metadata
 
     @staticmethod
-    def _client_from_connection_string(conn_str, share_name, file_path):
+    def _client_from_connection_string(conn_str, share_name, file_path): #pragma: no coverage (requires connectivity)
         return ShareFileClient.from_connection_string(conn_str, share_name, file_path)
 
     @staticmethod
-    def _client_from_file_url(url):
+    def _client_from_file_url(url): #pragma: no coverage (requires connectivity)
         return ShareFileClient.from_file_url(url)
 
     @staticmethod
-    def _directory_from_connection_string(conn_str, share_name, directory_path):
+    def _directory_from_connection_string(conn_str, share_name, directory_path): #pragma: no coverage (requires connectivity)
         return ShareDirectoryClient.from_connection_string(conn_str, share_name, directory_path)
 
     @staticmethod
-    def _directory_from_file_url(url):
+    def _directory_from_url(url):  #pragma: no coverage (requires connectivity)
         return ShareDirectoryClient.from_directory_url(url)
 
     @staticmethod

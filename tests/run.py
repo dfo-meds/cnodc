@@ -29,7 +29,7 @@ class CNODCTestResult(TextTestResult):
             self.stream.write('E')
 
     def _format_error(self, ex_type: type, ex: BaseException, tb: types.TracebackType) -> str:
-        s = ''
+        traces = []
         while tb is not None:
             full_filename = tb.tb_frame.f_code.co_filename
             if (not full_filename.endswith(('unittest\\case.py', 'unittest/case.py', 'base_test_case.py'))) and not tb.tb_frame.f_code.co_name.startswith('assert'):
@@ -42,10 +42,9 @@ class CNODCTestResult(TextTestResult):
                         if idx == tb.tb_lineno:
                             line = file_line
                             break
-                s += f"{filename}:{tb.tb_lineno} [{tb.tb_frame.f_code.co_name}]: {line.strip()}\n"
+                traces.append(f"{filename}:{tb.tb_lineno} [{tb.tb_frame.f_code.co_name}]: {line.strip()}")
             tb = tb.tb_next
-        s += f"\n\033[1;31m{ex_type.__name__}\033[0m: {str(ex)}\n"
-        return s
+        return "\n".join(traces) + f"\n\n\033[1;31m{ex_type.__name__}\033[0m: {str(ex)}"
 
 
 if __name__ == '__main__':

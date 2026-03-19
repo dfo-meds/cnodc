@@ -114,6 +114,9 @@ class _FTPWrapper:
             info['server_timezone'] = self._config['server_timezone']
         return info
 
+    def mkdir(self, dir_path):
+        self._server.mkd(dir_path)
+
     def list_dir(self, dir_path='', facts: t.Optional[list[str]] = None):
         if self.supports_rfc3659_features():
             for name, facts in self._server.mlsd(dir_path, facts):
@@ -255,6 +258,10 @@ class FTPHandle(UrlBaseHandle):
                         yield rel_path, True
                 else:
                     yield rel_path, False
+
+    def _mkdir(self, mode):
+        with self._connection() as ftp:
+            ftp.mkdir(self._current_dir())
 
     def _exists(self) -> bool:
         if self.name() == '':

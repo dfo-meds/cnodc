@@ -78,6 +78,9 @@ class BaseStorageHandle:
     def __str__(self):
         return self.path()
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {str(self)}>'
+
     def clear_cache(self):
         """Clear the local cache of all values."""
         self._cached_properties = {}
@@ -143,6 +146,18 @@ class BaseStorageHandle:
         """Add default metadata to the file based on NODB standards."""
         from cnodc.storage import StorageController
         StorageController.apply_default_metadata(metadata, storage_tier=storage_tier)
+
+    def mkdir(self, mode=0o777, parents: bool = True):
+        if self.exists():
+            return
+        if parents:
+            parent = self.parent()
+            if parent is not None and not parent.exists():
+                parent.mkdir(mode, parents)
+        self._mkdir(mode)
+
+    def _mkdir(self, mode):
+        raise NotImplementedError
 
     def _upload(self,
                local_path,
@@ -233,6 +248,9 @@ class BaseStorageHandle:
         """Create a child of the current directory."""
         raise NotImplementedError  # pragma: no coverage
 
+    def parent(self) -> t.Self:
+        raise NotImplementedError  # pragma: no coverage
+
     def subdir(self, sub_path: str) -> BaseStorageHandle:
         """Create a child of the current directory, as a directory."""
         return self.child(sub_path, True)
@@ -292,7 +310,7 @@ class BaseStorageHandle:
     def _size(self) -> t.Optional[int]:
         return None  # pragma: no coverage
 
-    def _build_child(self, *args, **kwargs):
+    def _build_descriptor(self, *args, **kwargs):
         return self.__class__(*args, **self._new_child_args, **kwargs)
 
     @staticmethod
@@ -317,9 +335,16 @@ class UrlBaseHandle(BaseStorageHandle):
         part1, part2 = self._split_url()
         if not part1.endswith('/'):  # pragma: no coverage (usually fine, is here just in case)
             part1 += '/'
-        return self._build_child(
+        return self._build_descriptor(
             f"{part1}{sub_path.strip('/')}{'' if not as_dir else '/'}{part2}"
         )
+
+    def parent(self) -> t.Optional[UrlBaseHandle]:
+        parts = self.parse_url()
+        pieces = [x for x in parts.path.split('/') if x]
+        if not pieces:
+            return None
+        return self._build_descriptor(f'{parts.scheme}://{parts.netloc}/{'/'.join(pieces[:-1])}/')
 
     def parse_url(self) -> ParseResult:
         """Get the parts of the URL."""
