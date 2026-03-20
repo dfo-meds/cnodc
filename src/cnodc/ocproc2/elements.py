@@ -297,10 +297,13 @@ class SingleElement(AbstractElement):
         return str(self._value)  # pragma: no coverage
 
     def find_child(self, path: list[str]):
-        if (not path) or path[0] == "0":
+        if not path:
             return self
-        elif path[0] == 'metadata':
-            return self.metadata.find_child(path[1:])
+        first_element = path.pop(0)
+        if first_element == 0 or first_element == "0":
+            return self.find_child(path)
+        elif first_element == 'metadata':
+            return self.metadata.find_child(path)
         else:
             return None
 
@@ -410,15 +413,16 @@ class MultiElement(AbstractElement):
     def find_child(self, path: list[str]):
         if not path:
             return self
-        elif path[0] == 'metadata':
-            return self.metadata.find_child(path[1:])
-        elif path[0].isdigit():
-            idx = int(path[0])
+        first_element = path.pop(0)
+        if first_element == 'metadata':
+            return self.metadata.find_child(path)
+        try:
+            idx = int(first_element)
             if 0 <= idx < len(self._value):
-                return self._value[idx]
-            return None
-        else:
-            return None
+                return self._value[idx].find_child(path)
+        except (ValueError, TypeError):
+            pass
+        return None
 
     def all_values(self, srt: bool = False) -> t.Iterable:
         if srt:
@@ -460,8 +464,9 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         if not path:
             return self
         try:
-            return self._load(path[0]).find_child(path[1:])
-        except KeyError:
+            first_element = path.pop(0)
+            return self._load(first_element).find_child(path)
+        except KeyError as ex:
             return None
 
     def update_hash(self, h):

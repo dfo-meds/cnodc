@@ -16,13 +16,16 @@ class WorkflowProgressWorker(WorkflowWorker):
             'queue_name': 'workflow_continue'
         })
 
+    def autocomplete(self, queue_item):
+        super().autocomplete(queue_item)
+
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
-        workflow = payload.load_workflow(self._db, self._halt_flag)
+        workflow = payload.load_workflow(self.db, self._halt_flag)
         if workflow.has_more_steps(payload.current_step):
             next_payload = self.copy_payload(payload)
             next_payload.current_step_done = True
             workflow.queue_step(
                 next_payload,
-                db=self._db
+                db=self.db
             )
             self.prevent_default_progression()

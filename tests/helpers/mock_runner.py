@@ -82,7 +82,7 @@ class WorkerTestController:
             kwargs['process_name'] = 'test'
             kwargs['process_version'] = '0.1'
         cls = worker_cls(**kwargs)
-        cls._db = self._db
+        cls.db = self._db
         if hasattr(cls, 'nodb'):
             cls.nodb = self._nodb
         return cls

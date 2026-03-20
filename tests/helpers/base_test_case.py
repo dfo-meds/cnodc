@@ -36,6 +36,7 @@ class BaseTestCase(ut.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.reset_db_before_tests: bool = True
         cls.class_temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
         cls.db = DatabaseMock()
         cls.nodb = DummyNODB(cls.db)
@@ -49,7 +50,8 @@ class BaseTestCase(ut.TestCase):
     @injector.inject
     def tearDown(self, d: InjectableDict = None):
         shutil.rmtree(self.temp_dir)
-        self.db.reset()
+        if self.reset_db_before_tests:
+            self.db.reset()
         d.data.clear()
         self.halt_flag.event.clear()
 

@@ -155,6 +155,7 @@ class BaseStorageHandle:
             if parent is not None and not parent.exists():
                 parent.mkdir(mode, parents)
         self._mkdir(mode)
+        self.clear_cache()
 
     def _mkdir(self, mode):
         raise NotImplementedError

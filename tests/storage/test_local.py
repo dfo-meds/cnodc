@@ -147,6 +147,19 @@ class TestLocalHandle(BaseTestCase):
         self.assertFalse(handle.exists())
         self.assertFalse(fp.exists())
 
+    def test_mkdir(self):
+        fp = self.temp_dir / "subdir2"
+        try:
+            self.assertFalse(fp.exists())
+            handle = LocalHandle(fp)
+            self.assertFalse(handle.exists())
+            handle.mkdir()
+            self.assertTrue(handle.exists())
+            self.assertTrue(fp.exists())
+        finally:
+            if fp.exists():
+                fp.rmdir()
+
     def test_upload(self):
         fp = self.temp_dir / "file.txt"
         with open(fp, "w") as h:

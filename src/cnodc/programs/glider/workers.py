@@ -9,6 +9,7 @@ import cnodc.nodb as nodb
 from cnodc.ocproc2 import ParentRecord
 from cnodc.processing.workers.queue_worker import QueueItemResult
 from cnodc.processing.workers.payload_worker import FileWorkflowWorker, SourceWorkflowWorker
+from cnodc.programs.nodb import NODBDecodeLoadWorker
 from cnodc.storage import StorageController, BaseStorageHandle
 from cnodc.util import CNODCError
 from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload
@@ -18,7 +19,9 @@ import cnodc.programs.dmd.dmd as dmd
 import cnodc.util.awaretime as awaretime
 
 
-def add_glider_mission_platform_info(source_file, record: ParentRecord, db: NODBControllerInstance, memory: dict):
+def add_glider_mission_platform_info(worker: NODBDecodeLoadWorker, record: ParentRecord, **kwargs):
+    memory = worker.memory
+    db = worker.db
     if 'platform_map' not in memory:
         memory['platform_map'] = {}
     if 'mission_map' not in memory:
@@ -100,11 +103,12 @@ class GliderConversionWorker(SourceWorkflowWorker):
         if not self._target_erddap_dir.exists():
             raise CNODCError('OpenGlider ERDDAP directory does not exist', 'GLIDER-CONVERT', 1003)
         self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
+        super().on_start()
 
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
         local_file = self.download_to_temp_file()
         new_file = self.temp_dir() / "openglider.nc"
-        file_name, mission_id = self._converter.convert(local_file, new_file, payload.load_source_file(self._db).file_name)
+        file_name, mission_id = self._converter.convert(local_file, new_file, payload.load_source_file(self.db).file_name)
 
         erddap_storage_metadata = self.storage.build_metadata(
             program_name='GLIDERS',
@@ -139,7 +143,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
         if already_exists:
             erddap_queue = self.get_config('erddap_reload_queue')
             if erddap_queue:
-                self._db.create_queue_item(
+                self.db.create_queue_item(
                     queue_name=erddap_queue,
                     data={'dataset_id': mission_id,},
                     unique_item_name=mission_id
@@ -163,10 +167,14 @@ class GliderMetadataUploadWorker(FileWorkflowWorker):
             process_version="1.0",
             **kwargs
         )
+        self.set_defaults({
+            'queue_name': 'glider_metadata_upload',
+        })
         self._converter: t.Optional[OpenGliderConverter] = None
 
     def on_start(self):
         self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
+        super().on_start()
 
     def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
         local_file = self.download_to_temp_file()

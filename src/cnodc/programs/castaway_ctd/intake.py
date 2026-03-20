@@ -194,8 +194,8 @@ class CastawayIntakeWorker(FileWorkflowWorker):
                     self.get_config('erddap_dataset_id'),
                     cluster_name=self.get_config('erddap_cluster', None)
                 )
-            self._current_item.mark_complete(self._db)
-            self._db.commit()
+            self._current_item.mark_complete(self.db)
+            self.db.commit()
         except Exception as ex:
             if stage >= 1:
                 upload_file.remove()

@@ -38,6 +38,10 @@ class NODBQueueItem(s.NODBBaseObject):
     priority: t.Optional[int] = s.IntColumn('priority', readonly=True)
     data: dict = s.JsonColumn("data")
 
+    @classmethod
+    def get_str_keys(cls):
+        return ['queue_name', 'queue_uuid', 'status']
+
     def mark_complete(self, db: NODBControllerInstance):
         """Mark the queue item as complete."""
         self._set_queue_status(db=db, new_status=QueueStatus.COMPLETE)
@@ -84,15 +88,14 @@ class NODBQueueItem(s.NODBBaseObject):
                 reduce_priority,
                 escalation_level if escalation_level is not None else (self.escalation_level or 0)
             )
-            self._allow_set_readonly = True
-            self.status = new_status
-            self.priority = self.priority + (1 if reduce_priority else 0)
-            self.locked_by = None
-            self.locked_since = None
-            if escalation_level is not None:
-                self.escalation_level = escalation_level
-            self.delay_release = release_at
-            self._allow_set_readonly = False
+            with self._readonly_access():
+                self.status = new_status
+                self.priority = self.priority + (1 if reduce_priority else 0)
+                self.locked_by = None
+                self.locked_since = None
+                if escalation_level is not None:
+                    self.escalation_level = escalation_level
+                self.delay_release = release_at
 
     @classmethod
     def find_by_uuid(cls, db, uuid: str, **kwargs):

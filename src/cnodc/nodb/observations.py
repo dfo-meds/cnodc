@@ -150,6 +150,13 @@ class NODBSourceFile(s.NODBBaseObject, s.MetadataMixin):
 
     metadata: t.Optional[dict] = s.JsonColumn("metadata")
 
+    @classmethod
+    def get_mock_index_keys(cls) -> list[list[str]]:
+        keys = super().get_mock_index_keys()
+        keys.append(['source_path'])
+        keys.append(['original_idx', 'original_uuid', 'received_date'])
+        return keys
+
     def report_error(self, message, name, version, instance):
         """Add an error to the file history."""
         self.add_history(message, name, version, instance, 'ERROR')
@@ -222,7 +229,7 @@ class NODBSourceFile(s.NODBBaseObject, s.MetadataMixin):
 class NODBMission(s.NODBBaseObject, MetadataMixin):
 
     TABLE_NAME = 'nodb_missions'
-    PRIMARY_KEYS = ("mission_uuid",),
+    PRIMARY_KEYS = ("mission_uuid",)
 
     mission_uuid: str = s.UUIDColumn("mission_uuid")
     mission_id: str = s.StringColumn("mission_id")
@@ -469,6 +476,12 @@ class NODBObservationData(s.NODBBaseObject, _RecordMixin, MetadataMixin):
     status: ObservationStatus = s.EnumColumn("status", ObservationStatus)
     processing_level: ProcessingLevel = s.EnumColumn("processing_level", ProcessingLevel)
 
+    @classmethod
+    def get_mock_index_keys(cls) -> list[list[str]]:
+        keys = super().get_mock_index_keys()
+        keys.append(['source_file_uuid', 'received_date', 'message_idx', 'record_idx', 'processing_level'])
+        return keys
+
     def find_observation(self, db):
         return NODBObservation.find_by_uuid(db, self.obs_uuid, self.received_date)
 
@@ -551,6 +564,12 @@ class NODBWorkingRecord(s.NODBBaseObject, _RecordMixin, MetadataMixin):
         return db.load_object(cls, {
             "working_uuid": obs_uuid,
         }, *args, **kwargs)
+
+    @classmethod
+    def get_mock_index_keys(cls) -> list[list[str]]:
+        keys = super().get_mock_index_keys()
+        keys.append(['source_file_uuid', 'received_date', 'message_idx', 'record_idx'])
+        return keys
 
     @classmethod
     def find_by_source_info(cls,

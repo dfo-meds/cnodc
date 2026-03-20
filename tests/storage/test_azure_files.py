@@ -135,6 +135,9 @@ class _AzureDirectoryClient:
             raise ResourceNotFoundError()
         shutil.rmtree(self._real_path)
 
+    def create_directory(self):
+        self._real_path.mkdir()
+
     def set_directory_metadata(self, md: dict):
         save_metadata(self._real_path, md)
 
@@ -316,17 +319,25 @@ class AzureFileTest(BaseTestCase):
         self.assertFalse(file.exists())
         self.assertFalse(real_file.exists())
 
-    def test_remove_dir(self):
+    def test_make_and_remove_dir(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/real_dir/')
         real_dir = self.get_test_root() / 'real_dir'
-        real_dir.mkdir()
         real_file = real_dir / 'new.txt'
-        real_file.touch()
-        self.assertTrue(file.exists())
-        file.remove()
-        self.assertFalse(file.exists())
-        self.assertFalse(real_dir.exists())
-        self.assertFalse(real_file.exists())
+        try:
+            self.assertFalse(real_dir.exists())
+            file.mkdir()
+            self.assertTrue(real_dir.exists())
+            self.assertFalse(real_file.exists())
+            real_file.touch()
+            self.assertTrue(file.exists())
+            file.remove()
+            self.assertFalse(file.exists())
+            self.assertFalse(real_dir.exists())
+            self.assertFalse(real_file.exists())
+        finally:
+            real_file.unlink(True)
+            if real_dir.exists():
+                real_dir.rmdir()
 
     def test_supports(self):
         self.assertTrue(AzureFileHandle.supports('https://test.file.core.windows.net/share/new.txt'))

@@ -49,8 +49,7 @@ class GliderEGOMapper(NetCDFCommonMapper):
         for key in extra_metadata.keys():
             element.metadata.set(key, extra_metadata[key])
 
-    @staticmethod
-    def _isoformat_ego_date(value, minfo):
+    def _isoformat_ego_date(self, value, minfo):
         if not value:
             return None
         match len(value):

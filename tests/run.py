@@ -1,3 +1,4 @@
+import logging
 import pathlib
 import types
 import unittest
@@ -28,7 +29,7 @@ class CNODCTestResult(TextTestResult):
         if self.dots:
             self.stream.write('E')
 
-    def _format_error(self, ex_type: type, ex: BaseException, tb: types.TracebackType) -> str:
+    def _format_error(self, ex_type: type, ex: BaseException, tb: types.TracebackType, t=10) -> str:
         traces = []
         while tb is not None:
             full_filename = tb.tb_frame.f_code.co_filename
@@ -44,10 +45,21 @@ class CNODCTestResult(TextTestResult):
                             break
                 traces.append(f"{filename}:{tb.tb_lineno} [{tb.tb_frame.f_code.co_name}]: {line.strip()}")
             tb = tb.tb_next
-        return "\n".join(traces) + f"\n\n\033[1;31m{ex_type.__name__}\033[0m: {str(ex)}"
+        s = ''
+        cause = ex.__cause__
+        if cause is not None and t > 0:
+            s += self._format_error(type(cause), cause, cause.__traceback__, t - 1)
+            s += '\n\nthe above was a direct cause of the following\n'
+        return s + "\n".join(traces) + f"\n\n\033[1;31m{ex_type.__name__}\033[0m: {str(ex)}"
+
 
 
 if __name__ == '__main__':
+    logging.disable(logging.NOTSET)
+    logging.getLogger().setLevel('WARNING')
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter('[%(levelname)s %(asctime)s]: %(message)s'))
+    logging.getLogger().addHandler(h)
     cov = coverage.Coverage(
         config_file=TEST_DIR / ".coveragerc",
         source_pkgs=["cnodc"]
@@ -59,6 +71,8 @@ if __name__ == '__main__':
         if target.name.endswith('.py'):
             files = target.name
             target = target.parent
+        elif target.name == 'wtests':
+            files = 'wtest*.py'
     loader = unittest.TestLoader()
     cov.start()
     suite = loader.discover(target, files)

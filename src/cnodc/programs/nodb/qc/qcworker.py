@@ -65,14 +65,14 @@ class NODBQCWorker(WorkflowWorker):
             payload.set_metadata('recheck-queue', None)
             payload.set_metadata('current-qc-test', None)
         payload.set_unique_key(group_key)
-        payload.enqueue(self._db, queue_name)
+        payload.enqueue(self.db, queue_name)
 
     def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
         batch = nodb.NODBBatch()
         batch.batch_uuid = str(uuid.uuid4())
         batch.status = nodb.BatchStatus.QUEUED
-        self._db.insert_object(batch)
-        NODBWorkingRecord.bulk_set_batch_uuid(self._db, working_uuids, batch.batch_uuid)
+        self.db.insert_object(batch)
+        NODBWorkingRecord.bulk_set_batch_uuid(self.db, working_uuids, batch.batch_uuid)
         self.submit_existing_batch(batch.batch_uuid, batch_outcome, group_key)
 
     def _build_batcher(self, payload: WorkflowPayload):
@@ -90,22 +90,22 @@ class NODBQCWorker(WorkflowWorker):
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         batcher = self._build_batcher(payload)
         if isinstance(payload, BatchPayload):
-            batch = payload.load_batch(self._db)
+            batch = payload.load_batch(self.db)
             self._process_records(batch.stream_working_records(
-                self._db,
+                self.db,
                 lock_type=LockType.FOR_NO_KEY_UPDATE,
                 order_by=self._test_runner.working_sort_by
             ), batcher)
             batcher.flush_all()
             if batcher.remove_original_batch:
-                self._db.delete_object(batch)
-            self._current_item.mark_complete(self._db)
-            self._db.commit()
+                self.db.delete_object(batch)
+            self._current_item.mark_complete(self.db)
+            self.db.commit()
             return QueueItemResult.HANDLED
         elif isinstance(payload, SourceFilePayload):
-            source = payload.load_source_file(self._db)
+            source = payload.load_source_file(self.db)
             self._process_records(source.stream_working_records(
-                self._db,
+                self.db,
                 lock_type=LockType.FOR_NO_KEY_UPDATE,
                 order_by=self._test_runner.working_sort_by
             ), batcher)

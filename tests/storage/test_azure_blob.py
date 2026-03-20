@@ -269,6 +269,7 @@ class BlobTest(BaseTestCase):
     def test_dir_properties(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test/')
         self.assertIsNone(file.properties())
+        file.mkdir()
 
     def test_set_metadata(self):
         try:
@@ -282,6 +283,8 @@ class BlobTest(BaseTestCase):
             self.assertEqual('world', md['hello'])
         finally:
             p = self.get_test_root() / 'test99.txt'
+            p.unlink()
+            p = self.get_test_root() / 'test99.txt.metadata'
             p.unlink()
 
     def test_set_tier(self):
@@ -297,6 +300,8 @@ class BlobTest(BaseTestCase):
                     self.assertIs(file.get_tier(), x)
                 finally:
                     p = self.get_test_root() / 'test99.txt'
+                    p.unlink()
+                    p = self.get_test_root() / 'test99.txt.metadata'
                     p.unlink()
                     
     def get_test_root(self):
@@ -317,6 +322,8 @@ class BlobTest(BaseTestCase):
         finally:
             if p:
                 p.unlink(True)
+            p = self.get_test_root() / 'test99.txt.metadata'
+            p.unlink(True)
 
     def test_delete_dir(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/subdir/')

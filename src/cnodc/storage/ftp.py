@@ -7,11 +7,11 @@ import typing as t
 import urllib.parse
 import zoneinfo
 from contextlib import contextmanager
+from ftplib import error_perm
 from zoneinfo import ZoneInfoNotFoundError
 
 from autoinject import injector
 import zirconium as zr
-from pandas.core.dtypes.inference import is_re
 
 from cnodc.storage.base import BaseStorageHandle, UrlBaseHandle, StorageError
 import cnodc.util.awaretime as awaretime
@@ -208,7 +208,11 @@ class FTPHandle(UrlBaseHandle):
     def _connection(self):
         with self.conn_pool.build_connection(self._url) as ftp:
             ftp.connect()
-            ftp.cwd(self.current_dir())
+            try:
+                ftp.cwd(self.current_dir())
+            except error_perm as ex:
+                if str(ex)[0:2] != '55':
+                    raise ex from ex
             yield ftp
 
     @ftplib_error_wrap
@@ -259,6 +263,7 @@ class FTPHandle(UrlBaseHandle):
                 else:
                     yield rel_path, False
 
+    @ftplib_error_wrap
     def _mkdir(self, mode):
         with self._connection() as ftp:
             ftp.mkdir(self._current_dir())
@@ -273,9 +278,12 @@ class FTPHandle(UrlBaseHandle):
 
     @ftplib_error_wrap
     def _stat(self):
-        with self._connection() as ftp:
+        try:
             p = self.parse_url()
-            return ftp.stat(p.path)
+            with self._connection() as ftp:
+                return ftp.stat(p.path)
+        except Exception as ex:
+            raise ex
 
     def _is_dir(self) -> bool:
         if self.name() == '':

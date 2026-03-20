@@ -298,6 +298,9 @@ class DecodeResult:
         self.original: t.Union[bytes, bytearray, None] = original
         self.skipped = skipped
 
+    def __str__(self):
+        return f'<DecodeResult;{self.success};{len(self.records) if self.success else type(self.from_exception).__name__}'
+
 
 class EncodeResult:
 

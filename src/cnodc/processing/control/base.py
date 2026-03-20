@@ -11,7 +11,7 @@ import yaml
 import zrlog
 import pathlib
 from zrlog.logger import ImprovedLogger
-from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt, ungzip_with_halt
+from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt, ungzip_with_halt, DynamicObjectLoadError
 import json
 
 from cnodc.util.protocols import EventProtocol
@@ -476,7 +476,7 @@ class BaseWorker:
         self._process_version = process_version
         self._config = _config or {}
         self._defaults = {
-            'save_file': None
+            'save_file': None,
         }
         self._log: t.Optional[ImprovedLogger] = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
         zrlog.set_extras({
@@ -486,6 +486,25 @@ class BaseWorker:
         })
         self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
         self._save_data: t.Optional[SaveData] = None
+        self._hook_cache = {}
+
+    def run_hook(self, hook_name, **kwargs):
+        if hook_name not in self._hook_cache:
+            self._hook_cache[hook_name] = []
+            hooks = self.get_config(f'hook_{hook_name}', None)
+            if hooks:
+                if not isinstance(hooks, (list, tuple, set)):
+                    hooks = [hooks]
+                for hook_call in hooks:
+                    if isinstance(hook_call, str):
+                        try:
+                            self._hook_cache[hook_name].append(dynamic_object(hook_call))
+                        except DynamicObjectLoadError:
+                            self._log.exception(f"Error loading hook [{hook_call}] for [{hook_name}]")
+                    else:
+                        self._hook_cache[hook_name].append(hook_call)
+        for hook_callable in self._hook_cache[hook_name]:
+            hook_callable(worker=self, **kwargs)
 
     def breakpoint(self):
         """ Check if we need to break. """
@@ -493,7 +512,9 @@ class BaseWorker:
 
     def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
         """Sleep for a given amount of time, with regular wake-ups to check the halt/end flags."""
-        if time_seconds < (2 * max_delay):
+        if time_seconds <= 0:
+            return
+        elif time_seconds < (2 * max_delay):
             time.sleep(time_seconds)
         else:
             st = time.monotonic()
@@ -536,9 +557,50 @@ class BaseWorker:
             self.on_exit(exc)
             self._log.debug(f'Process {self._process_uuid} complete')
 
+    def run_once(self):
+        exc = None
+        try:
+            self._log.debug(f'Starting process [once] {self._process_uuid}')
+            self.on_start()
+            self._log.debug(f'Process {self._process_uuid} is running [once]')
+            self._run_once()
+        except Exception as ex:
+            exc = ex
+            self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
+        finally:
+            self._log.debug(f'Cleaning up {self._process_uuid} [once]')
+            self.on_exit(exc)
+            self._log.debug(f'Process {self._process_uuid} complete [once]')
+
+    def _run(self):
+        """Override this method with a loop to process items."""
+        while self.continue_loop():
+            sleep_time = self._run_once()
+            self.responsive_sleep(sleep_time)
+
+    def _run_once(self) -> float:
+        raise NotImplementedError
+
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""
-        pass
+        self.run_hook('on_start')
+
+    def on_exit(self, exception: Exception = None):
+        """Override this method for clean-up after _run() is called."""
+        if self._save_data is not None:
+            self._save_data.save_file()
+        self.run_hook('on_exit', exception=exception)
+
+    def before_cycle(self):
+        """Override this method to be called before each item is processed."""
+        self.run_hook('before_cycle')
+
+    def after_cycle(self):
+        """Override this method to be called after each item is processed."""
+        self.run_hook('after_cycle')
+        if self._temp_dir is not None:
+            self._temp_dir.cleanup()
+            self._temp_dir = None
 
     @property
     def save_data(self):
@@ -546,25 +608,6 @@ class BaseWorker:
             self._save_data = SaveData(self.get_config('save_file'))
             self._save_data.load_file()
         return self._save_data
-
-    def on_exit(self, ex: Exception = None):
-        """Override this method for clean-up after _run() is called."""
-        if self._save_data is not None:
-            self._save_data.save_file()
-
-    def _run(self):
-        """Override this method with a loop to process items."""
-        pass # pragma: no coverage
-
-    def before_cycle(self):
-        """Override this method to be called before each item is processed."""
-        pass # pragma: no coverage
-
-    def after_cycle(self):
-        """Override this method to be called after each item is processed."""
-        if self._temp_dir is not None:
-            self._temp_dir.cleanup()
-            self._temp_dir = None
 
     def temp_dir(self) -> pathlib.Path:
         """Get a temporary directory that will be cleaned up after the current item."""

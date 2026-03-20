@@ -64,6 +64,7 @@ class FileScanTask(ScheduledTask):
         self._headers = self.get_config("metadata", {})
         self._pattern = self.get_config('pattern', '*')
         self._recursive = bool(self.get_config('recursive', False))
+        super().on_start()
 
     def execute(self):
         with self.nodb as db:
@@ -154,10 +155,11 @@ class FileDownloadWorker(QueueWorker):
         )
         return QueueItemResult.SUCCESS
 
-    def after_failure(self, item: NODBQueueItem):
+    def after_failure(self, item: NODBQueueItem, ex: Exception):
         if 'target_file' in item.data and item.data['target_file']:
-            self._db.mark_scanned_item_failed(item.data['target_file'], awaretime.from_isoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
-            self._db.commit()
+            self.db.mark_scanned_item_failed(item.data['target_file'], awaretime.from_isoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
+            self.db.commit()
+        super().after_failure(item, ex)
 
     def handle_queued_file(self,
                            workflow_name: str,
@@ -167,9 +169,9 @@ class FileDownloadWorker(QueueWorker):
                            remove_when_finished: bool = False):
         if modified_time:
             modified_time = awaretime.from_isoformat(modified_time)
-        current_status = self._db.scanned_file_status(file_path, modified_time)
+        current_status = self.db.scanned_file_status(file_path, modified_time)
         if current_status == ScannedFileStatus.UNPROCESSED:
-            workflow = nodb.NODBUploadWorkflow.find_by_name(self._db, workflow_name)
+            workflow = nodb.NODBUploadWorkflow.find_by_name(self.db, workflow_name)
             if workflow is None:
                 raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
             handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
@@ -182,7 +184,7 @@ class FileDownloadWorker(QueueWorker):
                 local_path=local_path,
                 metadata=metadata,
                 success_hook=functools.partial(self._on_success_hook, file_path=file_path, mod_time=handle.modified_datetime()),
-                db=self._db
+                db=self.db
             )
             if remove_when_finished:
                 self._try_remove_file(handle)
@@ -194,7 +196,7 @@ class FileDownloadWorker(QueueWorker):
             self._log.info(f"Item {file_path} already processed [result {current_status}], skipping")
 
     def _on_success_hook(self, file_path, mod_time):
-        self._db.mark_scanned_item_success(file_path, mod_time)
+        self.db.mark_scanned_item_success(file_path, mod_time)
 
     def _update_payload_metadata(self, metadata: dict, handle):
         if 'source' not in metadata:

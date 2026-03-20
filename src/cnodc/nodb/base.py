@@ -53,12 +53,22 @@ class NODBBaseObject:
         self._cache = {}
 
     def __str__(self):  # pragma: no coverage (debugging only)
-        s = f"{self.__class__.__name__}: "
-        s += "; ".join(f"{x}={self._data[x]}" for x in self._data)
-        s += " [modified:"
-        s += ";".join(self.modified_values)
-        s += "]"
+        s = f"<{self.__class__.__name__};"
+        s += "; ".join(f"{x}={self.get(x)}" for x in self.get_str_keys())
+        s += ">"
         return s
+
+    @classmethod
+    def get_mock_index_keys(cls) -> list[list[str]]:
+        keys = []
+        pks = list(x for x in cls.get_primary_keys())
+        pks.sort()
+        keys.append(pks)
+        return keys
+
+    @classmethod
+    def get_str_keys(cls):
+        return cls.get_primary_keys()
 
     @contextmanager
     def _readonly_access(self):
@@ -151,7 +161,7 @@ class NODBBaseObject:
         """Get the list of primary keys."""
         if hasattr(cls, 'PRIMARY_KEYS'):
             return cls.PRIMARY_KEYS
-        return tuple()
+        return []
 
     @classmethod
     def make_property(cls, item: str, coerce=None, readonly: bool = False):

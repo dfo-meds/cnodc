@@ -38,7 +38,7 @@ class WorkflowWorker(QueueWorker):
         else:
             new_payload.copy_details_from(self.current_payload, complete_step)
             self.add_payload_metadata(new_payload)
-        new_payload.enqueue(self._db, next_queue)
+        new_payload.enqueue(self.db, next_queue)
         if prevent_default_progression:
             self.prevent_default_progression()
 
@@ -60,6 +60,7 @@ class WorkflowWorker(QueueWorker):
 
     def before_cycle(self):
         self._skip_autoprogress_payload = False
+        super().before_cycle()
 
     def after_cycle(self):
         super().after_cycle()
@@ -114,7 +115,7 @@ class WorkflowWorker(QueueWorker):
         if isinstance(self.current_payload, FilePayload):
             return self.current_payload.download(temp_dir, halt_flag=self._halt_flag)
         elif isinstance(self.current_payload, SourceFilePayload):
-            return self.current_payload.download(self._db, temp_dir, halt_flag=self._halt_flag)
+            return self.current_payload.download(self.db, temp_dir, halt_flag=self._halt_flag)
         else:
             raise ValueError('invalid payload type')
 

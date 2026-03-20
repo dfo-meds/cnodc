@@ -630,14 +630,8 @@ class OpenGliderConverter:
 
 
 
-def validate_ego_glider_file(file: pathlib.Path, metadata: dict):
-    log = zrlog.get_logger('cnodc.gliders.ego_validate')
-    try:
-        OpenGliderConverter.build().validate_ego_glider_file(file)
-        return True
-    except Exception as ex:
-        log.exception(f'Error while validating glider file: {type(ex).__name__}: {str(ex)}')
-        return False
+def validate_ego_glider_file(file: pathlib.Path, filename, metadata: dict):
+    OpenGliderConverter.build().validate_ego_glider_file(file, filename)
 
 
 

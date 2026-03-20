@@ -53,7 +53,7 @@ class FTPServerThread(threading.Thread):
             return False
         if self._server is None:
             return True
-        return (datetime.datetime.now() - self._since).total_seconds() < 1
+        return (datetime.datetime.now() - self._since).total_seconds() < 0.05
 
     def halt(self):
         if self.is_alive():
@@ -129,6 +129,21 @@ class TestFTPHandle(BaseTestCase):
         self.assertTrue(d.is_dir())
         self.assertEqual(d.name(), 'hello')
         self.assertEqual(d.path(), 'ftp://localhost/hello/')
+
+    @injector.test_case
+    @test_with_config(("storage", "servers", "ftp", "localhost"), {"username": "test", "password": "test"})
+    def test_mkdir(self):
+        handle = FTPHandle("ftp://localhost/hello_world/")
+        real_dir = pathlib.Path(__file__).parent.absolute() / 'test' / 'hello_world'
+        try:
+            self.assertFalse(real_dir.exists())
+            self.assertFalse(handle.exists())
+            handle.mkdir()
+            self.assertTrue(real_dir.exists())
+            self.assertTrue(handle.exists())
+        finally:
+            if real_dir.exists():
+                real_dir.rmdir()
 
     def test_file_dir(self):
         handle = FTPHandle('ftp://localhost/')

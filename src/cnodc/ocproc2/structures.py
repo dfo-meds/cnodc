@@ -57,25 +57,27 @@ class BaseRecord:
 
     def _find_element_map(self, element_full_name):
         pieces = element_full_name.split('/')
-        child_parent = self.find_child(pieces[:-1])
+        element_name = pieces.pop(-1)
+        child_parent = self.find_child(pieces)
         if child_parent is not None and isinstance(child_parent, ElementMap):
-            return child_parent, pieces[-1]
+            return child_parent, element_name
         else:
-            raise ValueError(f'invalid element path: [{element_full_name}]')
+            raise ValueError(f'invalid element path: [{element_full_name}]: [{child_parent}]')
 
     def find_child(self, object_path: t.Union[str, list[str]]) -> t.Optional[t.Union[BaseRecord, ElementMap, RecordSet]]:
-        if not object_path:
-            return self
         if isinstance(object_path, str):
             object_path = [x for x in object_path.split('/') if x != '']
-        if object_path[0] == 'metadata':
-            return self.metadata.find_child(object_path[1:])
-        elif object_path[0] == 'parameters':
-            return self.parameters.find_child(object_path[1:])
-        elif object_path[0] == 'coordinates':
-            return self.coordinates.find_child(object_path[1:])
-        elif object_path[0] == 'subrecords':
-            return self.subrecords.find_child(object_path[1:])
+        if not object_path:
+            return self
+        first_element = object_path.pop(0)
+        if first_element == 'metadata':
+            return self.metadata.find_child(object_path)
+        elif first_element == 'parameters':
+            return self.parameters.find_child(object_path)
+        elif first_element == 'coordinates':
+            return self.coordinates.find_child(object_path)
+        elif first_element == 'subrecords':
+            return self.subrecords.find_child(object_path)
         else:
             return None
 
@@ -295,14 +297,16 @@ class RecordSet:
     def find_child(self, path: list[str]):
         if not path:
             return self
-        if path[0] == 'metadata':
-            return self.metadata.find_child(path[1:])
-        if not path[0].isdigit():
+        first_element = path.pop(0)
+        if first_element == 'metadata':
+            return self.metadata.find_child(path)
+        try:
+            idx = int(first_element)
+            if idx < 0 or idx >= len(self.records):
+                return None
+            return self.records[idx].find_child(path)
+        except (ValueError, TypeError) as ex:
             return None
-        idx = int(path[0])
-        if idx < 0 or idx >= len(self.records):
-            return None
-        return self.records[idx].find_child(path[1:])
 
 
 class RecordMap:
@@ -333,16 +337,19 @@ class RecordMap:
     def find_child(self, path: list[str]):
         if not path:
             return self
-        if path[0] not in self.record_sets:
+        first_element = path.pop(0)
+        if first_element not in self.record_sets:
             return None
-        if len(path) < 2:
-            return self.record_sets[path[0]]
-        if not path[1].isdigit():
-            return None
-        idx = int(path[1])
-        if idx not in self.record_sets[path[0]]:
-            return None
-        return self.record_sets[path[0]][int(path[1])].find_child(path[2:])
+        ret = self.record_sets[first_element]
+        if path:
+            try:
+                idx = int(path.pop(0))
+                if idx not in ret:
+                    return None
+                return ret[idx].find_child(path)
+            except (TypeError, ValueError):
+                return None
+        return ret
 
     def update_hash(self, h):
         for srt in self.record_sets:

@@ -43,6 +43,6 @@ class GTSQueueWorker(ObservationWorkflowWorker):
         message.message_format = gts_info['format']
         message.message_type = orm.GTSOutgoingMessageType(gts_info['message_type'])
 
-        self._db.insert_object(message)
+        self.db.insert_object(message)
 
 

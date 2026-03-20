@@ -42,10 +42,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._decoder: t.Optional[BaseCodec] = None
         self._decoder_kwargs = {}
         self._record_manager: t.Optional[NODBRecordManager] = None
-        self._memory: t.Optional[dict] = None
+        self.memory: t.Optional[dict] = None
 
     def on_start(self):
-        super().on_start()
         self._record_manager = NODBRecordManager()
         err_dir = self.get_config('error_directory')
         if err_dir is None:
@@ -57,10 +56,11 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._decoder_kwargs = self.get_config('decoder_kwargs', {})
         if not self._decoder.is_decoder:
             raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODB-LOAD", 1002)
+        super().on_start()
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
 
-        self._memory = {}
+        self.memory = {}
 
         # Find the source file
         source_file = self._fetch_source_file(payload)
@@ -81,8 +81,8 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
         # Mark the source file as in progress
         source_file.status = nodb.SourceFileStatus.IN_PROGRESS
-        self._db.update_object(source_file)
-        self._db.commit()
+        self.db.update_object(source_file)
+        self.db.commit()
 
         # Download the file
         temp_file = self.download_to_temp_file()
@@ -114,7 +114,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             create_next_queue = False
         else:
             source_file.status = nodb.SourceFileStatus.COMPLETE
-        self._db.update_object(source_file)
+        self.db.update_object(source_file)
 
         if create_next_queue:
             self.progress_payload(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
@@ -123,7 +123,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if isinstance(payload, FilePayload):
             file_info = payload.file_info
             source_file = nodb.NODBSourceFile.find_by_source_path(
-                self._db,
+                self.db,
                 file_info.file_path,
                 lock_type=LockType.FOR_NO_KEY_UPDATE
             )
@@ -138,11 +138,11 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 source_file.received_date = rdate
                 source_file.status = nodb.SourceFileStatus.NEW
                 source_file.file_name = file_info.filename
-                self._db.insert_object(source_file)
-                self._db.commit()
+                self.db.insert_object(source_file)
+                self.db.commit()
             return source_file
         elif isinstance(payload, SourceFilePayload):
-            return payload.load_source_file(self._db)
+            return payload.load_source_file(self.db)
         else:
             raise CNODCError('invalid payload type', 'NODB-LOAD', 2000)
 
@@ -153,17 +153,17 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         skipped = 0
         had_error = False
         make_completed_records = self.get_config('autocomplete_records', False)
-        self._before_message(source_file, result)
+        self.before_message(source_file, result)
         if result.success:
             try:
                 for record_idx, record in enumerate(result.records):
-                    self._before_record(source_file, record)
+                    self.before_record(source_file, record)
                     if self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records):
                         success += 1
                     else:
                         skipped += 1
-                self._after_success(source_file, result)
-                self._db.commit()
+                self.after_decode_success(source_file, result)
+                self.db.commit()
             except CNODCError as ex:
                 if ex.is_recoverable:
                     raise ex from ex
@@ -177,7 +177,10 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 had_error = True
         else:
             self._handle_decode_failure(source_file, result)
-            self._log.error(f"An error occurred while decoding file [{source_file.source_uuid}] message [{result.message_idx}]")
+            exc_info = None
+            if result.from_exception is not None:
+                exc_info = (result.from_exception.__class__, result.from_exception, result.from_exception.__traceback__)
+            self._log.error(f"An error occurred while decoding file [{source_file.source_uuid}] message [{result.message_idx}]", exc_info=exc_info)
             had_error = True
         return success, skipped, had_error
 
@@ -188,22 +191,22 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             record: ocproc2.ParentRecord,
                             make_completed_records):
         if make_completed_records:
-            return self._record_manager.create_completed_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx, self._memory)
+            return self._record_manager.create_completed_entry(self.db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx, self.memory)
         else:
-            return self._record_manager.create_working_entry(self._db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx)
+            return self._record_manager.create_working_entry(self.db, record, source_file.source_uuid, source_file.received_date, message_idx, record_idx)
 
     def _handle_decode_failure(self,
                                source_file: nodb.NODBSourceFile,
                                result: DecodeResult,
                                additional_exception: Exception = None):
-        self._db.rollback()
-        self._after_error(source_file, result, additional_exception)
-        mode = self._db.update_object
+        self.db.rollback()
+        self.after_decode_error(source_file, result, additional_exception)
+        mode = self.db.update_object
         if result.single_message:
             child_file = source_file
         else:
             child_file = nodb.NODBSourceFile.find_by_original_info(
-                self._db,
+                self.db,
                 source_file.original_uuid,
                 source_file.received_date,
                 result.message_idx
@@ -218,7 +221,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 child_file.received_date = source_file.received_date
                 child_file.file_name = source_file.file_name
                 child_file.source_path = file.path()
-                mode = self._db.insert_object
+                mode = self.db.insert_object
 
         child_file.status = nodb.SourceFileStatus.ERROR
         if result.from_exception:
@@ -242,16 +245,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             payload.set_followup_queue(self.get_config('next_queue'))
             self.progress_payload(payload, failure_queue, prevent_default_progression=True)
         mode(child_file)
-        self._db.commit()
+        self.db.commit()
 
-    def _before_message(self, source_file: nodb.NODBSourceFile, result: DecodeResult):
-        pass
+    def before_message(self, source_file: nodb.NODBSourceFile, result: DecodeResult):
+        self.run_hook('before_message', source_file=source_file, result=result)
 
-    def _before_record(self, source_file, record):
-        pass
+    def before_record(self, source_file, record):
+        self.run_hook('before_record', source_file=source_file, record=record)
 
-    def _after_success(self, source_file, result):
-        pass
+    def after_decode_success(self, source_file, result):
+        self.run_hook('after_decode_success', source_file=source_file, result=result)
 
-    def _after_error(self, source_file, result, additional_exception):
-        pass
+    def after_decode_error(self, source_file, result, additional_exception):
+        self.run_hook('after_decode_error', source_file=source_file, result=result, exception=additional_exception)

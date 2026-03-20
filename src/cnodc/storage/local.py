@@ -55,7 +55,6 @@ class LocalHandle(BaseStorageHandle):
 
     def _mkdir(self, mode):
         self._path.mkdir(mode)
-        self.clear_cache()
 
     def parent(self) -> t.Self:
         new_p = self._path.parent
