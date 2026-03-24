@@ -201,7 +201,7 @@ class FilePayload(WorkflowPayload):
         if self.is_gzipped is None and self.filename:
             self.is_gzipped = self.filename.lower().endswith('.gz')
 
-    def __str__(self):
+    def __str__(self):  # pragma: no coverage (debugging only)
         return f'<FilePayload:{self.file_path}:{self.workflow_name}:{self.current_step}>'
 
     def download(self, target_dir: pathlib.Path, halt_flag: t.Optional[HaltFlag] = None) -> pathlib.Path:
@@ -222,7 +222,7 @@ class SourceFilePayload(WorkflowPayload):
     source_uuid: str = ddo_str('source_uuid')
     received_date: str = ddo_date('received_date')
 
-    def __str__(self):
+    def __str__(self):  # pragma: no coverage (debugging only)
         return f'<SourceFilePayload:{self.source_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
 
     def load_source_file(self, db: nodb.NODBControllerInstance, **kwargs) -> nodb.NODBSourceFile:
@@ -255,7 +255,7 @@ class BatchPayload(WorkflowPayload):
 
     batch_uuid = ddo_str('batch_uuid')
 
-    def __str__(self):
+    def __str__(self):  # pragma: no coverage (debugging only)
         return f'<BatchPayload:{self.batch_uuid}:{self.workflow_name}:{self.current_step}>'
 
     def load_batch(self, db: nodb.NODBControllerInstance, **kwargs) -> nodb.NODBBatch:
@@ -278,7 +278,7 @@ class WorkingRecordPayload(WorkflowPayload):
     working_uuid = ddo_str('working_uuid')
     received_date = ddo_date('received_date')
 
-    def __str__(self):
+    def __str__(self):  # pragma: no coverage (debugging only)
         return f'<WorkingRecordPayload:{self.working_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
 
     def load_working_record(self, db, **kwargs) -> nodb.NODBWorkingRecord:
@@ -303,7 +303,7 @@ class ObservationPayload(WorkflowPayload):
     obs_uuid = ddo_str('obs_uuid')
     received_date = ddo_date('received_date')
 
-    def __str__(self):
+    def __str__(self):  # pragma: no coverage (debugging only)
         return f'<ObservationPayload:{self.obs_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
 
     def load_observation(self, db, **kwargs) -> nodb.NODBObservation:

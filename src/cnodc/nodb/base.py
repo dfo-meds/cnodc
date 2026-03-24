@@ -67,7 +67,7 @@ class NODBBaseObject:
         return keys
 
     @classmethod
-    def get_str_keys(cls):
+    def get_str_keys(cls):  # pragma: no coverage (debugging only)
         return cls.get_primary_keys()
 
     @contextmanager
@@ -268,7 +268,7 @@ class MetadataMixin:
         if key not in self.metadata:
             return
         del self.metadata[key]
-        self.modified_values.add("metadata")\
+        self.modified_values.add("metadata")
 
     def get_metadata(self, key, default=None):
         """Get a metadata property."""

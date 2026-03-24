@@ -39,7 +39,7 @@ class NODBQueueItem(s.NODBBaseObject):
     data: dict = s.JsonColumn("data")
 
     @classmethod
-    def get_str_keys(cls):
+    def get_str_keys(cls):  # pragma: no coverage (debugging only)
         return ['queue_name', 'queue_uuid', 'status']
 
     @classmethod

@@ -3,6 +3,7 @@ import hashlib
 import pathlib
 import uuid
 import typing as t
+from datetime import datetime
 
 import cnodc.storage
 from cnodc.nodb import NODBController, NODBQueueItem
@@ -39,11 +40,11 @@ class ScannedFilePayload(Payload):
         )
 
     @staticmethod
-    def from_handle(handle: BaseStorageHandle, **kwargs):
+    def from_handle(handle: BaseStorageHandle, modified_time: datetime=..., **kwargs):
         return ScannedFilePayload(
             file_path=handle.path(),
             filename=handle.name(),
-            modified_time=handle.modified_datetime(),
+            modified_time=handle.modified_datetime() if modified_time is Ellipsis else modified_time,
             **kwargs
         )
 
@@ -128,12 +129,10 @@ class FileScanTask(ScheduledTask):
                 if status == ScannedFileStatus.NOT_PRESENT:
                     self._log.info("Found new file [%s][%s]", full_path, mod_time)
                     db.note_scanned_file(full_path, mod_time)
-                    payload = ScannedFilePayload(
-                        file_path=full_path,
-                        filename=file.name(),
-                        modified_time=mod_time.isoformat() if mod_time else None,
+                    payload = ScannedFilePayload.from_handle(file,
                         workflow_name=self._workflow_name,
-                        remove_when_complete=self._remove_when_complete
+                        remove_when_complete=self._remove_when_complete,
+                        modified_time=mod_time
                     )
                     payload.metadata.update(self._headers)
                     payload.metadata.update({
