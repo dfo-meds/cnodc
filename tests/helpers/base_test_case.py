@@ -59,17 +59,20 @@ class BaseTestCase(ut.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.class_temp_dir)
 
+    @classmethod
     @contextmanager
-    def mock_web_test(self):
-        with mock.patch('requests.get', side_effect=self.web.mock_get):
-            with mock.patch('requests.post', side_effect=self.web.mock_post):
-                with mock.patch('requests.request', side_effect=self.web.mock_request) as x:
+    def mock_web_test(cls):
+        with mock.patch('requests.get', side_effect=cls.web.mock_get):
+            with mock.patch('requests.post', side_effect=cls.web.mock_post):
+                with mock.patch('requests.request', side_effect=cls.web.mock_request) as x:
                     yield x
 
     @contextmanager
-    def assertRaisesCNODCError(self, error_code: str):
+    def assertRaisesCNODCError(self, error_code: str, msg=None):
         with self.assertRaises(CNODCError) as h:
             yield h
+        if error_code != h.exception.internal_code:
+            raise self.failureException(msg or f"'{error_code}' != '{h.exception.internal_code}") from h.exception
         self.assertEqual(error_code, h.exception.internal_code)
 
     @contextmanager

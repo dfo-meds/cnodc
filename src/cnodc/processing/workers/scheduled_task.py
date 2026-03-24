@@ -94,7 +94,7 @@ class ScheduledTask(BaseWorker):
         except CNODCError as ex:
             # We assume non-recoverable errors will continually happen and recoverable errors may not
             # so a recoverable error isn't cause to crash the worker.
-            if not ex.is_recoverable:
+            if not ex.is_transient:
                 raise ex from ex
             else:
                 self._log.exception(f"Recoverable error while executing scheduled task")

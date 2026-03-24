@@ -576,15 +576,18 @@ ocproc2_map:
     target: metadata/Observatory
     data_map: institutions
     separator: '[;,]'
+    allow_multiple: yes
 
   attribute:institution:
     target: metadata/Institution
     data_map: institutions
     separator: '[;,]'
+    allow_multiple: yes
 
   attribute:principal_investigator:
     target: metadata/PrincipalInvestigator
     separator: ';'
+    allow_multiple: yes
 
   attribute:data_mode:
     target: metadata/CNODCLevel
@@ -661,11 +664,13 @@ ocproc2_map:
     target: metadata/Operator
     data_map: institutions
     separator: '[;,]'
+    allow_multiple: yes
 
   globalvar:GLIDER_OWNER:
     target: metadata/PlatformOwner
     data_map: institutions
     separator: '[;,]'
+    allow_multiple: yes
 
   var:JULD:
     target: coordinates/Time

@@ -4,7 +4,7 @@ import math
 import netCDF4
 
 from cnodc.programs.glider.ego_convert import OpenGliderConverter, validate_ego_glider_file
-from cnodc.util import unnumpy
+from cnodc.util import unnumpy, CNODCError
 from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf, str_to_netcdf_vlen
 from helpers.base_test_case import BaseTestCase, InjectableDict
 import typing as t
@@ -308,8 +308,8 @@ class TestEmptyGliderConversion(GliderManyTest):
             self.converter._build_times(self.new_handle, self.old_handle)
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
     def test_bad_data_mode(self):
         with self.assertRaises(ValueError):
@@ -375,9 +375,8 @@ class TestPartialBadConversion(GliderManyTest):
             self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
-
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
 class TestPartial2BadConversion(GliderManyTest):
@@ -433,8 +432,9 @@ class TestPartial2BadConversion(GliderManyTest):
             self.converter._build_contributors(self.new_handle, self.old_handle)
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+
 
 class TestPartial3BadConversion(GliderManyTest):
 
@@ -473,8 +473,8 @@ class TestPartial3BadConversion(GliderManyTest):
             self.converter._build_depths(self.new_handle, self.old_handle)
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
 class TestMinimalEmptyConversion(GliderManyTest):
@@ -522,7 +522,7 @@ class TestMinimalEmptyConversion(GliderManyTest):
         self.assertDoesNotHaveAttribute('geospatial_vertical_max')
 
     def test_is_valid(self):
-        self.assertTrue(validate_ego_glider_file(self.old_file, {}))
+        self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
 
 
 
@@ -562,8 +562,8 @@ class TestBadPosSystem(GliderManyTest):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
 class TestBadTrackSystem(GliderManyTest):
@@ -608,8 +608,9 @@ class TestBadTrackSystem(GliderManyTest):
         )
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+
 
 
 
@@ -655,8 +656,9 @@ class TestBadBatterySystem(GliderManyTest):
         )
 
     def test_is_invalid(self):
-        with self.assertLogs('cnodc.gliders.ego_validate', 'ERROR'):
-            self.assertFalse(validate_ego_glider_file(self.old_file, {}))
+        with self.assertRaises(CNODCError):
+            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+
 
 
 class TestMinimalConversion(GliderOneTest):
@@ -758,7 +760,7 @@ class TestMinimalConversion(GliderOneTest):
         old.setncattr('network', 'Network')
 
     def test_is_valid(self):
-        self.assertTrue(validate_ego_glider_file(self.old_file, {}))
+        self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
 
     def test_dimensions(self):
         self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)
@@ -969,7 +971,7 @@ class TestFullConversionWithMetadata(GliderBaseTest):
         old.setncattr('network', 'Network')
 
     def test_is_valid(self):
-        self.assertTrue(validate_ego_glider_file(self.old_file, {}))
+        self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
 
     def test_dimensions(self):
         self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)

@@ -49,7 +49,7 @@ class TestBaseObject(ut.TestCase):
 
     def test_default_primary_keys(self):
         pk = TestDefaults.get_primary_keys()
-        self.assertIsInstance(pk, tuple)
+        self.assertIsInstance(pk, list)
         self.assertEqual(0, len(pk))
 
     def test_default_kwargs(self):

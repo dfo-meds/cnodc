@@ -11,16 +11,67 @@ import typing as t
 
 from cnodc.util import CNODCError
 from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
-    ObservationPayload
+    ObservationPayload, Payload
 
 
-class WorkflowWorker(QueueWorker):
-    """Generic payload worker for any payload type."""
+class PayloadWorker(QueueWorker):
 
     def __init__(self, process_name: str, process_version: str, require_type: t.Optional = None, **kwargs):
         super().__init__(process_version=process_version, process_name=process_name, **kwargs)
         self._require_type = require_type
-        self.current_payload: t.Optional[WorkflowPayload] = None
+        self.current_payload: t.Optional[Payload] = None
+
+    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
+        """Handles extracting the payload and checking that it is of the correct type"""
+        payload = Payload.from_queue_item(item)
+        if self._require_type is not None and not isinstance(payload, self._require_type):
+            raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
+        self._log.trace('Processing payload %s', payload)
+        self.current_payload = payload
+        return self.process_payload(payload)
+
+    def after_cycle(self):
+        super().after_cycle()
+        self.current_payload = None
+
+    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
+        """Override to add payload logic."""
+        raise NotImplementedError  # pragma: no coverage
+
+    def add_payload_metadata(self, new_payload: Payload):
+        """Add the current payload's metadata to the new payload."""
+        if self.current_payload is not None:
+            new_payload.copy_details_from(self.current_payload)
+        new_payload.metadata['_source_info'] = (
+            self._process_name,
+            self._process_version,
+            self._process_uuid
+        )
+
+    def copy_payload(self, payload: Payload):
+        """Create a copy of the given payload with the current payload's metadata."""
+        payload_copy = payload.clone()
+        self.add_payload_metadata(payload_copy)
+        return payload_copy
+
+    def download_to_temp_file(self) -> pathlib.Path:
+        if hasattr(self.current_payload, 'download_from_db'):
+            return self.current_payload.download_from_db(db=self.db, target_dir=self.temp_dir(), halt_flag=self._halt_flag)
+        elif hasattr(self.current_payload, 'download'):
+            return self.current_payload.download(target_dir=self.temp_dir(), halt_flag=self._halt_flag)
+        else:
+            raise CNODCError('Invalid payload type for downloading', 'PAYLOAD', 1001)
+
+
+
+class WorkflowWorker(PayloadWorker):
+    """Generic payload worker for any payload type."""
+
+    def __init__(self, process_name: str, process_version: str, **kwargs):
+        super().__init__(process_version=process_version, process_name=process_name, **kwargs)
+        self.set_defaults({
+            'next_queue': 'workflow_continue'
+        })
         self._skip_autoprogress_payload: bool = False
 
     def progress_payload(self,
@@ -38,6 +89,7 @@ class WorkflowWorker(QueueWorker):
         else:
             new_payload.copy_details_from(self.current_payload, complete_step)
             self.add_payload_metadata(new_payload)
+        self._log.info('Queuing item %s for %s', new_payload, next_queue)
         new_payload.enqueue(self.db, next_queue)
         if prevent_default_progression:
             self.prevent_default_progression()
@@ -48,15 +100,10 @@ class WorkflowWorker(QueueWorker):
     def autocomplete(self, queue_item):
         super().autocomplete(queue_item)
         if not self._skip_autoprogress_payload:
+            self._log.debug('Autoprogressing payload')
             self.progress_payload()
-
-    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
-        """Handles extracting the payload and checking that it is of the correct type"""
-        payload = WorkflowPayload.from_queue_item(item)
-        if self._require_type is not None and not isinstance(payload, self._require_type):
-            raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
-        self.current_payload = payload
-        return self.process_payload(payload)
+        else:
+            self._log.debug('Skipping autoprogression')
 
     def before_cycle(self):
         self._skip_autoprogress_payload = False
@@ -64,16 +111,11 @@ class WorkflowWorker(QueueWorker):
 
     def after_cycle(self):
         super().after_cycle()
-        self.current_payload = None
         self._skip_autoprogress_payload = False
-
-    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
-        """Override to add payload logic."""
-        raise NotImplementedError  # pragma: no coverage
 
     def batch_payload_from_uuid(self, batch_uuid: str) -> BatchPayload:
         """Create a new payload from a batch UUID."""
-        payload = BatchPayload(batch_uuid)
+        payload = BatchPayload(batch_uuid=batch_uuid)
         self.add_payload_metadata(payload)
         return payload
 
@@ -93,31 +135,6 @@ class WorkflowWorker(QueueWorker):
         payload = FilePayload.from_path(path, mod_date)
         self.add_payload_metadata(payload)
         return payload
-
-    def add_payload_metadata(self, new_payload: WorkflowPayload):
-        """Add the current payload's metadata to the new payload."""
-        if self.current_payload is not None:
-            new_payload.copy_details_from(self.current_payload)
-        new_payload.metadata['_source_info'] = (
-            self._process_name,
-            self._process_version,
-            self._process_uuid
-        )
-
-    def copy_payload(self, payload: WorkflowPayload):
-        """Create a copy of the given payload with the current payload's metadata."""
-        payload_copy = payload.clone()
-        self.add_payload_metadata(payload_copy)
-        return payload_copy
-
-    def download_to_temp_file(self) -> pathlib.Path:
-        temp_dir = self.temp_dir()
-        if isinstance(self.current_payload, FilePayload):
-            return self.current_payload.download(temp_dir, halt_flag=self._halt_flag)
-        elif isinstance(self.current_payload, SourceFilePayload):
-            return self.current_payload.download(self.db, temp_dir, halt_flag=self._halt_flag)
-        else:
-            raise ValueError('invalid payload type')
 
 
 class BatchWorkflowWorker(WorkflowWorker):

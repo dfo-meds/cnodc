@@ -284,14 +284,10 @@ class SingleElement(AbstractElement):
         return item == self._value
 
     def __eq__(self, other: AbstractElement):
-        if not isinstance(other, AbstractElement):
-            return False
-        if other.is_multivalue():
-            if len(other.value) == 1:
-                return self.__eq__(other.value[0])
-            return False
-        else:
+        try:
             return self.value == other.value and self.metadata == other.metadata
+        except AttributeError:
+            return False
 
     def __str__(self):
         return str(self._value)  # pragma: no coverage
@@ -493,27 +489,32 @@ class ElementMap(LazyLoadDict[AbstractElement]):
                   value: OCProcValue,
                   metadata: t.Optional[DefaultValueDict] = None,
                   **kwargs):
+        self.append_element_to(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
+
+    def append_element_to(self, element_name: str, value: AbstractElement):
         if element_name not in self:
-            self.set(element_name, value, metadata, **kwargs)
+            self.set_element(element_name, value)
         else:
-            element = ElementMap.ensure_element(value, metadata, **kwargs)
             e = self._load(element_name)
             if isinstance(e, MultiElement):
-                e.append(element)
-            elif e.value != element.value:
-                ne = MultiElement((e, element))
+                e.append(value)
+            else:
+                ne = MultiElement([e, value], _skip_normalization=True)
                 super().__setitem__(element_name, ne)
 
     def set(self,
             element_name: str,
             value: OCProcValue,
             metadata: t.Optional[DefaultValueDict] = None,
-            **kwargs):
+            **kwargs: dict[str, OCProcValue]):
         """Set an element to the given value and metadata."""
-        super().__setitem__(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
+        self.set_element(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
+
+    def set_element(self, element_name: str, value: AbstractElement):
+        super().__setitem__(element_name, value)
 
     def __setitem__(self, key, value):
-        super().__setitem__(key, ElementMap.ensure_element(value))
+        self.set_element(key, ElementMap.ensure_element(value))
 
     def set_many(self,
                  element_name: str,
@@ -522,29 +523,45 @@ class ElementMap(LazyLoadDict[AbstractElement]):
                  specific_metadata: t.Optional[t.Sequence[DefaultValueDict]] = None,
                  metadata: t.Optional[DefaultValueDict] = None):
         """Build a multi-valued element from the given values."""
-        for i in range(0, len(values)):
-            value_metadata = {}
-            if common_metadata:
-                value_metadata.update(common_metadata)
-            if specific_metadata:
-                value_metadata.update(specific_metadata[i])
-            element = self.ensure_element(values[i], value_metadata)
-            self.append_to(element_name, element)
-        if metadata:
-            obj = self.get(element_name)
-            for key in metadata:
-                obj.metadata[key] = metadata[key]
+        common_metadata = common_metadata or {}
+        self.set_many_elements(
+            element_name=element_name,
+            values=(self.ensure_element(values[i], specific_metadata[i] if specific_metadata is not None else None, **common_metadata) for i in range(0, len(values))),
+            metadata=metadata
+        )
 
-    def update(self, map_: dict = None, **kwargs):
+    def set_many_elements(self, element_name: str, values: t.Iterable[SingleElement], metadata: t.Optional[DefaultValueDict] = None):
+        if element_name not in self:
+            element = MultiElement(values, _skip_normalization=True)
+            self.set_element(element_name, element)
+        else:
+            element = self.get(element_name)
+            if isinstance(element, SingleElement):
+                element = MultiElement([element], _skip_normalization=True)
+                self.set_element(element_name, element)
+            else:
+                element.value.extend(values)
+        if metadata:
+            element.metadata.update(metadata)
+
+    def update(self, map_: dict[str, OCProcValue] = None, **kwargs: dict[str, OCProcValue]):
         if map_ is not None:
             for key in map_:
-                self[key] = map_[key]
+                self.set(key, map_[key])
         if kwargs:
             for key in kwargs:
-                self[key] = kwargs[key]
+                self.set(key, kwargs[key])
+
+    def update_elements(self, map_: dict[str, AbstractElement] = None, **kwargs: dict[str, AbstractElement]):
+        if map_ is not None:
+            for key in map_:
+                self.set_element(key, map_[key])
+        if kwargs:
+            for key in map_:
+                self.set_element(key, map_[key])
 
     @staticmethod
-    def ensure_element(value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+    def ensure_element(value: OCProcValue, metadata: t.Optional[DefaultValueDict] = None, **kwargs: dict[str, OCProcValue]):
         if not isinstance(value, AbstractElement):
             value = SingleElement(value)
         if metadata:

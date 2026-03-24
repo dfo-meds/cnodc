@@ -350,11 +350,6 @@ class TestSingleElement(ut.TestCase):
         e = SingleElement(5)
         self.assertNotEqual(e, self)
 
-    def test_equal_multi(self):
-        e = SingleElement(5)
-        e2 = MultiElement([SingleElement(5)])
-        self.assertEqual(e, e2)
-
     def test_not_equal_multi(self):
         e = SingleElement(5)
         e2 = MultiElement([SingleElement(5), SingleElement(6)])
@@ -657,7 +652,7 @@ class TestOCProc2ValueMap(ut.TestCase):
             specific_metadata=[{'Note': notes[0]}, {'Note': notes[1]}, {'Note': notes[2]}],
             metadata={'Note2': 'jkl'}
         )
-        self.assertTrue('TestValue' in dr.metadata)
+        self.assertIn('TestValue', dr.metadata)
         values = ['', 5, 6]
         self.assertIsInstance(dr.metadata['TestValue'], ocproc2.MultiElement)
         for i in range(0, len(values)):
@@ -669,8 +664,8 @@ class TestOCProc2ValueMap(ut.TestCase):
                 self.assertEqual(obj.metadata['Note'].value, notes[i])
                 self.assertEqual(obj.metadata['Units'].value, 'm s-1')
         self.assertEqual(dr.metadata['TestValue'].best(), 5)
-        self.assertTrue('Note2' in dr.metadata['TestValue'].metadata)
-        self.assertFalse('Units' in dr.metadata['TestValue'].metadata)
+        self.assertIn('Note2', dr.metadata['TestValue'].metadata)
+        self.assertNotIn('Units', dr.metadata['TestValue'].metadata)
         self.assertEqual(dr.metadata['TestValue'].metadata['Note2'].value, 'jkl')
 
     def test_len(self):

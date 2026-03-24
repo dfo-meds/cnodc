@@ -346,8 +346,10 @@ class TestWorkflowController(BaseTestCase):
                     'name': 'step4',
                     'order': 10,
                     'priority': 'invalid',
-                    'worker_metadata': {
-                        'hello': 'world',
+                    'worker_config': {
+                        'myworker': {
+                            'hello': 'world',
+                        },
                     }
                 }
             }
@@ -404,8 +406,8 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(new_payload.workflow_name, payload.workflow_name)
         self.assertEqual(new_payload.current_step, payload.current_step)
         self.assertEqual(new_payload.current_step_done, payload.current_step_done)
-        self.assertIn('hello', new_payload.metadata)
-        self.assertEqual(new_payload.metadata['hello'], 'world')
+        self.assertIn('myworker', new_payload.worker_config)
+        self.assertEqual(new_payload.worker_config['myworker'], {'hello': 'world'})
         self.assertEqual(queue_item.priority, 0)
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step4', current_step_done=True)
@@ -451,10 +453,10 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsInstance(item, NODBQueueItem)
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_info.file_path, str(self.temp_dir / 'hello.txt'))
-        self.assertEqual(payload.file_info.filename, 'hello.txt')
-        self.assertFalse(payload.file_info.is_gzipped)
-        self.assertSameTime(payload.file_info.last_modified_date, m_time)
+        self.assertEqual(payload.file_path, str(self.temp_dir / 'hello.txt'))
+        self.assertEqual(payload.filename, 'hello.txt')
+        self.assertFalse(payload.is_gzipped)
+        self.assertSameTime(payload.last_modified_date, m_time)
         self.assertEqual(payload.workflow_name, 'test')
         self.assertEqual(payload.current_step, 'step1')
         self.assertFalse(payload.current_step_done)
@@ -500,7 +502,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsNotNone(item.unique_item_name)
         self.assertEqual(item.unique_item_name, hashlib.md5('foobar'.encode('utf-8')).hexdigest())
         payload = WorkflowPayload.from_queue_item(item)
-        self.assertIsNotNone(payload.file_info.last_modified_date)
+        self.assertIsNotNone(payload.last_modified_date)
 
     def test_queue_working_file_with_bad_priority(self):
         workflow = WorkflowController("test", {
@@ -543,7 +545,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(item.unique_item_name, hashlib.md5('foobar'.encode('utf-8')).hexdigest())
         self.assertEqual(item.priority, 0)
         payload = WorkflowPayload.from_queue_item(item)
-        self.assertIsNotNone(payload.file_info.last_modified_date)
+        self.assertIsNotNone(payload.last_modified_date)
 
     def test_extend_default_metadata(self):
         workflow = WorkflowController("test", {
@@ -566,7 +568,7 @@ class TestWorkflowController(BaseTestCase):
         workflow = WorkflowController("test", {
             'validation': 'tests.processing.test_controller._fake_validation_called',
         })
-        workflow._validate_file_upload(self.temp_dir / 'hello.txt', {'foo': 'bar'})
+        workflow._validate_file_upload(self.temp_dir / 'hello.txt', {'foo': 'bar'}, 'hello.txt')
         self.assertEqual(d.data['local_path'], self.temp_dir / 'hello.txt')
         self.assertEqual(d.data['metadata'], {'foo': 'bar'})
 
@@ -617,7 +619,8 @@ class TestWorkflowController(BaseTestCase):
             },
             success_hook=functools.partial(post_hook_me, d=post_hook_dict),
             db=self.db,
-            unique_queue_id=None
+            unique_queue_id=None,
+            filename='world.txt'
         )
         expected1 = self.temp_dir / 'hello' / 'world.txt'
         self.assertTrue(expected1.exists())
@@ -632,7 +635,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsNotNone(item)
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_info.file_path, str(expected1))
+        self.assertEqual(payload.file_path, str(expected1))
 
     def test_upload_and_queue_with_unique(self):
         (self.temp_dir / 'hello').mkdir()
@@ -676,6 +679,7 @@ class TestWorkflowController(BaseTestCase):
                 'filename': 'world.txt',
                 'last-modified-date': '2015-01-02T00:00:01',
             },
+            filename='world.txt',
             success_hook=None,
             db=self.db,
             unique_queue_id='12345'
@@ -693,7 +697,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(item.unique_item_name, hashlib.md5(b'12345').hexdigest())
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_info.file_path, str(expected2))
+        self.assertEqual(payload.file_path, str(expected2))
 
     @injector.inject
     def test_handle_incoming(self, d: InjectableDict = None):
@@ -759,7 +763,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(item.unique_item_name, hashlib.md5(b'12345').hexdigest())
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_info.file_path, str(expected2))
+        self.assertEqual(payload.file_path, str(expected2))
         self.assertEqual(d.data['local_path'], file)
         self.assertIn('foo2', d.data['metadata'])
         self.assertEqual(d.data['metadata']['foo2'], 'bar2')
@@ -767,6 +771,6 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(d.data['metadata']['filename'], 'world.txt')
 
 @injector.inject
-def _fake_validation_called(local_path, metadata, d: InjectableDict=None):
+def _fake_validation_called(local_path, filename, metadata, d: InjectableDict=None):
     d.data['local_path'] = local_path
     d.data['metadata'] = metadata

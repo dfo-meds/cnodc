@@ -74,16 +74,17 @@ class GliderConversionWorker(SourceWorkflowWorker):
     @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(
-            process_name="glider_ego_conversion",
+            process_name="glider_ego_converter",
             process_version="1.0",
             **kwargs
         )
         self.set_defaults({
-            'queue_name': 'glider_conversion',
+            'queue_name': 'glider_ego_conversion',
             'openglider_directory': None,
             'openglider_erddap_directory': None,
             'next_queue': 'workflow_continue',
             'erddap_reload_queue': 'erddap_reload',
+            'metadata_queue': 'glider_metadata_upload',
             'gzip_erddap': True,
             'gzip_openglider': True,
         })
@@ -148,12 +149,11 @@ class GliderConversionWorker(SourceWorkflowWorker):
                     data={'dataset_id': mission_id,},
                     unique_item_name=mission_id
                 )
-
         payload = self.file_payload_from_path(target_file.path(), awaretime.utc_now())
         payload.set_metadata("glider_erddap_file_path", target_erddap_file.path())
-        payload.set_metadata("glider_ego_file_path", payload.file_info.file_path)
+        payload.set_metadata("glider_ego_file_path", payload.file_path)
         payload.set_metadata("glider_file_name", file_name)
-        self.progress_payload(payload, 'glider_metadata_upload')
+        self.progress_payload(payload, self.get_config('metadata_queue'))
 
 
 class GliderMetadataUploadWorker(FileWorkflowWorker):
@@ -163,7 +163,7 @@ class GliderMetadataUploadWorker(FileWorkflowWorker):
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__(
-            process_name="glider_metadata_upload",
+            process_name="glider_metadata_uploader",
             process_version="1.0",
             **kwargs
         )
@@ -180,12 +180,12 @@ class GliderMetadataUploadWorker(FileWorkflowWorker):
         local_file = self.download_to_temp_file()
         meta = self._converter.build_metadata(
             local_file,
-            payload.get_metadata("glider_file_name", payload.file_info.filename)
+            payload.get_metadata("glider_file_name", payload.filename)
         )
         storage_locations = [
             f"Original: {payload.get_metadata("glider_ego_file_path", "")}",
             f"ERDDAP: {payload.get_metadata("glider_erddap_file_path", "")}",
-            f"Public: {payload.file_info.file_path}",
+            f"Public: {payload.file_path}",
         ]
         meta.file_storage_location = "\n".join(storage_locations)
         self.metadb.upsert_dataset(meta)

@@ -7,6 +7,7 @@ from unittest import TextTestResult
 import typing as t
 import coverage
 import sys
+import zrlog
 
 TEST_DIR = pathlib.Path(__file__).absolute().parent
 ROOT_DIR = TEST_DIR.parent
@@ -55,10 +56,11 @@ class CNODCTestResult(TextTestResult):
 
 
 if __name__ == '__main__':
+    zrlog.init_logging()
     logging.disable(logging.NOTSET)
     logging.getLogger().setLevel('WARNING')
     h = logging.StreamHandler(sys.stdout)
-    h.setFormatter(logging.Formatter('[%(levelname)s %(asctime)s]: %(message)s'))
+    h.setFormatter(logging.Formatter('[%(levelname)s %(asctime)s]: %(message)s [%(name)s]', '%H:%M:%S'))
     logging.getLogger().addHandler(h)
     cov = coverage.Coverage(
         config_file=TEST_DIR / ".coveragerc",
@@ -70,9 +72,12 @@ if __name__ == '__main__':
         target = TEST_DIR / sys.argv[1]
         if target.name.endswith('.py'):
             files = target.name
-            target = target.parent
+            target = str(target.parent)
         elif target.name == 'wtests':
             files = 'wtest*.py'
+            target = str(target)
+        else:
+            target = str(target)
     loader = unittest.TestLoader()
     cov.start()
     suite = loader.discover(target, files)

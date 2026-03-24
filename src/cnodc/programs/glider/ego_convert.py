@@ -21,8 +21,8 @@ import cnodc.util.awaretime as awaretime
 
 class GliderError(CNODCError):
 
-    def __init__(self, msg, code, is_recoverable=False):
-        super().__init__(msg, 'GLIDER', code, is_recoverable)
+    def __init__(self, msg, code, is_transient=False):
+        super().__init__(msg, 'GLIDER', code, is_transient)
 
 
 def ego_sensor_info(ds: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
@@ -632,6 +632,7 @@ class OpenGliderConverter:
 
 def validate_ego_glider_file(file: pathlib.Path, filename, metadata: dict):
     OpenGliderConverter.build().validate_ego_glider_file(file, filename)
+    return True
 
 
 

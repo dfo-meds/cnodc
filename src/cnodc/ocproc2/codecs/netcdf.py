@@ -43,8 +43,8 @@ class NetCDFDecoder(BaseCodec):
 
 class NetCDFCommonDecoderError(CNODCError):
 
-    def __init__(self, text, number, is_recoverable: bool = False):
-        super().__init__(text, 'NETCDF_COMMON_DECODE', number, is_recoverable)
+    def __init__(self, text, number, is_transient: bool = False):
+        super().__init__(text, 'NETCDF_COMMON_DECODE', number, is_transient)
 
 
 class NetCDFCommonDecoder(NetCDFDecoder):
@@ -133,6 +133,7 @@ class NetCDFCommonMapper:
                         if info['unadjusted_source'] and info['unadjusted_source'] in self._dataset.variables:
                             self._cache['ocproc_map']['data_vars'].append(info['unadjusted_source'])
                         else:
+                            self._log.warning(f'Omitting [unadjusted] for %s, not found in dataset variables', source_name)
                             info['unadjusted_source'] = None
                     else:
                         info['unadjusted_source'] = None
@@ -140,6 +141,7 @@ class NetCDFCommonMapper:
                         if info['adjusted_source'] and info['adjusted_source'] in self._dataset.variables:
                             self._cache['ocproc_map']['data_vars'].append(info['adjusted_source'])
                         else:
+                            self._log.warning(f'Omitting [adjusted_source] for %s, not found in dataset variables', source_name)
                             info['adjusted_source'] = None
                     else:
                         info['adjusted_source'] = None
@@ -147,16 +149,26 @@ class NetCDFCommonMapper:
                         if info['qc_source'] and info['qc_source'] in self._dataset.variables:
                             self._cache['ocproc_map']['data_vars'].append(info['qc_source'])
                         else:
+                            self._log.warning(f'Omitting [qc_source] for %s, not found in dataset variables', source_name)
                             info['qc_source'] = None
                     else:
                         info['qc_source'] = None
                     if 'data_map' in info:
-                        if info['data_map'] and info['data_map'] in self._data and isinstance(self._data['data_maps'][info['data_map']], dict):
-                            info['data_map'] = self._data['data_maps'][info['data_map']]
-                        else:
+                        if not info['data_map']:
+                            self._log.warning(f'Removing [data_map] from %s, blank value', source_name)
+                            del info['data_map']
+                        elif isinstance(info['data_map'], str):
+                            if info['data_map'] in self._data['data_maps'] and isinstance(self._data['data_maps'][info['data_map']], dict):
+                                info['data_map'] = self._data['data_maps'][info['data_map']]
+                            else:
+                                self._log.warning(f'Removing [data_map] from %s, no data map found for %s', source_name, info['data_map'])
+                                del info['data_map']
+                        elif not isinstance(info['data_map'], dict):
+                            self._log.warning(f'Removing [data_map] from %s, invalid value', source_name)
                             del info['data_map']
                     if 'data_map_key' in info:
                         if not ('data_map' in info):
+                            self._log.warning(f'Removing [data_map_key] from %s, no data map provided', source_name)
                             del info['data_map_key']
                     if 'target' in info:
                         info['_targets'] = [info['target']] if isinstance(info['target'], str) else info['target']
@@ -169,6 +181,7 @@ class NetCDFCommonMapper:
                         info['metadata'] = {}
                     if 'separator' in info:
                         if not info['separator']:
+                            self._log.warning(f'Omitting [separator] for %s, is blank', source_name)
                             del info['separator']
                         elif len(info['separator']) > 1:
                             info['regex_separator'] = re.compile(info['separator'])
@@ -179,12 +192,12 @@ class NetCDFCommonMapper:
                                 try:
                                     info["_data_processor"] = dynamic_object(info["data_processor"])
                                 except DynamicObjectLoadError:
-                                    pass
+                                    self._log.warning(f'Omitting [data_processor] for %s, could not load dynamic object', source_name, exc_info=True)
                             else:
                                 try:
                                     info["_data_processor"] = getattr(self.__class__, info["data_processor"])
                                 except AttributeError:
-                                    pass
+                                    self._log.warning(f'Omitting [data_processor] for %s, could not load class attribute', source_name, exc_info=True)
                         del info["data_processor"]
                     info.update({
                         'source': source_name,
@@ -213,9 +226,9 @@ class NetCDFCommonMapper:
                     info['_map_call'] = self._build_element_from_single_variable
                     self._cache['ocproc_map']['global'][k] = info
                 elif mapping_type not in ('var', 'attribute', 'globalvar'):
-                    self._log.error(f"Invalid mapping type [{mapping_type}] for [{k}], ignoring mapping instructions")
+                    self._log.warning(f"Invalid mapping type [%s] for [%s], ignoring mapping instructions", mapping_type, k)
                 else:
-                    self._log.warning(f"Missing input value [{mapping_type}:{info['source']}], ignoring mapping instructions")
+                    self._log.warning(f"Missing input value [%s:%s], ignoring mapping instructions", mapping_type, info['source'])
         return self._cache['ocproc_map']
 
     def _get_netcdf_data(self, data_vars: list[str]):
@@ -236,7 +249,6 @@ class NetCDFCommonMapper:
         self._cache = {}
         self._load_data()
         ocproc_map = self._get_ocproc2_map()
-
         # Make sure our source value exists
         data = self._get_netcdf_data(ocproc_map['data_vars'])
         for i in range(0, len(data[ocproc_map['key_var']])):
@@ -248,7 +260,7 @@ class NetCDFCommonMapper:
         for key in ocproc_map['record']:
             map_info = ocproc_map['record'][key]
             element = map_info["_map_call"](map_info, data)
-            if element:
+            if element is not None:
                 self._after_element(element, map_info, data)
                 self._apply_element(record, element, map_info)
         self._apply_global_elements(ocproc_map, record)
@@ -269,14 +281,14 @@ class NetCDFCommonMapper:
 
     def _apply_element(self, record, element, map_info):
         for target_name in map_info['_targets']:
-            action = record.set if not map_info['allow_multiple'] else record.append_to
+            action = record.set_element if not map_info['allow_multiple'] else record.append_element_to
             try:
                 action(target_name, element)
             except ValueError as ex:
                 if 'nowarn_missing_target' in map_info and map_info['nowarn_missing_target']:
                     self._log.info(f"Missing target [{target_name}]: {type(ex)}: {str(ex)}")
                 else:
-                    self._log.exception(f"Missing target [{target_name}]: {type(ex)}: {str(ex)}")
+                    self._log.warning(f"Missing target [{target_name}]: {ex.__class__.__name__}: {str(ex)}", exc_info=True)
 
     def _after_record(self, record: ParentRecord, index: int):
         pass
@@ -336,7 +348,7 @@ class NetCDFCommonMapper:
         return element
 
     def _build_element_common(self, value, minfo, unadjusted=None):
-        if value is None and unadjusted is None:
+        if (value is None or value == '') and (unadjusted is None or unadjusted == ''):
             return None
         metadata = {}
         metadata.update(self._build_metadata(minfo['metadata']))
@@ -361,6 +373,8 @@ class NetCDFCommonMapper:
 
     def _process_value(self, value, minfo):
         value = unnumpy(value)
+        if value is None or value == '':
+            return None
         if 'separator' in minfo:
             return self._clean_up_list([
                 x.strip() for x in value.split(minfo['separator'])
@@ -376,34 +390,34 @@ class NetCDFCommonMapper:
         if not l:
             return None
         if len(l) == 1:
-            return self._process_individual_value(l[0], minfo)
+            return self._process_individual_value(l[0], minfo) if l[0] is not None and l[0] != '' else None
         else:
-            return [self._process_individual_value(y, minfo) for y in l if y]
+            return [self._process_individual_value(y, minfo) for y in l if y is not None and y != ''] or None
 
     def _process_individual_value(self, value, minfo):
         if 'data_map' in minfo:
             if 'data_map_key' in minfo:
-                value = self.map_value(minfo['data_map'], value, minfo['data_map_key'])
+                value = self.map_value(minfo['data_map'], value, minfo['data_map_key'], minfo['source'])
             else:
-                value = self.map_value(minfo['data_map'], value)
+                value = self.map_value(minfo['data_map'], value, None, minfo['source'])
         if '_data_processor' in minfo:
             value = minfo['_data_processor'](self, value, minfo)
         return value
 
-    def map_value(self, data_map: dict, item_name: str, sub_key: t.Optional[str] = None):
-        item_name = item_name.lower()
+    def map_value(self, data_map: dict, item_name: str, sub_key: t.Optional[str] = None, field_name: t.Optional[str] = None):
+        check_name = item_name.lower()
         # check if the item is in the data map
-        if item_name in data_map:
+        if check_name  in data_map:
             if sub_key:
-                if sub_key in data_map[item_name]:
-                    return data_map[item_name][sub_key]
+                if sub_key in data_map[check_name]:
+                    return data_map[check_name][sub_key]
                 else:
-                    self._log.error(f'Missing subkey [{sub_key}] for [{item_name}], defaulting to original value')
-                    return item_name
+                    self._log.error(f'Missing subkey [%s] for data mapped value [%s] (source [%s]), defaulting to original value', sub_key, check_name, field_name)
+                    return check_name
             else:
-                return data_map[item_name]
+                return data_map[check_name]
         else:
-            self._log.error(f'Unknown value [{item_name}] for data map , defaulting to original value')
+            self._log.error(f'Unknown value [%s] for data map (source [%s]), defaulting to original value', check_name, field_name)
             return item_name
 
     def _time_since(self, value, minfo):

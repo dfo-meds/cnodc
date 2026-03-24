@@ -1,3 +1,4 @@
+import itertools
 import typing as t
 from  collections.abc import MutableMapping, MutableSequence
 from typing import Mapping
@@ -38,13 +39,11 @@ class LazyLoadDict(MutableMapping, t.Generic[T]):
         return item in self._dict
 
     def __eq__(self, other: Mapping) -> bool:
-        if not hasattr(other, 'keys'):
+        try:
+            all_keys = set(itertools.chain(self.keys(), other.keys()))
+            return all(self[k] == other[k] for k in all_keys)
+        except (KeyError, AttributeError):
             return False
-        k1 = self.keys()
-        k2 = other.keys()
-        if k1 != k2:
-            return False
-        return all(self[k] == other[k] for k in k1)
 
     def keys(self):
         return self._dict.keys()

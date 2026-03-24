@@ -1,4 +1,6 @@
 """Provides base tools for process workers"""
+import collections.abc
+import functools
 import os
 import signal
 import tempfile
@@ -28,8 +30,11 @@ class _ProcessProtocol(typing.Protocol):
 
 class BaseProcess:
 
-    def __init__(self, worker_cls: str, process_uuid: str, halt_flag: EventProtocol, end_flag: EventProtocol, signals: str, config_json: str, **kwargs):
+    def __init__(self, process_name: str, process_idx: int, worker_cls: str, process_uuid: str, halt_flag: EventProtocol, end_flag: EventProtocol, signals: str, config_json: str, **kwargs):
         super().__init__(**kwargs)
+        self._process_name = process_name
+        self._process_idx = process_idx
+        self._log = zrlog.get_logger(f'cnodc.process.{process_name}[{process_idx}]')
         self._worker_cls = worker_cls
         self._process_uuid = process_uuid
         self._halt_flag = halt_flag
@@ -40,11 +45,13 @@ class BaseProcess:
     def _noop_signals(self):
         for sig in self._signals.split("\n"):
             if hasattr(signal, sig):
+                self._log.trace(f'Registering subprocess signal', sig)
                 signal.signal(getattr(signal, sig), self._handle_signal)
 
     def _handle_signal(self, *args, **kwargs): pass
 
     def _build_and_run(self):
+        self._log.trace('Building and running worker class')
         worker = dynamic_object(self._worker_cls)(
             _process_uuid=self._process_uuid,
             _config=json.loads(self._config_json),
@@ -56,6 +63,7 @@ class BaseProcess:
 
     def shutdown(self):
         """Request that the process running shutdown as soon as it is finished the current item."""
+        self._log.trace('Shutdown requested')
         self._end_flag.set()
 
     def run(self):
@@ -68,6 +76,7 @@ class _ProcessSet:
     """Represents a set of processes all running the same worker."""
 
     def __init__(self,
+                 process_name: str,
                  process_cls: callable,
                  worker_cls: str,
                  target_count: int,
@@ -76,6 +85,7 @@ class _ProcessSet:
                  halt_flag: EventProtocol,
                  no_start: bool = False):
         self._process_cls = process_cls
+        self._process_name = process_name
         self._halt_flag = halt_flag
         self._quota = target_count
         self._signals = signals
@@ -84,10 +94,15 @@ class _ProcessSet:
         self._is_active = True
         self._worker_cls = worker_cls
         self._no_start = no_start
+        self._log = zrlog.get_logger(f'cnodc.process_set.{process_name}')
+        self._idx = -1
 
     def _build_process(self) -> tuple[_ProcessProtocol, str]:
         proc_uuid = str(uuid.uuid4())
+        self._idx += 1
         return self._process_cls(
+            process_name=self._process_name,
+            process_idx = self._idx,
             process_uuid=proc_uuid,
             worker_cls=self._worker_cls,
             halt_flag=self._halt_flag,
@@ -110,6 +125,7 @@ class _ProcessSet:
 
     def shutdown_all(self):
         """Request all workers stop as soon as possible."""
+        self._log.trace('Shutting down all active processes')
         for x in self._active_processes:
             self._active_processes[x].shutdown()
 
@@ -145,6 +161,7 @@ class _ProcessSet:
         """Clear workers that have errored"""
         for x in list(self._active_processes.keys()):
             if not self._active_processes[x].is_alive():
+                self._log.info('Removing dead process')
                 del self._active_processes[x]
 
     def _sow(self):
@@ -152,6 +169,7 @@ class _ProcessSet:
         if self._is_active:
             current = len(self._active_processes)
             while current < self._quota:
+                self._log.info('Starting new process')
                 proc, proc_uuid = self._build_process()
                 self._active_processes[proc_uuid] = proc
                 proc.start()
@@ -183,8 +201,9 @@ class BaseController:
 
     def _register_process(self, process_name: str, process_cls_name: str, count: int = 1, config: dict = None):
         if process_name not in self._process_info:
-            self._log.debug(f"Registering process {process_name}")
+            self._log.debug("Registering process %s", process_name)
             self._process_info[process_name] = _ProcessSet(
+                process_name,
                 self._process_runner_cls,
                 process_cls_name,
                 count,
@@ -194,14 +213,14 @@ class BaseController:
                 no_start=self._no_start
             )
         else:
-            self._log.debug(f"Updating process {process_name}")
+            self._log.debug("Updating process %s", process_name)
             self._process_info[process_name].set_quota(count)
             self._process_info[process_name].set_config(config or {})
             self._process_info[process_name].activate()
 
     def _deregister_process(self, process_name: str):
         if process_name in self._process_info:
-            self._log.debug(f"Deactivating process {process_name}")
+            self._log.debug("Deactivating process %s", process_name)
             self._process_info[process_name].deactivate()
 
     def _registered_process_names(self) -> list[str]:
@@ -212,7 +231,7 @@ class BaseController:
         if not self._loaded:
             return True
         if self._flag_file is not None and self._flag_file.exists():
-            self._log.debug(f"Flag file detected, reloading configuration")
+            self._log.debug("Flag file detected, reloading configuration")
             self._flag_file.unlink(True)
             return True
         return False
@@ -220,35 +239,37 @@ class BaseController:
     def _register_halt_signal(self, sig_name):
         """Register a halt signal"""
         if hasattr(signal, sig_name):
+            self._log.debug("Registering signal %s", sig_name)
             signal.signal(getattr(signal, sig_name), self._handle_halt)
             self._signals.add(sig_name)
 
     def _handle_halt(self, sig_num, frame):
         """Handle a halt signal"""
-        self._log.info(f"Signal {sig_num} caught")
+        self._log.info("Signal %s caught", sig_num)
         self._halt_flag.set()
         self._break_count += 1
         if self._break_count >= 3:
-            self._log.critical(f"Critical halt")
+            self._log.critical("Critical halt")
             raise KeyboardInterrupt
 
     def _populate_config_from_file(self, config: dict, file: t.Union[str, pathlib.Path]):
+        self._log.debug('Loading configuration from %s', file)
         with open(file, "r", encoding="utf-8") as h:
             data = yaml.safe_load(h)
             if isinstance(data, dict):
                 config.update(data)
             else:
-                self._log.error(f"Process configuration file [{file}] does not contain a YAML dictionary")
+                self._log.error("Process configuration file [%s] does not contain a YAML dictionary", file)
 
     def _load_config(self):
-        self._log.notice(f"Reading configuration from disk")
         config = {}
         if self._config_dir is not None:
             if not self._config_dir.exists():
-                self._log.error(f"Config directory specified but does not exist")
+                self._log.error(f"Config directory [%s] specified but does not exist", self._config_dir)
             elif not self._config_dir.is_dir():
-                self._log.error(f"Config directory is not a directory")
+                self._log.error(f"Config directory [%s] is not a directory", self._config_dir)
             else:
+                self._log.debug("Reading configuration from YAML files in %s", self._config_dir)
                 work_dirs = [self._config_dir]
                 while work_dirs:
                     for file in os.scandir(work_dirs.pop()):
@@ -258,15 +279,43 @@ class BaseController:
                             work_dirs.append(file.path)
         if self._config_file is not None:
             if not self._config_file.exists():
-                self._log.error('Config file specified but does not exist')
+                self._log.error('Config file [%s] specified but does not exist', self._config_file)
             else:
                 self._populate_config_from_file(config, self._config_file)
         if not config:
             raise CNODCError("No processes specified", "PROCESSCTRL", 1001)
         return config
 
+    def _validate_config(self, process_name: str, config: dict) -> tuple[bool, t.Optional[dict], t.Optional[int]]:
+        if 'class_name' not in config[process_name]:
+            self._log.error("Process [%s] is missing a class name", process_name)
+            return False, None, None
+        try:
+            cls = dynamic_object(config[process_name]['class_name'])
+            if not hasattr(cls, 'run'):
+                raise CNODCError('Invalid worker class, no run method', 'PROCESSCTRL', 1000)
+        except Exception as ex:
+            self._log.exception('Process [%s] has an invalid class name', process_name)
+            return False, None, None
+        # Validate configuration
+        proc_config = {}
+        if 'config' in config[process_name] and config[process_name]['config']:
+            if isinstance(config[process_name]['config'], dict):
+                proc_config = config[process_name]['config']
+            else:
+                self._log.warning("Process [%s] does not define a dictionary for its configuration, ignoring configuration", process_name)
+        # Validate count
+        count = 1
+        if 'count' in config[process_name] and config[process_name]['count']:
+            try:
+                count = max(int(config[process_name]['count']), 1)
+            except (TypeError, ValueError):
+                self._log.warning("Processing [%s] has a non-integer value for the quota [%s], defaulting to 1", process_name, config[process_name]['count'])
+        return True, proc_config, count
+
     def _reload_config(self):
         """Reload configuration from disk."""
+        self._log.trace('Reloading process configuration')
         config = self._load_config()
         # We will remove keys from this list as we see them and deregister all the ones we didn't see
         deregister_list = self._registered_process_names()
@@ -274,33 +323,9 @@ class BaseController:
             # Remove the process name immediately, so we don't stop them if there is an error processing the definition
             if process_name in deregister_list:
                 deregister_list.remove(process_name)
-            # Validate class name
-            if 'class_name' not in config[process_name]:
-                self._log.error(f"Process [{process_name}] is missing a class name")
+            result, proc_config, count = self._validate_config(process_name, config)
+            if not result:
                 continue
-            try:
-                cls = dynamic_object(config[process_name]['class_name'])
-                if not hasattr(cls, 'run'):
-                    raise CNODCError('Invalid worker class, no run method', 'PROCESSCTRL', 1000)
-            except Exception as ex:
-                self._log.exception(f'Process [{process_name}] has an invalid class name')
-                continue
-            # Validate configuration
-            proc_config = {}
-            if 'config' in config[process_name] and config[process_name]['config']:
-                if isinstance(config[process_name]['config'], dict):
-                    proc_config = config[process_name]['config']
-                else:
-                    self._log.warning(f"Process [{process_name}] does not define a dictionary for its configuration, ignoring configuration")
-                    continue
-            # Validate count
-            count = 1
-            if 'count' in config[process_name] and config[process_name]['count']:
-                try:
-                    count = max(int(config[process_name]['count']), 1)
-                except (TypeError, ValueError):
-                    self._log.warning(
-                        f"Processing [{process_name}] has a non-integer value for the quota [{config[process_name]['count']}], defaulting to 1")
             # Register the process
             self._register_process(
                 process_name,
@@ -319,20 +344,18 @@ class BaseController:
 
     def start(self):
         """Method to register all signals and start the process."""
-        self._log.debug("Registering halt signals")
         self._register_halt_signal("SIGINT")
         self._register_halt_signal("SIGTERM")
         self._register_halt_signal("SIGBREAK")
         self._register_halt_signal("SIGQUIT")
-        self._log.debug("Loading configuration")
         self.reload_check()
-        self._log.debug("Running workers")
         self.run()
 
     def run(self):
         """Run loop, will constantly check for configuration changes and ensure process sets are running until
             the halt flag is set.
         """
+        self._log.info('Starting processes')
         try:
             while not self._halt_flag.is_set():
                 if self._check_reload():
@@ -340,12 +363,14 @@ class BaseController:
                 self.reap_and_sow()
                 time.sleep(1)
         finally:
+            self._log.info('Closing processes')
             self.deactivate_all()
             self.wait_for_all()
+            self._log.info('Complete, exiting')
 
     def deactivate_all(self):
         """Request every process stop immediately."""
-        self._log.debug(f"Requesting all processes to halt")
+        self._log.trace(f"Requesting all processes to halt")
         for process_name in self._process_info:
             self._process_info[process_name].deactivate()
 
@@ -367,6 +392,7 @@ class BaseController:
 
     def reap_and_sow(self):
         """Run reap_and_sow() for every process set."""
+        self._log.trace('Requesting all processes to reap and sow')
         for process_name in self._process_info:
             self._process_info[process_name].reap_and_sow()
 
@@ -475,6 +501,7 @@ class BaseWorker:
         self._process_name = process_name
         self._process_version = process_version
         self._config = _config or {}
+        self._cycle_config = {}
         self._defaults = {
             'save_file': None,
         }
@@ -487,27 +514,49 @@ class BaseWorker:
         self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
         self._save_data: t.Optional[SaveData] = None
         self._hook_cache = {}
+        self._events: list[str] = ['on_start', 'before_cycle', 'after_cycle', 'on_exit']
+
+    def add_events(self, events: list[str]):
+        self._events.extend(events)
+
+    @property
+    def process_name(self):
+        return self._process_name
+
+    @property
+    def process_uuid(self):
+        return self._process_uuid
+
+    @property
+    def process_version(self):
+        return self._process_version
+
+    def possible_events(self) -> list[str]:
+        return self._events
 
     def run_hook(self, hook_name, **kwargs):
-        if hook_name not in self._hook_cache:
-            self._hook_cache[hook_name] = []
-            hooks = self.get_config(f'hook_{hook_name}', None)
-            if hooks:
-                if not isinstance(hooks, (list, tuple, set)):
-                    hooks = [hooks]
-                for hook_call in hooks:
-                    if isinstance(hook_call, str):
-                        try:
-                            self._hook_cache[hook_name].append(dynamic_object(hook_call))
-                        except DynamicObjectLoadError:
-                            self._log.exception(f"Error loading hook [{hook_call}] for [{hook_name}]")
-                    else:
-                        self._hook_cache[hook_name].append(hook_call)
-        for hook_callable in self._hook_cache[hook_name]:
+        self._log.trace(f'Hook %s fired', hook_name)
+        for hook_callable in self._build_hooks(hook_name):
             hook_callable(worker=self, **kwargs)
+
+    @functools.cache
+    def _build_hooks(self, hook_name: str) -> list[collections.abc.Callable]:
+        hook_callables = []
+        hooks = self.get_merged_config(f'hook_{hook_name}')
+        if hooks:
+            for hook_call in hooks:
+                if isinstance(hook_call, str):
+                    try:
+                        hook_callables.append(dynamic_object(hook_call))
+                    except DynamicObjectLoadError:
+                        self._log.exception(f"Error loading hook [{hook_call}] for [{hook_name}]")
+                else:
+                    hook_callables.append(hook_call)
+        return hook_callables
 
     def breakpoint(self):
         """ Check if we need to break. """
+        self._log.trace('Breakpoint')
         self._halt_flag.breakpoint()
 
     def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
@@ -515,11 +564,13 @@ class BaseWorker:
         if time_seconds <= 0:
             return
         elif time_seconds < (2 * max_delay):
+            self._log.trace('Sleeping for [%s] seconds', time_seconds)
             time.sleep(time_seconds)
         else:
             st = time.monotonic()
             et = st
             while (et - st) < time_seconds:
+                self._log.trace('Sleeping for [%s] seconds', time_seconds)
                 time.sleep(min(max_delay, max(time_seconds - (et - st), 0.01)))
                 et = time.monotonic()
                 if not self.continue_loop():
@@ -529,48 +580,69 @@ class BaseWorker:
         """Check if the halt or end flags are set (True if neither are). """
         return self._halt_flag.check_continue(False) and self._end_flag.check_continue(False)
 
-    def get_config(self, key, default=None):
+    def get_merged_config(self, key) -> list:
+        values = []
+        for d in (self._cycle_config, self._config, self._defaults):
+            if key in d and d[key]:
+                if isinstance(d[key], (list, tuple, set)):
+                    values.extend(d[key])
+                else:
+                    values.append(d[key])
+        self._log.trace(f"Merged  config setting from cycle [%s=%s]", key, values)
+        return values
+
+    def get_config(self, key, default=None, merge: bool = False):
         """Get a configuration setting by name, or the given default value if it isn't present."""
+        if key in self._cycle_config and self._cycle_config[key] is not None:
+            self._log.trace(f"Config setting from cycle [%s=%s]", key, self._cycle_config[key])
+            return self._cycle_config[key]
         if key in self._config and self._config[key] is not None:
+            self._log.trace(f"Config setting from config [%s=%s]", key, self._config[key])
             return self._config[key]
         elif key in self._defaults and self._defaults[key] is not None:
+            self._log.trace(f"Config setting from defaults [%s=%s]", key, self._defaults[key])
             return self._defaults[key]
-        return default
+        else:
+            self._log.trace(f"Config setting from method default [%s=%s]", key, default)
+            return default
+
+    def set_cycle_config(self, values: dict):
+        self._cycle_config = values
 
     def set_defaults(self, values: dict):
         """Set the default values for the configuration settings."""
         self._defaults.update(values)
 
+    @property
+    def process_id(self):
+        return f"{self.process_name}:{self.process_version}:{self.process_uuid}"
+
     def run(self) -> None:
         """Run the worker process with appropriate error handling."""
         exc = None
         try:
-            self._log.debug(f'Starting process {self._process_uuid}')
+            self._log.debug('Starting process %s', self.process_id)
             self.on_start()
-            self._log.debug(f'Process {self._process_uuid} is running')
+            self._log.debug(f'Process %s is running', self.process_id)
             self._run()
         except Exception as ex:
             exc = ex
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
         finally:
-            self._log.debug(f'Cleaning up {self._process_uuid}')
+            self._log.debug(f'Cleaning up %s', self.process_id)
             self.on_exit(exc)
-            self._log.debug(f'Process {self._process_uuid} complete')
+            self._log.debug(f'Process %s complete', self.process_id)
 
     def run_once(self):
         exc = None
         try:
-            self._log.debug(f'Starting process [once] {self._process_uuid}')
             self.on_start()
-            self._log.debug(f'Process {self._process_uuid} is running [once]')
             self._run_once()
         except Exception as ex:
             exc = ex
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
         finally:
-            self._log.debug(f'Cleaning up {self._process_uuid} [once]')
             self.on_exit(exc)
-            self._log.debug(f'Process {self._process_uuid} complete [once]')
 
     def _run(self):
         """Override this method with a loop to process items."""
@@ -599,6 +671,7 @@ class BaseWorker:
         """Override this method to be called after each item is processed."""
         self.run_hook('after_cycle')
         if self._temp_dir is not None:
+            self._log.trace('Cleaning up temp directory')
             self._temp_dir.cleanup()
             self._temp_dir = None
 

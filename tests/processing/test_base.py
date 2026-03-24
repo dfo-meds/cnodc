@@ -13,6 +13,8 @@ class TestBaseProcess(BaseTestCase):
         hf = threading.Event()
         ef = threading.Event()
         p = BaseProcess(
+            'test',
+            2,
             None,
             None,
             hf,
@@ -20,6 +22,8 @@ class TestBaseProcess(BaseTestCase):
             '',
             ''
         )
+        self.assertEqual(p._process_name, 'test')
+        self.assertEqual(p._process_idx, 2)
         self.assertFalse(ef.is_set())
         self.assertFalse(hf.is_set())
         p.shutdown()

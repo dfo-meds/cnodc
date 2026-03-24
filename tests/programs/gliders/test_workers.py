@@ -16,6 +16,11 @@ import cnodc.ocproc2 as ocproc2
 
 class TestGliderMissionPlatformInfo(BaseTestCase):
 
+    class FakeWorker:
+        def __init__(self, db):
+            self.db = db
+            self.memory = {}
+
     def test_add_mission_platform_info(self):
         record1 = ocproc2.ParentRecord()
         record1.metadata['WMOID'] = '12345'
@@ -23,9 +28,9 @@ class TestGliderMissionPlatformInfo(BaseTestCase):
         record2 = ocproc2.ParentRecord()
         record2.metadata['WMOID'] = '12345'
         record2.metadata['CruiseID'] = '23456'
-        mem = {}
-        add_glider_mission_platform_info(None, record1, self.db, mem)
-        add_glider_mission_platform_info(None, record2, self.db, mem)
+        w = TestGliderMissionPlatformInfo.FakeWorker(self.db)
+        add_glider_mission_platform_info(w, record1)
+        add_glider_mission_platform_info(w, record2)
         self.assertEqual(1, self.db.rows(NODBPlatform.TABLE_NAME))
         self.assertEqual(1, self.db.rows(NODBMission.TABLE_NAME))
         mission = self.db.table(NODBMission.TABLE_NAME)[0]
@@ -51,8 +56,9 @@ class TestGliderMissionPlatformInfo(BaseTestCase):
         record2.metadata['WMOID'] = '12345'
         record2.metadata['CruiseID'] = '23456'
         mem = {}
-        add_glider_mission_platform_info(None, record1, self.db, mem)
-        add_glider_mission_platform_info(None, record2, self.db, mem)
+        w = TestGliderMissionPlatformInfo.FakeWorker(self.db)
+        add_glider_mission_platform_info(w, record1)
+        add_glider_mission_platform_info(w, record2)
         self.assertEqual(1, self.db.rows(NODBPlatform.TABLE_NAME))
         self.assertEqual(1, self.db.rows(NODBMission.TABLE_NAME))
         self.assertEqual(record1.metadata['CNODCPlatform'].value, platform.platform_uuid)
@@ -134,7 +140,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertEqual(2, self.db.rows(NODBQueueItem.TABLE_NAME))
         item = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[0])
         self.assertIsInstance(item, FilePayload)
-        self.assertEqual(item.file_info.file_path, str(og_file))
+        self.assertEqual(item.file_path, str(og_file))
         item2 = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[1])
         self.assertIsInstance(item2, SourceFilePayload)
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)
@@ -184,7 +190,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertEqual(item0.queue_name, 'erddap_reload')
         item = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[1])
         self.assertIsInstance(item, FilePayload)
-        self.assertEqual(item.file_info.file_path, str(og_file))
+        self.assertEqual(item.file_path, str(og_file))
         item2 = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[2])
         self.assertIsInstance(item2, SourceFilePayload)
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)

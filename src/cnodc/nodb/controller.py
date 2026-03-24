@@ -726,7 +726,7 @@ class NODBController(NODBControllerBase):
                 self._conn = pg.connect(**self._connect_args)
             except psycopg2.OperationalError as ex:
                 if 'connection refused' in str(ex).lower():
-                    raise CNODCError(f'Database connection refused', 'NODB', 1002, is_recoverable=True) from ex
+                    raise CNODCError(f'Database connection refused', 'NODB', 1002, is_transient=True) from ex
                 else:
                     raise CNODCError(f'Database connection error: {str(ex)}', 'NODB', 1003) from ex
         return self._conn

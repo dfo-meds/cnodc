@@ -62,24 +62,23 @@ class NODBRecordManager:
         obj = None
         if obj_uuid not in mem:
             obj = finder(db, obj_uuid)
-            mem[obj_uuid] = (obj.metadata or {}, {}) if obj else None
+            mem[obj_uuid] = (obj.metadata or {}) if obj else None
         if mem[obj_uuid] is None:
             return
-        unloaded, loaded = mem[obj_uuid]
+        unloaded = mem[obj_uuid]
         changed = False
-        for element_name in list(record.metadata.keys()):
+        remove_keys = []
+        for element_name in record.metadata.keys():
             element_group = self.ontology.group_name(element_name)
             if element_group == group_name:
                 if element_name not in unloaded:
                     unloaded[element_name] = record.metadata[element_name].to_mapping()
                     changed = True
-                    loaded[element_name] = record.metadata[element_name]
-                    del record.metadata[element_name]
-                else:
-                    if element_name not in loaded:
-                        loaded[element_name] = ocproc2.AbstractElement.build_from_mapping(unloaded[element_name])
-                    if loaded[element_name] == record.metadata[element_name]:
-                        del record.metadata[element_name]
+                    remove_keys.append(element_name)
+                elif unloaded[element_name] == record.metadata[element_name].to_mapping():
+                    remove_keys.append(element_name)
+        for element_name in remove_keys:
+            del record.metadata[element_name]
         if changed:
             if obj is None:
                 obj = finder(db, obj_uuid)

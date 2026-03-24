@@ -9,8 +9,8 @@ if t.TYPE_CHECKING:
 
 class UnitError(CNODCError):
 
-    def __init__(self, msg: str, code: t.Optional[int] = None, is_recoverable: bool = False):
-        super().__init__(msg, 'UNITS', code, is_recoverable)
+    def __init__(self, msg: str, code: t.Optional[int] = None, is_transient: bool = False):
+        super().__init__(msg, 'UNITS', code, is_transient)
 
 
 class Converter:

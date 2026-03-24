@@ -10,6 +10,7 @@ from cnodc.nodb.observations import (
     NODBObservation,
     NODBSourceFile,
     NODBObservationData,
+    NODBWorkingRecord,
     SourceFileStatus,
     ObservationStatus,
     ObservationType,

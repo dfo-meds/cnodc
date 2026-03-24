@@ -14,7 +14,7 @@ import uuid
 from urllib.parse import quote
 import zrlog
 
-from cnodc.nodb import NODBControllerInstance, NODBController, NODBUploadWorkflow
+from cnodc.nodb import NODBControllerInstance, NODBUploadWorkflow
 from cnodc.storage import StorageController, StorageTier, BaseStorageHandle
 from autoinject import injector
 from cnodc.util import CNODCError, HaltFlag, dynamic_object, gzip_with_halt
@@ -22,7 +22,7 @@ import typing as t
 import pathlib
 import datetime
 
-from cnodc.processing.workflow.payloads import FileInfo, WorkflowPayload, FilePayload
+from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload
 import cnodc.util.awaretime as awaretime
 
 VALID_METADATA_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:;.,\\/\"'?!(){}[]@<>=-+*#$&`|~^"
@@ -53,7 +53,7 @@ class WorkflowController:
         self.name: str = workflow_name
         self.config = config
         self.halt_flag = halt_flag
-        self._log = zrlog.get_logger("cnodc.workflow")
+        self._log = zrlog.get_logger(f"cnodc.workflow.{workflow_name}")
 
     def handle_incoming_file(self,
                              local_path: pathlib.Path,
@@ -62,7 +62,7 @@ class WorkflowController:
                              db: NODBControllerInstance,
                              unique_queue_id: t.Optional[str] = None):
         """Start the workflow for a file."""
-        self._log.debug(f"Processing file [{local_path}]")
+        self._log.debug(f"Processing file [%s]", local_path)
         file_handles = []
         working_file = None
         # Add the default metadata
@@ -79,13 +79,13 @@ class WorkflowController:
         if 'default_metadata' in self.config:
             for x in self.config['default_metadata']:
                 if x not in metadata:
-                    self._log.debug(f"Setting default metadata {x}={self.config['default_metadata'][x]}")
+                    self._log.trace(f"Setting default metadata {x}={self.config['default_metadata'][x]}")
                     metadata[x] = self.config['default_metadata'][x]
 
     def _validate_file_upload(self, local_path: pathlib.Path, metadata: dict, filename: str):
         """Validate the uploaded file"""
-        if 'validation' in self.config:
-            self._log.info(f"Validating uploaded file")
+        if 'validation' in self.config and self.config['validation']:
+            self._log.info(f"Validating uploaded file using %s", self.config['validation'])
             dynamic_object(self.config['validation'])(local_path, filename, metadata)
 
     def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, success_hook, db, unique_queue_id: t.Optional[str], filename: str):
@@ -102,7 +102,7 @@ class WorkflowController:
                 if 'working_target' in self.config:
                     with_gzip = 'gzip' in self.config['working_target'] and self.config['working_target']['gzip']
                     if with_gzip:
-                        self._log.info(f"Creating gzipped version of local file")
+                        self._log.debug(f"Creating gzipped version of local file")
                         gzip_with_halt(local_path, gzip_file, halt_flag=self.halt_flag)
                         gzip_made = True
                         working_file, target_tier = self._handle_file_upload(gzip_file, gzip_filename, metadata, self.config['working_target'], gzip=True)
@@ -113,7 +113,7 @@ class WorkflowController:
                     for target in self.config['additional_targets']:
                         if 'gzip' in target and target['gzip']:
                             if not gzip_made:
-                                self._log.info(f"Creating gzipped version of local file")
+                                self._log.debug(f"Creating gzipped version of local file")
                                 gzip_with_halt(local_path, gzip_file, halt_flag=self.halt_flag)
                                 gzip_made = True
                             file_handles.append(self._handle_file_upload(gzip_file, gzip_filename, metadata, target, gzip=True))
@@ -139,7 +139,7 @@ class WorkflowController:
                 if isinstance(ex, CNODCError):
                     raise ex from ex
                 else:
-                    raise CNODCError(f"Exception while processing incoming file: {ex.__class__.__name__}: {str(ex)}", "WORKFLOW", 1000) from ex
+                    raise CNODCError(f"Exception while processing incoming file: {type(ex)}: {str(ex)}", "WORKFLOW", 1000) from ex
 
     def _queue_working_file(self,
                             working_file: BaseStorageHandle,
@@ -151,22 +151,27 @@ class WorkflowController:
         """Queue the working file."""
         if self.has_more_steps(None):
             if 'last-modified-date' in metadata and metadata['last-modified-date']:
-                lmt = awaretime.from_isoformat(metadata['last-modified-date'])
+                lmd = awaretime.from_isoformat(metadata['last-modified-date'])
             else:
-                lmt = awaretime.utc_now()
-                metadata['last-modified-date'] = lmt.isoformat()
-            file_info = FileInfo(
-                working_file.path(),
-                filename,
-                with_gzip,
-                lmt
+                lmd = awaretime.utc_now()
+                metadata['last-modified-date'] = lmd.isoformat()
+            payload = FilePayload(
+                file_path=working_file.path(),
+                filename=filename,
+                is_gzipped=with_gzip,
+                last_modified_date=lmd,
+                current_step=None,
+                current_step_done=True,
+                metadata=metadata,
+                workflow_name=self.name
             )
-            payload = FilePayload(file_info, current_step=None, current_step_done=True, metadata=metadata, workflow_name=self.name)
             if unique_file_key:
                 payload.set_unique_key(hashlib.md5(unique_file_key.encode('utf-8', errors='replace')).hexdigest())
             else:
-                payload.set_unique_key(hashlib.md5(file_info.file_path.encode('utf-8', errors='replace')).hexdigest())
+                payload.set_unique_key(hashlib.md5(working_file.path().encode('utf-8', errors='replace')).hexdigest())
             self.queue_step(payload, db)
+        else:
+            self._log.info('No more steps for workflow')
 
     def _finish_file_handles(self, file_handles):
         """Set the tier on all file handles."""
@@ -174,9 +179,10 @@ class WorkflowController:
         for handle, tier in closing_handles:
             if handle is not None and tier is not None:
                 try:
+                    self._log.debug('Setting tier on [%s] to [%s]', handle.path(), tier)
                     handle.set_tier(tier)
                 except Exception as ex:
-                    self._log.exception(f"Exception setting tier on [{handle.path()}] to [{tier}]")
+                    self._log.exception(f"Exception setting tier on [%s] to [%s]", handle.path(), tier)
 
     def queue_step(self,
                     payload: WorkflowPayload,
@@ -189,12 +195,11 @@ class WorkflowController:
         if 'priority' in queue_info and queue_info['priority']:
             try:
                 priority = int(queue_info['priority'])
-            except ValueError:
+            except (ValueError, TypeError):
                 self._log.error(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
-            except TypeError:
-                self._log.error(f"Invalid default priority for workflow step [{self.name}:{payload.current_step}]")
-        if 'worker_metadata' in queue_info and queue_info['worker_metadata']:
-            payload.metadata.update(queue_info['worker_metadata'])
+        if 'worker_config' in queue_info and queue_info['worker_config']:
+            payload.worker_config.update(queue_info['worker_config'])
+        self._log.info('Queuing item to [%s]', queue_info['name'])
         payload.enqueue(db, queue_info['name'], priority)
 
     def step_list(self) -> list[str]:
@@ -279,16 +284,13 @@ class WorkflowController:
         """Upload a file to a given location."""
         if 'directory' not in upload_kwargs or not upload_kwargs['directory']:
             raise CNODCError("Missing/invalid directory for workflow upload action", "WORKFLOW", 1003)
-        self._log.info(f"Uploading file to {upload_kwargs['directory']}")
         target_dir_handle = self.storage.get_handle(upload_kwargs['directory'], halt_flag=self.halt_flag)
         if target_dir_handle is None:
             raise CNODCError(f'Invalid directory [{upload_kwargs['directory']} for uploading', 'WORKFLOW', 1005)
         file_handle = target_dir_handle.child(filename)
-
         storage_tier = StorageTier(upload_kwargs['tier']) if 'tier' in upload_kwargs and upload_kwargs['tier'] else None
         if not file_handle.supports_tiering():
             storage_tier = None
-
         storage_metadata = self.storage.build_metadata(
             gzip=gzip,
             storage_tier=storage_tier,
@@ -305,6 +307,7 @@ class WorkflowController:
             elif upload_kwargs['allow_overwrite'] == 'always':
                 allow_overwrite = True
 
+        self._log.info(f"Uploading file to [%s]", file_handle.path())
         file_handle.upload(
             local_path,
             allow_overwrite=allow_overwrite,

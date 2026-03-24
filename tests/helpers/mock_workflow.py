@@ -7,18 +7,32 @@ import threading
 import traceback
 import uuid
 import typing as t
+
+import zrlog
+
 from cnodc.nodb import NODBQueueItem, NODBUploadWorkflow
 from cnodc.processing.control.base import BaseWorker
 from cnodc.util import HaltFlag
 from cnodc.util.awaretime import AwareDateTime
 from helpers.db_mock import DummyNODB
+import dataclasses
+
+
+@dataclasses.dataclass
+class WorkerEvent:
+    event_time: datetime.datetime
+    process_name: str
+    process_version: str
+    process_id: str
+    event_name: str
+    keyword_args: dict
 
 
 class WorkflowTestResult(logging.Handler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.worker_events: list[tuple[datetime.datetime, str, str, dict]] = []
+        self.worker_events: list[WorkerEvent] = []
         self.logs: list[logging.LogRecord] = []
         self._log = logging.getLogger('workflow.test_result')
 
@@ -48,24 +62,10 @@ class WorkflowTestResult(logging.Handler):
         for entry in entries:
             print(entry[1])
 
-    def update_worker_config(self, wc: dict):
+    def update_worker_config(self, worker: BaseWorker, wc: dict):
         wc = wc.copy()
-        self._register_worker_hook(wc, 'on_start')
-        self._register_worker_hook(wc, 'on_exit')
-        self._register_worker_hook(wc, 'before_cycle')
-        self._register_worker_hook(wc, 'after_cycle')
-        self._register_worker_hook(wc, 'before_queue_item')
-        self._register_worker_hook(wc, 'after_queue_item')
-        self._register_worker_hook(wc, 'on_retry')
-        self._register_worker_hook(wc, 'on_failure')
-        self._register_worker_hook(wc, 'on_success')
-        self._register_worker_hook(wc, 'after_retry')
-        self._register_worker_hook(wc, 'after_failure')
-        self._register_worker_hook(wc, 'after_success')
-        self._register_worker_hook(wc, 'before_message')
-        self._register_worker_hook(wc, 'before_record')
-        self._register_worker_hook(wc, 'after_decode_success')
-        self._register_worker_hook(wc, 'after_decode_error')
+        for event_name in worker.possible_events():
+            self._register_worker_hook(wc, event_name)
         return wc
 
     def _register_worker_hook(self, wc, hook_name):
@@ -79,8 +79,14 @@ class WorkflowTestResult(logging.Handler):
             wc[hook_key].append(cb)
 
     def _add_worker_event(self, worker: BaseWorker, event_name: str, **kwargs):
-        self.worker_events.append((AwareDateTime.utcnow(), worker._process_name, event_name, kwargs))
-        self._log.debug(f'{worker._process_name}: {event_name}({', '.join(f'{k}: {kwargs[k]}' for k in kwargs)})')
+        self.worker_events.append(WorkerEvent(
+            event_time=AwareDateTime.utcnow(),
+            process_name=worker.process_name,
+            process_version=worker.process_version,
+            process_id=worker.process_uuid,
+            event_name=event_name,
+            keyword_args=kwargs
+        ))
 
 
 class MockWorkflow:
@@ -92,6 +98,7 @@ class MockWorkflow:
         self._worker_info: list[tuple[type[BaseWorker], dict]] = []
         self._workers: list[BaseWorker] = []
         self._last_items: t.Optional[set[str]] = None
+        self._log = zrlog.get_logger("cnodc.testing.mock_workflow")
 
     def reset(self):
         with self.nodb as db:
@@ -103,7 +110,7 @@ class MockWorkflow:
     def add_workflow(self,
                      workflow_name: str,
                      working_dir: t.Union[str,dict],
-                     processing_steps: list[str],
+                     processing_steps: list[t.Union[str, dict]],
                      validation: str = None,
                      additional_dirs: list[t.Union[str, dict]] = None):
         wf = NODBUploadWorkflow()
@@ -118,7 +125,7 @@ class MockWorkflow:
                 for x in additional_dirs or []
             ],
             'processing_steps': {
-                f'step{idx}': {'order': idx, 'name': x}
+                f'step{idx}': {'order': idx, 'name': x} if not isinstance(x, dict) else x
                 for idx, x in enumerate(processing_steps)
             },
             'validation': validation,
@@ -129,22 +136,24 @@ class MockWorkflow:
     def add_worker(self, worker_cls: type[BaseWorker], worker_config: dict = None):
         self._worker_info.append((worker_cls, worker_config or {}))
 
-    def test_file(self, source_file: pathlib.Path, target_directory: pathlib.Path):
+    def test_file(self, source_file: pathlib.Path, target_directory: pathlib.Path, max_cycles: int = None):
         shutil.copy(source_file, target_directory / source_file.name)
-        return self._run_test()
+        return self._run_test(max_cycles)
 
-    def test_queue_item(self, queue_item: NODBQueueItem) -> WorkflowTestResult:
+    def test_queue_item(self, queue_item: NODBQueueItem, max_cycles: int = None) -> WorkflowTestResult:
         with self.nodb as db:
             db.insert_object(queue_item)
             db.commit()
-        return self._run_test()
+        return self._run_test(max_cycles)
 
-    def _run_test(self):
+    def _run_test(self, max_cycles: int = None):
+        max_cycles = max_cycles or 50
         test_result = WorkflowTestResult()
         test_result.start()
         self._build_workers(test_result)
-        while self._have_items_changed():
+        while self._have_items_changed() and max_cycles > 0:
             self._run_all_workers_once()
+            max_cycles -= 1
         test_result.close()
         return test_result
 
@@ -157,6 +166,10 @@ class MockWorkflow:
         with self.nodb as db:
             for item in db.table(NODBQueueItem.TABLE_NAME):
                 current_items.add(f"{item.queue_name}_{item.queue_uuid}_{item.status.value}")
+        if self._last_items:
+            self._log.notice('Current items [%s]', current_items.difference(self._last_items))
+        else:
+            self._log.notice('Current items [%s]', current_items.difference(set()))
         if self._last_items is None or current_items.difference(self._last_items):
             self._last_items = current_items
             return True
@@ -167,10 +180,11 @@ class MockWorkflow:
         for worker_cls, worker_config in self._worker_info:
             worker = worker_cls(
                 _process_uuid=str(uuid.uuid4()),
-                _config=test_result.update_worker_config(worker_config),
+                _config={},
                 _halt_flag=self.halt_flag,
                 _end_flag=self.end_flag
             )
+            worker._config = test_result.update_worker_config(worker, worker_config)
             if hasattr(worker, 'nodb'):
                 worker.nodb = self.nodb
             self._workers.append(worker)

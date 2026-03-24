@@ -40,4 +40,4 @@ class SingleProcessController(BaseController):
         if self._process_name in self._process_info:
             self._process = self._process_info[self._process_name].run_one()
         else:
-            raise CNODCError(f'Process [{self._process_name}] not defined in configuration file')
+            raise CNODCError(f'Process [{self._process_name}] not defined in configuration file', 'SINGLECTRL', 1000)

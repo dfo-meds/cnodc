@@ -1,4 +1,5 @@
 import datetime
+import functools
 import uuid
 
 from cnodc.ocproc2.codecs.base import BaseCodec, DecodeResult
@@ -15,6 +16,7 @@ from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, Sou
 from cnodc.processing.workers.queue_worker import QueueItemResult
 from cnodc.programs.nodb.record_manager import NODBRecordManager
 import cnodc.util.awaretime as awaretime
+from cnodc.util.awaretime import AwareDateTime
 
 
 class NODBDecodeLoadWorker(WorkflowWorker):
@@ -38,6 +40,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             'allow_reprocessing': False,
             'autocomplete_records': False,
         })
+        self.add_events(['before_message', 'before_record', 'after_record', 'after_message_success', 'after_decode_error'])
         self._error_dir_handle: t.Optional[BaseStorageHandle] = None
         self._decoder: t.Optional[BaseCodec] = None
         self._decoder_kwargs = {}
@@ -52,14 +55,20 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._error_dir_handle = self.storage.get_handle(err_dir, self._halt_flag)
         if not (self._error_dir_handle.is_dir() and self._error_dir_handle.exists()):
             raise CNODCError(f"Specified error directory is not a directory", "NODB-LOAD", 1003)
-        self._decoder = dynamic_object(self.get_config('decoder_class'))(halt_flag=self._halt_flag)
-        self._decoder_kwargs = self.get_config('decoder_kwargs', {})
-        if not self._decoder.is_decoder:
-            raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODB-LOAD", 1002)
         super().on_start()
 
-    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
+    @functools.cache
+    def _get_decoder_class(self, cls_name: str) -> type:
+        return dynamic_object(cls_name)
 
+    def _decode_records(self, h) -> t.Iterable[DecodeResult]:
+        decoder = self._get_decoder_class(self.get_config('decoder_class'))(halt_flag=self._halt_flag)
+        decoder_kwargs = self.get_config('decoder_kwargs', {})
+        if not decoder.is_decoder:
+            raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODB-LOAD", 1002)
+        yield from decoder._buffered_decode_records(decoder._read_in_chunks(h), **decoder_kwargs)
+
+    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
         self.memory = {}
 
         # Find the source file
@@ -74,10 +83,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if source_file.status == nodb.SourceFileStatus.ERROR:
             self._log.info(f"Source file contains errors, skipping")
             return QueueItemResult.FAILED
-
-        # TODO: consider if it is worth loading the most recent message idx from the error and obs_data tables
-        # and making the decoder skip ahead more efficiently.
-        skip_to_message_idx = None
 
         # Mark the source file as in progress
         source_file.status = nodb.SourceFileStatus.IN_PROGRESS
@@ -94,17 +99,12 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
         # Decode each entry and save them
         with open(temp_file, "rb") as h:
-            for result in self._decoder._buffered_decode_records(
-                    self._decoder._read_in_chunks(h),
-                    include_skipped=False,
-                    skip_to_message_idx=skip_to_message_idx,
-                    **self._decoder_kwargs):
+            for result in self._decode_records(h):
                 success, skipped, had_error = self._create_nodb_record_from_result(source_file, result)
                 total_created += success
                 total_skipped += skipped
                 had_any_errors = had_any_errors or had_error
                 was_single_file = result.single_message
-                self.breakpoint()
 
         self._log.info(f"{total_created} records created, {total_skipped} skipped")
 
@@ -121,23 +121,17 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def _fetch_source_file(self, payload: WorkflowPayload) -> nodb.NODBSourceFile:
         if isinstance(payload, FilePayload):
-            file_info = payload.file_info
             source_file = nodb.NODBSourceFile.find_by_source_path(
                 self.db,
-                file_info.file_path,
+                payload.file_path,
                 lock_type=LockType.FOR_NO_KEY_UPDATE
             )
             if source_file is None:
-                rdate = (
-                    file_info.last_modified_date.date()
-                    if file_info.last_modified_date is not None else
-                    awaretime.utc_now()
-                )
                 source_file = nodb.NODBSourceFile()
-                source_file.source_path = file_info.file_path
-                source_file.received_date = rdate
+                source_file.source_path = payload.file_path
+                source_file.received_date = payload.last_modified_date or AwareDateTime.utcnow()
                 source_file.status = nodb.SourceFileStatus.NEW
-                source_file.file_name = file_info.filename
+                source_file.file_name = payload.filename
                 self.db.insert_object(source_file)
                 self.db.commit()
             return source_file
@@ -158,14 +152,18 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             try:
                 for record_idx, record in enumerate(result.records):
                     self.before_record(source_file, record)
-                    if self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records):
+                    record_result = self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records)
+                    if record_result:
                         success += 1
                     else:
                         skipped += 1
-                self.after_decode_success(source_file, result)
+                    self.after_record(source_file, record, record_result)
+                    self.breakpoint()
+                self.after_message_success(source_file, result)
+                self.renew_item()
                 self.db.commit()
             except CNODCError as ex:
-                if ex.is_recoverable:
+                if ex.is_transient:
                     raise ex from ex
                 else:
                     self._handle_decode_failure(source_file, result, ex)
@@ -200,7 +198,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                                result: DecodeResult,
                                additional_exception: Exception = None):
         self.db.rollback()
-        self.after_decode_error(source_file, result, additional_exception)
         mode = self.db.update_object
         if result.single_message:
             child_file = source_file
@@ -245,6 +242,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             payload.set_followup_queue(self.get_config('next_queue'))
             self.progress_payload(payload, failure_queue, prevent_default_progression=True)
         mode(child_file)
+        self.after_decode_error(source_file, result, additional_exception)
         self.db.commit()
 
     def before_message(self, source_file: nodb.NODBSourceFile, result: DecodeResult):
@@ -253,8 +251,11 @@ class NODBDecodeLoadWorker(WorkflowWorker):
     def before_record(self, source_file, record):
         self.run_hook('before_record', source_file=source_file, record=record)
 
-    def after_decode_success(self, source_file, result):
-        self.run_hook('after_decode_success', source_file=source_file, result=result)
+    def after_record(self, source_file, record, was_inserted: bool):
+        self.run_hook('after_record', source_file=source_file, record=record, was_inserted=was_inserted)
+
+    def after_message_success(self, source_file, result):
+        self.run_hook('after_message_success', source_file=source_file, result=result)
 
     def after_decode_error(self, source_file, result, additional_exception):
         self.run_hook('after_decode_error', source_file=source_file, result=result, exception=additional_exception)

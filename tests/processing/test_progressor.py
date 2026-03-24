@@ -60,5 +60,5 @@ class TestProgressor(BaseTestCase):
         self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 0)
         self.worker_controller.test_queue_worker(WorkflowProgressWorker, {}, item)
         self.assertEqual(item.status, QueueStatus.COMPLETE)
-        self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 1)
+        self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 0)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import typing as t
 import datetime
-from cnodc.ocproc2.elements import ElementMap, DefaultValueDict, OCProcValue
+from cnodc.ocproc2.elements import ElementMap, DefaultValueDict, OCProcValue, AbstractElement, SingleElement
 from cnodc.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 from cnodc.ocproc2.lazy_load import LazyLoadList
 
@@ -51,9 +51,21 @@ class BaseRecord:
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.append_to(element_name, value, metadata, **kwargs)
 
-    def set_many(self, element_full_name: str, values: t.Sequence[OCProcValue], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None):
+    def set_many(self, element_full_name: str, values: t.Sequence[OCProcValue], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None, **kwargs):
         child_parent, element_name = self._find_element_map(element_full_name)
-        child_parent.set_many(element_name, values, common_metadata, specific_metadata)
+        child_parent.set_many(element_name, values, common_metadata, specific_metadata, **kwargs)
+
+    def set_element(self, element_full_name: str, value: AbstractElement):
+        child_parent, element_name = self._find_element_map(element_full_name)
+        child_parent.set_element(element_name, value)
+
+    def append_element_to(self, element_full_name: str, value: AbstractElement):
+        child_parent, element_name = self._find_element_map(element_full_name)
+        child_parent.append_element_to(element_name, value)
+
+    def set_many_elements(self, element_full_name: str, values: t.Iterable[SingleElement], metadata: t.Optional[DefaultValueDict] = None):
+        child_parent, element_name = self._find_element_map(element_full_name)
+        child_parent.set_many_elements(element_name, values, metadata)
 
     def _find_element_map(self, element_full_name):
         pieces = element_full_name.split('/')

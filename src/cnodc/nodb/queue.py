@@ -42,6 +42,22 @@ class NODBQueueItem(s.NODBBaseObject):
     def get_str_keys(cls):
         return ['queue_name', 'queue_uuid', 'status']
 
+    @classmethod
+    def get_mock_index_keys(cls) -> list[list[str]]:
+        list_ = super().get_mock_index_keys()
+        list_.append(['queue_name'])
+        return list_
+
+    def get_worker_config(self, process_name, process_version):
+        if not self.data or 'worker_config' not in self.data or not isinstance(self.data['worker_config'], dict):
+            return {}
+        worker_config = {}
+        all_worker_config = self.data['worker_config']
+        for key in (process_name, f'{process_name}_{process_version}'):
+            if key in all_worker_config and isinstance(all_worker_config[key], dict):
+                worker_config.update(all_worker_config[key])
+        return worker_config
+
     def mark_complete(self, db: NODBControllerInstance):
         """Mark the queue item as complete."""
         self._set_queue_status(db=db, new_status=QueueStatus.COMPLETE)

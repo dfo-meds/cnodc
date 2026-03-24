@@ -191,9 +191,10 @@ class TestBaseProcessController(BaseTestCase):
         )
         with self.assertLogs('cnodc.single_process', 'WARNING'):
             nc.reload_check()
-        self.assertEqual(len(nc._process_info), 1)
+        self.assertEqual(len(nc._process_info), 2)
         self.assertIn('good', nc._process_info)
-        self.assertNotIn('process1', nc._process_info)
+        self.assertIn('process1', nc._process_info)
+        self.assertIsInstance(nc._process_info['process1']._config, dict)
 
     def test_bad_process_count_warning(self):
         file = self.temp_dir / "test.yaml"

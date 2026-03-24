@@ -16,6 +16,15 @@ class DatabaseMock:
         self._lookups: dict[str, dict[str, dict[str, list[int]]]] = {}
         self._rolled_back = False
 
+    def create_savepoint(self, name):
+        pass
+
+    def rollback_to_savepoint(self, name):
+        pass
+
+    def release_savepoint(self, name):
+        pass
+
     def _clean_indices(self, table_name, idx):
         if table_name in self._lookups:
             for index_name in self._lookups[table_name]:
@@ -233,14 +242,16 @@ class DatabaseMock:
         kwargs['queue_uuid'] = str(uuid.uuid4())
         kwargs['created_date'] = datetime.datetime.now()
         kwargs['modified_date'] = datetime.datetime.now()
-        kwargs['status'] = QueueStatus.UNLOCKED
+        kwargs['status'] = QueueStatus.UNLOCKED.value
         kwargs['locked_by'] = None
         kwargs['locked_since'] = None
         kwargs['escalation_level'] = 0
-        if 'priority' not in kwargs:
+        if 'priority' not in kwargs or not kwargs['priority']:
             kwargs['priority'] = 0
         if 'unique_item_key' not in kwargs:
             kwargs['unique_item_key'] = None
+        if 'subqueue_name' in kwargs and not kwargs['subqueue_name']:
+            kwargs['subqueue_name'] = None
         self.table(NODBQueueItem.TABLE_NAME).append(NODBQueueItem(**kwargs, is_new=False))
 
     def fetch_next_queue_item(self,
@@ -252,7 +263,7 @@ class DatabaseMock:
             if item.queue_name == queue_name and (subqueue_name is None or item.subqueue_name == subqueue_name) and item.status == QueueStatus.UNLOCKED:
                 with item._readonly_access():
                     item.status = QueueStatus.LOCKED
-                    item.locked_by = 'mock'
+                    item.locked_by = app_id
                     item.locked_since = datetime.datetime.now()
                 return item
 

@@ -1,20 +1,61 @@
-import datetime
 import functools
 import hashlib
+import pathlib
 import uuid
 import typing as t
 
 import cnodc.storage
 from cnodc.nodb import NODBController, NODBQueueItem
 from cnodc.nodb.controller import NODBError, SqlState, ScannedFileStatus
+from cnodc.processing.workers.payload_worker import PayloadWorker
 from cnodc.processing.workers.scheduled_task import ScheduledTask
-from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
+from cnodc.processing.workers.queue_worker import QueueItemResult
 from cnodc.processing.workflow import WorkflowController
-from cnodc.storage import StorageController
+from cnodc.processing.workflow.payloads import Payload
+from cnodc.storage import StorageController, BaseStorageHandle
 import cnodc.nodb as nodb
-from cnodc.util import CNODCError
+from cnodc.util import CNODCError, HaltFlag
 from autoinject import injector
 import cnodc.util.awaretime as awaretime
+from cnodc.util.awaretime import AwareDateTime
+from cnodc.util.datadict import ddo_str, ddo_bool, ddo_awaredatetime
+
+
+class ScannedFilePayload(Payload):
+
+    file_path: str = ddo_str('file_path')
+    filename: str = ddo_str('filename')
+    modified_time: AwareDateTime = ddo_awaredatetime('modified_time', default=None)
+    workflow_name: str = ddo_str('workflow_name', default=None)
+    remove_when_complete: bool = ddo_bool('remove_when_complete', default=False)
+
+    def download(self, target_dir: pathlib.Path, halt_flag: t.Optional[HaltFlag] = None) -> pathlib.Path:
+        return Payload._do_download(
+            file_path=self.file_path,
+            filename=self.filename,
+            is_gzipped=self.filename.endswith('.gz'),
+            target_dir=target_dir,
+            halt_flag=halt_flag
+        )
+
+    @staticmethod
+    def from_handle(handle: BaseStorageHandle, **kwargs):
+        return ScannedFilePayload(
+            file_path=handle.path(),
+            filename=handle.name(),
+            modified_time=handle.modified_datetime(),
+            **kwargs
+        )
+
+    @staticmethod
+    def from_path(path: pathlib.Path, **kwargs):
+        path = path.absolute().resolve()
+        return ScannedFilePayload(
+            file_path=str(path),
+            filename=path.name,
+            modified_time=AwareDateTime.fromtimestamp(path.stat().st_mtime),
+            **kwargs
+        )
 
 
 class FileScanTask(ScheduledTask):
@@ -37,7 +78,8 @@ class FileScanTask(ScheduledTask):
             'recursive': False,
             'remove_downloaded_files': False,
             'reprocess_updated_files': False,
-            'metadata': None
+            'metadata': None,
+            'downloader_config': None,
         })
         self._scan_target: t.Optional[cnodc.storage.BaseStorageHandle] = None
         self._remove_when_complete = None
@@ -45,16 +87,18 @@ class FileScanTask(ScheduledTask):
         self._headers = None
         self._pattern = None
         self._recursive = None
+        self._workflow_name = None
+        self._queue_name = None
 
     def on_start(self):
         scan_target = self.get_config('scan_target')
         if not scan_target:
             raise CNODCError(f'Scan target is not configured', 'FILESCAN', 1000)
-        workflow_name = self.get_config('workflow_name')
-        if not workflow_name:
+        self._workflow_name = self.get_config('workflow_name')
+        if not self._workflow_name:
             raise CNODCError(f'Workflow name is not configured', 'FILESCAN', 1002)
-        queue_name = self.get_config('queue_name')
-        if not queue_name:
+        self._queue_name = self.get_config('queue_name')
+        if not self._queue_name:
             raise CNODCError(f'Queue name is not configured', 'FILESCAN', 1003)
         self._scan_target = self.storage.get_handle(scan_target, halt_flag=self._halt_flag)
         if self._scan_target is None:
@@ -71,69 +115,75 @@ class FileScanTask(ScheduledTask):
             self.scan_files(db)
 
     def scan_files(self, db):
-            self._log.debug(f'Scanning {self._scan_target.path()}')
-            batch_id = str(uuid.uuid4())
-            for file in self._scan_target.search(self._pattern, self._recursive):
-                try:
-                    full_path = file.path()
-                    mod_time = file.modified_datetime() if self._reprocess_updated_files else None
-                    status = db.scanned_file_status(full_path, mod_time)
-                    if status == ScannedFileStatus.NOT_PRESENT:
-                        self._log.info(f"Found new file {full_path} [{mod_time.isoformat() if mod_time else 'no-date'}]")
-                        db.note_scanned_file(full_path, mod_time)
-                        payload = {
-                            'target_file': full_path,
-                            'modified_time': mod_time.isoformat() if mod_time is not None else None,
-                            'workflow_name': self.get_config('workflow_name'),
-                            'remove_on_completion': self._remove_when_complete,
-                            'metadata': self._headers,
-                        }
-                        payload['metadata'].update({
-                            'source': (self._process_name, self._process_version, self._process_uuid),
-                            'scan-target': self._scan_target.path(),
-                            'correlation-id': batch_id,
-                            'scanned-time': awaretime.utc_now().isoformat()
-                        })
-                        db.create_queue_item(
-                            queue_name=self.get_config('queue_name'),
-                            data=payload,
-                            unique_item_name=hashlib.md5(full_path.encode('utf-8', 'replace')).hexdigest()
-                        )
-                        db.commit()
-                    else:
-                        self._log.debug(f"Skipping old file {full_path}")
-                except NODBError as ex:
+        batch_id = str(uuid.uuid4())
+        self._log.info(f'Scanning [%s]', self._scan_target.path())
+        full_path = None
+        mod_time = None
+        for file in self._scan_target.search(self._pattern, self._recursive):
+            db.create_savepoint('FILE_INSERT')
+            try:
+                full_path = file.path()
+                mod_time = file.modified_datetime() if self._reprocess_updated_files else None
+                status = db.scanned_file_status(full_path, mod_time)
+                if status == ScannedFileStatus.NOT_PRESENT:
+                    self._log.info("Found new file [%s][%s]", full_path, mod_time)
+                    db.note_scanned_file(full_path, mod_time)
+                    payload = ScannedFilePayload(
+                        file_path=full_path,
+                        filename=file.name(),
+                        modified_time=mod_time.isoformat() if mod_time else None,
+                        workflow_name=self._workflow_name,
+                        remove_when_complete=self._remove_when_complete
+                    )
+                    payload.metadata.update(self._headers)
+                    payload.metadata.update({
+                        'source': (self._process_name, self._process_version, self._process_uuid),
+                        'scan-target': self._scan_target.path(),
+                        'correlation-id': batch_id,
+                        'scanned-time': awaretime.utc_now().isoformat()
+                    })
+                    download_config = self.get_config('downloader_config', {})
+                    if download_config:
+                        payload.set_worker_config('file_downloader', download_config)
+                    payload.set_unique_key(hashlib.md5(full_path.encode('utf-8', 'replace')).hexdigest())
+                    payload.enqueue(db, self._queue_name)
+                    db.commit()
+                    db.release_savepoint('FILE_INSERT')
+                else:
+                    self._log.info(f"Skipping old file [%s][%s]", full_path, mod_time)
+            except NODBError as ex:
 
-                    # In all cases, we want to rollback
-                    db.rollback()
+                # Serialization or unique key failure means we have one of two issues:
+                # - The file path was inserted between our own checking and inserting
+                # - The queue UUID was duplicated (unlikely)
+                # In either case, we can ignore it for now as long as we rollback.
+                # If the file doesn't get properly recorded, it will be checked on the next pass
+                if ex.sql_state() in (
+                    SqlState.SERIALIZATION_FAILURE,
+                    SqlState.DEADLOCK_DETECTED,
+                    SqlState.UNIQUE_VIOLATION
+                ):
+                    db.rollback_to_savepoint('FILE_INSERT')
+                    self._log.warning("Exception while creating database entry for scanned file [%s][%s]", full_path, mod_time, exc_info=True)
 
-                    # Serialization or unique key failure means we have one of two issues:
-                    # - The file path was inserted between our own checking and inserting
-                    # - The queue UUID was duplicated (unlikely)
-                    # In either case, we can ignore it for now as long as we rollback.
-                    # If the file doesn't get properly recorded, it will be checked on the next pass
-                    if ex.sql_state() in (
-                        SqlState.SERIALIZATION_FAILURE,
-                        SqlState.DEADLOCK_DETECTED,
-                        SqlState.UNIQUE_VIOLATION
-                    ):
-                        self._log.exception(f"Exception while creating database entry for scanned file")
-
-                    # Other errors indicate a bigger issue, we want to raise those
-                    else:
-                        raise ex
+                # Other errors indicate a bigger issue, we want to raise those
+                else:
+                    raise ex from ex
+            finally:
+                full_path = None
+                mod_time = None
 
 
-class FileDownloadWorker(QueueWorker):
+class FileDownloadWorker(PayloadWorker):
 
     storage: StorageController = None
-    nodb: NODBController = None
 
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__(
             process_name='file_downloader',
             process_version='1.0',
+            require_type=ScannedFilePayload,
             **kwargs
         )
         self.set_defaults({
@@ -141,59 +191,66 @@ class FileDownloadWorker(QueueWorker):
             'allow_file_deletes': False,
         })
 
-    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
-        if 'target_file' not in item.data or not item.data['target_file']:
-            raise CNODCError(f'Queue item [{item.queue_uuid}] missing [target_file]', 'FILEFLOW', 1000)
-        if 'workflow_name' not in item.data or not item.data['workflow_name']:
-            raise CNODCError(f'Queue item [{item.queue_uuid}] missing [workflow_name]', 'FILEFLOW', 1001)
+    def process_payload(self, payload: ScannedFilePayload):
         self.handle_queued_file(
-            item.data['workflow_name'],
-            item.data['target_file'],
-            item.data['modified_time'] if 'modified_time' in item.data else None,
-            item.data['metadata'] or {} if 'metadata' in item.data else {},
-            (self.get_config('allow_file_deletes', False) and bool(item.data['remove_on_completion'])) if 'remove_on_completion' in item.data else False
+            payload.workflow_name,
+            payload.file_path,
+            payload.modified_time,
+            payload.metadata,
+            self.get_config('allow_file_deletes', False) and payload.remove_when_complete
         )
         return QueueItemResult.SUCCESS
 
     def after_failure(self, item: NODBQueueItem, ex: Exception):
-        if 'target_file' in item.data and item.data['target_file']:
-            self.db.mark_scanned_item_failed(item.data['target_file'], awaretime.from_isoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
+        if 'file_path' in item.data and item.data['file_path']:
+            self.db.mark_scanned_item_failed(
+                item.data['file_path'],
+                awaretime.from_isoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
             self.db.commit()
         super().after_failure(item, ex)
+
+    def get_workflow(self, workflow_name: str):
+        self._log.debug('Looking for workflow [%s]', workflow_name)
+        workflow = nodb.NODBUploadWorkflow.find_by_name(self.db, workflow_name)
+        if workflow is None:
+            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
+        return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
 
     def handle_queued_file(self,
                            workflow_name: str,
                            file_path: str,
-                           modified_time: t.Optional[str],
+                           modified_time: t.Optional[AwareDateTime],
                            metadata: dict,
                            remove_when_finished: bool = False):
-        if modified_time:
-            modified_time = awaretime.from_isoformat(modified_time)
+        if file_path is None or file_path == '':
+            raise CNODCError('Missing file_path key', 'FILEFLOW', 1004)
         current_status = self.db.scanned_file_status(file_path, modified_time)
         if current_status == ScannedFileStatus.UNPROCESSED:
-            workflow = nodb.NODBUploadWorkflow.find_by_name(self.db, workflow_name)
-            if workflow is None:
-                raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_recoverable=True)
+            self._log.info('Processing scanned file [%s][%s]', file_path, modified_time)
+            self._log.debug('Building file handle for [%s]', file_path)
+            wf_controller = self.get_workflow(workflow_name)
             handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
+            if handle is None:
+                raise CNODCError(f'File [{file_path}] is not supported', 'FILEFLOW', 1001)
+            local_path = self.download_to_temp_file()
             self._update_payload_metadata(metadata, handle)
-            wf_controller = WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
-            temp_dir = self.temp_dir()
-            local_path = temp_dir / "file"
-            handle.download(local_path)
             wf_controller.handle_incoming_file(
                 local_path=local_path,
                 metadata=metadata,
                 success_hook=functools.partial(self._on_success_hook, file_path=file_path, mod_time=handle.modified_datetime()),
                 db=self.db
             )
-            if remove_when_finished:
-                self._try_remove_file(handle)
+            if remove_when_finished and handle.exists():
+                handle.remove()
         elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished:
-            self._log.info(f"Item {file_path} already processed [result {current_status}], checking for removal")
+            self._log.info(f"Item [%s] already processed [result %s], checking for removal", file_path, current_status)
             handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
-            self._try_remove_file(handle)
+            if handle is None:
+                raise CNODCError(f'File [{file_path}] is not supported', 'FILEFLOW', 1001)
+            if handle.exists():
+                handle.remove()
         else:
-            self._log.info(f"Item {file_path} already processed [result {current_status}], skipping")
+            self._log.info(f"Item [%s] already processed [result %s], skipping", file_path, current_status)
 
     def _on_success_hook(self, file_path, mod_time):
         self.db.mark_scanned_item_success(file_path, mod_time)
@@ -212,9 +269,3 @@ class FileDownloadWorker(QueueWorker):
             metadata['last-modified-date'] = md.isoformat()
         if 'correlation-id' not in metadata:
             metadata['correlation-id'] = str(uuid.uuid4())
-
-    def _try_remove_file(self, handle):
-        try:
-            handle.remove()
-        except Exception as ex:  # pragma: no coverage (fallback for weird edge cases)
-            self._log.exception(f"Error while removing file: [{handle.path()}]: {type(ex)}: {str(ex)}")

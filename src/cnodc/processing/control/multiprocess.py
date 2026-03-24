@@ -1,7 +1,6 @@
 """Controller for multiple processes based on the multiprocessing library."""
 import multiprocessing as mp
-
-from cnodc.process.base import BaseController, BaseProcess
+from cnodc.processing.control.base import BaseController, BaseProcess
 
 
 class _MultiProcessRunner(mp.Process, BaseProcess):

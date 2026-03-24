@@ -131,7 +131,14 @@ class NODBUploadWorkflow(s.NODBBaseObject):
                     _ = int(entry['priority'])
                 except (ValueError, TypeError) as ex:
                     raise s.NODBValidationError(f"Processing step {key} must have an integer priority value", 2015) from ex
-
+            if 'worker_config' in entry:
+                if not isinstance(entry['worker_config'], dict):
+                    raise s.NODBValidationError(f"Processing step {key} must have a dictionary as worker_config if present", 2028)
+                for config_key in entry['worker_config']:
+                    if not isinstance(config_key, str):
+                        raise s.NODBValidationError(f"Processing step {key} must have string keys for worker_config", 2029)
+                    if not isinstance(entry['worker_config'][config_key], dict):
+                        raise s.NODBValidationError(f"Processing step {key} must have a dictionary entry for worker_config[{config_key}]", 2030)
 
     @staticmethod
     def _check_upload_target_config(config: dict, files: StorageController, tn: str):

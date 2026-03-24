@@ -24,8 +24,8 @@ class StorageTier(enum.Enum):
 class StorageError(CNODCError):
     """Error class specifically for storage errors."""
 
-    def __init__(self, msg, code, is_recoverable: bool = False):
-        super().__init__(msg, "STORAGE", code, is_recoverable=is_recoverable)
+    def __init__(self, msg, code, is_transient: bool = False):
+        super().__init__(msg, "STORAGE", code, is_transient=is_transient)
 
 def _convert_local_error(ex):
     if isinstance(ex, NotADirectoryError):

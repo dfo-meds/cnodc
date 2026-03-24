@@ -16,16 +16,16 @@ from cnodc.programs.glider.ego_decode import GliderEGOMapper
 class TestGliderDecodeTools(BaseTestCase):
 
     def test_isoformat_ego_date(self):
-        self.assertEqual('2015-01-02', GliderEGOMapper._isoformat_ego_date('20150102', None))
-        self.assertEqual('2015-01-02T03:00:00', GliderEGOMapper._isoformat_ego_date('2015010203', None))
-        self.assertEqual('2015-01-02T03:04:00', GliderEGOMapper._isoformat_ego_date('201501020304', None))
-        self.assertEqual('2015-01-02T03:04:05', GliderEGOMapper._isoformat_ego_date('20150102030405', None))
+        self.assertEqual('2015-01-02', GliderEGOMapper._isoformat_ego_date(None, '20150102', None))
+        self.assertEqual('2015-01-02T03:00:00', GliderEGOMapper._isoformat_ego_date(None, '2015010203', None))
+        self.assertEqual('2015-01-02T03:04:00', GliderEGOMapper._isoformat_ego_date(None, '201501020304', None))
+        self.assertEqual('2015-01-02T03:04:05', GliderEGOMapper._isoformat_ego_date(None, '20150102030405', None))
         bad = ['2015010', '2015', '201501', '201501020', '20150102030', '2015010203040', '20150102030405000000',
                '20150102030405+00:00', '20150102030405Z']
         for test in bad:
             with self.subTest(bad_date=test):
                 with self.assertRaisesCNODCError('EGO-DECODE-1000'):
-                    GliderEGOMapper._isoformat_ego_date(test, None)
+                    GliderEGOMapper._isoformat_ego_date(None, test, None)
 
     def test_old_ego_sensor_mapping_missing(self):
         with nc.Dataset('inmemory.nc', 'r+', diskless=True) as ds:

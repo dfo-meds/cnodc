@@ -11,7 +11,7 @@ from helpers.base_test_case import BaseTestCase
 from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder
 
 
-def dynamic_int_processor(value, *args, **kwargs):
+def dynamic_int_processor(data_processor, value, *args, **kwargs):
     return int(value)
 
 
@@ -29,6 +29,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': {
                             'foo': 'foo1',
                             'bar': 'bar1',
@@ -204,6 +205,11 @@ class TestNetCDFCommonDecode(BaseTestCase):
             },
         }, h)
         with nc.Dataset("inmemory.nc", "w", diskless=True) as ds:
+            ds.createDimension('N_COUNT', )
+            ds.createVariable('test', str, ('N_COUNT', ))
+            ds.setncattr('test2', '')
+            ds.createVariable('test3', str)
+            ds.createVariable('test4', str, ('N_COUNT',))
             mapper = NetCDFCommonMapper(ds, path, 'test')
             mapper._load_data()
             map_info = mapper._get_ocproc2_map()
@@ -216,7 +222,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 self.assertNotIn('attribute:test2', map_info['record'])
                 self.assertEqual(map_info['global']['attribute:test2']['source'], 'test2')
                 self.assertEqual(map_info['global']['attribute:test2']['mapping_type'], 'attribute')
-                self.assertEqual(map_info['global']['attribute:test2']['data_map'], 'bar')
+                self.assertEqual(map_info['global']['attribute:test2']['data_map'], {'1': 'one', '2': 'two'})
 
             with self.subTest(msg="explicit global variable"):
                 self.assertNotIn('globalvar:test3', map_info['record'])
@@ -233,7 +239,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
             expected = {
                 'mapping_type': 'var',
                 'source': 'test',
-                'target': 'metadata/bar',
+                '_targets': ['metadata/bar'],
                 'is_index': True
             }
             for key in expected:
@@ -244,6 +250,11 @@ class TestNetCDFCommonDecode(BaseTestCase):
 
     def test_good_basic_config_explicit(self):
         with nc.Dataset("inmemory.nc", "w", diskless=True) as ds:
+            ds.createDimension('N_COUNT')
+            ds.createVariable('test', str, ('N_COUNT',))
+            ds.createVariable('test3', str, ())
+            ds.createVariable('test4', str, ('N_COUNT',))
+            ds.setncattr('test2', '')
             mapper = NetCDFCommonMapper(ds, {
                 'ocproc2_map': {
                     '1': {
@@ -309,12 +320,14 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs('test', 'ERROR'):
+            with self.assertLogs('test', 'WARNING'):
                 with self.assertRaises(CNODCError):
                     mapper._load_data()
 
     def test_bad_data_map(self):
         with nc.Dataset("inmemory.nc", "w", diskless=True) as ds:
+            ds.createDimension('N_COUNT')
+            ds.createVariable('test', str, ('N_COUNT',))
             mapper = NetCDFCommonMapper(ds, {
                 'ocproc2_map': {
                     'var:test': {
@@ -326,7 +339,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'bar': {}
                 },
             }, 'test')
-            with self.assertLogs('test', 'ERROR'):
+            with self.assertLogs('test', 'WARNING'):
                 mapper._load_data()
             map_info = mapper._get_ocproc2_map()['record']['var:test']
             self.assertNotIn('data_map', map_info)
@@ -566,10 +579,10 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs('test', 'ERROR') as info:
+            with self.assertLogs('test', 'WARNING') as info:
                 records = [x for x in mapper.build_records()]
                 for x in info.records:
-                    self.assertEqual(x.levelno, logging.ERROR)
+                    self.assertEqual(x.levelno, logging.WARNING)
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
                 with self.subTest(record_no=idx):
@@ -847,8 +860,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs("test", "WARNING"):
-                records = [x for x in mapper.build_records()]
+            records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
                 with self.subTest(record_no=idx):
@@ -935,6 +947,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                     },
                 },
                 'data_maps': {},
@@ -969,6 +982,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                     },
                 },
                 'data_maps': {},
@@ -1015,7 +1029,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
-                        'allow_list_values': True,
+                        'allow_multiple': False,
                     },
                 },
                 'data_maps': {},
@@ -1049,6 +1063,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';|,',
+                        'allow_multiple': True,
                     },
                 },
                 'data_maps': {},
@@ -1082,6 +1097,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': {
                             'foo': 'foo1',
                             'bar': 'bar1',
@@ -1121,6 +1137,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': 'foobar',
                     },
                 },
@@ -1162,6 +1179,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': 'foobar2',
                     },
                 },
@@ -1174,7 +1192,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     }
                 },
             }, 'test')
-            with self.assertLogs('test', 'ERROR'):
+            with self.assertLogs('test', 'WARNING'):
                 records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
@@ -1204,6 +1222,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': 'foobar',
                     },
                 },
@@ -1245,6 +1264,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': {
                             'foo': {'key': 'foo1'},
                             'bar': {'key': 'bar1'},
@@ -1285,6 +1305,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'attribute:test2': {
                         'target': 'metadata/Bar2',
                         'separator': ';',
+                        'allow_multiple': True,
                         'data_map': {
                             'foo': {'key2': 'foo1'},
                             'bar': {'key': 'bar1'},

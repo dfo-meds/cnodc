@@ -12,7 +12,7 @@ from helpers.base_test_case import BaseTestCase
 class TestFinalizer(BaseTestCase):
 
     def test_finalizer(self):
-        bp = BatchPayload('12345')
+        bp = BatchPayload(batch_uuid='12345')
         batch = NODBBatch()
         batch.batch_uuid = '12345'
         batch.status = BatchStatus.NEW

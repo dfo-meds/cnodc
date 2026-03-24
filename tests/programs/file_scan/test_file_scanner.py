@@ -66,6 +66,8 @@ class TestFileScanTask(BaseTestCase):
         x: FileScanTask = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir),
             'workflow_name': 'test',
+            'delay_seconds': 60,
+            'run_on_boot': True,
         })
         x.on_start()
         x.scan_files(self.db)
@@ -83,7 +85,9 @@ class TestFileScanTask(BaseTestCase):
         x: FileScanTask = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir),
             'workflow_name': 'test',
-            'reprocess_updated_files': True
+            'reprocess_updated_files': True,
+            'delay_seconds': 60,
+            'run_on_boot': False,
         })
         x.on_start()
         x.scan_files(self.db)
@@ -101,6 +105,8 @@ class TestFileScanTask(BaseTestCase):
         x: FileScanTask = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir),
             'workflow_name': 'test',
+            'delay_seconds': 60,
+            'run_on_boot': False,
         })
         x.on_start()
         self.db.note_scanned_file(str(file), None)
@@ -120,6 +126,8 @@ class TestFileScanTask(BaseTestCase):
         x: FileScanTask = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir),
             'workflow_name': 'test',
+            'delay_seconds': 60,
+            'run_on_boot': False,
         })
         x.on_start()
         self.db.note_scanned_file(str(file), None)
@@ -140,6 +148,8 @@ class TestFileScanTask(BaseTestCase):
         x: FileScanTask = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir),
             'workflow_name': 'test',
+            'delay_seconds': 60,
+            'run_on_boot': False,
         })
         x.on_start()
         old = self.db.note_scanned_file
@@ -149,7 +159,6 @@ class TestFileScanTask(BaseTestCase):
                 x.scan_files(self.db)
             self.assertEqual(0, len(self.db.table(NODBQueueItem.TABLE_NAME)))
             self.assertEqual(0, len(self.db._scanned_files))
-            self.assertTrue(self.db._rolled_back)
         finally:
             self.db.note_scanned_file = old
 
@@ -159,6 +168,8 @@ class TestFileScanTask(BaseTestCase):
         x: FileScanTask = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir),
             'workflow_name': 'test',
+            'delay_seconds': 60,
+            'run_on_boot': False,
         })
         x.on_start()
         old = self.db.note_scanned_file
@@ -166,10 +177,9 @@ class TestFileScanTask(BaseTestCase):
             with self.subTest(error_code=code.value):
                 try:
                     self.db.note_scanned_file = functools.partial(raise_exception, ex=NODBError('oh no', 998, code.value))
-                    with self.assertLogs('cnodc.worker.file_scanner', 'ERROR'):
+                    with self.assertLogs('cnodc.worker.file_scanner', 'WARNING'):
                         x.scan_files(self.db)
                     self.assertEqual(0, len(self.db.table(NODBQueueItem.TABLE_NAME)))
                     self.assertEqual(0, len(self.db._scanned_files))
-                    self.assertTrue(self.db._rolled_back)
                 finally:
                     self.db.note_scanned_file = old

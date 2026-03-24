@@ -41,8 +41,10 @@ class QueueWorker(BaseWorker):
             "retry_delay_seconds": 0,
             "delay_factor": 2,
             "max_delay_time_seconds": 128,
-            'deprioritize_failures': False
+            'deprioritize_failures': False,
+            'allow_queue_item_config': True,
         })
+        self.add_events(['before_queue_item', 'after_queue_item', 'on_success', 'on_failure', 'on_retry' ,'after_success', 'after_failure', 'after_retry'])
         self._queue_name = None
         self._app_id = None
         self._current_delay_time = None
@@ -62,16 +64,15 @@ class QueueWorker(BaseWorker):
                 self.db = None
 
     def _fetch_next_queue_item(self):
+        self._log.debug('Checking for queue items in %s', self._queue_name)
         return self.db.fetch_next_queue_item(
-            queue_name=self.get_config("queue_name"),
+            queue_name=self._queue_name,
             app_id=self._app_id
         )
 
     def _process_next_queue_item(self) -> bool:
         """Process a queue item and return True if there was an item otherwise False."""
-        self._log.debug(f"Checking for new items in [{self.get_config('queue_name')}]")
         self._current_item = None
-        found_item = False
         exc = None
         self.before_cycle()
         try:
@@ -79,17 +80,21 @@ class QueueWorker(BaseWorker):
             self._current_item = self._fetch_next_queue_item()
             # Run the process on the item
             if self._current_item is not None:
-                found_item = True
-                self._log.debug(f"found item [{self._current_item.queue_uuid}]")
+                self._log.debug("found item [%s]", self._current_item.queue_uuid)
+                if self.get_config('allow_queue_item_config', True):
+                    self.set_cycle_config(self._current_item.get_worker_config(self.process_name, self.process_version))
+                else:
+                    self.set_cycle_config({})
                 self.before_queue_item(self._current_item)
                 self._process_result(self._current_item, self.process_queue_item(self._current_item))
+                return True
         except CNODCError as ex:
             exc = ex
             # NB: NODB errors require us to rollback so that we can fix them.
             if isinstance(ex, NODBError):
                 self.db.rollback()
             # Recoverable errors may be fixable later, so we requeue the item for retrying
-            if ex.is_recoverable:
+            if ex.is_transient:
                 self._process_result(self._current_item, QueueItemResult.RETRY, ex)
             # Non-recoverable mean the entire item should fail
             else:
@@ -103,19 +108,27 @@ class QueueWorker(BaseWorker):
             self._log.critical(f"HaltInterrupt detected")
             raise HaltInterrupt from ex
         finally:
-            self.after_queue_item(self._current_item, exc)
+            if self._current_item is not None:
+                self.after_queue_item(self._current_item, exc)
             self.after_cycle()
             self._current_item = None
-        return found_item
+        return False
 
     def autocomplete(self, queue_item):
+        self._log.trace('Autocompleting queue item [%s]', queue_item.queue_uuid)
         queue_item.mark_complete(self.db)
+
+    def renew_item(self):
+        if self._current_item is not None:
+            self._log.trace('Renewing queue item [%s]', self._current_item.queue_uuid)
+            self._current_item.renew(self.db)
 
     def _process_result(self, queue_item: t.Optional[NODBQueueItem], result: t.Optional[QueueItemResult], ex: Exception = None):
         """Handle the result of calling the queue processing function."""
+        self._log.trace('Result of processing [%s] is [%s]', queue_item.queue_uuid if queue_item else None, result)
         if queue_item is not None:
             if ex is not None:
-                self._log.exception(f"An exception occurred while processing [{queue_item.queue_uuid}]: {type(ex)}: {str(ex)}")
+                self._log.exception(f"An exception occurred while processing [%s]: %s: %s", queue_item.queue_uuid, type(ex), str(ex))
             if result is None or result == QueueItemResult.SUCCESS:
                 self.autocomplete(queue_item)
                 self.on_success(queue_item)
@@ -138,7 +151,7 @@ class QueueWorker(BaseWorker):
             self.db.commit()
             after(queue_item, ex)
         elif ex is not None:
-            self._log.exception(f"An exception occurred while retrieving a queue item: {str(ex)}")
+            self._log.exception(f"An exception occurred while retrieving a queue item: %s: %s", type(ex), str(ex))
 
     def before_queue_item(self, queue_item: NODBQueueItem):
         self.run_hook('before_queue_item', queue_item=queue_item)
@@ -171,9 +184,10 @@ class QueueWorker(BaseWorker):
         self.run_hook('after_success', queue_item=queue_item)
 
     def on_start(self):
-        if not self.get_config("queue_name"):
+        self._queue_name = self.get_config('queue_name', None)
+        if not self._queue_name:
             raise CNODCError("No queue specified for a queue worker", 'QUEUE-WORKER', 1000)
-        self._current_delay_time = self.get_config("delay_time_seconds")
+        self._current_delay_time = self.get_config("delay_time_seconds", 0.25)
         self._app_id = str(uuid.uuid4())
         super().on_start()
 
@@ -184,6 +198,7 @@ class QueueWorker(BaseWorker):
         _max_time = self.get_config("max_delay_time_seconds")
         if self._current_delay_time >= _max_time:
             self._current_delay_time = _max_time
+        self._log.trace("Next delay time is [%s]", self._current_delay_time)
         return curr_time
 
     def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:

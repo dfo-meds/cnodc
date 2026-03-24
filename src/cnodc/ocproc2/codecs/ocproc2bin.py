@@ -2,7 +2,9 @@ import typing as t
 import cnodc.ocproc2 as ocproc2
 from .base import BaseCodec, ByteIterable, ByteSequenceReader
 from cnodc.util import CNODCError, vlq_encode
-
+import lzma
+import zlib
+import bz2
 
 class StreamWrapper:
 
@@ -146,19 +148,18 @@ class _Bz2Compression(StreamWrapper):
         self._preset = preset or 6
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        import bz2
         compressor = bz2.BZ2Compressor(self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
     def unwrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        import bz2
         decompressor = bz2.BZ2Decompressor()
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)
         while not decompressor.eof:
             yield decompressor.decompress(b'')  # pragma: no coverage (doesn't happen on shorter calls)
+
 
 
 class _ZlibCompression(StreamWrapper):
@@ -167,14 +168,12 @@ class _ZlibCompression(StreamWrapper):
         self._preset = preset or 6
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        import zlib
         compressor = zlib.compressobj(self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
     def unwrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        import zlib
         decompressor = zlib.decompressobj()
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)
@@ -188,14 +187,12 @@ class _LZMACompression(StreamWrapper):
         self._preset = preset or 6
 
     def wrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        import lzma
         compressor = lzma.LZMACompressor(check=self._crc_check, preset=self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
     def unwrap_stream(self, stream: ByteIterable) -> ByteIterable:
-        import lzma
         decompressor = lzma.LZMADecompressor()
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)

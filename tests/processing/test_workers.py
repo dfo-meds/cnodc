@@ -8,7 +8,7 @@ from cnodc.processing.control.base import SaveData
 from cnodc.processing.workers.payload_worker import ObservationWorkflowWorker
 from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
 from cnodc.processing.workers.scheduled_task import ScheduledTask
-from cnodc.processing.workflow.payloads import FilePayload, FileInfo, BatchPayload, WorkflowPayload, SourceFilePayload, \
+from cnodc.processing.workflow.payloads import FilePayload, BatchPayload, WorkflowPayload, SourceFilePayload, \
     ObservationPayload
 from cnodc.util import CNODCError, HaltInterrupt
 from helpers.base_test_case import BaseTestCase
@@ -39,23 +39,29 @@ class BoringQueueWorker(QueueWorker):
         self._called_methods.add('after_cycle')
         super().after_cycle()
 
-    def on_retry(self, queue_item: NODBQueueItem):
+    def on_retry(self, queue_item: NODBQueueItem, ex: Exception):
         self._called_methods.add('on_retry')
+        super().on_retry(queue_item, ex)
 
-    def on_failure(self, queue_item: NODBQueueItem):
+    def on_failure(self, queue_item: NODBQueueItem, ex: Exception):
         self._called_methods.add('on_failure')
+        super().on_failure(queue_item, ex)
 
     def on_success(self, queue_item: NODBQueueItem):
         self._called_methods.add('on_success')
+        super().on_success(queue_item)
 
-    def after_retry(self, queue_item: NODBQueueItem):
+    def after_retry(self, queue_item: NODBQueueItem, ex: Exception):
         self._called_methods.add('after_retry')
+        super().after_retry(queue_item, ex)
 
-    def after_failure(self, queue_item: NODBQueueItem):
+    def after_failure(self, queue_item: NODBQueueItem, ex: Exception):
         self._called_methods.add('after_failure')
+        super().after_failure(queue_item, ex)
 
-    def after_success(self, queue_item: NODBQueueItem):
+    def after_success(self, queue_item: NODBQueueItem, ex: Exception):
         self._called_methods.add('after_success')
+        super().after_success(queue_item, ex)
 
 class BoringTask(ScheduledTask):
 
@@ -320,12 +326,11 @@ class TestQueueWorker(BaseTestCase):
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
-        self.assertTrue(worker._process_next_queue_item())
-        self.assertEqual(5, len(worker._called_methods))
+        worker.run_once()
         self.assertIn('before_cycle', worker._called_methods)
-        self.assertIn('autocomplete', worker._called_methods)
         self.assertIn('on_success', worker._called_methods)
         self.assertIn('after_success', worker._called_methods)
+        self.assertIn('autocomplete', worker._called_methods)
         self.assertIn('after_cycle', worker._called_methods)
         self.assertEqual(obj.status, QueueStatus.COMPLETE)
 
@@ -338,8 +343,7 @@ class TestQueueWorker(BaseTestCase):
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
-        self.assertTrue(worker._process_next_queue_item())
-        self.assertEqual(5, len(worker._called_methods))
+        worker.run_once()
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('autocomplete', worker._called_methods)
         self.assertIn('on_success', worker._called_methods)
@@ -356,8 +360,7 @@ class TestQueueWorker(BaseTestCase):
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
-        self.assertTrue(worker._process_next_queue_item())
-        self.assertEqual(4, len(worker._called_methods))
+        worker.run_once()
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_success', worker._called_methods)
         self.assertIn('after_success', worker._called_methods)
@@ -373,8 +376,7 @@ class TestQueueWorker(BaseTestCase):
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
-        self.assertTrue(worker._process_next_queue_item())
-        self.assertEqual(4, len(worker._called_methods))
+        worker.run_once()
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_retry', worker._called_methods)
         self.assertIn('after_retry', worker._called_methods)
@@ -390,8 +392,7 @@ class TestQueueWorker(BaseTestCase):
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
-        self.assertTrue(worker._process_next_queue_item())
-        self.assertEqual(4, len(worker._called_methods))
+        worker.run_once()
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_failure', worker._called_methods)
         self.assertIn('after_failure', worker._called_methods)
@@ -421,7 +422,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertEqual(0, len(worker._called_methods))
         with self.assertRaises(HaltInterrupt):
             with self.assertLogs('cnodc.worker.test', 'CRITICAL'):
-                worker._process_next_queue_item()
+                worker.run_once()
         self.assertEqual(4, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_retry', worker._called_methods)
@@ -439,7 +440,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
         with self.assertLogs(f"cnodc.worker.test", 'ERROR'):
-            self.assertTrue(worker._process_next_queue_item())
+            worker.run_once()
         self.assertEqual(4, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_retry', worker._called_methods)
@@ -457,7 +458,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
         with self.assertLogs(f"cnodc.worker.test", 'ERROR'):
-            self.assertTrue(worker._process_next_queue_item())
+            worker.run_once()
         self.assertEqual(4, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_failure', worker._called_methods)
@@ -476,7 +477,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertEqual(0, len(worker._called_methods))
         self.assertFalse(self.db._rolled_back)
         with self.assertLogs(f"cnodc.worker.test", 'ERROR'):
-            self.assertTrue(worker._process_next_queue_item())
+            worker.run_once()
         self.assertTrue(self.db._rolled_back)
         self.assertEqual(4, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
@@ -495,7 +496,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
         with self.assertLogs(f"cnodc.worker.test", 'ERROR'):
-            self.assertTrue(worker._process_next_queue_item())
+            worker.run_once()
         self.assertEqual(4, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('on_failure', worker._called_methods)
@@ -508,7 +509,7 @@ class TestQueueWorker(BaseTestCase):
             'queue_name': 'hello'
         })
         self.assertEqual(0, len(worker._called_methods))
-        self.assertFalse(worker._process_next_queue_item())
+        worker.run_once()
         self.assertEqual(2, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
         self.assertIn('after_cycle', worker._called_methods)
@@ -522,7 +523,7 @@ class TestQueueWorker(BaseTestCase):
         worker.on_start()
         self.assertEqual(worker._current_delay_time, 0.25)
         self.assertEqual(0, len(worker._called_methods))
-        worker._run_once()
+        worker.run_once()
         self.assertEqual(worker._current_delay_time, 0.5)
         self.assertEqual(2, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
@@ -537,7 +538,7 @@ class TestQueueWorker(BaseTestCase):
         worker.on_start()
         self.assertEqual(worker._current_delay_time, 0.25)
         self.assertEqual(0, len(worker._called_methods))
-        worker._run_once()
+        worker.run_once()
         self.assertEqual(worker._current_delay_time, 0.5)
         self.assertEqual(2, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
@@ -546,7 +547,7 @@ class TestQueueWorker(BaseTestCase):
         self.db.create_queue_item(data={'foobar': 'hello'}, queue_name='hello')
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
         self.assertIsNotNone(obj)
-        worker._run_once()
+        worker.run_once()
         self.assertEqual(worker._current_delay_time, 0.25)
         self.assertEqual(5, len(worker._called_methods))
         self.assertIn('before_cycle', worker._called_methods)
@@ -574,7 +575,7 @@ class TestWorkflowWorker(BaseTestCase):
 
     def test_build_batch_payload_from_uuid(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         bp = worker.batch_payload_from_uuid('12345')
@@ -583,7 +584,7 @@ class TestWorkflowWorker(BaseTestCase):
 
     def test_build_batch_payload_from_nodb(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         bp = worker.batch_payload_from_nodb(NODBBatch(batch_uuid="123456", is_new=False))
@@ -592,17 +593,17 @@ class TestWorkflowWorker(BaseTestCase):
 
     def test_build_file_payload_from_path(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         fp2 = worker.file_payload_from_path('/hello/world2', datetime.datetime(2015, 1, 2, 3, 4, 5))
-        self.assertEqual(fp2.file_info.file_path, '/hello/world2')
-        self.assertEqual(fp2.file_info.last_modified_date, datetime.datetime(2015, 1, 2, 3, 4, 5))
+        self.assertEqual(fp2.file_path, '/hello/world2')
+        self.assertEqual(fp2.last_modified_date, datetime.datetime(2015, 1, 2, 3, 4, 5))
         self.assertEqual(fp2.get_metadata('hello'), 'world')
 
     def test_build_source_payload_from_nodb(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         sp = worker.source_payload_from_nodb(NODBSourceFile(source_uuid="23456", received_date=datetime.date(2015, 1, 2)))
@@ -612,7 +613,7 @@ class TestWorkflowWorker(BaseTestCase):
 
     def test_progress_payload(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         self.assertFalse(worker._skip_autoprogress_payload)
@@ -623,11 +624,11 @@ class TestWorkflowWorker(BaseTestCase):
         pl = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(pl, FilePayload)
         self.assertEqual(pl.get_metadata('hello'), 'world')
-        self.assertEqual(pl.file_info.file_path, '/hello/world')
+        self.assertEqual(pl.file_path, '/hello/world')
 
     def test_progress_payload_new_payload(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         bp = worker.batch_payload_from_uuid('12345')
@@ -643,7 +644,7 @@ class TestWorkflowWorker(BaseTestCase):
 
     def test_progress_payload_skip(self):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
         bp = worker.batch_payload_from_uuid('12345')
@@ -661,7 +662,7 @@ class TestBatchWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         bw: BatchWorkflowWorker = self.worker_controller.build_test_worker(BatchWorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -670,7 +671,7 @@ class TestBatchWorker(BaseTestCase):
 
     def test_good_payload_type(self):
         bw: BatchWorkflowWorker = self.worker_controller.build_test_worker(BatchWorkflowWorker)
-        fp = BatchPayload('12345')
+        fp = BatchPayload(batch_uuid='12345')
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -679,10 +680,10 @@ class TestBatchWorker(BaseTestCase):
 
     def test_download_to_temp(self):
         bw: BatchWorkflowWorker = self.worker_controller.build_test_worker(BatchWorkflowWorker)
-        fp = BatchPayload('12345')
+        fp = BatchPayload(batch_uuid='12345')
         bw.current_payload = fp
         try:
-            with self.assertRaises(ValueError):
+            with self.assertRaisesCNODCError('PAYLOAD-1001'):
                 bw.download_to_temp_file()
         finally:
             bw.after_cycle()
@@ -692,7 +693,7 @@ class TestSourceWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         bw: SourceWorkflowWorker = self.worker_controller.build_test_worker(SourceWorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -739,7 +740,7 @@ class TestFileWorker(BaseTestCase):
 
     def test_good_payload_type(self):
         fw: FileWorkflowWorker = self.worker_controller.build_test_worker(FileWorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -748,7 +749,7 @@ class TestFileWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         fw: FileWorkflowWorker = self.worker_controller.build_test_worker(FileWorkflowWorker)
-        bp = BatchPayload("12345")
+        bp = BatchPayload(batch_uuid="12345")
         bp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -759,7 +760,7 @@ class TestFileWorker(BaseTestCase):
         with open(self.temp_dir / "12345.txt", "w") as h:
             h.write("hello world")
         fw: FileWorkflowWorker = self.worker_controller.build_test_worker(FileWorkflowWorker)
-        fp = FilePayload(FileInfo(str(self.temp_dir / '12345.txt')))
+        fp = FilePayload(file_path=self.temp_dir / '12345.txt')
         fw.current_payload = fp
         f = fw.download_to_temp_file()
         self.assertTrue(f.exists())
@@ -771,7 +772,7 @@ class TestObservationWorker(BaseTestCase):
 
     def test_bad_payload_type(self):
         ow: ObservationWorkflowWorker = self.worker_controller.build_test_worker(ObservationWorkflowWorker)
-        fp = FilePayload(FileInfo('/hello/world'))
+        fp = FilePayload(file_path='/hello/world')
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -780,7 +781,7 @@ class TestObservationWorker(BaseTestCase):
 
     def test_good_payload_type(self):
         ow: ObservationWorkflowWorker = self.worker_controller.build_test_worker(ObservationWorkflowWorker)
-        op = ObservationPayload('12345', datetime.date(2015, 1, 2))
+        op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
         op.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
@@ -789,7 +790,7 @@ class TestObservationWorker(BaseTestCase):
 
     def test_download_to_temp(self):
         ow: ObservationWorkflowWorker = self.worker_controller.build_test_worker(ObservationWorkflowWorker)
-        op = ObservationPayload('12345', datetime.date(2015, 1, 2))
+        op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
         ow.current_payload = op
-        with self.assertRaises(ValueError):
+        with self.assertRaisesCNODCError('PAYLOAD-1001'):
             ow.download_to_temp_file()

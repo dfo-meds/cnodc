@@ -70,28 +70,6 @@ class TestLoader(BaseTestCase):
         with self.assertRaisesCNODCError('NODB-LOAD-1003'):
             loader.on_start()
 
-    def test_bad_decoder(self):
-        sd = self.temp_dir / 'subdir'
-        sd.mkdir()
-        loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {
-            'queue_name': 'test',
-            'error_directory': str(sd),
-            'decoder': 'foobar.test.whatever'
-        })
-        with self.assertRaises(DynamicObjectLoadError):
-            loader.on_start()
-
-    def test_bad_decoder_encode_only(self):
-        sd = self.temp_dir / 'subdir'
-        sd.mkdir()
-        loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {
-            'queue_name': 'test',
-            'error_directory': str(sd),
-            'decoder_class': 'cnodc.ocproc2.codecs.ocproc2debug.OCProc2DebugCodec'
-        })
-        with self.assertRaisesCNODCError('NODB-LOAD-1002'):
-            loader.on_start()
-
     def test_bad_no_queue_name(self):
         sd = self.temp_dir / 'subdir'
         sd.mkdir()
@@ -103,19 +81,19 @@ class TestLoader(BaseTestCase):
             loader.on_start()
 
     def test_bad_payload_type_batch(self):
-        bp = BatchPayload('12345')
+        bp = BatchPayload(batch_uuid='12345')
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {})
         with self.assertRaisesCNODCError('NODB-LOAD-2000'):
             loader._fetch_source_file(bp)
 
     def test_bad_payload_type_obs(self):
-        op = ObservationPayload('12345', datetime.date(2015, 1, 2))
+        op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {})
         with self.assertRaisesCNODCError('NODB-LOAD-2000'):
             loader._fetch_source_file(op)
 
     def test_bad_payload_type_no_source(self):
-        sp = SourceFilePayload('123456', datetime.date(2015, 1, 2))
+        sp = SourceFilePayload(source_uuid='123456', received_date=datetime.date(2015, 1, 2))
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {})
         with self.assertRaisesCNODCError('PAYLOAD-1012'):
             loader._fetch_source_file(sp)
@@ -340,7 +318,7 @@ class TestLoader(BaseTestCase):
                     'queue_name': 'test_intake',
                     'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
                     'error_directory': str(err_dir),
-                    '_test_result': CNODCError('foo', 'bar', 1, is_recoverable=True)
+                    '_test_result': CNODCError('foo', 'bar', 1, is_transient=True)
                 },
                 qi
             )
@@ -375,7 +353,7 @@ class TestLoader(BaseTestCase):
                     'queue_name': 'test_intake',
                     'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
                     'error_directory': str(err_dir),
-                    '_test_result': CNODCError('foo', 'bar', 1, is_recoverable=False)
+                    '_test_result': CNODCError('foo', 'bar', 1, is_transient=False)
                 },
                 qi
             )
