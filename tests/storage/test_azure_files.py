@@ -4,6 +4,7 @@ import pathlib
 import shutil
 import typing
 import unittest as ut
+from importlib.metadata import metadata
 from urllib.parse import urlparse
 
 import zirconium
@@ -172,6 +173,8 @@ class _AzureFileShare:
 def make_and_wrap_exception(ex):
     raise ex
 
+AZURE_FILE_SHARES = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data/azure_file_shares'
+
 
 class AzureFilesFixture:
 
@@ -184,8 +187,7 @@ class AzureFilesFixture:
         if share_name == 'ValueError':
             raise ValueError('oh no')
         if share_name not in AzureFilesFixture.data:
-            path = pathlib.Path(__file__).absolute().parent / 'azure_test'
-            AzureFilesFixture.data[share_name] = _AzureFileShare('https://test.file.core.windows.net/' + share_name, path / share_name, share_name)
+            AzureFilesFixture.data[share_name] = _AzureFileShare('https://test.file.core.windows.net/' + share_name, AZURE_FILE_SHARES / share_name, share_name)
         return AzureFilesFixture.data[share_name]
 
     @staticmethod
@@ -235,15 +237,18 @@ class AzureFileTest(BaseTestCase):
         for m in cls.originals:
             setattr(AzureFileHandle, m, cls.originals[m])
 
-    def test_bad_az_file_domain(self):
-        b = AzureFileHandle("https://hello.blob.core.windows.net/share")
-        with self.assertRaisesCNODCError('STORAGE-4001'):
-            b._get_connection_details()
-
-    def test_bad_az_file_share(self):
-        b = AzureFileHandle("https://test.file.core.windows.net")
-        with self.assertRaisesCNODCError('STORAGE-4002'):
-            b._get_connection_details()
+    def test_bad_connection_Details(self):
+        tests = [
+            ("https://hello.blob.core.windows.net/share", 'STORAGE-4001'),
+            ("https://test.file.core.windows.net", 'STORAGE-4002')
+        ]
+        for conn, err_code in tests:
+            with self.subTest(conn=conn):
+                b = AzureFileHandle(conn)
+                with self.assertRaisesCNODCError(err_code):
+                    b._get_connection_details()
+                with self.assertRaisesCNODCError(err_code):
+                    b.file_client()
 
     def test_bad_az_file_share_file(self):
         b = AzureFileHandle("https://test.file.core.windows.net/ValueError")
@@ -258,29 +263,19 @@ class AzureFileTest(BaseTestCase):
     @injector.test_case
     @test_with_config(("azure", "storage", "test", 'connection_string'), 'ValueError')
     def test_bad_az_file_share_file(self):
-        b = AzureFileHandle("https://test.file.core.windows.net/share/file.txt")
-        with self.assertRaisesCNODCError('STORAGE-4005'):
-            b.file_client()
-
-    @injector.test_case
-    @test_with_config(("azure", "storage", "test", 'connection_string'), 'ValueError')
-    def test_bad_az_file_share_dir(self):
-        b = AzureFileHandle("https://test.file.core.windows.net/share/")
-        with self.assertRaisesCNODCError('STORAGE-4003'):
-            b.directory_client()
-
-    def test_bad_az_missing_share(self):
-        b = AzureFileHandle("https://test.file.core.windows.net")
-        with self.assertRaisesCNODCError('STORAGE-4002'):
-            b.file_client()
+        with self.subTest(msg='file test'):
+            b = AzureFileHandle("https://test.file.core.windows.net/share/file.txt")
+            with self.assertRaisesCNODCError('STORAGE-4005'):
+                b.file_client()
+        with self.subTest(msg='dir test'):
+            b = AzureFileHandle("https://test.file.core.windows.net/share/")
+            with self.assertRaisesCNODCError('STORAGE-4003'):
+                b.directory_client()
 
     def test_general_properties(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/test.txt')
         self.assertTrue(file.supports_metadata())
         self.assertFalse(file.supports_tiering())
-
-    def get_test_root(self):
-        return pathlib.Path(__file__).absolute().parent / 'azure_test' / 'share'
 
     @injector.test_case
     @test_with_config(("azure", "storage", "test", "connection_string"), "GoodString")
@@ -290,7 +285,7 @@ class AzureFileTest(BaseTestCase):
         self.assertTrue(file.is_dir())
         self.assertTrue(file.exists())
         self.assertEqual(file.name(), 'subdir')
-        d = self.get_test_root() / 'subdir'
+        d = self.testdata_path('azure_file_shares/share/subdir')
         self.assertSameTime(file.modified_datetime(), datetime.datetime.fromtimestamp(d.stat().st_mtime).astimezone())
         self.assertIsNone(file.size())
         with self.assertRaisesCNODCError('STORAGE-4000'):
@@ -304,7 +299,7 @@ class AzureFileTest(BaseTestCase):
         self.assertFalse(file.is_dir())
         self.assertTrue(file.exists())
         self.assertEqual(file.name(), 'test.txt')
-        d = self.get_test_root() / 'test.txt'
+        d = self.testdata_path('azure_file_shares/share/test.txt')
         self.assertSameTime(file.modified_datetime(), datetime.datetime.fromtimestamp(d.stat().st_mtime).astimezone())
         self.assertEqual(file.size(), d.stat().st_size)
         with self.assertRaisesCNODCError('STORAGE-4004'):
@@ -312,18 +307,17 @@ class AzureFileTest(BaseTestCase):
 
     def test_remove_file(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/new.txt')
-        real_file = self.get_test_root() / 'new.txt'
-        real_file.touch()
-        self.assertTrue(file.exists())
-        file.remove()
-        self.assertFalse(file.exists())
-        self.assertFalse(real_file.exists())
+        with self.temporary_test_file('azure_file_shares/share/new.txt') as real_file:
+            real_file.touch()
+            self.assertTrue(file.exists())
+            file.remove()
+            self.assertFalse(file.exists())
+            self.assertFalse(real_file.exists())
 
     def test_make_and_remove_dir(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/real_dir/')
-        real_dir = self.get_test_root() / 'real_dir'
-        real_file = real_dir / 'new.txt'
-        try:
+        with self.temporary_test_directory('azure_file_shares/share/real_dir') as real_dir:
+            real_file = real_dir / 'new.txt'
             self.assertFalse(real_dir.exists())
             file.mkdir()
             self.assertTrue(real_dir.exists())
@@ -334,10 +328,6 @@ class AzureFileTest(BaseTestCase):
             self.assertFalse(file.exists())
             self.assertFalse(real_dir.exists())
             self.assertFalse(real_file.exists())
-        finally:
-            real_file.unlink(True)
-            if real_dir.exists():
-                real_dir.rmdir()
 
     def test_supports(self):
         self.assertTrue(AzureFileHandle.supports('https://test.file.core.windows.net/share/new.txt'))
@@ -355,9 +345,8 @@ class AzureFileTest(BaseTestCase):
 
     def test_upload(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/new_test.txt')
-        real_file = self.get_test_root() / 'new_test.txt'
-        self.assertFalse(real_file.exists())
-        try:
+        with self.temporary_test_file('azure_file_shares/share/new_test.txt', metadata=True) as (real_file, real_md):
+            self.assertFalse(real_file.exists())
             local = self.temp_dir / 'local.txt'
             with open(local, 'w') as h:
                 h.write('what what!')
@@ -365,15 +354,11 @@ class AzureFileTest(BaseTestCase):
             self.assertTrue(real_file.exists())
             with open(real_file, 'r') as h:
                 self.assertEqual(h.read(), 'what what!')
-        finally:
-            real_file.unlink(True)
-            (real_file.parent / f'{real_file.name}.metadata').unlink(True)
 
     def test_metadata(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/new_test.txt')
-        real_file = self.get_test_root() / 'new_test.txt'
-        self.assertFalse(real_file.exists())
-        try:
+        with self.temporary_test_file('azure_file_shares/share/new_test.txt', metadata=True) as (real_file, real_md):
+            self.assertFalse(real_file.exists())
             local = self.temp_dir / 'local.txt'
             with open(local, 'w') as h:
                 h.write('what what!')
@@ -386,35 +371,24 @@ class AzureFileTest(BaseTestCase):
             md = file.get_metadata()
             self.assertIn('hello', md)
             self.assertEqual(md['hello'], 'world')
-        finally:
-            real_file.unlink(True)
-            (real_file.parent / f'{real_file.name}.metadata').unlink(True)
 
     def test_directory_metadata(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/subdir2/')
-        real_file = self.get_test_root() / 'subdir2'
-        real_file.mkdir()
-        try:
+        with self.temporary_test_directory('azure_file_shares/share/subdir2', metadata=True) as (real_file, real_md):
+            real_file.mkdir()
             file.set_metadata({'hello': 'world'})
             md = file.get_metadata()
             self.assertIn('hello', md)
             self.assertEqual(md['hello'], 'world')
-        finally:
-            real_file.rmdir()
-            (real_file.parent / f'{real_file.name}.metadata').unlink(True)
 
     def test_file_metadata(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/test99.txt')
-        real_file = self.get_test_root() / 'test99.txt'
-        real_file.touch()
-        try:
+        with self.temporary_test_file('azure_file_shares/share/test99.txt', metadata=True) as (real_file, real_md):
+            real_file.touch()
             file.set_metadata({'hello': 'world'})
             md = file.get_metadata()
             self.assertIn('hello', md)
             self.assertEqual(md['hello'], 'world')
-        finally:
-            real_file.unlink(True)
-            (real_file.parent / f'{real_file.name}.metadata').unlink(True)
 
     def test_walk_recursive(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/')

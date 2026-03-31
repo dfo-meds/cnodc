@@ -28,7 +28,7 @@ class WorkerTestController:
             queue_name=queue_name,
             subqueue_name=subqueue_name,
             unique_item_name=unique_item_name,
-            data=payload.to_map(),
+            data=payload.to_json_map(),
             priority=priority,
             queue_uuid=str(uuid.uuid4()),
             created_date=datetime.datetime.now(datetime.timezone.utc),

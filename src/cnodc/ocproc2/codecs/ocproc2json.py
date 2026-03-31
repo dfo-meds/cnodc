@@ -1,23 +1,8 @@
-try:      # pragma: no coverage (speeds up processing qutie a bit)
-    import orjson
-    json_dumps = orjson.dumps
-    json_loads = orjson.loads
-    json_name = 'orjson'
-except ModuleNotFoundError:  # pragma: no coverage (fallback for when orjson might not be available)
-    import json
-    json_name = 'json'
-
-    def json_dumps(o):
-        return json.dumps(o).encode('utf-8')
-
-    def json_loads(s):
-        return json.loads(s.decode('utf-8'))
-
-from .base import BaseCodec, ByteIterable, DecodeResult, ByteSequenceReader, EncodeResult
 import typing as t
 
+from cnodc.ocproc2.codecs.base import BaseCodec, ByteIterable, ByteSequenceReader
 import cnodc.ocproc2 as ocproc2
-from cnodc.util import CNODCError
+import cnodc.util.json as json
 
 
 class OCProc2JsonCodec(BaseCodec):
@@ -32,7 +17,7 @@ class OCProc2JsonCodec(BaseCodec):
         return b'['
 
     def encode_single_record(self, record: ocproc2.ParentRecord, encoding='utf-8', **kwargs) -> ByteIterable:
-        yield json_dumps(BaseCodec.record_to_map(record))
+        yield json.dump_bytes(BaseCodec.record_to_map(record))
 
     def _encode_separator(self, **kwargs) -> t.Union[None, bytes, bytearray]:
         return b','
@@ -80,5 +65,6 @@ class OCProc2JsonCodec(BaseCodec):
         elif buffer != b']':  # pragma: no coverage (fallback for malformed JSON)
             self.log.warning(f"More data detected")
 
-    def decode_single_record(self, stream: t.Union[bytes, bytearray], encoding: str = 'utf-8', *args, **kwargs) -> t.Optional[ocproc2.ParentRecord]:
-        return BaseCodec.map_to_record(json_loads(stream))
+    def decode_single_record(self, stream: t.Union[bytes, bytearray], *args, **kwargs) -> t.Optional[ocproc2.ParentRecord]:
+        return BaseCodec.map_to_record(json.load_dict(stream))
+

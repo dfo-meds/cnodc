@@ -354,7 +354,6 @@ class NODBWebController:
                         db.update_object(wr)
             queue_item.mark_complete(db)
             payload = WorkflowPayload.from_queue_item(queue_item)
-            payload.increment_priority()
             payload.enqueue(db)
             db.commit()
             return {

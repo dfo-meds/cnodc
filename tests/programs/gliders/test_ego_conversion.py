@@ -3,110 +3,14 @@ import math
 
 import netCDF4
 
-from cnodc.programs.glider.ego_convert import OpenGliderConverter, validate_ego_glider_file
-from cnodc.util import unnumpy, CNODCError
-from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf, str_to_netcdf_vlen
-from helpers.base_test_case import BaseTestCase, InjectableDict
-import typing as t
+from cnodc.programs.glider.ego_convert import validate_ego_glider_file
+from cnodc.util import unnumpy, CNODCError, json
+from cnodc.util.sanitize import str_to_netcdf_vlen
 
-class GliderBaseTest(BaseTestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.old_file = cls.class_temp_dir / 'TEST001_20151001_R.nc'
-        with netCDF4.Dataset(cls.old_file, 'w') as old:
-            cls.setup_ego_file(old)
-        cls.old_handle = netCDF4.Dataset(cls.old_file, 'r')
-        cls.converter = OpenGliderConverter.build(None, cls.halt_flag)
-
-    @classmethod
-    def setup_ego_file(cls, old: netCDF4.Dataset):
-        pass
-
-    @classmethod
-    def tearDownClass(cls):
-        if cls.old_handle.isopen():
-            cls.old_handle.close()
-        super().tearDownClass()
-
-    @staticmethod
-    def _add_old_ego_sensor_info(ds, param_info: t.Sequence[tuple[str, str, str]]):
-        for param in param_info:
-            v = ds.createVariable(param[0], 'f8', ('N_COUNT',))
-            if param[1]:
-                v.setncattr('sensor_name', param[1])
-            if param[2]:
-                v.setncattr('sensor_serial_number', param[2])
-
-    @staticmethod
-    def _add_new_ego_sensor_info(ds,
-                                 sensor_info: t.Sequence[tuple[str, str, str, str, str, str]],
-                                 parameter_info: t.Sequence[tuple[str, str]]):
-        ds.createDimension('N_SENSORS', len(sensor_info))
-        ds.createDimension('N_PARAMS', len(parameter_info))
-        ds.createDimension('STRING256', 256)
-        var_names = ['SENSOR', 'SENSOR_MAKER', 'SENSOR_MODEL', 'SENSOR_SERIAL_NO', 'SENSOR_MOUNT', 'SENSOR_ORIENTATION']
-        for idx, var_name in enumerate(var_names):
-            v = ds.createVariable(var_name, 'S1', ('N_SENSORS', 'STRING256',))
-            v[:] = str_to_netcdf([x[idx] for x in sensor_info], 256)
-        var_names = ['PARAMETER', 'PARAMETER_SENSOR']
-        for idx, var_name in enumerate(var_names):
-            v = ds.createVariable(var_name, 'S1', ('N_PARAMS', 'STRING256', ))
-            v[:] = str_to_netcdf([x[idx] for x in parameter_info], 256)
-
-    def assertHasVariableAttribute(self, var_name: str, attr_name: str, value: t.Any):
-        self.assertIn(var_name, self.new_handle.variables.keys(), msg=f'Missing variable {var_name}')
-        self.assertTrue(hasattr(self.new_handle.variables[var_name], attr_name), msg=f'Variable {var_name} is missing attribute {attr_name}')
-        self.assertEqual(value, self.new_handle.variables[var_name].getncattr(attr_name))
-
-    def assertHasAttribute(self, name: str, value: t.Any):
-        self.assertTrue(hasattr(self.new_handle, name), msg=f'Attribute {name} is missing')
-        self.assertEqual(value, self.new_handle.getncattr(name), msg=f'Attribute {name} expected to be {value}, actually {self.new_handle.getncattr(name)}')
-
-    def assertHasVariable(self, name: str):
-        self.assertIn(name, self.new_handle.variables.keys(), msg=f'Variable {name} is missing')
-
-    def assertDoesNotHaveVariable(self, name: str):
-        self.assertNotIn(name, self.new_handle.variables.keys(), msg=f'Variable {name} is present, but shold not be')
-
-    def assertDoesNotHaveAttribute(self, name: str):
-        self.assertFalse(hasattr(self.new_handle, name), msg=f"Attribute {name} is present, but should not be")
-
-    def assertStringVariableEqual(self, name: str, value: str):
-        self.assertEqual(netcdf_bytes_to_string(self.new_handle.variables[name][:]), value)
+from programs.gliders.helpers import GliderBaseTest
 
 
-class GliderManyTest(GliderBaseTest):
-
-    def setUp(self):
-        super().setUp()
-        self.new_file = self.temp_dir / 'og.nc'
-        self.new_handle = netCDF4.Dataset(self.new_file, 'r+')
-
-    def tearDown(self):
-        if self.new_handle.isopen():
-            self.new_handle.close()
-        super().tearDown()
-
-
-class GliderOneTest(GliderBaseTest):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.new_file = cls.class_temp_dir / 'og.nc'
-        cls.new_handle = netCDF4.Dataset(cls.new_file, 'r+')
-        cls.converter._convert(cls.new_handle, cls.old_handle, cls.old_file.name)
-
-    @classmethod
-    def tearDownClass(cls):
-        if cls.new_handle.isopen():
-            cls.new_handle.close()
-        super().tearDownClass()
-
-
-class TestEmptyGliderConversion(GliderManyTest):
+class TestEmptyGliderConversion(GliderBaseTest):
 
     def test_get_info_url(self):
         self.assertEqual(
@@ -337,7 +241,7 @@ class TestEmptyGliderConversion(GliderManyTest):
 
 
 
-class TestPartialBadConversion(GliderManyTest):
+class TestPartialBadConversion(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -379,7 +283,7 @@ class TestPartialBadConversion(GliderManyTest):
             validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
-class TestPartial2BadConversion(GliderManyTest):
+class TestPartial2BadConversion(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -436,7 +340,7 @@ class TestPartial2BadConversion(GliderManyTest):
             validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
-class TestPartial3BadConversion(GliderManyTest):
+class TestPartial3BadConversion(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -477,7 +381,7 @@ class TestPartial3BadConversion(GliderManyTest):
             validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
-class TestMinimalEmptyConversion(GliderManyTest):
+class TestMinimalEmptyConversion(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -526,7 +430,7 @@ class TestMinimalEmptyConversion(GliderManyTest):
 
 
 
-class TestBadPosSystem(GliderManyTest):
+class TestBadPosSystem(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -566,7 +470,7 @@ class TestBadPosSystem(GliderManyTest):
             validate_ego_glider_file(self.old_file, self.old_file.name, {})
 
 
-class TestBadTrackSystem(GliderManyTest):
+class TestBadTrackSystem(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -614,7 +518,7 @@ class TestBadTrackSystem(GliderManyTest):
 
 
 
-class TestBadBatterySystem(GliderManyTest):
+class TestBadBatterySystem(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -661,7 +565,7 @@ class TestBadBatterySystem(GliderManyTest):
 
 
 
-class TestMinimalConversion(GliderOneTest):
+class TestMinimalConversion(GliderBaseTest):
 
     @classmethod
     def setup_ego_file(cls, old: netCDF4.Dataset):
@@ -758,6 +662,7 @@ class TestMinimalConversion(GliderOneTest):
         old.setncattr('program', 'Program')
         old.setncattr('project', 'Project')
         old.setncattr('network', 'Network')
+        return True
 
     def test_is_valid(self):
         self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
@@ -975,4 +880,8 @@ class TestFullConversionWithMetadata(GliderBaseTest):
 
     def test_dimensions(self):
         self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)
+
+    def test_to_json(self):
+        d = json.dumps(self.metadata.to_json_map())
+        self.assertIsInstance(d, str)
 

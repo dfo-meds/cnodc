@@ -74,7 +74,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         worker: GliderConversionWorker = self.worker_controller.build_test_worker(
             GliderConversionWorker, {}
         )
-        with self.assertRaisesCNODCError('GLIDER-CONVERT-1000'):
+        with self.assertRaisesCNODCError('STORAGE-9000'):
             worker.on_start()
 
     def test_bad_og_directory(self):
@@ -92,7 +92,7 @@ class GliderConversionWorkerTest(BaseTestCase):
                 'openglider_directory': self.temp_dir,
             }
         )
-        with self.assertRaisesCNODCError('GLIDER-CONVERT-1002'):
+        with self.assertRaisesCNODCError('STORAGE-9000'):
             worker.on_start()
 
     def test_bad_og_erddap_directory(self):
@@ -106,7 +106,7 @@ class GliderConversionWorkerTest(BaseTestCase):
             worker.on_start()
 
     def test_new_file(self):
-        input_file = pathlib.Path(__file__).absolute().parent / 'SEA032_20250606_R.nc'
+        input_file = self.testdata_path('glider_ego/SEA032_20250606_R.nc')
         sf = NODBSourceFile()
         sf.file_name = input_file.name
         sf.source_path = str(input_file)
@@ -146,7 +146,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)
 
     def test_existing_file(self):
-        input_file = pathlib.Path(__file__).absolute().parent / 'SEA032_20250606_R.nc'
+        input_file = self.testdata_path('glider_ego/SEA032_20250606_R.nc')
         sf = NODBSourceFile()
         sf.file_name = input_file.name
         sf.source_path = str(input_file)
@@ -234,7 +234,7 @@ class TestGliderMetadataUploadWorker(BaseTestCase):
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
     def test_upload_metadata(self):
         fp = FilePayload.from_path(
-            str(pathlib.Path(__file__).parent / 'converted' / 'SEA032_20190116_R.nc')
+            str(self.testdata_path('glider_openglider/SEA032_20190116_R.nc'))
         )
         with self.mock_web_test():
             self.worker_controller.test_queue_worker(

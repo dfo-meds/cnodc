@@ -42,7 +42,7 @@ class TestFileScanTask(BaseTestCase):
             'scan_target': 'protocol://test/files/',
             'workflow_name': 'test',
         })
-        with self.assertRaisesCNODCError('FILESCAN-1001'):
+        with self.assertRaisesCNODCError('STORAGE-9000'):
             x.on_start()
 
     def test_scan_new_files_full(self):

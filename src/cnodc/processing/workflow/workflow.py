@@ -22,7 +22,7 @@ import typing as t
 import pathlib
 import datetime
 
-from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload
+from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, NewFilePayload
 import cnodc.util.awaretime as awaretime
 
 VALID_METADATA_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:;.,\\/\"'?!(){}[]@<>=-+*#$&`|~^"
@@ -60,7 +60,8 @@ class WorkflowController:
                              metadata: dict,
                              success_hook: t.Optional[callable],
                              db: NODBControllerInstance,
-                             unique_queue_id: t.Optional[str] = None):
+                             unique_queue_id: t.Optional[str] = None,
+                             correlation_id: t.Optional[str] = None):
         """Start the workflow for a file."""
         self._log.debug(f"Processing file [%s]", local_path)
         file_handles = []
@@ -72,7 +73,7 @@ class WorkflowController:
         # Validate the upload
         self._validate_file_upload(local_path, metadata, filename)
         # Upload the file to various locations and queue the working file
-        self._upload_and_queue_file(local_path, metadata, success_hook, db, unique_queue_id, filename)
+        self._upload_and_queue_file(local_path, metadata, success_hook, db, unique_queue_id, filename, correlation_id)
 
     def _extend_metadata(self, metadata: dict):
         """Extend the input metadata with the default metadata"""
@@ -88,7 +89,7 @@ class WorkflowController:
             self._log.info(f"Validating uploaded file using %s", self.config['validation'])
             dynamic_object(self.config['validation'])(local_path, filename, metadata)
 
-    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, success_hook, db, unique_queue_id: t.Optional[str], filename: str):
+    def _upload_and_queue_file(self, local_path: pathlib.Path, metadata: dict, success_hook, db, unique_queue_id: t.Optional[str], filename: str, correlation_id: t.Optional[str] = None):
         """Upload the file and queue it if all succeed."""
         with tempfile.TemporaryDirectory() as td:
             gzip_made = False
@@ -121,7 +122,7 @@ class WorkflowController:
                             file_handles.append(self._handle_file_upload(local_path, filename, metadata, target))
                 # NB: these are done in the try/except so that the file handles can be removed upon failure
                 if working_file:
-                    self._queue_working_file(working_file, metadata, gzip_filename if with_gzip else filename, with_gzip, db, unique_queue_id)
+                    self._queue_working_file(working_file, metadata, gzip_filename if with_gzip else filename, with_gzip, db, unique_queue_id, correlation_id)
                 if success_hook is not None:
                     success_hook()
                 db.commit()
@@ -147,7 +148,8 @@ class WorkflowController:
                             filename: str,
                             with_gzip: bool,
                             db,
-                            unique_file_key: t.Optional[str] = None):
+                            unique_file_key: t.Optional[str] = None,
+                            correlation_id: t.Optional[str] = None):
         """Queue the working file."""
         if self.has_more_steps(None):
             if 'last-modified-date' in metadata and metadata['last-modified-date']:
@@ -163,12 +165,10 @@ class WorkflowController:
                 current_step=None,
                 current_step_done=True,
                 metadata=metadata,
-                workflow_name=self.name
+                workflow_name=self.name,
+                correlation_id=correlation_id or str(uuid.uuid4()),
+                deduplicate_key=unique_file_key or hashlib.md5(working_file.path().encode('utf-8', errors='replace')).hexdigest()
             )
-            if unique_file_key:
-                payload.set_unique_key(hashlib.md5(unique_file_key.encode('utf-8', errors='replace')).hexdigest())
-            else:
-                payload.set_unique_key(hashlib.md5(working_file.path().encode('utf-8', errors='replace')).hexdigest())
             self.queue_step(payload, db)
         else:
             self._log.info('No more steps for workflow')
@@ -185,8 +185,8 @@ class WorkflowController:
                     self._log.exception(f"Exception setting tier on [%s] to [%s]", handle.path(), tier)
 
     def queue_step(self,
-                    payload: WorkflowPayload,
-                    db: NODBControllerInstance):
+                   payload: WorkflowPayload,
+                   db: NODBControllerInstance):
         if payload.current_step_done:
             payload.current_step = self._get_next_step(payload.current_step)
         payload.current_step_done = False

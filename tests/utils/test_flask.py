@@ -8,7 +8,7 @@ from autoinject import injector
 
 from cnodc.system.boot import build_cnodc_webapp
 from cnodc.util.flask import TrustedProxyFix, RequestInfo
-from helpers.base_test_case import BaseTestCase, InjectableDict
+from helpers.base_test_case import BaseTestCase, InjectableDict, skip_long_test
 
 
 class BoringApp:
@@ -29,7 +29,7 @@ class ProxyFixDummy:
 
 
 
-
+@skip_long_test
 class TestProxyFix(BaseTestCase):
 
     VALID_IPS = [

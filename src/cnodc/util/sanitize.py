@@ -1,16 +1,8 @@
-import datetime
-import decimal
 import math
 import typing as t
 import netCDF4 as nc
-
 import unicodedata
-
 import numpy as np
-
-from cnodc.util.awaretime import AwareDateTime
-
-JsonEncodable = t.Union[None, bool, str, float, int, list, dict]
 
 UNICODE_SPACES = "\t\u00A0\u180E\u2002\u2000\u2003\u2004\u2005\u2006\u2008\u2007\u2009\u200A\u200B\u202F\u205F\u3000\uFEFF"
 UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u2E3B\uFE58\uFE63\uFF0D"
@@ -32,17 +24,6 @@ def str_to_netcdf(s: t.Union[t.Sequence[str], str], fixed_len: int):
         s = [s]
     return nc.stringtochar(np.array(s, dtype=f"S{fixed_len}"))
 
-def clean_for_json(data):
-    if isinstance(data, dict):
-        return {
-            x: clean_for_json(data[x]) for x in data
-        }
-    elif isinstance(data, (set, list, tuple)):
-        return [clean_for_json(x) for x in data]
-    elif isinstance(data, (datetime.datetime, datetime.date, AwareDateTime)):
-        return data.isoformat()
-    else:
-        return data
 
 def normalize_string(value: str):
     value = unicodedata.normalize('NFC', value)
@@ -69,7 +50,6 @@ UNNUMPY = {
     'int32': lambda x: int(x.item()),
     'int16': lambda x: int(x.item()),
     'int8': lambda x: int(x.item()),
-    'float8': lambda x: unnumpy(float(x.item())),
     'float16': lambda x: unnumpy(float(x.item())),
     'float32': lambda x: unnumpy(float(x.item())),
     'float64': lambda x: unnumpy(float(x.item())),

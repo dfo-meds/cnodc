@@ -36,6 +36,7 @@ class NODBQueueItem(s.NODBBaseObject):
     subqueue_name: str = s.StringColumn("subqueue_name", readonly=True)
     unique_item_name: t.Optional[str] = s.StringColumn("unique_item_name", readonly=True)
     priority: t.Optional[int] = s.IntColumn('priority', readonly=True)
+    correlation_id: str = s.UUIDColumn("correlation_id")
     data: dict = s.JsonColumn("data")
 
     @classmethod

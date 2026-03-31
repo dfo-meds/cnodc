@@ -1,7 +1,7 @@
 from __future__ import annotations
 from autoinject import injector
 
-from cnodc.storage.base import BaseStorageHandle, StorageTier
+from cnodc.storage.base import BaseStorageHandle, StorageTier, StorageError
 from cnodc.storage.azure_files import AzureFileHandle
 from cnodc.storage.azure_blob import AzureBlobHandle
 from cnodc.storage.ftp import FTPHandle
@@ -49,15 +49,21 @@ class StorageController:
         ]
         self.default_handle = LocalHandle
 
-    def get_handle(self, file_path: t.Union[str, pathlib.Path], halt_flag: HaltFlag = None) -> t.Optional[BaseStorageHandle]:
+    def get_handle(self,
+                   file_path: t.Union[str, pathlib.Path, None],
+                   halt_flag: HaltFlag = None,
+                   raise_ex: bool = False) -> t.Optional[BaseStorageHandle]:
         """Build an appropriate handle for the given file path."""
-        if isinstance(file_path, pathlib.Path):
-            return LocalHandle(file_path.resolve(), halt_flag=halt_flag)
-        for cls in self.handle_classes:
-            if cls.supports(file_path):
-                return cls.build(file_path, halt_flag=halt_flag)
-        if self.default_handle.supports(file_path):
-            return self.default_handle.build(file_path, halt_flag=halt_flag)
+        if file_path is not None and file_path != '':
+            if isinstance(file_path, pathlib.Path):
+                return LocalHandle(file_path.resolve(), halt_flag=halt_flag)
+            for cls in self.handle_classes:
+                if cls.supports(file_path):
+                    return cls.build(file_path, halt_flag=halt_flag)
+            if self.default_handle.supports(file_path):
+                return self.default_handle.build(file_path, halt_flag=halt_flag)
+        if raise_ex:
+            raise StorageError(f'No handle supported for [{file_path}]', 9000)
         return None
 
     @staticmethod

@@ -43,19 +43,19 @@ class TestWorkflowPayload(BaseTestCase):
 
     def test_special_metadata(self):
         wp = WorkflowPayload()
-        wp.increment_priority()
-        self.assertEqual(wp.metadata['queue-priority'], 1)
-        wp.increment_priority(5)
-        self.assertEqual(wp.metadata['queue-priority'], 6)
-        wp.decrement_priority(2)
-        self.assertEqual(wp.metadata['queue-priority'], 4)
-        wp.set_subqueue_name('test')
-        self.assertEqual(wp.metadata['manual-subqueue'], 'test')
-        wp.set_unique_key('12345')
-        self.assertEqual(wp.metadata['unique-item-name'], '12345')
-        wp.set_priority(5)
-        self.assertEqual(wp.metadata['queue-priority'], 5)
-        wp.set_followup_queue('test2')
+        wp.priority += 1
+        self.assertEqual(wp._priority, 1)
+        wp.priority += 5
+        self.assertEqual(wp._priority, 6)
+        wp.priority -= 2
+        self.assertEqual(wp._priority, 4)
+        wp.subqueue_name = 'test'
+        self.assertEqual(wp._subqueue_name, 'test')
+        wp.deduplicate_key = '12345'
+        self.assertEqual(wp._deduplicate_key, '12345')
+        wp.priority = 5
+        self.assertEqual(wp._priority, 5)
+        wp.followup_queue = 'test2'
         self.assertEqual(wp.metadata['followup-queue'], 'test2')
 
     def test_from_map(self):
@@ -66,17 +66,9 @@ class TestWorkflowPayload(BaseTestCase):
         with self.assertRaisesCNODCError('PAYLOAD-1002'):
             WorkflowPayload.from_map(data)
         data['cls_name'] = dynamic_name(BatchPayload)
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
-            WorkflowPayload.from_map(data)
         data['workflow_name'] = 'hello'
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
-            WorkflowPayload.from_map(data)
         data['current_step'] = 'step1'
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
-            WorkflowPayload.from_map(data)
         data['current_step_done'] = False
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
-            WorkflowPayload.from_map(data)
         data['batch_uuid'] = '12345'
         bp = WorkflowPayload.from_map(data)
         self.assertIsInstance(bp, BatchPayload)
@@ -87,10 +79,8 @@ class TestWorkflowPayload(BaseTestCase):
         del data['batch_uuid']
         source_uuid = str(uuid.uuid4())
         data['source_uuid'] = source_uuid
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
-            WorkflowPayload.from_map(data)
         data['received_date'] = '2015-12-01'
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
+        with self.assertRaisesCNODCError('PAYLOAD-1004'):
             WorkflowPayload.from_map(data)
         data['cls_name'] = dynamic_name(SourceFilePayload)
         sp = WorkflowPayload.from_map(data)
@@ -103,10 +93,8 @@ class TestWorkflowPayload(BaseTestCase):
         del data['source_uuid']
         del data['received_date']
         data['obs_uuid'] = '123456'
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
-            WorkflowPayload.from_map(data)
         data['received_date'] = datetime.date(2015, 12, 15)
-        with self.assertRaisesCNODCError('PAYLOAD-1003'):
+        with self.assertRaisesCNODCError('PAYLOAD-1004'):
             WorkflowPayload.from_map(data)
         data['cls_name'] = dynamic_name(ObservationPayload)
         op = WorkflowPayload.from_map(data)
@@ -116,11 +104,9 @@ class TestWorkflowPayload(BaseTestCase):
         self.assertEqual(op.current_step_done, False)
         self.assertEqual(op.obs_uuid, '123456')
         self.assertEqual(op.received_date, datetime.date(2015, 12, 15))
-        data['file_path'] = '/srv/test/1234.txt.gz'
-        with self.assertRaisesCNODCError('PAYLOAD-1004'):
-            WorkflowPayload.from_map(data)
         del data['obs_uuid']
         del data['received_date']
+        data['file_path'] = '/srv/test/1234.txt.gz'
         data['cls_name'] = dynamic_name(FilePayload)
         obj = WorkflowPayload.from_map(data)
         self.assertIsInstance(obj, FilePayload)
@@ -181,7 +167,7 @@ class TestFilePayload(BaseTestCase):
     def test_to_map(self):
         fp = FilePayload.from_path("/test/file.txt.gz")
         fp.workflow_name = 'test'
-        map_ = fp.to_map()
+        map_ = fp.to_json_map()
         self.assertIn('file_path', map_)
         self.assertIn('filename', map_)
         self.assertIn('is_gzipped', map_)
@@ -196,11 +182,11 @@ class TestSourceFilePayload(BaseTestCase):
 
     def test_map(self):
         sp = SourceFilePayload(source_uuid="12345", received_date=datetime.date(2015, 1, 1), workflow_name='test')
-        map_ = sp.to_map()
+        map_ = sp.to_json_map()
         self.assertIn('source_uuid', map_)
         self.assertIn('received_date', map_)
         self.assertEqual(map_['source_uuid'], '12345')
-        self.assertEqual(map_['received_date'], '2015-01-01')
+        self.assertEqual(map_['received_date'], datetime.date(2015, 1, 1))
         self.assertIn('workflow_name', map_)
         self.assertEqual(map_['workflow_name'], 'test')
 
@@ -270,7 +256,7 @@ class TestBatchPayload(BaseTestCase):
 
     def test_enqueue_manual_priority(self):
         bp = BatchPayload(batch_uuid="12345", workflow_name='hello', current_step='step1')
-        bp.set_priority(29)
+        bp.priority = 29
         bp.enqueue(self.db, 'hello')
         next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
@@ -278,7 +264,7 @@ class TestBatchPayload(BaseTestCase):
 
     def test_enqueue_subqueue(self):
         bp = BatchPayload(batch_uuid="12345", workflow_name='hello', current_step='step1')
-        bp.set_subqueue_name('world')
+        bp.subqueue_name = 'world'
         bp.enqueue(self.db,'hello')
         next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
@@ -286,8 +272,8 @@ class TestBatchPayload(BaseTestCase):
 
     def test_enqueue_unique_item_key(self):
         bp = BatchPayload(batch_uuid="12345", workflow_name='hello', current_step='step1')
-        bp.set_unique_key('my_luggage')
-        self.assertEqual(bp.metadata['unique-item-name'], 'my_luggage')
+        bp.deduplicate_key = 'my_luggage'
+        self.assertEqual(bp._deduplicate_key, 'my_luggage')
         bp.enqueue(self.db, 'hello')
         next_item = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(next_item)
@@ -295,7 +281,7 @@ class TestBatchPayload(BaseTestCase):
 
     def test_enqueue_followup(self):
         bp = BatchPayload(batch_uuid="12345", workflow_name='hello', current_step='step1')
-        bp.set_followup_queue('world')
+        bp.followup_queue = 'world'
         bp.enqueue(self.db)
         next_item = self.db.fetch_next_queue_item('world')
         self.assertIsNotNone(next_item)
@@ -346,11 +332,11 @@ class TestObservationPayload(BaseTestCase):
         self.assertEqual(op.workflow_name, 'test')
         self.assertEqual(op.obs_uuid, '12345')
         self.assertEqual(op.received_date, datetime.date(2015, 1, 2))
-        map_ = op.to_map()
+        map_ = op.to_json_map()
         self.assertIn('obs_uuid', map_)
         self.assertIn('received_date', map_)
         self.assertEqual(map_['obs_uuid'], '12345')
-        self.assertEqual(map_['received_date'], '2015-01-02')
+        self.assertEqual(map_['received_date'], datetime.date(2015, 1, 2))
 
     def test_load(self):
         obs = NODBObservation(is_new=True, obs_uuid='12345', received_date=datetime.date(2015, 1, 2), platform_uuid='test')

@@ -1,7 +1,5 @@
 import functools
-import json
 import logging
-import pathlib
 
 from cnodc.nodb import NODBObservationData, NODBObservation, NODBQueueItem
 from cnodc.nodb.observations import NODBWorkingRecord
@@ -9,11 +7,12 @@ from cnodc.processing.workflow.progressor import WorkflowProgressWorker
 from cnodc.programs.file_scan import FileScanTask, FileDownloadWorker
 from cnodc.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker
 from cnodc.programs.nodb import NODBDecodeLoadWorker
-from helpers.base_test_case import BaseTestCase
+from helpers.base_test_case import BaseTestCase, skip_long_test
 from helpers.mock_workflow import MockWorkflow, WorkerEvent
 from helpers.web_mock import MockResponse
 from autoinject import injector
 import zirconium as zr
+import cnodc.util.json as json
 
 
 def with_security(cb):
@@ -32,6 +31,8 @@ def upsert_dataset(method, url, data, **kwargs):
     data.append(kwargs.pop('json'))
     return json.dumps({'guid': '23456'})
 
+
+@skip_long_test
 class TestGliderDecode(BaseTestCase):
 
     @classmethod
@@ -40,6 +41,8 @@ class TestGliderDecode(BaseTestCase):
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
     def setUpClass(cls):
         super().setUpClass()
+        cls.old_log_level = logging.getLogger().level or logging.NOTSET
+        logging.getLogger().setLevel(logging.ERROR)
         cls.reset_db_before_tests = False
         input_dir = cls.class_temp_dir / 'inputs'
         input_dir.mkdir()
@@ -96,9 +99,14 @@ class TestGliderDecode(BaseTestCase):
         )
         with cls.mock_web_test():
             cls.workflow_result = workflow.test_file(
-                pathlib.Path(__file__).parent.parent / 'programs' / 'gliders' / 'SEA032_20250606_R.nc',
+                cls.testdata_path('glider_ego/SEA032_20250606_R.nc'),
                 input_dir
             )
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        logging.getLogger().setLevel(cls.old_log_level)
 
     def assertEventDidOccur(self, process_name: str, event_name: str, msg: str = None):
         for x in self.workflow_result.worker_events:
@@ -147,6 +155,15 @@ class TestGliderDecode(BaseTestCase):
 
     def test_dmd_request_made(self):
         self.assertEqual(1, len(self._web_test_data))
+
+    def test_dmd_content(self):
+        data = json.dumps(self._web_test_data[0])
+        data_reloaded = json.loads(data)
+        print(json.dump_pretty(data_reloaded))
+        with open(self.testdata_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
+            content = h.read()
+            content = json.loads(content)
+            self.assertDictSimilar(data_reloaded, content)
 
     def test_observations(self):
         self.assertEqual(7474, self.db.rows(NODBObservation.TABLE_NAME))

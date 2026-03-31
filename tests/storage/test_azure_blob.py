@@ -147,6 +147,7 @@ class _AzureContainer:
 def make_and_wrap_exception(ex):
     raise ex
 
+AZURE_CONTAINERS = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data/azure_containers'
 
 class AzureBlobFixture:
 
@@ -157,7 +158,7 @@ class AzureBlobFixture:
     @staticmethod
     def build_container(container_name: str):
         if container_name not in AzureBlobFixture.data:
-            path = pathlib.Path(__file__).absolute().parent / 'azure_test'
+            path = AZURE_CONTAINERS
             AzureBlobFixture.data[container_name] = _AzureContainer('https://test.blob.core.windows/' + container_name, path / container_name)
         return AzureBlobFixture.data[container_name]
 
@@ -209,52 +210,46 @@ class BlobTest(BaseTestCase):
             setattr(AzureBlobHandle, m, cls.originals[m])
 
     def test_bad_az_blob_domain(self):
-        b = AzureBlobHandle("https://hello.files.core.windows.net/container")
-        with self.assertRaises(StorageError):
-            b._get_connection_details()
-
-    def test_bad_az_blob_container(self):
-        b = AzureBlobHandle("https://hello.blob.core.windows.net")
-        with self.assertRaises(StorageError):
-            b._get_connection_details()
+        bad_connections = [
+            ("https://hello.files.core.windows.net/container", 'STORAGE-3006'),
+            ("https://hello.blob.core.windows.net", 'STORAGE-3007'),
+        ]
+        for conn, error_name in bad_connections:
+            with self.subTest(bad_blob_connection_info=conn):
+                b = AzureBlobHandle(conn)
+                with self.assertRaisesCNODCError(error_name, False):
+                    b._get_connection_details()
 
     @injector.test_case
     @test_with_config(("azure", "storage", "test", "connection_string"), "ValueError")
     def test_bad_az_blob_conn_details(self):
         b = AzureBlobHandle("https://test.blob.core.windows.net/ValueError")
-        with self.assertRaises(StorageError):
+        with self.assertRaisesCNODCError('STORAGE-3008'):
             b.client()
-
-    @injector.test_case
-    @test_with_config(("azure", "storage", "test", "connection_string"), "ValueError")
-    def test_bad_az_container_conn_details(self):
-        b = AzureBlobHandle("https://test.blob.core.windows.net/ValueError")
-        with self.assertRaises(StorageError):
+        with self.assertRaisesCNODCError('STORAGE-3009'):
             b.container_client()
 
-    def test_wrap_connect_timeout(self):
-        with self.assertRaises(StorageError):
-            make_and_wrap_exception(AzureError("oh no2", error=ConnectTimeoutError("oh no")))
+    def test_wrap_azure_errors(self):
+        errors = [
+            (ConnectTimeoutError, 'STORAGE-3001', True),
+            (ConnectionError, 'STORAGE-3002', True),
+        ]
+        for err, code, is_transient in errors:
+            with self.subTest(error_type=err.__name__):
+                with self.assertRaisesCNODCError(code, is_transient) as h:
+                    make_and_wrap_exception(AzureError("oh no2", error=err("oh no")))
 
-    def test_wrap_connection(self):
-        with self.assertRaises(StorageError):
-            make_and_wrap_exception(AzureError("oh no2", error=ConnectionError("ohno")))
-
-    def test_wrap_client_auth(self):
-        with self.assertRaises(StorageError):
-            make_and_wrap_exception(ClientAuthenticationError("oh no"))
-
-    def test_wrap_resource_not_found(self):
-        with self.assertRaises(StorageError):
-            make_and_wrap_exception(ResourceNotFoundError("oh no"))
-
-    def test_wrap_resource_exists(self):
-        with self.assertRaises(StorageError):
-            make_and_wrap_exception(ResourceExistsError("oh no"))
-
-    def test_wrap_other_ace(self):
-        with self.assertRaises(StorageError):
-            make_and_wrap_exception(AzureError("foobar"))
+    def test_wrap_pure_azure_errors(self):
+        errors = [
+            (ClientAuthenticationError, 'STORAGE-3003', False),
+            (ResourceNotFoundError, 'STORAGE-3004', False),
+            (ResourceExistsError, 'STORAGE-3005', False),
+            (AzureError, 'STORAGE-3000', False),
+        ]
+        for err, code, is_transient in errors:
+            with self.subTest(error_type=err.__name__):
+                with self.assertRaisesCNODCError(code, is_transient) as h:
+                    make_and_wrap_exception(err("oh no"))
 
     def test_properties(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test.txt')
@@ -272,7 +267,7 @@ class BlobTest(BaseTestCase):
         file.mkdir()
 
     def test_set_metadata(self):
-        try:
+        with self.temporary_test_file('azure_containers/container/test99.txt', metadata=True):
             file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test99.txt')
             file.upload(b'12345')
             md = file.get_metadata()
@@ -281,16 +276,11 @@ class BlobTest(BaseTestCase):
             md = file.get_metadata()
             self.assertIn('hello', md)
             self.assertEqual('world', md['hello'])
-        finally:
-            p = self.get_test_root() / 'test99.txt'
-            p.unlink()
-            p = self.get_test_root() / 'test99.txt.metadata'
-            p.unlink()
 
     def test_set_tier(self):
         for x in (StorageTier.ARCHIVAL, StorageTier.INFREQUENT, StorageTier.FREQUENT):
             with self.subTest(tier=x):
-                try:
+                with self.temporary_test_file('azure_containers/container/test99.txt', metadata=True):
                     file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test99.txt')
                     if x == StorageTier.FREQUENT:
                         file.upload(b'12345', storage_tier=StorageTier.INFREQUENT)
@@ -298,38 +288,30 @@ class BlobTest(BaseTestCase):
                         file.upload(b'12345')
                     file.set_tier(x)
                     self.assertIs(file.get_tier(), x)
-                finally:
-                    p = self.get_test_root() / 'test99.txt'
-                    p.unlink()
-                    p = self.get_test_root() / 'test99.txt.metadata'
-                    p.unlink()
-                    
-    def get_test_root(self):
-        return pathlib.Path(__file__).absolute().parent / 'azure_test' / 'container'
-        
+
     def test_delete_file(self):
-        p = None
-        try:
-            p = self.get_test_root() / 'test99.txt'
-            with open(p, "w") as h:
-                h.write("foobar")
+        with self.temporary_test_file('azure_containers/container/test99.txt', metadata=True) as (p, mp):
+            p.touch()
+            mp.touch()
             file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test99.txt')
             self.assertTrue(file.exists())
             self.assertTrue(p.exists())
+            self.assertTrue(mp.exists())
             file.remove()
             self.assertFalse(file.exists())
             self.assertFalse(p.exists())
-        finally:
-            if p:
-                p.unlink(True)
-            p = self.get_test_root() / 'test99.txt.metadata'
-            p.unlink(True)
+            self.assertFalse(mp.exists())
 
     def test_delete_dir(self):
-        file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/subdir/')
-        self.assertTrue(file.exists())
-        with self.assertRaises(NotImplementedError):
-            file.remove()
+        with self.temporary_test_directory('azure_containers/container/test_delete_dir') as d:
+            d.mkdir()
+            handle = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test_delete_dir/')
+            self.assertTrue(handle.exists())
+            self.assertTrue(d.exists())
+            with self.assertRaises(NotImplementedError):
+                handle.remove()
+            self.assertTrue(d.exists())
+            self.assertTrue(handle.exists())
 
     @injector.test_case
     @test_with_config(("azure", "storage", "test", "connection_string"), "GoodString")
@@ -369,89 +351,29 @@ class BlobTest(BaseTestCase):
         handle = sc.get_handle('https://test.blob.core.windows.net/container/test/foo/bar/')
         self.assertIsInstance(handle, AzureBlobHandle)
 
-    def test_upload(self):
-        blob_path = self.get_test_root() / 'test2.txt'
-        metadata_path = self.get_test_root() / 'test2.txt.metadata'
-        try:
-            fp = self.temp_dir / 'bar.txt'
-            with open(fp, 'w') as h:
-                h.write('hello world')
-            file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test2.txt')
-            self.assertFalse(file.exists())
-            self.assertFalse(blob_path.exists())
-            file.upload(fp)
-            self.assertTrue(blob_path.exists())
-            self.assertTrue(file.exists())
-            self.assertEqual(StorageTier.FREQUENT, file.get_tier())
-            md = file.get_metadata()
-            self.assertIn('StorageTier', md)
-            self.assertEqual(md['StorageTier'], 'frequent')
-        finally:
-            blob_path.unlink(True)
-            metadata_path.unlink(True)
-
-    def test_upload_archival(self):
-        blob_path = self.get_test_root() / 'test2.txt'
-        metadata_path = self.get_test_root() / 'test2.txt.metadata'
-        try:
-            fp = self.temp_dir / 'bar.txt'
-            with open(fp, 'w') as h:
-                h.write('hello world')
-            file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test2.txt')
-            self.assertFalse(file.exists())
-            self.assertFalse(blob_path.exists())
-            file.upload(fp, storage_tier=StorageTier.ARCHIVAL)
-            self.assertTrue(blob_path.exists())
-            self.assertTrue(file.exists())
-            self.assertEqual(file.get_tier(), StorageTier.ARCHIVAL)
-            md = file.get_metadata()
-            self.assertIn('StorageTier', md)
-            self.assertEqual(md['StorageTier'], 'archival')
-        finally:
-            blob_path.unlink(True)
-            metadata_path.unlink(True)
-
-    def test_upload_cool(self):
-        blob_path = self.get_test_root() / 'test2.txt'
-        metadata_path = self.get_test_root() / 'test2.txt.metadata'
-        try:
-            fp = self.temp_dir / 'bar.txt'
-            with open(fp, 'w') as h:
-                h.write('hello world')
-            file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test2.txt')
-            self.assertFalse(file.exists())
-            self.assertFalse(blob_path.exists())
-            file.upload(fp, storage_tier=StorageTier.INFREQUENT)
-            self.assertTrue(blob_path.exists())
-            self.assertTrue(file.exists())
-            self.assertEqual(file.get_tier(), StorageTier.INFREQUENT)
-            md = file.get_metadata()
-            self.assertIn('StorageTier', md)
-            self.assertEqual(md['StorageTier'], 'infrequent')
-        finally:
-            blob_path.unlink(True)
-            metadata_path.unlink(True)
-
-    def test_upload_hot(self):
-        blob_path = self.get_test_root() / 'test2.txt'
-        metadata_path = self.get_test_root() / 'test2.txt.metadata'
-        try:
-            fp = self.temp_dir / 'bar.txt'
-            with open(fp, 'w') as h:
-                h.write('hello world')
-            file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test2.txt')
-            self.assertFalse(file.exists())
-            self.assertFalse(blob_path.exists())
-            file.upload(fp, storage_tier=StorageTier.FREQUENT)
-            self.assertTrue(blob_path.exists())
-            self.assertTrue(file.exists())
-            self.assertEqual(file.get_tier(), StorageTier.FREQUENT)
-            md = file.get_metadata()
-            self.assertIn('StorageTier', md)
-            self.assertEqual(md['StorageTier'], 'frequent')
-        finally:
-            blob_path.unlink(True)
-            metadata_path.unlink(True)
+    def test_upload_with_tiers(self):
+        tests = [
+            (None, 'frequent', StorageTier.FREQUENT),
+            (StorageTier.ARCHIVAL, 'archival', StorageTier.ARCHIVAL),
+            (StorageTier.INFREQUENT, 'infrequent', StorageTier.INFREQUENT),
+            (StorageTier.FREQUENT, 'frequent', StorageTier.FREQUENT),
+        ]
+        for storage_tier_arg, expected_metadata, expected_tier in tests:
+            with self.subTest(storage_tier_arg=storage_tier_arg):
+                with self.temporary_test_file('azure_containers/container/test2.txt', metadata=True) as (af, amf):
+                    fp = self.temp_dir / 'bar.txt'
+                    with open(fp, 'w') as h:
+                        h.write('hello world')
+                    file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test2.txt')
+                    self.assertFalse(file.exists())
+                    self.assertFalse(af.exists())
+                    file.upload(fp, storage_tier=storage_tier_arg)
+                    self.assertTrue(af.exists())
+                    self.assertTrue(file.exists())
+                    self.assertIs(expected_tier, file.get_tier())
+                    md = file.get_metadata()
+                    self.assertIn('StorageTier', md)
+                    self.assertEqual(md['StorageTier'], expected_metadata)
 
     def test_walk(self):
         blob = AzureBlobHandle.build('https://test.blob.core.windows.net/container')

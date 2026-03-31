@@ -18,7 +18,7 @@ class PayloadWorker(QueueWorker):
 
     def __init__(self, process_name: str, process_version: str, require_type: t.Optional = None, **kwargs):
         super().__init__(process_version=process_version, process_name=process_name, **kwargs)
-        self._require_type = require_type
+        self._require_type: type[Payload] = require_type or Payload
         self.current_payload: t.Optional[Payload] = None
 
     def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
@@ -28,13 +28,29 @@ class PayloadWorker(QueueWorker):
             raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
         self._log.trace('Processing payload %s', payload)
         self.current_payload = payload
-        return self.process_payload(payload)
+        self.before_payload()
+        exc = None
+        res = None
+        try:
+            res = self.process_payload(payload)
+            return res
+        except Exception as ex:
+            exc = exc
+            raise ex
+        finally:
+            self.after_payload(res, exc)
+
+    def before_payload(self):
+        self.run_hook('before_payload', payload=self.current_payload)
+
+    def after_payload(self, res: t.Optional[QueueItemResult], ex: t.Optional[Exception] = None):
+        self.run_hook('after_payload', payload=self.current_payload, result=res, exception=ex)
 
     def after_cycle(self):
         super().after_cycle()
         self.current_payload = None
 
-    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
+    def process_payload(self, payload: Payload) -> t.Optional[QueueItemResult]:
         """Override to add payload logic."""
         raise NotImplementedError  # pragma: no coverage
 
@@ -42,11 +58,7 @@ class PayloadWorker(QueueWorker):
         """Add the current payload's metadata to the new payload."""
         if self.current_payload is not None:
             new_payload.copy_details_from(self.current_payload)
-        new_payload.metadata['_source_info'] = (
-            self._process_name,
-            self._process_version,
-            self._process_uuid
-        )
+        new_payload.set_metadata('_source_info', self.process_id)
 
     def copy_payload(self, payload: Payload):
         """Create a copy of the given payload with the current payload's metadata."""
@@ -68,6 +80,8 @@ class WorkflowWorker(PayloadWorker):
     """Generic payload worker for any payload type."""
 
     def __init__(self, process_name: str, process_version: str, **kwargs):
+        if 'require_type' not in kwargs or not kwargs['require_type']:
+            kwargs['require_type'] = WorkflowPayload
         super().__init__(process_version=process_version, process_name=process_name, **kwargs)
         self.set_defaults({
             'next_queue': 'workflow_continue'
@@ -81,14 +95,13 @@ class WorkflowWorker(PayloadWorker):
                          complete_step: t.Optional[bool] = None):
         if next_queue is None:
             next_queue = self.get_config('next_queue', 'workflow_continue')
-        if complete_step is None:
-            complete_step = next_queue == "workflow_continue"
         if new_payload is None:
             new_payload = self.copy_payload(self.current_payload)
-            new_payload.current_step_done = complete_step
         else:
-            new_payload.copy_details_from(self.current_payload, complete_step)
             self.add_payload_metadata(new_payload)
+        if complete_step is None:
+            complete_step = next_queue == "workflow_continue"
+        new_payload.current_step_done = complete_step
         self._log.info('Queuing item %s for %s', new_payload, next_queue)
         new_payload.enqueue(self.db, next_queue)
         if prevent_default_progression:

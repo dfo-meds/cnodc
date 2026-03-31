@@ -1,15 +1,14 @@
 import importlib
+import types
 
 from cnodc.util.exceptions import DynamicObjectLoadError
 
 
 def dynamic_name(obj: object) -> str:
-    if isinstance(obj, type):
-        cls = obj
-    else:
-        cls = obj.__class__
-    module = cls.__module__
-    cls_name = cls.__qualname__
+    if not isinstance(obj, (type, types.FunctionType, types.ModuleType)):
+        obj = obj.__class__
+    module = obj.__module__
+    cls_name = obj.__qualname__
     if module != 'builtins':
         return module + "." + cls_name
     return cls_name

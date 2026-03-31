@@ -3,8 +3,7 @@
 import contextlib
 import datetime
 import functools
-import json
-import tempfile
+import cnodc.util.json as json
 import enum
 import psycopg2
 import zrlog
@@ -38,6 +37,7 @@ class ScannedFileStatus(enum.Enum):
     NOT_PRESENT = "0"
     UNPROCESSED = "1"
     PROCESSED = "2"
+    ERRORED = "3"
 
 
 class LockType(enum.Enum):
@@ -380,14 +380,16 @@ class NODBControllerInstance:
         """Get the status of a scanned file."""
         with self.cursor() as cur:
             if mod_time is None:
-                cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL", [file_path])
+                cur.execute("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL", [file_path])
             else:
-                cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_time.isoformat()])
+                cur.execute("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_time.isoformat()])
             row = cur.fetchone()
             if row is None:
                 return ScannedFileStatus.NOT_PRESENT
             elif bool(row[0]):
                 return ScannedFileStatus.PROCESSED
+            elif bool(row[1]):
+                return ScannedFileStatus.ERRORED
             else:
                 return ScannedFileStatus.UNPROCESSED
 
@@ -400,38 +402,40 @@ class NODBControllerInstance:
         """Mark a scanned file as a success."""
         with self.cursor() as cur:
             if mod_date is None:
-                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date IS NULL AND was_processed = FALSE", [file_path])
+                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE", [file_path])
             else:
                 cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_date.isoformat()])
                 row = cur.fetchone()
                 if row is None:
                     cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_date.isoformat()])
-                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND (modified_date <= %s or modified_date IS NULL) AND was_processed = FALSE", [file_path, mod_date.isoformat()])
+                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND (modified_date <= %s or modified_date IS NULL) AND was_processed = FALSE AND was_errored = FALSE", [file_path, mod_date.isoformat()])
 
     def mark_scanned_item_failed(self, file_path, mod_date: t.Optional[datetime.datetime] = None):
         """Mark a scanned file as failing."""
         with self.cursor() as cur:
             if mod_date is None:
-                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL", [file_path])
+                cur.execute("UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE", [file_path])
             else:
-                cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_date.isoformat()])
+                cur.execute("UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date = %s AND was_processed = FALSE AND was_errored = FALSE", [file_path, mod_date.isoformat()])
 
     def create_queue_item(self,
                           queue_name: str,
                           data: dict,
                           priority: t.Optional[int] = None,
                           unique_item_name: t.Optional[str] = None,
-                          subqueue_name: t.Optional[str] = None):
+                          subqueue_name: t.Optional[str] = None,
+                          correlation_id: t.Optional[str] = None):
         """Create a new queue item."""
         with self.cursor() as cur:
             cur.execute("""
-                INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) 
-                    VALUES (%s, %s, %s, %s, %s)""", [
+                INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) 
+                    VALUES (%s, %s, %s, %s, %s, %s)""", [
                 queue_name,
                 subqueue_name or None,
                 priority if priority is not None else 0,
-                unique_item_name,
-                json.dumps(data)
+                unique_item_name or None,
+                json.dumps(data),
+                correlation_id or None
             ])
 
     def bulk_update(self, cls, updates: dict, key_field: str, key_values: list):

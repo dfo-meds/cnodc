@@ -1,9 +1,7 @@
 import functools
 import hashlib
-import pathlib
 import uuid
 import typing as t
-from datetime import datetime
 
 import cnodc.storage
 from cnodc.nodb import NODBController, NODBQueueItem
@@ -12,51 +10,13 @@ from cnodc.processing.workers.payload_worker import PayloadWorker
 from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workers.queue_worker import QueueItemResult
 from cnodc.processing.workflow import WorkflowController
-from cnodc.processing.workflow.payloads import Payload
-from cnodc.storage import StorageController, BaseStorageHandle
+from cnodc.processing.workflow.payloads import NewFilePayload
+from cnodc.storage import StorageController
 import cnodc.nodb as nodb
-from cnodc.util import CNODCError, HaltFlag
+from cnodc.util import CNODCError
 from autoinject import injector
 import cnodc.util.awaretime as awaretime
 from cnodc.util.awaretime import AwareDateTime
-from cnodc.util.datadict import ddo_str, ddo_bool, ddo_awaredatetime
-
-
-class ScannedFilePayload(Payload):
-
-    file_path: str = ddo_str('file_path')
-    filename: str = ddo_str('filename')
-    modified_time: AwareDateTime = ddo_awaredatetime('modified_time', default=None)
-    workflow_name: str = ddo_str('workflow_name', default=None)
-    remove_when_complete: bool = ddo_bool('remove_when_complete', default=False)
-
-    def download(self, target_dir: pathlib.Path, halt_flag: t.Optional[HaltFlag] = None) -> pathlib.Path:
-        return Payload._do_download(
-            file_path=self.file_path,
-            filename=self.filename,
-            is_gzipped=self.filename.endswith('.gz'),
-            target_dir=target_dir,
-            halt_flag=halt_flag
-        )
-
-    @staticmethod
-    def from_handle(handle: BaseStorageHandle, modified_time: datetime=..., **kwargs):
-        return ScannedFilePayload(
-            file_path=handle.path(),
-            filename=handle.name(),
-            modified_time=handle.modified_datetime() if modified_time is Ellipsis else modified_time,
-            **kwargs
-        )
-
-    @staticmethod
-    def from_path(path: pathlib.Path, **kwargs):
-        path = path.absolute().resolve()
-        return ScannedFilePayload(
-            file_path=str(path),
-            filename=path.name,
-            modified_time=AwareDateTime.fromtimestamp(path.stat().st_mtime),
-            **kwargs
-        )
 
 
 class FileScanTask(ScheduledTask):
@@ -101,9 +61,7 @@ class FileScanTask(ScheduledTask):
         self._queue_name = self.get_config('queue_name')
         if not self._queue_name:
             raise CNODCError(f'Queue name is not configured', 'FILESCAN', 1003)
-        self._scan_target = self.storage.get_handle(scan_target, halt_flag=self._halt_flag)
-        if self._scan_target is None:
-            raise CNODCError(f'Scan target [{scan_target}] is not recognized', 'FILESCAN', 1001)
+        self._scan_target = self.get_handle(scan_target, True)
         self._remove_when_complete = bool(self.get_config("remove_downloaded_files"))
         self._reprocess_updated_files = bool(self.get_config("reprocess_updated_files"))
         self._headers = self.get_config("metadata", {})
@@ -129,22 +87,18 @@ class FileScanTask(ScheduledTask):
                 if status == ScannedFileStatus.NOT_PRESENT:
                     self._log.info("Found new file [%s][%s]", full_path, mod_time)
                     db.note_scanned_file(full_path, mod_time)
-                    payload = ScannedFilePayload.from_handle(file,
-                        workflow_name=self._workflow_name,
-                        remove_when_complete=self._remove_when_complete,
-                        modified_time=mod_time
-                    )
+                    payload = NewFilePayload.from_handle(file,
+                                                         workflow_name=self._workflow_name,
+                                                         remove_when_complete=self._remove_when_complete,
+                                                         modified_time=mod_time)
                     payload.metadata.update(self._headers)
                     payload.metadata.update({
-                        'source': (self._process_name, self._process_version, self._process_uuid),
+                        'source': self.process_id,
+                        'scan-batch': batch_id,
                         'scan-target': self._scan_target.path(),
-                        'correlation-id': batch_id,
                         'scanned-time': awaretime.utc_now().isoformat()
                     })
-                    download_config = self.get_config('downloader_config', {})
-                    if download_config:
-                        payload.set_worker_config('file_downloader', download_config)
-                    payload.set_unique_key(hashlib.md5(full_path.encode('utf-8', 'replace')).hexdigest())
+                    payload.set_worker_config('file_downloader', self.get_config('downloader_config', {}))
                     payload.enqueue(db, self._queue_name)
                     db.commit()
                     db.release_savepoint('FILE_INSERT')
@@ -182,7 +136,7 @@ class FileDownloadWorker(PayloadWorker):
         super().__init__(
             process_name='file_downloader',
             process_version='1.0',
-            require_type=ScannedFilePayload,
+            require_type=NewFilePayload,
             **kwargs
         )
         self.set_defaults({
@@ -190,21 +144,20 @@ class FileDownloadWorker(PayloadWorker):
             'allow_file_deletes': False,
         })
 
-    def process_payload(self, payload: ScannedFilePayload):
+    def process_payload(self, payload: NewFilePayload):
         self.handle_queued_file(
             payload.workflow_name,
             payload.file_path,
             payload.modified_time,
             payload.metadata,
+            payload.correlation_id,
             self.get_config('allow_file_deletes', False) and payload.remove_when_complete
         )
         return QueueItemResult.SUCCESS
 
     def after_failure(self, item: NODBQueueItem, ex: Exception):
-        if 'file_path' in item.data and item.data['file_path']:
-            self.db.mark_scanned_item_failed(
-                item.data['file_path'],
-                awaretime.from_isoformat(item.data['modified_time']) if 'modified_time' in item.data and item.data['modified_time'] else None)
+        if self.current_payload is not None and isinstance(self.current_payload, NewFilePayload):
+            self.db.mark_scanned_item_failed(self.current_payload.file_path, self.current_payload.modified_time or None)
             self.db.commit()
         super().after_failure(item, ex)
 
@@ -220,6 +173,7 @@ class FileDownloadWorker(PayloadWorker):
                            file_path: str,
                            modified_time: t.Optional[AwareDateTime],
                            metadata: dict,
+                           correlation_id: str,
                            remove_when_finished: bool = False):
         if file_path is None or file_path == '':
             raise CNODCError('Missing file_path key', 'FILEFLOW', 1004)
@@ -228,24 +182,21 @@ class FileDownloadWorker(PayloadWorker):
             self._log.info('Processing scanned file [%s][%s]', file_path, modified_time)
             self._log.debug('Building file handle for [%s]', file_path)
             wf_controller = self.get_workflow(workflow_name)
-            handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
-            if handle is None:
-                raise CNODCError(f'File [{file_path}] is not supported', 'FILEFLOW', 1001)
-            local_path = self.download_to_temp_file()
+            handle = self.get_handle(file_path, True)
             self._update_payload_metadata(metadata, handle)
+            local_path = self.download_to_temp_file()
             wf_controller.handle_incoming_file(
                 local_path=local_path,
                 metadata=metadata,
                 success_hook=functools.partial(self._on_success_hook, file_path=file_path, mod_time=handle.modified_datetime()),
-                db=self.db
+                db=self.db,
+                correlation_id=correlation_id
             )
-            if remove_when_finished and handle.exists():
+            if remove_when_finished:
                 handle.remove()
         elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished:
             self._log.info(f"Item [%s] already processed [result %s], checking for removal", file_path, current_status)
-            handle = self.storage.get_handle(file_path, halt_flag=self._halt_flag)
-            if handle is None:
-                raise CNODCError(f'File [{file_path}] is not supported', 'FILEFLOW', 1001)
+            handle = self.get_handle(file_path, True)
             if handle.exists():
                 handle.remove()
         else:
@@ -256,7 +207,7 @@ class FileDownloadWorker(PayloadWorker):
 
     def _update_payload_metadata(self, metadata: dict, handle):
         if 'source' not in metadata:
-            metadata['source'] = (self._process_name, self._process_version, self._process_uuid)
+            metadata['source'] = self.process_id
         metadata['default-filename'] = handle.name()
         md = handle.modified_datetime()
         if md is None:  # pragma: no coverage (fallback for weird edge cases when the modified time can't be determined)
@@ -266,5 +217,4 @@ class FileDownloadWorker(PayloadWorker):
                 metadata['last-modified-date'] = awaretime.utc_now()
         else:
             metadata['last-modified-date'] = md.isoformat()
-        if 'correlation-id' not in metadata:
-            metadata['correlation-id'] = str(uuid.uuid4())
+

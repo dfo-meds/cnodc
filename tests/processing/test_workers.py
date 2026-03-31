@@ -11,7 +11,7 @@ from cnodc.processing.workers.scheduled_task import ScheduledTask
 from cnodc.processing.workflow.payloads import FilePayload, BatchPayload, WorkflowPayload, SourceFilePayload, \
     ObservationPayload
 from cnodc.util import CNODCError, HaltInterrupt
-from helpers.base_test_case import BaseTestCase
+from helpers.base_test_case import BaseTestCase, skip_long_test
 
 
 class BoringQueueWorker(QueueWorker):
@@ -275,6 +275,7 @@ class TestScheduledTask(BaseTestCase):
         self.assertIn('before_cycle', task._called_methods)
         self.assertIn('after_cycle', task._called_methods)
 
+    @skip_long_test
     def test_actual_delay(self):
         task: BoringTask = self.worker_controller.build_test_worker(BoringTask, {
             'schedule_mode': 'from_start',
@@ -596,9 +597,9 @@ class TestWorkflowWorker(BaseTestCase):
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
         worker.current_payload = fp
-        fp2 = worker.file_payload_from_path('/hello/world2', datetime.datetime(2015, 1, 2, 3, 4, 5))
+        fp2 = worker.file_payload_from_path('/hello/world2', datetime.datetime(2015, 1, 2, 3, 4, 5).astimezone())
         self.assertEqual(fp2.file_path, '/hello/world2')
-        self.assertEqual(fp2.last_modified_date, datetime.datetime(2015, 1, 2, 3, 4, 5))
+        self.assertSameTime(fp2.last_modified_date, datetime.datetime(2015, 1, 2, 3, 4, 5).astimezone())
         self.assertEqual(fp2.get_metadata('hello'), 'world')
 
     def test_build_source_payload_from_nodb(self):

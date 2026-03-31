@@ -93,14 +93,10 @@ class GliderConversionWorker(SourceWorkflowWorker):
         self._converter: t.Optional[OpenGliderConverter] = None
 
     def on_start(self):
-        if self.get_config('openglider_directory', None) is None:
-            raise CNODCError('OpenGlider directory not specified', 'GLIDER-CONVERT', 1000)
-        self._target_dir = self.storage.get_handle(self.get_config('openglider_directory'), halt_flag=self._halt_flag)
+        self._target_dir = self.get_handle(self.get_config('openglider_directory', None), True)
         if not self._target_dir.exists():
             raise CNODCError('OpenGlider directory does not exist', 'GLIDER-CONVERT', 1001)
-        if self.get_config('openglider_erddap_directory', None) is None:
-            raise CNODCError('OpenGlider ERDDAP directory not specified', 'GLIDER-CONVERT', 1002)
-        self._target_erddap_dir = self.storage.get_handle(self.get_config('openglider_erddap_directory'), halt_flag=self._halt_flag)
+        self._target_erddap_dir = self.get_handle(self.get_config('openglider_erddap_directory', None), True)
         if not self._target_erddap_dir.exists():
             raise CNODCError('OpenGlider ERDDAP directory does not exist', 'GLIDER-CONVERT', 1003)
         self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
@@ -187,7 +183,7 @@ class GliderMetadataUploadWorker(FileWorkflowWorker):
             f"ERDDAP: {payload.get_metadata("glider_erddap_file_path", "")}",
             f"Public: {payload.file_path}",
         ]
-        meta.file_storage_location = "\n".join(storage_locations)
+        meta.file_storage_location = {"en": "\n".join(storage_locations)}
         self.metadb.upsert_dataset(meta)
         self._skip_autoprogress_payload = True
 

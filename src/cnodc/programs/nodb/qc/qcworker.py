@@ -52,19 +52,19 @@ class NODBQCWorker(WorkflowWorker):
         payload = self.batch_payload_from_uuid(batch_id)
         queue_name = self.get_config('next_queue')
         if batch_outcome == BatchOutcome.REVIEW_QUEUE:
-            payload.set_followup_queue(queue_name)
+            payload.followup_queue = queue_name
             payload.set_metadata('current-qc-tests', self._test_runner.test_names())
             payload.set_metadata('recheck-queue', self.get_config('recheck_queue') or self.get_config('queue_name'))
             payload.set_metadata('escalation-queue', self.get_config('escalation_queue', None))
             payload.set_metadata('descalation-queue', self.get_config('review_queue'))
             queue_name = self.get_config('review_queue')
         else:
-            payload.set_followup_queue(None)
+            payload.followup_queue = None
             payload.set_metadata('escalation-queue', None)
             payload.set_metadata('descalation-queue', None)
             payload.set_metadata('recheck-queue', None)
             payload.set_metadata('current-qc-test', None)
-        payload.set_unique_key(group_key)
+        payload.deduplicate_key = group_key
         payload.enqueue(self.db, queue_name)
 
     def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):

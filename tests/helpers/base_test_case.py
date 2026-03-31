@@ -1,8 +1,10 @@
 import datetime
 import logging
+import os
 import pathlib
 import shutil
 import tempfile
+import unittest
 import unittest as ut
 from unittest.result import TestResult
 import zoneinfo
@@ -25,6 +27,13 @@ class InjectableDict:
     def __init__(self):
         self.data = {}
 
+TEST_FILE_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data'
+
+def skip_long_test(test_case):
+    if not ('CNODC_WITH_LONG_TESTS' in os.environ and os.environ['CNODC_WITH_LONG_TESTS'] == 'Y'):
+        return unittest.skip('skipping long_tests')(test_case)
+    return test_case
+
 
 class BaseTestCase(ut.TestCase):
 
@@ -33,6 +42,35 @@ class BaseTestCase(ut.TestCase):
         self.addTypeEqualityFunc(datetime.datetime, self.assertSameTime)
         self.addTypeEqualityFunc(AwareDateTime, self.assertSameTime)
         self.addTypeEqualityFunc(dict, self.assertDictSimilar)
+
+    @staticmethod
+    def testdata_path(rel_path: str = None) -> pathlib.Path:
+        if rel_path is None:
+            return TEST_FILE_DIR
+        return TEST_FILE_DIR / rel_path
+
+    @contextmanager
+    def temporary_test_file(self, rel_path: str, metadata: bool = False):
+        file_path = BaseTestCase.testdata_path(rel_path)
+        md_file_path = None if not metadata else (file_path.parent / f"{file_path.name}.metadata")
+        try:
+            yield file_path if md_file_path is None else (file_path, md_file_path)
+        finally:
+            file_path.unlink(True)
+            if md_file_path is not None:
+                md_file_path.unlink(True)
+
+    @contextmanager
+    def temporary_test_directory(self, rel_path: str, metadata: bool = False):
+        dir_path = BaseTestCase.testdata_path(rel_path)
+        md_file_path = None if not metadata else (dir_path.parent / f"{dir_path.name}.metadata")
+        try:
+            yield dir_path if md_file_path is None else (dir_path, md_file_path)
+        finally:
+            if dir_path.exists():
+                shutil.rmtree(dir_path)
+            if md_file_path is not None:
+                md_file_path.unlink(True)
 
     @classmethod
     def setUpClass(cls):
@@ -68,11 +106,11 @@ class BaseTestCase(ut.TestCase):
                     yield x
 
     @contextmanager
-    def assertRaisesCNODCError(self, error_code: str, msg=None):
+    def assertRaisesCNODCError(self, error_code: str = None, is_transient: bool = None, msg=None):
         with self.assertRaises(CNODCError) as h:
             yield h
-        if error_code != h.exception.internal_code:
-            raise self.failureException(msg or f"'{error_code}' != '{h.exception.internal_code}") from h.exception
+        if (error_code and error_code != h.exception.internal_code) or (is_transient is not None and is_transient is not h.exception.is_transient):
+            raise self.failureException(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'") from h.exception
         self.assertEqual(error_code, h.exception.internal_code)
 
     @contextmanager
@@ -91,7 +129,11 @@ class BaseTestCase(ut.TestCase):
         finally:
             logging.disable(old_level)
 
-    def assertSameTime(self, dt1: datetime.datetime, dt2: datetime.datetime, msg=None):
+    def assertSameTime(self, dt1: datetime.datetime | str, dt2: datetime.datetime | str, msg=None):
+        if isinstance(dt1, str):
+            dt1 = datetime.datetime.fromisoformat(dt1)
+        if isinstance(dt2, str):
+            dt2 = datetime.datetime.fromisoformat(dt2)
         msg = msg or f'[{dt1.isoformat() if dt1 else None}] != [{dt2.isoformat() if dt2 else None}]'
         if dt1 is None and dt2 is not None:
             raise self.failureException(msg + " (dt1 is none")

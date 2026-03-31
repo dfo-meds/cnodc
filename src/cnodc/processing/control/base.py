@@ -13,6 +13,10 @@ import yaml
 import zrlog
 import pathlib
 from zrlog.logger import ImprovedLogger
+from autoinject import injector
+
+
+from cnodc.storage import BaseStorageHandle, StorageController
 from cnodc.util import HaltFlag, dynamic_object, CNODCError, gzip_with_halt, ungzip_with_halt, DynamicObjectLoadError
 import json
 
@@ -176,6 +180,9 @@ class _ProcessSet:
                 current += 1
 
 
+def original_signal_handler(*args, **kwargs):
+    raise KeyboardInterrupt
+
 class BaseController:
     """Base class for controllers"""
 
@@ -242,6 +249,11 @@ class BaseController:
             self._log.debug("Registering signal %s", sig_name)
             signal.signal(getattr(signal, sig_name), self._handle_halt)
             self._signals.add(sig_name)
+
+    def cleanup(self):
+        for sig_name in self._signals:
+            signal.signal(getattr(signal, sig_name), original_signal_handler)
+        self._signals = set()
 
     def _handle_halt(self, sig_num, frame):
         """Handle a halt signal"""
@@ -344,12 +356,15 @@ class BaseController:
 
     def start(self):
         """Method to register all signals and start the process."""
-        self._register_halt_signal("SIGINT")
-        self._register_halt_signal("SIGTERM")
-        self._register_halt_signal("SIGBREAK")
-        self._register_halt_signal("SIGQUIT")
-        self.reload_check()
-        self.run()
+        try:
+            self._register_halt_signal("SIGINT")
+            self._register_halt_signal("SIGTERM")
+            self._register_halt_signal("SIGBREAK")
+            self._register_halt_signal("SIGQUIT")
+            self.reload_check()
+            self.run()
+        finally:
+            self.cleanup()
 
     def run(self):
         """Run loop, will constantly check for configuration changes and ensure process sets are running until
@@ -687,6 +702,14 @@ class BaseWorker:
         if self._temp_dir is None:
             self._temp_dir = tempfile.TemporaryDirectory()
         return pathlib.Path(self._temp_dir.name)
+
+    @injector.inject
+    def get_handle(self, file_path, raise_ex: bool = False, storage: StorageController = None) -> t.Optional[BaseStorageHandle]:
+        return storage.get_handle(
+            file_path=file_path,
+            raise_ex=raise_ex,
+            halt_flag=self._halt_flag
+        )
 
     def gzip_local_file(self, source_file, destination_file):
         gzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)   # pragma: no coverage

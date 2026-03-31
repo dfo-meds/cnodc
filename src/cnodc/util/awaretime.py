@@ -35,6 +35,12 @@ class AwareDateTime(datetime.datetime):
             obj = obj.replace(tzinfo=dt.tzinfo)
         return obj
 
+    def __copy__(self):
+        return self.__class__(self.year, self.month, self.day, self.hour, self.minute, self.second, self.microsecond, self.tzinfo, fold=self.fold)
+
+    def __deepcopy__(self, memodict={}):
+        return self.__copy__()
+
     def replace(self, *args, tzinfo = ...,  **kwargs):
         if tzinfo is Ellipsis:
             tzinfo = self.tzinfo
@@ -88,7 +94,10 @@ class AwareDateTime(datetime.datetime):
     def from_datetime(cls, dt: datetime.datetime, tzinfo=None) -> t.Self:
         if isinstance(dt, AwareDateTime):
             return dt
-        return cls(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond, dt.tzinfo or tzinfo, dt.fold)
+        elif isinstance(dt, datetime.datetime):
+            return cls(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond, dt.tzinfo or tzinfo, dt.fold)
+        else:
+            return cls(dt.year, dt.month, dt.day)
 
     @staticmethod
     def _build_time_zone(tz: TZ_INFO) -> t.Optional[datetime.tzinfo]:

@@ -129,7 +129,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             if source_file is None:
                 source_file = nodb.NODBSourceFile()
                 source_file.source_path = payload.file_path
-                source_file.received_date = payload.last_modified_date or AwareDateTime.utcnow()
+                source_file.received_date = (payload.last_modified_date or AwareDateTime.utcnow()).date()
                 source_file.status = nodb.SourceFileStatus.NEW
                 source_file.file_name = payload.filename
                 self.db.insert_object(source_file)
@@ -239,7 +239,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if failure_queue is not None:
             payload = self.source_payload_from_nodb(child_file)
             payload.metadata['decoder-class'] = self._decoder.__class__.__name__
-            payload.set_followup_queue(self.get_config('next_queue'))
+            payload.followup_queue = self.get_config('next_queue')
             self.progress_payload(payload, failure_queue, prevent_default_progression=True)
         mode(child_file)
         self.after_decode_error(source_file, result, additional_exception)

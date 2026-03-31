@@ -6,24 +6,24 @@ netcdf_conversion:
       featureType: 'trajectory'
       naming_authority: 'ca.dfo-mpo.cnodc-cndoc'
       platform_vocabulary: 'https://vocab.nerc.ac.uk/collection/L06/current/27/'
-      standard_name_vocab: CF 1.13
+      standard_name_vocabulary: CF 1.13
       platform: 'sub-surface gliders'
       institution: 'DFO-MPO'
       contributor_role_vocabulary: 'https://standards.iso.org/iso/19115/resources/Codelists/cat/codelists.xml#CI_RoleCode'
-      default_locale: en-CA
-      locales: "_fr: fr-CA"
+      locale_default: en-CA
+      locale_others: "_fr: fr-CA"
       geospatial_bounds_crs: "EPSG:4326"
       geospatial_bounds_vertical_crs: "EPSG:5831"
       geospatial_vertical_positive: down
+      comment: Data regularized, corrected and/or derived from raw glider data.
+      comment_fr: Données régularisées, corrigées et/ou dérivées des données brutes du planeur.
   copy_metadata:
       internal_mission_identifier: deployment_code
       program: program
       project: project
-      comment: comment
       network: network
   variables:
     TIME:
-      type: "f8"
       dimensions:
         - N_MEASUREMENTS
       attributes:
@@ -48,7 +48,7 @@ netcdf_conversion:
         long_name_fr: 'Drapeau de qualité pour moment de la mesure'
         rtqc_methodology: "Coriolis MATLAB toolbox"
         rtqc_methodology_fr: "Boîte à outils Coriolis Matlab"
-        cnodc_standard_name: Time:Quality
+        cnodc_standard_name: Time/Quality
         missing_value: -128
         valid_min: 0
         valid_max: 9
@@ -802,6 +802,8 @@ data_maps:
     dfo: dfo
     meds: meds
     c-proof: c-proof
+    "fisheries and oceans canada": dfo
+    fisheriesandoceanscanada: dfo
 
   data_modes:
     r: REAL_TIME
@@ -835,6 +837,14 @@ data_maps:
     4: 2
     5: 0
     6: 0
+
+  sensor_makes:
+    sbe: SeaBird Electronics
+    wetlabs: Wetlabs
+
+  sensor_models:
+    gpctd: GPCTD
+    eco_flbbcd: ECO FLBBCD
 
   sensors:
     "seabird electronics ctd 41cp":
@@ -890,10 +900,76 @@ data_maps:
       maker: "Alseamar"
 
   contacts:
-    "erin turnbull":
+    erinturnbull:
       proper_name: Erin Turnbull
       id: 0009-0004-9696-0758
       email: erin.turnbull@dfo-mpo.gc.ca
+    clarkrichards:
+      proper_name: Clark Richards
+      id: 0000-0002-7833-206X
+      email: clark.richards@dfo-mpo.gc.ca
+    anhtran:
+      proper_name: Anh Tran
+      email: anh.tran@dfo-mpo.gc.ca
+      guid: AnhTran
+    dfo:
+      proper_name:
+        en: Fisheries and Oceans Canada (DFO)
+        fr: Pêches et Océans Canada (MPO)
+      id: 02qa1x782
+    bio:
+      proper_name:
+        en: Bedford Institute of Oceanography (BIO)
+        fr: Institut océanographique de Bedford
+      id: 03bz9t645
+    "c-proof":
+      proper_name:
+        en: Canadian-Pacific Robotic Ocean Observing Facility (C-PROOF)
+        fr: Installation canadienne d’observation de l’océan Pacifique par robotique
+      id: 03c62s410
+    memorial:
+      proper_name:
+        en: Memorial University of Newfoundland
+        fr: Université Memorial de Terre-Neuve
+      id: 04haebc03
+    uvic:
+      proper_name:
+        en: University of Victoria
+        fr: Université de Victoria
+      id: 04s5mat29
+    ios:
+      proper_name:
+        en: Institute of Ocean Sciences (IOS)
+        fr: Institut des sciences de la mer
+      guid: IOS
+    nafc:
+      proper_name:
+        en: North Atlantic Fisheries Centre (NAFC)
+        fr: Centre des pêches de l’Atlantique nord-ouest
+      guid: NAFC
+    meds:
+      proper_name:
+        en: Marine Environmental Data Section (MEDS)
+        fr: Section des données sur le milieu marin (SDMM)
+      guid: MEDS
+    ceotr:
+      proper:name:
+        en: Coastal Environmental Observation Technology and Research (CEOTR)
+        fr: Technologie et recherche en bbservation environnementale côtière
+      guid: CEOTR
+    "university-of-victoria": "universityofvictoria"
+    fisheriesandoceanscanada: "dfo"
+    bedfordinstituteofoceanography: "bio"
+    clarkrichard: "clarkrichards"
+    cproof: "c-proof"
+    marineenvironmentaldatasection: meds
+    coastalenvironmentalobservationtechnologyandresearch: ceotr
+    northatlanticfisheriescentre: nafc
+    instituteofoceansciences: ios
+    memorialuniversity: memorial
+    universityofvictoria: uvic
+    canadianpacificroboticoceanobservingfacility: c-proof
+    canadian-pacificroboticoceanobservingfacility: c-proof
   institution_urls:
     c-proof: https://cproof.uvic.ca/
     ceotr: https://ceotr.ocean.dal.ca/gliders/

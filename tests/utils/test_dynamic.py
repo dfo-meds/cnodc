@@ -1,19 +1,27 @@
+from cnodc.util.awaretime import AwareDateTime
+from cnodc.util.dynamic import dynamic_name
 from helpers.base_test_case import BaseTestCase
 from cnodc.util import DynamicObjectLoadError, dynamic_object
 
 
 class TestDynamicLoad(BaseTestCase):
 
+    def test_builtin_name(self):
+        self.assertEqual(dynamic_name(str), 'str')
+
+    def test_object_name(self):
+        self.assertEqual(dynamic_name(AwareDateTime), 'cnodc.util.awaretime.AwareDateTime')
+
     def test_bad(self):
         with self.assertRaises(DynamicObjectLoadError):
             dynamic_object('hello_world')
 
     def test_function(self):
-        obj = dynamic_object('utils.test_dynamic.test_function')
+        obj = dynamic_object(dynamic_name(test_function))
         self.assertEqual('test_function', obj.__name__)
 
     def test_class(self):
-        obj = dynamic_object('utils.test_dynamic.TestClass')
+        obj = dynamic_object(dynamic_name(TestClass))
         self.assertEqual('TestClass', obj.__name__)
 
     def test_bad_module(self):

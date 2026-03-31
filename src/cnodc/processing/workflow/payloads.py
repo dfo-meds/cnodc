@@ -1,5 +1,6 @@
 import copy
 import datetime
+import hashlib
 import pathlib
 import re
 import typing as t
@@ -7,21 +8,32 @@ import typing as t
 from autoinject import injector
 
 import cnodc.nodb as nodb
-from cnodc.nodb import NODBWorkingRecord
-from cnodc.storage import StorageController
+from cnodc.nodb import NODBWorkingRecord, NODBQueueItem
+from cnodc.storage import StorageController, BaseStorageHandle
 
 from cnodc.util import CNODCError, HaltFlag, ungzip_with_halt, dynamic_object, DynamicObjectLoadError
-from cnodc.util.datadict import DataDictObject, ddo_property, newdict, ddo_str, ddo_bool, ddo_datetime, ddo_date
+from cnodc.util.awaretime import AwareDateTime
+from cnodc.util.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_json_dict
 from cnodc.util.dynamic import dynamic_name
 
 
 class Payload(DataDictObject):
 
-    metadata: dict = ddo_property('metadata', default=newdict)
-    worker_config: dict = ddo_property('worker_config', default=newdict)
+    metadata: dict = p_json_dict()
+    worker_config: dict = p_json_dict()
 
-    def __init__(self, cls_name: str = None, **kwargs):
+    def __init__(self,
+                 cls_name: str = None,
+                 deduplicate_key: t.Optional[str] = None,
+                 priority: t.Optional[int] = None,
+                 correlation_id: t.Optional[str] = None,
+                 subqueue_name: t.Optional[str] = None,
+                 **kwargs):
         super().__init__(**kwargs)
+        self._priority = priority or 0
+        self._subqueue_name = subqueue_name or None
+        self._deduplicate_key = deduplicate_key or None
+        self._correlation_id = correlation_id or None
 
     def set_metadata(self, key, value):
         """Set a metadata property (or delete it if the value is None)"""
@@ -42,60 +54,88 @@ class Payload(DataDictObject):
             return self.metadata[key]
         return default
 
-    def set_subqueue_name(self, subqueue_name: t.Optional[str]):
-        """Set the name of the subqueue for the queue item."""
-        self.set_metadata('manual-subqueue', subqueue_name)
+    @property
+    def correlation_id(self) -> t.Optional[str]:
+        return self._correlation_id
 
-    def set_unique_key(self, item_key: t.Optional[str]):
-        """Set the unique key for the queue item."""
-        self.set_metadata('unique-item-name', item_key)
+    @correlation_id.setter
+    def correlation_id(self, uuid: str):
+        self._correlation_id = uuid or None
 
-    def set_priority(self, new_priority: t.Optional[int]):
-        """Set the priority of the queue item."""
-        self.set_metadata('queue-priority', new_priority)
+    @property
+    def subqueue_name(self) -> t.Optional[str]:
+        return self._subqueue_name
 
-    def set_followup_queue(self, queue_name: t.Optional[str]):
-        """Set the follow-up queue after a manual review cycle"""
-        self.set_metadata('followup-queue', queue_name)
+    @subqueue_name.setter
+    def subqueue_name(self, subqueue_name: t.Optional[str]):
+        self._subqueue_name = subqueue_name or None
 
-    def increment_priority(self, increment: int = 1):
-        """Increment the priority by the given amount."""
-        self.set_metadata('queue-priority', self.get_metadata('queue-priority', 0) + increment)
+    @property
+    def deduplicate_key(self) -> t.Optional[str]:
+        return self._deduplicate_key
 
-    def decrement_priority(self, increment: int = 1):
-        """Decrement the priority by the given amount."""
-        self.increment_priority(increment * -1)
+    @deduplicate_key.setter
+    def deduplicate_key(self, unique_name: t.Optional[str]):
+        self._deduplicate_key = unique_name or None
+
+    @property
+    def priority(self) -> int:
+        return self._priority
+
+    @priority.setter
+    def priority(self, priority: int):
+        self._priority = priority or 0
+
+    @property
+    def followup_queue(self):
+        return self.get_metadata('followup-queue')
+
+    @followup_queue.setter
+    def followup_queue(self, followup_queue: t.Optional[str]):
+        self.set_metadata('followup-queue', str(followup_queue) if followup_queue else None)
 
     def enqueue(self,
                 db: nodb.NODBControllerInstance,
                 queue_name: t.Optional[str] = None,
                 override_priority: t.Optional[int] = None):
         """Enqueue this payload in the given queue."""
-        queue_name = queue_name or self.get_metadata('followup-queue', None)
+        queue_name = queue_name or self.followup_queue
         if queue_name is None:
             raise CNODCError("Missing queue name", 'PAYLOAD', 1001)
         db.create_queue_item(
             queue_name=queue_name,
-            data=self.to_map(),
-            priority=override_priority or self.get_metadata('queue-priority', None),
-            subqueue_name=self.get_metadata('manual-subqueue', None),
-            unique_item_name=self.get_metadata('unique-item-name', None)
+            data=self.to_json_map(),
+            priority=override_priority or self.priority,
+            subqueue_name=self.subqueue_name,
+            unique_item_name=self.deduplicate_key,
+            correlation_id=self.correlation_id
         )
 
-    def to_map(self):
-        map_ = copy.deepcopy(self._data)
+    def to_queue_item(self, queue_name: str) -> NODBQueueItem:
+        qi = NODBQueueItem()
+        qi.queue_name = queue_name
+        qi.data = self.to_json_map()
+        qi.priority = self.priority
+        qi.subqueue_name = self.subqueue_name
+        qi.unique_item_name = self.deduplicate_key
+        qi.correlation_id = self.correlation_id
+        return qi
+
+    def to_json_map(self):
+        map_ = super().to_json_map()
         map_['cls_name'] = dynamic_name(self)
         return map_
 
     def clone(self):
         """Create a deep copy of the payload."""
-        return Payload.from_map(self.to_map())
+        return Payload.from_map(self.to_json_map())
 
     def copy_details_from(self, payload):
-        """Copy key details (workflow info and metadata) from another payload into this one."""
+        """Copy key details (workflow info and metadata and correlation_id) from another payload into this one."""
         for key in payload.metadata:
             if key not in self.metadata:
                 self.metadata[key] = copy.deepcopy(payload.metadata[key])
+        self.correlation_id = payload.correlation_id
 
     @staticmethod
     @injector.inject
@@ -131,7 +171,11 @@ class Payload(DataDictObject):
     @staticmethod
     def from_queue_item(queue_item: nodb.NODBQueueItem):
         """Create a workflow payload from a queue item."""
-        return Payload.from_map(queue_item.data)
+        payload = Payload.from_map(queue_item.data)
+        payload.priority = queue_item.priority
+        payload.deduplicate_key = queue_item.unique_item_name
+        payload.subqueue_name = queue_item.subqueue_name
+        return payload
 
     @staticmethod
     def from_map(data: dict):
@@ -153,9 +197,9 @@ class Payload(DataDictObject):
 class WorkflowPayload(Payload):
     """Generalized class for all workflow payloads"""
 
-    workflow_name: str = ddo_str('workflow_name', default=None)
-    current_step: str = ddo_str('current_step', default=None)
-    current_step_done: bool = ddo_bool('current_step_done', default=False)
+    workflow_name: str = p_str()
+    current_step: str = p_str()
+    current_step_done: bool = p_bool(default=False)
 
     def load_workflow(self,
                       db: nodb.NODBControllerInstance,
@@ -183,10 +227,10 @@ class WorkflowPayload(Payload):
 class FilePayload(WorkflowPayload):
     """Workflow payload for a physical file on disk."""
 
-    file_path: str = ddo_str('file_path')
-    filename: str = ddo_str('filename', default=None)
-    is_gzipped: bool = ddo_bool('is_gzipped', default=None)
-    last_modified_date: datetime.datetime = ddo_datetime('last_modified_date', default=None)
+    file_path: str = p_str(required=True)
+    filename: str = p_str()
+    is_gzipped: bool = p_bool(default=None)
+    last_modified_date: datetime.datetime = p_awaretime()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -219,8 +263,8 @@ class FilePayload(WorkflowPayload):
 class SourceFilePayload(WorkflowPayload):
     """Represent a source file in the database."""
 
-    source_uuid: str = ddo_str('source_uuid')
-    received_date: str = ddo_date('received_date')
+    source_uuid: str = p_str()
+    received_date: str = p_date()
 
     def __str__(self):  # pragma: no coverage (debugging only)
         return f'<SourceFilePayload:{self.source_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
@@ -253,7 +297,7 @@ class SourceFilePayload(WorkflowPayload):
 class BatchPayload(WorkflowPayload):
     """Represents a payload referencing an NODB batch."""
 
-    batch_uuid = ddo_str('batch_uuid')
+    batch_uuid = p_str()
 
     def __str__(self):  # pragma: no coverage (debugging only)
         return f'<BatchPayload:{self.batch_uuid}:{self.workflow_name}:{self.current_step}>'
@@ -275,8 +319,8 @@ class BatchPayload(WorkflowPayload):
 class WorkingRecordPayload(WorkflowPayload):
     """A payload referencing a specific observation in the database."""
 
-    working_uuid = ddo_str('working_uuid')
-    received_date = ddo_date('received_date')
+    working_uuid = p_str()
+    received_date = p_date()
 
     def __str__(self):  # pragma: no coverage (debugging only)
         return f'<WorkingRecordPayload:{self.working_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
@@ -300,8 +344,8 @@ class WorkingRecordPayload(WorkflowPayload):
 class ObservationPayload(WorkflowPayload):
     """A payload referencing a specific observation in the database."""
 
-    obs_uuid = ddo_str('obs_uuid')
-    received_date = ddo_date('received_date')
+    obs_uuid = p_str()
+    received_date = p_date()
 
     def __str__(self):  # pragma: no coverage (debugging only)
         return f'<ObservationPayload:{self.obs_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
@@ -326,5 +370,45 @@ class ObservationPayload(WorkflowPayload):
         return ObservationPayload(
             obs_uuid=obs.obs_uuid,
             received_date=obs.received_date,
+            **kwargs
+        )
+
+
+class NewFilePayload(Payload):
+
+    file_path: str = p_str()
+    filename: str = p_str()
+    modified_time: AwareDateTime = p_awaretime()
+    workflow_name: str = p_str()
+    remove_when_complete: bool = p_bool(default=False)
+
+    def download(self, target_dir: pathlib.Path, halt_flag: t.Optional[HaltFlag] = None) -> pathlib.Path:
+        return Payload._do_download(
+            file_path=self.file_path,
+            filename=self.filename,
+            is_gzipped=self.filename.endswith('.gz'),
+            target_dir=target_dir,
+            halt_flag=halt_flag
+        )
+
+    @staticmethod
+    def from_handle(handle: BaseStorageHandle, modified_time: datetime=..., **kwargs):
+        path = handle.path()
+        return NewFilePayload(
+            file_path=path,
+            filename=handle.name(),
+            modified_time=handle.modified_datetime() if modified_time is Ellipsis else modified_time,
+            deduplicate_key=hashlib.md5(path.encode('utf-8', 'replace')).hexdigest(),
+            **kwargs
+        )
+
+    @staticmethod
+    def from_path(path: pathlib.Path, **kwargs):
+        path = path.absolute().resolve()
+        return NewFilePayload(
+            file_path=str(path),
+            filename=path.name,
+            modified_time=AwareDateTime.fromtimestamp(path.stat().st_mtime),
+            deduplicate_key=hashlib.md5(str(path).encode('utf-8', 'replace')).hexdigest(),
             **kwargs
         )

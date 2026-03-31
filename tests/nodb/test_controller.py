@@ -386,28 +386,28 @@ class TestControllerInstance(ut.TestCase):
     def test_create_queue_item(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) VALUES ('foobar', NULL, 0, NULL, '{\"hello\": \"world\"}')",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 0, NULL, '{\"hello\": \"world\"}', NULL)",
             ]):
                 db.create_queue_item('foobar', {'hello': 'world'})
 
     def test_create_queue_item_with_subqueue(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) VALUES ('foobar', 'bar2', 0, NULL, '{\"hello\": \"world\"}')",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', 'bar2', 0, NULL, '{\"hello\": \"world\"}', NULL)",
             ]):
                 db.create_queue_item('foobar', {'hello': 'world'}, subqueue_name='bar2')
 
     def test_create_queue_item_with_unique(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) VALUES ('foobar', NULL, 0, 'foo', '{\"hello\": \"world\"}')",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 0, 'foo', '{\"hello\": \"world\"}', NULL)",
             ]):
                 db.create_queue_item('foobar', {'hello': 'world'}, unique_item_name='foo')
 
     def test_create_queue_item_with_priority(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data) VALUES ('foobar', NULL, 7, NULL, '{\"hello\": \"world\"}')",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 7, NULL, '{\"hello\": \"world\"}', NULL)",
             ]):
                 db.create_queue_item('foobar', {'hello': 'world'}, priority=7)
 
@@ -467,7 +467,7 @@ class TestControllerInstance(ut.TestCase):
     def test_scanned_file_status_no_modtime_missing(self):
         with self.nodb as db:
             with self.assertQueries([
-                ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL", [])
+                ("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL", [])
             ]):
                 self.assertIs(
                     db.scanned_file_status('/path/file.txt'),
@@ -477,7 +477,7 @@ class TestControllerInstance(ut.TestCase):
     def test_scanned_file_status_modtime_missing(self):
         with self.nodb as db:
             with self.assertQueries([
-                ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [])
+                ("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [])
             ]):
                 self.assertIs(
                     db.scanned_file_status('/path/file.txt', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
@@ -487,7 +487,7 @@ class TestControllerInstance(ut.TestCase):
     def test_scanned_file_status_no_modtime_processed(self):
         with self.nodb as db:
             with self.assertQueries([
-                ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL", [{'was_processed': 1}])
+                ("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL", [{'was_processed': 1}])
             ]):
                 self.assertIs(
                     db.scanned_file_status('/path/file.txt'),
@@ -497,7 +497,7 @@ class TestControllerInstance(ut.TestCase):
     def test_scanned_file_status_modtime_processed(self):
         with self.nodb as db:
             with self.assertQueries([
-                ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [{'was_processed': 1}])
+                ("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [{'was_processed': 1}])
             ]):
                 self.assertIs(
                     db.scanned_file_status('/path/file.txt', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
@@ -507,7 +507,7 @@ class TestControllerInstance(ut.TestCase):
     def test_scanned_file_status_no_modtime_unprocessed(self):
         with self.nodb as db:
             with self.assertQueries([
-                ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL", [{'was_processed': 0}])
+                ("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL", [{'was_processed': 0, 'was_errored': 0}])
             ]):
                 self.assertIs(
                     db.scanned_file_status('/path/file.txt'),
@@ -517,7 +517,7 @@ class TestControllerInstance(ut.TestCase):
     def test_scanned_file_status_modtime_unprocessed(self):
         with self.nodb as db:
             with self.assertQueries([
-                ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [{'was_processed': 0}])
+                ("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [{'was_processed': 0, 'was_errored': 0}])
             ]):
                 self.assertIs(
                     db.scanned_file_status('/path/file.txt', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
@@ -527,14 +527,14 @@ class TestControllerInstance(ut.TestCase):
     def test_mark_scanned_item_failed_no_date(self):
         with self.nodb as db:
             with self.assertQueries([
-                "DELETE FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date IS NULL"
+                "UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = '/path/file.txt' AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE"
             ]):
                 db.mark_scanned_item_failed('/path/file.txt')
 
     def test_mark_scanned_item_failed_with_date(self):
         with self.nodb as db:
             with self.assertQueries([
-                "DELETE FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'"
+                "UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00' AND was_processed = FALSE AND was_errored = FALSE"
             ]):
                 db.mark_scanned_item_failed('/path/file.txt', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc))
 
@@ -555,7 +555,7 @@ class TestControllerInstance(ut.TestCase):
     def test_mark_scanned_success_no_date(self):
         with self.nodb as db:
             with self.assertQueries([
-                "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = '/path/file.txt' AND modified_date IS NULL AND was_processed = FALSE"
+                "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = '/path/file.txt' AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE"
             ]):
                 db.mark_scanned_item_success('/path/file.txt')
 
@@ -563,7 +563,7 @@ class TestControllerInstance(ut.TestCase):
         with self.nodb as db:
             with self.assertQueries([
                 ("SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'", [{'was_processed': False}]),
-                "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = '/path/file.txt' AND (modified_date <= '2015-01-02T03:04:05+00:00' or modified_date IS NULL) AND was_processed = FALSE",
+                "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = '/path/file.txt' AND (modified_date <= '2015-01-02T03:04:05+00:00' or modified_date IS NULL) AND was_processed = FALSE AND was_errored = FALSE",
             ]):
                 db.mark_scanned_item_success('/path/file.txt', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc))
 
@@ -572,7 +572,7 @@ class TestControllerInstance(ut.TestCase):
             with self.assertQueries([
                 "SELECT was_processed FROM nodb_scanned_files WHERE file_path = '/path/file.txt' AND modified_date = '2015-01-02T03:04:05+00:00'",
                 "INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES ('/path/file.txt', '2015-01-02T03:04:05+00:00')",
-                "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = '/path/file.txt' AND (modified_date <= '2015-01-02T03:04:05+00:00' or modified_date IS NULL) AND was_processed = FALSE",
+                "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = '/path/file.txt' AND (modified_date <= '2015-01-02T03:04:05+00:00' or modified_date IS NULL) AND was_processed = FALSE AND was_errored = FALSE",
             ]):
                 db.mark_scanned_item_success('/path/file.txt', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc))
 

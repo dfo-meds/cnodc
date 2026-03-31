@@ -33,7 +33,7 @@ class QCOperator:
             '_type': self._op_type,
         }
         if self._children:
-            map_['children'] = [x.to_map() for x in self._children]
+            map_['children'] = [x.to_json_map() for x in self._children]
         self._extend_map(map_)
         return map_
 

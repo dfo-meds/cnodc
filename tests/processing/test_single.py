@@ -10,9 +10,6 @@ from helpers.base_test_case import BaseTestCase
 
 class TestBaseProcessController(BaseTestCase):
 
-    def test_bad_config(self):
-        nc = SingleProcessController
-
     def test_signal_catching(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:

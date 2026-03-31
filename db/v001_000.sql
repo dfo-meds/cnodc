@@ -157,7 +157,8 @@ CREATE TABLE IF NOT EXISTS nodb_scanned_files (
     file_path           TEXT            NOT NULL,
     modified_date       TIMESTAMPTZ                 DEFAULT NULL,
     scanned_date        TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    was_processed       BOOLEAN                     DEFAULT FALSE
+    was_processed       BOOLEAN                     DEFAULT FALSE,
+    was_errored         BOOLEAN                     DEFAULT FALSE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_scanned_files_unique ON nodb_scanned_files(file_path, modified_date);
 
@@ -414,6 +415,7 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     subqueue_name       VARCHAR(126)                DEFAULT NULL,
     unique_item_name    VARCHAR(126)                DEFAULT NULL,
     priority            INTEGER         NOT NULL    DEFAULT 0,
+    correlation_id      UUID            NOT NULL    DEFAULT gen_random_uuid,
 
     data                TEXT
 
