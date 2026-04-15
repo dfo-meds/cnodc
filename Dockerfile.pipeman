@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.14.3-slim-trixie
+
+# Get the required libraries to compile psycopg
+RUN apt-get update
+RUN apt-get install libpq-dev build-essential dumb-init -y
+
+WORKDIR /srv/cnodc
+
+VOLUME /cnodc-config
+VOLUME /cnodc-data
+
+ENV CNODC_CONFIG_SEARCH_PATHS=/srv/cnodc/app;/cnodc-config
+ENV PYTHONPATH=/srv/cnodc/app
+ENV MODULE_NAME=app
+ENV VARIABLE_NAME=app
+ENV GUNICORN_CONF=/srv/cnodc/gunicorn_conf.py
+
+RUN pip install --upgrade pip
+
+COPY requirements requirements
+
+RUN pip install -r requirements/requirements_web.txt
+
+COPY docker/start.sh start.sh
+RUN chmod +x start.sh
+
+COPY docker/gunicorn_conf.py gunicorn_conf.py
+
+COPY src app/src
+COPY vocab app/vocab
+COPY app.py app/app.py
+COPY process.py app/process.py
+COPY docker/defaults app
+
+EXPOSE 80
+
+WORKDIR /srv/cnodc/app
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/srv/cnodc/start.sh"]
+
+CMD ["web"]

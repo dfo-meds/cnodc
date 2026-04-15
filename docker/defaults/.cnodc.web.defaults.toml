@@ -1,0 +1,4 @@
+[flask]
+UPLOAD_FOLDER = "/cnodc-data/uploads"
+MAX_CONTENT_LENGTH = 26214400  # 25 MiB
+PERMANENT_SESSION_LIFETIME = 12200  # 2 hour renewal of sessions

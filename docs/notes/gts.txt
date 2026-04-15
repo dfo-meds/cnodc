@@ -1,0 +1,6 @@
+1. gts_send_queue
+   Receives: NODBObservation record
+   Configuration: GTS message format code
+   a. Adds a GTS message record with status UNSENT and appropriate metadata
+   b. Queues the sending of the GTS message
+   c. Requeues the NODBOBservationRecord

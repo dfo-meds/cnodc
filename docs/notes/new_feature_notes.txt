@@ -1,0 +1,4 @@
+
+WORK
+- Add a feature to file_scan so we can configure what unique key is used for the next queue
+- Add a feature to OCPROC2 so that decoders can generate a unique ID for each record that is consistent when decoding the same file twice.

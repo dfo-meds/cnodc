@@ -2,13 +2,12 @@
 import hashlib
 import typing as t
 import datetime
-from medsutil.ocproc2.elements import ElementMap, SupportedValueOrElement, AbstractElement, SingleElement, \
-    DefaultValueDict
+
+from medsutil.ocproc2.elements import ElementMap, SupportedValueOrElement, AbstractElement, SingleElement, DefaultValueDict, AnyElementExport, MetadataDict
 from medsutil.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 from medsutil.lazy_load import LazyLoadList
 import medsutil.awaretime as awaretime
 import medsutil.types as ct
-from medsutil.ocproc2.util import BaseExport, ParentExport, RecordSetExport
 
 type FindType = BaseRecord | RecordSet | AbstractElement | ElementMap | RecordMap | dict[int, RecordSet] | None
 
@@ -412,3 +411,20 @@ class RecordMap:
         if record_set_index not in self.record_sets[record_set_type]:
             self.record_sets[record_set_type][record_set_index] = RecordSet()
         self.record_sets[record_set_type][record_set_index].records.append(record)
+
+
+class BaseExport(t.TypedDict):
+    _metadata: t.NotRequired[dict[str, AnyElementExport]]
+    _coordinates: t.NotRequired[dict[str, AnyElementExport]]
+    _parameters: t.NotRequired[dict[str, AnyElementExport]]
+    _subrecords: t.NotRequired[dict[str, dict[str, RecordSetExport]]]
+
+
+class ParentExport(BaseExport):
+    _history: t.NotRequired[list[HistoryEntry.Export]]
+    _qc_tests: t.NotRequired[list[QCTestRunInfo.Export]]
+
+
+class RecordSetExport(t.TypedDict):
+    _records: list[BaseExport]
+    _metadata: t.NotRequired[MetadataDict]

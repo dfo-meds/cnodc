@@ -3,7 +3,7 @@ import typing as t
 from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs.base import BaseCodec
 from medsutil.byteseq import ByteSequenceReader
-from medsutil.ocproc2.util import ParentExport
+from medsutil.ocproc2.structures import ParentExport
 from medsutil.types import ByteStrings
 import medsutil.ocproc2 as ocproc2
 import medsutil.json as json

@@ -1,0 +1,45 @@
+GLIDER PROCESSING PROCEDURE
+
+Pre-Conditions: A deployment is defined with appropriate metadata
+
+Trigger: New files are added to the FTP folder?
+
+Storage Notes:
+
+FILE_STORE/gliders_working/DEPLOYMENT/new     for recent uploads
+FILE_STORE/gliders_working/DEPLOYMENT/data    for files that have been processed or are being processed
+FILE_STORE/gliders_working/DEPLOYMENT/netcdf  generated netcdf files
+BLOB_STORE/gliders/DEPLOYMENT    	      for backups
+
+
+1. file_scan process (one per deployment? or one that knows how to sort out deployments?)
+  a. Files are copied to the cloud storage
+     - backup copy in archival blob
+     - hot copy on a file store thats mounted to the CNODC processing tools (separate folder from actual glider data)
+
+2. glider_rebuild (unique by deployment name)
+  a. Check the deployment "new" folder for files
+     - If no files, exit without further work
+     - If there are new files with LastModifiedTime < 5 minutes ago, requeue with a delay equal to the difference
+     - Otherwise, move files to the data folder and continue processing
+  b. Use the pyglider toolkit to build a NetCDF file with the complete data (use the timestamp in the name of the netcdf file)
+  c. Ensure there is a product entry for the deployment
+  d. Queue the NetCDF file for decoding with unique by deployment name again
+
+3. glider_decode (unique by deployment name)
+  a. Parse the NetCDF file into OCPROC2 data records
+  b. Check for new OCPROC2 data records and create them in the database
+  c. Queue those OCPROC2 records for real-time QC
+
+4. (various QC tests)
+  - based on Argo, need to review
+
+5. nodb_finalize
+  a. Finalize the entries and resend the new records
+
+6. gts_queue_send
+  a. Queue a GTS message build with the appropriate template (what is it) and pass on the record
+
+7. product_rebuild
+  a. Flag the glider deployment product for rebuild
+
