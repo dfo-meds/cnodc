@@ -3,13 +3,13 @@ import pathlib
 import uuid
 import datetime
 
-from cnodc.nodb import NODBBatch, NODBObservation, NODBObservationData, NODBUploadWorkflow
-from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, ObservationPayload
-from cnodc.nodb import NODBSourceFile
-from cnodc.util import CNODCError, DynamicObjectLoadError
-from cnodc.util.dynamic import dynamic_name
+from nodb import NODBBatch, NODBObservation, NODBObservationData, NODBUploadWorkflow
+from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, ObservationPayload
+from nodb import NODBSourceFile
+from medsutil.exceptions import CodedError
+from medsutil.dynamic import dynamic_name
 
-from helpers.base_test_case import BaseTestCase
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestWorkflowPayload(BaseTestCase):
@@ -25,7 +25,7 @@ class TestWorkflowPayload(BaseTestCase):
 
     def test_load_bad_workflow(self):
         wp = WorkflowPayload(workflow_name='test')
-        self.assertRaises(CNODCError, wp.load_workflow, self.db)
+        self.assertRaises(CodedError, wp.load_workflow, self.db)
 
     def test_set_get_clear_metadata(self):
         wp = WorkflowPayload()
@@ -158,16 +158,16 @@ class TestFilePayload(BaseTestCase):
 
     def test_file_no_exist(self):
         fp = FilePayload.from_path(str(pathlib.Path(__file__).parent.absolute() / "not_a_file.ext"))
-        self.assertRaises(CNODCError, fp.download, self.temp_dir)
+        self.assertRaises(CodedError, fp.download, self.temp_dir)
 
     def test_bad_file_protocol(self):
         fp = FilePayload.from_path("protocol://hello/world.txt")
-        self.assertRaises(CNODCError, fp.download, self.temp_dir)
+        self.assertRaises(CodedError, fp.download, self.temp_dir)
 
     def test_to_map(self):
         fp = FilePayload.from_path("/test/file.txt.gz")
         fp.workflow_name = 'test'
-        map_ = fp.to_json_map()
+        map_ = fp.export()
         self.assertIn('file_path', map_)
         self.assertIn('filename', map_)
         self.assertIn('is_gzipped', map_)
@@ -182,7 +182,7 @@ class TestSourceFilePayload(BaseTestCase):
 
     def test_map(self):
         sp = SourceFilePayload(source_uuid="12345", received_date=datetime.date(2015, 1, 1), workflow_name='test')
-        map_ = sp.to_json_map()
+        map_ = sp.export()
         self.assertIn('source_uuid', map_)
         self.assertIn('received_date', map_)
         self.assertEqual(map_['source_uuid'], '12345')
@@ -221,7 +221,7 @@ class TestSourceFilePayload(BaseTestCase):
 
     def test_no_source_file(self):
         sp = SourceFilePayload(source_uuid='123456', received_date=datetime.date(2015, 1, 2))
-        self.assertRaises(CNODCError, sp.load_source_file, self.db)
+        self.assertRaises(CodedError, sp.load_source_file, self.db)
 
 
 class TestBatchPayload(BaseTestCase):
@@ -288,7 +288,7 @@ class TestBatchPayload(BaseTestCase):
 
     def test_enqueue_error(self):
         bp = BatchPayload(batch_uuid="12345", workflow_name='hello', current_step='step1')
-        self.assertRaises(CNODCError, bp.enqueue, self.db)
+        self.assertRaises(CodedError, bp.enqueue, self.db)
 
     def test_copy_details_from(self):
         bp = BatchPayload(batch_uuid="12345", workflow_name='hello', current_step='step1')
@@ -322,7 +322,7 @@ class TestBatchPayload(BaseTestCase):
 
     def test_bad_batch(self):
         bp = BatchPayload(batch_uuid='12345')
-        self.assertRaises(CNODCError, bp.load_batch, self.db)
+        self.assertRaises(CodedError, bp.load_batch, self.db)
 
 
 class TestObservationPayload(BaseTestCase):
@@ -332,7 +332,7 @@ class TestObservationPayload(BaseTestCase):
         self.assertEqual(op.workflow_name, 'test')
         self.assertEqual(op.obs_uuid, '12345')
         self.assertEqual(op.received_date, datetime.date(2015, 1, 2))
-        map_ = op.to_json_map()
+        map_ = op.export()
         self.assertIn('obs_uuid', map_)
         self.assertIn('received_date', map_)
         self.assertEqual(map_['obs_uuid'], '12345')
@@ -358,5 +358,5 @@ class TestObservationPayload(BaseTestCase):
         op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
         self.assertEqual(op.obs_uuid, '12345')
         self.assertEqual(op.received_date, datetime.date(2015, 1, 2))
-        self.assertRaises(CNODCError, op.load_observation, self.db)
-        self.assertRaises(CNODCError, op.load_observation_data, self.db)
+        self.assertRaises(CodedError, op.load_observation, self.db)
+        self.assertRaises(CodedError, op.load_observation_data, self.db)

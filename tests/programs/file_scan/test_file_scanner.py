@@ -1,11 +1,10 @@
 import datetime
 import functools
 
-from cnodc.nodb import NODBQueueItem
-from cnodc.nodb.controller import NODBError, SqlState
-from cnodc.programs.file_scan import FileScanTask
-from cnodc.util.awaretime import awaretime
-from helpers.base_test_case import BaseTestCase
+from nodb import NODBQueueItem, NODBError
+from nodb.interface import SqlState
+from pipeman.programs.file_scan import FileScanTask
+from tests.helpers.base_test_case import BaseTestCase
 
 
 def raise_exception(self, *args, ex, **kwargs):

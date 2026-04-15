@@ -1,12 +1,12 @@
 import datetime
 
-from cnodc.nodb import NODBBatch, BatchStatus, NODBObservation
-from cnodc.nodb.observations import NODBWorkingRecord, NODBObservationData
-from cnodc.ocproc2 import ParentRecord
-from cnodc.processing.workflow.payloads import BatchPayload
-from cnodc.programs.nodb import NODBFinalizeWorker
+from nodb import NODBBatch, BatchStatus, NODBObservation
+from nodb import NODBWorkingRecord, NODBObservationData
+from medsutil.ocproc2 import ParentRecord
+from pipeman.processing.payloads import BatchPayload
+from pipeman.programs.nodb import NODBFinalizeWorker
 
-from helpers.base_test_case import BaseTestCase
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestFinalizer(BaseTestCase):

@@ -1,7 +1,7 @@
 import datetime
 
-from cnodc.nodb import NODBQueueItem, QueueStatus
-from helpers.base_test_case import BaseTestCase
+from nodb import NODBQueueItem, QueueStatus
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestQueueItem(BaseTestCase):

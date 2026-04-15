@@ -1,9 +1,10 @@
 import datetime
 import json
 
-from cnodc.nodb import NODBSession, NODBUser, UserStatus
-from cnodc.util import CNODCError
-from helpers.base_test_case import BaseTestCase
+from medsutil.awaretime import AwareDateTime
+from nodb import NODBSession, NODBUser, UserStatus
+from medsutil.exceptions import CodedError
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class SessionTest(BaseTestCase):
@@ -48,24 +49,24 @@ class UserTest(BaseTestCase):
     def test_from_kwargs(self):
         user = NODBUser(username="foo", is_new=False)
         self.assertEqual("foo", user.username)
-        self.assertNotIn('username', user.modified_values)
+        self.assertNotIn('username', user._modified_values)
 
     def test_from_kwargs_new(self):
         user = NODBUser(username="foo")
         self.assertEqual("foo", user.username)
-        self.assertIn('username', user.modified_values)
+        self.assertIn('username', user._modified_values)
 
     def test_username(self):
         user = NODBUser()
-        self.assertEqual(len(user.modified_values), 0)
+        self.assertEqual(len(user._modified_values), 0)
         user.username = "foobar"
         self.assertEqual(user.username, "foobar")
-        self.assertEqual(len(user.modified_values), 1)
+        self.assertEqual(len(user._modified_values), 1)
         user.username = None
         self.assertIsNone(user.username)
-        self.assertEqual(len(user.modified_values), 1)
+        self.assertEqual(len(user._modified_values), 1)
         user.clear_modified()
-        self.assertEqual(len(user.modified_values), 0)
+        self.assertEqual(len(user._modified_values), 0)
         user.username = 12345
         self.assertNotEqual(user.username, 12345)
         self.assertEqual(user.username, "12345")
@@ -82,8 +83,8 @@ class UserTest(BaseTestCase):
         user.set_password("foobar")
         self.assertIsNotNone(user.phash)
         self.assertIsNotNone(user.salt)
-        self.assertIn('phash', user.modified_values)
-        self.assertIn('salt', user.modified_values)
+        self.assertIn('phash', user._modified_values)
+        self.assertIn('salt', user._modified_values)
 
         # Good password
         self.assertTrue(user.check_password("foobar"))
@@ -95,9 +96,12 @@ class UserTest(BaseTestCase):
         self.assertFalse(user.check_password("foobat"))
 
         # Common invalid types
-        self.assertRaises(CNODCError, user.check_password, None)
-        self.assertRaises(CNODCError, user.check_password, 12345)
-        self.assertRaises(CNODCError, user.check_password, b'foobar')
+        with self.assertRaisesCNODCError():
+            user.check_password(None)
+        with self.assertRaisesCNODCError():
+            user.check_password(12345)
+        with self.assertRaisesCNODCError():
+            user.check_password(b'foobar')
 
         # Check that setting the password also changes the salt
         user.clear_modified()
@@ -106,8 +110,8 @@ class UserTest(BaseTestCase):
         self.assertNotEqual(old_salt, user.salt)
         self.assertFalse(user.check_password("foobar"))
         self.assertTrue(user.check_password("foobar2"))
-        self.assertIn('phash', user.modified_values)
-        self.assertIn('salt', user.modified_values)
+        self.assertIn('phash', user._modified_values)
+        self.assertIn('salt', user._modified_values)
 
         # Check old password expiry
         user.clear_modified()
@@ -115,12 +119,12 @@ class UserTest(BaseTestCase):
         self.assertTrue(user.check_password("foobar3"))
         self.assertTrue(user.check_password("foobar2"))
         self.assertFalse(user.check_password("foobar"))
-        user.old_expiry = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=60)
+        user.old_expiry = AwareDateTime.utcnow() - datetime.timedelta(seconds=60)
         self.assertFalse(user.check_password("foobar2"))
         self.assertTrue(user.check_password("foobar3"))
-        self.assertIn('old_expiry', user.modified_values)
-        self.assertIn('old_phash', user.modified_values)
-        self.assertIn('old_salt', user.modified_values)
+        self.assertIn('old_expiry', user._modified_values)
+        self.assertIn('old_phash', user._modified_values)
+        self.assertIn('old_salt', user._modified_values)
 
         # Check cleaning up old password
         self.assertIsNotNone(user.old_expiry)
@@ -131,21 +135,21 @@ class UserTest(BaseTestCase):
         self.assertIsNone(user.old_expiry)
         self.assertIsNone(user.old_phash)
         self.assertIsNone(user.old_salt)
-        self.assertIn('old_expiry', user.modified_values)
-        self.assertIn('old_phash', user.modified_values)
-        self.assertIn('old_salt', user.modified_values)
+        self.assertIn('old_expiry', user._modified_values)
+        self.assertIn('old_phash', user._modified_values)
+        self.assertIn('old_salt', user._modified_values)
 
         # Check some bad passwords
-        self.assertRaises(CNODCError, user.set_password, None)
-        self.assertRaises(CNODCError, user.set_password, 12345)
-        self.assertRaises(CNODCError, user.set_password, 'x' * 1025)
-        self.assertRaises(CNODCError, user.set_password, '')
+        self.assertRaises(CodedError, user.set_password, None)
+        self.assertRaises(CodedError, user.set_password, 12345)
+        self.assertRaises(CodedError, user.set_password, 'x' * 1025)
+        self.assertRaises(CodedError, user.set_password, '')
 
     def test_roles(self):
         user = NODBUser()
-        self.assertEqual(len(user.modified_values), 0)
+        self.assertEqual(len(user._modified_values), 0)
         user.assign_role('foobar')
-        self.assertIn('roles', user.modified_values)
+        self.assertIn('roles', user._modified_values)
         self.assertIn('foobar', user.roles)
         user.assign_role('foobar')
         self.assertEqual(len(user.roles), 1)
@@ -156,7 +160,7 @@ class UserTest(BaseTestCase):
         self.assertEqual(len(user.roles), 1)
         self.assertIn('foobar2', user.roles)
         self.assertNotIn('foobar', user.roles)
-        self.assertIn('roles', user.modified_values)
+        self.assertIn('roles', user._modified_values)
         user.unassign_role('foobar')
         self.assertEqual(len(user.roles), 1)
         self.assertIn('foobar2', user.roles)
@@ -179,7 +183,6 @@ class UserTest(BaseTestCase):
         self.assertIn('foo2', user.roles)
         self.assertNotIn('foo3', user.roles)
         perms = user.permissions(self.db)
-        self.assertIn('permissions', user._cache)
         self.assertEqual(2, len(perms))
         self.assertIn('bar', perms)
         self.assertIn('bar2', perms)

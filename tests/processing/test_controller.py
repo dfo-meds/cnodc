@@ -1,35 +1,33 @@
 import functools
 import gzip
 import hashlib
-import zoneinfo
 
 from autoinject import injector
 import datetime
 
-from cnodc.storage.local import LocalHandle
-from cnodc.processing.workflow import WorkflowController
-from cnodc.processing.workflow.payloads import WorkflowPayload, FilePayload, BatchPayload
-from cnodc.nodb import NODBQueueItem
-from cnodc.util import CNODCError
-from cnodc.util.awaretime import from_timestamp
-from helpers.base_test_case import BaseTestCase, InjectableDict
+from medsutil.storage import StorageTier
+from medsutil.storage.local import LocalHandle
+from nodb.workflow import WorkflowDirectory, WorkflowConfiguration
+from pipeman.processing.workflow import WorkflowController
+from pipeman.processing.payloads import WorkflowPayload, FilePayload, BatchPayload
+from nodb import NODBQueueItem
+from medsutil.exceptions import CodedError
+from medsutil.awaretime import from_timestamp
+from tests.helpers.base_test_case import BaseTestCase, InjectableDict
 
 
 class TestWorkflowController(BaseTestCase):
 
     def test_handle_file_upload(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        handle, storage_tier = workflow._handle_file_upload(
+        handle, storage_tier, name = workflow._handle_file_upload(
             test_file,
             'hello2.txt',
             {},
-            {
-                'directory': str(self.temp_dir),
-                'tier': 'frequent',
-            }
+            WorkflowDirectory(directory=str(self.temp_dir), tier=StorageTier.FREQUENT)
         )
         self.assertEqual(str(handle), str(self.temp_dir / "hello2.txt"))
         self.assertTrue((self.temp_dir / 'hello2.txt').exists())
@@ -38,144 +36,119 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsNone(storage_tier)
 
     def test_handle_file_upload_missing_directory(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
                 {},
-                {
-                    'tier': 'frequent',
-                }
+                WorkflowDirectory(tier=StorageTier.FREQUENT)
             )
 
     def test_handle_file_upload_none_directory(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
                 {},
-                {
-                    'directory': None,
-                    'tier': 'frequent',
-                }
+                WorkflowDirectory(directory=None, tier='frequent')
             )
 
     def test_handle_file_upload_empty_directory(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CNODCError):
+        with self.assertRaisesCNODCError():
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
                 {},
-                {
-                    'directory': '',
-                    'tier': 'frequent',
-                }
+                WorkflowDirectory(directory='', tier='frequent')
             )
 
     def test_handle_file_upload_bad_directory(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CNODCError):
+        with self.assertRaisesCNODCError():
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
                 {},
-                {
-                    'directory': 'protocol://test_hello/hello/',
-                    'tier': 'frequent',
-                }
+                WorkflowDirectory(directory='protocol://test_hello/hello/', tier='frequent')
             )
 
     def test_handle_file_upload_already_exists_global(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CNODCError):
+        with self.assertRaisesCNODCError():
             workflow._handle_file_upload(
                 test_file,
                 'hello.txt',
                 {},
-                {
-                    'directory': self.temp_dir,
-                    'tier': 'frequent',
-                    'allow_overwrite': 'never'
-                }
+                WorkflowDirectory(directory=self.temp_dir, tier='frequent', allow_overwrite='never')
             )
 
     def test_handle_file_upload_already_exists_global_allowed(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        handle, tier = workflow._handle_file_upload(
+        handle, tier, name = workflow._handle_file_upload(
             test_file,
             'hello.txt',
             {},
-            {
-                'directory': self.temp_dir,
-                'tier': 'frequent',
-                'allow_overwrite': 'always'
-            }
+            WorkflowDirectory(directory=self.temp_dir, tier='frequent', allow_overwrite='always')
         )
-        self.assertEqual(handle.name(), 'hello.txt')
+        self.assertEqual(handle.name, 'hello.txt')
         self.assertTrue(handle.exists())
 
     def test_handle_file_upload_already_exists_local(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CNODCError):
+        with self.assertRaisesCNODCError():
             workflow._handle_file_upload(
                 test_file,
                 'hello.txt',
                 {
                     'allow-overwrite': '0',
                 },
-                {
-                    'directory': self.temp_dir,
-                    'tier': 'frequent',
-                }
+                WorkflowDirectory(directory=self.temp_dir, tier='frequent')
             )
 
     def test_handle_file_upload_already_exists_local_allowed(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        handle, tier = workflow._handle_file_upload(
+        handle, tier, name = workflow._handle_file_upload(
             test_file,
             'hello.txt',
             {
                 'allow-overwrite': '1',
             },
-            {
-                'directory': self.temp_dir,
-                'tier': 'frequent',
-            }
+            WorkflowDirectory(directory=self.temp_dir, tier='frequent')
         )
-        self.assertEqual(handle.name(), 'hello.txt')
+        self.assertEqual(handle.name, 'hello.txt')
         self.assertTrue(handle.exists())
 
     def test_substitute_headers(self):
         headers = {
             'test_str': 'foo',
-            'test_int': 5,
+            'test_int': "5",
         }
         t = WorkflowController._substitute_headers
         self.assertEqual('test_str', t("test_str", headers))
@@ -224,45 +197,41 @@ class TestWorkflowController(BaseTestCase):
                 self.assertEqual(tests[test_value], WorkflowController._sanitize_storage_metadata(test_value))
 
     def test_determine_random_file_name(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         filename = workflow._determine_filename({})
         self.assertIsNotNone(filename)
         self.assertRegex(filename, '[0-9a-f-]{36}')
 
     def test_determine_file_name_from_pattern(self):
-        workflow = WorkflowController("test", {
-            "filename_pattern": "file_%{lmd}.txt"
-        })
+        workflow = WorkflowController("test", WorkflowConfiguration(filename_pattern="file_%{lmd}.txt"))
         filename = workflow._determine_filename({'lmd': '2015-01-02T01:02:03'})
         self.assertEqual(filename, 'file_2015-01-02T010203.txt')
 
     def test_determine_file_name_from_metadata(self):
-        workflow = WorkflowController("test", {
-            "accept_user_filename": True
-        })
+        workflow = WorkflowController("test", WorkflowConfiguration(accept_user_filename=True))
         filename = workflow._determine_filename({'filename': 'hello_world.txt'})
         self.assertEqual(filename, 'hello_world.txt')
 
     def test_determine_file_name_from_metadata_not_allowed(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         filename = workflow._determine_filename({'filename': 'hello_world.txt'})
         self.assertRegex(filename, '[0-9a-f-]{36}')
 
     def test_determine_file_name_from_metadata_not_provided(self):
-        workflow = WorkflowController("test", {'accepts_user_filename': True})
+        workflow = WorkflowController("test", WorkflowConfiguration(**{'accepts_user_filename': True}))
         filename = workflow._determine_filename({})
         self.assertRegex(filename, '[0-9a-f-]{36}')
 
     def test_determine_file_name_from_static_filename(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         filename = workflow._determine_filename({'default-filename': 'foobar.txt'})
         self.assertEqual(filename, 'foobar.txt')
 
     def test_precedence_file_name_pattern_first(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'accept_user_filename': True,
             'filename_pattern': 'file_%{lmd}.txt',
-        })
+        }))
         filename = workflow._determine_filename({
             'default-filename': 'foobar.txt',
             'lmd': '2015-01-02T01:02:03',
@@ -271,9 +240,9 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(filename, 'file_2015-01-02T010203.txt')
 
     def test_precedence_user_file_name_second(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'accept_user_filename': True,
-        })
+        }))
         filename = workflow._determine_filename({
             'default-filename': 'foobar.txt',
             'lmd': '2015-01-02T01:02:03',
@@ -282,18 +251,18 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(filename, 'hello.txt')
 
     def test_workflow_steps_no_steps(self):
-        workflow = WorkflowController("test", {})
+        workflow = WorkflowController("test", WorkflowConfiguration())
         self.assertFalse(workflow.step_list())
         self.assertEqual((-1, False), workflow._validate_step(None))
-        self.assertRaises(CNODCError, workflow._validate_step, 'step1')
-        self.assertRaises(CNODCError, workflow._get_next_step, None)
-        self.assertRaises(CNODCError, workflow._get_next_step, 'step1')
-        self.assertRaises(CNODCError, workflow._get_step_info, 'step1')
+        self.assertRaises(CodedError, workflow._validate_step, 'step1')
+        self.assertRaises(CodedError, workflow._get_next_step, None)
+        self.assertRaises(CodedError, workflow._get_next_step, 'step1')
+        self.assertRaises(CodedError, workflow._get_step_info, 'step1')
         self.assertFalse(workflow.has_more_steps(None))
-        self.assertRaises(CNODCError, workflow.has_more_steps, 'step1')
+        self.assertRaises(CodedError, workflow.has_more_steps, 'step1')
 
     def test_workflow_steps_good_steps(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             "processing_steps": {
                 'step2': {
                     'name': 'step2',
@@ -308,30 +277,30 @@ class TestWorkflowController(BaseTestCase):
                     'order': 10
                 }
             }
-        })
+        }))
         self.assertEqual(workflow.step_list(), ['step1', 'step2', 'step4'])
         self.assertEqual(workflow._validate_step(None), (-1, True))
         self.assertEqual(workflow._validate_step('step1'), (0, True))
         self.assertEqual(workflow._validate_step('step2'), (1, True))
         self.assertEqual(workflow._validate_step('step4'), (2, False))
-        self.assertRaises(CNODCError, workflow._validate_step, 'step3')
+        self.assertRaises(CodedError, workflow._validate_step, 'step3')
         self.assertTrue(workflow.has_more_steps(None))
         self.assertTrue(workflow.has_more_steps('step1'))
         self.assertTrue(workflow.has_more_steps('step2'))
-        self.assertRaises(CNODCError, workflow.has_more_steps, 'step3')
+        self.assertRaises(CodedError, workflow.has_more_steps, 'step3')
         self.assertFalse(workflow.has_more_steps('step4'))
         self.assertEqual(workflow._get_next_step(None), 'step1')
         self.assertEqual(workflow._get_next_step('step1'), 'step2')
         self.assertEqual(workflow._get_next_step('step2'), 'step4')
-        self.assertRaises(CNODCError, workflow._get_next_step, 'step4')
-        self.assertRaises(CNODCError, workflow._get_next_step, 'step3')
+        self.assertRaises(CodedError, workflow._get_next_step, 'step4')
+        self.assertRaises(CodedError, workflow._get_next_step, 'step3')
         self.assertEqual(workflow._get_step_info('step1'), {'name': 'step1', 'order': 1})
         self.assertEqual(workflow._get_step_info('step2'), {'name': 'step2', 'order': 2})
         self.assertEqual(workflow._get_step_info('step4'), {'name': 'step4', 'order': 10})
-        self.assertRaises(CNODCError, workflow._get_step_info, 'step3')
+        self.assertRaises(CodedError, workflow._get_step_info, 'step3')
 
     def test_queue_step(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             "processing_steps": {
                 'step2': {
                     'name': 'step2',
@@ -353,7 +322,7 @@ class TestWorkflowController(BaseTestCase):
                     }
                 }
             }
-        })
+        }))
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step=None, current_step_done=True)
         workflow.queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step1')
@@ -411,10 +380,10 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(queue_item.priority, 0)
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step4', current_step_done=True)
-        self.assertRaises(CNODCError, workflow.queue_step, payload, self.db)
+        self.assertRaises(CodedError, workflow.queue_step, payload, self.db)
 
     def test_queue_working_file(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             "processing_steps": {
                 'step2': {
                     'name': 'step2',
@@ -433,7 +402,7 @@ class TestWorkflowController(BaseTestCase):
                     }
                 }
             }
-        })
+        }))
         file = LocalHandle(self.temp_dir / "hello.txt")
         with open(file.path(), 'w') as h:
             h.write("hello")
@@ -464,7 +433,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(item.unique_item_name, hashlib.md5(str(self.temp_dir / 'hello.txt').encode('utf-8')).hexdigest())
 
     def test_queue_working_file_with_ufk(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             "processing_steps": {
                 'step2': {
                     'name': 'step2',
@@ -483,7 +452,7 @@ class TestWorkflowController(BaseTestCase):
                     }
                 }
             }
-        })
+        }))
         file = LocalHandle(self.temp_dir / "hello.txt")
         with open(file.path(), 'w') as h:
             h.write("hello")
@@ -505,7 +474,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsNotNone(payload.last_modified_date)
 
     def test_queue_working_file_with_bad_priority(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             "processing_steps": {
                 'step2': {
                     'name': 'step2',
@@ -524,7 +493,7 @@ class TestWorkflowController(BaseTestCase):
                     }
                 }
             }
-        })
+        }))
         file = LocalHandle(self.temp_dir / "hello.txt")
         with open(file.path(), 'w') as h:
             h.write("hello")
@@ -548,12 +517,12 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsNotNone(payload.last_modified_date)
 
     def test_extend_default_metadata(self):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'default_metadata': {
                 'foo': 'bar',
                 'over': 'write'
             }
-        })
+        }))
         metadata = {
             'over': 'not',
             'other': 'base',
@@ -565,9 +534,9 @@ class TestWorkflowController(BaseTestCase):
 
     @injector.inject
     def test_validate_file(self, d: InjectableDict = None):
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'validation': 'tests.processing.test_controller._fake_validation_called',
-        })
+        }))
         workflow._validate_file_upload(self.temp_dir / 'hello.txt', {'foo': 'bar'}, 'hello.txt')
         self.assertEqual(d.data['local_path'], self.temp_dir / 'hello.txt')
         self.assertEqual(d.data['metadata'], {'foo': 'bar'})
@@ -575,7 +544,7 @@ class TestWorkflowController(BaseTestCase):
     def test_upload_and_queue(self):
         (self.temp_dir / 'hello').mkdir()
         (self.temp_dir / 'hello2').mkdir()
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'working_target': {
                 'directory': self.temp_dir / 'hello',
             },
@@ -604,7 +573,7 @@ class TestWorkflowController(BaseTestCase):
                     }
                 }
             }
-        })
+        }))
         file = self.temp_dir / 'file.txt'
         with open(file, 'w') as h:
             h.write('foobar')
@@ -640,7 +609,7 @@ class TestWorkflowController(BaseTestCase):
     def test_upload_and_queue_with_unique(self):
         (self.temp_dir / 'hello').mkdir()
         (self.temp_dir / 'hello2').mkdir()
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'working_target': {
                 'directory': self.temp_dir / 'hello',
                 'gzip': True,
@@ -669,7 +638,7 @@ class TestWorkflowController(BaseTestCase):
                     }
                 }
             }
-        })
+        }))
         file = self.temp_dir / 'file.txt'
         with open(file, 'w') as h:
             h.write('foobar')
@@ -703,7 +672,7 @@ class TestWorkflowController(BaseTestCase):
     def test_handle_incoming(self, d: InjectableDict = None):
         (self.temp_dir / 'hello').mkdir()
         (self.temp_dir / 'hello2').mkdir()
-        workflow = WorkflowController("test", {
+        workflow = WorkflowController("test", WorkflowConfiguration(**{
             'working_target': {
                 'directory': self.temp_dir / 'hello',
                 'gzip': True,
@@ -736,7 +705,7 @@ class TestWorkflowController(BaseTestCase):
               'foo2': 'bar2',
             },
             'validation': 'tests.processing.test_controller._fake_validation_called',
-        })
+        }))
         file = self.temp_dir / 'file.txt'
         with open(file, 'w') as h:
             h.write('foobar')

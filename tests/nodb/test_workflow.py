@@ -1,18 +1,17 @@
-from cnodc.nodb import NODBUploadWorkflow
-from cnodc.nodb.base import NODBValidationError
-from helpers.base_test_case import BaseTestCase
+from medsutil.exceptions import CodedError
+from nodb import NODBUploadWorkflow
+from nodb.interface import NODBValidationError
+from nodb.workflow import WorkflowConfiguration
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestWorkflow(BaseTestCase):
 
     def test_configuration(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            wf.configuration = {
-                'hello': 'bar'
-            }
-        self.assertEqual(wf.get_config('hello'), 'bar')
-        self.assertIsNone(wf.get_config('foo'))
+        with wf.readonly_access():
+            wf.configuration = WorkflowConfiguration(label='foo')
+        self.assertEqual(wf.configuration.label, 'foo')
 
     def test_find_by_name(self):
         wf = NODBUploadWorkflow(workflow_name='foobar')
@@ -22,38 +21,32 @@ class TestWorkflow(BaseTestCase):
 
     def test_default_no_access(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            wf.configuration = {}
+        with wf.readonly_access():
+            wf.configuration = WorkflowConfiguration()
         self.assertFalse(wf.check_access([]))
 
     def test_admin_override(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            wf.configuration = {}
+        with wf.readonly_access():
+            wf.configuration = WorkflowConfiguration()
         self.assertTrue(wf.check_access(['__admin__']))
 
     def test_open_override(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            wf.configuration = {
-                'permissions': ['__any__']
-            }
+        with wf.readonly_access():
+            wf.configuration = WorkflowConfiguration(permissions=['__any__'])
         self.assertTrue(wf.check_access([]))
 
     def test_has_perm(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            wf.configuration = {
-                'permissions': ['foobar', 'monkey']
-            }
+        with wf.readonly_access():
+            wf.configuration = WorkflowConfiguration(permissions=['foobar', 'monkey'])
         self.assertTrue(wf.check_access(['foobar', 'ape']))
 
     def test_no_has_perm(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            wf.configuration = {
-                'permissions': ['foobar', 'monkey']
-            }
+        with wf.readonly_access():
+            wf.configuration = WorkflowConfiguration(permissions=['foobar', 'monkey'])
         self.assertFalse(wf.check_access(['barfoo', 'ape']))
 
     def test_build_ordered_processing_steps(self):
@@ -66,19 +59,18 @@ class TestWorkflow(BaseTestCase):
         for data, result in tests:
             with self.subTest():
                 wf = NODBUploadWorkflow()
-                with wf._readonly_access():
-                    wf.configuration = {'processing_steps': data}
-                self.assertEqual(result, wf.ordered_processing_steps())
-                self.assertEqual(result, wf.build_ordered_processing_steps(data))
+                with wf.readonly_access():
+                    wf.configuration = WorkflowConfiguration(steps=data)
+                self.assertEqual(result, wf.ordered_steps())
 
     def test_blank_steps(self):
         wf = NODBUploadWorkflow()
-        with wf._readonly_access():
-            self.assertEqual(0, len(wf.ordered_processing_steps()))
-            wf.configuration = {}
-            self.assertEqual(0, len(wf.ordered_processing_steps()))
-            wf.configuration['processing_steps'] = {}
-            self.assertEqual(0, len(wf.ordered_processing_steps()))
+        with wf.readonly_access():
+            self.assertEqual(0, len(wf.ordered_steps()))
+            wf.configuration = WorkflowConfiguration()
+            self.assertEqual(0, len(wf.ordered_steps()))
+            wf.configuration.steps = {}
+            self.assertEqual(0, len(wf.ordered_steps()))
 
     def test_change_step_order(self):
         base_config = {
@@ -102,12 +94,11 @@ class TestWorkflow(BaseTestCase):
             new_config['processing_steps'] = new_steps
             with self.subTest(msg=msg):
                 wf = NODBUploadWorkflow()
-                with wf._readonly_access():
-                    wf.configuration = old_config
+                with wf.readonly_access():
+                    wf.configuration = WorkflowConfiguration(**old_config)
                 if exc is not None:
-                    with self.assertRaises(NODBValidationError) as h:
+                    with self.assertRaisesCNODCError(exc):
                         wf.set_config(new_config)
-                    self.assertEqual(h.exception.internal_code, exc)
                 else:
                     wf.set_config(new_config)
 
@@ -175,9 +166,7 @@ class TestWorkflow(BaseTestCase):
         for config, error_key, msg in tests:
             with self.subTest(msg=msg):
                 if error_key is not None:
-                    with self.assertRaises(NODBValidationError) as h:
+                    with self.assertRaisesCNODCError(error_key) as h:
                         wf.set_config(config)
-                    self.assertEqual(h.exception.internal_code, error_key)
                 else:
                     wf.set_config(config)
-                    wf.check_config()

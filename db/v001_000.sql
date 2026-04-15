@@ -29,20 +29,6 @@ BEGIN
             'COMPLETE'
         );
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gts_message_type') THEN
-        CREATE TYPE gts_message_type AS ENUM (
-            'NEW',
-            'CORRECTION',
-            'ADDITION',
-            'DELAYED',
-        );
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gts_outgoing_status') THEN
-        CREATE TYPE gts_outgoing_status AS ENUM (
-            'QUEUED',
-            'SENT'
-        );
-    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'qc_status') THEN
         CREATE TYPE qc_status AS ENUM (
             'NEW',
@@ -61,15 +47,6 @@ BEGIN
             'DISCARDED',
             'DUPLICATE',
             'ARCHIVED'
-        );
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'platform_status') THEN
-        CREATE TYPE platform_status AS ENUM (
-            'ACTIVE',
-            'INCOMPLETE',
-            'HISTORICAL',
-            'REMOVED',
-            'REPLACED'
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
@@ -93,7 +70,7 @@ BEGIN
             'ADJUSTED',
             'REAL_TIME',
             'DELAYED_MODE',
-            'UNKNOWN',
+            'UNKNOWN'
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
@@ -102,17 +79,36 @@ BEGIN
             'INACTIVE'
         );
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'platform_status') THEN
+        CREATE TYPE platform_status AS ENUM (
+            'ACTIVE',
+            'INCOMPLETE',
+            'HISTORICAL',
+            'REMOVED',
+            'REPLACED'
+        );
+    END IF;
 END$$;
 
 
 CREATE TABLE IF NOT EXISTS nodb_users (
+
     username            VARCHAR(126)    NOT NULL    PRIMARY KEY,
+    display             VARCHAR(126)                DEFAULT NULL,
+    email               VARCHAR(1024)               DEFAULT NULL,
+
+    language_pref       CHAR(2)         NOT NULL    DEFAULT 'en',
+    locked_until        TIMESTAMPTZ                 DEFAULT NULL,
+
     phash               BYTEA,
     salt                BYTEA,
+
     old_phash           BYTEA                       DEFAULT NULL,
     old_salt            BYTEA                       DEFAULT NULL,
     old_expiry          TIMESTAMPTZ                 DEFAULT NULL,
+
     status              user_status     NOT NULL    DEFAULT 'ACTIVE',
+
     roles               JSON
 );
 
@@ -173,6 +169,8 @@ CREATE TABLE IF NOT EXISTS nodb_source_files (
 
     source_path         TEXT,
     file_name           TEXT            NOT NULL,
+    source_name         VARCHAR(126)    NOT NULL,
+    program_name        VARCHAR(126)    NOT NULL,
 
     original_uuid       UUID,
     original_idx        INTEGER,
@@ -202,7 +200,7 @@ CREATE TABLE IF NOT EXISTS nodb_missions (
     mission_uuid    UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     mission_id      VARCHAR(126)    NOT NULL,
     metadata        JSON,
-    start_date      TIMESTAMPTZ     NOT NULL,
+    start_date      TIMESTAMPTZ,
     end_date        TIMESTAMPTZ
 );
 
@@ -214,11 +212,11 @@ CREATE TABLE IF NOT EXISTS nodb_platforms (
     platform_name       VARCHAR(126),
     platform_id         VARCHAR(126),
     platform_type       VARCHAR(126)    NOT NULL,
-    service_start_date  TIMESTAMPTZ     NOT NULL,
+    service_start_date  TIMESTAMPTZ,
     service_end_date    TIMESTAMPTZ,
     instrumentation     JSONB,
     metadata            JSON,
-    map_to_uuid         UUID                        REFERENCES nodb_stations(station_uuid),
+    map_to_uuid         UUID                        REFERENCES nodb_platforms(platform_uuid),
     status              platform_status  NOT NULL   DEFAULT 'ACTIVE',
     embargo_data_days   INTEGER
 );
@@ -238,8 +236,8 @@ CREATE TABLE IF NOT EXISTS nodb_qc_batches (
     batch_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    metadata         JSON,
-    status              qc_status     NOT NULL
+    metadata            JSON,
+    status              qc_status       NOT NULL
 );
 
 
@@ -259,11 +257,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
 
-    station_uuid        UUID                        REFERENCES nodb_stations(station_uuid),
+    platform_uuid       UUID                        REFERENCES nodb_platforms(platform_uuid),
     mission_uuid        UUID                        REFERENCES nodb_missions(mission_uuid),
-    source_name         VARCHAR(126)    NOT NULL,
-    program_name        VARCHAR(126)    NOT NULL,
-
     obs_time            TIMESTAMPTZ,
     min_depth           REAL,
     max_depth           REAL,
@@ -280,11 +275,8 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 ) PARTITION BY RANGE(received_date);
 
 
-CREATE INDEX IF NOT EXISTS nodb_obs_station_uuid ON nodb_obs(station_uuid);
-CREATE INDEX IF NOT EXISTS nodb_obs_mission_name ON nodb_obs(mission_name);
-CREATE INDEX IF NOT EXISTS nodb_obs_source_name ON nodb_obs(source_name);
-CREATE INDEX IF NOT EXISTS nodb_obs_platform_name ON nodb_obs(instrument_type);
-CREATE INDEX IF NOT EXISTS nodb_obs_program_name ON nodb_obs(program_name);
+CREATE INDEX IF NOT EXISTS nodb_obs_platform_uuid ON nodb_obs(platform_uuid);
+CREATE INDEX IF NOT EXISTS nodb_obs_mission_uuid ON nodb_obs(mission_uuid);
 CREATE INDEX IF NOT EXISTS nodb_obs_obs_time ON nodb_obs(obs_time) WHERE obs_time IS NOT NULL;
 CREATE INDEX IF NOT EXISTS nodb_obs_min_depth ON nodb_obs(min_depth) WHERE min_depth IS NOT NULL;
 CREATE INDEX IF NOT EXISTS nodb_obs_max_depth ON nodb_obs(max_depth) WHERE max_depth IS NOT NULL;
@@ -323,11 +315,11 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
     record_idx          INTEGER         NOT NULL,
     processing_level    processing_level        NOT NULL    DEFAULT 'UNKNOWN',
 
-    status              obs_status      NOT NULL,
+    status              obs_status      NOT NULL DEFAULT 'VERIFIED',
 
     data_record         BYTEA,
 
-    metadata    JSON,
+    metadata            JSON,
     qc_tests            JSON,
 
     duplicate_uuid      UUID,
@@ -370,10 +362,10 @@ CREATE TABLE IF NOT EXISTS nodb_working (
     message_idx             INTEGER         NOT NULL,
     record_idx              INTEGER         NOT NULL,
 
-    metadata             JSON,
+    metadata                JSON,
     qc_batch_id             UUID                        REFERENCES nodb_qc_batches(batch_uuid),
     data_record             BYTEA,
-    platform_uuid            VARCHAR(126),
+    platform_uuid           UUID                        REFERENCES nodb_platforms(platform_uuid),
     obs_time                TIMESTAMPTZ,
     location                GEOGRAPHY(GEOMETRY, 4326),
 
@@ -385,7 +377,7 @@ CREATE TABLE IF NOT EXISTS nodb_working (
 
 
 CREATE INDEX IF NOT EXISTS idx_nodb_working_batch_id ON nodb_working(qc_batch_id);
-CREATE INDEX IF NOT EXISTS idx_nodb_working_station_uuid ON nodb_working(station_uuid);
+CREATE INDEX IF NOT EXISTS idx_nodb_working_platform_uuid ON nodb_working(platform_uuid);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_obs_time ON nodb_working(obs_time);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_location ON nodb_working USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_nodb_working_record ON nodb_working(record_uuid, received_date);
@@ -415,7 +407,7 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     subqueue_name       VARCHAR(126)                DEFAULT NULL,
     unique_item_name    VARCHAR(126)                DEFAULT NULL,
     priority            INTEGER         NOT NULL    DEFAULT 0,
-    correlation_id      UUID            NOT NULL    DEFAULT gen_random_uuid,
+    correlation_id      UUID            NOT NULL    DEFAULT gen_random_uuid(),
 
     data                TEXT
 
@@ -435,121 +427,6 @@ CREATE OR REPLACE TRIGGER update_queues_modified_date
     EXECUTE PROCEDURE update_modified_date();
 
 
-CREATE TABLE IF NOT EXISTS gts_outgoing_message (
-
-    message_id              UUID                NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-
-    message_format          VARCHAR(126)        NOT NULL,
-    processing_center       CHAR(4)             NOT NULL,
-    obs_uuid                UUID                NOT NULL,
-    obs_received_date       DATE                NOT NULL,
-    message_type            gts_message_type    NOT NULL DEFAULT 'NEW',
-
-    status                  gts_outgoing_status NOT NULL DEFAULT 'QUEUED',
-    queued_date             TIMESTAMPTZ         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    sent_date               TIMESTAMPTZ         DEFAULT NULL,
-    assigned_header         VARCHAR(126)        DEFAULT NULL,
-    supplementary_header    CHAR(3)             DEFAULT NULL,
-);
-
-
-
-CREATE TABLE IF NOT EXISTS gts_messages (
-
-    received_time       TIMESTAMPTZ     NOT NULL,
-    message_time        TIMESTAMPTZ,
-    message_format      VARCHAR(126)    NOT NULL,
-    gts_header          VARCHAR(126)    NOT NULL,
-    message_source      VARCHAR(126)    NOT NULL,
-    subset_count        INTEGER         NOT NULL,
-    cruise_ids          JSONB           NOT NULL,
-    message_hash        BYTEA           NOT NULL
-
-) PARTITION BY RANGE(received_time);
-
-
-CREATE INDEX IF NOT EXISTS idx_gts_messages_received_time ON gts_messages USING BRIN(received_time);
-CREATE INDEX IF NOT EXISTS idx_gts_messages_gts_header ON gts_messages(gts_header);
-CREATE INDEX IF NOT EXISTS idx_gts_messages_message_source ON gts_messages(message_source);
-CREATE INDEX IF NOT EXISTS idx_gts_messages_cruise_ids ON gts_messages USING GIN(cruise_ids);
-
-
--- Partition tables for 1980 to 2040
-CREATE TABLE IF NOT EXISTS gts_messages_1950_1960 PARTITION OF gts_messages FOR VALUES FROM ('1950-01-01') TO ('1960-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_1960_1970 PARTITION OF gts_messages FOR VALUES FROM ('1960-01-01') TO ('1970-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_1970_1980 PARTITION OF gts_messages FOR VALUES FROM ('1970-01-01') TO ('1980-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_1980_1990 PARTITION OF gts_messages FOR VALUES FROM ('1980-01-01') TO ('1990-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_1990_2000 PARTITION OF gts_messages FOR VALUES FROM ('1990-01-01') TO ('2000-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2000_2005 PARTITION OF gts_messages FOR VALUES FROM ('2000-01-01') TO ('2005-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2005_2006 PARTITION OF gts_messages FOR VALUES FROM ('2005-01-01') TO ('2006-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2006_2007 PARTITION OF gts_messages FOR VALUES FROM ('2006-01-01') TO ('2007-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2007_2008 PARTITION OF gts_messages FOR VALUES FROM ('2007-01-01') TO ('2008-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2008_2009 PARTITION OF gts_messages FOR VALUES FROM ('2008-01-01') TO ('2009-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2009_2010 PARTITION OF gts_messages FOR VALUES FROM ('2009-01-01') TO ('2010-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2010_2011 PARTITION OF gts_messages FOR VALUES FROM ('2010-01-01') TO ('2011-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2011_2012 PARTITION OF gts_messages FOR VALUES FROM ('2011-01-01') TO ('2012-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2012_2013 PARTITION OF gts_messages FOR VALUES FROM ('2012-01-01') TO ('2013-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2013_2014 PARTITION OF gts_messages FOR VALUES FROM ('2013-01-01') TO ('2014-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2014_2015 PARTITION OF gts_messages FOR VALUES FROM ('2014-01-01') TO ('2015-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2015_2016 PARTITION OF gts_messages FOR VALUES FROM ('2015-01-01') TO ('2016-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2016_2017 PARTITION OF gts_messages FOR VALUES FROM ('2016-01-01') TO ('2017-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2017_2018 PARTITION OF gts_messages FOR VALUES FROM ('2017-01-01') TO ('2018-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2018_2019 PARTITION OF gts_messages FOR VALUES FROM ('2018-01-01') TO ('2019-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2019_2020 PARTITION OF gts_messages FOR VALUES FROM ('2019-01-01') TO ('2020-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2020_2021 PARTITION OF gts_messages FOR VALUES FROM ('2020-01-01') TO ('2021-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2021_2022 PARTITION OF gts_messages FOR VALUES FROM ('2021-01-01') TO ('2022-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2022_2023 PARTITION OF gts_messages FOR VALUES FROM ('2022-01-01') TO ('2023-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2023_2024 PARTITION OF gts_messages FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2024_2025 PARTITION OF gts_messages FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2025_2026 PARTITION OF gts_messages FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2026_2027 PARTITION OF gts_messages FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2027_2028 PARTITION OF gts_messages FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2028_2029 PARTITION OF gts_messages FOR VALUES FROM ('2028-01-01') TO ('2029-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2029_2030 PARTITION OF gts_messages FOR VALUES FROM ('2029-01-01') TO ('2030-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2030_2031 PARTITION OF gts_messages FOR VALUES FROM ('2030-01-01') TO ('2031-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2031_2032 PARTITION OF gts_messages FOR VALUES FROM ('2031-01-01') TO ('2032-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2032_2033 PARTITION OF gts_messages FOR VALUES FROM ('2032-01-01') TO ('2033-01-01');
-CREATE TABLE IF NOT EXISTS gts_messages_2033_2031 PARTITION OF gts_messages FOR VALUES FROM ('2033-01-01') TO ('2031-01-01');
-
-
-
-CREATE TABLE IF NOT EXISTS gts_summary (
-
-    bulletin_origin         VARCHAR(126)    NOT NULL,
-    bulletin_data_type      VARCHAR(126)    NOT NULL,
-    bulletin_repeat_type    VARCHAR(126),
-    bulletin_count          BIGINT          NOT NULL        DEFAULT 0,
-    subset_count            BIGINT          NOT NULL        DEFAULT 0,
-    bulletin_date           DATE          NOT NULL,
-    PRIMARY KEY (bulletin_data_type, bulletin_origin, bulletin_repeat_type, bulletin_date)
-) PARTITION BY RANGE(bulletin_date);
-
-
--- Partition tables for 2022 to 2024
-CREATE TABLE IF NOT EXISTS gts_summary_2010_2011 PARTITION OF gts_summary FOR VALUES FROM ('2010-01-01') TO ('2011-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2011_2012 PARTITION OF gts_summary FOR VALUES FROM ('2011-01-01') TO ('2012-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2012_2013 PARTITION OF gts_summary FOR VALUES FROM ('2012-01-01') TO ('2013-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2013_2014 PARTITION OF gts_summary FOR VALUES FROM ('2013-01-01') TO ('2014-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2014_2015 PARTITION OF gts_summary FOR VALUES FROM ('2014-01-01') TO ('2015-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2015_2016 PARTITION OF gts_summary FOR VALUES FROM ('2015-01-01') TO ('2016-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2016_2017 PARTITION OF gts_summary FOR VALUES FROM ('2016-01-01') TO ('2017-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2017_2018 PARTITION OF gts_summary FOR VALUES FROM ('2017-01-01') TO ('2018-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2018_2019 PARTITION OF gts_summary FOR VALUES FROM ('2018-01-01') TO ('2019-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2019_2020 PARTITION OF gts_summary FOR VALUES FROM ('2019-01-01') TO ('2020-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2020_2021 PARTITION OF gts_summary FOR VALUES FROM ('2020-01-01') TO ('2021-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2021_2022 PARTITION OF gts_summary FOR VALUES FROM ('2021-01-01') TO ('2022-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2022_2023 PARTITION OF gts_summary FOR VALUES FROM ('2022-01-01') TO ('2023-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2023_2024 PARTITION OF gts_summary FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2024_2025 PARTITION OF gts_summary FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2025_2026 PARTITION OF gts_summary FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2026_2027 PARTITION OF gts_summary FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2027_2028 PARTITION OF gts_summary FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2028_2029 PARTITION OF gts_summary FOR VALUES FROM ('2028-01-01') TO ('2029-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2029_2030 PARTITION OF gts_summary FOR VALUES FROM ('2029-01-01') TO ('2030-01-01');
-CREATE TABLE IF NOT EXISTS gts_summary_2030_2031 PARTITION OF gts_summary FOR VALUES FROM ('2030-01-01') TO ('2031-01-01');
-
-
 
 -- Procedure to clean-up queue table and create partitions
 CREATE OR REPLACE PROCEDURE run_nodb_maintenance(
@@ -565,8 +442,6 @@ DECLARE
     source_table_name  TEXT;
     obs_table_name  TEXT;
     obs_data_table_name  TEXT;
-    gts_messages_name  TEXT;
-    gts_summary_name  TEXT;
 BEGIN
 
     -- Unlock old locked rows
@@ -597,8 +472,6 @@ BEGIN
     source_table_name := 'nodb_source_files_' || DATE_PART('year', start_date)::text;
     obs_table_name := 'nodb_obs_' || DATE_PART('year', start_date)::text;
     obs_data_table_name := 'nodb_obs_data_' || DATE_PART('year', start_date)::text;
-    gts_messages_name := 'gts_messages_' || DATE_PART('year', start_date)::text;
-    gts_summary_name := 'gts_summary_' || DATE_PART('year', start_date)::text;
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = source_table_name) THEN
         EXECUTE 'CREATE TABLE IF NOT EXISTS ' || source_table_name || ' PARTITION OF nodb_source_files FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
@@ -608,13 +481,6 @@ BEGIN
     IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_data_table_name) THEN
         EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_data_table_name || ' PARTITION OF nodb_obs_data FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
     END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_messages_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_messages_name || ' PARTITION OF gts_messages FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = gts_summary_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || gts_summary_name || ' PARTITION OF gts_summary FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-
 
 END; $$;
 

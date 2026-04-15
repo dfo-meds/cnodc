@@ -1,4 +1,5 @@
 tests/html_report
 tests/html_report/*
+*
 .cnodc.toml
 .coverage

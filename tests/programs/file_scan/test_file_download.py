@@ -1,12 +1,9 @@
-import hashlib
-import logging
-
-from cnodc.nodb import NODBQueueItem, NODBUploadWorkflow, ScannedFileStatus
-from cnodc.processing.workflow.payloads import FilePayload, NewFilePayload
-from cnodc.programs.file_scan import FileDownloadWorker
-import cnodc.util.awaretime as awaretime
-from cnodc.util.dynamic import dynamic_name
-from helpers.base_test_case import BaseTestCase
+from nodb import NODBQueueItem, NODBUploadWorkflow
+from pipeman.processing.payloads import FilePayload, NewFilePayload
+from pipeman.programs.file_scan import FileDownloadWorker
+import medsutil.awaretime as awaretime
+from medsutil.dynamic import dynamic_name
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestFileDownloadWorker(BaseTestCase):

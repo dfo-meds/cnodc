@@ -2,12 +2,11 @@ import datetime
 import typing as t
 import uuid
 
-from cnodc.nodb import NODBQueueItem, QueueStatus
-from cnodc.processing.workers.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, \
-    ObservationWorkflowWorker, FileWorkflowWorker
-from cnodc.processing.workers.queue_worker import QueueWorker
-from cnodc.processing.workers.scheduled_task import ScheduledTask
-from cnodc.processing.workflow.payloads import WorkflowPayload
+from nodb import NODBQueueItem, QueueStatus
+from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, ObservationWorkflowWorker, FileWorkflowWorker
+from pipeman.processing.queue_worker import QueueWorker
+from pipeman.processing.scheduled_task import ScheduledTask
+from pipeman.processing.payloads import WorkflowPayload
 
 
 class WorkerTestController:
@@ -28,7 +27,7 @@ class WorkerTestController:
             queue_name=queue_name,
             subqueue_name=subqueue_name,
             unique_item_name=unique_item_name,
-            data=payload.to_json_map(),
+            data=payload.export(),
             priority=priority,
             queue_uuid=str(uuid.uuid4()),
             created_date=datetime.datetime.now(datetime.timezone.utc),
@@ -56,7 +55,7 @@ class WorkerTestController:
     def _test_scheduled_task(self, worker):
         worker._run_scheduled_task(datetime.datetime.now(datetime.timezone.utc))
 
-    def _test_harness(self, worker, action: callable, *args, **kwargs):
+    def _test_harness(self, worker, action: t.Callable, *args, **kwargs):
         exc = None
         try:
             worker.on_start()
@@ -82,7 +81,8 @@ class WorkerTestController:
             kwargs['process_name'] = 'test'
             kwargs['process_version'] = '0.1'
         cls = worker_cls(**kwargs)
+        cls.nodb = self._nodb
         cls.db = self._db
         if hasattr(cls, 'nodb'):
-            cls.nodb = self._nodb
+            cls.mock_nodb = self._nodb
         return cls

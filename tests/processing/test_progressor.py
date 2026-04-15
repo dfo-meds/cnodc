@@ -1,7 +1,8 @@
-from cnodc.nodb import QueueStatus, NODBUploadWorkflow, NODBQueueItem
-from cnodc.processing.workflow.payloads import BatchPayload, WorkflowPayload
-from cnodc.processing.workflow.progressor import WorkflowProgressWorker
-from helpers.base_test_case import BaseTestCase
+from nodb import QueueStatus, NODBUploadWorkflow, NODBQueueItem
+from pipeman.processing.payloads import BatchPayload, WorkflowPayload
+from pipeman.processing.progressor import WorkflowProgressWorker
+from tests.helpers.base_test_case import BaseTestCase
+
 
 class TestProgressor(BaseTestCase):
 

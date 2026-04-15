@@ -1,11 +1,9 @@
-import threading
-
 import yaml
 
-from cnodc.processing.control.single import SingleProcessController
-from cnodc.processing.control.base import BaseWorker
-from cnodc.util import CNODCError
-from helpers.base_test_case import BaseTestCase
+from pipeman_service.single import SingleProcessController
+from pipeman.processing.base_worker import BaseWorker
+from medsutil.exceptions import CodedError
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestBaseProcessController(BaseTestCase):
@@ -57,7 +55,7 @@ class TestBaseProcessController(BaseTestCase):
             config_file=file
         )
         with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CNODCError):
+            with self.assertRaises(CodedError):
                 nc.reload_check()
 
     def test_missing_process_directory(self):
@@ -67,7 +65,7 @@ class TestBaseProcessController(BaseTestCase):
             config_file_dir=subdir
         )
         with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CNODCError):
+            with self.assertRaises(CodedError):
                 nc.reload_check()
 
     def test_bad_process_directory(self):
@@ -78,7 +76,7 @@ class TestBaseProcessController(BaseTestCase):
             config_file_dir=file
         )
         with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CNODCError):
+            with self.assertRaises(CodedError):
                 nc.reload_check()
 
     def test_bad_process_missing_file(self):
@@ -87,7 +85,7 @@ class TestBaseProcessController(BaseTestCase):
             process_name="foo",
             config_file=file
         )
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             with self.assertLogs("cnodc.single_process", "ERROR"):
                 nc.reload_check()
 
@@ -97,7 +95,7 @@ class TestBaseProcessController(BaseTestCase):
             process_name="foo",
             config_file_dir=file
         )
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             with self.assertLogs("cnodc.single_process", "ERROR"):
                 nc.reload_check()
 
@@ -427,7 +425,7 @@ class TestBaseProcessController(BaseTestCase):
             config_file=file
         )
         nc.reload_check()
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             nc.start()
         self.assertIsNone(nc._process)
 

@@ -3,12 +3,12 @@ import json
 
 from autoinject import injector
 
-from cnodc.programs.dmd.dmd import DataManagerController
-from cnodc.programs.dmd.metadata import DatasetMetadata
-from helpers.base_test_case import BaseTestCase
+from pipeman.programs.dmd.dmd import DataManagerController
+from pipeman.programs.dmd.metadata import DatasetMetadata
+from tests.helpers.base_test_case import BaseTestCase
 import zirconium as zr
 
-from helpers.web_mock import MockResponse
+from tests.helpers.mock_requests import MockResponse
 
 
 def with_security(cb):

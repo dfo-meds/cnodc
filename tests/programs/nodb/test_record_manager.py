@@ -1,10 +1,10 @@
 import datetime
 
-from cnodc.nodb import NODBObservationData, NODBObservation, NODBMission, NODBPlatform
-from cnodc.nodb.observations import NODBWorkingRecord
-from cnodc.programs.nodb.record_manager import NODBRecordManager
-from helpers.base_test_case import BaseTestCase
-import cnodc.ocproc2 as ocproc2
+from nodb import NODBObservationData, NODBMission, NODBPlatform
+from nodb import NODBWorkingRecord
+from pipeman.programs.nodb.record_manager import NODBRecordManager
+from tests.helpers.base_test_case import BaseTestCase
+import medsutil.ocproc2 as ocproc2
 
 
 class TestRecordManager(BaseTestCase):

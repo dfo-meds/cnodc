@@ -1,0 +1,6 @@
+[run]
+cover_pylib = false
+
+[report]
+exclude_also =
+  raise NotImplementedError

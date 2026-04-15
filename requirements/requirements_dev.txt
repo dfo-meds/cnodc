@@ -1,0 +1,6 @@
+-r ./requirements_web.txt
+-r ./requirements_desktop.txt
+coverage ~= 7.13.5
+pyftpdlib ~= 2.2.0
+bandit ~= 1.9.4
+pip-audit ~= 2.10.0

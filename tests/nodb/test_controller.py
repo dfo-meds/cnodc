@@ -7,16 +7,20 @@ import typing as t
 import psycopg2.errors
 from psycopg2.extras import DictCursor
 
-from cnodc.nodb import NODBControllerInstance, NODBBatch, NODBQueueItem, ScannedFileStatus, QueueStatus, NODBObservation
-from cnodc.nodb.controller import NODBControllerBase, LockType, NODBError, SqlState
+from nodb import NODBBatch, NODBQueueItem, ScannedFileStatus, QueueStatus, NODBObservation, LockType
+from nodb.controller import PostgresController
+from nodb.interface import SqlState, NODBError, NODB
 
 from psycopg2.extensions import connection
+import psycopg2.sql as pgs
 
 
 class BlankConn(connection):
 
     def __init__(self):
         pass
+
+DUMMY_CURSOR = DictCursor(BlankConn())
 
 class FastPsycopgError(psycopg2.Error):
 
@@ -33,18 +37,19 @@ class MockPostgresConnectionCursor:
 
     def __init__(self):
         self._commands = []
-        self._dummy_cursor = DictCursor(BlankConn())
         self._responses: dict[str, t.Union[Exception, list]] = {}
         self._next_response: list = []
-        self.arraysize = self._dummy_cursor.arraysize
+        self.arraysize = DUMMY_CURSOR.arraysize
 
     @contextmanager
     def cursor(self):
         yield self
 
-    def execute(self, query: str, args: list = None):
+    def execute(self, query: str | pgs.Composable, args: list = None):
+        if isinstance(query, pgs.Composable):
+            query = as_string(query)
         if args:
-            q = self._dummy_cursor.mogrify(query, args).decode('utf-8')
+            q = DUMMY_CURSOR.mogrify(query, args).decode('utf-8')
         else:
             q = query
         q = q.replace("\r", " ").replace("\n", " ").replace("\t", " ").strip()
@@ -55,7 +60,8 @@ class MockPostgresConnectionCursor:
             if isinstance(self._responses[q], Exception):
                 self._next_response = []
                 raise self._responses[q]
-            self._next_response = self._responses[q]
+            else:
+                self._next_response = self._responses[q]
         else:
             self._next_response = []
 
@@ -100,7 +106,7 @@ class MockPostgresConnectionCursor:
         self._next_response = []
 
 
-class NODBMockController(NODBControllerBase):
+class NODBMockController(NODB):
 
     def __init__(self):
         super().__init__()
@@ -109,6 +115,29 @@ class NODBMockController(NODBControllerBase):
 
     def _build_controller_instance(self):
         return self._conn
+
+
+def _escape_identifier(x: str):
+    return '"' + x + '"'
+
+def _escape_literal(x: str):
+    if isinstance(x, str):
+        return "'" + x + "'"
+    return x
+
+def as_string(*args):
+    def _to_string(x: pgs.Composable) -> str:
+        if isinstance(x, pgs.Composed):
+            return ''.join(_to_string(y) for y in x)
+        elif isinstance(x, pgs.Identifier):
+            return '.'.join(_escape_identifier(y) for y in x._wrapped)
+        elif isinstance(x, pgs.Literal):
+            return _escape_literal(x._wrapped)
+        else:
+            return x.as_string(None)
+    if len(args) > 1:
+        return _to_string(pgs.Composed(args).join(" "))
+    return _to_string(args[0])
 
 
 class TestControllerInstance(ut.TestCase):
@@ -140,7 +169,7 @@ class TestControllerInstance(ut.TestCase):
         return x
 
     @contextmanager
-    def assertQueries(self, queries: list[t.Union[str, tuple[str, list]]]):
+    def assertQueries(self, queries: list[t.Union[str, tuple[str, list | BaseException]]]):
         try:
             self.nodb._conn.reset_all()
             actual_queries = []
@@ -330,7 +359,7 @@ class TestControllerInstance(ut.TestCase):
             with db.cursor() as cur:
                 with self.assertQueries([
                     'SAVEPOINT fetch_queue_item',
-                    ("SELECT * FROM next_queue_item('foobar'::varchar(126), 'hello'::varchar(126))", psycopg2.errors.ConnectionFailure),
+                    ("SELECT * FROM next_queue_item('foobar'::varchar(126), 'hello'::varchar(126))", psycopg2.errors.ConnectionFailure()),
                     'ROLLBACK TO SAVEPOINT fetch_queue_item'
                 ]):
                     with self.assertRaises(NODBError):
@@ -340,7 +369,7 @@ class TestControllerInstance(ut.TestCase):
             with db.cursor() as cur:
                 with self.assertQueries([
                     'SAVEPOINT fetch_queue_item',
-                    ("SELECT * FROM next_queue_item('foobar'::varchar(126), 'hello'::varchar(126))", ValueError),
+                    ("SELECT * FROM next_queue_item('foobar'::varchar(126), 'hello'::varchar(126))", ValueError()),
                     'ROLLBACK TO SAVEPOINT fetch_queue_item'
                 ]):
                     with self.assertRaises(ValueError):
@@ -351,7 +380,7 @@ class TestControllerInstance(ut.TestCase):
             with self.assertQueries([
                 ("SELECT * FROM nodb_queues WHERE queue_uuid = '12345'", [{'queue_uuid': '12345'}])
             ]):
-                x = db.load_queue_item('12345')
+                x = NODBQueueItem.find_by_uuid(db, '12345')
                 self.assertIsInstance(x, NODBQueueItem)
                 self.assertEqual(x.queue_uuid, '12345')
 
@@ -386,30 +415,30 @@ class TestControllerInstance(ut.TestCase):
     def test_create_queue_item(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 0, NULL, '{\"hello\": \"world\"}', NULL)",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 0, NULL, '{\"hello\":\"world\"}', '00000000-0000-0000-0000-000000000000')",
             ]):
-                db.create_queue_item('foobar', {'hello': 'world'})
+                db.create_queue_item('foobar', {'hello': 'world'}, correlation_id='00000000-0000-0000-0000-000000000000')
 
     def test_create_queue_item_with_subqueue(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', 'bar2', 0, NULL, '{\"hello\": \"world\"}', NULL)",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', 'bar2', 0, NULL, '{\"hello\":\"world\"}', '00000000-0000-0000-0000-000000000000')",
             ]):
-                db.create_queue_item('foobar', {'hello': 'world'}, subqueue_name='bar2')
+                db.create_queue_item('foobar', {'hello': 'world'}, subqueue_name='bar2', correlation_id='00000000-0000-0000-0000-000000000000')
 
     def test_create_queue_item_with_unique(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 0, 'foo', '{\"hello\": \"world\"}', NULL)",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 0, 'foo', '{\"hello\":\"world\"}', '00000000-0000-0000-0000-000000000000')",
             ]):
-                db.create_queue_item('foobar', {'hello': 'world'}, unique_item_name='foo')
+                db.create_queue_item('foobar', {'hello': 'world'}, unique_item_name='foo', correlation_id='00000000-0000-0000-0000-000000000000')
 
     def test_create_queue_item_with_priority(self):
         with self.nodb as db:
             with self.assertQueries([
-                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 7, NULL, '{\"hello\": \"world\"}', NULL)",
+                "INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) VALUES ('foobar', NULL, 7, NULL, '{\"hello\":\"world\"}', '00000000-0000-0000-0000-000000000000')",
             ]):
-                db.create_queue_item('foobar', {'hello': 'world'}, priority=7)
+                db.create_queue_item('foobar', {'hello': 'world'}, priority=7, correlation_id='00000000-0000-0000-0000-000000000000')
 
     def test_fast_update_queue_item(self):
         with self.nodb as db:
@@ -586,7 +615,7 @@ class TestControllerInstance(ut.TestCase):
                 "UPDATE nodb_qc_batches SET bar=NULL,foo=2 WHERE qc_batch_id IN (4,5,6)",
                 "UPDATE nodb_qc_batches SET bar=NULL,foo=2 WHERE qc_batch_id IN (7)",
             ]):
-                db.bulk_update(NODBBatch, {'foo': 2, 'bar': None}, 'qc_batch_id', [1, 2, 3, 4, 5, 6, 7])
+                db.bulk_update_objects(NODBBatch, {'foo': 2, 'bar': None}, 'qc_batch_id', [1, 2, 3, 4, 5, 6, 7])
 
             db._max_in_size = reset
 
@@ -595,7 +624,7 @@ class TestControllerInstance(ut.TestCase):
             reset = db._max_in_size
             db._max_in_size = 3
             with self.assertQueries([]):
-                db.bulk_update(NODBBatch, {'foo': 2, 'bar': None}, 'qc_batch_id', [])
+                db.bulk_update_objects(NODBBatch, {'foo': 2, 'bar': None}, 'qc_batch_id', [])
 
             db._max_in_size = reset
 
@@ -603,29 +632,29 @@ class TestControllerInstance(ut.TestCase):
         with self.nodb as db:
             reset = db._max_in_size
             db._max_in_size = 3
-            self.assertEqual([x for x in db.chunk_for_in([1, 2, 3, 4, 5, 6, 7])], [[1, 2, 3], [4, 5, 6], [7]])
+            self.assertEqual([x for x in db.batched([1, 2, 3, 4, 5, 6, 7])], [[1, 2, 3], [4, 5, 6], [7]])
             db._max_in_size = reset
 
     def test_chunk_for_in_none(self):
         with self.nodb as db:
             reset = db._max_in_size
             db._max_in_size = 3
-            self.assertEqual([x for x in db.chunk_for_in([])], [])
+            self.assertEqual([x for x in db.batched([])], [])
             db._max_in_size = reset
 
     def test_build_lock_type(self):
         tests = [
-            (LockType.FOR_SHARE, " FOR SHARE"),
-            (LockType.FOR_UPDATE, " FOR UPDATE"),
-            (LockType.FOR_NO_KEY_UPDATE, " FOR NO KEY UPDATE"),
-            (LockType.FOR_KEY_SHARE, " FOR KEY SHARE"),
+            (LockType.FOR_SHARE, "FOR SHARE"),
+            (LockType.FOR_UPDATE, "FOR UPDATE"),
+            (LockType.FOR_NO_KEY_UPDATE, "FOR NO KEY UPDATE"),
+            (LockType.FOR_KEY_SHARE, "FOR KEY SHARE"),
             (LockType.NONE, ""),
             (None, ""),
         ]
         for lock_type, result in tests:
             with self.subTest(lock_type=lock_type):
                 self.assertEqual(
-                    NODBControllerInstance.build_lock_type_clause(lock_type),
+                    PostgresController.assemble_query(PostgresController.build_lock_type_clause(lock_type)),
                     result
                 )
 
@@ -644,7 +673,7 @@ class TestControllerInstance(ut.TestCase):
             with self.subTest(limit=limit_select, filters=filters, key_only=key_only):
                 self.assertEqual(
                     results,
-                    NODBControllerInstance.extend_selected_fields(limit_select, filters, key_only, NODBBatch)
+                    PostgresController.extend_selected_fields(limit_select, filters, key_only, NODBBatch)
                 )
 
     def test_select_clause(self):
@@ -655,28 +684,34 @@ class TestControllerInstance(ut.TestCase):
         ]
         for tname, cols, result in tests:
             with self.subTest(tname=tname, cols=cols):
-                self.assertEqual(result, NODBControllerInstance.build_select_clause(tname, cols, True))
+                self.assertEqual(
+                    result,
+                    as_string(
+                        PostgresController.build_select_clause(tname, cols, True)
+                    )
+                )
 
     def test_where_clause(self):
         tests = [
             ({}, None, '', []),
-            ({'foo': 'bar'}, None, ' WHERE foo = %s', ['bar']),
-            ({'foo': None}, None, ' WHERE foo IS NULL', []),
-            ({'foo': (2, '<=')}, None, ' WHERE foo <= %s', [2]),
-            ({'foo': (2, '>=')}, None, ' WHERE foo >= %s', [2]),
-            ({'foo': (2, '<')}, None, ' WHERE foo < %s', [2]),
-            ({'foo': (2, '>')}, None, ' WHERE foo > %s', [2]),
-            ({'foo': ((2, 3, 4), 'IN')}, None, ' WHERE foo IN (%s,%s,%s)', [2, 3, 4]),
-            ({'foo': (2, '<=', True)}, None, ' WHERE (foo IS NULL OR foo <= %s)', [2]),
-            ({'foo': (2, '<=', False)}, None, ' WHERE foo <= %s', [2]),
-            ({'foo': 2, 'bar': 3}, None, ' WHERE foo = %s AND bar = %s', [2, 3]),
-            ({'foo': 2, 'bar': 3}, 'OR', ' WHERE foo = %s OR bar = %s', [2, 3]),
+            ({'foo': 'bar'}, None, 'WHERE foo = \'bar\''),
+            ({'foo': None}, None, 'WHERE foo IS NULL'),
+            ({'foo': (2, '<=')}, None, 'WHERE foo <= 2'),
+            ({'foo': (2, '>=')}, None, 'WHERE foo >= 2'),
+            ({'foo': (2, '<')}, None, 'WHERE foo < 2'),
+            ({'foo': (2, '>')}, None, 'WHERE foo > 2'),
+            ({'foo': ((2, 3, 4), 'IN')}, None, 'WHERE foo IN (2,3,4)'),
+            ({'foo': (2, '<=', True)}, None, 'WHERE (foo IS NULL OR foo <= 2)'),
+            ({'foo': (2, '<=', False)}, None, 'WHERE foo <= 2'),
+            ({'foo': 2, 'bar': 3}, None, 'WHERE foo = 2 AND bar = 3'),
+            ({'foo': 2, 'bar': 3}, 'OR', 'WHERE foo = 2 OR bar = 3'),
         ]
         for in_val1, in_val2, out_val1, out_val2 in tests:
             with self.subTest(filters=in_val1, join_str=in_val2):
-                clause, params = NODBControllerInstance.build_where_clause(in_val1, in_val2)
+                clause = as_string(
+                    PostgresController.build_where_clause(in_val1, in_val2)
+                )
                 self.assertEqual(clause, out_val1)
-                self.assertEqual(params, out_val2)
 
     def test_order_by_clause(self):
         tests = [
@@ -690,7 +725,7 @@ class TestControllerInstance(ut.TestCase):
         ]
         for in_val, out_val in tests:
             with self.subTest(input=in_val):
-                self.assertEqual(out_val, NODBControllerInstance.build_order_by_clause(in_val))
+                self.assertEqual(out_val, as_string(PostgresController.build_order_by_clause(in_val)))
 
     def test_escape_copy_value(self):
         tests = [
@@ -708,9 +743,9 @@ class TestControllerInstance(ut.TestCase):
             (datetime.date(2015, 1, 2), '2015-01-02'),
             (datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc), '2015-01-02 03:04:05Z'),
             # TODO: check timezone?
-            (['hello', 'world'], '["hello", "world"]'),
-            (('hello', 'world'), '["hello", "world"]'),
-            ({'hello': 'world'}, '{"hello": "world"}'),
+            (['hello', 'world'], '["hello","world"]'),
+            (('hello', 'world'), '["hello","world"]'),
+            ({'hello': 'world'}, '{"hello":"world"}'),
             ("foo", "foo"),
             (1, "1"),
             (2.345, "2.345"),
@@ -719,7 +754,7 @@ class TestControllerInstance(ut.TestCase):
         for input_val, output_val in tests:
             with self.subTest(input=input_val):
                 self.assertEqual(
-                    NODBControllerInstance.escape_copy_value(input_val),
+                    PostgresController.escape_copy_value(input_val),
                     output_val
                 )
 
@@ -842,10 +877,10 @@ class TestControllerInstance(ut.TestCase):
                 obj.is_new = True
                 obj.min_depth = 5
                 obj.max_depth = 25
-                self.assertEqual(2, len(obj.modified_values))
+                self.assertEqual(2, len(obj._modified_values))
                 self.assertTrue(obj.is_new)
                 self.assertTrue(db.insert_object(obj))
-                self.assertEqual(0, len(obj.modified_values))
+                self.assertEqual(0, len(obj._modified_values))
                 self.assertEqual(obj.obs_uuid, '12345')
                 self.assertEqual(obj.received_date, datetime.date(2015, 10, 11))
                 self.assertFalse(obj.is_new)
@@ -859,7 +894,7 @@ class TestControllerInstance(ut.TestCase):
                 self.assertTrue(obj.is_new)
                 self.assertTrue(db.insert_object(obj))
                 self.assertEqual(obj.batch_uuid, '12345')
-                self.assertEqual(0, len(obj.modified_values))
+                self.assertEqual(0, len(obj._modified_values))
                 self.assertFalse(obj.is_new)
 
     def test_upsert_to_insert(self):
@@ -871,7 +906,7 @@ class TestControllerInstance(ut.TestCase):
                 self.assertTrue(obj.is_new)
                 self.assertTrue(db.upsert_object(obj))
                 self.assertEqual(obj.batch_uuid, '12345')
-                self.assertEqual(0, len(obj.modified_values))
+                self.assertEqual(0, len(obj._modified_values))
                 self.assertFalse(obj.is_new)
 
     def test_upsert_to_update(self):

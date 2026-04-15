@@ -1,12 +1,10 @@
 import pathlib
-import random
 import typing as t
-import unittest
 
 import netCDF4
 
-from cnodc.programs.glider.ego_convert import OpenGliderConverter
-from cnodc.util.sanitize import str_to_netcdf, netcdf_bytes_to_string
+from pipeman.programs.glider.ego_convert import OpenGliderConverter
+from medsutil.sanitize import netcdf_string_to_bytes, netcdf_bytes_to_string
 from tests.helpers.base_test_case import BaseTestCase, InjectableDict
 
 
@@ -53,10 +51,18 @@ class GliderBaseTest(BaseTestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if cls.old_handle.isopen():
+        if cls.old_handle and cls.old_handle.isopen():
             cls.old_handle.close()
-        if cls.new_handle.isopen():
+            del cls.old_handle
+        if cls.new_handle and cls.new_handle.isopen():
             cls.new_handle.close()
+            del cls.new_handle
+        if cls.new_file:
+            cls.new_file.unlink(True)
+            del cls.new_file
+        if cls.old_file:
+            cls.old_file.unlink(True)
+            del cls.old_file
         super().tearDownClass()
 
     @staticmethod
@@ -78,11 +84,11 @@ class GliderBaseTest(BaseTestCase):
         var_names = ['SENSOR', 'SENSOR_MAKER', 'SENSOR_MODEL', 'SENSOR_SERIAL_NO', 'SENSOR_MOUNT', 'SENSOR_ORIENTATION']
         for idx, var_name in enumerate(var_names):
             v = ds.createVariable(var_name, 'S1', ('N_SENSORS', 'STRING256',))
-            v[:] = str_to_netcdf([x[idx] for x in sensor_info], 256)
+            v[:] = netcdf_string_to_bytes([x[idx] for x in sensor_info], 256)
         var_names = ['PARAMETER', 'PARAMETER_SENSOR']
         for idx, var_name in enumerate(var_names):
             v = ds.createVariable(var_name, 'S1', ('N_PARAMS', 'STRING256', ))
-            v[:] = str_to_netcdf([x[idx] for x in parameter_info], 256)
+            v[:] = netcdf_string_to_bytes([x[idx] for x in parameter_info], 256)
 
     def assertHasVariableAttribute(self, var_name: str, attr_name: str, value: t.Any):
         self.assertIn(var_name, self.new_handle.variables.keys(), msg=f'Missing variable {var_name}')

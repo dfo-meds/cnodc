@@ -1,17 +1,17 @@
 import datetime
 import os
 
-from cnodc import nodb as nodb
-from cnodc.nodb import NODBQueueItem, NODBSourceFile, SourceFileStatus, NODBObservation, QueueStatus
-from cnodc.nodb.observations import NODBWorkingRecord, NODBObservationData
-from cnodc.ocproc2 import ParentRecord
-from cnodc.ocproc2.codecs import OCProc2JsonCodec
-from cnodc.processing.workflow.payloads import FilePayload, SourceFilePayload, BatchPayload, ObservationPayload, \
-    WorkflowPayload
-from cnodc.programs.nodb import NODBDecodeLoadWorker
-from cnodc.util import CNODCError, DynamicObjectLoadError
-import cnodc.ocproc2 as ocproc2
-from helpers.base_test_case import BaseTestCase
+import nodb as nodb
+from nodb import NODBQueueItem, NODBSourceFile, SourceFileStatus, NODBObservation, QueueStatus
+from nodb import NODBWorkingRecord, NODBObservationData
+from medsutil.ocproc2 import ParentRecord
+from medsutil.ocproc2.codecs import OCProc2JsonCodec
+from pipeman.exceptions import CNODCError
+from pipeman.processing.payloads import FilePayload, SourceFilePayload, BatchPayload, ObservationPayload, WorkflowPayload
+from pipeman.programs.nodb import NODBDecodeLoadWorker
+from medsutil.exceptions import CodedError
+import medsutil.ocproc2 as ocproc2
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class NODBLoaderBadRecordCreation(NODBDecodeLoadWorker):
@@ -113,8 +113,8 @@ class TestLoader(BaseTestCase):
             },
             self.worker_controller.payload_to_queue_item(fp, 'test_intake')
         )
-        self.assertEqual(1, len(self.db.tables[NODBWorkingRecord.TABLE_NAME]))
-        self.assertEqual(1, len(self.db.tables[NODBQueueItem.TABLE_NAME]))
+        self.assertEqual(1, self.db.rows(NODBWorkingRecord.TABLE_NAME))
+        self.assertEqual(1, self.db.rows(NODBQueueItem.TABLE_NAME))
 
     def test_loader_from_fresh_file_completed(self):
         err_dir = self.temp_dir / 'errors'
@@ -445,7 +445,7 @@ class TestLoader(BaseTestCase):
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')
         )
-        self.assertEqual(3, len(self.db.table(NODBWorkingRecord.TABLE_NAME)))
+        self.assertEqual(3, self.db.rows(NODBWorkingRecord.TABLE_NAME))
         foo_values = []
         for obj in self.db.table(NODBWorkingRecord.TABLE_NAME):
             foo_values.append(obj.record.metadata.best('foo'))

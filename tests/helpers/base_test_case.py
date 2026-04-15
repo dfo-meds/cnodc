@@ -4,21 +4,20 @@ import os
 import pathlib
 import shutil
 import tempfile
+import typing
 import unittest
 import unittest as ut
-from unittest.result import TestResult
-import zoneinfo
 from contextlib import contextmanager
-from unittest import mock, TextTestResult
+from unittest import mock
 
 from autoinject import injector
-
-from cnodc.util.awaretime import AwareDateTime
-from cnodc.util.halts import DummyHaltFlag
-from helpers.mock_runner import WorkerTestController
-from cnodc.util import CNODCError
-from helpers.db_mock import DatabaseMock, DummyNODB
-from helpers.web_mock import QuickWebMock
+from medsutil.awaretime import AwareDateTime
+from medsutil.halts import DummyHaltFlag
+from tests.helpers.mock_containers import TestContainer, NODBContainer
+from tests.helpers.mock_runner import WorkerTestController
+from medsutil.exceptions import CodedError
+from tests.helpers.mock_nodb import DatabaseMock, DummyNODB
+from tests.helpers.mock_requests import QuickWebMock
 
 
 @injector.injectable
@@ -30,9 +29,23 @@ class InjectableDict:
 TEST_FILE_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data'
 
 def skip_long_test(test_case):
-    if not ('CNODC_WITH_LONG_TESTS' in os.environ and os.environ['CNODC_WITH_LONG_TESTS'] == 'Y'):
+    if 'CNODC_WITH_LONG_TESTS' in os.environ and os.environ['CNODC_WITH_LONG_TESTS'] == 'N':
         return unittest.skip('skipping long_tests')(test_case)
     return test_case
+
+class ClassProperty[RetType]:
+
+    def __init__(self, fget: typing.Callable[..., RetType]):
+        self._fget = fget
+
+    def __get__(self, instance, cls) -> RetType:
+        return self._fget.__get__(instance, cls)()
+
+    def __call__(self, fn):
+        return ClassProperty(fn)
+
+def classproperty[RetType](fn: typing.Callable[..., RetType]) -> ClassProperty[RetType]:
+    return ClassProperty[RetType](fn)
 
 
 class BaseTestCase(ut.TestCase):
@@ -44,14 +57,14 @@ class BaseTestCase(ut.TestCase):
         self.addTypeEqualityFunc(dict, self.assertDictSimilar)
 
     @staticmethod
-    def testdata_path(rel_path: str = None) -> pathlib.Path:
+    def data_file_path(rel_path: str = None) -> pathlib.Path:
         if rel_path is None:
             return TEST_FILE_DIR
         return TEST_FILE_DIR / rel_path
 
     @contextmanager
-    def temporary_test_file(self, rel_path: str, metadata: bool = False):
-        file_path = BaseTestCase.testdata_path(rel_path)
+    def temp_data_file(self, rel_path: str, metadata: bool = False):
+        file_path = BaseTestCase.data_file_path(rel_path)
         md_file_path = None if not metadata else (file_path.parent / f"{file_path.name}.metadata")
         try:
             yield file_path if md_file_path is None else (file_path, md_file_path)
@@ -61,8 +74,8 @@ class BaseTestCase(ut.TestCase):
                 md_file_path.unlink(True)
 
     @contextmanager
-    def temporary_test_directory(self, rel_path: str, metadata: bool = False):
-        dir_path = BaseTestCase.testdata_path(rel_path)
+    def temp_data_dir(self, rel_path: str, metadata: bool = False):
+        dir_path = BaseTestCase.data_file_path(rel_path)
         md_file_path = None if not metadata else (dir_path.parent / f"{dir_path.name}.metadata")
         try:
             yield dir_path if md_file_path is None else (dir_path, md_file_path)
@@ -72,30 +85,127 @@ class BaseTestCase(ut.TestCase):
             if md_file_path is not None:
                 md_file_path.unlink(True)
 
+    @classproperty
+    @classmethod
+    def real_nodb(cls):
+        if not hasattr(cls, '_real_nodb'):
+            container = NODBContainer()
+            cls.start_container(container)
+            cls._real_nodb = container.nodb
+        return cls._real_nodb
+
+    @classmethod
+    def set_log_level_for_class(cls, new_level):
+        if not hasattr(cls, '_old_log_level'):
+            cls._old_log_level = logging.getLogger().level or logging.NOTSET
+        logging.getLogger().setLevel(new_level)
+        cls.addClassCleanup(cls._clean_log_level)
+
+    @classmethod
+    def _clean_log_level(cls):
+        if hasattr(cls, '_old_log_level'):
+            logging.getLogger().setLevel(cls._old_log_level)
+
     @classmethod
     def setUpClass(cls):
-        cls.reset_db_before_tests: bool = True
-        cls.class_temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
-        cls.db = DatabaseMock()
-        cls.nodb = DummyNODB(cls.db)
-        cls.web = QuickWebMock()
-        cls.halt_flag = DummyHaltFlag()
-        cls.worker_controller = WorkerTestController(cls.db, cls.nodb, cls.halt_flag)
+        cls.reset_db_between_tests: bool = True
 
-    def setUp(self):
-        self.temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
+    @classproperty
+    @classmethod
+    def worker_controller(cls):
+        if not hasattr(cls, '_worker_controller'):
+            cls._worker_controller = WorkerTestController(cls.db, cls.mock_nodb, cls.halt_flag)
+        return cls._worker_controller
 
-    @injector.inject
-    def tearDown(self, d: InjectableDict = None):
-        shutil.rmtree(self.temp_dir)
-        if self.reset_db_before_tests:
-            self.db.reset()
-        d.data.clear()
-        self.halt_flag.event.clear()
+    @classproperty
+    @classmethod
+    def halt_flag(cls):
+        if not hasattr(cls, '_halt_flag'):
+            cls._halt_flag = DummyHaltFlag()
+        return cls._halt_flag
+
+    @classproperty
+    @classmethod
+    def class_temp_dir(cls):
+        if not hasattr(cls, '_class_temp_dir'):
+            cls._class_temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
+            cls.addClassCleanup(cls._clean_up_class_temp)
+        return cls._class_temp_dir
 
     @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.class_temp_dir)
+    def _clean_up_class_temp(cls):
+        if hasattr(cls, '_class_temp_dir'):
+            shutil.rmtree(cls._class_temp_dir)
+            del cls._class_temp_dir
+
+    @classproperty
+    @classmethod
+    def web(cls):
+        if not hasattr(cls, '_web'):
+            cls._web = QuickWebMock()
+        return cls._web
+
+    @classproperty
+    @classmethod
+    def mock_nodb(cls):
+        if not hasattr(cls, '_mock_nodb'):
+            cls._mock_nodb = DummyNODB(cls.db)
+        return cls._mock_nodb
+
+    @classproperty
+    @classmethod
+    def db(cls):
+        if not hasattr(cls, '_db'):
+            cls._db = DatabaseMock()
+        return cls._db
+
+    def tearDown(self):
+        self._clean_injectable()
+        self._clean_db()
+        self._clean_halt_flag()
+
+    def _clean_halt_flag(self):
+        if hasattr(self, '_halt_flag'):
+            self._halt_flag.event.clear()
+
+    def _clean_db(self):
+        if hasattr(self, 'reset_db_between_tests') and self.reset_db_between_tests and hasattr(self, '_db'):
+            self._db.reset()
+
+    @injector.inject
+    def _clean_injectable(self, d: InjectableDict = None):
+        d.data.clear()
+
+    @classmethod
+    def start_container_by_name(cls, name, always_restart: bool = False):
+        cls.start_container(TestContainer(name, always_restart))
+
+    @classmethod
+    def start_container(cls, container: TestContainer):
+        container.up()
+        if not hasattr(cls, '_containers'):
+            cls._containers = []
+            cls.addClassCleanup(cls._clean_up_containers)
+        cls._containers.append(container)
+
+    @classmethod
+    def _clean_up_containers(cls):
+        if hasattr(cls, '_containers'):
+            for container in cls._containers:
+                container.down()
+            del cls._containers
+
+    @property
+    def temp_dir(self):
+        if not hasattr(self, '_temp_dir'):
+            self._temp_dir = pathlib.Path(tempfile.mkdtemp()).resolve().absolute()
+            self.addCleanup(self._clean_up_temp_dir)
+        return self._temp_dir
+
+    def _clean_up_temp_dir(self):
+        if hasattr(self, '_temp_dir'):
+            shutil.rmtree(self._temp_dir)
+            del self._temp_dir
 
     @classmethod
     @contextmanager
@@ -107,11 +217,21 @@ class BaseTestCase(ut.TestCase):
 
     @contextmanager
     def assertRaisesCNODCError(self, error_code: str = None, is_transient: bool = None, msg=None):
-        with self.assertRaises(CNODCError) as h:
+        with self.assertRaises(CodedError) as h:
             yield h
         if (error_code and error_code != h.exception.internal_code) or (is_transient is not None and is_transient is not h.exception.is_transient):
             raise self.failureException(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'") from h.exception
         self.assertEqual(error_code, h.exception.internal_code)
+
+    @contextmanager
+    def assertNoError(self, msg: str = None):
+        try:
+            with self.assertRaises(Exception) as h:
+                yield h
+        except AssertionError:
+            return True
+        except Exception as ex:
+            raise self.failureException(msg or f"Found unexpected error: {ex.__class__.__name__}: {ex}") from ex
 
     @contextmanager
     def assertLogs(self, logger=None, level=None):

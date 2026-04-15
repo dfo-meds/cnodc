@@ -1,0 +1,5 @@
+-r ./requirements.txt
+flask~=3.1.3
+flask_autoinject~=2.0.2
+prometheus_flask_exporter~=0.23.2
+prometheus_client~=0.24.1

@@ -5,13 +5,13 @@ from autoinject import injector
 
 sys.path.append(str(pathlib.Path(__file__).parent / "src"))
 
-from cnodc.system.boot import init_cnodc
+from pipeman.boot import init_cnodc
 init_cnodc("process")
 
 
 @injector.inject
 def run_processor(app_config: zr.ApplicationConfig = None):
-    from cnodc.processing.control.multiprocess import MultiProcessController
+    from pipeman_service.multiprocess import MultiProcessController
     pc = MultiProcessController(
         config_file=app_config.as_path(("cnodc", "process_definition_file"), default=None),
         config_file_dir=app_config.as_path(("cnodc", "process_definition_directory"), default=None),

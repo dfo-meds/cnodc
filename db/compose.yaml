@@ -1,7 +1,6 @@
 services:
   db:
     build: .
-    restart: unless-stopped
     environment:
       POSTGRES_USER: example
       POSTGRES_PASSWORD: example

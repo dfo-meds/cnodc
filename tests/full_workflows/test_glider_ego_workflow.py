@@ -1,18 +1,18 @@
 import functools
 import logging
 
-from cnodc.nodb import NODBObservationData, NODBObservation, NODBQueueItem
-from cnodc.nodb.observations import NODBWorkingRecord
-from cnodc.processing.workflow.progressor import WorkflowProgressWorker
-from cnodc.programs.file_scan import FileScanTask, FileDownloadWorker
-from cnodc.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker
-from cnodc.programs.nodb import NODBDecodeLoadWorker
-from helpers.base_test_case import BaseTestCase, skip_long_test
-from helpers.mock_workflow import MockWorkflow, WorkerEvent
-from helpers.web_mock import MockResponse
+from nodb import NODBObservationData, NODBObservation, NODBSourceFile
+from nodb import NODBWorkingRecord
+from pipeman.processing.progressor import WorkflowProgressWorker
+from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
+from pipeman.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker
+from pipeman.programs.nodb import NODBDecodeLoadWorker
+from tests.helpers.base_test_case import skip_long_test
+from tests.helpers.mock_workflow import MockWorkflow, WorkflowTestResult, BaseWorkflowTestCase
+from tests.helpers.mock_requests import MockResponse
 from autoinject import injector
 import zirconium as zr
-import cnodc.util.json as json
+import medsutil.json as json
 
 
 def with_security(cb):
@@ -33,17 +33,18 @@ def upsert_dataset(method, url, data, **kwargs):
 
 
 @skip_long_test
-class TestGliderDecode(BaseTestCase):
+class TestGliderDecode(BaseWorkflowTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
 
     @classmethod
     @injector.test_case
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.old_log_level = logging.getLogger().level or logging.NOTSET
-        logging.getLogger().setLevel(logging.ERROR)
-        cls.reset_db_before_tests = False
+    def build_and_run_workflow(cls, workflow: MockWorkflow) -> WorkflowTestResult:
+        cls.set_log_level_for_class(logging.ERROR)
         input_dir = cls.class_temp_dir / 'inputs'
         input_dir.mkdir()
         error_dir = cls.class_temp_dir / 'errors'
@@ -54,13 +55,16 @@ class TestGliderDecode(BaseTestCase):
         erddap_dir.mkdir()
         ego_dir = cls.class_temp_dir / 'ego'
         ego_dir.mkdir()
-        workflow = MockWorkflow(cls.nodb)
         workflow.add_worker(FileScanTask, {
             'run_on_boot': True,
             'scan_target': str(input_dir),
             'workflow_name': 'test_glider_decode',
             'delay_seconds': 600,
             'pattern': '*.nc',
+            'metadata': {
+                'source_name': 'ego_glider_files',
+                'program_name': 'gliders',
+            }
         })
         workflow.add_worker(FileDownloadWorker)
         workflow.add_worker(NODBDecodeLoadWorker,{
@@ -98,27 +102,10 @@ class TestGliderDecode(BaseTestCase):
             functools.partial(upsert_dataset, data=cls._web_test_data)
         )
         with cls.mock_web_test():
-            cls.workflow_result = workflow.test_file(
-                cls.testdata_path('glider_ego/SEA032_20250606_R.nc'),
+            return workflow.test_file(
+                cls.data_file_path('glider_ego/SEA032_20250606_R.nc'),
                 input_dir
             )
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        logging.getLogger().setLevel(cls.old_log_level)
-
-    def assertEventDidOccur(self, process_name: str, event_name: str, msg: str = None):
-        for x in self.workflow_result.worker_events:
-            if x.event_name == event_name and x.process_name == process_name:
-                return x
-        raise self.failureException(msg or f"Event {process_name}:{event_name} not found")
-
-
-    def assertEventDidNotOccur(self, process_name: str, event_name: str, msg: str = None):
-        for x in self.workflow_result.worker_events:
-            if x.event_name == event_name and x.process_name == process_name:
-                raise self.failureException(msg or f"Event {process_name}:{event_name} found unexpectedly!")
 
     def test_download_ran(self):
         self.assertEventDidOccur("file_downloader", "before_queue_item")
@@ -159,19 +146,30 @@ class TestGliderDecode(BaseTestCase):
     def test_dmd_content(self):
         data = json.dumps(self._web_test_data[0])
         data_reloaded = json.loads(data)
-        print(json.dump_pretty(data_reloaded))
-        with open(self.testdata_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
+        with open("./_test_dmd_output.json", "w") as h:
+            h.write(json.dumps(data_reloaded))
+        with open(self.data_file_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
             content = h.read()
             content = json.loads(content)
             self.assertDictSimilar(data_reloaded, content)
 
     def test_observations(self):
-        self.assertEqual(7474, self.db.rows(NODBObservation.TABLE_NAME))
+        with self.real_nodb as db:
+            self.assertEqual(7474, db.rows(NODBObservation.TABLE_NAME))
 
     def test_observation_data(self):
-        self.assertEqual(7474, self.db.rows(NODBObservationData.TABLE_NAME))
+        with self.real_nodb as db:
+            self.assertEqual(7474, db.rows(NODBObservationData.TABLE_NAME))
+
+    def test_source_file(self):
+        with self.real_nodb as db:
+            source_files = [x for x in NODBSourceFile.find_all(db)]
+            self.assertEqual(1, len(source_files))
+            self.assertEqual(source_files[0].source_name, 'ego_glider_files')
+            self.assertEqual(source_files[0].program_name, 'gliders')
 
     def test_no_working_records(self):
-        self.assertEqual(0, self.db.rows(NODBWorkingRecord.TABLE_NAME))
+        with self.real_nodb as db:
+            self.assertEqual(0, db.rows(NODBWorkingRecord.TABLE_NAME))
 
 

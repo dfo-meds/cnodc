@@ -1,16 +1,12 @@
-import json
 import logging
-import pathlib
 
-from cnodc.ocproc2 import ParentRecord, MultiElement, SingleElement
-from cnodc.ocproc2.codecs.netcdf import NetCDFCommonMapper
-from cnodc.programs.glider.ego_convert import ego_sensor_info
-from cnodc.util import CNODCError
-from cnodc.util.sanitize import netcdf_bytes_to_string, str_to_netcdf_vlen, str_to_netcdf
-from helpers.base_test_case import BaseTestCase
+from medsutil.ocproc2 import ParentRecord, MultiElement, SingleElement
+from pipeman.programs.glider.ego_convert import ego_sensor_info
+from medsutil.sanitize import netcdf_string_to_bytes
+from tests.helpers.base_test_case import BaseTestCase
 import netCDF4 as nc
 import typing as t
-from cnodc.programs.glider.ego_decode import GliderEGOMapper
+from pipeman.programs.glider.ego_decode import GliderEGOMapper
 
 
 class TestGliderDecodeTools(BaseTestCase):
@@ -52,7 +48,7 @@ class TestGliderDecodeTools(BaseTestCase):
                     'wetlabs flbbcdslc': {
                         'make': 'Wetlabs', 'model': 'FLBBCD-SLC', 'type': 'FLUOROMETER',
                     }
-                })
+                }, {}, {})
 
     def test_old_ego_sensor_mapping(self):
         with nc.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
@@ -81,7 +77,7 @@ class TestGliderDecodeTools(BaseTestCase):
                 'wetlabs flbbcdslc': {
                     'make': 'Wetlabs', 'model': 'FLBBCD-SLC', 'type': 'FLUOROMETER',
                 }
-            })
+            }, {}, {})
             with self.subTest(msg='ctd12345'):
                 self.assertIn('SENSOR_CTD_12345', sensor_info)
                 self.assertEqual('CTD', sensor_info['SENSOR_CTD_12345']['type'])
@@ -154,7 +150,7 @@ class TestGliderDecodeTools(BaseTestCase):
                 ('MOLDOXY', 'OPTODE_DOXY'),
                 ('OTHER', ''),
             ])
-            sensor_info, param_map = ego_sensor_info(ds, {})
+            sensor_info, param_map = ego_sensor_info(ds, {}, {}, {})
             self.assertEqual(len(sensor_info), 3)
             with self.subTest(msg='CTD'):
                 self.assertIn('SENSOR_CTD_12345', sensor_info)
@@ -216,7 +212,7 @@ class TestGliderDecodeTools(BaseTestCase):
                 ('OTHER', ''),
             ])
             with self.assertRaisesCNODCError('GLIDER-1001'):
-                sensor_info, param_map = ego_sensor_info(ds, {})
+                sensor_info, param_map = ego_sensor_info(ds, {}, {}, {})
 
     @staticmethod
     def _add_old_ego_sensor_info(ds: nc.Dataset, param_info: t.Sequence[tuple[str, str, str]]):
@@ -237,11 +233,11 @@ class TestGliderDecodeTools(BaseTestCase):
             var_names = ['SENSOR', 'SENSOR_MAKER', 'SENSOR_MODEL', 'SENSOR_SERIAL_NO', 'SENSOR_MOUNT', 'SENSOR_ORIENTATION']
             for idx, var_name in enumerate(var_names):
                 v = ds.createVariable(var_name, 'S1', ('N_SENSORS', 'STRING256',))
-                v[:] = str_to_netcdf([x[idx] for x in sensor_info], 256)
+                v[:] = netcdf_string_to_bytes([x[idx] for x in sensor_info], 256)
             var_names = ['PARAMETER', 'PARAMETER_SENSOR']
             for idx, var_name in enumerate(var_names):
                 v = ds.createVariable(var_name, 'S1', ('N_PARAMS', 'STRING256', ))
-                v[:] = str_to_netcdf([x[idx] for x in parameter_info], 256)
+                v[:] = netcdf_string_to_bytes([x[idx] for x in parameter_info], 256)
 
     @staticmethod
     def _add_ego_parameter(ds: nc.Dataset, parameter_name, data, qc_data=None, units=None, qc_var_name=None):
@@ -257,10 +253,10 @@ class TestGliderDecodeTools(BaseTestCase):
     def _add_ego_variable_value(ds: nc.Dataset, var_name: str, value):
         if value is None:
             v = ds.createVariable(var_name, 'S1', ('STRING256',))
-            v[:] = str_to_netcdf("", 256)
+            v[:] = netcdf_string_to_bytes("", 256)
         if isinstance(value, str):
             v = ds.createVariable(var_name, 'S1', ('STRING256',))
-            v[:] = str_to_netcdf(value, 256)
+            v[:] = netcdf_string_to_bytes(value, 256)
         elif isinstance(value, int):
             v = ds.createVariable(var_name, 'i4')
             v[:] = [value]

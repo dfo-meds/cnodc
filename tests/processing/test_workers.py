@@ -1,17 +1,17 @@
 import datetime
 import typing as t
 
-from cnodc.nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus
-from cnodc.nodb.controller import NODBError
-from cnodc.processing.workers.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
-from cnodc.processing.control.base import SaveData
-from cnodc.processing.workers.payload_worker import ObservationWorkflowWorker
-from cnodc.processing.workers.queue_worker import QueueWorker, QueueItemResult
-from cnodc.processing.workers.scheduled_task import ScheduledTask
-from cnodc.processing.workflow.payloads import FilePayload, BatchPayload, WorkflowPayload, SourceFilePayload, \
-    ObservationPayload
-from cnodc.util import CNODCError, HaltInterrupt
-from helpers.base_test_case import BaseTestCase, skip_long_test
+from nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus
+from nodb import NODBError
+from pipeman.exceptions import CNODCError
+from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
+from pipeman.processing.base_worker import SaveData
+from pipeman.processing.payload_worker import ObservationWorkflowWorker
+from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
+from pipeman.processing.scheduled_task import ScheduledTask
+from pipeman.processing.payloads import FilePayload, BatchPayload, WorkflowPayload, SourceFilePayload, ObservationPayload
+from medsutil.exceptions import CodedError, HaltInterrupt
+from tests.helpers.base_test_case import BaseTestCase, skip_long_test
 
 
 class BoringQueueWorker(QueueWorker):
@@ -91,14 +91,14 @@ class TestScheduledTask(BaseTestCase):
         task: ScheduledTask = self.worker_controller.build_test_worker(ScheduledTask, {
             'schedule_mode': 'cron'
         })
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             task.on_start()
 
     def test_bad_mode(self):
         task: ScheduledTask = self.worker_controller.build_test_worker(ScheduledTask, {
             'schedule_mode': 'foobar'
         })
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             task.on_start()
 
     def test_bad_delay_seconds(self):
@@ -106,7 +106,7 @@ class TestScheduledTask(BaseTestCase):
             'schedule_mode': 'from_start',
             'delay_seconds': 'fifty',
         })
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             task.on_start()
 
     def test_bad_delay_fuzz(self):
@@ -115,7 +115,7 @@ class TestScheduledTask(BaseTestCase):
             'delay_seconds': '50',
             'delay_fuzz_milliseconds': 'fifty',
         })
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             task.on_start()
 
     def test_execution_delay(self):
@@ -265,7 +265,7 @@ class TestScheduledTask(BaseTestCase):
         dt = datetime.datetime.now(datetime.timezone.utc)
         task._next_execution = dt
         self.assertEqual(0, len(task._called_methods))
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             task._run_scheduled_task(dt)
         self.assertEqual(task.save_data['last_start'], dt.isoformat())
         self.assertGreaterEqual(datetime.datetime.fromisoformat(task.save_data['last_end']), dt)
@@ -293,7 +293,7 @@ class TestQueueWorker(BaseTestCase):
 
     def test_no_queue_name_error(self):
         worker: QueueWorker = self.worker_controller.build_test_worker(QueueWorker)
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             worker.on_start()
         worker._config['queue_name'] = 'foobar'
         worker.on_start()
@@ -564,7 +564,7 @@ class TestQueueWorker(BaseTestCase):
             'delay_time_seconds': 0.25,
             'delay_factor': 2,
         })
-        worker.nodb = self.nodb
+        worker.nodb = self.mock_nodb
         worker._ret_value = HaltInterrupt
         self.db.create_queue_item(data={'foobar': 'hello'}, queue_name='hello')
         with self.assertLogs("cnodc.worker.test", "CRITICAL"):
@@ -667,7 +667,7 @@ class TestBatchWorker(BaseTestCase):
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             bw.process_queue_item(qi)
 
     def test_good_payload_type(self):
@@ -682,7 +682,7 @@ class TestBatchWorker(BaseTestCase):
     def test_download_to_temp(self):
         bw: BatchWorkflowWorker = self.worker_controller.build_test_worker(BatchWorkflowWorker)
         fp = BatchPayload(batch_uuid='12345')
-        bw.current_payload = fp
+        bw._current_payload = fp
         try:
             with self.assertRaisesCNODCError('PAYLOAD-1001'):
                 bw.download_to_temp_file()
@@ -698,7 +698,7 @@ class TestSourceWorker(BaseTestCase):
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             bw.process_queue_item(qi)
 
     def test_good_payload_type(self):
@@ -729,7 +729,7 @@ class TestSourceWorker(BaseTestCase):
         sf.file_name = "hello.txt"
         self.db.insert_object(sf)
         sp = SourceFilePayload.from_source_file(sf)
-        sw.current_payload = sp
+        sw._current_payload = sp
         f = sw.download_to_temp_file()
         self.assertTrue(f.exists())
         with open(f, "r") as h:
@@ -754,7 +754,7 @@ class TestFileWorker(BaseTestCase):
         bp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             fw.process_queue_item(qi)
 
     def test_download_to_temp(self):
@@ -762,7 +762,7 @@ class TestFileWorker(BaseTestCase):
             h.write("hello world")
         fw: FileWorkflowWorker = self.worker_controller.build_test_worker(FileWorkflowWorker)
         fp = FilePayload(file_path=self.temp_dir / '12345.txt')
-        fw.current_payload = fp
+        fw._current_payload = fp
         f = fw.download_to_temp_file()
         self.assertTrue(f.exists())
         with open(f, "r") as h:
@@ -777,7 +777,7 @@ class TestObservationWorker(BaseTestCase):
         fp.enqueue(self.db, 'hello')
         qi = self.db.fetch_next_queue_item('hello')
         self.assertIsNotNone(qi)
-        with self.assertRaises(CNODCError):
+        with self.assertRaises(CodedError):
             ow.process_queue_item(qi)
 
     def test_good_payload_type(self):
@@ -792,6 +792,6 @@ class TestObservationWorker(BaseTestCase):
     def test_download_to_temp(self):
         ow: ObservationWorkflowWorker = self.worker_controller.build_test_worker(ObservationWorkflowWorker)
         op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
-        ow.current_payload = op
+        ow._current_payload = op
         with self.assertRaisesCNODCError('PAYLOAD-1001'):
             ow.download_to_temp_file()

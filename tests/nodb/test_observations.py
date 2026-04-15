@@ -1,12 +1,13 @@
 import datetime
 import enum
 
-from cnodc.nodb import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, PlatformStatus, \
+from medsutil.awaretime import AwareDateTime
+from nodb import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, PlatformStatus, \
     NODBBatch, ProcessingLevel, ObservationType, ObservationStatus
-from cnodc.nodb.observations import NODBWorkingRecord, BatchStatus
-from cnodc.ocproc2 import ParentRecord, ChildRecord, QCResult
-from cnodc.ocproc2.codecs import OCProc2BinCodec
-from helpers.base_test_case import BaseTestCase
+from nodb import NODBWorkingRecord, BatchStatus
+from medsutil.ocproc2 import ParentRecord, ChildRecord, QCResult
+from medsutil.ocproc2.codecs import OCProc2BinCodec
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestSourceFile(BaseTestCase):
@@ -23,7 +24,7 @@ class TestSourceFile(BaseTestCase):
         self.assertEqual('three', h['ins'])
         self.assertEqual('ERROR', h['lvl'])
         self.assertIsNotNone(h['rpt'])
-        self.assertIn('history', sf.modified_values)
+        self.assertIn('history', sf._modified_values)
 
     def test_report_warning(self):
         sf = NODBSourceFile()
@@ -37,7 +38,7 @@ class TestSourceFile(BaseTestCase):
         self.assertEqual('three', h['ins'])
         self.assertEqual('WARNING', h['lvl'])
         self.assertIsNotNone(h['rpt'])
-        self.assertIn('history', sf.modified_values)
+        self.assertIn('history', sf._modified_values)
 
     def test_add_history(self):
         sf = NODBSourceFile()
@@ -51,7 +52,7 @@ class TestSourceFile(BaseTestCase):
         self.assertEqual('three', h['ins'])
         self.assertEqual('INFO', h['lvl'])
         self.assertIsNotNone(h['rpt'])
-        self.assertIn('history', sf.modified_values)
+        self.assertIn('history', sf._modified_values)
 
     def test_search(self):
         sf = NODBSourceFile(
@@ -232,31 +233,31 @@ class TestPlatform(BaseTestCase):
 
     def test_search_by_service_date(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=datetime.datetime(2015, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2015, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('6', x[0].platform_uuid)
 
     def test_search_by_service_date2(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=datetime.datetime(2016, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2016, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('7', x[0].platform_uuid)
 
     def test_search_by_service_early_edge(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=datetime.datetime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('7', x[0].platform_uuid)
 
     def test_search_by_service_late_edge(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=datetime.datetime(2016, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2016, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('7', x[0].platform_uuid)
 
     def test_search_by_nothing(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, in_service_time=datetime.datetime(2016, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, in_service_time=AwareDateTime(2016, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc))]
         self.assertEqual(0, len(x))
 
 
@@ -314,13 +315,11 @@ class TestObservation(BaseTestCase):
         self.assertIsNone(NODBObservation.find_by_uuid(self.db, '12345', datetime.date(2015, 1, 3)))
 
     def test_update_simple_attributes_from_record(self):
-        tests = [
-            ('metadata/CNODCProgram', 'program_name', 'HelloWorld'),
-            ('metadata/CNODCSource', 'source_name', 'HelloWorld2'),
+        tests: list[tuple[str, str, str | AwareDateTime | enum.Enum]] = [
             ('metadata/CNODCMission', 'mission_uuid', '12345'),
             ('metadata/CNODCPlatform', 'platform_uuid', '123456'),
-            ('metadata/CNODCEmbargoUntil', 'embargo_date', datetime.datetime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
-            ('coordinates/Time', 'obs_time', datetime.datetime(2014, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
+            ('metadata/CNODCEmbargoUntil', 'embargo_date', AwareDateTime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
+            ('coordinates/Time', 'obs_time', AwareDateTime(2014, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
             ('metadata/CNODCLevel', 'processing_level', ProcessingLevel.REAL_TIME),
         ]
         for test_property, test_name, test_val in tests:
@@ -486,7 +485,7 @@ class TestObservationData(BaseTestCase):
         self.assertIs(obs_data.record, record)
         decoder = OCProc2BinCodec()
         self.assertIsNotNone(obs_data.data_record)
-        self.assertIsInstance(obs_data.data_record, bytearray)
+        self.assertIsInstance(obs_data.data_record, (bytes, bytearray))
         records = [x for x in decoder.load(obs_data.data_record)]
         self.assertEqual(1, len(records))
         self.assertEqual(records[0].coordinates['Time'].value, '2015-01-02T00:00:00+00:00')

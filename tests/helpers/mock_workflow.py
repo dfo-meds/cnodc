@@ -7,14 +7,15 @@ import threading
 import traceback
 import uuid
 import typing as t
+from unittest import SkipTest
 
 import zrlog
 
-from cnodc.nodb import NODBQueueItem, NODBUploadWorkflow
-from cnodc.processing.control.base import BaseWorker
-from cnodc.util import HaltFlag
-from cnodc.util.awaretime import AwareDateTime
-from helpers.db_mock import DummyNODB
+from nodb import NODBQueueItem, NODBUploadWorkflow, NODB
+from pipeman.processing.base_worker import BaseWorker
+from medsutil.halts import HaltFlag
+from medsutil.awaretime import AwareDateTime
+from tests.helpers.base_test_case import BaseTestCase
 import dataclasses
 
 
@@ -91,7 +92,7 @@ class WorkflowTestResult(logging.Handler):
 
 class MockWorkflow:
 
-    def __init__(self, nodb: DummyNODB, halt_flag=None, end_flag=None):
+    def __init__(self, nodb: NODB, halt_flag=None, end_flag=None):
         self.nodb = nodb
         self.halt_flag = halt_flag or HaltFlag(threading.Event())
         self.end_flag = end_flag or HaltFlag(threading.Event())
@@ -99,13 +100,6 @@ class MockWorkflow:
         self._workers: list[BaseWorker] = []
         self._last_items: t.Optional[set[str]] = None
         self._log = zrlog.get_logger("cnodc.testing.mock_workflow")
-
-    def reset(self):
-        with self.nodb as db:
-            db.reset()
-        self._worker_info = []
-        self._workers = []
-        self._last_items = None
 
     def add_workflow(self,
                      workflow_name: str,
@@ -164,8 +158,7 @@ class MockWorkflow:
     def _have_items_changed(self):
         current_items = set()
         with self.nodb as db:
-            for item in db.table(NODBQueueItem.TABLE_NAME):
-                current_items.add(f"{item.queue_name}_{item.queue_uuid}_{item.status.value}")
+            current_items.update('__'.join(item) for item in db.load_queue_items())
         if self._last_items:
             self._log.notice('Current items [%s]', current_items.difference(self._last_items))
         else:
@@ -190,4 +183,29 @@ class MockWorkflow:
             self._workers.append(worker)
 
 
+class BaseWorkflowTestCase(BaseTestCase):
 
+    def assertEventDidOccur(self, process_name: str, event_name: str, msg: str = None):
+        for x in self.workflow_result.worker_events:
+            if x.event_name == event_name and x.process_name == process_name:
+                return x
+        raise self.failureException(msg or f"Event {process_name}:{event_name} not found")
+
+
+    def assertEventDidNotOccur(self, process_name: str, event_name: str, msg: str = None):
+        for x in self.workflow_result.worker_events:
+            if x.event_name == event_name and x.process_name == process_name:
+                raise self.failureException(msg or f"Event {process_name}:{event_name} found unexpectedly!")
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            super().setUpClass()
+            workflow = MockWorkflow(cls.real_nodb)
+            cls.workflow_result = cls.build_and_run_workflow(workflow)
+        except Exception as ex:
+            zrlog.get_logger('test_glider_decode').exception(f'An error occurred while processing this workflow')
+            raise SkipTest('an error occurred during start')
+
+    @classmethod
+    def build_and_run_workflow(cls, workflow: MockWorkflow) -> WorkflowTestResult: ...

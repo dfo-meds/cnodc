@@ -3,7 +3,7 @@ import math
 
 import netCDF4
 
-from cnodc.programs.dmd.metadata import Encoding, Axis, NetCDFDataType, CoverageContentType, CommonDataModelType, \
+from pipeman.programs.dmd.metadata import Encoding, Axis, NetCDFDataType, CoverageContentType, CommonDataModelType, \
     Common, CoordinateReferenceSystem, ContactRole, EntityRef, Variable, Direction, TimePrecision, TimeZone, Calendar, \
     IOOSCategory, CFVariableRole, ERDDAPVariableRole, get_bilingual_attribute, NumericTimeUnits, QuickWebPage, \
     ResourcePurpose, MaintenanceRecord, MaintenanceScope, ResourceType, Resource, GCContentType, GCLanguage, \
@@ -13,114 +13,107 @@ from cnodc.programs.dmd.metadata import Encoding, Axis, NetCDFDataType, Coverage
     AngularUnit, EssentialOceanVariable, ERDDAPDatasetType, GCCollectionType, GCAudience, GCPlace, \
     GCSubject, TopicCategory, MaintenanceFrequency, StatusCode, GCPublisher, Locale, _Contact, TelephoneNumber, \
     SpatialResolution, TemporalResolution
-from cnodc.util import json
-from helpers.base_test_case import BaseTestCase
+from medsutil import json
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestDMDMetadataBasics(BaseTestCase):
 
-    def test_encoding(self):
-        self.assertIs(Encoding('utf-8'), Encoding.UTF8)
-        self.assertIs(Encoding('utf8'), Encoding.UTF8)
-        self.assertIs(Encoding('utf16'), Encoding.UTF16)
-        self.assertEqual(Encoding('iso-8859-1'), Encoding.ISO_8859_1)
-
-    def test_ioos_category(self):
-        self.assertIs(IOOSCategory('DissolvedNutrients'), IOOSCategory.DissolvedNutrients)
-        self.assertIs(IOOSCategory('dissolved nutrients'), IOOSCategory.DissolvedNutrients)
-        with self.assertRaises(ValueError):
-            IOOSCategory('definitely not and never will be an ioos category thanks')
-
-    def test_axis(self):
-        self.assertIs(Axis('T'), Axis.Time)
-        self.assertIs(Axis('x'), Axis.Longitude)
-        self.assertIs(Axis('Y'), Axis.Latitude)
-        self.assertIs(Axis('z'), Axis.Depth)
-
-    def test_netcdf_dtypes(self):
+    def test_good_enum_values(self):
         with netCDF4.Dataset("inmemory", "w", diskless=True) as ds:
             str_var = ds.createVariable('test', str)
-            cases = {
-                NetCDFDataType.String: ["String", "S2", "S3", "S256", str_var.dtype],
-                NetCDFDataType.Character: ["char", "S1", "c"],
-                NetCDFDataType.Double: ["double", "float64", "f8", "d", ds.createVLType('f8', 'test2')],
-                NetCDFDataType.Float: ["float", "float32", "f4", "f", ds.createVLType('f4', 'test3')],
-                NetCDFDataType.Long: ["long", "int64", "i8", ds.createVLType('i8', 'test4')],
-                NetCDFDataType.LongUnsigned: ["ulong", "uint64", "u8", ds.createVLType('u8', 'test5')],
-                NetCDFDataType.Integer: ["int", "int32", "i4", "i", ds.createVLType('i4', 'test6')],
-                NetCDFDataType.IntegerUnsigned: ["uint", "uint32", "u4", ds.createVLType('u4', 'test7')],
-                NetCDFDataType.Short: ["short", "int16", "i2", "s", "h", ds.createVLType('i2', 'test8')],
-                NetCDFDataType.ShortUnsigned: ["ushort", "uint16", "u2", ds.createVLType('u2', 'test9')],
-                NetCDFDataType.Byte: ["byte", "int8", "i1", "b", "B", ds.createVLType('i1', 'test10')],
-                NetCDFDataType.ByteUnsigned: ["ubyte", "uint8", "u1", ds.createVLType('u1', 'test11')],
+            enum_values = {
+                Encoding: {
+                    Encoding.UTF8: ('utf-8', 'utf8'),
+                    Encoding.UTF16: ('utf-16', 'utf16'),
+                    Encoding.ISO_8859_1: ('iso-8859-1',)
+                },
+                IOOSCategory: {
+                    IOOSCategory.DissolvedNutrients: ('DissolvedNutrients', 'dissolved nutrients'),
+                },
+                Axis: {
+                    Axis.Time: ('T', 't'),
+                    Axis.Latitude: ('Y', 'y'),
+                    Axis.Longitude: ('X', 'x'),
+                    Axis.Depth: ('Z', 'z'),
+                },
+                NetCDFDataType: {
+                    NetCDFDataType.String: ["String", "S2", "S3", "S256", str_var.dtype],
+                    NetCDFDataType.Character: ["char", "S1", "c"],
+                    NetCDFDataType.Double: ["double", "float64", "f8", "d", ds.createVLType('f8', 'test2')],
+                    NetCDFDataType.Float: ["float", "float32", "f4", "f", ds.createVLType('f4', 'test3')],
+                    NetCDFDataType.Long: ["long", "int64", "i8", ds.createVLType('i8', 'test4')],
+                    NetCDFDataType.LongUnsigned: ["ulong", "uint64", "u8", ds.createVLType('u8', 'test5')],
+                    NetCDFDataType.Integer: ["int", "int32", "i4", "i", ds.createVLType('i4', 'test6')],
+                    NetCDFDataType.IntegerUnsigned: ["uint", "uint32", "u4", ds.createVLType('u4', 'test7')],
+                    NetCDFDataType.Short: ["short", "int16", "i2", "s", "h", ds.createVLType('i2', 'test8')],
+                    NetCDFDataType.ShortUnsigned: ["ushort", "uint16", "u2", ds.createVLType('u2', 'test9')],
+                    NetCDFDataType.Byte: ["byte", "int8", "i1", "b", "B", ds.createVLType('i1', 'test10')],
+                    NetCDFDataType.ByteUnsigned: ["ubyte", "uint8", "u1", ds.createVLType('u1', 'test11')],
+                },
+                CoverageContentType: {
+                    CoverageContentType.Coordinate: ('coordinate', ),
+                },
+                CommonDataModelType: {
+                    CommonDataModelType.Point: ["Point", "point"],
+                    CommonDataModelType.Profile: ["Profile", "profile"],
+                    CommonDataModelType.TimeSeries: ["TimeSeries", "timeseries"],
+                    CommonDataModelType.TimeSeriesProfile: ["TimeSeriesProfile", "timeseriesprofile"],
+                    CommonDataModelType.Trajectory: ["Trajectory", "trajectory"],
+                    CommonDataModelType.TrajectoryProfile: ["TrajectoryProfile", "trajectoryprofile"],
+                    CommonDataModelType.Grid: ["Grid", "grid"],
+                    CommonDataModelType.MovingGrid: ["MovingGrid", "movinggrid"],
+                    CommonDataModelType.RadialSweep: ["RadialSweep", "radialsweep"],
+                    CommonDataModelType.Swath: ["Swath", "swath"],
+                    CommonDataModelType.Other: ["Other", "other"],
+                },
+                CoordinateReferenceSystem: {
+                    CoordinateReferenceSystem.NAD27: ['4267', 4267, 'EPSG:4267', 'EPSG: 4267'],
+                    CoordinateReferenceSystem.WGS84: ['4326', 4326, 'EPSG:4326', 'EPSG: 4326'],
+                    CoordinateReferenceSystem.MSL_Depth: ['5715', 5715, 'epsg:5715', 'epsg: 5715'],
+                    CoordinateReferenceSystem.MSL_Heights: ['5714', 5714, 'epsg:5714', 'epsg :5714'],
+                    CoordinateReferenceSystem.Instant_Depth: ['5831', 5831, 'epsg:5831', 'EPSG : 5831'],
+                    CoordinateReferenceSystem.Instant_Heights: ['5829', 5829, 'EPSG:5829'],
+                    CoordinateReferenceSystem.Gregorian: ['gregorian', 'standard']
+                },
+                GCPlace: {
+                    GCPlace.Canada: ['canada', 'CANADA', 'Canada'],
+                    GCPlace.Burlington: ['ontario - halton', 'Halton, ON', 'Halton, Ontario', 'Ontario -  Halton', 'ontario_-_halton'],
+                    GCPlace.Ottawa: ['Ottawa, ON', 'Ottawa, Ontario', 'Ontario - Ottawa'],
+                    GCPlace.Dartmouth: ['Halifax, NS', 'Halifax, Nova Scotia', 'Nova  Scotia  - Halifax '],
+                    GCPlace.Moncton: ['Westmorland, NS', '  Westmorland,  Nova Scotia', '  westmorland,nova scotia'],
+                },
+                ContactRole: {
+                    ContactRole.Stakeholder: ('CONT0001', 'CONT0005', 'CONT0007'),
+                    ContactRole.PrincipalInvestigator: ('CONT0004',),
+                    ContactRole.Owner: ('CONT0002',),
+                    ContactRole.Originator: ('CONT0003',),
+                    ContactRole.Processor: ('CONT0006',),
+                    ContactRole.User: ('user',),
+                },
+                Calendar: {
+                    Calendar.Standard: ('standard', 'gregorian', 'GREGORIAN'),
+                    Calendar.Julian: ('julian', 'JULIAN')
+                },
             }
-        for result in cases:
-            for test_val in cases[result]:
-                with self.subTest(dtype=test_val):
-                    self.assertIs(NetCDFDataType(test_val), result)
+            for enc_cls in enum_values:
+                for result in enum_values[enc_cls]:
+                    for value in enum_values[enc_cls][result]:
+                        with self.subTest(cls=enc_cls.__name__, value=value):
+                            self.assertIs(enc_cls(value), result)
 
-    def test_coverage_content_type(self):
-        self.assertIs(CoverageContentType("coordinate"), CoverageContentType.Coordinate)
-
-    def test_cdm_type(self):
-        tests = {
-            CommonDataModelType.Point: ["Point", "point"],
-            CommonDataModelType.Profile: ["Profile", "profile"],
-            CommonDataModelType.TimeSeries: ["TimeSeries", "timeseries"],
-            CommonDataModelType.TimeSeriesProfile: ["TimeSeriesProfile", "timeseriesprofile"],
-            CommonDataModelType.Trajectory: ["Trajectory", "trajectory"],
-            CommonDataModelType.TrajectoryProfile: ["TrajectoryProfile", "trajectoryprofile"],
-            CommonDataModelType.Grid: ["Grid", "grid"],
-            CommonDataModelType.MovingGrid: ["MovingGrid", "movinggrid"],
-            CommonDataModelType.RadialSweep: ["RadialSweep", "radialsweep"],
-            CommonDataModelType.Swath: ["Swath", "swath"],
-            CommonDataModelType.Other: ["Other", "other"],
+    def test_bad_enum_values(self):
+        enum_values = {
+            Encoding: ('wtf',),
+            IOOSCategory: ('definitely not and never will be an ioos category',),
+            Axis: ('lat', 'lon', 'time', 'depth', 'altitude', 'A', 'D', 'd', 'a', 'TT'),
+            CoordinateReferenceSystem: ('not a crs', 'EPSG:993132'),
         }
-        for result in tests:
-            for in_val in tests[result]:
-                with self.subTest(input=in_val):
-                    self.assertIs(result, CommonDataModelType(in_val))
-
-    def test_crs(self):
-        tests = {
-            CoordinateReferenceSystem.NAD27: ['4267', 4267, 'EPSG:4267', 'EPSG: 4267'],
-            CoordinateReferenceSystem.WGS84: ['4326', 4326, 'EPSG:4326', 'EPSG: 4326'],
-            CoordinateReferenceSystem.MSL_Depth: ['5715', 5715, 'epsg:5715', 'epsg: 5715'],
-            CoordinateReferenceSystem.MSL_Heights: ['5714', 5714, 'epsg:5714', 'epsg :5714'],
-            CoordinateReferenceSystem.Instant_Depth: ['5831', 5831, 'epsg:5831', 'EPSG : 5831'],
-            CoordinateReferenceSystem.Instant_Heights: ['5829', 5829, 'EPSG:5829'],
-            CoordinateReferenceSystem.Gregorian: ['gregorian', 'standard']
-        }
-        for result in tests:
-            for in_val in tests[result]:
-                with self.subTest(input=in_val):
-                    self.assertIs(result, CoordinateReferenceSystem(in_val))
-        with self.assertRaises(ValueError):
-            CoordinateReferenceSystem('NOT A CRS')
-
-    def test_gc_place(self):
-        tests = {
-            GCPlace.Canada: ['canada', 'CANADA', 'Canada'],
-            GCPlace.Burlington: ['ontario - halton', 'Halton, ON', 'Halton, Ontario', 'Ontario -  Halton', 'ontario_-_halton'],
-            GCPlace.Ottawa: ['Ottawa, ON', 'Ottawa, Ontario', 'Ontario - Ottawa'],
-            GCPlace.Dartmouth: ['Halifax, NS', 'Halifax, Nova Scotia', 'Nova  Scotia  - Halifax '],
-            GCPlace.Moncton: ['Westmorland, NS', '  Westmorland,  Nova Scotia', '  westmorland,nova scotia'],
-
-        }
-        for result in tests:
-            for in_val in tests[result]:
-                with self.subTest(input=in_val):
-                    self.assertIs(result, GCPlace(in_val))
-
-    def test_roles(self):
-        self.assertIs(ContactRole.Stakeholder, ContactRole('CONT0001'))
-        self.assertIs(ContactRole.Owner, ContactRole('CONT0002'))
-        self.assertIs(ContactRole.Originator, ContactRole('CONT0003'))
-        self.assertIs(ContactRole.PrincipalInvestigator, ContactRole('CONT0004'))
-        self.assertIs(ContactRole.Stakeholder, ContactRole('CONT0005'))
-        self.assertIs(ContactRole.Processor, ContactRole('CONT0006'))
-        self.assertIs(ContactRole.Stakeholder, ContactRole('CONT0007'))
-        self.assertIs(ContactRole.User, ContactRole('user'))
+        for enc_cls in enum_values:
+            for value in enum_values[enc_cls]:
+                with self.subTest(cls=enc_cls.__name__, value=value):
+                    with self.assertRaises(ValueError):
+                        _ = enc_cls(value)
 
     def test_get_bilingual_attribute(self):
         locale_map = {'_en': 'en', '_fr': 'fr', '': 'en'}
@@ -128,12 +121,6 @@ class TestDMDMetadataBasics(BaseTestCase):
         self.assertEqual({'en': 'foo', 'fr': 'le foo'},
                          get_bilingual_attribute({'bar': 'foo', 'bar_fr': 'le foo'}, 'bar', locale_map))
         self.assertEqual({}, get_bilingual_attribute({'bar': 'foo', 'bar_fr': 'le foo'}, 'bar2', locale_map))
-
-    def test_calendar(self):
-        self.assertIs(Calendar.Standard, Calendar('standard'))
-        self.assertIs(Calendar.Standard, Calendar('gregorian'))
-        self.assertIs(Calendar.Julian, Calendar('julian'))
-        self.assertIs(Calendar.Julian, Calendar('JULIAN'))
 
 
 class TestCoreEntityRef(BaseTestCase):
@@ -147,7 +134,7 @@ class TestCoreEntityRef(BaseTestCase):
         sub_ref.guid = '23456'
         obj._data['foo2'] = sub_ref
         obj._data['foo3'] = [EntityRef(guid='12'), EntityRef(guid='34'), EntityRef(guid='56')]
-        map_ = obj.to_json_map()
+        map_ = obj.export()
         DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar(map_, {
             '_guid': '12345',
@@ -161,6 +148,7 @@ class TestCoreEntityRef(BaseTestCase):
 class TestVariable(BaseTestCase):
 
     def test_set_via_constructor(self):
+        # TODO: move this into its own test case?
         var = Variable(
             guid='TEMP',
             display_name='Temperature',
@@ -241,7 +229,7 @@ class TestVariable(BaseTestCase):
         )
         self.assertIsNone(var.calendar)
 
-    def test_additional_properties(self):
+    def test_additional_properties_overwrite(self):
         var = Variable()
         var.additional_properties = {
             'five': 5,
@@ -259,6 +247,7 @@ class TestVariable(BaseTestCase):
         self.assertEqual(var.units, 'days since 2015-01-02T03:04:05+00:00')
 
     def test_build_numeric_from_netcdf(self):
+        # TODO: move this into its own test case
         with netCDF4.Dataset("inmemory.nc", "r+", diskless=True) as ds:
             ds.createDimension('N_MEASUREMENTS')
             test_var = ds.createVariable('test_var', 'i4', ('N_MEASUREMENTS',))
@@ -326,6 +315,7 @@ class TestVariable(BaseTestCase):
 class TestMaintenanceRecord(BaseTestCase):
 
     def test_basics(self):
+        # TODO: move this into its own test case?
         mr = MaintenanceRecord(
             date=datetime.date(2015, 1, 2),
             notes='did stuff',
@@ -339,6 +329,7 @@ class TestMaintenanceRecord(BaseTestCase):
 class TestQuickWebPage(BaseTestCase):
 
     def test_basics(self):
+        # TODO: move this into its own test case?
         wp = QuickWebPage(
             name='hello',
             url='http://google.com/test',
@@ -411,6 +402,7 @@ class TestQuickWebPage(BaseTestCase):
 class TestResource(BaseTestCase):
 
     def test_basics(self):
+        # TODO: move this into its own test case?
         res = Resource(
             name='hello',
             url='http://google.com/test',
@@ -441,6 +433,7 @@ class TestResource(BaseTestCase):
         self.assertIs(res.gc_content_format, GCContentFormat.DocumentDOC)
 
     def test_autodetect_gc_content_format(self):
+        # TODO: build as sub-tests
         self.assertIsNone(Resource.autodetect_gc_content_format(None))
         self.assertEqual(GCContentFormat.ArchiveTARGZIP, Resource.autodetect_gc_content_format({'und': 'https://domain.com/file.tar.gz'}))
         self.assertEqual(GCContentFormat.ImageBMP, Resource.autodetect_gc_content_format({'en': 'https://domain.com/file.bmp'}))
@@ -452,6 +445,7 @@ class TestResource(BaseTestCase):
 class TestIndividual(BaseTestCase):
 
     def test_basics(self):
+        # TODO: move this into its own test case?
         c = Individual(
             name='Joanne Smith',
             email='hello@world.com',
@@ -552,6 +546,7 @@ class TestPosition(BaseTestCase):
 class TestCitation(BaseTestCase):
 
     def test_basics(self):
+        # TODO: move this into its own test case?
         res = Resource(url='https://www.google.com/')
         cit = Citation(
             title='title',
@@ -585,7 +580,7 @@ class TestCitation(BaseTestCase):
     def test_resource_none_to_dict(self):
         cit = Citation()
         cit.title = 'foobar'
-        map_ = cit.to_json_map()
+        map_ = cit.export()
         DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar(map_, {
             'title': {'und': 'foobar'}
@@ -595,7 +590,7 @@ class TestCitation(BaseTestCase):
         cit = Citation()
         cit.title = 'foobar'
         cit.resource = Resource(url='http://foobar.com')
-        map_ = cit.to_json_map()
+        map_ = cit.export()
         DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar({
             'title': {'und': 'foobar'},
@@ -855,6 +850,7 @@ class TestMetadata(BaseTestCase):
         self.assertEqual(ERDDAPDatasetType.NetCDFGrid, md._data['erddap_dataset_type'])
 
     def test_set_meds_defaults(self):
+        # TODO: move this into its own test case
         md = DatasetMetadata()
         md.set_meds_defaults()
         self.assertEqual(md.goc_collection, GCCollectionType.Geospatial)
@@ -1072,6 +1068,7 @@ class TestMetadata(BaseTestCase):
         self.assertIsNone(md.time_coverage_start)
 
     def test_set_from_english_netcdf_file(self):
+        # TODO: move this into its own test case
         with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
             ds.createDimension('N_COUNT',)
             depths = ds.createVariable('depth', 'f8', ('N_COUNT',))
@@ -1084,8 +1081,8 @@ class TestMetadata(BaseTestCase):
             temps.cnodc_standard_name = 'Temperature'
             temps[:] = [1,2,3,4]
             attrs = {
-                'default_locale': 'en-CA',
-                'locales': '_fr: fr-CA',
+                'locale_default': 'en-CA',
+                'locale_others': '_fr: fr-CA',
                 'title': 'Hello',
                 'title_fr': 'Bonjour',
                 'program': 'Program',
@@ -1138,7 +1135,7 @@ class TestMetadata(BaseTestCase):
                 'contributor_type': 'individual,individual,institution,position',
                 'contributor_role': 'contributor,editor,funder,mediator',
                 'contributor_id_vocabulary': 'https://orcid.org,https://orcid.org,https://ror.org,',
-                'contributing_institutions_name': 'C-PROOF',
+                'contributing_institutions': 'C-PROOF',
             }
             for attr in attrs:
                 ds.setncattr(attr, attrs[attr])
@@ -1146,107 +1143,107 @@ class TestMetadata(BaseTestCase):
             md.set_meds_defaults()
             md.set_from_netcdf_file(ds, 'en')
             md.is_ongoing = True
-            self.assertIs(md.primary_metadata_locale, Locale.CanadianEnglish)
-            self.assertIn(Locale.CanadianFrench, md.secondary_metadata_locales)
-            self.assertIs(md.primary_data_locale, Locale.CanadianEnglish)
-            self.assertIn(Locale.CanadianFrench, md.secondary_data_locales)
-            self.assertEqual(md.title, {'en': 'Hello', 'fr': 'Bonjour'})
-            self.assertEqual(md.display_name, {'en': 'Hello', 'fr': 'Bonjour'})
-            self.assertEqual(md.program, 'Program')
-            self.assertEqual(md.project, 'Project')
-            self.assertEqual(md.institution, 'dfo')
-            self.assertEqual(md.guid, '12345')
-            self.assertEqual(md.processing_level, 'raw')
-            self.assertEqual(md.geospatial_bounds, 'POINT(1 2)')
-            self.assertEqual(md.conventions, {'hello','world','shenanigans'})
-            self.assertEqual(md.processing_description, {'en': 'i did stuff'})
-            self.assertEqual(md.processing_environment, {'en': 'my computer'})
-            self.assertEqual(md.credit, {'en': 'my computer did stuff'})
-            self.assertEqual(md.comment, {'en': 'oh no'})
-            self.assertEqual(md.references, {'en': 'yes i have them'})
-            self.assertEqual(md.source, {'en': 'i made it up'})
-            self.assertEqual(md.abstract, {'en': 'what i did but briefly'})
-            self.assertEqual(md.purpose, {'en': 'why i made this'})
-            self.assertEqual(md.cf_standard_name_vocab, 'CF-1.12')
-            self.assertEqual(md.date_issued, datetime.date(2015, 1, 2))
-            self.assertEqual(md.date_created, datetime.date(2016, 1 ,2))
-            self.assertEqual(md.date_modified, datetime.date(2017, 1, 2))
-            self.assertIs(md.feature_type, CommonDataModelType.Profile)
-            self.assertIs(md.data_maintenance_frequency, MaintenanceFrequency.Daily)
-            self.assertIs(md.metadata_maintenance_frequency, MaintenanceFrequency.AsNeeded)
-            self.assertIs(md.status, StatusCode.OnGoing)
-            self.assertIs(md.topic_category, TopicCategory.Oceans)
-            self.assertIs(md.goc_subject, GCSubject.Oceanography)
-            self.assertSetEqual(md.goc_audiences, {GCAudience.Scientists, GCAudience.Parents})
-            self.assertSetEqual(md.goc_publication_places, {GCPlace.Ottawa, GCPlace.Nanaimo, GCPlace.StJohns, GCPlace.Burlington})
-            self.assertEqual({'en': 'https://dfo-mpo.gc.ca'}, md._data['info_link'].url)
-            self.assertEqual('10.1.2.3/456', md.doi)
-            self.assertEqual({'en': 'https://cnodc/full_metadata.xml'}, md.alt_metadata[0].resource.url)
-            self.assertEqual(md.temporal_resolution.seconds, 60)
-            self.assertIs(md.geospatial_crs, CoordinateReferenceSystem.WGS84)
-            self.assertIs(md.geospatial_vertical_crs, CoordinateReferenceSystem.MSL_Depth)
-            self.assertEqual(7, len(md.responsibles))
-            resps: dict[str, tuple[str, _Contact]] = {
-                (resp._data['contact'].name if isinstance(resp._data['contact'].name, str) else resp._data['contact'].name['en']): (resp._data['role'], resp._data['contact'])
-                for resp in md.responsibles
-            }
-            with self.subTest(msg='creator'):
-                self.assertIn('Erin Turnbull', resps)
-                creator_role, creator = resps['Erin Turnbull']
-                self.assertIsInstance(creator, Individual)
-                self.assertEqual(creator_role, ContactRole.Originator)
-                self.assertEqual(creator.name, 'Erin Turnbull')
-                self.assertEqual(creator.email, {'en': 'erin@fake.com'})
-                self.assertEqual(creator.orcid, '12345')
-            with self.subTest(msg='publisher'):
-                self.assertIn('Marine Environmental Data Section', resps)
-                pub_role, publisher = resps['Marine Environmental Data Section']
-                self.assertEqual(pub_role, ContactRole.Publisher)
-                self.assertIsInstance(publisher, Organization)
-                self.assertEqual(publisher.name, {'en': 'Marine Environmental Data Section', 'fr': 'SDMM'})
-                self.assertEqual(publisher.email, {'en': 'meds@fake.com', 'fr': 'sdmm@fake.com'})
-                self.assertEqual(publisher.ror, '234567')
-                self.assertEqual(publisher.web_page.url, {'en': 'https://meds.com'})
-            with self.subTest(msg='contributor1'):
-                self.assertIn('Anh Tran', resps)
-                role, contact = resps['Anh Tran']
-                self.assertIsInstance(contact, Individual)
-                self.assertEqual(contact.name, 'Anh Tran')
-                self.assertEqual(contact.email, {'en': 'anh@fake.com'})
-                self.assertEqual(contact.orcid, '123')
-                self.assertEqual(role, ContactRole.Contributor)
-            with self.subTest(msg='contributor2'):
-                self.assertIn('Jenny Chiu', resps)
-                role, contact = resps['Jenny Chiu']
-                self.assertIsInstance(contact, Individual)
-                self.assertEqual(contact.name, 'Jenny Chiu')
-                self.assertEqual(contact.email, {'en': 'jenny@fake.com'})
-                self.assertEqual(contact.orcid, '456')
-                self.assertEqual(role, ContactRole.Editor)
-            with self.subTest(msg='contributor3'):
-                self.assertIn('BIO', resps)
-                role, contact = resps['BIO']
-                self.assertIsInstance(contact, Organization)
-                self.assertEqual(role, ContactRole.Funder)
-                self.assertEqual(contact.name, {'en': 'BIO'})
-                self.assertEqual(contact.email, {'en': 'bio@fake.com'})
-                self.assertEqual(contact.ror, '7890')
-            with self.subTest(msg='contributor4'):
-                self.assertIn('MEDS Coordinator', resps)
-                role, contact = resps['MEDS Coordinator']
-                self.assertIsInstance(contact, Position)
-                self.assertEqual(role, ContactRole.Mediator)
-                self.assertEqual(contact.name, {'en': 'MEDS Coordinator', 'fr': 'Coordinateur de SDMM'})
-                self.assertEqual(contact.email, {'en': 'coordinator@fake.com'})
-                self.assertIsNone(contact.id_code)
-            with self.subTest(msg='contributing institution'):
-                 self.assertIn('C-PROOF', resps)
-                 role, contact = resps['C-PROOF']
-                 self.assertIsInstance(contact, Organization)
-                 self.assertEqual(contact.name, {'en': 'C-PROOF'})
-                 self.assertEqual(role, ContactRole.Contributor)
-                 self.assertIsNone(contact.email)
-                 self.assertIsNone(contact.id_code)
+        self.assertIs(md.primary_metadata_locale, Locale.CanadianEnglish)
+        self.assertIn(Locale.CanadianFrench, md.secondary_metadata_locales)
+        self.assertIs(md.primary_data_locale, Locale.CanadianEnglish)
+        self.assertIn(Locale.CanadianFrench, md.secondary_data_locales)
+        self.assertEqual(md.title, {'en': 'Hello', 'fr': 'Bonjour'})
+        self.assertEqual(md.display_name, {'en': 'Hello', 'fr': 'Bonjour'})
+        self.assertEqual(md.program, 'Program')
+        self.assertEqual(md.project, 'Project')
+        self.assertEqual(md.institution, 'dfo')
+        self.assertEqual(md.guid, '12345')
+        self.assertEqual(md.processing_level, 'raw')
+        self.assertEqual(md.geospatial_bounds, 'POINT(1 2)')
+        self.assertEqual(md.conventions, {'hello','world','shenanigans'})
+        self.assertEqual(md.processing_description, {'en': 'i did stuff'})
+        self.assertEqual(md.processing_environment, {'en': 'my computer'})
+        self.assertEqual(md.credit, {'en': 'my computer did stuff'})
+        self.assertEqual(md.comment, {'en': 'oh no'})
+        self.assertEqual(md.references, {'en': 'yes i have them'})
+        self.assertEqual(md.source, {'en': 'i made it up'})
+        self.assertEqual(md.abstract, {'en': 'what i did but briefly'})
+        self.assertEqual(md.purpose, {'en': 'why i made this'})
+        self.assertEqual(md.cf_standard_name_vocab, 'CF-1.12')
+        self.assertEqual(md.date_issued, datetime.date(2015, 1, 2))
+        self.assertEqual(md.date_created, datetime.date(2016, 1 ,2))
+        self.assertEqual(md.date_modified, datetime.date(2017, 1, 2))
+        self.assertIs(md.feature_type, CommonDataModelType.Profile)
+        self.assertIs(md.data_maintenance_frequency, MaintenanceFrequency.Daily)
+        self.assertIs(md.metadata_maintenance_frequency, MaintenanceFrequency.AsNeeded)
+        self.assertIs(md.status, StatusCode.OnGoing)
+        self.assertIs(md.topic_category, TopicCategory.Oceans)
+        self.assertIs(md.goc_subject, GCSubject.Oceanography)
+        self.assertSetEqual(md.goc_audiences, {GCAudience.Scientists, GCAudience.Parents})
+        self.assertSetEqual(md.goc_publication_places, {GCPlace.Ottawa, GCPlace.Nanaimo, GCPlace.StJohns, GCPlace.Burlington})
+        self.assertEqual({'en': 'https://dfo-mpo.gc.ca'}, md._data['info_link'].url)
+        self.assertEqual('10.1.2.3/456', md.doi)
+        self.assertEqual({'en': 'https://cnodc/full_metadata.xml'}, md.alt_metadata[0].resource.url)
+        self.assertEqual(md.temporal_resolution.seconds, 60)
+        self.assertIs(md.geospatial_crs, CoordinateReferenceSystem.WGS84)
+        self.assertIs(md.geospatial_vertical_crs, CoordinateReferenceSystem.MSL_Depth)
+        resps: dict[str, tuple[str, _Contact]] = {
+            (resp._data['contact'].name if isinstance(resp._data['contact'].name, str) else resp._data['contact'].name['en']): (resp._data['role'], resp._data['contact'])
+            for resp in md.responsibles
+        }
+        with self.subTest(msg='creator'):
+            self.assertIn('Erin Turnbull', resps)
+            creator_role, creator = resps['Erin Turnbull']
+            self.assertIsInstance(creator, Individual)
+            self.assertEqual(creator_role, ContactRole.Originator)
+            self.assertEqual(creator.name, 'Erin Turnbull')
+            self.assertEqual(creator.email, {'en': 'erin@fake.com'})
+            self.assertEqual(creator.orcid, '12345')
+        with self.subTest(msg='publisher'):
+            self.assertIn('Marine Environmental Data Section', resps)
+            pub_role, publisher = resps['Marine Environmental Data Section']
+            self.assertEqual(pub_role, ContactRole.Publisher)
+            self.assertIsInstance(publisher, Organization)
+            self.assertEqual(publisher.name, {'en': 'Marine Environmental Data Section', 'fr': 'SDMM'})
+            self.assertEqual(publisher.email, {'en': 'meds@fake.com', 'fr': 'sdmm@fake.com'})
+            self.assertEqual(publisher.ror, '234567')
+            self.assertEqual(publisher.web_page.url, {'en': 'https://meds.com'})
+        with self.subTest(msg='contributor1'):
+            self.assertIn('Anh Tran', resps)
+            role, contact = resps['Anh Tran']
+            self.assertIsInstance(contact, Individual)
+            self.assertEqual(contact.name, 'Anh Tran')
+            self.assertEqual(contact.email, {'en': 'anh@fake.com'})
+            self.assertEqual(contact.orcid, '123')
+            self.assertEqual(role, ContactRole.Contributor)
+        with self.subTest(msg='contributor2'):
+            self.assertIn('Jenny Chiu', resps)
+            role, contact = resps['Jenny Chiu']
+            self.assertIsInstance(contact, Individual)
+            self.assertEqual(contact.name, 'Jenny Chiu')
+            self.assertEqual(contact.email, {'en': 'jenny@fake.com'})
+            self.assertEqual(contact.orcid, '456')
+            self.assertEqual(role, ContactRole.Editor)
+        with self.subTest(msg='contributor3'):
+            self.assertIn('BIO', resps)
+            role, contact = resps['BIO']
+            self.assertIsInstance(contact, Organization)
+            self.assertEqual(role, ContactRole.Funder)
+            self.assertEqual(contact.name, {'en': 'BIO'})
+            self.assertEqual(contact.email, {'en': 'bio@fake.com'})
+            self.assertEqual(contact.ror, '7890')
+        with self.subTest(msg='contributor4'):
+            self.assertIn('MEDS Coordinator', resps)
+            role, contact = resps['MEDS Coordinator']
+            self.assertIsInstance(contact, Position)
+            self.assertEqual(role, ContactRole.Mediator)
+            self.assertEqual(contact.name, {'en': 'MEDS Coordinator', 'fr': 'Coordinateur de SDMM'})
+            self.assertEqual(contact.email, {'en': 'coordinator@fake.com'})
+            self.assertIsNone(contact.id_code)
+        with self.subTest(msg='contributing institution'):
+             self.assertIn('C-PROOF', resps)
+             role, contact = resps['C-PROOF']
+             self.assertIsInstance(contact, Organization)
+             self.assertEqual(contact.name, {'en': 'C-PROOF'})
+             self.assertEqual(role, ContactRole.Contributor)
+             self.assertIsNone(contact.email)
+             self.assertIsNone(contact.id_code)
+        self.assertEqual(7, len(md.responsibles))
         self.assertEqual(md.geospatial_vertical_min, 5)
         self.assertEqual(md.geospatial_vertical_max, 8)
         body = md.build_request_body()
@@ -1289,10 +1286,10 @@ class TestMetadata(BaseTestCase):
                 'program': 'Program',
                 'title': {'en': 'Hello', 'fr': 'Bonjour'},
                 'conventions': ['hello','world','shenanigans'],
-                'data_locale': {'_guid': 'canadian_english_utf8'},
-                'metadata_locale': {'_guid': 'canadian_english_utf8'},
-                'metadata_extra_locales': [{'_guid': 'canadian_french_utf8'}],
-                'data_extra_locales': [{'_guid': 'canadian_french_utf8'}],
+                'data_locale': Locale.CanadianEnglish.value,
+                'metadata_locale': Locale.CanadianEnglish.value,
+                'metadata_extra_locales': {Locale.CanadianFrench.value},
+                'data_extra_locales': {Locale.CanadianFrench.value},
                 'institution': 'dfo',
                 'feature_type': 'Profile',
                 'spatial_representation_type': 'textTable',
@@ -1320,10 +1317,10 @@ class TestMetadata(BaseTestCase):
                 'goc_subject': 'oceanography',
                 'goc_publication_place': ['ontario_-_ottawa', 'british_columbia_-_nanaimo', 'newfoundland_and_labrador_-_division_no._1', 'ontario_-_halton'],
                 'dataset_id_code': '10.1.2.3/456',
-                'dataset_id_system': {'_guid': 'DOI'},
+                'dataset_id_system': IDSystem.DOI.value,
                 'temporal_resolution': {'seconds': 60},
-                'geospatial_bounds_crs': {'_guid': 'wgs84'},
-                'geospatial_bounds_vertical_crs': {'_guid': 'msl_depth'},
+                'geospatial_bounds_crs': CoordinateReferenceSystem.WGS84.value,
+                'geospatial_bounds_vertical_crs': CoordinateReferenceSystem.MSL_Depth.value,
                 'info_link': {
                     'url': {'en': 'https://dfo-mpo.gc.ca'},
                     'protocol': 'https',
@@ -1347,7 +1344,7 @@ class TestMetadata(BaseTestCase):
                             '_guid': 'erin@fake.com',
                             'individual_name': 'Erin Turnbull',
                             'id_code': '12345',
-                            'id_system': {'_guid': 'ORCID'},
+                            'id_system': IDSystem.ORCID.value,
                             'email': {'en': 'erin@fake.com'},
                         }
                     },
@@ -1357,7 +1354,7 @@ class TestMetadata(BaseTestCase):
                             '_guid': 'meds@fake.com',
                             'organization_name': {'en': 'Marine Environmental Data Section', 'fr': 'SDMM'},
                             'id_code': '234567',
-                            'id_system': {'_guid': 'ROR'},
+                            'id_system': IDSystem.ROR.value,
                             'web_page': {
                                 'url': {'en': 'https://meds.com'},
                                 'function': 'information',
@@ -1371,7 +1368,7 @@ class TestMetadata(BaseTestCase):
                             '_guid': 'anh@fake.com',
                             'individual_name': 'Anh Tran',
                             'id_code': '123',
-                            'id_system': {'_guid': 'ORCID'},
+                            'id_system': IDSystem.ORCID.value,
                             'email': {'en': 'anh@fake.com'},
                         }
                     },{
@@ -1380,7 +1377,7 @@ class TestMetadata(BaseTestCase):
                             '_guid': 'jenny@fake.com',
                             'individual_name': 'Jenny Chiu',
                             'id_code': '456',
-                            'id_system': {'_guid': 'ORCID'},
+                            'id_system': IDSystem.ORCID.value,
                             'email': {'en': 'jenny@fake.com'},
                         }
                     },{
@@ -1389,7 +1386,7 @@ class TestMetadata(BaseTestCase):
                             '_guid': 'bio@fake.com',
                             'organization_name': {'en': 'BIO'},
                             'id_code': '7890',
-                            'id_system': {'_guid': 'ROR'},
+                            'id_system': IDSystem.ROR.value,
                             'email': {'en': 'bio@fake.com'},
                         }
                     },{
@@ -1428,9 +1425,7 @@ class TestMetadata(BaseTestCase):
                     {'_guid': 'unclassified_data'},
                 ],
                 'goc_collection_type': 'geogratis',
-                'goc_publisher': {
-                    '_guid': 'meds'
-                },
+                'goc_publisher': Common.Contact_CNODC,
             },
             'activation_workflow': 'cnodc_activation',
             'publication_workflow': 'cnodc_publish',
@@ -1454,8 +1449,8 @@ class TestMetadata(BaseTestCase):
     def test_set_from_french_netcdf_file(self):
         with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
             attrs = {
-                'default_locale': 'fr-CA',
-                'locales': '_en: en-CA',
+                'locale_default': 'fr-CA',
+                'locale_others': '_en: en-CA',
                 'title': 'Bonjour',
                 'title_en': 'Hello',
             }
@@ -1470,7 +1465,7 @@ class TestMetadata(BaseTestCase):
     def test_set_from_default_french_netcdf_file(self):
         with netCDF4.Dataset('inmemory.nc', 'r+', diskless=True) as ds:
             attrs = {
-                'locales': '_en: en-CA',
+                'locale_others': '_en: en-CA',
                 'title': 'Bonjour',
                 'title_en': 'Hello',
             }
@@ -1617,14 +1612,14 @@ class TestMetadata(BaseTestCase):
     def test_bad_org_id_vocab(self):
         md = DatasetMetadata()
         with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
-            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'institution', 'DOI')
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'institution', 'DOI', '')
             self.assertEqual(len(md.responsibles), 1)
             self.assertIsNone(md.responsibles[0]._data['contact'].ror)
 
     def test_bad_individual_id_vocab(self):
         md = DatasetMetadata()
         with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
-            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'individual', 'ROR')
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'individual', 'ROR', '')
             self.assertEqual(len(md.responsibles), 1)
             self.assertIsNone(md.responsibles[0]._data['contact'].orcid)
             self.assertEqual(md.responsibles[0]._data['contact'].guid, 'hello@hello')
@@ -1632,50 +1627,50 @@ class TestMetadata(BaseTestCase):
     def test_bad_any_id_for_position(self):
         md = DatasetMetadata()
         with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
-            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'position', None)
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, 'editor', 'position', None, '')
             self.assertEqual(len(md.responsibles), 1)
             self.assertIsNone(md.responsibles[0]._data['contact'].id_code)
 
     def test_name_from_und(self):
         md = DatasetMetadata()
-        md._add_netcdf_contact({'und': 'me'}, '', '', None, None, 'editor', 'individual', 'https://orcid.org')
+        md._add_netcdf_contact({'und': 'me'}, '', '', None, None, 'editor', 'individual', 'https://orcid.org', '')
         self.assertEqual(len(md.responsibles), 1)
         self.assertEqual(md.responsibles[0]._data['contact'].name, 'me')
 
     def test_name_from_fr(self):
         md = DatasetMetadata()
-        md._add_netcdf_contact({'fr': 'me'}, '', '', None, None, 'editor', 'individual', 'https://orcid.org')
+        md._add_netcdf_contact({'fr': 'me'}, '', '', None, None, 'editor', 'individual', 'https://orcid.org', '')
         self.assertEqual(len(md.responsibles), 1)
         self.assertEqual(md.responsibles[0]._data['contact'].name, 'me')
 
     def test_name_from_blank(self):
         md = DatasetMetadata()
-        md._add_netcdf_contact({}, '', '', None, None, 'editor', 'individual', 'https://orcid.org')
+        md._add_netcdf_contact({}, '', '', None, None, 'editor', 'individual', 'https://orcid.org', '')
         self.assertEqual(len(md.responsibles), 1)
         self.assertIsNone(md.responsibles[0]._data['contact'].name)
 
     def test_email_from_und(self):
         md = DatasetMetadata()
-        md._add_netcdf_contact('me', {'und': 'hello@hello.com'}, '', None, None, 'editor', 'individual', 'https://orcid.org')
+        md._add_netcdf_contact('me', {'und': 'hello@hello.com'}, '', None, None, 'editor', 'individual', 'https://orcid.org', '')
         self.assertEqual(len(md.responsibles), 1)
         self.assertEqual(md.responsibles[0]._data['contact'].guid, 'hello@hello.com')
 
     def test_email_from_fr(self):
         md = DatasetMetadata()
-        md._add_netcdf_contact('me', {'fr': 'hello@hello.com'}, '', None, None, 'editor', 'individual', 'https://orcid.org')
+        md._add_netcdf_contact('me', {'fr': 'hello@hello.com'}, '', None, None, 'editor', 'individual', 'https://orcid.org', '')
         self.assertEqual(len(md.responsibles), 1)
         self.assertEqual(md.responsibles[0]._data['contact'].guid, 'hello@hello.com')
 
     def test_email_from_blank(self):
         md = DatasetMetadata()
-        md._add_netcdf_contact('me', {}, '', None, None, 'editor', 'individual', 'https://orcid.org')
+        md._add_netcdf_contact('me', {}, '', None, None, 'editor', 'individual', 'https://orcid.org', '')
         self.assertEqual(len(md.responsibles), 1)
         self.assertIsNone(md.responsibles[0]._data['contact'].guid)
 
     def test_no_role(self):
         md = DatasetMetadata()
         with self.assertLogs('cnodc.dmd.metadata', 'WARNING'):
-            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, None, 'institution', 'DOI')
+            md._add_netcdf_contact('hello', 'hello@hello', '12345', None, None, None, 'institution', 'DOI', '')
             self.assertEqual(len(md.responsibles), 0)
 
     def test_single_eov(self):

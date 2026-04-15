@@ -1,0 +1,4 @@
+-r ./requirements.txt
+pillow~=12.2.0
+tkcalendar~=1.6.1
+matplotlib~=3.10.8

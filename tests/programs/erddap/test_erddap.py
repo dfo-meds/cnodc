@@ -1,13 +1,12 @@
 import base64
-import datetime
 import functools
 import json
 
-from cnodc.nodb import NODBQueueItem, QueueStatus
-from cnodc.programs.erddap import ErddapController, ReloadFlag
-from cnodc.programs.erddap.reloader import ERDDAPReloadWorker
-from helpers.web_mock import MockResponse
-from helpers.base_test_case import BaseTestCase
+from nodb import NODBQueueItem
+from pipeman.programs.erddap import ErddapController, ReloadFlag
+from pipeman.programs.erddap.reloader import ERDDAPReloadWorker
+from tests.helpers.mock_requests import MockResponse
+from tests.helpers.base_test_case import BaseTestCase
 from autoinject import injector
 import zirconium as zr
 

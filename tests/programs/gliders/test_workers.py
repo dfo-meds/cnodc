@@ -1,17 +1,16 @@
 import datetime
 import json
-import pathlib
 import uuid
 import functools
 import zirconium as zr
 from autoinject import injector
-from cnodc.nodb import NODBSourceFile, SourceFileStatus, NODBQueueItem, NODBPlatform, NODBMission
-from cnodc.processing.workflow.payloads import SourceFilePayload, WorkflowPayload, FilePayload
-from cnodc.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker, \
+from nodb import NODBSourceFile, SourceFileStatus, NODBQueueItem, NODBPlatform, NODBMission
+from pipeman.processing.payloads import SourceFilePayload, WorkflowPayload, FilePayload
+from pipeman.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker, \
     add_glider_mission_platform_info
-from helpers.base_test_case import BaseTestCase
-from helpers.web_mock import MockResponse
-import cnodc.ocproc2 as ocproc2
+from tests.helpers.base_test_case import BaseTestCase
+from tests.helpers.mock_requests import MockResponse
+import medsutil.ocproc2 as ocproc2
 
 
 class TestGliderMissionPlatformInfo(BaseTestCase):
@@ -106,7 +105,7 @@ class GliderConversionWorkerTest(BaseTestCase):
             worker.on_start()
 
     def test_new_file(self):
-        input_file = self.testdata_path('glider_ego/SEA032_20250606_R.nc')
+        input_file = self.data_file_path('glider_ego/SEA032_20250606_R.nc')
         sf = NODBSourceFile()
         sf.file_name = input_file.name
         sf.source_path = str(input_file)
@@ -146,7 +145,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)
 
     def test_existing_file(self):
-        input_file = self.testdata_path('glider_ego/SEA032_20250606_R.nc')
+        input_file = self.data_file_path('glider_ego/SEA032_20250606_R.nc')
         sf = NODBSourceFile()
         sf.file_name = input_file.name
         sf.source_path = str(input_file)
@@ -164,7 +163,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         og_erddap_dir = self.temp_dir / 'erddap'
         og_erddap_dir.mkdir()
         og_erddap_file = og_erddap_dir / input_file.name.lower()[:-3] / input_file.name
-        og_erddap_file.parent.mkdir()
+        og_erddap_file._parent.mkdir()
         og_erddap_file.touch()
         self.assertTrue(og_file.exists())
         self.assertTrue(og_erddap_file.exists())
@@ -234,7 +233,7 @@ class TestGliderMetadataUploadWorker(BaseTestCase):
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
     def test_upload_metadata(self):
         fp = FilePayload.from_path(
-            str(self.testdata_path('glider_openglider/SEA032_20190116_R.nc'))
+            str(self.data_file_path('glider_openglider/SEA032_20190116_R.nc'))
         )
         with self.mock_web_test():
             self.worker_controller.test_queue_worker(
