@@ -1,5 +1,3 @@
-tests/html_report
-tests/html_report/*
-*
+htmlcov/*
 .cnodc.toml
 .coverage

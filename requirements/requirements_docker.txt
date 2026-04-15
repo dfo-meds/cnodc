@@ -1,0 +1,2 @@
+-r ./requirements_web.txt
+gunicorn ~= 25.3.0
