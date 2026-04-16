@@ -102,7 +102,7 @@ def ddo_property[AcceptType, GetType, StoreType, ExportType](
 
 class DataDictObject:
 
-    def __init__(self, _cls_=None, **kwargs):
+    def __init__(self, *args, _cls_=None, **kwargs):
         self._data = {}
         self._allow_readonly_access: bool = True
         self._in_init: bool = True
@@ -119,12 +119,11 @@ class DataDictObject:
                     raise ValueError(f'Missing argument [{prop.property_name}] for [{self.__class__.__name__}]')
                 else:
                     setattr(self, prop.property_name, prop.default)
-            if kwargs:
-                raise AttributeError(f'Unhandled keyword arguments [{','.join(kwargs)}] for [{self.__class__.__name__}]')
         self._in_init = False
         for x in self._after_init:
             x()
         del self._after_init
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         s = f'<{self.__class__.__name__} ' + '{'
