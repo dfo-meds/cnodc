@@ -3,6 +3,7 @@ import logging
 import os
 import pathlib
 import shutil
+import sys
 import tempfile
 import typing
 import unittest
@@ -18,7 +19,7 @@ from tests.helpers.mock_runner import WorkerTestController
 from medsutil.exceptions import CodedError
 from tests.helpers.mock_nodb import DatabaseMock, DummyNODB
 from tests.helpers.mock_requests import QuickWebMock
-
+import typing as t
 
 @injector.injectable
 class InjectableDict:
@@ -32,6 +33,41 @@ def skip_long_test(test_case):
     if 'CNODC_WITH_LONG_TESTS' in os.environ and os.environ['CNODC_WITH_LONG_TESTS'] == 'N':
         return unittest.skip('skipping long_tests')(test_case)
     return test_case
+
+def ordered_test[**P, Q](x: int) -> t.Callable[P,Q]:
+    def _inner(tc: t.Callable[P,Q]) -> t.Callable[P,Q]:
+        tc._meds_test_order_ = x
+        return tc
+    return _inner
+
+def ordered_after[**P, Q](x: t.Callable) -> t.Callable[P,Q]:
+    def _inner(tc: t.Callable[P,Q]) -> t.Callable[P,Q]:
+        if not hasattr(x, '_meds_test_order_'):
+            x._meds_test_order_ = 0
+        tc._meds_test_order_ = x._meds_test_order_ + 1
+        return tc
+    return _inner
+
+
+def load_ordered_tests(loader: ut.TestLoader, tests: list[ut.TestSuite | ut.TestCase], pattern: str):
+    work: list[ut.TestCase | ut.TestSuite] = []
+    work.extend(tests)
+    cases: list[ut.TestCase] = []
+    def _sort_test_objects(x: ut.TestCase | ut.TestSuite):
+        if isinstance(x, ut.TestSuite):
+            work.extend(x._tests)
+        else:
+            cases.append(x)
+    while work:
+        _sort_test_objects(work.pop())
+    suite = ut.TestSuite()
+    def _sort_by_test_order(x: ut.TestCase) -> int:
+        test_function = getattr(x, x._testMethodName)
+        if hasattr(test_function, '_meds_test_order_'):
+            return test_function._meds_test_order_
+        return sys.maxsize
+    suite.addTests(sorted(cases, key=_sort_by_test_order))
+    return suite
 
 class ClassProperty[RetType]:
 
