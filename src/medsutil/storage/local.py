@@ -81,7 +81,7 @@ class LocalHandle(BaseStorageHandle):
         new_p = self.pathlib_path.parent
         if new_p == self._path:
             return self
-        return self._build_descriptor(str(new_p), force_dir=True)
+        return self._build_descriptor(str(new_p), as_dir=True)
 
     def child(self, name: str, as_dir: bool | None = None) -> t.Self:
         return self._build_descriptor(
