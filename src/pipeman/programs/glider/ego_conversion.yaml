@@ -558,7 +558,6 @@ ocproc2_map:
 
   attribute:abstract:
     target: metadata/Abstract
-    bilingual: yes
 
   attribute:area: metadata/Area
   attribute:project: metadata/Project
@@ -571,7 +570,6 @@ ocproc2_map:
 
   attribute:summary:
     target: metadata/Summary
-    bilingual: yes
 
   attribute:observatory:
     target: metadata/Observatory
@@ -632,7 +630,6 @@ ocproc2_map:
       - metadata/EndLatitude/metadata/Quality
       - metadata/EndLongitude/metadata/Quality
       - metadata/EndDate/metadata/Quality
-    allow_missing: yes
 
   globalvar:FIRMWARE_VERSION_NAVIGATION:
     target: metadata/FirmwareVersion
