@@ -119,7 +119,7 @@ class FileScanTask(ScheduledTask):
                 mod_time = None
 
 
-class FileDownloadWorker(PayloadWorker):
+class FileDownloadWorker(PayloadWorker[NewFilePayload]):
 
     storage: StorageController = None
 
