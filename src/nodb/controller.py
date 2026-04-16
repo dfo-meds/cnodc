@@ -291,9 +291,10 @@ class PostgresController(interface.NODBInstance):
             cur.execute(insert_statement)
             row = cur.fetchone()
             if row is not None and row[0] is not None:
-                for x in primary_keys:
-                    if isinstance(x, str):
-                        obj.set_from_db(x, row[x])
+                with obj.readonly_access():
+                    for x in primary_keys:
+                        if isinstance(x, str):
+                            obj.set_from_db(x, row[x])
         obj.is_new = False
         obj.clear_modified()
         return True
