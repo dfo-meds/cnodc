@@ -32,8 +32,7 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
         return s
 
     def __getitem__(self, item: X) -> Y:
-        index = self.__keys.index(item)
-        return copy.deepcopy(self.__values[index])
+        return copy.deepcopy(self.__values[item])
 
     def __iter__(self) -> t.Iterator[X]:
         return self.keys().__iter__()
@@ -56,9 +55,9 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
     def __hash__(self) -> int:
         if self.__hash is None:
             data = []
-            for idx, key in enumerate(self.__keys):
+            for key in self.__keys:
                 data.append(hash(key))
-                data.append(hash(self.__values[idx]))
+                data.append(hash(self.__values[key]))
             self.__hash = hash(tuple(data))
         return t.cast(int, self.__hash)
 
