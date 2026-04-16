@@ -129,7 +129,10 @@ class AbstractElement[X: SupportedStorage]:
         v = bv.value
         if v is None:
             raise ValueError('Cannot convert None to numeric')
-        true_v = coerce(v)
+        try:
+            true_v = coerce(v)
+        except (TypeError, ValueError, decimal.DecimalException) as ex:
+            raise ValueError('Error during coercion') from ex
         if no_loss:
             diff = abs(float(v) - true_v)
             if diff > 1e-9:
