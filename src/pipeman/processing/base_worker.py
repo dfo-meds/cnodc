@@ -153,7 +153,7 @@ class BaseWorker(CachedObjectMixin):
                     values.extend(d[key])
                 else:
                     values.append(d[key])
-        self._log.trace(f"Merged  config setting from cycle [%s=%s]", key, values)
+        self._log.trace(f"Merged config setting from cycle [%s=%s]", key, values)
         return values
 
     def get_config[T, Y](self, key: str, default: Y = None, coerce: t.Optional[t.Callable[[t.Any], T] | type[T]] = None, merge: bool = False) -> T | Y:
