@@ -12,8 +12,11 @@ class CodedError(Exception):
         super().__init__(f"{self.internal_code}: {msg}")
         self.is_transient = is_transient
 
-    def obfuscated_code(self):
+    def obfuscated_code(self) -> str:
         return self.internal_code
+
+    def pretty(self) -> str:
+        return ex_pretty(self)
 
 
 class TransientCodedError(CodedError):
@@ -23,3 +26,7 @@ class TransientCodedError(CodedError):
 
 
 class HaltInterrupt(KeyboardInterrupt): ...
+
+
+def ex_pretty(e: BaseException):
+    return f"{e.__class__.__name__}: {str(e)}"
