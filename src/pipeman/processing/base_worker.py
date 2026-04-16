@@ -154,20 +154,24 @@ class BaseWorker(CachedObjectMixin):
         self._log.trace(f"Merged  config setting from cycle [%s=%s]", key, values)
         return values
 
-    def get_config(self, key, default=None, merge: bool = False):
+    def get_config[T, Y](self, key: str, default: Y = None, coerce: t.Optional[t.Callable[[t.Any], T] | type[T]] = None, merge: bool = False) -> T | Y:
         """Get a configuration setting by name, or the given default value if it isn't present."""
+        value = ...
         if key in self._cycle_config and self._cycle_config[key] is not None:
             self._log.trace(f"Config setting from cycle [%s=%s]", key, self._cycle_config[key])
-            return self._cycle_config[key]
-        if key in self._config and self._config[key] is not None:
+            value = self._cycle_config[key]
+        elif key in self._config and self._config[key] is not None:
             self._log.trace(f"Config setting from config [%s=%s]", key, self._config[key])
-            return self._config[key]
+            value = self._config[key]
         elif key in self._defaults and self._defaults[key] is not None:
             self._log.trace(f"Config setting from defaults [%s=%s]", key, self._defaults[key])
-            return self._defaults[key]
-        else:
-            self._log.trace(f"Config setting from method default [%s=%s]", key, default)
-            return default
+            value = self._defaults[key]
+        if value is not ...:
+            if value is not None and coerce is not None:
+                return coerce(value)
+            return value
+        self._log.trace(f"Config setting from method default [%s=%s]", key, default)
+        return default
 
     def set_cycle_config(self, values: dict):
         self._cycle_config = values
