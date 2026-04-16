@@ -368,10 +368,10 @@ class PostgresController(interface.NODBInstance):
         with self.cursor() as cur:
             cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_time.isoformat() if mod_time is not None else None])
 
-    def mark_scanned_item_success(self, file_path: str, mod_date: datetime.datetime | None = None):
+    def mark_scanned_item_success(self, file_path: str, mod_time: datetime.datetime | None = None) -> None:
         """Mark a scanned file as a success."""
         with self.cursor() as cur:
-            if mod_date is None:
+            if mod_time is None:
                 cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE", [file_path])
             else:
                 cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_date.isoformat()])
