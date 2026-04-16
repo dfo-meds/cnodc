@@ -748,9 +748,6 @@ class OpenGliderConverter:
 
 
 
-def validate_ego_glider_file(file: pathlib.Path, filename, metadata: dict):
+def validate_ego_glider_file(file: pathlib.Path, metadata: dict, filename: str):
     OpenGliderConverter.build().validate_ego_glider_file(file, filename)
     return True
-
-
-
