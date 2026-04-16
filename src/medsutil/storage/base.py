@@ -661,7 +661,7 @@ class UrlBaseHandle(BaseStorageHandle, ABC):
         pieces = [x for x in parts.path.split('/') if x]
         if not pieces:
             return None
-        return self._build_descriptor(f'{parts.scheme}://{parts.netloc}/{'/'.join(pieces[:-1])}/')
+        return self._build_descriptor(f'{parts.scheme}://{parts.netloc}/{'/'.join(pieces[:-1])}/', as_dir=True)
 
     def parse_url(self) -> ParseResult:
         """Get the parts of the URL."""
