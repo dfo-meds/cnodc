@@ -608,10 +608,9 @@ class PostgresController(interface.NODBInstance):
         if not fields:
             yield pgs.SQL('*')
         else:
-            fields = set(fields)
+            fields = list(fields)
             # stable field sorting is occasionally important
             if stable_sort:
-                fields = list(fields)
                 fields.sort()
             yield pgs.SQL(',').join(pgs.Identifier(field) if isinstance(field, str) else field for field in fields)
         yield pgs.SQL('FROM')
