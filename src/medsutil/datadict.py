@@ -323,24 +323,26 @@ def p_set[AcceptItemType, StoreItemType, ExportItemType](
         **kwargs
     )
 
-def _coerce_ddo(v: DataDictObject | t.Mapping | str, str_coerce: t.Callable[[str], t.Mapping | DataDictObject] = None) -> DataDictObject:
+def _coerce_ddo(v: DataDictObject | t.Mapping | str, str_coerce: t.Callable[[str], t.Mapping | DataDictObject] = None, required_type: type[DataDictObject] = None) -> DataDictObject:
     if isinstance(v, str) and str_coerce is not None:
         v = str_coerce(v)
     if isinstance(v, DataDictObject):
         return v
     elif isinstance(v, t.Mapping):
+        if required_type is not None:
+            return required_type.from_map(v)
         return DataDictObject.from_map(v)
     else:
         raise TypeError('Invalid type for DDO')
 
-def p_ddo(require_type: AcceptAsObjectType = None,
+def p_ddo(required_type: type[DataDictObject] = None,
           **kwargs) -> _ExportedProperty[dict[str, t.Any] | DataDictObject, DataDictObject, dict[str, ct.SupportsNativeJson]]:
-    if require_type is not None:
+    if required_type is not None:
         if 'validators' not in kwargs:
             kwargs['validators'] = []
-        kwargs['validators'].append(functools.partial(require.type_is, required_type=require_type))
+        kwargs['validators'].append(functools.partial(require.type_is, required_type=required_type))
     return ddo_property(
-        coerce_set=functools.partial(_coerce_ddo, str_coerce=None),
+        coerce_set=functools.partial(_coerce_ddo, str_coerce=None, required_type=required_type),
         sanitizer=lambda x: x.export(),
         **kwargs
     )
@@ -360,35 +362,35 @@ def p_json_str_list(**kwargs) -> _ExportedProperty[ct.AcceptAsJsonList, list[str
 def p_json_str_set(**kwargs) -> _ExportedProperty[ct.AcceptAsJsonList, set[str], str]:
     return p_json_set(value_coerce=str, **kwargs)
 
-def p_json_object(require_type: AcceptAsObjectType = None, **kwargs) -> _ExportedProperty[dict[str, t.Any] | DataDictObject | ct.JsonDictString, DataDictObject, str]:
-    if require_type is not None:
+def p_json_object(required_type: type[DataDictObject] = None, **kwargs) -> _ExportedProperty[dict[str, t.Any] | DataDictObject | ct.JsonDictString, DataDictObject, str]:
+    if required_type is not None:
         if 'validators' not in kwargs:
             kwargs['validators'] = []
-        kwargs['validators'].append(functools.partial(require.type_is, required_type=require_type))
+        kwargs['validators'].append(functools.partial(require.type_is, required_type=required_type))
     return ddo_property(
-        coerce_set=functools.partial(_coerce_ddo, str_coerce=json.load_dict),
+        coerce_set=functools.partial(_coerce_ddo, str_coerce=json.load_dict, required_type=required_type),
         sanitizer=lambda x: json.dumps(x.export()),
         **kwargs
     )
 
-def p_json_object_list(require_type: AcceptAsObjectType = None, **kwargs) -> _ExportedProperty[t.Iterable[DataDictObject | t.Mapping | str] | ct.JsonListString, list[DataDictObject], str]:
-    if require_type is not None:
+def p_json_object_list(required_type: type[DataDictObject] = None, **kwargs) -> _ExportedProperty[t.Iterable[DataDictObject | t.Mapping | str] | ct.JsonListString, list[DataDictObject], str]:
+    if required_type is not None:
         if 'value_validators' not in kwargs:
             kwargs['value_validators'] = []
-        kwargs['value_validators'].append(functools.partial(require.type_is, required_type=require_type))
+        kwargs['value_validators'].append(functools.partial(require.type_is, required_type=required_type))
     return p_json_list(
-        value_coerce=_coerce_ddo,
+        value_coerce=functools.partial(_coerce_ddo, required_type=required_type),
         sanitizer=lambda x: json.dumps([y.export() for y in x]),
         **kwargs
     )
 
-def p_json_object_dict(require_type: AcceptAsObjectType = None, **kwargs) -> _ExportedProperty[t.Mapping[str, DataDictObject | t.Mapping | str] | str, dict[str, DataDictObject], str]:
-    if require_type is not None:
+def p_json_object_dict(required_type: type[DataDictObject] = None, **kwargs) -> _ExportedProperty[t.Mapping[str, DataDictObject | t.Mapping | str] | str, dict[str, DataDictObject], str]:
+    if required_type is not None:
         if 'value_validators' not in kwargs:
             kwargs['value_validators'] = []
-        kwargs['value_validators'].append(functools.partial(require.type_is, required_type=require_type))
+        kwargs['value_validators'].append(functools.partial(require.type_is, required_type=required_type))
     return p_json_dict(
-        value_coerce=_coerce_ddo,
+        value_coerce=functools.partial(_coerce_ddo, required_type=required_type),
         sanitizer=lambda x: json.dumps({str(y): x[y].export() for y in x}),
         **kwargs
     )
