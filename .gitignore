@@ -1,3 +1,6 @@
 htmlcov/*
 .cnodc.toml
 .coverage
+.idea/*
+.venv/*
+
