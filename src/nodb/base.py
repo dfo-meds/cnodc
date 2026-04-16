@@ -5,6 +5,7 @@ import nodb.interface as interface
 from medsutil.cached import CachedObjectMixin
 import medsutil.datadict as ddo
 import medsutil.types as ct
+from nodb.interface import NODBValidationError
 from pipeman.exceptions import CNODCError
 
 
@@ -98,7 +99,10 @@ class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject
 
     def get_for_db(self, item: str) -> interface.SupportsPostgres:
         """Get an item from the data dictionary for insertion into the database."""
-        return self.get_sanitized_data(item)
+        sd = self.get_sanitized_data(item)
+        if not (sd is None or isinstance(sd, (int, str, bool, float))):
+            raise NODBValidationError(f"Invalid export value [{sd.__class__.__name__}] for value [{self.__class__.__name__}:{item}]", 9000)
+        return sd
 
     def set_from_db(self, item: str, value: t.Any):
         try:
