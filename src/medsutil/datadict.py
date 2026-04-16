@@ -59,7 +59,7 @@ class _ManagedNameProperty[AcceptType, GetType, StoreType, ExportType](property)
         )
 
     def sanitize(self, value: GetType) -> ExportType:
-        if self.sanitizer is not None:
+        if value is not None and self.sanitizer is not None:
             return self.sanitizer(value)
         return value
 
