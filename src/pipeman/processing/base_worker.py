@@ -211,6 +211,9 @@ class BaseWorker(CachedObjectMixin):
         finally:
             self.on_exit(exc)
 
+    def run_once_after_start(self):
+        self._run_once()
+
     def _run(self):
         """Override this method with a loop to process items."""
         while self.continue_loop():
