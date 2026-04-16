@@ -100,7 +100,7 @@ def ddo_property[AcceptType, GetType, StoreType, ExportType](
     )
 
 
-class DataDictObject:
+class DataDictObject(object):
 
     def __init__(self, *args, _cls_=None, **kwargs):
         self._data = {}
@@ -123,7 +123,10 @@ class DataDictObject:
         for x in self._after_init:
             x()
         del self._after_init
-        super().__init__(*args, **kwargs)
+        try:
+            super(DataDictObject, self).__init__(*args, **kwargs)
+        except TypeError as ex:
+            raise TypeError(f"Unexpected arguments to parent class [{len(args)}][{','.join(kwargs.keys())}]") from ex
 
     def __repr__(self):
         s = f'<{self.__class__.__name__} ' + '{'
