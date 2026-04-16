@@ -122,13 +122,18 @@ class AbstractElement[X: SupportedStorage]:
         self.to_datetime()
 
     def _coerce_to_numeric[T: (int, float, Decimal, UFloat)](self,
-                                                     coerce: t.Callable[[str | int | float | None], T] | type[T],
-                                                     units: str | None = None) -> T:
+                                                             coerce: t.Callable[[str | int | float | None], T] | type[T],
+                                                             units: str | None = None,
+                                                             no_loss: bool = False) -> T:
         bv: AbstractElement = self.ideal()
-        v = t.cast(str | int | float | None, bv.value)
+        v = bv.value
         if v is None:
             raise ValueError('Cannot convert None to numeric')
         true_v = coerce(v)
+        if no_loss:
+            diff = abs(float(v) - true_v)
+            if diff > 1e-9:
+                raise ValueError("Loss of value encountered")
         return convert(true_v, bv.units(), units)
 
     def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
@@ -149,9 +154,9 @@ class AbstractElement[X: SupportedStorage]:
         """Convert this value to a float."""
         return self._coerce_to_numeric(float, units)
 
-    def to_int(self, units: t.Optional[str] = None) -> int:
+    def to_int(self, units: t.Optional[str] = None, no_loss: bool = True) -> int:
         """Convert this value to an integer."""
-        return self._coerce_to_numeric(int, units)
+        return self._coerce_to_numeric(int, units, no_loss)
 
     def to_datetime(self) -> AwareDateTime:
         """Convert this value to a datetime."""
