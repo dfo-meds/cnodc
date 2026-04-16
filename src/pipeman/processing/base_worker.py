@@ -237,6 +237,7 @@ class BaseWorker(CachedObjectMixin):
     def after_cycle(self):
         """Override this method to be called after each item is processed."""
         self.run_hook('after_cycle')
+        self._cycle_config = {}
         if self._temp_dir is not None:
             self._log.trace('Cleaning up temp directory')
             self._temp_dir.cleanup()
