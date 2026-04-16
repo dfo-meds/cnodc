@@ -29,7 +29,7 @@ class LocalHandle(BaseStorageHandle):
         )
 
     @property
-    def pathlib_path(self):
+    def pathlib_path(self) -> pathlib.Path:
         return self._with_cache('pathlib_path', pathlib.Path, self._path)
 
     @local_file_error_wrap
