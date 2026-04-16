@@ -42,9 +42,9 @@ class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject
     """
 
     def __init__(self, *, is_new: bool = True, **kwargs):
-        super().__init__(**kwargs)
         self._modified_values: set[str] = set()
         self.is_new = is_new
+        super().__init__(**kwargs)
         if not is_new:
             # Reset modified values if we loaded an original object
             # so we don't update all the values all the time.
