@@ -184,7 +184,7 @@ class DataDictObject:
             value = coerce_set(value)
         if value is not None and validators:
             for validator in validators:
-                validator(self, value)
+                validator(value)
         original = self._data[managed_name] if managed_name in self._data else None
         self._data[managed_name] = value
         if self._in_init:
