@@ -2,8 +2,8 @@ import typing as t
 
 class CachedObjectMixin:
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.__cache = {}
 
     def _with_cache[X](self, key: t.Hashable, cb: t.Callable[..., X], *args, _clear_cache: bool = False, **kwargs) -> X:
