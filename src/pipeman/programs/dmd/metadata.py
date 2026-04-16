@@ -16,9 +16,7 @@ import medsutil.datadict as dd
 from medsutil.multienum import MultiValuedEnum
 from medsutil.frozendict import FrozenDict
 from medsutil.types import *
-
-if t.TYPE_CHECKING:
-    import medsutil
+from medsutil.ocproc2.ontology import OCProc2Ontology
 
 def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
     attr = {}
