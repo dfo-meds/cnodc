@@ -19,7 +19,7 @@ def dynamic_name(__obj: object | type | types.FunctionType | types.ModuleType) -
 
 def dynamic_object(cls_name: str) -> t.Any:
     if cls_name is None or "." not in cls_name:
-        raise DynamicObjectLoadError(f"cls_name should be in format package.class [{cls_name}]", 1000)
+        raise DynamicObjectLoadError(f"Object name should be in format package.class [got: {cls_name}]", 1000)
     package_dot_pos = cls_name.rfind(".")
     package = cls_name[0:package_dot_pos]
     specific_cls_name = cls_name[package_dot_pos + 1:]
@@ -27,7 +27,7 @@ def dynamic_object(cls_name: str) -> t.Any:
         mod = importlib.import_module(package)
         return getattr(mod, specific_cls_name)
     except ModuleNotFoundError as ex:
-        raise DynamicObjectLoadError(f"Package or module [{package}] not found", 1001) from ex
+        raise DynamicObjectLoadError(f"[module: {package}] not found", 1001) from ex
     except AttributeError as ex:
-        raise DynamicObjectLoadError(f"Object [{specific_cls_name}] not found in [{package}]", 1002) from ex
+        raise DynamicObjectLoadError(f"[object: {specific_cls_name}] not found in [module: {package}]", 1002) from ex
 
