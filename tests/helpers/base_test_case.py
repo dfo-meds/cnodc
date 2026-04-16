@@ -257,7 +257,6 @@ class BaseTestCase(ut.TestCase):
             yield h
         if (error_code and error_code != h.exception.internal_code) or (is_transient is not None and is_transient is not h.exception.is_transient):
             raise self.failureException(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'") from h.exception
-        self.assertEqual(error_code, h.exception.internal_code)
 
     @contextmanager
     def assertNoError(self, msg: str = None):
