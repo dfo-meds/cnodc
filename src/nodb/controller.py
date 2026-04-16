@@ -22,6 +22,20 @@ import medsutil.types as ct
 from medsutil.awaretime import AwareDateTime
 
 
+class _SqlQueryStringifier:
+    def __init__(self, cursor, q: str | pgs.Composable, args):
+        self._cursor: pge.DictCursor = cursor
+        self._q = q
+        self._args = args
+
+    def __str__(self):
+        if isinstance(self._q, pgs.Composable):
+            query = self._q.as_string(self._cursor)
+        else:
+            query = self._q
+        return self._cursor.mogrify(query, self._args).decode('utf-8')
+
+
 class _PGCursor(interface.NODBCursor):
     """Cursor class for postgresql."""
 
@@ -31,9 +45,9 @@ class _PGCursor(interface.NODBCursor):
         self._log = zrlog.get_logger("cnodc.nodb")
 
     @wrap_nodb_exceptions
-    def execute(self, query, args=None):
+    def execute(self, query: str | pgs.Composable, args=None):
         """Execute a query against the database."""
-        self._log.trace(f"SQL Query: {query}")
+        self._log.trace(f"SQL Query: [%s]", _SqlQueryStringifier(self._cursor, query, args))
         self._cursor.execute(query, args)
 
     @wrap_nodb_exceptions
