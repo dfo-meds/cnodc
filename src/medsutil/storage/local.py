@@ -36,14 +36,16 @@ class LocalHandle(BaseStorageHandle):
     def _stat(self) -> StatResult:
         """Retrieve the stat information about the file handle."""
         p = self.pathlib_path
-        s = p.stat()
-        return StatResult(
-            exists=p.exists(),
-            is_dir=p.is_dir() if p.exists() else None,
-            is_file=p.is_file() if p.exists() else None,
-            st_size=s.st_size,
-            st_mtime=AwareDateTime.fromtimestamp(s.st_mtime) if s.st_mtime is not None else None
-        )
+        if p.exists():
+            s = p.stat()
+            return StatResult(
+                exists=True,
+                is_dir=p.is_dir(),
+                is_file=p.is_file(),
+                st_size=s.st_size,
+                st_mtime=AwareDateTime.fromtimestamp(s.st_mtime) if s.st_mtime is not None else None
+            )
+        return StatResult(exists=False)
 
     def streaming_write(self, chunks: t.Iterable[bytes]):
         self._local_write_chunks(self._path, chunks)
