@@ -125,9 +125,8 @@ class BaseTestCase(ut.TestCase):
     @classmethod
     def real_nodb(cls):
         if not hasattr(cls, '_real_nodb'):
-            container = NODBContainer()
-            cls.start_container(container)
-            cls._real_nodb = container.nodb
+            cls._real_nodb = NODBContainer()
+            cls.enterClassContext(cls._real_nodb)
         return cls._real_nodb
 
     @classmethod
@@ -213,23 +212,10 @@ class BaseTestCase(ut.TestCase):
         d.data.clear()
 
     @classmethod
-    def start_container_by_name(cls, name, always_restart: bool = False):
-        cls.start_container(TestContainer(name, always_restart))
-
-    @classmethod
-    def start_container(cls, container: TestContainer):
-        container.up()
-        if not hasattr(cls, '_containers'):
-            cls._containers = []
-            cls.addClassCleanup(cls._clean_up_containers)
-        cls._containers.append(container)
-
-    @classmethod
-    def _clean_up_containers(cls):
-        if hasattr(cls, '_containers'):
-            for container in cls._containers:
-                container.down()
-            del cls._containers
+    def start_container_by_name(cls, name, always_restart: bool = False) -> TestContainer:
+        container = TestContainer(name, always_restart)
+        cls.enterClassContext(container)
+        return container
 
     @property
     def temp_dir(self):
