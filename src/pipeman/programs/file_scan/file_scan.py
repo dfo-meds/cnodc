@@ -148,7 +148,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
         return QueueItemResult.SUCCESS
 
     def after_failure(self, item: NODBQueueItem, ex: Exception):
-        if isinstance(self.current_payload, NewFilePayload):
+        if self._current_payload is not None and isinstance(self.current_payload, NewFilePayload):
             self.db.mark_scanned_item_failed(self.current_payload.file_path, self.current_payload.modified_time or None)
             self.db.commit()
         super().after_failure(item, ex)
