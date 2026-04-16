@@ -35,7 +35,7 @@ JsonSetColumn = ddo.p_json_set
 WKTColumn = ddo.p_str
 
 
-class NODBBaseObject(CachedObjectMixin, ddo.DataDictObject, interface.NODBObject):
+class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject):
     """Base class for all NODB objects.
 
         This provides a lot of tools for building database classes.
