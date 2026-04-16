@@ -9,6 +9,8 @@ import uuid
 import medsutil.types as ct
 import typing as t
 
+from medsutil.frozendict import FrozenDict
+
 try:
     import orjson
 
@@ -51,7 +53,7 @@ except ModuleNotFoundError:
 def clean_for_json(__obj):
     if __obj is None or isinstance(__obj, (str, int, float, bool)):
         return __obj
-    elif isinstance(__obj, t.Mapping):
+    elif isinstance(__obj, (t.Mapping, FrozenDict)):
         return {str(x): clean_for_json(__obj[x]) for x in __obj}
     elif isinstance(__obj, t.Iterable):
         return [clean_for_json(x) for x in __obj]
