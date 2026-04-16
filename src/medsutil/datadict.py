@@ -211,9 +211,10 @@ class DataDictObject:
                 if cls in cls._datadict_props_:
                     yield from cls._datadict_props_[cls].values()
 
-    @staticmethod
-    def from_map(data: t.Mapping[str, t.Any]):
-        cls = dynamic_object(data['_cls_'])
+    @classmethod
+    def from_map(cls, data: t.Mapping[str, t.Any]):
+        if '_cls' in data:
+            return dynamic_object(data['_cls_'])(**data)
         return cls(**data)
 
 def p_int(**kwargs) -> _SimpleProperty[ct.AcceptAsInteger, int]:
