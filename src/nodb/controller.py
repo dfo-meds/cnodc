@@ -538,15 +538,16 @@ class PostgresController(interface.NODBInstance):
             filters: interface.FilterDict | None,
             key_only: bool,
             obj_cls: interface.NODBObjectType
-    ) -> set[str]:
+    ) -> set[str] | None:
         fields: set[str] = set()
         if limit_fields is not None:
             fields.update(limit_fields)
-        if filters is not None:
-            fields.update(filters.keys())
-        if key_only or fields:
             fields.update(obj_cls.get_primary_keys())
-        return fields
+        if key_only:
+            fields.update(obj_cls.get_primary_keys())
+        if fields and filters is not None:
+            fields.update(filters.keys())
+        return fields if fields else None
 
     @staticmethod
     def build_delete_clause(table_name: str) -> t.Iterable[pgs.Composable]:
