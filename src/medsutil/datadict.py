@@ -404,6 +404,37 @@ def p_json_object_dict(required_type: type[DataDictObject] = None, **kwargs) -> 
         **kwargs
     )
 
+def p_object_list(required_type: type[DataDictObject] = None, **kwargs) -> _ExportedProperty[t.Iterable[DataDictObject | t.Mapping | str] | ct.JsonListString, list[DataDictObject], list[dict]]:
+    if required_type is not None:
+        if 'value_validators' not in kwargs:
+            kwargs['value_validators'] = []
+        kwargs['value_validators'].append(functools.partial(require.type_is, required_type=required_type))
+    return p_list(
+        value_coerce=functools.partial(_coerce_ddo, required_type=required_type),
+        sanitizer=lambda x: [y.export() for y in x],
+        **kwargs
+    )
+
+def p_object_dict(required_type: type[DataDictObject] = None, **kwargs) -> _ExportedProperty[t.Mapping[str, DataDictObject | t.Mapping | str] | str, dict[str, DataDictObject], dict[str, dict]]:
+    if required_type is not None:
+        if 'value_validators' not in kwargs:
+            kwargs['value_validators'] = []
+        kwargs['value_validators'].append(functools.partial(require.type_is, required_type=required_type))
+    return p_dict(
+        value_coerce=functools.partial(_coerce_ddo, required_type=required_type),
+        sanitizer=lambda x: {str(y): x[y].export() for y in x},
+        **kwargs
+    )
+
+def p_enum_set[X](enum_type: type[X], **kwargs) -> _ExportedProperty[t.Iterable[ct.AcceptAsEnum[X]], set[X], str]:
+    if 'value_validators' not in kwargs:
+        kwargs['value_validators'] = []
+    kwargs['value_validators'].append(functools.partial(require.type_is, required_type=enum_type))
+    return p_set(
+        value_coerce=functools.partial(coerce.as_enum, enum_type=enum_type),
+        **kwargs
+    )
+
 def p_json_enum_set[X](enum_type: type[X], **kwargs) -> _ExportedProperty[t.Iterable[ct.AcceptAsEnum[X]], set[X], str]:
     if 'value_validators' not in kwargs:
         kwargs['value_validators'] = []
