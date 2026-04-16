@@ -14,6 +14,7 @@ from unittest import mock
 from autoinject import injector
 from medsutil.awaretime import AwareDateTime
 from medsutil.halts import DummyHaltFlag
+from nodb import NODB
 from tests.helpers.mock_containers import TestContainer, NODBContainer
 from tests.helpers.mock_runner import WorkerTestController
 from medsutil.exceptions import CodedError
@@ -123,11 +124,11 @@ class BaseTestCase(ut.TestCase):
 
     @classproperty
     @classmethod
-    def real_nodb(cls):
+    def real_nodb(cls) -> NODB:
         if not hasattr(cls, '_real_nodb'):
             cls._real_nodb = NODBContainer()
             cls.enterClassContext(cls._real_nodb)
-        return cls._real_nodb
+        return cls._real_nodb.nodb
 
     @classmethod
     def set_log_level_for_class(cls, new_level):
