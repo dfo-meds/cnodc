@@ -202,7 +202,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
     def _update_payload_metadata(self, metadata: dict, handle: FilePath):
         if 'source' not in metadata:
             metadata['source'] = self.process_id
-        metadata['default-filename'] = handle.name
+        metadata['filename'] = handle.name
         md = handle.modified_datetime()
         if md is None:  # pragma: no coverage (fallback for weird edge cases when the modified time can't be determined)
             if 'scanned-time' in metadata:
