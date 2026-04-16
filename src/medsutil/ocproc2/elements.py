@@ -28,10 +28,10 @@ def normalize_data_value(dv: ocut.SupportedValue) -> ocut.SupportedStorage:
         return dv
     if isinstance(dv, str):
         return coerce.as_normalized_string(dv)
-    if isinstance(dv, t.Iterable):
-        return [normalize_data_value(x) for x in dv]
     if isinstance(dv, t.Mapping):
         return {str(x): normalize_data_value(y) for x, y in dv.items()}
+    if isinstance(dv, t.Iterable):
+        return [normalize_data_value(x) for x in dv]
     if isinstance(dv, (datetime.date, datetime.time)):
         return coerce.date_as_iso_string(dv)
     if isinstance(dv, decimal.Decimal):
