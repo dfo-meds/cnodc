@@ -215,7 +215,7 @@ class DataDictObject(object):
 
     @classmethod
     def from_map(cls, data: t.Mapping[str, t.Any]):
-        if '_cls' in data:
+        if '_cls_' in data:
             return dynamic_object(data['_cls_'])(**data)
         return cls(**data)
 
