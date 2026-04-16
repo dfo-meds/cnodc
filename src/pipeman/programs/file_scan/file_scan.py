@@ -191,8 +191,10 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
             handle = self.get_handle(file_path, True)
             if handle.exists():
                 handle.remove()
+        elif current_status == ScannedFileStatus.NOT_PRESENT:
+            self._log.warning(f"Item [%s] was not registered!, skipping", file_path)
         else:
-            self._log.info(f"Item [%s] already processed [result %s], skipping", file_path, current_status)
+            self._log.info(f"Item [%s] already processed or errored [result %s], skipping", file_path, current_status)
 
     def _on_success_hook(self, file_path, mod_time):
         self.db.mark_scanned_item_success(file_path, mod_time)
