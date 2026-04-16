@@ -8,7 +8,7 @@ import zrlog
 from autoinject import injector
 from zrlog.logger import ImprovedLogger
 
-from medsutil.cached import CachedObjectMixin
+from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.halts import HaltFlag, gzip_with_halt, ungzip_with_halt
 
@@ -99,10 +99,12 @@ class BaseWorker(CachedObjectMixin):
         return self._events
 
     def run_hook(self, hook_name, **kwargs):
-        self._log.trace(f'Hook %s fired', hook_name)
-        for hook_callable in self._with_cache("hooks", self._build_hooks, hook_name):
+        self._log.debug('Hook [%s] fired', hook_name)
+        for hook_callable in self._build_hooks(hook_name):
+            self._log.trace('Hook [%s] sent to [%s]', hook_name, hook_callable)
             hook_callable(worker=self, **kwargs)
 
+    @cached_method
     def _build_hooks(self, hook_name: str) -> list[t.Callable]:
         hook_callables = []
         hooks = self.get_merged_config(f'hook_{hook_name}')
