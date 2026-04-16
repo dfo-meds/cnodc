@@ -344,7 +344,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
     @local_file_error_wrap
     def _local_read_chunks(self, local_path: t.ByteString | str | pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString], buffer_size: t.Optional[int] = None) -> t.Iterable[t.ByteString]:
         """Local implementation of reading chunks from a file."""
-        if isinstance(local_path, (bytes, bytearray, memoryview[int])):
+        if isinstance(local_path, (bytes, bytearray, memoryview)):
             yield local_path
         elif isinstance(local_path, (str, pathlib.Path)):
             with open(local_path, "rb") as src:
