@@ -100,7 +100,7 @@ class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject
     def get_for_db(self, item: str) -> interface.SupportsPostgres:
         """Get an item from the data dictionary for insertion into the database."""
         sd = self.get_sanitized_data(item)
-        if not (sd is None or isinstance(sd, (int, str, bool, float))):
+        if not (sd is None or isinstance(sd, (int, str, bool, float, bytes, bytearray))):
             raise NODBValidationError(f"Invalid export value [{sd.__class__.__name__}] for value [{self.__class__.__name__}:{item}]", 9000)
         return sd
 
