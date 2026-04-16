@@ -348,13 +348,19 @@ def p_ddo(required_type: type[DataDictObject] = None,
     )
 
 def p_json_dict[AcceptType, GetType](value_coerce: t.Callable[[AcceptType], GetType] = None, **kwargs) -> _ExportedProperty[t.Mapping[str, AcceptType] | str, dict[str, GetType], str]:
-    return p_dict(str_coerce=json.load_dict, sanitizer=coerce.as_json_string, value_coerce=value_coerce, **kwargs)
+    if 'sanitizer' not in kwargs or not kwargs['sanitizer']:
+        kwargs['sanitizer'] = coerce.as_json_string
+    return p_dict(str_coerce=json.load_dict, value_coerce=value_coerce, **kwargs)
 
 def p_json_list[AcceptType, GetType](value_coerce: t.Callable[[AcceptType], GetType] = None, **kwargs) -> _ExportedProperty[t.Iterable[AcceptType] | str, list[GetType], str]:
-    return p_list(str_coerce=json.load_list, sanitizer=coerce.as_json_string, value_coerce=value_coerce, **kwargs)
+    if 'sanitizer' not in kwargs or not kwargs['sanitizer']:
+        kwargs['sanitizer'] = coerce.as_json_string
+    return p_list(str_coerce=json.load_list, value_coerce=value_coerce, **kwargs)
 
 def p_json_set[X](**kwargs) -> _ExportedProperty[ct.AcceptAsJsonSet, set[X], str]:
-    return p_set(str_coerce=json.load_set, sanitizer=coerce.as_json_string, **kwargs)
+    if 'sanitizer' not in kwargs or not kwargs['sanitizer']:
+        kwargs['sanitizer'] = coerce.as_json_string
+    return p_set(str_coerce=json.load_set, **kwargs)
 
 def p_json_str_list(**kwargs) -> _ExportedProperty[ct.AcceptAsJsonList, list[str], str]:
     return p_json_list(value_coerce=str, **kwargs)
