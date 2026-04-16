@@ -244,11 +244,7 @@ class AbstractElement[X: SupportedStorage]:
 
     @staticmethod
     def build_from_mapping(map_: AnyElementExport) -> AbstractElement:
-        if isinstance(map_, t.Iterable) and not isinstance(map_, str):
-            return MultiElement(
-                AbstractElement.build_from_mapping(x) for x in map_
-            )
-        elif isinstance(map_, t.Mapping):
+        if isinstance(map_, t.Mapping):
             try:
                 element = SingleElement(map_['_value'], _skip_normalization=True)
             except KeyError:
@@ -263,6 +259,10 @@ class AbstractElement[X: SupportedStorage]:
             except KeyError:
                 pass
             return element
+        elif isinstance(map_, t.Iterable) and not isinstance(map_, str):
+            return MultiElement(
+                AbstractElement.build_from_mapping(x) for x in map_
+            )
         else:
             return SingleElement(map_, _skip_normalization=True)
 
