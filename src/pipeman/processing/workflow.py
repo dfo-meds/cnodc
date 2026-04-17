@@ -14,6 +14,7 @@ import uuid
 from urllib.parse import quote
 import zrlog
 
+from medsutil.exceptions import ex_pretty
 from nodb.workflow import WorkflowConfiguration, WorkflowDirectory, ProcessingStep, OverwriteOption
 from medsutil.storage import StorageController, StorageTier, FilePath
 from autoinject import injector
@@ -128,9 +129,9 @@ class WorkflowController:
                     if fh is not None:
                         fh.remove()
                 if isinstance(ex, CNODCError):
-                    raise ex from ex
+                    raise
                 else:
-                    raise CNODCError(f"Exception while processing incoming file: {type(ex)}: {str(ex)}", "WORKFLOW", 1000) from ex
+                    raise CNODCError(f"Exception while processing incoming file: {ex_pretty(ex)}", "WORKFLOW", 1000) from ex
 
     def _queue_working_file(self,
                             working_file: FilePath,
