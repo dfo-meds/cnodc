@@ -151,7 +151,7 @@ class AbstractElement[X: SupportedStorage]:
             if bv.metadata.best('UncertaintyType', 'normal') == 'uniform':
                 unc = unc * UNIFORM_CONVERSION_FACTOR
             if unc != decimal.Decimal("0"):
-                return self._coerce_to_numeric(lambda x: ufloat(x, unc), units)
+                return self._coerce_to_numeric(lambda x: ufloat(x, abs(unc)), units)
         return self._coerce_to_numeric(float, units)
 
     def to_float(self, units: t.Optional[str] = None) -> float:
