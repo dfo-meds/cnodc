@@ -37,6 +37,12 @@ RECOVERABLE_ERRORS: list[str] = [
     '42501',  # Insufficient privileges
 ]
 
+RECOVERABLE_MESSAGE_FRAGMENTS: list[str] = [
+    'server closed the connection unexpectedly',
+    'could not receive data from server',
+    'the database system is starting up',
+]
+
 
 class ScannedFileStatus(enum.Enum):
     """The status of a scanned file"""
@@ -83,11 +89,14 @@ class NODBError(CodedError):
     CODE_SPACE = 'NODB'
 
     def __init__(self, msg, code, pgcode: str | None, is_transient: bool = False):
+        ist = is_transient
         super().__init__(
-            f"Database error: {msg}",
+            f"Database error: {msg} [{pgcode or ''}]",
             code,
-            is_transient=is_transient or (
-                    pgcode is not None and (pgcode in RECOVERABLE_ERRORS or f"{pgcode[0:2]}***" in RECOVERABLE_ERRORS)
+            is_transient=(
+                    ist
+                    or (pgcode is not None and (pgcode in RECOVERABLE_ERRORS or f"{pgcode[0:2]}***" in RECOVERABLE_ERRORS))
+                    or (msg is not None and any(x in msg for x in RECOVERABLE_MESSAGE_FRAGMENTS))
             )
         )
         self.pgcode = pgcode
@@ -115,7 +124,7 @@ def wrap_nodb_exceptions(cb: t.Callable):
         try:
             return cb(*args, **kwargs)
         except pg.Error as ex:
-            raise NODBError(f"{ex.__class__.__name__}: {str(ex)} [{ex.pgcode}]", 100, ex.pgcode) from ex
+            raise NODBError(f"{ex.__class__.__name__}: {str(ex)} [{ex.pgcode}]", 1000, ex.pgcode) from ex
     return _inner
 
 
