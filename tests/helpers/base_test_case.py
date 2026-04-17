@@ -271,7 +271,7 @@ class BaseTestCase(ut.TestCase):
         finally:
             logging.disable(old_level)
 
-    def assertSameTime(self, dt1: datetime.datetime | str, dt2: datetime.datetime | str, msg=None):
+    def assertSameTime(self, dt1: datetime.datetime | str | None, dt2: datetime.datetime | str, msg=None):
         if isinstance(dt1, str):
             dt1 = datetime.datetime.fromisoformat(dt1)
         if isinstance(dt2, str):
