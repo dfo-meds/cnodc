@@ -27,6 +27,9 @@ try:
     def dumps(__obj: ct.SupportsExtendedJson) -> str:
         return orjson.dumps(__obj, default=_clean_for_orjson).decode('utf-8')
 
+    def dumpp(__obj: ct.SupportsExtendedJson) -> str:
+        return orjson.dumps(__obj, default=_clean_for_orjson, option=orjson.OPT_INDENT_2).decode('utf-8')
+
     def loads(__obj: ct.JsonString) -> ct.SupportsNativeJson:
         return orjson.loads(__obj)
 
@@ -45,6 +48,9 @@ except ModuleNotFoundError:
 
     def dumps(__obj: ct.SupportsExtendedJson) -> str:
         return json.dumps(__obj, default=_clean_for_json)
+
+    def dumpp(__obj: ct.SupportsExtendedJson) -> str:
+        return json.dumps(__obj, default=_clean_for_json, indent=2)
 
     def loads(__obj: ct.JsonString) -> ct.SupportsNativeJson:
         return json.loads(__obj)
