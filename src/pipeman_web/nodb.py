@@ -7,7 +7,7 @@ from autoinject import injector
 
 from pipeman_web.auth import LoginController
 from medsutil.ocproc2.codecs import OCProc2BinCodec
-from nodb import NODBPostgresController, LockType, NODBQueueItem
+from nodb import NODB, LockType, NODBQueueItem
 from medsutil.ocproc2.operations import QCOperator
 import medsutil.ocproc2 as ocproc2
 from pipeman.exceptions import CNODCError
@@ -26,7 +26,7 @@ DB_LOCK_TIME = 3600  # in seconds
 @injector.injectable
 class NODBWebController:
 
-    nodb: NODBPostgresController = None
+    nodb: NODB = None
     login: LoginController = None
     config: zr.ApplicationConfig = None
 
