@@ -301,9 +301,13 @@ class RecordSet:
             }
 
     def from_mapping(self, map_: RecordSetExport):
-        self.records.from_mapping(map_['_records'])
-        if '_metadata' in map_:
-            self.metadata.from_mapping(map_['_metadata'])
+        try:
+            self.records.from_mapping(map_['_records'])
+            if '_metadata' in map_:
+                self.metadata.from_mapping(map_['_metadata'])
+        except TypeError:
+            # probably a list from the older OCPROC2 spec
+            self.records.from_mapping(map_)
 
     def find_child(self, path: list[str]) -> FindType:
         if not path:
