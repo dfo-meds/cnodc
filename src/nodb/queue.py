@@ -28,8 +28,8 @@ class NODBQueueItem(s.NODBBaseObject):
     )
 
     queue_uuid: str = s.UUIDColumn()
-    created_date: AwareDateTime = s.DateTimeColumn(readonly=True)
-    modified_date: AwareDateTime = s.DateTimeColumn(readonly=True)
+    created_date: AwareDateTime = s.DateTimeColumn(readonly=True, managed_name='db_created_date')
+    modified_date: AwareDateTime = s.DateTimeColumn(readonly=True, managed_name='db_modified_date')
     delay_release: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     status: QueueStatus = s.EnumColumn(QueueStatus)
     locked_by: str | None = s.StringColumn(readonly=True)
