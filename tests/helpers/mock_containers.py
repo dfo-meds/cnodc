@@ -34,6 +34,13 @@ class TestContainer:
         self._wait_sleep = wait_sleep
         self._log = zrlog.get_logger(f'cnodc.test_container.{name}')
 
+    def __enter__(self):
+        self.up()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.down()
+
     def _wait_for(self):
         if self._wait_for_cb is not None:
             t = time.monotonic()
