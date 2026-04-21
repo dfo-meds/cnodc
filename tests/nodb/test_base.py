@@ -27,6 +27,7 @@ class TestStuff(s.NODBBaseObject):
     date_ = s.DateColumn(managed_name="date")
     enum = s.EnumColumn(TestEnum)
     json_ = s.JsonDictColumn(managed_name="json")
+    json_list = s.JsonListColumn()
     wkt = s.WKTColumn()
 
 
@@ -144,7 +145,8 @@ class TestBaseObject(ut.TestCase):
         self.assertIs(x.get_for_db("boolean"), True)
 
     def test_bool_field_none(self):
-        x = TestStuff()
+        x = TestStuff(boolean=True)
+        x.clear_modified()
         x.boolean = None
         self.assertIsNone(x.boolean)
         self.assertIn('boolean', x._modified_values)
@@ -173,7 +175,7 @@ class TestBaseObject(ut.TestCase):
         self.assertEqual(x.get_for_db('byte'), b'12345')
 
     def test_byte_field_none(self):
-        x = TestStuff()
+        x = TestStuff(byte=b'12345', is_new=False)
         x.byte = None
         self.assertIsNone(x.byte)
         self.assertIn('byte', x._modified_values)
@@ -220,7 +222,7 @@ class TestBaseObject(ut.TestCase):
         self.assertEqual(x.get_for_db('datetime'), test)
 
     def test_datetime_field_none(self):
-        x = TestStuff()
+        x = TestStuff(date_time=datetime.datetime(2015, 1, 2, 3, 4, 5), is_new=False)
         x.date_time = None
         self.assertIsNone(x.date_time)
         self.assertIn('datetime', x._modified_values)
@@ -231,17 +233,17 @@ class TestBaseObject(ut.TestCase):
         x.date_ = '2015-01-02'
         self.assertEqual(x.date_, datetime.date(2015, 1, 2))
         self.assertIn('date', x._modified_values)
-        self.assertEqual(x.get_for_db('date'), datetime.date(2015, 1, 2))
+        self.assertEqual(x.get_for_db('date'), '2015-01-02')
 
     def test_date_field_obj(self):
         x = TestStuff()
         x.date_ = datetime.date(2015, 1, 2)
         self.assertEqual(x.date_, datetime.date(2015, 1, 2))
         self.assertIn('date', x._modified_values)
-        self.assertEqual(x.get_for_db('date'), datetime.date(2015, 1, 2))
+        self.assertEqual(x.get_for_db('date'), '2015-01-02')
 
     def test_date_field_none(self):
-        x = TestStuff()
+        x = TestStuff(date_=datetime.date(2015, 1, 2), is_new=False)
         x.date_ = None
         self.assertIsNone(x.date_)
         self.assertIn('date', x._modified_values)
@@ -262,7 +264,7 @@ class TestBaseObject(ut.TestCase):
         self.assertEqual(x.get_for_db('enum'), TestEnum.ONE.value)
 
     def test_enum_field_none(self):
-        x = TestStuff()
+        x = TestStuff(enum=TestEnum.ONE, is_new=False)
         x.enum = None
         self.assertIsNone(x.enum)
         self.assertIn('enum', x._modified_values)
@@ -270,20 +272,27 @@ class TestBaseObject(ut.TestCase):
 
     def test_json_field_list(self):
         x = TestStuff()
-        x.json_ = ["hello", "world"]
-        self.assertEqual(x.json_, ["hello", "world"])
-        self.assertIn("json", x._modified_values)
-        self.assertEqual(x.get_for_db("json"), json.dumps(["hello", "world"]))
+        x.json_list = ["hello", "world"]
+        self.assertEqual(x.json_list, ["hello", "world"])
+        self.assertIn("json_list", x._modified_values)
+        self.assertEqual(x.get_for_db("json_list"), json.dumps(["hello", "world"]))
 
     def test_json_field_list_str(self):
         x = TestStuff()
-        x.json_ = json.dumps(["hello", "world"])
-        self.assertEqual(x.json_, ["hello", "world"])
-        self.assertIn("json", x._modified_values)
-        self.assertEqual(x.get_for_db("json"), json.dumps(["hello", "world"]))
+        x.json_list = json.dumps(["hello", "world"])
+        self.assertEqual(x.json_list, ["hello", "world"])
+        self.assertIn("json_list", x._modified_values)
+        self.assertEqual(x.get_for_db("json_list"), json.dumps(["hello", "world"]))
+
+    def test_json_field_list_none(self):
+        x = TestStuff(json_list=['hello', 'world'], is_new=False)
+        x.json_list = None
+        self.assertIsNone(x.json_list)
+        self.assertIn("json_list", x._modified_values)
+        self.assertIsNone(x.get_for_db("json_list"))
 
     def test_json_field_none(self):
-        x = TestStuff()
+        x = TestStuff(json_={'hello': 'world'}, is_new=False)
         x.json_ = None
         self.assertIsNone(x.json_)
         self.assertIn("json", x._modified_values)
