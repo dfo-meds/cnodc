@@ -122,7 +122,6 @@ class DataDictObject(object):
         self._in_init = False
         for x in self._after_init:
             x()
-        del self._after_init
         try:
             super(DataDictObject, self).__init__(*args, **kwargs)
         except TypeError as ex:
