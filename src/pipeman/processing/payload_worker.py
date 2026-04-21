@@ -45,7 +45,10 @@ class PayloadWorker[T: Payload](QueueWorker):
             raise ex
         finally:
             self.after_payload(res, exc)
-            self._current_payload = None
+
+    def after_cycle(self):
+        super().after_cycle()
+        self._current_payload = None
 
     def before_payload(self):
         self.run_hook('before_payload', payload=self.current_payload)
