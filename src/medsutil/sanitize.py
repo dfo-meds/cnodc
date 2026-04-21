@@ -3,7 +3,6 @@ import enum
 import math
 import typing as t
 
-import netCDF4 as nc
 import unicodedata
 import numpy as np
 import numpy.typing as npt
@@ -82,11 +81,19 @@ class DataCoercer:
     @staticmethod
     def string_as_nc_bytes(s: t.Sequence[str] | str, fixed_len: int = None) -> npt.NDArray:
         """ Converts a string (or a sequence of strings) into a fixed- or variable-length NetCDF-compatible array. """
-        if isinstance(s, str):
-            s = (s,)
         if fixed_len is not None:
-            return nc.stringtochar(np.array(s, dtype=f'U{fixed_len}'), encoding='none', n_strlen=fixed_len)
-        return np.array(s, dtype=object)
+            if isinstance(s, str):
+                full_array = [s[b] if b < len(s) else '\x00' for b in range(0, fixed_len)]
+            else:
+                full_array = [
+                    [x[b] if b < len(x) else '\x00' for b in range(0, fixed_len)]
+                    for x in s
+                ]
+            return np.array(full_array, dtype=f'U1')
+        else:
+            if isinstance(s, str):
+                s = [s]
+            return np.array(s, dtype=object)
 
     @t.overload
     @staticmethod
