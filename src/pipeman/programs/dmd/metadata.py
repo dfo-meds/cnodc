@@ -853,7 +853,7 @@ class Variable(EntityRef):
     source_data_type: NetCDFDataType = dd.p_enum(NetCDFDataType)
     destination_name: str = dd.p_str()
     destination_data_type: NetCDFDataType = dd.p_enum(NetCDFDataType)
-    dimensions: set[str] = dd.p_json_str_set()
+    dimensions: set[str] = dd.p_set(value_coerce=str)
     long_name: LanguageDict = dd.p_i18n_text()
     standard_name: str = dd.p_str()
     time_precision: TimePrecision = dd.p_enum(TimePrecision)
@@ -875,7 +875,7 @@ class Variable(EntityRef):
     variable_order: int = dd.p_int()
     is_axis: bool = dd.p_bool()
     is_altitude_proxy: bool = dd.p_bool(managed_name='altitude_proxy')
-    additional_properties: dict[str, SupportsExtendedJson] = dd.p_json_dict(managed_name='custom_metadata')
+    additional_properties: dict[str, SupportsExtendedJson] = dd.p_dict(managed_name='custom_metadata')
 
     def set_time_units(self, base_units: NumericTimeUnits, epoch: datetime.datetime):
         """
@@ -1064,14 +1064,14 @@ class _Contact(EntityRef, _IdentifierMixin):
     email: LanguageDict = dd.p_i18n_text()
     service_hours: LanguageDict = dd.p_i18n_text()
     instructions: LanguageDict = dd.p_i18n_text()
-    resources: list[Resource] = dd.p_json_object_list(Resource, managed_name='web_resources')
-    phone_numbers: list[TelephoneNumber] = dd.p_json_object_list(TelephoneNumber, managed_name='phone')
+    resources: list[Resource] = dd.p_object_list(Resource, managed_name='web_resources')
+    phone_numbers: list[TelephoneNumber] = dd.p_object_list(TelephoneNumber, managed_name='phone')
     address: LanguageDict = dd.p_i18n_text(managed_name='delivery_point')
     city: str = dd.p_str()
     province: LanguageDict = dd.p_i18n_text(managed_name='admin_area')
     country: Country = dd.p_enum(Country)
     postal_code: str = dd.p_str()
-    web_page: t.Optional[QuickWebPage] = dd.p_json_object(QuickWebPage)
+    web_page: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage)
 
 
 class Individual(_Contact):
@@ -1083,7 +1083,7 @@ class Individual(_Contact):
 class Organization(_Contact):
 
     name: LanguageDict = dd.p_i18n_text(managed_name='organization_name')
-    individuals: list[_Contact] = dd.p_json_object_list(_Contact)
+    individuals: list[_Contact] = dd.p_object_list(_Contact)
     ror: str = _IdentifierMixin.id_property(IDSystem.ROR, ('https://ror.org/', 'http://ror.org/'))
 
 
@@ -1095,12 +1095,12 @@ class Position(_Contact):
 class _ResponsibleParty(EntityRef):
 
     role: ContactRole = dd.p_enum(ContactRole)
-    contact: _Contact = dd.p_json_object(_Contact)
+    contact: _Contact = dd.p_ddo(_Contact)
 
 
 class _ResponsiblesMixin:
 
-    responsibles: list[_ResponsibleParty] = dd.p_json_object_list(_ResponsibleParty)
+    responsibles: list[_ResponsibleParty] = dd.p_object_list(_ResponsibleParty)
 
     def add_contact(self, role: ContactRole, contact: _Contact):
         """
@@ -1122,20 +1122,20 @@ class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
     edition_date: datetime.date = dd.p_date()
     isbn: str = dd.p_str()
     issn: str = dd.p_str()
-    resource: t.Optional[Resource] = dd.p_json_object(Resource)
+    resource: t.Optional[Resource] = dd.p_ddo(Resource)
 
 
 class GeneralUseConstraint(EntityRef, _ResponsiblesMixin):
 
     description: LanguageDict = dd.p_i18n_text()
     plain_text: LanguageDict = dd.p_i18n_text()
-    citations: list[Citation] = dd.p_json_object_list(Citation, managed_name='reference')
+    citations: list[Citation] = dd.p_object_list(Citation, managed_name='reference')
 
 
 class LegalConstraint(GeneralUseConstraint):
 
-    access_constraints: set[RestrictionCode] = dd.p_json_enum_set(RestrictionCode)
-    use_constraints: set[RestrictionCode] = dd.p_json_enum_set(RestrictionCode)
+    access_constraints: set[RestrictionCode] = dd.p_enum_set(RestrictionCode)
+    use_constraints: set[RestrictionCode] = dd.p_enum_set(RestrictionCode)
     other_constraints: LanguageDict = dd.p_i18n_text()
 
 
@@ -1155,21 +1155,21 @@ class Thesaurus(EntityRef):
 
     keyword_type: KeywordType = dd.p_enum(KeywordType)
     prefix: str = dd.p_str()
-    citation: t.Optional[Citation] = dd.p_json_object(Citation)
+    citation: t.Optional[Citation] = dd.p_ddo(Citation)
 
 
 class Keyword(EntityRef):
 
     text: LanguageDict = dd.p_i18n_text(managed_name='keyword')
     description: LanguageDict = dd.p_i18n_text()
-    thesaurus: t.Optional[Thesaurus] = dd.p_json_object(Thesaurus)
+    thesaurus: t.Optional[Thesaurus] = dd.p_ddo(Thesaurus)
 
 
 class DistributionChannel(EntityRef, _ResponsiblesMixin):
 
     description: LanguageDict = dd.p_i18n_text()
-    primary_link: t.Optional[QuickWebPage] = dd.p_json_object(QuickWebPage, managed_name='primary_web_link')
-    links: list[Resource] = dd.p_json_object_list(Resource)
+    primary_link: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage, managed_name='primary_web_link')
+    links: list[Resource] = dd.p_object_list(Resource)
 
 
 class SpatialResolution(EntityRef):
@@ -1257,7 +1257,7 @@ class TemporalResolution(EntityRef):
 
 class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
-    ontology: medsutil.ocproc2.ontology.OCProc2Ontology = None
+    ontology: OCProc2Ontology = None
 
     REPRESENTATION_MAP = {
         CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
@@ -1270,24 +1270,24 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         CommonDataModelType.MovingGrid: SpatialRepresentation.Grid,
     }
 
-    distributors: list[DistributionChannel] = dd.p_json_object_list(DistributionChannel)
-    variables: list[Variable] = dd.p_json_object_list(Variable)
-    custom_keywords: list[Keyword] = dd.p_json_object_list(Keyword)
-    alt_metadata: list[Citation] = dd.p_json_object_list(Citation)
-    maintenance_records: list[MaintenanceRecord] = dd.p_json_object_list(MaintenanceRecord, managed_name='iso_maintenance')
-    metadata_constraints: list[GeneralUseConstraint] = dd.p_json_object_list(GeneralUseConstraint, managed_name='metadata_licenses')
-    data_constraints: list[GeneralUseConstraint] = dd.p_json_object_list(GeneralUseConstraint, managed_name='licenses')
-    metadata_standards: list[Citation] = dd.p_json_object_list(Citation)
-    metadata_profiles: list[Citation] = dd.p_json_object_list(Citation)
-    additional_docs: list[Citation] = dd.p_json_object_list(Citation)
-    canon_urls: list[Citation] = dd.p_json_object_list(Citation)
+    distributors: list[DistributionChannel] = dd.p_object_list(DistributionChannel)
+    variables: list[Variable] = dd.p_object_list(Variable)
+    custom_keywords: list[Keyword] = dd.p_object_list(Keyword)
+    alt_metadata: list[Citation] = dd.p_object_list(Citation)
+    maintenance_records: list[MaintenanceRecord] = dd.p_object_list(MaintenanceRecord, managed_name='iso_maintenance')
+    metadata_constraints: list[GeneralUseConstraint] = dd.p_object_list(GeneralUseConstraint, managed_name='metadata_licenses')
+    data_constraints: list[GeneralUseConstraint] = dd.p_object_list(GeneralUseConstraint, managed_name='licenses')
+    metadata_standards: list[Citation] = dd.p_object_list(Citation)
+    metadata_profiles: list[Citation] = dd.p_object_list(Citation)
+    additional_docs: list[Citation] = dd.p_object_list(Citation)
+    canon_urls: list[Citation] = dd.p_object_list(Citation)
 
-    spatial_resolution: t.Optional[SpatialResolution] = dd.p_json_object(SpatialResolution)
-    temporal_resolution: t.Optional[TemporalResolution] = dd.p_json_object(TemporalResolution)
-    metadata_owner: t.Optional[_Contact] = dd.p_json_object(_Contact)
-    publisher: t.Optional[_Contact] = dd.p_json_object(_Contact)
-    parent_metadata: t.Optional[Citation] = dd.p_json_object(Citation)
-    info_link: t.Optional[QuickWebPage] = dd.p_json_object(QuickWebPage)
+    spatial_resolution: t.Optional[SpatialResolution] = dd.p_ddo(SpatialResolution)
+    temporal_resolution: t.Optional[TemporalResolution] = dd.p_ddo(TemporalResolution)
+    metadata_owner: t.Optional[_Contact] = dd.p_ddo(_Contact)
+    publisher: t.Optional[_Contact] = dd.p_ddo(_Contact)
+    parent_metadata: t.Optional[Citation] = dd.p_ddo(Citation)
+    info_link: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage)
 
     institution: str = dd.p_str()
     program: str = dd.p_str()
@@ -1345,14 +1345,14 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     is_ongoing: bool = dd.p_bool(default=False)
     is_available_via_meds_request_form: bool = dd.p_bool(managed_name='via_meds_request_form', default=False)
 
-    secondary_data_locales: set[Locale] = dd.p_json_enum_set(Locale, managed_name='data_extra_locales')
-    secondary_metadata_locales: set[Locale] = dd.p_json_enum_set(Locale, managed_name='metadata_extra_locales')
-    goc_publication_places: set[GCPlace] = dd.p_json_enum_set(GCPlace, managed_name='goc_publication_place')
-    goc_audiences: set[GCAudience] = dd.p_json_enum_set(GCAudience, managed_name='goc_audience')
-    essential_ocean_variables: set[EssentialOceanVariable] = dd.p_json_enum_set(EssentialOceanVariable, managed_name='cioos_eovs')
+    secondary_data_locales: set[Locale] = dd.p_enum_set(Locale, managed_name='data_extra_locales')
+    secondary_metadata_locales: set[Locale] = dd.p_enum_set(Locale, managed_name='metadata_extra_locales')
+    goc_publication_places: set[GCPlace] = dd.p_enum_set(GCPlace, managed_name='goc_publication_place')
+    goc_audiences: set[GCAudience] = dd.p_enum_set(GCAudience, managed_name='goc_audience')
+    essential_ocean_variables: set[EssentialOceanVariable] = dd.p_enum_set(EssentialOceanVariable, managed_name='cioos_eovs')
 
-    conventions: set[str] = dd.p_json_str_set()
-    cf_standard_names: set[str] = dd.p_json_str_set()
+    conventions: set[str] = dd.p_set(value_coerce=str)
+    cf_standard_names: set[str] = dd.p_set(value_coerce=str)
 
     feature_type: CommonDataModelType = dd.p_enum(CommonDataModelType)
 
@@ -1361,16 +1361,16 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     publication_workflow: str = dd.p_str(managed_name='_publication_workflow')
     organization_name: str = dd.p_str(managed_name='_org_name')
     security_level: str = dd.p_str(managed_name='_security_level')
-    profiles: set[str] = dd.p_json_str_set(managed_name='_profiles')
-    users: set[str] = dd.p_json_str_set(managed_name='_users')
+    profiles: set[str] = dd.p_set(managed_name='_profiles', value_coerce=str)
+    users: set[str] = dd.p_set(managed_name='_users', value_coerce=str)
 
-    erddap_servers: list[ERDDAPServer] = dd.p_json_object_list(ERDDAPServer)
+    erddap_servers: list[ERDDAPServer] = dd.p_object_list(ERDDAPServer)
     erddap_data_file_path: str = dd.p_str()
     erddap_data_file_pattern: str = dd.p_str()
     erddap_dataset_id: str = dd.p_str()
     erddap_dataset_type: ERDDAPDatasetType = dd.p_enum(ERDDAPDatasetType)
 
-    custom_metadata: dict[str, SupportsExtendedJson] = dd.p_json_dict(value_coerce=unnumpy)
+    custom_metadata: dict[str, SupportsExtendedJson] = dd.p_dict(value_coerce=unnumpy)
 
     @injector.construct
     def __init__(self, **kwargs):
