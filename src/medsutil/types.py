@@ -27,12 +27,12 @@ AcceptAsLanguageDict = str | LanguageDict
 
 # Types to support JSON objects
 type _SupportsNativeJson = bool | str | float | int | None | _enum.IntEnum
-type _SupportsNativeJsonAll= _SupportsNativeJson | dict[str, _SupportsNativeJson] | list[_SupportsNativeJson]
+type _SupportsNativeJsonAll= _SupportsNativeJson | dict[str, _SupportsNativeJsonAll] | list[_SupportsNativeJsonAll]
 SupportsNativeJson = _SupportsNativeJsonAll
 """Type hint for objects that can be serialized with Python's native json library. """
 
 type _SupportsExtendedJson = _SupportsNativeJson | _datetime.datetime | _datetime.date | _datetime.time | _uuid.UUID | _enum.Enum
-type _SupportsExtendedJsonAll = _SupportsExtendedJson | _abc.Mapping[str, _SupportsExtendedJson] | _abc.Iterable[_SupportsExtendedJson]
+type _SupportsExtendedJsonAll = _SupportsExtendedJson | _abc.Mapping[str, _SupportsExtendedJsonAll] | _abc.Iterable[_SupportsExtendedJsonAll]
 SupportsExtendedJson = _SupportsExtendedJsonAll
 """Type hint for objects that can be serialzed with our own cnodc.util.json library. """
 
