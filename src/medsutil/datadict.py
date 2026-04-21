@@ -119,7 +119,7 @@ class DataDictObject(object):
                 elif prop.default is Ellipsis:
                     raise ValueError(f'Missing argument [{prop.property_name}] for [{self.__class__.__name__}]')
                 else:
-                    setattr(self, prop.property_name, prop.default)
+                    self.set_data(prop.default, managed_prop=prop, as_default=True)
         self._in_init = False
         for x in self._after_init:
             x()
@@ -179,7 +179,7 @@ class DataDictObject(object):
             del self._data[managed_name]
 
     @resolve_delayed
-    def set_data(self, value: t.Any, *, managed_prop: _ManagedNameProperty, coerce_set: t.Callable = None, readonly: bool = False, validators: list[t.Callable] | None = None):
+    def set_data(self, value: t.Any, *, managed_prop: _ManagedNameProperty, coerce_set: t.Callable = None, readonly: bool = False, validators: list[t.Callable] | None = None, as_default: bool = False):
         managed_name = managed_prop.managed_name
         if readonly and not self._allow_readonly_access:
             raise AttributeError(f"{managed_name} is read-only")
@@ -190,10 +190,11 @@ class DataDictObject(object):
                 validator(value)
         original = self._data[managed_name] if managed_name in self._data else None
         self._data[managed_name] = value
-        if self._in_init:
-            self._after_init.append(functools.partial(self.after_set, managed_name, value, original))
-        else:
-            self.after_set(managed_name, value, original)
+        if not as_default:
+            if self._in_init:
+                self._after_init.append(functools.partial(self.after_set, managed_name, value, original))
+            else:
+                self.after_set(managed_name, value, original)
 
     def set_from_managed_name(self, value: t.Any, name: str):
         prop = self._find_datadict_prop(name)
