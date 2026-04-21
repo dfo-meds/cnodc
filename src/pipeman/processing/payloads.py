@@ -15,14 +15,13 @@ from medsutil.storage import StorageController, FilePath
 from pipeman.exceptions import CNODCError
 from medsutil.halts import HaltFlag, ungzip_with_halt
 from medsutil.awaretime import AwareDateTime
-from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_json_dict
-from medsutil.dynamic import dynamic_name, dynamic_object, DynamicObjectLoadError
+from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_dict
 
 
 class Payload(DataDictObject):
 
-    metadata: dict = p_json_dict()
-    worker_config: dict = p_json_dict()
+    metadata: dict = p_dict()
+    worker_config: dict = p_dict()
 
     def __init__(self,
                  deduplicate_key: t.Optional[str] = None,
@@ -358,7 +357,7 @@ class NewFilePayload(Payload):
 
     file_path: str = p_str()
     filename: str = p_str()
-    modified_time: AwareDateTime = p_awaretime()
+    modified_time: AwareDateTime | None = p_awaretime()
     workflow_name: str = p_str()
     remove_when_complete: bool = p_bool(default=False)
 
