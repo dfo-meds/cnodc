@@ -325,7 +325,7 @@ class LinearFunction(Converter):
         return LinearFunction(self._scale, self._shift + factor)
 
     def invert(self):
-        return LinearFunction(1 / self._scale, (-1 * self._shift) / self._scale)
+        return LinearFunction(decimal.Decimal("1") / self._scale, (decimal.Decimal(-1) * self._shift) / self._scale)
 
     def product(self, other_converter):
         if isinstance(other_converter, LinearFunction):
