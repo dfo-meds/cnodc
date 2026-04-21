@@ -35,7 +35,7 @@ class WorkflowTestResult(logging.Handler):
         super().__init__(*args, **kwargs)
         self.worker_events: list[WorkerEvent] = []
         self.logs: list[logging.LogRecord] = []
-        self._log = logging.getLogger('workflow.test_result')
+        self._log = zrlog.get_logger('workflow.test_result')
 
     def start(self):
         logging.getLogger().addHandler(self)
@@ -79,7 +79,8 @@ class WorkflowTestResult(logging.Handler):
         else:
             wc[hook_key].append(cb)
 
-    def _add_worker_event(self, worker: BaseWorker, event_name: str, **kwargs):
+    def _add_worker_event(self, worker: BaseWorker, *args, event_name: str, **kwargs):
+        self._log.info(f"Saw event [%s] from [%s %s]", event_name, worker.process_name, worker.process_version)
         self.worker_events.append(WorkerEvent(
             event_time=AwareDateTime.utcnow(),
             process_name=worker.process_name,
