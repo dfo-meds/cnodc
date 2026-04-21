@@ -46,14 +46,10 @@ class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject
         self._modified_values: set[str] = set()
         self.is_new = is_new
         super().__init__(**kwargs)
-        if not is_new:
-            # Reset modified values if we loaded an original object
-            # so we don't update all the values all the time.
-            self._modified_values.clear()
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value, original)
-        if original != value:
+        if (self.is_new or not self._in_init) and original != value:
             self.mark_modified(managed_name)
 
     @classmethod
