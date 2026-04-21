@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET  # nosec B314 # file is under our control
 import zrlog
 import threading
 from autoinject import injector
-from uncertainties import UFloat
+from uncertainties import UFloat, ufloat
 
 from medsutil.units.parsing import parse_unit_string
 from medsutil.units.structures import LinearFunction, Converter, UnitExpression, UnitError
@@ -123,7 +123,21 @@ class UnitConverter:
         except Exception as ex:
             return None
 
-    def convert(self, quantity: t.Union[float, int, UFloat, decimal.Decimal], original_units: str, output_units: str) -> t.Union[float, int, UFloat]:
+    def convert(self, quantity: t.Union[float, int, UFloat, decimal.Decimal], original_units: str, output_units: str) -> t.Union[float, int, UFloat, decimal.Decimal]:
+        if isinstance(quantity, UFloat):
+            nv = self._convert(decimal.Decimal(quantity.nominal_value), original_units, output_units)
+            sv = self._convert(decimal.Decimal(quantity.std_dev), original_units, output_units)
+            return ufloat(float(nv), float(sv))
+        elif isinstance(quantity, decimal.Decimal):
+            return self._convert(quantity, original_units, output_units)
+        elif isinstance(quantity, float):
+            return float(self._convert(decimal.Decimal(quantity), original_units, output_units))
+        elif isinstance(quantity, int):
+            return int(self._convert(decimal.Decimal(quantity), original_units, output_units))
+        else:
+            raise TypeError('Invalid type for conversion')
+
+    def _convert(self, quantity: decimal.Decimal, original_units: str, output_units: str) -> decimal.Decimal:
         self._load_tables()
         factor_original, dims_original, expr_original = self._conversion_info(original_units)
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
