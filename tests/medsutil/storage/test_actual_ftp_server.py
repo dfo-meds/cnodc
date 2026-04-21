@@ -11,7 +11,7 @@ import pathlib
 
 from zirconium import test_with_config
 
-from medsutil.storage.interface import StorageError
+from medsutil.storage.interface import StorageError, PathType
 from medsutil.storage.ftp import FTPHandle, ftplib_error_wrap
 import unittest as ut
 
@@ -19,7 +19,7 @@ from medsutil.exceptions import HaltInterrupt
 from tests.helpers.base_test_case import BaseTestCase, skip_long_test
 from medsutil.halts import DummyHaltFlag
 
-FTP_HOME = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data' / 'ftp_root'
+FTP_HOME = pathlib.Path(__file__).absolute().resolve().parent.parent.parent / 'test_data' / 'ftp_root'
 
 
 @ftplib_error_wrap
@@ -108,6 +108,7 @@ class TestFTPHandle(BaseTestCase):
             self.assertTrue(fp.exists())
             handle = FTPHandle('ftp://localhost/test_remove.txt')
             self.assertTrue(handle.exists())
+            self.assertFalse(handle.is_dir())
             handle.remove()
             self.assertFalse(handle.exists())
             self.assertFalse(fp.exists())
@@ -139,7 +140,7 @@ class TestFTPHandle(BaseTestCase):
         handle._halt_flag.event.set()
         self.assertTrue(handle.exists())
         with self.assertRaises(HaltInterrupt):
-            _ = [x for x in handle.streaming_read(2)]
+            _ = [x for x in handle._streaming_read(2)]
 
     def test_remove_dir(self):
         handle = FTPHandle('ftp://localhost/subdir/')
@@ -208,7 +209,7 @@ class TestFTPHandle(BaseTestCase):
 
     def test_walk(self):
         handle = FTPHandle("ftp://localhost/")
-        files = [x.name for x in handle.iterdir(False)]
+        files = [x.name for x in handle.iterdir(False, path_types=PathType.FILE)]
         self.assertIn('test.txt', files)
         self.assertIn('test4.txt', files)
         self.assertNotIn('test2.txt', files)
@@ -220,9 +221,9 @@ class TestFTPHandle(BaseTestCase):
 
     def test_walk_recursive(self):
         handle = FTPHandle("ftp://localhost/")
-        files = [x.path() for x in handle.iterdir(True)]
-        self.assertNotIn('ftp://localhost/subdir', files)
-        self.assertNotIn('ftp://localhost/subdir/subdir2', files)
+        files = [x.path() for x in handle.iterdir(True, path_types=PathType.FILE)]
+        self.assertNotIn('ftp://localhost/subdir/', files)
+        self.assertNotIn('ftp://localhost/subdir/subdir2/', files)
         self.assertNotIn('ftp://localhost/test3.txt', files)
         self.assertIn('ftp://localhost/test.txt', files)
         self.assertIn('ftp://localhost/test4.txt', files)
@@ -230,16 +231,15 @@ class TestFTPHandle(BaseTestCase):
         self.assertIn('ftp://localhost/subdir/subdir2/test5.txt', files)
         self.assertEqual(len(files), 4)
 
-    def test_walk_recursive_with_dirs(self):
+    def test_walk_not_recursive_with_dirs(self):
         handle = FTPHandle("ftp://localhost/")
-        with handle._connection() as ftp:
-            files = [x for x, _ in handle._iterdir('/', False, True, ftp)]
-            self.assertIn('/subdir', files)
-            self.assertNotIn('/subdir/subdir2', files)
+        files = [x.path() for x in handle.iterdir(False)]
+        self.assertIn('ftp://localhost/subdir/', files)
+        self.assertNotIn('ftp://localhost/subdir/subdir2/', files)
 
-    def test_walk_not_dirs(self):
+    def test_walk_not_dir(self):
         handle = FTPHandle("ftp://localhost/test.txt")
-        files = [x for x in handle.iterdir()]
+        files = [x.path() for x in handle.iterdir(False)]
         self.assertEqual(0, len(files))
 
 
@@ -294,7 +294,7 @@ class TestOlderFTPHandle(ut.TestCase):
     @test_with_config(("storage", "servers", "ftp", "localhost"), {"rfc3659_support": False})
     def test_walk(self):
         handle = FTPHandle("ftp://localhost/")
-        files = [x.name for x in handle.iterdir(False)]
+        files = [x.name for x in handle.iterdir(False, path_types=PathType.FILE)]
         self.assertIn('test.txt', files)
         self.assertIn('test4.txt', files)
         self.assertNotIn('test2.txt', files)
@@ -308,9 +308,9 @@ class TestOlderFTPHandle(ut.TestCase):
     @test_with_config(("storage", "servers", "ftp", "localhost"), {"rfc3659_support": False})
     def test_walk_recursive(self):
         handle = FTPHandle("ftp://localhost/")
-        files = [x.path() for x in handle.iterdir(True)]
-        self.assertNotIn('ftp://localhost/subdir', files)
-        self.assertNotIn('ftp://localhost/subdir/subdir2', files)
+        files = [x.path() for x in handle.iterdir(True, path_types=PathType.FILE)]
+        self.assertNotIn('ftp://localhost/subdir/', files)
+        self.assertNotIn('ftp://localhost/subdir/subdir2/', files)
         self.assertNotIn('ftp://localhost/test3.txt', files)
         self.assertIn('ftp://localhost/test.txt', files)
         self.assertIn('ftp://localhost/test4.txt', files)

@@ -10,7 +10,7 @@ class TestDynamicLoad(BaseTestCase):
         self.assertEqual(dynamic_name(str), 'str')
 
     def test_object_name(self):
-        self.assertEqual(dynamic_name(AwareDateTime), 'cnodc.util.awaretime.AwareDateTime')
+        self.assertEqual(dynamic_name(AwareDateTime), 'medsutil.awaretime.AwareDateTime')
 
     def test_bad(self):
         with self.assertRaises(DynamicObjectLoadError):

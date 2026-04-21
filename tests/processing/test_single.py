@@ -1,10 +1,14 @@
 import yaml
 
+from medsutil.dynamic import dynamic_name
+from pipeman.processing.scheduled_task import ScheduledTask
 from pipeman_service.single import SingleProcessController
 from pipeman.processing.base_worker import BaseWorker
 from medsutil.exceptions import CodedError
 from tests.helpers.base_test_case import BaseTestCase
 
+
+SCHEDULED_TASK = dynamic_name(ScheduledTask)
 
 class TestBaseProcessController(BaseTestCase):
 
@@ -13,13 +17,13 @@ class TestBaseProcessController(BaseTestCase):
         with open(file, "w") as h:
             yaml.safe_dump({
                 'process1': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {
                         'five': 5,
                     }
                 },
                 'process2': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'count': 4,
                     'config': {
                         'hello': 'world',
@@ -107,7 +111,7 @@ class TestBaseProcessController(BaseTestCase):
                     'config': {}
                 },
                 'good': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {}
                 }
             }, h)
@@ -130,7 +134,7 @@ class TestBaseProcessController(BaseTestCase):
                     'config': {}
                 },
                 'good': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {}
                 }
             }, h)
@@ -149,11 +153,11 @@ class TestBaseProcessController(BaseTestCase):
         with open(file, "w") as h:
             yaml.safe_dump({
                 'process1': {
-                    'class_name': 'cnodc.util.exceptions.CNODCError',
+                    'class_name': 'tests.helpers',
                     'config': {}
                 },
                 'good': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {}
                 }
             }, h)
@@ -172,11 +176,11 @@ class TestBaseProcessController(BaseTestCase):
         with open(file, "w") as h:
             yaml.safe_dump({
                 'process1': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': 'foobar'
                 },
                 'good': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {}
                 }
             }, h)
@@ -196,11 +200,11 @@ class TestBaseProcessController(BaseTestCase):
         with open(file, "w") as h:
             yaml.safe_dump({
                 'process1': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'count': 'foobar'
                 },
                 'good': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {}
                 }
             }, h)
@@ -220,13 +224,13 @@ class TestBaseProcessController(BaseTestCase):
         with open(file, "w") as h:
             yaml.safe_dump({
                 'process1': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {
                         'five': 5,
                     }
                 },
                 'process2': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'count': 4,
                     'config': {
                         'hello': 'world',
@@ -241,10 +245,10 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertIn('process1', nc._process_info)
         self.assertIn('process2', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._worker_cls, 'cnodc.processing.workers.scheduled_task.ScheduledTask')
+        self.assertEqual(nc._process_info['process1']._worker_cls, SCHEDULED_TASK)
         self.assertEqual(nc._process_info['process1']._quota, 1)
         self.assertEqual(nc._process_info['process1']._config, {"five": 5})
-        self.assertEqual(nc._process_info['process2']._worker_cls, 'cnodc.processing.workers.scheduled_task.ScheduledTask')
+        self.assertEqual(nc._process_info['process2']._worker_cls, SCHEDULED_TASK)
         self.assertEqual(nc._process_info['process2']._quota, 4)
         self.assertEqual(nc._process_info['process2']._config, {"hello": "world"})
 
@@ -252,7 +256,7 @@ class TestBaseProcessController(BaseTestCase):
         with open(self.temp_dir / "process1.yaml", "w") as h:
             yaml.safe_dump({
                 'process1': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'config': {
                         'five': 5,
                     }
@@ -265,7 +269,7 @@ class TestBaseProcessController(BaseTestCase):
         with open(subdir / 'process2.yaml', 'w') as h:
             yaml.safe_dump({
                 'process2': {
-                    'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                    'class_name': SCHEDULED_TASK,
                     'count': 4,
                     'config': {
                         'hello': 'world',
@@ -280,10 +284,10 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertIn('process1', nc._process_info)
         self.assertIn('process2', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._worker_cls, 'cnodc.processing.workers.scheduled_task.ScheduledTask')
+        self.assertEqual(nc._process_info['process1']._worker_cls, SCHEDULED_TASK)
         self.assertEqual(nc._process_info['process1']._quota, 1)
         self.assertEqual(nc._process_info['process1']._config, {"five": 5})
-        self.assertEqual(nc._process_info['process2']._worker_cls, 'cnodc.processing.workers.scheduled_task.ScheduledTask')
+        self.assertEqual(nc._process_info['process2']._worker_cls, SCHEDULED_TASK)
         self.assertEqual(nc._process_info['process2']._quota, 4)
         self.assertEqual(nc._process_info['process2']._config, {"hello": "world"})
 
@@ -291,13 +295,13 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                'class_name': SCHEDULED_TASK,
                 'config': {
                     'five': 5,
                 }
             },
             'process2': {
-                'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                'class_name': SCHEDULED_TASK,
                 'count': 4,
                 'config': {
                     'hello': 'world',
@@ -319,7 +323,7 @@ class TestBaseProcessController(BaseTestCase):
         del procs['process1']
         procs['process2']['config']['hello'] = 'others'
         procs['process3'] = {
-            'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+            'class_name': SCHEDULED_TASK,
             'config': {},
         }
         with open(file, "w") as h:
@@ -341,13 +345,13 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                'class_name': SCHEDULED_TASK,
                 'config': {
                     'five': 5,
                 }
             },
             'process2': {
-                'class_name': 'cnodc.processing.workers.scheduled_task.ScheduledTask',
+                'class_name': SCHEDULED_TASK,
                 'count': 4,
                 'config': {
                     'hello': 'world',
@@ -367,13 +371,13 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertFalse(nc._check_reload())
         with self.assertRaises(ValueError):
-            nc._register_process('process2', 'cnodc.processing.workers.scheduled_task.ScheduledTask', 4, 'monkeybar')
+            nc._register_process('process2', SCHEDULED_TASK, 4, 'monkeybar')
 
     def test_run(self):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.processing.test_single.GoodTest',
+                'class_name': dynamic_name(GoodTest),
             },
         }
         with open(file, "w") as h:
@@ -394,7 +398,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.processing.test_single.BadTest',
+                'class_name': dynamic_name(BadTest),
             },
         }
         with open(file, "w") as h:
@@ -415,7 +419,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.processing.test_single.BadTest',
+                'class_name': dynamic_name(BadTest),
             },
         }
         with open(file, "w") as h:
@@ -433,7 +437,7 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         procs = {
             'process1': {
-                'class_name': 'tests.processing.test_single.GoodTest',
+                'class_name': dynamic_name(GoodTest),
                 'count': 2,
             },
         }

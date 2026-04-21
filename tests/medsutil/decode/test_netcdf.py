@@ -4,11 +4,14 @@ import logging
 import netCDF4 as nc
 import yaml
 
+from medsutil.dynamic import dynamic_name
 from medsutil.ocproc2 import MultiElement, SingleElement
 from medsutil.exceptions import CodedError
 from medsutil.sanitize import netcdf_string_to_bytes, netcdf_string_to_vlen_bytes
+from pipeman.programs.glider.ego_decode import GliderEGOMapper
 from tests.helpers.base_test_case import BaseTestCase
-from medsutil.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder
+from medsutil.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder, \
+    MappingInfo
 
 
 def dynamic_int_processor(data_processor, value, *args, **kwargs):
@@ -102,7 +105,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 r = h.read(128)
         decoder = NetCDFCommonDecoder()
         with self.assertLogs("cnodc.programs.glider.ego_decode", "INFO"):
-            records = [x for x in decoder.decode_messages(bytes_iterable, mapping_class="cnodc.programs.glider.ego_decode.GliderEGOMapper")]
+            records = [x for x in decoder.decode_messages(bytes_iterable, mapping_class=dynamic_name(GliderEGOMapper))]
         self.assertEqual(5, len(records))
 
     def test_bad_file(self):
@@ -338,10 +341,9 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'bar': {}
                 },
             }, 'test')
-            with self.assertLogs('test', 'WARNING'):
+            with self.assertRaisesCNODCError('NETCDF_COMMON_DECODE-2004'):
                 mapper._load_data()
-            map_info = mapper._get_ocproc2_map()['record_vars']['var:test']
-            self.assertIsNone(map_info.data_map)
+            self.assertNotIn('var:test', mapper._get_ocproc2_map()['record_vars'])
 
     def test_basic_mapping(self):
         with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:
@@ -398,7 +400,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
             ds.createVariable('test2', 'i4')
             values = [1, 2, 3, 4, 5]
             ds.variables['test'][:] = values
-            ds.variables['test2'][:] = [6]
+            ds.variables['test2'][:] = 6
             mapper = NetCDFCommonMapper(ds, {
                 'ocproc2_map': {
                     'test': {
@@ -407,7 +409,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     },
                     'globalvar:test2': {
                         'target': 'metadata/Bar2',
-                        'data_processor': 'tests.decode.test_netcdf.dynamic_int_processor'
+                        'data_processor': dynamic_name(dynamic_int_processor)
                     }
                 },
                 'data_maps': {},
@@ -1009,9 +1011,18 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            self.assertIsNone(mapper._process_value(';;;', {
-                'separator': ';'
-            }))
+            self.assertIsNone(mapper._process_value(';;;', self._map_info(separator=';')))
+
+    def _map_info(self, **kwargs) -> MappingInfo:
+        if 'source' not in kwargs:
+            kwargs['source'] = ''
+        if 'mapping_type' not in kwargs:
+            kwargs['mapping_type'] = ''
+        if 'metadata' not in kwargs:
+            kwargs['metadata'] = {}
+        if 'targets' not in kwargs:
+            kwargs['targets'] = []
+        return MappingInfo(**kwargs)
 
     def test_split_value_one_list(self):
         with nc.Dataset("inmemory.nc", "r+", diskless=True) as ds:

@@ -8,7 +8,7 @@ from medsutil import json
 from medsutil.exceptions import CodedError
 from medsutil.sanitize import netcdf_string_to_vlen_bytes, unnumpy
 
-from programs.gliders.helpers import GliderBaseTest
+from tests.programs.gliders.helpers import GliderBaseTest
 
 
 class TestEmptyGliderConversion(GliderBaseTest):
@@ -208,7 +208,7 @@ class TestEmptyGliderConversion(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
     def test_bad_data_mode(self):
         with self.assertRaises(ValueError):
@@ -275,7 +275,7 @@ class TestPartialBadConversion(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
 
 class TestPartial2BadConversion(GliderBaseTest):
@@ -332,7 +332,7 @@ class TestPartial2BadConversion(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
 
 class TestPartial3BadConversion(GliderBaseTest):
@@ -373,7 +373,7 @@ class TestPartial3BadConversion(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
 
 class TestMinimalEmptyConversion(GliderBaseTest):
@@ -421,7 +421,7 @@ class TestMinimalEmptyConversion(GliderBaseTest):
         self.assertDoesNotHaveAttribute('geospatial_vertical_max')
 
     def test_is_valid(self):
-        self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
+        self.assertTrue(validate_ego_glider_file(self.old_file, {}, self.old_file.name))
 
 
 
@@ -462,7 +462,7 @@ class TestBadPosSystem(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
 
 class TestBadTrackSystem(GliderBaseTest):
@@ -508,7 +508,7 @@ class TestBadTrackSystem(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
 
 
@@ -556,7 +556,7 @@ class TestBadBatterySystem(GliderBaseTest):
 
     def test_is_invalid(self):
         with self.assertRaises(CodedError):
-            validate_ego_glider_file(self.old_file, self.old_file.name, {})
+            validate_ego_glider_file(self.old_file, {}, self.old_file.name)
 
 
 
@@ -660,7 +660,7 @@ class TestMinimalConversion(GliderBaseTest):
         return True
 
     def test_is_valid(self):
-        self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
+        self.assertTrue(validate_ego_glider_file(self.old_file, {}, self.old_file.name))
 
     def test_dimensions(self):
         self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)
@@ -871,7 +871,7 @@ class TestFullConversionWithMetadata(GliderBaseTest):
         old.setncattr('network', 'Network')
 
     def test_is_valid(self):
-        self.assertTrue(validate_ego_glider_file(self.old_file, self.old_file.name, {}))
+        self.assertTrue(validate_ego_glider_file(self.old_file, {}, self.old_file.name))
 
     def test_dimensions(self):
         self.assertIn('N_MEASUREMENTS', self.new_handle.dimensions)

@@ -186,7 +186,7 @@ class TestSourceFilePayload(BaseTestCase):
         self.assertIn('source_uuid', map_)
         self.assertIn('received_date', map_)
         self.assertEqual(map_['source_uuid'], '12345')
-        self.assertEqual(map_['received_date'], datetime.date(2015, 1, 1))
+        self.assertEqual(map_['received_date'], '2015-01-01')
         self.assertIn('workflow_name', map_)
         self.assertEqual(map_['workflow_name'], 'test')
 
@@ -336,7 +336,7 @@ class TestObservationPayload(BaseTestCase):
         self.assertIn('obs_uuid', map_)
         self.assertIn('received_date', map_)
         self.assertEqual(map_['obs_uuid'], '12345')
-        self.assertEqual(map_['received_date'], datetime.date(2015, 1, 2))
+        self.assertEqual(map_['received_date'], '2015-01-02')
 
     def test_load(self):
         obs = NODBObservation(is_new=True, obs_uuid='12345', received_date=datetime.date(2015, 1, 2), platform_uuid='test')

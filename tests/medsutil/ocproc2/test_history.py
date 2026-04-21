@@ -26,7 +26,7 @@ class TestHistory(ut.TestCase):
         self.assertEqual(map_, {
             '_message': 'hello world',
             '_timestamp': '2015-01-02T03:04:05',
-            '_source': ('test', '1.0', '12345'),
+            '_source': ['test', '1.0', '12345'],
             '_message_type': MessageType.NOTE.value
         })
         h2 = HistoryEntry.from_mapping(map_)

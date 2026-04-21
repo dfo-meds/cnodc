@@ -202,13 +202,13 @@ class TestOCProc2ImportExport(ut.TestCase):
                 {
                     '_message': 'hello world',
                     '_timestamp': '2023-01-01T00:00:00+00:00',
-                    '_source': ('test1', 'version1', 'instance1'),
+                    '_source': ['test1', 'version1', 'instance1'],
                     '_message_type': 'I'
                 },
                 {
                     '_message': 'hello world2',
                     '_timestamp': '2023-01-02T00:00:00+00:00',
-                    '_source': ('test1', 'version1', 'instance1'),
+                    '_source': ['test1', 'version1', 'instance1'],
                     '_message_type': 'I'
                 }
             ],

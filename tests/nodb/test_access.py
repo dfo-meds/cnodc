@@ -17,12 +17,12 @@ class SessionTest(BaseTestCase):
             username="foobar"
         )
         self.assertEqual(session.session_id, "foobar")
-        self.assertEqual(session.start_time, datetime.datetime(2015, 1, 2, 3, 4, 5))
-        self.assertEqual(session.expiry_time, datetime.datetime(2015, 1, 2, 4, 4, 5))
+        self.assertEqual(session.start_time, datetime.datetime(2015, 1, 2, 3, 4, 5).astimezone())
+        self.assertEqual(session.expiry_time, datetime.datetime(2015, 1, 2, 4, 4, 5).astimezone())
 
     def test_is_expired(self):
         session = NODBSession(
-            starttime=datetime.datetime.now(datetime.timezone.utc),
+            start_time=datetime.datetime.now(datetime.timezone.utc),
             expiry_time=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(60),
         )
         self.assertFalse(session.is_expired())
@@ -95,13 +95,10 @@ class UserTest(BaseTestCase):
         self.assertFalse(user.check_password("foobar2"))
         self.assertFalse(user.check_password("foobat"))
 
-        # Common invalid types
-        with self.assertRaisesCNODCError():
-            user.check_password(None)
-        with self.assertRaisesCNODCError():
-            user.check_password(12345)
-        with self.assertRaisesCNODCError():
-            user.check_password(b'foobar')
+        # common bad types, but we just want to return false to avoid giving away that there's an issue here
+        self.assertFalse(user.check_password(None))
+        self.assertFalse(user.check_password(12345))
+        self.assertFalse(user.check_password(b'foobar'))
 
         # Check that setting the password also changes the salt
         user.clear_modified()

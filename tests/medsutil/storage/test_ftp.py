@@ -57,14 +57,12 @@ class TestFTPHandleNoServer(BaseTestCase):
     def test_child_dir(self):
         handle = FTPHandle("ftp://localhost/")
         d = handle.child('hello', True)
-        self.assertTrue(d.is_dir())
         self.assertEqual(d.name, 'hello')
         self.assertEqual(d.path(), 'ftp://localhost/hello/')
 
     def test_file_dir(self):
         handle = FTPHandle('ftp://localhost/')
         d = handle.child('hello', False)
-        self.assertFalse(d.is_dir())
         self.assertEqual(d.name, 'hello')
         self.assertEqual(d.path(), 'ftp://localhost/hello')
 

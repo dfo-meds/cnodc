@@ -105,6 +105,8 @@ class MockPostgresConnectionCursor:
         self._responses.clear()
         self._next_response = []
 
+    def close(self): ...
+
 
 class NODBMockController(NODB):
 
@@ -170,6 +172,7 @@ class TestControllerInstance(ut.TestCase):
 
     @contextmanager
     def assertQueries(self, queries: list[t.Union[str, tuple[str, list | BaseException]]]):
+        found_exc = False
         try:
             self.nodb._conn.reset_all()
             actual_queries = []
@@ -181,24 +184,28 @@ class TestControllerInstance(ut.TestCase):
                     actual_queries.append(query)
             queries = actual_queries
             yield self.nodb._conn._commands
+        except Exception as e:
+            found_exc = True
+            raise
         finally:
-            commands = self.nodb._conn._commands
-            comm_len = len(commands)
-            query_len = len(queries)
-            if not queries == commands:
-                msg = 'Query Lists Differ:'
-                for i in range(0, max(comm_len, query_len)):
-                    if i >= query_len:
-                        msg += f"\nQuery {i+1}\n"
-                        msg += f"ADDT: {self.nodb._conn._commands[i]}"
-                    elif i >= comm_len:
-                        msg += f"\nQuery {i+1}\n"
-                        msg += f"MISS: {queries[i]}"
-                    elif queries[i] != self.nodb._conn._commands[i]:
-                        msg += f"\nQuery {i+1}\n"
-                        msg += f"EXPC: {queries[i]}\nACTL: {self.nodb._conn._commands[i]}"
-                raise AssertionError(msg)
-            self.assertEqual(queries, self.nodb._conn._commands)
+            if not found_exc:
+                commands = self.nodb._conn._commands
+                comm_len = len(commands)
+                query_len = len(queries)
+                if not queries == commands:
+                    msg = 'Query Lists Differ:'
+                    for i in range(0, max(comm_len, query_len)):
+                        if i >= query_len:
+                            msg += f"\nQuery {i+1}\n"
+                            msg += f"ADDT: {self.nodb._conn._commands[i]}"
+                        elif i >= comm_len:
+                            msg += f"\nQuery {i+1}\n"
+                            msg += f"MISS: {queries[i]}"
+                        elif queries[i] != self.nodb._conn._commands[i]:
+                            msg += f"\nQuery {i+1}\n"
+                            msg += f"EXPC: {queries[i]}\nACTL: {self.nodb._conn._commands[i]}"
+                    raise AssertionError(msg)
+                self.assertEqual(queries, self.nodb._conn._commands)
             self.nodb._conn.reset_all()
 
     def test_commit(self):
@@ -654,7 +661,7 @@ class TestControllerInstance(ut.TestCase):
         for lock_type, result in tests:
             with self.subTest(lock_type=lock_type):
                 self.assertEqual(
-                    PostgresController.assemble_query(PostgresController.build_lock_type_clause(lock_type)),
+                    as_string(PostgresController.build_lock_type_clause(lock_type)),
                     result
                 )
 
@@ -917,6 +924,7 @@ class TestControllerInstance(ut.TestCase):
                 obj = NODBObservation(obs_uuid='12345', received_date='2015-01-02', location='POINT(5 6)', is_new=False)
                 obj.min_depth = 5
                 obj.max_depth = 25
+                self.assertEqual(2, len(obj.modified_values))
                 self.assertTrue(db.upsert_object(obj))
 
     def test_upsert_to_update_no_changes(self):

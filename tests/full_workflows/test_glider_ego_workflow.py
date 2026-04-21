@@ -1,11 +1,18 @@
 import functools
 import logging
+import unittest
 
+from tests.helpers.base_test_case import ordered_test, load_ordered_tests, ordered_after
+from medsutil.dynamic import dynamic_name
+from medsutil.ocproc2.codecs.netcdf import NetCDFCommonDecoder
 from nodb import NODBObservationData, NODBObservation, NODBSourceFile
 from nodb import NODBWorkingRecord
 from pipeman.processing.progressor import WorkflowProgressWorker
 from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
-from pipeman.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker
+from pipeman.programs.glider.ego_convert import validate_ego_glider_file
+from pipeman.programs.glider.ego_decode import GliderEGOMapper
+from pipeman.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker, \
+    add_glider_mission_platform_info
 from pipeman.programs.nodb import NODBDecodeLoadWorker
 from tests.helpers.base_test_case import skip_long_test
 from tests.helpers.mock_workflow import MockWorkflow, WorkflowTestResult, BaseWorkflowTestCase
@@ -14,6 +21,7 @@ from autoinject import injector
 import zirconium as zr
 import medsutil.json as json
 
+load_tests = load_ordered_tests
 
 def with_security(cb):
     @functools.wraps(cb)
@@ -85,17 +93,17 @@ class TestGliderDecode(BaseWorkflowTestCase):
                 'name': 'decode_records',
                 'worker_config': {
                     'decoder': {
-                        'decoder_class': 'cnodc.ocproc2.codecs.netcdf.NetCDFCommonDecoder',
+                        'decoder_class': dynamic_name(NetCDFCommonDecoder),
                         'decoder_kwargs': {
-                            'mapping_class': 'cnodc.programs.glider.ego_decode.GliderEGOMapper',
+                            'mapping_class': dynamic_name(GliderEGOMapper),
                         },
                         'autocomplete_records': True,
                         'allow_reprocessing': True,
-                        'hook_before_record': 'cnodc.programs.glider.workers.add_glider_mission_platform_info',
+                        'hook_before_record': dynamic_name(add_glider_mission_platform_info),
                     },
                 }
             }, 'glider_ego_conversion'],
-            'cnodc.programs.glider.ego_convert.validate_ego_glider_file'
+            dynamic_name(validate_ego_glider_file)
         )
         cls._web_test_data = []
         cls.web('http://test/api/upsert-dataset', 'POST')(
@@ -106,7 +114,6 @@ class TestGliderDecode(BaseWorkflowTestCase):
                 cls.data_file_path('glider_ego/SEA032_20250606_R.nc'),
                 input_dir
             )
-
     def test_download_ran(self):
         self.assertEventDidOccur("file_downloader", "before_queue_item")
         self.assertEventDidOccur("file_downloader", "after_queue_item")
@@ -114,6 +121,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
         self.assertEventDidNotOccur("file_downloader", "on_retry")
         self.assertEventDidNotOccur("file_downloader", "on_failure")
 
+    @ordered_after(test_download_ran)
     def test_decode_ran(self):
         self.assertEventDidOccur("decoder", "before_queue_item")
         self.assertEventDidOccur("decoder", "after_queue_item")
@@ -126,41 +134,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
         self.assertEventDidNotOccur("decoder", "on_retry")
         self.assertEventDidNotOccur("decoder", "on_failure")
 
-    def test_conversion_ran(self):
-        self.assertEventDidOccur("glider_ego_converter", "before_queue_item")
-        self.assertEventDidOccur("glider_ego_converter", "after_queue_item")
-        self.assertEventDidOccur("glider_ego_converter", "on_success")
-        self.assertEventDidNotOccur("glider_ego_converter", "on_retry")
-        self.assertEventDidNotOccur("glider_ego_converter", "on_failure")
-
-    def test_metadata_uploader_ran(self):
-        self.assertEventDidOccur("glider_metadata_uploader", "before_queue_item")
-        self.assertEventDidOccur("glider_metadata_uploader", "after_queue_item")
-        self.assertEventDidOccur("glider_metadata_uploader", "on_success")
-        self.assertEventDidNotOccur("glider_metadata_uploader", "on_retry")
-        self.assertEventDidNotOccur("glider_metadata_uploader", "on_failure")
-
-    def test_dmd_request_made(self):
-        self.assertEqual(1, len(self._web_test_data))
-
-    def test_dmd_content(self):
-        data = json.dumps(self._web_test_data[0])
-        data_reloaded = json.loads(data)
-        with open("./_test_dmd_output.json", "w") as h:
-            h.write(json.dumps(data_reloaded))
-        with open(self.data_file_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
-            content = h.read()
-            content = json.loads(content)
-            self.assertDictSimilar(data_reloaded, content)
-
-    def test_observations(self):
-        with self.real_nodb as db:
-            self.assertEqual(7474, db.rows(NODBObservation.TABLE_NAME))
-
-    def test_observation_data(self):
-        with self.real_nodb as db:
-            self.assertEqual(7474, db.rows(NODBObservationData.TABLE_NAME))
-
+    @ordered_after(test_decode_ran)
     def test_source_file(self):
         with self.real_nodb as db:
             source_files = [x for x in NODBSourceFile.find_all(db)]
@@ -168,8 +142,49 @@ class TestGliderDecode(BaseWorkflowTestCase):
             self.assertEqual(source_files[0].source_name, 'ego_glider_files')
             self.assertEqual(source_files[0].program_name, 'gliders')
 
+    @ordered_after(test_source_file)
+    def test_observations(self):
+        with self.real_nodb as db:
+            self.assertEqual(7474, db.rows(NODBObservation.TABLE_NAME))
+
+    @ordered_after(test_observations)
+    def test_observation_data(self):
+        with self.real_nodb as db:
+            self.assertEqual(7474, db.rows(NODBObservationData.TABLE_NAME))
+
+    @ordered_after(test_observation_data)
     def test_no_working_records(self):
         with self.real_nodb as db:
             self.assertEqual(0, db.rows(NODBWorkingRecord.TABLE_NAME))
 
+    @ordered_after(test_no_working_records)
+    def test_conversion_ran(self):
+        self.assertEventDidOccur("glider_ego_converter", "before_queue_item")
+        self.assertEventDidOccur("glider_ego_converter", "after_queue_item")
+        self.assertEventDidOccur("glider_ego_converter", "on_success")
+        self.assertEventDidNotOccur("glider_ego_converter", "on_retry")
+        self.assertEventDidNotOccur("glider_ego_converter", "on_failure")
+
+    @ordered_after(test_conversion_ran)
+    def test_metadata_uploader_ran(self):
+        self.assertEventDidOccur("glider_metadata_uploader", "before_queue_item")
+        self.assertEventDidOccur("glider_metadata_uploader", "after_queue_item")
+        self.assertEventDidOccur("glider_metadata_uploader", "on_success")
+        self.assertEventDidNotOccur("glider_metadata_uploader", "on_retry")
+        self.assertEventDidNotOccur("glider_metadata_uploader", "on_failure")
+
+    @ordered_after(test_metadata_uploader_ran)
+    def test_dmd_request_made(self):
+        self.assertEqual(1, len(self._web_test_data))
+
+    @ordered_after(test_dmd_request_made)
+    def test_dmd_content(self):
+        data = json.dumps(self._web_test_data[0])
+        data_reloaded = json.load_dict(data)
+        with open(self.data_file_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
+            content = h.read()
+            content = json.load_dict(content)
+        del data_reloaded['metadata']['file_storage_location']
+        del content['metadata']['file_storage_location']
+        self.assertDictSimilar(data_reloaded, content)
 

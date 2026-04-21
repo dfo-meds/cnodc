@@ -88,7 +88,7 @@ class TestDataDictObject(BaseTestCase):
         self.assertNotIn('hello', obj2.json_dict_prop)
 
     def test_set_not_a_prop(self):
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(TypeError):
             obj = BoringObject(required_prop='', not_a_prop='surprise!')
 
     def test_readonly_prop_set_and_readonly_access(self):

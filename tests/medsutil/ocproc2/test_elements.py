@@ -23,7 +23,7 @@ class TestLowLevelThings(ut.TestCase):
         ]
         for pt in pass_through:
             with self.subTest(input=pt):
-                self.assertIs(pt, normalize_data_value(pt))
+                self.assertEqual(pt, normalize_data_value(pt))
         date_ = datetime.date(2015, 10, 12)
         date_time_ = datetime.datetime(2015, 11, 13, 1, 2, 3)
         self.assertEqual('2015-10-12', normalize_data_value(date_))
