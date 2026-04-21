@@ -8,7 +8,6 @@ import coverage
 TEST_DIR = pathlib.Path(__file__).absolute().parent
 
 if __name__ == '__main__':
-    zrlog.init_logging()
     logging.disable(logging.NOTSET)
     logging.getLogger().setLevel('WARNING')
     h = logging.StreamHandler(sys.stdout)
@@ -22,6 +21,8 @@ if __name__ == '__main__':
         source_pkgs=["cnodc"]
     )
     with cov.collect():
+        from pipeman.boot import init_cnodc
+        init_cnodc('tests')
         unittest.main(
             module=None,
             argv=new_argv
