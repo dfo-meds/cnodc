@@ -1,0 +1,12 @@
+[flask]
+SECRET_KEY='12345'
+
+# For testing a live storage account, copy this to .cnodc.private.toml and replace the uppercase words.
+# Do not add the credentials here and definitely do not commit them to the repository.
+# [tests.azure_storage]
+# account_name = 'ACCOUNT_NAME'
+# file_share = 'SHARE_NAME'
+# connection_string = 'CONN_STR'
+#
+# [azure.storage.ACCOUNT_NAME]
+# connection_string = 'CONN_STR'
