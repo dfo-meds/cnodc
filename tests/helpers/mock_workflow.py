@@ -1,6 +1,7 @@
 import datetime
 import functools
 import logging
+import math
 import pathlib
 import shutil
 import threading
@@ -47,19 +48,32 @@ class WorkflowTestResult(logging.Handler):
     def emit(self, record):
         self.logs.append(record)
 
-    def pretty_print(self):
-        entries = []
-        for log in self.logs:
-            ts = datetime.datetime.fromtimestamp(log.created).astimezone()
-            s = f"[{log.levelname.upper()} {ts.strftime('%H:%M:%S.%f')} {log.name}] {log.msg}"
-            if log.exc_info and log.exc_info[2]:
-                s += f"\n{'='*50}\n"
-                s += "".join(traceback.format_tb(log.exc_info[2]))
-                s += f"\n{log.exc_info[0].__name__}: {str(log.exc_info[1])}\n"
-                s += f"{'='*50}"
+    def _recursive_traceback(self, e: BaseException):
+        s = ''
+        if e.__cause__ is not None:
+            s += self._recursive_traceback(e.__cause__)
+            s += '\n the above was a direct cause of the following exception:\n'
+        if e.__traceback__:
+            s += ''.join(traceback.format_tb(e.__traceback__))
+        s += f"\n{e.__class__.__name__}: {str(e)}"
+        return s
 
-            entries.append((ts, s))
-        entries.sort(key=lambda x: x[0])
+    def pretty_print(self):
+        entries: list[tuple[datetime.datetime, str, int]] = []
+        for idx, log in enumerate(self.logs):
+            ts = datetime.datetime.fromtimestamp(log.created).astimezone()
+            s = f"[{ts.strftime('%H:%M:%S.%f')}] {log.getMessage()} [{log.name}:{log.levelname.upper()}]"
+            if log.exc_info and log.exc_info[1]:
+                s += f"\n{'='*50}\n"
+                s += self._recursive_traceback(log.exc_info[1])
+                s += f"{'='*50}"
+            entries.append((ts, s, idx))
+        for idx, event in enumerate(self.worker_events):
+            entries.append((event.event_time ,f"[{event.event_time.strftime('%H:%M:%S.%f')}] {event.event_name} [{event.process_name} {event.process_version}]", idx))
+        zeros = math.ceil(math.log10(len(entries)))
+        def _sort(a: tuple[datetime.datetime, str, int]) -> int:
+            return int(a[0].timestamp() * (10 ** zeros)) + a[2]
+        entries.sort(key=_sort)
         for entry in entries:
             print(entry[1])
 
