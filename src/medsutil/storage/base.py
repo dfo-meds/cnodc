@@ -42,7 +42,6 @@ def local_file_error_wrap(cb):
         try:
             return cb(*args, **kwargs)
         except OSError as ex:
-            print(type(ex))
             _convert_local_error(ex)
 
     return _inner
