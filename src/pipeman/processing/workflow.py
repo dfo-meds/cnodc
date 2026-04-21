@@ -125,7 +125,7 @@ class WorkflowController:
                 file_handles = []
                 self._finish_file_handles(fh)
             except Exception as ex:
-                for fh, _ in file_handles:
+                for fh, _, _ in file_handles:
                     if fh is not None:
                         fh.remove()
                 if isinstance(ex, CNODCError):
