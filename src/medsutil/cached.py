@@ -25,6 +25,19 @@ class CachedObjectMixin:
         self._cache: dict[t.Hashable, t.Any] = {}
         self._cache_with_parameters: dict[t.Hashable, dict[int, t.Any]] = {}
 
+    def _from_cache_only(self, key: t.Hashable, cache_parameters: CacheParameterType = None) -> t.Any | None:
+        if cache_parameters:
+            if key in self._cache_with_parameters:
+                if isinstance(cache_parameters, t.Hashable):
+                    cache_key = hash(cache_parameters)
+                else:
+                    cache_key = hash(tuple(x for x in t.cast(t.Iterable[t.Hashable], cache_parameters)))
+                if cache_key in self._cache_with_parameters[key]:
+                    return self._cache_with_parameters[key][cache_key]
+        elif key in self._cache:
+            return self._cache[key]
+        return None
+
     def _with_cache[X](self, key: t.Hashable, cb: t.Callable[..., X], *args, _invalidate: bool = False, cache_parameters: CacheParameterType = None, **kwargs) -> X:
         if cache_parameters:
             if key not in self._cache_with_parameters:
