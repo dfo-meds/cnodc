@@ -25,7 +25,6 @@ class Payload(DataDictObject):
     worker_config: dict = p_json_dict()
 
     def __init__(self,
-                 cls_name: str = None,
                  deduplicate_key: t.Optional[str] = None,
                  priority: t.Optional[int] = None,
                  correlation_id: t.Optional[str] = None,
@@ -123,11 +122,6 @@ class Payload(DataDictObject):
         qi.correlation_id = self.correlation_id or ''
         return qi
 
-    def export(self):
-        map_ = super().export()
-        map_['cls_name'] = dynamic_name(self)
-        return map_
-
     def clone(self):
         """Create a deep copy of the payload."""
         return Payload.from_map(self.export())
@@ -178,22 +172,6 @@ class Payload(DataDictObject):
         payload.deduplicate_key = queue_item.unique_item_name
         payload.subqueue_name = queue_item.subqueue_name
         return payload
-
-    @staticmethod
-    def from_map(data: dict):
-        cls_name = None
-        try:
-            cls_name = data['cls_name']
-            cls = dynamic_object(cls_name)
-            return cls(**data)
-        except KeyError as ex:
-            raise CNODCError(f"Invalid payload dictionary, missing [cls_name]", 'PAYLOAD', 1000) from ex
-        except DynamicObjectLoadError as ex:
-            raise CNODCError(f"Invalid payload dictionary, invalid [cls_name={cls_name}]", 'PAYLOAD', 1002) from ex
-        except ValueError as ex:
-            raise CNODCError(f'Invalid payload dictionary, missing mandatory entries', 'PAYLOAD', 1003) from ex
-        except AttributeError as ex:
-            raise CNODCError(f'Invalid payload dictionary, too many entries', 'PAYLOAD', 1004) from ex
 
 
 class WorkflowPayload(Payload):
