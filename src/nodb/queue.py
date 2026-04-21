@@ -2,10 +2,15 @@ import datetime
 import typing as t
 import enum
 
+import zrlog
+
+import medsutil.json as json
 from medsutil.awaretime import AwareDateTime
 
 import nodb.base as s
 import nodb.interface as interface
+
+_log = zrlog.get_logger('nodb.queue')
 
 
 class QueueStatus(enum.Enum):
@@ -42,14 +47,24 @@ class NODBQueueItem(s.NODBBaseObject):
     correlation_id: str = s.UUIDColumn()
     data: dict = s.JsonDictColumn()
 
-    def get_worker_config(self, process_name: str, process_version: str) -> dict:
-        if not self.data or 'worker_config' not in self.data or not isinstance(self.data['worker_config'], dict):
-            return {}
+    def get_worker_config(self, process_name: str, process_version: str) -> dict[str, t.Any]:
         worker_config = {}
-        all_worker_config = self.data['worker_config']
-        for key in (process_name, f'{process_name}_{process_version}'):
-            if key in all_worker_config and isinstance(all_worker_config[key], dict):
-                worker_config.update(all_worker_config[key])
+        if 'worker_config' not in self.data:
+            _log.trace(f'Queue item [%s] has no worker_config available', self.queue_uuid)
+            return {}
+        elif not isinstance(self.data['worker_config'], (dict, str)):
+            _log.trace(f'Queue item [%s] has worker_config available, but is not a dict or str', self.queue_uuid)
+            return {}
+        else:
+            all_worker_config: dict[str, t.Any]= self.data['worker_config'] if isinstance(self.data['worker_config'], dict) else json.load_dict(self.data['worker_config'])
+            for key in (process_name, f'{process_name}_{process_version}'):
+                if key not in all_worker_config:
+                    _log.trace(f'Queue item [%s] worker_config[%s] is not present', self.queue_uuid, key)
+                elif not isinstance(all_worker_config[key], dict):
+                    _log.trace(f'Queue item [%s] worker_config[%s] is not a dict', self.queue_uuid, key)
+                else:
+                    _log.trace(f'Queue item [%s] updating worker_config from [%s]', self.queue_uuid, key)
+                    worker_config.update(all_worker_config[key])
         return worker_config
 
     def mark_complete(self, db: interface.NODBInstance):
