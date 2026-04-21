@@ -150,8 +150,18 @@ class NetCDFCommonMapper:
                 if isinstance(info, dict):
                     if 'source' in info and info['source']:
                         source_name = info['source']
+                    else:
+                        info['source'] = source_name
                     if 'mapping_type' in info and info['mapping_type']:
                         mapping_type = info['mapping_type']
+                    else:
+                        info['mapping_type'] = mapping_type
+                    if 'target' in info and info['target']:
+                        info['targets'] = [info['target']] if isinstance(info['target'], str) else info['target']
+                        del info['target']
+                    else:
+                        self._log.warning(f'No target for [%s], ignoring', source_name)
+                        continue
                     if 'is_index' in info and info['is_index'] and mapping_type == 'var' and self._cache['ocproc_map']['key_var'] is None:
                         self._cache['ocproc_map']['key_var'] = source_name
                     if 'unadjusted_source' in info:
@@ -195,9 +205,6 @@ class NetCDFCommonMapper:
                         if not ('data_map' in info):
                             self._log.warning(f'Removing [data_map_key] from %s, no data map provided', source_name)
                             del info['data_map_key']
-                    if 'target' in info:
-                        info['_targets'] = [info['target']] if isinstance(info['target'], str) else info['target']
-                        del info['target']
                     if 'allow_multiple' not in info:
                         info['allow_multiple'] = False
                     if 'no_units' not in info:
@@ -215,23 +222,25 @@ class NetCDFCommonMapper:
                         if info["data_processor"]:
                             if "." in info["data_processor"]:
                                 try:
-                                    info["_data_processor"] = dynamic_object(info["data_processor"])
+                                    info["data_processor"] = dynamic_object(info["data_processor"])
                                 except DynamicObjectLoadError:
+                                    del info["data_processor"]
                                     self._log.warning(f'Omitting [data_processor] for %s, could not load dynamic object', source_name, exc_info=True)
                             else:
                                 try:
-                                    info["_data_processor"] = getattr(self.__class__, info["data_processor"])
+                                    info["data_processor"] = getattr(self.__class__, info["data_processor"])
                                 except AttributeError:
+                                    del info["data_processor"]
                                     self._log.warning(f'Omitting [data_processor] for %s, could not load class attribute', source_name, exc_info=True)
-                        del info["data_processor"]
-                    info.update({
-                        'source': source_name,
-                        'mapping_type': mapping_type
-                    })
-                    map_info = MappingInfo(**info)
+                        else:
+                            del info["data_processor"]
+                    try:
+                        map_info = MappingInfo(**info)
+                    except TypeError as ex:
+                        raise NetCDFCommonDecoderError("Invalid mapping info", 2000) from ex
                 else:
                     map_info = MappingInfo(source=source_name, mapping_type=mapping_type, metadata={}, targets=[info])
-                if map_info.mapping_type and map_info.source in self._dataset.variables:
+                if map_info.mapping_type == 'var' and map_info.source in self._dataset.variables:
                     map_info.map_call = self._build_element_from_variable
                     self._cache['ocproc_map']['record_vars'][k] = map_info
                     self._cache['ocproc_map']['data_vars'].append(map_info.source)
@@ -242,9 +251,9 @@ class NetCDFCommonMapper:
                     map_info.map_call = self._build_element_from_single_variable
                     self._cache['ocproc_map']['global_vars'][k] = map_info
                 elif mapping_type not in ('var', 'attribute', 'globalvar'):
-                    self._log.warning(f"Invalid mapping type [%s] for [%s], ignoring mapping instructions", mapping_type, k)
+                    self._log.warning(f"Invalid mapping type [%s] for [%s], ignoring mapping instructions", map_info.mapping_type, k)
                 else:
-                    self._log.warning(f"Missing input value [%s:%s], ignoring mapping instructions", mapping_type, info['source'])
+                    self._log.warning(f"Missing input value [%s:%s], ignoring mapping instructions", map_info.mapping_type, map_info.source)
         return self._cache['ocproc_map']
 
     def _get_netcdf_data(self, data_vars: list[str]) -> dict[str, list[int | float]]:
@@ -312,7 +321,7 @@ class NetCDFCommonMapper:
                 else:
                     record.set_element(target_name, element)
             except ValueError as ex:
-                if 'nowarn_missing_target' in map_info and map_info.nowarn_missing_target:
+                if map_info.nowarn_missing_target:
                     self._log.info(f"Missing target [{target_name}]: {type(ex)}: {str(ex)}")
                 else:
                     self._log.warning(f"Missing target [{target_name}]: {ex.__class__.__name__}: {str(ex)}", exc_info=True)
