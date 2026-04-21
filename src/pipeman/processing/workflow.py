@@ -216,17 +216,21 @@ class WorkflowController:
         _, has_more = self._validate_step(current_step)
         return has_more
 
-    def _determine_filename(self, metadata: dict) -> str:
+    def _determine_filename(self, metadata: dict[str, str]) -> str:
         """Determine the filename to save the uploaded file as."""
         filename = None
         if self.config.filename_pattern:
             filename = WorkflowController._sanitize_filename(WorkflowController._substitute_headers(self.config.filename_pattern, metadata))
+            self._log.trace('Filename from pattern: [%s]', filename or '')
         if filename is None and 'filename' in metadata and self.config.accept_user_filename:
             filename = WorkflowController._sanitize_filename(metadata['filename'])
+            self._log.trace('Filename from submission: [%s]', filename or '')
         if filename is None and '-system-filename' in metadata:
             filename = WorkflowController._sanitize_filename(metadata['-system-filename'])
+            self._log.trace('Filename from system default: [%s]', filename or '')
         if filename is None:
             filename = str(uuid.uuid4())
+            self._log.trace('UUID generated file name: [%s]', filename)
         return filename
 
     @staticmethod
