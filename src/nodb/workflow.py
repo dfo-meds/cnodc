@@ -47,7 +47,7 @@ class WorkflowDirectory(ddo.DataDictObject):
 
 class WorkflowConfiguration(ddo.DataDictObject):
     label: ct.LanguageDict = ddo.p_i18n_text(default=newdict)
-    steps: dict[str, ProcessingStep] = ddo.p_json_object_dict(require_type=ProcessingStep)
+    steps: dict[str, ProcessingStep] = ddo.p_json_object_dict(required_type=ProcessingStep)
     validation: t.Callable[[pathlib.Path, dict[str, str], str], None] | None = ddo.p_dynamic_callable()
     working_target: WorkflowDirectory | None = ddo.p_json_object(required_type=WorkflowDirectory)
     additional_targets: list[WorkflowDirectory] = ddo.p_json_object_list(required_type=WorkflowDirectory)
@@ -133,7 +133,7 @@ class NODBUploadWorkflow(s.NODBBaseObject):
     PRIMARY_KEYS = ("workflow_name",)
 
     workflow_name: str | None = s.StringColumn(readonly=True)
-    configuration: WorkflowConfiguration | None = ddo.p_ddo(WorkflowConfiguration, readonly=True)
+    configuration: WorkflowConfiguration | None = ddo.p_json_object(WorkflowConfiguration, readonly=True)
     is_active: bool = s.BooleanColumn(default=True)
 
     def check_access(self, user_permissions: t.Union[list, set, tuple]) -> bool:
