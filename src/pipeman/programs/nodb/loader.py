@@ -117,7 +117,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 total_created += success
                 total_skipped += skipped
                 had_any_errors = had_any_errors or had_error
-                was_single_file = result.single_message
+                was_single_file = result.single_message or not result.original
+                if had_any_errors:
+                    break
 
         self._log.info(f"{total_created} records created, {total_skipped} skipped")
 
@@ -227,7 +229,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                                additional_exception: Exception = None):
         self.db.rollback()
         mode = self.db.update_object
-        if result.single_message:
+        if result.single_message or result.original is None:
             child_file = source_file
         else:
             child_file = nodb.NODBSourceFile.find_by_original_info(
