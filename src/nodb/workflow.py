@@ -149,6 +149,10 @@ class NODBUploadWorkflow(s.NODBBaseObject):
     def set_config(self, config: dict[str, t.Any] | WorkflowConfiguration):
         """ Convert and validate the workflow configuration. """
         try:
+            if isinstance(config, dict):
+                if 'processing_steps' in config:
+                    config['steps'] = config['processing_steps']
+                    del config['processing_steps']
             new_config = WorkflowConfiguration(**config) if isinstance(config, dict) else config
             new_config.validate(self.configuration)
             with self.readonly_access():
