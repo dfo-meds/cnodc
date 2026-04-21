@@ -11,7 +11,7 @@ def normalize_ocproc_path(path: t.Union[None, str, t.Iterable[str]]) -> str:
     actual_path = ('/'.join(path) if not isinstance(path, str) else path).strip()
     while '//' in actual_path:
         actual_path = actual_path.replace('//', '/')
-    return actual_path
+    return actual_path.strip('/')
 
 type _SupportedStorage = None | str | float | int | bool
 type SupportedStorage = _SupportedStorage | list[SupportedStorage] | dict[str, SupportedStorage]
