@@ -7,11 +7,11 @@ from nodb import NODBWorkingRecord
 from pipeman.processing.payload_worker import WorkflowWorker
 import typing as t
 import nodb as nodb
-from pipeman.processing.workers import QueueItemResult
+from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.programs.nodb.qc.qc import QCTestRunner
 from medsutil.dynamic import dynamic_object
 from pipeman.exceptions import CNODCError
-from pipeman.processing.workflow import WorkflowPayload, SourceFilePayload, BatchPayload
+from pipeman.processing.payloads import WorkflowPayload, SourceFilePayload, BatchPayload
 import medsutil.ocproc2 as ocproc2
 
 
