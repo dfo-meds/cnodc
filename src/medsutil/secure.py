@@ -33,6 +33,8 @@ def check_password(password: str, salt: bytes, password_hash: bytes) -> bool:
     return secrets.compare_digest(password_hash, hash_password(password, salt))
 
 def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
+    if iterations is None:
+        iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
     return hashlib.pbkdf2_hmac(
         'sha512',
         password.encode('utf-8', errors='replace'),
