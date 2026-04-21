@@ -1,4 +1,5 @@
 """ Type hints that are widely used throughout the application. """
+import io
 import io as _io
 import typing as _t
 import datetime as _datetime
@@ -98,11 +99,14 @@ PathString = str
 PathLike = PathString | _os.PathLike
 """ Type hint for a path object. """
 
-SupportsBinaryRead = _io.Reader[bytes]
+SupportsBinaryRead = _io.Reader[bytes] | _io.BufferedReader
 """ Type hint for something that supports reading binary data via read(). """
 
-SupportsBinaryWrite = _io.Writer[bytes]
+SupportsBinaryWrite = _io.Writer[bytes] | _io.BufferedWriter
 """ Type hint for something that supports writing binary data via write(). """
+
+SupportsBinarySeek = io.IOBase
+""" Type hint for something that supports seeking binary data via seek(). """
 
 # Protocols for basic operations
 class SupportsBool(_t.Protocol):
@@ -124,7 +128,16 @@ class SupportsHashUpdate(_t.Protocol):
     def update(self, b: bytes): ...
 
 def is_binary_writable(obj: _t.Any) -> _t.TypeIs[SupportsBinaryWrite]:
-    return hasattr(obj, 'write')
+    return hasattr(obj, 'write') and hasattr(obj, 'writable') and obj.writable()
 
 def is_binary_readable(obj: _t.Any) -> _t.TypeIs[SupportsBinaryRead]:
-    return hasattr(obj, 'read')
+    return hasattr(obj, 'read') and hasattr(obj, 'readable') and obj.readable()
+
+def is_binary_seekable(obj: _t.Any) -> _t.TypeIs[SupportsBinarySeek]:
+    return hasattr(obj, 'tell') and hasattr(obj, 'seek') and hasattr(obj, 'seekable') and obj.seekable()
+
+def is_local_path(obj: _t.Any) -> _t.TypeIs[_os.PathLike | str]:
+    return isinstance(obj, (str, _os.PathLike))
+
+SupportsByteStreaming = _t.ByteString | str | _os.PathLike | SupportsBinaryRead | _t.Iterable[_t.ByteString]
+SupportsByteStreamWriting = str | _os.PathLike | SupportsBinaryWrite | bytearray
