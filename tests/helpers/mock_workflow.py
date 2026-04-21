@@ -122,8 +122,7 @@ class MockWorkflow:
                      processing_steps: list[t.Union[str, dict]],
                      validation: str = None,
                      additional_dirs: list[t.Union[str, dict]] = None):
-        wf = NODBUploadWorkflow()
-        wf.workflow_name = workflow_name
+        wf = NODBUploadWorkflow(workflow_name=workflow_name)
         wf.set_config({
             'label': {'und': 'TEST'},
             'working_target': {
@@ -133,14 +132,20 @@ class MockWorkflow:
                 {'directory': x} if isinstance(x, str) else x
                 for x in additional_dirs or []
             ],
-            'processing_steps': {
+            'steps': {
                 f'step{idx}': {'order': idx, 'name': x} if not isinstance(x, dict) else x
                 for idx, x in enumerate(processing_steps)
             },
             'validation': validation,
+            'accept_user_filename': True,
         })
         with self.nodb as db:
+            check_wf = NODBUploadWorkflow.find_by_name(db, workflow_name)
+            if check_wf is not None:
+                db.delete_object(check_wf)
+                db.commit()
             db.insert_object(wf)
+            db.commit()
 
     def add_worker(self, worker_cls: type[BaseWorker], worker_config: dict = None):
         self._worker_info.append((worker_cls, worker_config or {}))
