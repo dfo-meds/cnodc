@@ -37,7 +37,7 @@ def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
         iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
     return hashlib.pbkdf2_hmac(
         'sha512',
-        password.encode('utf-8', errors='replace'),
+        (password or '').encode('utf-8', errors='replace'),
         salt,
         iterations if iterations > 100000 else DEFAULT_PASSWORD_HASH_ITERATIONS
     )
