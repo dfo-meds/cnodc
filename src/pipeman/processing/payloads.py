@@ -253,7 +253,7 @@ class SourceFilePayload(WorkflowPayload):
         source_file = nodb_.NODBSourceFile.find_by_uuid(
             db=db,
             source_uuid=self.source_uuid,
-            received=self.received_date, **kwargs
+            received_date=self.received_date, **kwargs
         )
         if source_file is None:
             raise CNODCError('Invalid payload, no such UUID', 'PAYLOAD', 1012, is_transient=False)
