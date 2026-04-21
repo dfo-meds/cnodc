@@ -151,7 +151,7 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
 
     status: SourceFileStatus = s.EnumColumn(SourceFileStatus)
 
-    history: list = s.JsonDictColumn()
+    history: list = s.JsonListColumn()
 
     def report_error(self, message, name, version, instance):
         """Add an error to the file history."""
@@ -163,8 +163,6 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
 
     def add_history(self, message, name, version, instance, level='INFO'):
         """Add a history entry to this file."""
-        if self.history is None:
-            self.history = []
         self.history.append({
             'msg': message,
             'src': name,
