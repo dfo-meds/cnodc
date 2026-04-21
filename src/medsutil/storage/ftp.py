@@ -207,7 +207,7 @@ class _FTPWrapper:
         self._depth -= 1
         if self._depth <= 0:
             self._depth = 0
-            if self._server is not None:
+            if self._server is not None and self._server.sock is not None:
                 self._server.quit()
                 self._server = None
 
@@ -219,7 +219,10 @@ class FTPHandle(UrlBaseHandle):
 
     @injector.construct
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, supports=FeatureFlag.DEFAULT, **kwargs)
+        super().__init__(*args,
+                         supports=FeatureFlag.DEFAULT,
+                         log_name='ftp',
+                         **kwargs)
 
     def current_dir(self) -> str:
         return self._with_cache('current_dir', self._current_dir)
@@ -245,8 +248,8 @@ class FTPHandle(UrlBaseHandle):
                     raise ex from ex
             yield ftp
 
-    @ftplib_error_wrap
-    def streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
+    @ftplib_error_wrap_generator
+    def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
         buffer_size = buffer_size or 1024 * 1024
         with self._connection() as ftp:
             ftp.binary_mode()
@@ -259,19 +262,21 @@ class FTPHandle(UrlBaseHandle):
                     conn.unwrap()
 
     @ftplib_error_wrap
-    def streaming_write(self, chunks: t.Iterable[bytes]):
+    def _streaming_write(self, chunks: t.Iterable[bytes], **kwargs):
         with self._connection() as ftp:
             ftp.binary_mode()
             with ftp.transfer_command(f"STOR {self.name}") as conn:
-                for chunk in chunks:
+                for chunk in self._halt_flag.iterate(chunks):
                     conn.sendall(chunk)
                 if isinstance(conn, ssl.SSLSocket):  # pragma: no coverage (no TLS to test with)
                     conn.unwrap()
+        self.clear_cache('stat')
 
-    @ftplib_error_wrap
+    @ftplib_error_wrap_generator
     def _walk(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
-        with self._connection() as ftp:
-            yield from self._list_dir(ftp, self._path)
+        if self.is_dir():
+            with self._connection() as ftp:
+                yield from self._list_dir(ftp, self._current_dir())
 
     def _list_dir(self, ftp, dir_name: str):
         files: list[str] = []
@@ -283,39 +288,41 @@ class FTPHandle(UrlBaseHandle):
                 dirs.append(name)
             else:
                 files.append(name)
-        yield self._path, dirs, files
+        yield dir_name, dirs, files
         for subd in dirs:
             yield from self._list_dir(ftp, dir_name + subd)
 
     @ftplib_error_wrap
     def _mkdir(self, mode: int = 0o777):
         with self._connection() as ftp:
-            ftp.mkdir(self._current_dir())
+            if ftp.stat(self._current_dir()) is None:
+                ftp.mkdir(self._current_dir())
+                self.clear_cache('stat')
 
     @ftplib_error_wrap
     def _stat(self) -> interface.StatResult:
-        p = self.parse_url()
         with self._connection() as ftp:
-            stat = ftp.stat(p.path)
+            stat = ftp.stat(self.current_file())
         return interface.StatResult(
-            st_size=stat['size'] if stat is not None and 'size' in stat else None,
+            st_size=int(stat['size']) if stat is not None and 'size' in stat else None,
             st_mtime=self._build_modified_time(stat),
             exists=stat is not None,
             is_dir=stat['type'] == 'dir' if stat is not None and 'type' in stat else None,
-            is_file=stat['type'] != 'dir' if stat is not None and 'type' in stat else None,
+            is_file=stat['type'] == 'file' if stat is not None and 'type' in stat else None,
         )
 
     @ftplib_error_wrap
     def _remove(self):
         with self._connection() as ftp:
-            try:
-                if self.is_dir():
-                    ftp.delete(self.name)
-                else:
-                    ftp.cwd('..')
-                    ftp.rmdir(self.current_file())
-            finally:
-                self.clear_cache()
+            s = ftp.stat(self.current_file())
+            if s is None:
+                return
+            if 'type' in s and s['type'] == 'dir':
+                ftp.cwd('..')
+                ftp.rmdir(self.current_file())
+            else:
+                ftp.delete(self.name)
+            self._update_stat(is_dir=None, is_file=None, exists=False, st_size=None, st_mtime=None)
 
     def _build_modified_time(self, stat: dict[str, t.Any] | None) -> AwareDateTime | None:
         if stat and 'modify' in stat:

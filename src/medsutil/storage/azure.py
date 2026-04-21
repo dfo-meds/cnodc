@@ -1,29 +1,127 @@
 import functools
 from abc import ABC
+import typing as t
 
 import urllib3.exceptions
 import zirconium as zr
 from autoinject import injector
 from azure.core import exceptions as ace
+from azure.storage.blob import ContainerClient, BlobClient
+from azure.storage.fileshare import ShareClient, ShareDirectoryClient, ShareFileClient
 
+from medsutil.exceptions import CodedError
 from medsutil.storage.base import UrlBaseHandle
 from medsutil.storage.interface import StorageError
+
+
+@injector.injectable
+class AzureClientPool:
+
+    config: zr.ApplicationConfig = None
+
+    @injector.construct
+    def __init__(self):
+        self._share_cache: dict[str, ShareClient] = {}
+        self._container_cache: dict[str, ContainerClient] = {}
+
+    def _get_account_name(self, conn_string: str) -> str:
+        pieces = conn_string.split(';')
+        for piece in pieces:
+            if piece.startswith('AccountName='):
+                return piece[12:]
+        raise ValueError('Invalid connection string')
+
+    def get_share(self, conn_string: str, share_name: str) -> ShareClient:
+        account_name = self._get_account_name(conn_string)
+        key = f"{account_name}_{share_name}"
+        if key not in self._share_cache:
+            self._share_cache[key] = self._build_share_client(conn_string, share_name)
+        return self._share_cache[key]
+
+    def get_share_directory(self, conn_string: str, share_name: str, directory_path: str) -> ShareDirectoryClient:
+        return self.get_share(conn_string, share_name).get_directory_client(directory_path)
+
+    def get_share_file(self, conn_string: str, share_name: str, file_path: str) -> ShareFileClient:
+        return self.get_share(conn_string, share_name).get_file_client(file_path)
+
+    def get_container(self, conn_string: str, container_name: str) -> ContainerClient:
+        account_name = self._get_account_name(conn_string)
+        key = f"{account_name}_{container_name}"
+        if key not in self._container_cache:
+            self._container_cache[key] = self._build_container_client(conn_string, container_name)
+        return self._container_cache[key]
+
+    def get_blob(self, conn_string: str, container_name: str, blob_name: str) -> BlobClient:
+        return self.get_container(conn_string, container_name).get_blob_client(blob_name)
+
+    @staticmethod
+    def _build_share_client(conn_string: str, share_name: str) -> ShareClient:
+        return ShareClient.from_connection_string(conn_string, share_name)
+
+    @staticmethod
+    def _build_container_client(conn_string: str, container_name: str) -> ContainerClient:
+        return ContainerClient.from_connection_string(conn_string, container_name)
+
 
 
 class AzureBaseHandle(UrlBaseHandle, ABC):
 
     config: zr.ApplicationConfig = None
+    client_pool: AzureClientPool = None
 
     @injector.construct
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, essential_domain: str, **kwargs):
         super().__init__(*args, **kwargs)
+        paths = [x for x in self.url_path().split('/') if x]
+        self._hard_prefix = str(paths[0]) if paths else None
+        self._essential_domain = essential_domain
 
-    def _get_storage_account_connection_details(self, domain: str) -> dict:
-        return {
-            "storage_account": domain[:-22],
-            "storage_url": domain,
-            "connection_string": self.config.as_str(("azure", "storage", domain[:-22], "connection_string"), default=None),
-        }
+    def _get_client(self, client_type: t.Literal["container", "blob", "directory", "file"]):
+        return self._with_cache('_build_client', self._build_client, client_type, cache_parameters=(client_type,))
+
+    def _build_client(self, client_type: t.Literal["container", "blob", "directory", "file"]):
+        try:
+            account_name, share_or_container_name, file_path = self._parse_url_for_account_info()
+            conn_string = self._get_connection_string(account_name)
+            if client_type == 'container':
+                return self.client_pool.get_container(conn_string, share_or_container_name)
+            elif client_type == 'blob':
+                return self.client_pool.get_blob(conn_string, share_or_container_name, file_path)
+            elif client_type == 'directory':
+                return self.client_pool.get_share_directory(conn_string, share_or_container_name, file_path)
+            elif client_type == 'file':
+                return self.client_pool.get_share_file(conn_string, share_or_container_name, file_path)
+            elif client_type == 'share':
+                return self.client_pool.get_share(conn_string, share_or_container_name)
+            else:
+                raise ValueError(f"Unsupported client type [{client_type}]")
+        except Exception as ex:
+            if isinstance(ex, CodedError):
+                raise
+            else:
+                raise StorageError(str(ex), 9000) from ex
+
+    def _parse_url_for_account_info(self) -> tuple[str, str, str]:
+        url_parts = self.parse_url()
+        domain = url_parts.hostname
+        if domain is None or not domain.endswith(self._essential_domain):
+            raise StorageError(f"Invalid hostname", 4001)
+        account_name = domain[:-1 * len(self._essential_domain)]
+        path_parts = [x.strip() for x in url_parts.path.lstrip('/').split('/') if x.strip()]
+        if len(path_parts) < 1 or path_parts[0] == "":
+            raise StorageError(f"Missing share name", 4002)
+        share_or_container_name = path_parts[0]
+        file_path = '/'.join(path_parts[1:]) if len(path_parts) > 1 else ""
+        return account_name, share_or_container_name, file_path
+
+    def _get_connection_string(self, account_name: str) -> str:
+        return t.cast(str, self.config.as_str(('azure', 'storage', account_name, 'connection_string'), default=''))
+
+    def _replace_path(self, new_path: str, as_dir: bool | None) -> str:
+        if self._hard_prefix is not None and not new_path.startswith((self._hard_prefix, '/' + self._hard_prefix)):
+            new_path = f'/{self._hard_prefix}/{new_path.lstrip('/')}'
+        return self._replace_path_in_url(self._path, new_path, as_dir)
+
 
 def wrap_azure_errors(cb):
     """Converts Azure storage errors into CNODCErrors with an appropriate is_recoverable setting."""

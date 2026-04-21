@@ -1,17 +1,21 @@
 import abc
 import functools
+import os
 import pathlib
 import tempfile
 import typing as t
 import fnmatch
+import urllib.parse
 from abc import ABC
 from types import EllipsisType
-from urllib.parse import urlparse, ParseResult
+from urllib.parse import urlsplit
+
+import zrlog
+
 from medsutil.awaretime import AwareDateTime
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.cached import CachedObjectMixin
 from medsutil.halts import HaltFlag, DummyHaltFlag
-from medsutil.exceptions import HaltInterrupt
 import medsutil.types as ct
 from medsutil.storage import StorageTier, interface
 from medsutil.storage.interface import StatResult, StorageError, FeatureFlag
@@ -38,6 +42,7 @@ def local_file_error_wrap(cb):
         try:
             return cb(*args, **kwargs)
         except OSError as ex:
+            print(type(ex))
             _convert_local_error(ex)
 
     return _inner
@@ -132,7 +137,6 @@ class _StorageBinaryReader(_BaseStorageIO):
         if self._reader is None:
             self._reader = ByteSequenceReader(
                 self.handle.streaming_read(buffer_size=self._buffer_size),
-                halt_flag=self.handle._halt_flag
             )
         return self._reader
 
@@ -192,22 +196,26 @@ class _StorageBinaryWriter(_BaseStorageIO):
 
     def _flush(self):
         if self._buffer is not None:
-            self._buffer.seek(0)
-            self.handle.upload(self._buffer)
-            self._buffer.close()
+            try:
+                self._buffer.seek(0)
+                self.handle.upload(self._buffer)
+            finally:
+                self._buffer.close()
 
 
 class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
 
-    def __init__(self, path: str, force_is_dir: bool = None, *, supports: FeatureFlag = FeatureFlag.DEFAULT, halt_flag: HaltFlag = None):
+    def __init__(self, path: str, force_is_dir: bool = None, *, log_name: str = 'unknown', supports: FeatureFlag = FeatureFlag.DEFAULT, halt_flag: HaltFlag = None, max_chunk_size: int = None):
         super().__init__()
         self._path: str = path
         self._force_is_dir: bool | None = force_is_dir
         self._supports: FeatureFlag = supports
         self._halt_flag: HaltFlag = halt_flag or DummyHaltFlag()
+        self._max_chunk_size = max_chunk_size
         self._new_child_args = {
             'halt_flag': halt_flag,
         }
+        self._log = zrlog.get_logger(f'storage_{log_name}')
 
     def __str__(self) -> str:
         return self.path()
@@ -229,7 +237,9 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
             self._halt_flag.breakpoint()
 
     def supports_feature(self, ff: FeatureFlag) -> bool:
-        return ff in self._supports
+        res = ff in self._supports
+        self._log.trace('Feature support check [%s] [%s] = %s', self._path, ff, res)
+        return res
 
     def supports_metadata(self) -> bool:
         """Check if the handle supports metadata setting."""
@@ -239,47 +249,29 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         """Check if the handle supports tiering"""
         return self.supports_feature(FeatureFlag.TIERING)
 
-    def open(self, mode: t.Literal['rb', 'wb'], buffering: int | None = None) -> _StorageBinaryReader | _StorageBinaryWriter:
-        if mode == 'rb':
-            return _StorageBinaryReader(self, buffering=buffering)
-        elif mode == 'wb':
-            return _StorageBinaryWriter(self)
-        else:
-            raise StorageError('Invalid open mode, must be rb or wb', 1102)
-
     def read_bytes(self) -> bytes:
         with self.open('rb') as h:
             return h.read()
-
-    def write_bytes(self, b: bytes):
-        with self.open('wb') as h:
-            h.write(b)
-
-    def touch(self, mode: int = 0o666):
-        self.write_bytes(b'')
-        if self.supports_feature(FeatureFlag.CHMOD):
-            self.chmod(mode)
 
     def download(self, destination: pathlib.Path, allow_overwrite: bool = False, buffer_size: int | None = None):
         """Download the file to the given local path."""
         if (not allow_overwrite) and destination.exists():
             raise StorageError(f"Path [{destination}] already exists, cannot download from [{self}]", 1200)
+        self._log.trace('download started from [%s] to [%s]', self._path, destination)
         self._download(destination, buffer_size)
+        self._log.trace('completed download')
 
-    def _download(self, local_path: pathlib.Path, buffer_size: int = None):
-        try:
-            self._local_write_chunks(local_path, self.streaming_read(buffer_size))
-            self._complete_download(local_path)
-        except Exception as ex:
-            local_path.unlink(True)
-            raise ex from ex
+    def _download(self, local_path: ct.SupportsByteStreamWriting, buffer_size: int = None):
+        self._halt_flag.write_all(local_path, self._streaming_read(buffer_size))
+        self._complete_download(local_path)
 
-    def _complete_download(self, local_path: pathlib.Path):
-        """Override to implement behaviour after the download is complete."""
-        pass  # pragma: no coverage
+    def streaming_read(self, buffer_size: int = None):
+        yield from self._streaming_read(buffer_size)
+
+    def _complete_download(self, local_path: ct.SupportsByteStreamWriting): ...
 
     def upload(self,
-               source: pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString],
+               source: pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString] | t.ByteString,
                allow_overwrite: bool = False,
                buffer_size: t.Optional[int] = None,
                metadata: t.Optional[dict[str, str]] = None,
@@ -291,119 +283,195 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
             storage_tier = storage_tier or StorageTier.FREQUENT
         else:
             storage_tier = None
-        if metadata and self.supports_feature(FeatureFlag.METADATA):
+        if self.supports_feature(FeatureFlag.METADATA):
+            metadata: dict = metadata or {}
             self._add_default_metadata(metadata, storage_tier)
         else:
             metadata = None
+        if buffer_size is None or (self._max_chunk_size is not None and buffer_size > self._max_chunk_size):
+            buffer_size = self._max_chunk_size
         self._upload(source, buffer_size, metadata, storage_tier)
 
     def _upload(self,
-                local_path: pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString],
+                readable: ct.SupportsByteStreaming,
                 buffer_size: t.Optional[int] = None,
                 metadata: t.Optional[dict[str, str]] = None,
-                storage_tier: t.Optional[StorageTier] = None):
+                storage_tier: t.Optional[StorageTier] = None,
+                remove_on_error: bool = True):
         """General implementation of uploading."""
         try:
-            self.streaming_write(self._local_read_chunks(local_path, buffer_size))
-            self._complete_upload(local_path)
-            if metadata is not None and self.supports_feature(FeatureFlag.METADATA):  # pragma: no coverage (azure blobs handle this differently)
+            self._log.trace("Starting upload from [%s] to [%s]", readable, self._path)
+            self._upload_from_any(readable, chunk_size=buffer_size, metadata=metadata, storage_tier=storage_tier)
+            self._complete_upload(readable)
+            self._log.trace("Upload complete")
+        except Exception:
+            if remove_on_error:
+                self._log.trace("Error during upload, removing any uploaded file")
+                self.remove()
+            raise  # pragma: no coverage
+
+            if metadata is not None and self.supports_feature(FeatureFlag.METADATA):
                 self.set_metadata(metadata)
-            if storage_tier is not None and self.supports_feature(FeatureFlag.TIERING):  # pragma: no coverage (azure blobs handle this differently)
+            if storage_tier is not None and self.supports_feature(FeatureFlag.TIERING):
                 self.set_tier(storage_tier)
-        except Exception as ex:
-            self.remove()
-            raise ex from ex  # pragma: no coverage
+    def _upload_from_any(self,
+                         readable: ct.SupportsByteStreaming,
+                         **kwargs):
+        if ct.is_binary_readable(readable):
+            self._log.trace("Source is a read()able object")
+            self._upload_from_file(readable, **kwargs)
+        elif ct.is_local_path(readable):
+            self._log.trace("Source is a local file path")
+            self._upload_from_file_path(readable, **kwargs)
+        elif isinstance(readable, (bytes, bytearray, memoryview)):
+            self._log.trace("Source is a bytes object")
+            self._upload_from_bytes(readable, **kwargs)
+        elif isinstance(readable, t.Iterable):
+            self._log.trace("Source is assumed to be an iterable of bytes")
+            self._upload_from_byte_stream(readable, **kwargs)
+        else:
+            raise TypeError(f'Invalid object for reading: {type(readable)}')
 
-    def _complete_upload(self, local_path: pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString]):
-        """Override to specify behaviour after an upload is complete."""
-        self.clear_cache()
+    def _upload_from_bytes(self, readable: t.ByteString, **kwargs):
+        self._upload_from_byte_stream([readable], **kwargs)
 
-    def _no_remote_is_dir(self):
-        return self._force_is_dir
+    def _upload_from_byte_stream(self, stream: t.Iterable[t.ByteString], **kwargs):
+        self.streaming_write(stream, **kwargs)
+
+    def _upload_from_file_path(self, file_name: os.PathLike | str, **kwargs):
+        with open(file_name, 'rb') as h:
+            self._upload_from_file(h, **kwargs)
+
+    def _upload_from_file(self, readable: ct.SupportsBinaryRead, **kwargs):
+        if ct.is_binary_seekable(readable):
+            self._log.trace("Source is a seekable object")
+            self._upload_from_seekable_file(readable, **kwargs)
+        else:
+            self._log.trace("Source is not a seekable object")
+            self._upload_from_non_seekable_file(readable, **kwargs)
+
+    def _upload_from_seekable_file(self, readable: ct.SupportsBinarySeek, chunk_size: int = None, **kwargs):
+        self.streaming_write(self._halt_flag.read_all(readable, chunk_size), **kwargs)
+
+    def _upload_from_non_seekable_file(self, readable: ct.SupportsBinaryRead, chunk_size: int = None, **kwargs):
+        self.streaming_write(self._halt_flag.read_all(readable, chunk_size), **kwargs)
+
+    def streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs):
+        self._log.trace('writing chunks to %s...', self._path)
+        self._streaming_write(chunks, **kwargs)
+        self._log.trace('done')
+
+    @abc.abstractmethod
+    def _streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs): raise NotImplementedError
+
+    def _complete_upload(self, local_path: ct.SupportsByteStreaming): ...
+
+    def open(self, mode: t.Literal['rb', 'wb'], buffering: int | None = None) -> _StorageBinaryReader | _StorageBinaryWriter:
+        if mode == 'rb':
+            self._log.trace('opening file for binary read')
+            return _StorageBinaryReader(self, buffering=buffering)
+        elif mode == 'wb':
+            self._log.trace('opening file for binary write')
+            return _StorageBinaryWriter(self)
+        else:
+            raise StorageError('Invalid open mode, must be rb or wb', 1102)
+
+    def write_bytes(self, b: t.ByteString):
+        self.upload([b])
+
+    def touch(self, mode: int = 0o666):
+        self.write_bytes(b'\x00')
+        if self.supports_feature(FeatureFlag.CHMOD):
+            self.chmod(mode)
 
     def mkdir(self, mode: int = 0o777, parents: bool = True):
         if self.supports_feature(FeatureFlag.FOLDERS):
-            if self.exists():
-                return
             if parents:
                 self._mkdir_and_parents(mode, parents)
             else:
+                self._log.trace("Making directory [%s]", self._path)
                 self._mkdir(mode)
-            self.clear_cache()
 
     def _mkdir_and_parents(self, mode: int = 0o777, parents: bool = True):
         """ Slow implementation that works with existing interface - override with faster if available. """
         parent = self._parent()
-        if parent is not None and not parent.exists():
+        if parent is None:
+            self._log.trace('No parent directory available')
+        elif parent == self:
+            self._log.trace('Currently at top level directory')
+            return
+        else:
             parent.mkdir(mode, parents)
         self._mkdir(mode)
 
     def path(self) -> str:
         return self._path
 
-    @local_file_error_wrap
-    def _local_read_chunks(self, local_path: t.ByteString | str | pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString], buffer_size: t.Optional[int] = None) -> t.Iterable[t.ByteString]:
-        """Local implementation of reading chunks from a file."""
-        if isinstance(local_path, (bytes, bytearray, memoryview)):
-            yield local_path
-        elif isinstance(local_path, (str, pathlib.Path)):
-            with open(local_path, "rb") as src:
-                yield from self._halt_flag.read_all(src, buffer_size)
-        elif ct.is_binary_readable(local_path):
-            yield from self._halt_flag.read_all(local_path, buffer_size)
-        elif hasattr(local_path, '__iter__'):
-            yield from self._halt_flag.iterate(local_path, True)
-
-    @local_file_error_wrap
-    def _local_write_chunks(self, local_path: pathlib.Path | str, chunks: t.Iterable[t.ByteString]):
-        """Write chunks to a local file."""
-        try:
-            with open(local_path, 'wb') as dst:
-                self._halt_flag.write_all(dst, chunks)
-        except HaltInterrupt as ex:
-            local_path.unlink(True)
-            raise ex from ex
-
     def search(self, pattern: t.Optional[str] = None, recursive: bool = True, case_sensitive: bool = False, path_types: interface.PathType = interface.PathType.BOTH) -> t.Iterable[t.Self]:
         """Find all files that match the given pattern."""
+        self._log.trace("Searching for files matching [%s][path_types=%s] in [%s][%s]", pattern, path_types, self._path, recursive)
         if pattern is not None and not case_sensitive:
             pattern = pattern.lower()
         for file in self.iterdir(recursive, path_types):
-            if pattern is None or fnmatch.fnmatchcase(file.name.lower(), pattern):
+            if pattern is None:
+                yield file
+            elif (not case_sensitive) and fnmatch.fnmatchcase(file.name.lower(), pattern):
+                yield file
+            elif case_sensitive and fnmatch.fnmatchcase(file.name, pattern):
                 yield file
 
     def iterdir(self, recursive: bool = True, path_types: interface.PathType = interface.PathType.BOTH) -> t.Iterable[t.Self]:
-        if self.supports_feature(FeatureFlag.WALK):
-            for dir_name, dir_names, file_names in self._walk():
-                if interface.PathType.FILE in path_types:
-                    for f in file_names:
-                        yield self.subfile(f)
-                if interface.PathType.DIRECTORY in path_types:
-                    for d in dir_names:
-                        yield self.subdir(d)
-                if not recursive:
-                    break
+        for dir_name, dir_names, file_names in self.walk():
+            if not dir_name.endswith('/'):
+                dir_name += '/'
+            if interface.PathType.FILE in path_types:
+                for f in file_names:
+                    yield self.from_absolute_path(dir_name + f, as_dir=False)
+            if interface.PathType.DIRECTORY in path_types:
+                for d in dir_names:
+                    yield self.from_absolute_path(dir_name + d, as_dir=True)
+            if not recursive:
+                break
+
+    def _update_stat(self, **kwargs):
+        # Don't build the cache if we don't need to.
+        s = self._from_cache_only('stat')
+        if s is not None:
+            for kw in kwargs:
+                if kwargs[kw] is not None and hasattr(s, kw):
+                    setattr(s, kw, kwargs[kw])
 
     def walk(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
         if self.supports_feature(FeatureFlag.WALK):
             yield from self._walk()
+        else:
+            self._log.trace("Walk not supported")
 
     def exists(self) -> bool:
         """Check if the handle exists."""
         return self.stat().exists
 
-    def is_dir(self) -> bool:
+    def is_dir(self) -> bool | None:
         """Check if the handle represents a directory."""
         s = self.stat()
-        if s.is_dir is not None:
+        if s.exists:
             return s.is_dir
-        return self._force_is_dir is True
+        return self._no_remote_is_dir()
 
-    def is_file(self) -> bool:
+    def _no_remote_is_dir(self):
+        return self._force_is_dir
+
+    def is_file(self) -> bool | None:
         s = self.stat()
-        if s.is_file is not None:
+        if s.exists:
             return s.is_file
-        return self._force_is_dir is False
+        return self._no_remote_is_file()
+
+    def _no_remote_is_file(self):
+        _is_dir = self._no_remote_is_dir()
+        if _is_dir is None:
+            return None
+        return not _is_dir
 
     def subdir(self, sub_path: str) -> t.Self:
         """Create a child of the current directory, as a directory."""
@@ -427,7 +495,6 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         """Set metadata."""
         if self.supports_feature(FeatureFlag.METADATA):
             self._set_metadata(metadata)
-            self.clear_cache('stat')
 
     def get_metadata(self) -> dict[str, str]:
         """Retrieve metadata"""
@@ -445,7 +512,6 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         """Set the storage tier."""
         if self.supports_feature(FeatureFlag.TIERING):
             self._set_tier(tier)
-            self.clear_cache('stat')
 
     def size(self) -> int | None:
         """Retrieve the size of the file."""
@@ -465,7 +531,6 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
     def remove(self):
         if self.supports_feature(FeatureFlag.REMOVAL):
             self._remove()
-            self.clear_cache()
 
     def chmod(self, mode: int):
         if self.supports_feature(FeatureFlag.CHMOD):
@@ -476,7 +541,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
 
     def copy(self, destination: interface.DestinationType, allow_overwrite: bool = False) -> interface.DestinationType:
         if type(destination) == type(self):
-            return t.cast(interface.DestinationType, self._local_fast_copy(destination, allow_overwrite))
+            return self._local_fast_copy(destination, allow_overwrite)
         else:
             return self._copy(destination, allow_overwrite)
 
@@ -620,16 +685,16 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
     def _stat(self) -> StatResult: raise NotImplementedError
 
     @abc.abstractmethod
-    def streaming_read(self, buffer_size: int = None) -> t.Iterable[t.ByteString]: raise NotImplementedError
-
-    @abc.abstractmethod
-    def streaming_write(self, chunks: t.Iterable[t.ByteString]): raise NotImplementedError
+    def _streaming_read(self, buffer_size: int = None) -> t.Iterable[t.ByteString]: raise NotImplementedError
 
     @abc.abstractmethod
     def _parent(self) -> t.Self: raise NotImplementedError
 
     @abc.abstractmethod
     def child(self, name: str, as_dir: bool | None = None) -> t.Self: raise NotImplementedError
+
+    @abc.abstractmethod
+    def from_absolute_path(self, path: str, as_dir: bool | None = None) -> t.Self: raise NotImplementedError
 
     @abc.abstractmethod
     def _name(self) -> str: raise NotImplementedError
@@ -639,48 +704,53 @@ class UrlBaseHandle(BaseStorageHandle, ABC):
     """General implementation of url-based file handles."""
 
     def __init__(self, path: str, force_is_dir: bool = None, **kwargs):
+        p = urllib.parse.urlsplit(path)
+        _path = p.path
         if force_is_dir is None:
-            _p = urlparse(path).path
-            if not _p:
+            if (not _path) or _path.endswith('/'):
                 force_is_dir = True
-            elif _p.endswith('/'):
-                force_is_dir = True
+        path = self._replace_path_in_url(path, _path, force_is_dir)
         super().__init__(path, force_is_dir, **kwargs)
 
+    def from_absolute_path(self, path: str, as_dir: bool | None = None) -> t.Self:
+        if '://' in path:
+            return self._build_descriptor(path, as_dir)
+        return self._build_descriptor(self._replace_path(path, as_dir), as_dir=as_dir)
+
     def child(self, name: str, as_dir: bool | None = None) -> t.Self:
-        part1, part2 = self._split_url()
-        if not part1.endswith('/'):  # pragma: no coverage (usually fine, is here just in case)
-            part1 += '/'
-        return self._build_descriptor(
-            f"{part1}{name.strip('/')}{'' if not as_dir else '/'}{part2}",
-            as_dir=as_dir
-        )
+        path = self.url_path()
+        if not path.endswith('/'):
+            path += '/'
+        path += name
+        return self._build_descriptor(self._replace_path(path, as_dir), as_dir=as_dir)
 
     def _parent(self) -> t.Self | None:
-        parts = self.parse_url()
-        pieces = [x for x in parts.path.split('/') if x]
-        if not pieces:
-            return None
-        return self._build_descriptor(f'{parts.scheme}://{parts.netloc}/{'/'.join(pieces[:-1])}/', as_dir=True)
+        path = [x for x in self.url_path().split('/') if x]
+        return self._build_descriptor(self._replace_path('/'.join(path[:-1]), True), as_dir=True)
 
-    def parse_url(self) -> ParseResult:
+    def _replace_path(self, new_path: str, as_dir: bool | None) -> str:
+        return self._replace_path_in_url(self._path, new_path, as_dir)
+
+    @staticmethod
+    def _replace_path_in_url(url: str, new_path: str, as_dir: bool | None) -> str:
+        ended_with_slash = new_path.endswith('/')
+        new_path = '/'.join(x for x in new_path.split('/') if x)
+        if new_path and as_dir and not new_path.endswith('/'):
+            new_path += '/'
+        elif ended_with_slash:
+            new_path += '/'
+        res = urllib.parse.urlunsplit(urllib.parse.urlsplit(url)._replace(path=new_path))
+        if isinstance(res, str):
+            return res
+        else:
+            return res.decode('utf-8')
+
+    def parse_url(self) -> urllib.parse.SplitResult:
         """Get the parts of the URL."""
-        return t.cast(ParseResult, self._with_cache('_parse_url', urlparse, self._path))
+        return t.cast(urllib.parse.SplitResult, self._with_cache('_parse_url', urlsplit, self._path))
 
-    def _split_url(self):
-        return self._with_cache('_split_url', self._split_url_actual)
-
-    def _split_url_actual(self):
-        url_end = None
-        if '?' in self._path:  # pragma: no coverage (not relevant for FTP, may be relevant elsewhere)
-            url_end = self._path.find("?")
-        if '#' in self._path:  # pragma: no coverage (not relevant for FTP, may be relevant elsewhere)
-            percent_end = self._path.find('#')
-            if url_end is None or url_end > percent_end:
-                url_end = percent_end
-        part1 = self._path if url_end is None else self._path[:url_end]
-        part2 = "" if url_end is None else self._path[url_end:]
-        return part1, part2
+    def url_path(self):
+        return self.parse_url().path
 
     def _name(self) -> str:
         parts = self.parse_url()
