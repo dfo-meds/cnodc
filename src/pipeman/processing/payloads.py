@@ -376,7 +376,7 @@ class NewFilePayload(Payload):
         return NewFilePayload(
             file_path=path,
             filename=handle.name,
-            modified_time=handle.modified_datetime() if modified_time is Ellipsis or modified_time is None else modified_time,
+            modified_time=handle.modified_datetime() if modified_time is Ellipsis else modified_time,
             deduplicate_key=hashlib.md5(path.encode('utf-8', 'replace')).hexdigest(),
             **kwargs
         )
