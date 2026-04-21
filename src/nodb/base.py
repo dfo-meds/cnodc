@@ -36,7 +36,7 @@ JsonSetColumn = ddo.p_json_set
 WKTColumn = ddo.p_str
 
 
-class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject):
+class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin):
     """Base class for all NODB objects.
 
         This provides a lot of tools for building database classes.
@@ -49,7 +49,7 @@ class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin, interface.NODBObject
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value, original)
-        if (self.is_new or not self._in_init) and original != value:
+        if (self.is_new or self._init_complete) and original != value:
             self.mark_modified(managed_name)
 
     @classmethod

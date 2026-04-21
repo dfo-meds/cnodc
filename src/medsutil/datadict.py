@@ -106,6 +106,7 @@ class DataDictObject(object):
         self._data = {}
         self._allow_readonly_access: bool = True
         self._in_init: bool = True
+        self._init_complete: bool = False
         self._after_init: list[t.Callable] = []
         with self.readonly_access():
             for prop in self._datadict_props():
@@ -122,6 +123,7 @@ class DataDictObject(object):
         self._in_init = False
         for x in self._after_init:
             x()
+        self._init_complete = True
         try:
             super(DataDictObject, self).__init__(*args, **kwargs)
         except TypeError as ex:
