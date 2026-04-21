@@ -40,36 +40,50 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             'autocomplete_records': False,
         })
         self.add_events(['before_message', 'before_record', 'after_record', 'after_message_success', 'after_decode_error'])
-        self._error_dir_handle: t.Optional[FilePath] = None
-        self._decoder: t.Optional[BaseCodec] = None
-        self._decoder_kwargs = {}
-        self._record_manager: t.Optional[NODBRecordManager] = None
-        self.memory: t.Optional[dict] = None
+        self._memory = None
 
     def on_start(self):
-        self._record_manager = NODBRecordManager()
+        _ = self.error_directory
+        super().on_start()
+
+    @property
+    def memory(self):
+        if self._memory is None:
+            self._memory = {}
+        return self._memory
+
+    @property
+    def record_manager(self):
+        return self._with_cache('record_manager', NODBRecordManager)
+
+    @property
+    def error_directory(self) -> FilePath:
+        return self._with_cache('error_dir_handle', self._error_directory)
+
+    def _error_directory(self) -> FilePath:
         err_dir = self.get_config('error_directory')
         if err_dir is None:
             raise CNODCError(f"Specified error directory is not a directory", "NODB-LOAD", 1001)
-        self._error_dir_handle = self.storage.get_filepath(err_dir, self._halt_flag)
-        if not (self._error_dir_handle.is_dir() and self._error_dir_handle.exists()):
-            raise CNODCError(f"Specified error directory is not a directory", "NODB-LOAD", 1003)
-        super().on_start()
+        handle = self.storage.get_filepath(err_dir, self._halt_flag)
+        if handle is None or not (handle.is_dir() and handle.exists()):
+            raise CNODCError(f"Specified error directory is not a directory or doesn't exist", "NODB-LOAD", 1003)
+        return handle
 
-    def _get_decoder_class(self, cls_name: str) -> type:
-        return dynamic_object(cls_name)
+    @property
+    def decoder(self) -> BaseCodec:
+        return self._with_cache('_decoder', self._decoder)
+
+    def _decoder(self) -> BaseCodec:
+        cls = dynamic_object(self.get_config('decoder_class', '', coerce=str))
+        decoder = cls(halt_flag=self._halt_flag)
+        if not decoder.is_decoder:
+            raise CNODCError(f"Specified codec [{cls.__name__}] is not a decoder", "NODB-LOAD", 1002)
+        return decoder
 
     def _decode_records(self, h) -> t.Iterable[DecodeResult]:
-        cls_name = self.get_config('decoder_class')
-        decoder = self._get_decoder_class(cls_name)(halt_flag=self._halt_flag)
-        decoder_kwargs = self.get_config('decoder_kwargs', {})
-        if not decoder.is_decoder:
-            raise CNODCError(f"Specified codec [{self._decoder.__class__.__name__}] is not a decoder", "NODB-LOAD", 1002)
-        yield from decoder.buffered_decode_messages(decoder._read_in_chunks(h), **decoder_kwargs)
+        yield from self.decoder.buffered_decode_messages(self.decoder._read_in_chunks(h), **self.get_config('decoder_kwargs', {}))
 
     def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
-        self.memory = {}
-
         # Find the source file
         source_file = self._fetch_source_file(payload)
         allow_reprocessing = self.get_config('allow_reprocessing')
@@ -190,7 +204,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             record: ocproc2.ParentRecord,
                             make_completed_records):
         if make_completed_records:
-            return self._record_manager.create_completed_entry_from_source_file(
+            return self.record_manager.create_completed_entry_from_source_file(
                 db=self.db,
                 record=record,
                 message_idx=message_idx,
@@ -199,7 +213,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 memory=self.memory
             )
         else:
-            return self._record_manager.create_working_entry_from_source_file(
+            return self.record_manager.create_working_entry_from_source_file(
                 db=self.db,
                 record=record,
                 source_file=source_file,
@@ -223,8 +237,8 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 result.message_idx
             )
             if child_file is None:
-                file = self._error_dir_handle.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
-                file.upload(result.original, allow_overwrite=True)
+                file = self.error_directory.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
+                file.upload([result.original], allow_overwrite=True)
                 child_file = nodb.NODBSourceFile()
                 child_file.source_uuid = str(uuid.uuid4())
                 child_file.original_idx = result.message_idx
@@ -254,7 +268,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         failure_queue = self.get_config('failure_queue')
         if failure_queue is not None:
             payload = self.source_payload_from_nodb(child_file)
-            payload.metadata['decoder-class'] = self._decoder.__class__.__name__
+            payload.metadata['decoder-class'] = self.decoder.__class__.__name__
             payload.followup_queue = self.get_config('next_queue')
             self.progress_payload(payload, failure_queue, prevent_default_progression=True)
         mode(child_file)
