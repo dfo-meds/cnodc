@@ -39,6 +39,27 @@ def ftplib_error_wrap(cb):
     return _inner
 
 
+def ftplib_error_wrap_generator(cb):
+
+    @functools.wraps(cb)
+    def _inner(*args, **kwargs):
+        try:
+            yield from cb(*args, **kwargs)
+        # file doesnt exist, etc
+        except ftplib.error_perm as ex:
+            raise StorageError(str(ex), 2000, is_transient=True) from ex
+        except ftplib.error_temp as ex:
+            raise StorageError(str(ex), 2001, is_transient=True) from ex
+        except ftplib.error_proto as ex:
+            raise StorageError(str(ex), 2002, is_transient=False) from ex
+        except ftplib.error_reply as ex:
+            raise StorageError(str(ex), 2003, is_transient=False) from ex
+        # actual error connecting to server
+        except ConnectionError as ex:
+            raise StorageError(str(ex), 2004, is_transient=True) from ex
+
+    return _inner
+
 @injector.injectable
 class FTPConnectionPool:
 
