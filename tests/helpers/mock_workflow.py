@@ -164,16 +164,20 @@ class MockWorkflow:
         max_cycles = max_cycles or 50
         test_result = WorkflowTestResult()
         test_result.start()
-        self._build_workers(test_result)
-        while self._have_items_changed() and max_cycles > 0:
-            self._run_all_workers_once()
-            max_cycles -= 1
-        test_result.close()
+        try:
+            self._build_workers(test_result)
+            while self._have_items_changed() and max_cycles > 0:
+                self._run_all_workers_once()
+                max_cycles -= 1
+        finally:
+            for worker in self._workers:
+                worker.on_exit(None)
+            test_result.close()
         return test_result
 
     def _run_all_workers_once(self):
         for worker in self._workers:
-            worker.run_once()
+            worker.run_once_after_start()
 
     def _have_items_changed(self):
         current_items = set()
@@ -201,6 +205,7 @@ class MockWorkflow:
             if hasattr(worker, 'nodb'):
                 worker.nodb = self.nodb
             self._workers.append(worker)
+            worker.on_start()
 
 
 class BaseWorkflowTestCase(BaseTestCase):
