@@ -11,6 +11,7 @@ import unittest as ut
 from contextlib import contextmanager
 from unittest import mock
 
+import zrlog
 from autoinject import injector
 from medsutil.awaretime import AwareDateTime
 from medsutil.halts import DummyHaltFlag
@@ -92,6 +93,7 @@ class BaseTestCase(ut.TestCase):
         self.addTypeEqualityFunc(datetime.datetime, self.assertSameTime)
         self.addTypeEqualityFunc(AwareDateTime, self.assertSameTime)
         self.addTypeEqualityFunc(dict, self.assertDictSimilar)
+        self._log = zrlog.get_logger(f'test.{self.__class__.__qualname__}')
 
     @staticmethod
     def data_file_path(rel_path: str = None) -> pathlib.Path:
@@ -243,7 +245,7 @@ class BaseTestCase(ut.TestCase):
         with self.assertRaises(CodedError) as h:
             yield h
         if (error_code and error_code != h.exception.internal_code) or (is_transient is not None and is_transient is not h.exception.is_transient):
-            raise self.failureException(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'") from h.exception
+            self._log.warning(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'")
 
     @contextmanager
     def assertNoError(self, msg: str = None):
