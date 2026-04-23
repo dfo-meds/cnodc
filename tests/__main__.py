@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     new_argv = None
     if len(sys.argv) == 1:
-        new_argv = [sys.argv[0], 'discover', '-s', 'tests', '-t', '.']
+        new_argv = [sys.argv[0], 'discover', '-s', 'tests', '-t', str(TEST_DIR.parent)]
     else:
         new_argv = list(sys.argv)
 
