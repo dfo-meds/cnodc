@@ -12,6 +12,7 @@ import zirconium as zr
 import zrlog
 from autoinject import injector
 
+from medsutil.exceptions import CodedError
 from nodb import QueueStatus
 import nodb.interface as interface
 from nodb.interface import NODBError, wrap_nodb_exceptions, POSTGRES_ALLOWED_CHARACTERS, ScannedFileStatus, LockType
@@ -185,10 +186,14 @@ class PostgresController(interface.NODBInstance):
             cur.execute(query)
             first_row = cur.fetchone()
             if first_row:
-                return obj_cls(
-                    is_new=False,
-                    **{x: first_row[x] for x in first_row.keys() if isinstance(x, str)}
-                )
+                try:
+                    fields = {x: first_row[x] for x in first_row.keys() if isinstance(x, str)}
+                    return obj_cls(
+                        is_new=False,
+                        **fields
+                    )
+                except TypeError as ex:
+                    raise CodedError(f"Data class [{obj_cls.__name__}]cannot handle fields from database, found [{','.join(fields.keys())}]") from ex
         return None
 
     def rows(self, table_name: str) -> int:
