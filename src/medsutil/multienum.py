@@ -74,3 +74,22 @@ else:
             self.__class__._aliases[x] = self._value_
 
 
+def variants(x: str, lowercase: bool = True, nospace: bool = True):
+    mods = []
+    if lowercase:
+        mods.append(lambda x: x.lower())
+    if nospace:
+        mods.append(lambda x: x.replace(' ', ''))
+    return tuple(x for x in _combo_values(x, mods))
+
+
+def _combo_values(x, mods: list[t.Callable[[str], str]]):
+    yield x
+    for y in _mod_combos(mods):
+        yield y(x)
+
+def _mod_combos(mods: list[t.Callable[[str], str]]) -> t.Iterable[t.Callable[[str], str]]:
+    for i in range(0, len(mods)):
+        yield mods[i]
+        for j in _mod_combos(mods[i+1:]):
+            yield lambda x: j(mods[i](x))
