@@ -109,7 +109,7 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
             },
             self.worker_controller.payload_to_queue_item(fp, 'test_intake')
@@ -127,7 +127,7 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
                 'autocomplete_records': True,
             },
@@ -154,14 +154,14 @@ class TestLoader(BaseTestCase):
                 NODBDecodeLoadWorker,
                 {
                     'queue_name': 'test_intake',
-                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'decoder_class': dynamic_name(OCProc2JsonCodec),
                     'error_directory': str(err_dir),
                 },
                 self.worker_controller.payload_to_queue_item(fp, 'test_intake')
             )
-        self.assertEqual(3, len(self.db.tables[NODBWorkingRecord.TABLE_NAME]))
-        self.assertEqual(2, len(self.db.tables[NODBQueueItem.TABLE_NAME]))
-        self.assertEqual(2, len(self.db.tables[NODBSourceFile.TABLE_NAME]))
+        self.assertEqual(3, self.db.rows(NODBWorkingRecord.TABLE_NAME))
+        self.assertEqual(2, self.db.rows(NODBQueueItem.TABLE_NAME))
+        self.assertEqual(2, self.db.rows(NODBSourceFile.TABLE_NAME))
         files = [x.path for x in os.scandir(err_dir) if x.name.endswith(".bin")]
         self.assertEqual(1, len(files))
         with open(files[0], "r") as h:
@@ -171,7 +171,7 @@ class TestLoader(BaseTestCase):
         self.assertEqual(file2.original_uuid, file1.source_uuid)
         self.assertEqual(file2.received_date, file1.received_date)
         self.assertEqual(file2.original_idx, 1)
-        self.assertEqual(file2.source_path, files[0])
+        self.assertEqual(file2.source_path, files[0].replace("\\", "/"))
         self.assertEqual(file2.file_name, file1.file_name)
         self.assertIsNotNone(file2.history)
 
@@ -195,7 +195,7 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')
@@ -225,7 +225,7 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')
