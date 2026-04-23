@@ -40,8 +40,7 @@ def upsert_dataset(method, url, data, **kwargs):
     return json.dumps({'guid': '23456'})
 
 
-#@skip_long_test
-@unittest.skip("skipping because long test")
+@skip_long_test
 class TestGliderDecode(BaseWorkflowTestCase):
 
     @classmethod
@@ -53,7 +52,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
     def build_and_run_workflow(cls, workflow: MockWorkflow) -> WorkflowTestResult:
-        cls.set_log_level_for_class(logging.NOTICE)
+        cls.set_log_level_for_class(logging.ERROR)
         input_dir = cls.class_temp_dir / 'inputs'
         input_dir.mkdir()
         error_dir = cls.class_temp_dir / 'errors'

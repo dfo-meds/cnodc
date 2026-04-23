@@ -275,8 +275,7 @@ class TestScheduledTask(BaseTestCase):
         self.assertIn('before_cycle', task._called_methods)
         self.assertIn('after_cycle', task._called_methods)
 
-    #@skip_long_test
-    @unittest.skip
+    @skip_long_test
     def test_actual_delay(self):
         task: BoringTask = self.worker_controller.build_test_worker(BoringTask, {
             'schedule_mode': 'from_start',
