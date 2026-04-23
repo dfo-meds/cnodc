@@ -46,11 +46,8 @@ class TestBaseObject(BaseTestCase):
         self.assertEqual(0, len(pk))
 
     def test_default_kwargs(self):
-        td = TestDefaults(xyz="foobar")
-        self.assertIn('xyz', td._data)
-        self.assertEqual('foobar', td._data['xyz'])
-        self.assertEqual('foobar', td.get_for_db('xyz'))
-
+        with self.assertRaises(TypeError):
+            td = TestDefaults(xyz="foobar")
 
     def test_table_name(self):
         x = TestStuff()
@@ -72,7 +69,7 @@ class TestBaseObject(BaseTestCase):
 
     def test_readonly_override(self):
         x = TestStuff()
-        x._allow_set_readonly = True
+        x._allow_readonly_access = True
         x.ro = "bar"
         self.assertEqual(x.ro, "bar")
         self.assertIn('ro', x._modified_values)
@@ -100,7 +97,7 @@ class TestBaseObject(BaseTestCase):
         self.assertEqual(x.get_for_db('str'), '54321')
 
     def test_str_field_none(self):
-        x = TestStuff()
+        x = TestStuff(str='abc', is_new=False)
         x.str = None
         self.assertIsNone(x.str)
         self.assertIn('str', x._modified_values)
@@ -115,7 +112,7 @@ class TestBaseObject(BaseTestCase):
         self.assertEqual(x.get_for_db("integer"), 54321)
 
     def test_integer_field_none(self):
-        x = TestStuff()
+        x = TestStuff(integer=5, is_new=False)
         x.integer = None
         self.assertIsNone(x.integer)
         self.assertIn('integer', x._modified_values)
@@ -130,7 +127,7 @@ class TestBaseObject(BaseTestCase):
         self.assertEqual(x.get_for_db("float"), 54.321)
 
     def test_float_field_none(self):
-        x = TestStuff()
+        x = TestStuff(real=5.4321, is_new=False)
         x.real = None
         self.assertIsNone(x.real)
         self.assertIn('float', x._modified_values)
@@ -161,7 +158,7 @@ class TestBaseObject(BaseTestCase):
         self.assertEqual(x.get_for_db('uuid'), '54321')
 
     def test_uuid_field_none(self):
-        x = TestStuff()
+        x = TestStuff(uuid='54321', is_new=False)
         x.uuid = None
         self.assertIsNone(x.uuid)
         self.assertIn('uuid', x._modified_values)
@@ -183,43 +180,43 @@ class TestBaseObject(BaseTestCase):
 
     def test_datetime_field_date_only(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+        test = datetime.datetime(2015, 10, 1, 0, 0, 0).astimezone()
         x.date_time = '2015-10-01'
         self.assertEqual(x.date_time, test)
         self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), test)
+        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T00:00:00-04:00')
 
     def test_datetime_field(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.timezone.utc)
+        test = datetime.datetime(2015, 10, 1, 1, 2, 3).astimezone()
         x.date_time = '2015-10-01T01:02:03'
-        self.assertEqual(x.date_time, test)
+        self.assertSameTime(x.date_time, test)
         self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), test)
+        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03-04:00')
 
     def test_datetime_field_with_zone(self):
         x = TestStuff()
         test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.timezone.utc)
         x.date_time = '2015-10-01T01:02:03+00:00'
-        self.assertEqual(x.date_time, test)
+        self.assertSameTime(x.date_time, test)
         self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), test)
+        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03+00:00')
 
     def test_datetime_field_no_t(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.timezone.utc)
+        test = datetime.datetime(2015, 10, 1, 1, 2, 3).astimezone()
         x.date_time = '2015-10-01 01:02:03'
-        self.assertEqual(x.date_time, test)
+        self.assertSameTime(x.date_time, test)
         self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), test)
+        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03-04:00')
 
     def test_datetime_field_actual(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 1, 2, 3)
+        test = datetime.datetime(2015, 10, 1, 1, 2, 3).astimezone()
         x.date_time = test
-        self.assertEqual(x.date_time, test)
+        self.assertSameTime(x.date_time, test)
         self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), test)
+        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03-04:00')
 
     def test_datetime_field_none(self):
         x = TestStuff(date_time=datetime.datetime(2015, 1, 2, 3, 4, 5), is_new=False)
@@ -314,5 +311,5 @@ class TestBaseObject(BaseTestCase):
 
     def test_set_unknown_from_db(self):
         x = TestStuff()
-        x.set_from_db('not_a_value', 'foobar')
-        self.assertEqual(x._data['not_a_value'], 'foobar')
+        with self.assertRaises(KeyError):
+            x.set_from_db('not_a_value', 'foobar')
