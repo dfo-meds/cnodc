@@ -64,7 +64,7 @@ class NODBUser(s.NODBBaseObject):
         if secure.check_password(password, self.salt, self.phash):
             return True
         if self.old_phash and self.old_salt and self.old_expiry:
-            return secure.check_expired_password(password, self.old_salt, self.old_phash, self.old_expiry)
+            return secure.check_expired_password(password, self.old_salt, self.old_phash, self.old_expiry, username=self.username)
         return False
 
     def cleanup(self):
