@@ -176,7 +176,7 @@ class TestLiveAzureBlobs(BaseTestCase):
                     if file.exists():
                         file.remove()
 
-    def test_walk(self):
+    def test_walk_in_memory(self):
         blob = AzureBlobHandle.build(f'{self.base_azure_share}/')
         files = [file.path() for file in blob.iterdir(path_types=PathType.FILE)]
         self.assertIn(f"{self.base_azure_share}test.txt", files)
@@ -184,7 +184,7 @@ class TestLiveAzureBlobs(BaseTestCase):
         self.assertIn(f"{self.base_azure_share}subdir/subdir2/test5.txt", files)
         self.assertNotIn(f"{self.base_azure_share}subdir/", files)
 
-    def test_walk_on_file(self):
+    def test_walk_in_file(self):
         blob = AzureBlobHandle.build(f'{self.base_azure_share}/')
         blob.walk_max_memory = 10
         files = [file.path() for file in blob.iterdir(path_types=PathType.FILE)]
