@@ -1,6 +1,25 @@
 [flask]
 SECRET_KEY='12345'
 
+
+[logging]
+version = 1
+
+[logging.root]
+level = "ERROR"
+handlers = ["console"]
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "brief"
+level = "ERROR"
+stream = "ext://sys.stdout"
+
+[logging.formatters.brief]
+format = "[%(asctime)s %(levelname)s]: %(message)s [%(name)s - %(filename)s - %(funcName)s]"
+datefmt = "%H:%M:%S"
+
+
 # For testing a live storage account, copy this to .cnodc.private.toml and replace the uppercase words.
 # Do not add the credentials here and definitely do not commit them to the repository.
 # [tests.azure_storage]
