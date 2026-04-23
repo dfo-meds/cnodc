@@ -72,8 +72,7 @@ class BlobWalker:
         if self._temp_dir:
             shutil.rmtree(self._temp_dir)
             del self._temp_dir
-        if self._memory_dict:
-            del self._memory_dict
+        del self._memory_dict
 
     def walk_all(self):
         if self._use_file_system:
@@ -102,7 +101,7 @@ class BlobWalker:
         for dir_name, _, files in self._walk_memory():
             for file_name in files:
                 self._insert_row(dir_name, file_name)
-        del self._memory_dict
+        self._memory_dict = {}
 
     def _insert_row(self, dir_name, file_name):
         self._sql_handle.execute("INSERT INTO blob_paths (parent_name, blob_name) VALUES (?, ?)", [dir_name, file_name])
