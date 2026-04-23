@@ -81,7 +81,7 @@ class FileScanTask(ScheduledTask):
                 full_path = file.path()
                 mod_time = file.modified_datetime() if self._reprocess_updated_files else None
                 status = db.scanned_file_status(full_path, mod_time)
-                if status == ScannedFileStatus.NOT_PRESENT:
+                if status is ScannedFileStatus.NOT_PRESENT:
                     self._log.info("Found new file [%s][%s]", full_path, mod_time)
                     db.note_scanned_file(full_path, mod_time)
                     payload = NewFilePayload.from_handle(file,
