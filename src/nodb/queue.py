@@ -18,7 +18,7 @@ class NODBQueueItem(s.NODBBaseObject):
     TABLE_NAME: str = "nodb_queues"
     PRIMARY_KEYS: tuple[str] = ("queue_uuid",)
     MOCK_INDEX_KEYS = (
-        ('queue_name',)
+        ('queue_name', ),
     )
 
     queue_uuid: str = s.UUIDColumn()
