@@ -143,6 +143,10 @@ class DatabaseMock:
         for idx in self._find_object_indexes(obj_cls.TABLE_NAME, **kwargs):
             yield self.tables[obj_cls.TABLE_NAME][idx]
 
+    def stream_raw(self, obj_cls, **kwargs):
+        for idx in self._find_object_indexes(obj_cls.TABLE_NAME, **kwargs):
+            yield self.tables[obj_cls.TABLE_NAME][idx].export()
+
     def count_objects(self, obj_cls, filters: t.Optional[dict] = None, **kwargs):
         return sum(1 for _ in self._find_object_indexes(obj_cls.TABLE_NAME, filters))
 
