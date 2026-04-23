@@ -78,7 +78,8 @@ class TestControllerInstanceNoMock(BaseTestCase):
             self.assertFalse(user.check_password('test2'))
             user.set_password('test2', old_expiry_seconds=60)
             self.assertTrue(user.check_password('test2'))
-            self.assertTrue(user.check_password('test'))
+            with self.assertLogs("medsutil.secure", "NOTICE"):
+                self.assertTrue(user.check_password('test'))
             self.assertFalse(user.check_password('test3'))
             user.status = UserStatus.INACTIVE
             user.unassign_role('bar')
