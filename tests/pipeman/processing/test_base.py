@@ -92,16 +92,19 @@ class TestBaseWorker(BaseTestCase):
 
     def test_temp_dir_cleanup(self):
         worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {})
-        td = worker.temp_dir()
-        self.assertTrue(td.exists())
-        file = td / 'file.txt'
-        file.touch()
-        self.assertTrue(file.exists())
-        worker.after_cycle()
-        self.assertFalse(file.exists())
-        self.assertFalse(td.exists())
-        td2 = worker.temp_dir()
-        self.assertNotEqual(td2, td)
+        try:
+            td = worker.temp_dir()
+            self.assertTrue(td.exists())
+            file = td / 'file.txt'
+            file.touch()
+            self.assertTrue(file.exists())
+            worker.after_cycle()
+            self.assertFalse(file.exists())
+            self.assertFalse(td.exists())
+            td2 = worker.temp_dir()
+            self.assertNotEqual(td2, td)
+        finally:
+            worker.after_cycle()
 
     def test_worker_config(self):
         worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {

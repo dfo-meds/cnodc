@@ -722,18 +722,21 @@ class TestSourceWorker(BaseTestCase):
         with open(self.temp_dir / "12345.txt", "w") as h:
             h.write("hello world")
         sw: SourceWorkflowWorker = self.worker_controller.build_test_worker(SourceWorkflowWorker)
-        sf = NODBSourceFile()
-        sf.source_uuid = '12345'
-        sf.received_date = datetime.date(2015, 1, 2)
-        sf.source_path = str(self.temp_dir / "12345.txt")
-        sf.file_name = "hello.txt"
-        self.db.insert_object(sf)
-        sp = SourceFilePayload.from_source_file(sf)
-        sw._current_payload = sp
-        f = sw.download_to_temp_file()
-        self.assertTrue(f.exists())
-        with open(f, "r") as h:
-            self.assertEqual(h.read(), "hello world")
+        try:
+            sf = NODBSourceFile()
+            sf.source_uuid = '12345'
+            sf.received_date = datetime.date(2015, 1, 2)
+            sf.source_path = str(self.temp_dir / "12345.txt")
+            sf.file_name = "hello.txt"
+            self.db.insert_object(sf)
+            sp = SourceFilePayload.from_source_file(sf)
+            sw._current_payload = sp
+            f = sw.download_to_temp_file()
+            self.assertTrue(f.exists())
+            with open(f, "r") as h:
+                self.assertEqual(h.read(), "hello world")
+        finally:
+            sw.after_cycle()
 
 
 
@@ -761,12 +764,15 @@ class TestFileWorker(BaseTestCase):
         with open(self.temp_dir / "12345.txt", "w") as h:
             h.write("hello world")
         fw: FileWorkflowWorker = self.worker_controller.build_test_worker(FileWorkflowWorker)
-        fp = FilePayload(file_path=self.temp_dir / '12345.txt')
-        fw._current_payload = fp
-        f = fw.download_to_temp_file()
-        self.assertTrue(f.exists())
-        with open(f, "r") as h:
-            self.assertEqual(h.read(), "hello world")
+        try:
+            fp = FilePayload(file_path=self.temp_dir / '12345.txt')
+            fw._current_payload = fp
+            f = fw.download_to_temp_file()
+            self.assertTrue(f.exists())
+            with open(f, "r") as h:
+                self.assertEqual(h.read(), "hello world")
+        finally:
+            fw.after_cycle()
 
 
 class TestObservationWorker(BaseTestCase):
