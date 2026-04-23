@@ -48,6 +48,7 @@ class DatabaseMock:
             self._lookups[tbl_name][index_name][value].append(index)
 
     def scanned_file_status(self, file_path: str, mod_time: t.Optional[datetime.datetime] = None):
+        file_path = str(file_path).replace("\\", "/")
         for x in self._scanned_files:
             if x['file_path'] == file_path and x['modified_date'] == mod_time:
                 if x['was_processed']:
@@ -57,6 +58,7 @@ class DatabaseMock:
         return ScannedFileStatus.NOT_PRESENT
 
     def note_scanned_file(self, file_path: str, mod_time: t.Optional[datetime.datetime] = None):
+        file_path = str(file_path).replace("\\", "/")
         self._scanned_files.append({
             'file_path': str(file_path),
             'was_processed': False,
@@ -69,7 +71,7 @@ class DatabaseMock:
 
 
     def mark_scanned_item_success(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
-        file_path = str(file_path)
+        file_path = str(file_path).replace("\\", "/")
         if mod_date is None:
             for x in self._scanned_files:
                 if x['file_path'] == file_path and x['modified_date'] is None:
@@ -90,7 +92,7 @@ class DatabaseMock:
                 })
 
     def mark_scanned_item_failed(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
-        file_path = str(file_path)
+        file_path = str(file_path).replace("\\", "/")
         remove_indices = set()
         for idx, x in enumerate(self._scanned_files):
             if x['file_path'] == file_path:
@@ -126,8 +128,8 @@ class DatabaseMock:
         self._scanned_files.clear()
         self._lookups.clear()
 
-    def table[T](self, table_name: type[T]) -> list[T]:
-        tn = table_name.get_table_name()
+    def table[T](self, table_name: type[T] | str) -> list[T]:
+        tn = table_name.get_table_name() if not isinstance(table_name, str) else table_name
         if tn not in self.tables:
             self.tables[tn] = []
         return self.tables[tn]
@@ -207,17 +209,7 @@ class DatabaseMock:
         # TOOD: handle ordering
         if table_name in self.tables:
             filters = self._clean_filters(filters)
-            limit_set = None
-            if join_str != 'OR' and not any(isinstance(x, tuple) for x in filters.values()):
-                if table_name in self._lookups:
-                    for index_key in self._lookups[table_name]:
-                        keys = index_key.split('__')
-                        if any(k not in filters or isinstance(filters[k], tuple) for k in keys):
-                            continue
-                        lookup_key = '__'.join(str(filters[k]) for k in keys)
-                        if lookup_key in self._lookups[table_name][index_key]:
-                            limit_set = self._lookups[table_name][index_key][lookup_key]
-                            break
+            limit_set = self._build_index_set(table_name, filters, join_str)
             if limit_set is not None:
                 for idx in limit_set:
                     obj = self.tables[table_name][idx]
@@ -235,6 +227,18 @@ class DatabaseMock:
                     else:
                         if all(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
                             yield idx
+
+    def _build_index_set(self, table_name, filters, join_str='AND') -> list[int] | None:
+        if join_str != 'OR' and not any(isinstance(x, tuple) for x in filters.values()):
+            if table_name in self._lookups:
+                for index_key in self._lookups[table_name]:
+                    keys = index_key.split('__')
+                    if any(k not in filters or isinstance(filters[k], tuple) for k in keys):
+                        continue
+                    lookup_key = '__'.join(str(filters[k]) for k in keys)
+                    if lookup_key in self._lookups[table_name][index_key]:
+                        return  self._lookups[table_name][index_key][lookup_key]
+        return None
 
     def _check_filter(self, test_value, filter_info):
         if filter_info is None:
@@ -268,8 +272,8 @@ class DatabaseMock:
         kwargs['escalation_level'] = 0
         if 'priority' not in kwargs or not kwargs['priority']:
             kwargs['priority'] = 0
-        if 'unique_item_key' not in kwargs:
-            kwargs['unique_item_key'] = None
+        if 'unique_item_name' in kwargs and not kwargs['unique_item_name']:
+            kwargs['unique_item_name'] = None
         if 'subqueue_name' in kwargs and not kwargs['subqueue_name']:
             kwargs['subqueue_name'] = None
         self.table(NODBQueueItem).append(NODBQueueItem(**kwargs, is_new=False))
