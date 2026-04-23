@@ -81,8 +81,9 @@ class WorkerTestController:
             kwargs['process_name'] = 'test'
             kwargs['process_version'] = '0.1'
         cls = worker_cls(**kwargs)
-        cls.nodb = self._nodb
-        cls.db = self._db
         if hasattr(cls, 'nodb'):
+            cls.nodb = self._nodb
             cls.mock_nodb = self._nodb
+        if hasattr(cls, '_db'):
+            cls._db = self._db
         return cls
