@@ -41,7 +41,7 @@ class WorkflowDirectory(ddo.DataDictObject):
 
     @injector.inject
     def storage_handle(self, storage: StorageController=None):
-        return storage.get_filepath(self.directory)
+        return storage.get_filepath(self.directory, raise_ex=True)
 
     def validate(self, config: WorkflowConfiguration):
         _ = self.storage_handle()
