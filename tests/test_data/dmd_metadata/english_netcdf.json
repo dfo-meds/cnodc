@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "responsibles": [
+      {
+        "role": "originator",
+        "contact": {
+          "id_system": {
+            "_guid": "ORCID"
+          },
+          "id_code": "12345",
+          "_guid": "erin@fake.com",
+          "email": {
+            "en": "erin@fake.com"
+          },
+          "individual_name": "Erin Turnbull"
+        }
+      },
+      {
+        "role": "publisher",
+        "contact": {
+          "id_system": {
+            "_guid": "ROR"
+          },
+          "id_code": "234567",
+          "_guid": "meds@fake.com",
+          "email": {
+            "en": "meds@fake.com",
+            "fr": "sdmm@fake.com"
+          },
+          "web_page": {
+            "function": "information",
+            "url": {
+              "en": "https://meds.com"
+            },
+            "protocol": "https"
+          },
+          "organization_name": {
+            "en": "Marine Environmental Data Section",
+            "fr": "SDMM"
+          }
+        }
+      },
+      {
+        "role": "contributor",
+        "contact": {
+          "id_system": {
+            "_guid": "ORCID"
+          },
+          "id_code": "123",
+          "_guid": "anh@fake.com",
+          "email": {
+            "en": "anh@fake.com"
+          },
+          "individual_name": "Anh Tran"
+        }
+      },
+      {
+        "role": "editor",
+        "contact": {
+          "id_system": {
+            "_guid": "ORCID"
+          },
+          "id_code": "456",
+          "_guid": "jenny@fake.com",
+          "email": {
+            "en": "jenny@fake.com"
+          },
+          "individual_name": "Jenny Chiu"
+        }
+      },
+      {
+        "role": "funder",
+        "contact": {
+          "id_system": {
+            "_guid": "ROR"
+          },
+          "id_code": "7890",
+          "_guid": "bio@fake.com",
+          "email": {
+            "en": "bio@fake.com"
+          },
+          "organization_name": {
+            "en": "BIO"
+          }
+        }
+      },
+      {
+        "role": "mediator",
+        "contact": {
+          "_guid": "coordinator@fake.com",
+          "email": {
+            "en": "coordinator@fake.com"
+          },
+          "position_name": {
+            "en": "MEDS Coordinator",
+            "fr": "Coordinateur de SDMM"
+          }
+        }
+      },
+      {
+        "role": "contributor",
+        "contact": {
+          "organization_name": {
+            "en": "C-PROOF"
+          }
+        }
+      }
+    ],
+    "variables": [
+      {
+        "_guid": "depth",
+        "_display_names": {
+          "und": "depth"
+        },
+        "axis": "Z",
+        "units": "m",
+        "actual_min": 5.0,
+        "actual_max": 8.0,
+        "positive": "down",
+        "source_name": "depth",
+        "source_data_type": "double",
+        "dimensions": [
+          "N_COUNT"
+        ]
+      },
+      {
+        "_guid": "temp",
+        "_display_names": {
+          "und": "temp"
+        },
+        "cnodc_name": "Temperature",
+        "units": "degrees_C",
+        "actual_min": 1.0,
+        "actual_max": 4.0,
+        "source_name": "temp",
+        "source_data_type": "double",
+        "dimensions": [
+          "N_COUNT"
+        ],
+        "ioos_category": "Temperature"
+      }
+    ],
+    "alt_metadata": [
+      {
+        "resource": {
+          "function": "completeMetadata",
+          "url": {
+            "en": "https://cnodc/full_metadata.xml"
+          },
+          "protocol": "https",
+          "goc_content_type": "support_doc",
+          "goc_format": "XML"
+        }
+      }
+    ],
+    "metadata_licenses": [
+      {
+        "_guid": "unclassified_data"
+      },
+      {
+        "_guid": "open_government_license"
+      }
+    ],
+    "licenses": [
+      {
+        "_guid": "unclassified_data"
+      },
+      {
+        "_guid": "open_government_license"
+      }
+    ],
+    "metadata_standards": [
+      {
+        "_guid": "metadata_standard_iso19115"
+      },
+      {
+        "_guid": "metadata_standard_iso19115-1"
+      }
+    ],
+    "metadata_profiles": [
+      {
+        "_guid": "metadata_profile_cioos"
+      }
+    ],
+    "temporal_resolution": {
+      "seconds": 60
+    },
+    "metadata_owner": {
+      "_guid": "cnodc"
+    },
+    "publisher": {
+      "_guid": "cnodc"
+    },
+    "info_link": {
+      "function": "information",
+      "url": {
+        "en": "https://dfo-mpo.gc.ca"
+      },
+      "protocol": "https"
+    },
+    "institution": "dfo",
+    "program": "Program",
+    "project": "Project",
+    "standard_name_vocab": "CF-1.12",
+    "processing_level": "raw",
+    "geospatial_bounds": "POINT(1 2)",
+    "dataset_id_code": "10.1.2.3/456",
+    "dataset_id_system": {
+      "_guid": "DOI"
+    },
+    "geospatial_vertical_min": 5.0,
+    "geospatial_vertical_max": 8.0,
+    "date_issued": "2015-01-02",
+    "date_created": "2016-01-02",
+    "date_modified": "2017-01-02",
+    "title": {
+      "en": "Hello",
+      "fr": "Bonjour"
+    },
+    "comment": {
+      "en": "oh no"
+    },
+    "processing_description": {
+      "en": "i did stuff"
+    },
+    "processing_environment": {
+      "en": "my computer"
+    },
+    "purpose": {
+      "en": "why i made this"
+    },
+    "references": {
+      "en": "yes i have them"
+    },
+    "source": {
+      "en": "i made it up"
+    },
+    "summary": {
+      "en": "what i did but briefly"
+    },
+    "acknowledgement": {
+      "en": "my computer did stuff"
+    },
+    "goc_publisher": {
+      "_guid": "meds"
+    },
+    "geospatial_bounds_crs": {
+      "_guid": "wgs84"
+    },
+    "geospatial_bounds_vertical_crs": {
+      "_guid": "msl_depth"
+    },
+    "data_locale": {
+      "_guid": "canadian_english_utf8"
+    },
+    "metadata_locale": {
+      "_guid": "canadian_english_utf8"
+    },
+    "metadata_maintenance_frequency": "asNeeded",
+    "resource_maintenance_frequency": "daily",
+    "topic_category": "oceans",
+    "status": "onGoing",
+    "spatial_representation_type": "textTable",
+    "goc_collection_type": "geogratis",
+    "goc_subject": "oceanography",
+    "is_ongoing": true,
+    "via_meds_request_form": false,
+    "data_extra_locales": [
+      {
+        "_guid": "canadian_french_utf8"
+      }
+    ],
+    "metadata_extra_locales": [
+      {
+        "_guid": "canadian_french_utf8"
+      }
+    ],
+    "goc_publication_place": [
+      "ontario_-_halton",
+      "british_columbia_-_nanaimo",
+      "ontario_-_ottawa",
+      "newfoundland_and_labrador_-_division_no._1"
+    ],
+    "goc_audience": [
+      "scientists",
+      "parents"
+    ],
+    "cioos_eovs": [
+      "subSurfaceTemperature"
+    ],
+    "conventions": [
+      "world",
+      "hello",
+      "shenanigans"
+    ],
+    "feature_type": "Profile"
+  },
+  "guid": "12345",
+  "display_names": {
+    "en": "Hello",
+    "fr": "Bonjour"
+  },
+  "activation_workflow": "cnodc_activation",
+  "publication_workflow": "cnodc_publish",
+  "security_level": "unclassified",
+  "profiles": [
+    "cnodc"
+  ]
+}
