@@ -1,8 +1,8 @@
 import datetime
 import enum
 import medsutil.json as json
-import unittest as ut
 import nodb.base as s
+from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestEnum(enum.Enum):
@@ -35,7 +35,7 @@ class TestDefaults(s.NODBBaseObject):
     pass
 
 
-class TestBaseObject(ut.TestCase):
+class TestBaseObject(BaseTestCase):
 
     def test_default_table_name(self):
         self.assertEqual('TestDefaults', TestDefaults.get_table_name())
