@@ -114,7 +114,8 @@ class UserTest(BaseTestCase):
         user.clear_modified()
         user.set_password("foobar3", old_expiry_seconds=60)
         self.assertTrue(user.check_password("foobar3"))
-        self.assertTrue(user.check_password("foobar2"))
+        with self.assertLogs("medsutil.secure", "NOTICE"):
+            self.assertTrue(user.check_password("foobar2"))
         self.assertFalse(user.check_password("foobar"))
         user.old_expiry = AwareDateTime.utcnow() - datetime.timedelta(seconds=60)
         self.assertFalse(user.check_password("foobar2"))
