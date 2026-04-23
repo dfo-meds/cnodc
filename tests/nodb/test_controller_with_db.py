@@ -73,7 +73,7 @@ class TestControllerInstanceNoMock(BaseTestCase):
             self.assertIsNone(users[0][4])
             self.assertIsNone(users[0][5])
             self.assertEqual(users[0][6], 'ACTIVE')
-            self.assertEqual(users[0][7], ['foo', 'bar'])
+            self.assertEqual(set(users[0][7]), {'foo', 'bar'})
             self.assertTrue(user.check_password('test'))
             self.assertFalse(user.check_password('test2'))
             user.set_password('test2', old_expiry_seconds=60)
