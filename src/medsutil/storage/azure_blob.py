@@ -17,8 +17,6 @@ connection_string = "..."
 
 """
 import base64
-import io
-import os
 import shutil
 import sqlite3
 import sys
@@ -70,9 +68,10 @@ class BlobWalker:
     def cleanup(self):
         if self._sql_handle:
             self._sql_handle.close()
+            del self._sql_handle
         if self._temp_dir:
             shutil.rmtree(self._temp_dir)
-            self._temp_dir = None
+            del self._temp_dir
         if self._memory_dict:
             del self._memory_dict
 
@@ -297,9 +296,13 @@ class AzureBlobHandle(AzureBaseHandle):
         client = self.container_client()
         full_name = self.full_name()
         walker = BlobWalker(full_name, self.walk_max_memory)
-        for blob_properties in self._halt_flag.iterate(client.list_blobs(name_starts_with=full_name)):
-            walker.append(blob_properties)
-        yield from walker.walk_all()
+        try:
+            for blob_properties in self._halt_flag.iterate(client.list_blobs(name_starts_with=full_name)):
+                walker.append(blob_properties)
+            yield from walker.walk_all()
+        finally:
+            walker.cleanup()
+            del walker
 
     @wrap_azure_errors
     def _set_metadata(self, metadata: dict[str, str]):
