@@ -183,6 +183,8 @@ class TestGliderDecode(BaseWorkflowTestCase):
         with open(self.data_file_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
             content = h.read()
             content = json.load_dict(content)
+        del content['metadata']['date_created']
+        del data_reloaded['metadata']['date_created']
         del data_reloaded['metadata']['file_storage_location']
         del content['metadata']['file_storage_location']
         self.assertDictSimilar(data_reloaded, content)
