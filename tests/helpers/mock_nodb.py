@@ -239,7 +239,7 @@ class DatabaseMock:
     def _check_filter(self, test_value, filter_info):
         if filter_info is None:
             return test_value is None
-        elif isinstance(filter_info, tuple):
+        elif isinstance(filter_info, (tuple, list)):
             if test_value is None:
                 return len(filter_info) > 2 and filter_info[2]
             else:
