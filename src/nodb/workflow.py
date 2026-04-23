@@ -37,7 +37,7 @@ class WorkflowDirectory(ddo.DataDictObject):
     allow_overwrite: OverwriteOption = ddo.p_enum(OverwriteOption, default=OverwriteOption.NEVER)
     tier: StorageTier = ddo.p_enum(StorageTier, default=None)
     metadata: dict[str, str] = ddo.p_json_dict()
-    gzip: bool = False
+    gzip: bool = ddo.p_bool(default=False)
 
     @injector.inject
     def storage_handle(self, storage: StorageController=None):
@@ -57,7 +57,7 @@ class WorkflowConfiguration(ddo.DataDictObject):
     filename_pattern: str | None = ddo.p_str()
     default_metadata: dict[str, str] = ddo.p_json_dict()
     permissions: set[str] = ddo.p_json_str_set()
-    max_file_size: int | None = None
+    max_file_size: int | None = ddo.p_int()
 
     def validate(self, previous: WorkflowConfiguration = None):
 
