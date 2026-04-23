@@ -156,9 +156,9 @@ class TestWorkflow(BaseTestCase):
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'filename_pattern': 'test.txt', 'permissions': 'foobar'}, 'NODB-VALIDATION-2024', 'permissions must be list'),
             ({'label': {'und': '2'}, 'working_target': {'directory': str(self.temp_dir)}, 'filename_pattern': 'test.txt', 'permissions': ["foobar"]}, None, "good permissions"),
         ]
-        wf = NODBUploadWorkflow()
         for config, error_key, msg in tests:
             with self.subTest(msg=msg):
+                wf = NODBUploadWorkflow()
                 if error_key is not None:
                     with self.assertRaisesCNODCError() as h:
                         wf.set_config(config)
