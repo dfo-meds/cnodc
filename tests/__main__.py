@@ -1,6 +1,5 @@
 import pathlib
 import unittest
-import zrlog
 import logging
 import sys
 import coverage
@@ -22,7 +21,11 @@ if __name__ == '__main__':
     )
     with cov.collect():
         from pipeman.boot import init_cnodc
+        # speed up password hashing for tests only!
         init_cnodc('tests')
+        import medsutil.secure as s
+        s.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
+        s.MINIMUM_ITERATIONS = 2
         unittest.main(
             module=None,
             argv=new_argv
