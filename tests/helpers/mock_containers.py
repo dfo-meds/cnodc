@@ -110,6 +110,24 @@ class TestContainer:
 
 class NODBContainer(TestContainer):
 
+    ALL_TABLES = (
+        "nodb_queues",
+        "nodb_users",
+        "nodb_permissions",
+        "nodb_logins",
+        "nodb_sessions",
+        "nodb_upload_workflows",
+        "nodb_scanned_files",
+        "nodb_qc_batches",
+        "nodb_obs_data",
+        "nodb_working",
+        "nodb_obs",
+        "nodb_source_files",
+        "nodb_missions",
+        "nodb_platforms",
+
+    )
+
     def __init__(self):
         super().__init__('nodb', True, self._check_nodb_available)
         self.nodb = NODBPostgresController(
@@ -123,6 +141,11 @@ class NODBContainer(TestContainer):
     def _check_nodb_available(self):
         try:
             with self.nodb as db:
+
+                # Truncate everything to ensure we start fresh
+                with db.cursor() as cur:
+                    cur.execute(f"TRUNCATE TABLE {','.join(self.ALL_TABLES)} CASCADE")
+
                 return True
         except NODBError as ex:
             if ex.is_transient:
