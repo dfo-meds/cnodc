@@ -141,8 +141,7 @@ class TestLiveAzureFileShare(BaseTestCase):
             if file.exists():
                 file.remove()
 
-    #@skip_long_test
-    @unittest.skip
+    @skip_long_test
     def test_large_upload(self):
         def _generate_lots_of_data():
             for _ in range(0, 5):
