@@ -12,17 +12,6 @@ import nodb.interface as interface
 
 _log = zrlog.get_logger('nodb.queue')
 
-
-class QueueStatus(enum.Enum):
-    """Status of a queue item in the database."""
-
-    UNLOCKED = 'UNLOCKED'
-    LOCKED = 'LOCKED'
-    COMPLETE = 'COMPLETE'
-    DELAYED_RELEASE = 'DELAYED_RELEASE'
-    ERROR = 'ERROR'
-
-
 class NODBQueueItem(s.NODBBaseObject):
     """Queue item in the database."""
 
@@ -36,7 +25,7 @@ class NODBQueueItem(s.NODBBaseObject):
     created_date: AwareDateTime = s.DateTimeColumn(readonly=True, managed_name='db_created_date')
     modified_date: AwareDateTime = s.DateTimeColumn(readonly=True, managed_name='db_modified_date')
     delay_release: AwareDateTime | None = s.DateTimeColumn(readonly=True)
-    status: QueueStatus = s.EnumColumn(QueueStatus)
+    status: interface.QueueStatus = s.EnumColumn(interface.QueueStatus)
     locked_by: str | None = s.StringColumn(readonly=True)
     locked_since: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     queue_name: str = s.StringColumn(readonly=True)
@@ -69,11 +58,11 @@ class NODBQueueItem(s.NODBBaseObject):
 
     def mark_complete(self, db: interface.NODBInstance):
         """Mark the queue item as complete."""
-        self._set_queue_status(db=db, new_status=QueueStatus.COMPLETE)
+        self._set_queue_status(db=db, new_status=interface.QueueStatus.COMPLETE)
 
     def mark_failed(self, db: interface.NODBInstance):
         """Mark the queue item as failed."""
-        self._set_queue_status(db=db, new_status=QueueStatus.ERROR)
+        self._set_queue_status(db=db, new_status=interface.QueueStatus.ERROR)
 
     def release(self,
                 db: interface.NODBInstance,
@@ -84,14 +73,14 @@ class NODBQueueItem(s.NODBBaseObject):
         if release_in_seconds is None or release_in_seconds <= 0:
             self._set_queue_status(
                 db=db,
-                new_status=QueueStatus.UNLOCKED,
+                new_status=interface.QueueStatus.UNLOCKED,
                 reduce_priority=reduce_priority,
                 escalation_level=escalation_level
             )
         else:
             self._set_queue_status(
                 db=db,
-                new_status=QueueStatus.DELAYED_RELEASE,
+                new_status=interface.QueueStatus.DELAYED_RELEASE,
                 release_at=AwareDateTime.now() + datetime.timedelta(seconds=release_in_seconds),
                 reduce_priority=reduce_priority,
                 escalation_level=escalation_level
@@ -99,18 +88,18 @@ class NODBQueueItem(s.NODBBaseObject):
 
     def renew(self, db: interface.NODBInstance):
         """Renew a lock on the queue item"""
-        if self.status == QueueStatus.LOCKED:
+        if self.status == interface.QueueStatus.LOCKED:
             with self.readonly_access():
                 self.locked_since = db.fast_renew_queue_item(self.queue_uuid)
 
     def _set_queue_status(self,
                           db: interface.NODBInstance,
-                          new_status: QueueStatus,
+                          new_status: interface.QueueStatus,
                           release_at: AwareDateTime | None = None,
                           reduce_priority: bool = False,
                           escalation_level: t.Optional[int] = None):
         """Set the queue status from LOCKED to a new status."""
-        if self.status == QueueStatus.LOCKED:
+        if self.status == interface.QueueStatus.LOCKED:
             db.fast_update_queue_status(
                 self.queue_uuid,
                 new_status,
