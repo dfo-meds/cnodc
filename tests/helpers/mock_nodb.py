@@ -191,10 +191,18 @@ class DatabaseMock:
             return idx
         return None
 
+    def _clean_filters(self, filters: dict | None):
+        if not filters:
+            return {}
+        return {
+            k: coerce.as_json_safe(filters[k])
+            for k in filters.keys()
+        }
+
     def _find_object_indexes(self, table_name, filters: dict=None, filter_type=' AND ', **kwargs):
         # TOOD: handle ordering
         if table_name in self.tables:
-            filters = filters or {}
+            filters = self._clean_filters(filters)
             limit_set = None
             if filter_type == ' AND ':
                 if table_name in self._lookups:
@@ -202,12 +210,12 @@ class DatabaseMock:
                         keys = index_key.split('__')
                         if any(k not in filters or isinstance(filters[k], tuple) for k in keys):
                             continue
-                        lookup_key = '__'.join(str(coerce.as_json_safe(filters[k])) for k in keys)
+                        lookup_key = '__'.join(str(filters[k]) for k in keys)
                         if lookup_key in self._lookups[table_name][index_key]:
                             limit_set = self._lookups[table_name][index_key][lookup_key]
                         else:
                             limit_set = []
-                            break
+                        break
             if limit_set is not None:
                 for idx in limit_set:
                     obj = self.tables[table_name][idx]
