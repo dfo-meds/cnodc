@@ -74,6 +74,10 @@ class LinearCombinationProtocol[T](t.Protocol):
     def expanded(self) -> ExpandedLinearCombination[T]: ...
 
 
+def is_science_number(x: t.Any) -> t.TypeGuard[ScienceNumberProtocol]:
+    return hasattr(x, 'units') and hasattr(x, 'nominal_value') and hasattr(x, 'std_dev')
+
+
 type ExpandedLinearCombination = dict[ScienceNumberProtocol, int | float | ScienceNumberProtocol]
 type UnexpandedLinearCombination = list[tuple[int | float | ScienceNumberProtocol, LinearCombinationProtocol]]
 

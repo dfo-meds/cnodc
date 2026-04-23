@@ -10,7 +10,7 @@ from medsutil.math import functions
 SN = t.TypeVar("SN", bound=float | decimal.Decimal)
 
 
-def as_science_number[SN](*derivative_args, units_func: t.Callable, **derivative_kwargs):
+def as_science_number[SN](*derivative_args, units_func: t.Callable = None, **derivative_kwargs):
     def _wrapper(func: t.Callable[..., SN]):
 
         derivatives = {}
