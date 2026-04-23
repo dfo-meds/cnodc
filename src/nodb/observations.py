@@ -198,7 +198,7 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
     @classmethod
     def find_by_source_path(cls, db: interface.NODBInstance, source_path: str, **kwargs) -> NODBSourceFile | None:
         """Locate a source file by the source path."""
-        return db.load_object(obj_cls=cls, filters={
+        return db.load_object(cls, filters={
             'source_path': source_path
         }, **kwargs)
 
@@ -282,7 +282,7 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
         if platform_name is not None and platform_name != '':
             filters['platform_name'] = platform_name
         if filters:
-            res = db.stream_objects(obj_cls=NODBPlatform, filters=filters, join_str='OR', **kwargs)
+            res = db.stream_objects(cls, filters=filters, join_str='OR', **kwargs)
             if in_service_time is None:
                 yield from res
             else:
