@@ -150,7 +150,7 @@ class DatabaseMock:
     def count_objects(self, obj_cls, filters: t.Optional[dict] = None, **kwargs):
         return sum(1 for _ in self._find_object_indexes(obj_cls.TABLE_NAME, filters))
 
-    def bulk_update(self, cls, updates, key_field, key_values):
+    def bulk_update_objects(self, cls, updates, key_field, key_values):
         for obj in self.stream_objects(cls, filters={key_field: (key_values, 'IN', False)}):
             for name in updates:
                 setattr(obj, name, updates[name])
