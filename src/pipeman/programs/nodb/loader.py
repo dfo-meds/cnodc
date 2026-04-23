@@ -118,7 +118,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 total_skipped += skipped
                 had_any_errors = had_any_errors or had_error
                 was_single_file = result.single_message or not result.original
-                if had_any_errors:
+                if had_any_errors and was_single_file:
                     break
 
         self._log.info(f"{total_created} records created, {total_skipped} skipped")
