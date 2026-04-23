@@ -13,7 +13,7 @@ from medsutil.first import first_i18n
 from medsutil.sanitize import unnumpy
 import medsutil.awaretime as awaretime
 import medsutil.datadict as dd
-from medsutil.multienum import MultiValuedEnum
+from medsutil.multienum import MultiValuedEnum, variants
 from medsutil.frozendict import FrozenDict
 from medsutil.types import *
 from medsutil.ocproc2.ontology import OCProc2Ontology
@@ -95,50 +95,47 @@ class Direction(MultiValuedEnum):
 
 class IOOSCategory(MultiValuedEnum):
 
-    Acidity = "Acidity"
-    Bathymetry = "Bathymetry"
-    Biology = "Biology"
-    BottomCharacter = "Bottom Character"
-    CarbonDioxide = "CO2"
-    ColoredDissolvedOrganicMatter = "Color Dissolved Organic Matter"
-    Contaminants = "Contaminants"
-    Currents = "Currents"
-    DissolvedNutrients = "Dissolved Nutrients"
-    DissolvedOxygen = "Dissolved O2"
-    Ecology = "Ecology"
-    FishAbundance = "Fish Abundance"
-    FishSpecies = "Fish Species"
-    HeatFlux = "HeatFlux"
-    Hydrology = "Hydrology"
-    IceDistribution = "Ice Distribution"
-    Identifier = "Identifier"
-    Location = "Location"
-    Meteorology = "Meteorology"
-    OceanColor = "Ocean Color"
-    OpticalProperties = "Optical Properties"
-    Other = "Other"
-    Pathogens = "Pathogens"
-    PhytoplanktonSpecies = "PhytoplanktonSpecies"
-    Pressure = "Pressure"
-    Productivity = "Productivity"
-    Quality = "Quality"
-    Salinity = "Salinity"
-    SeaLevel = "Sea Level"
-    Statistics = "Statistics"
-    StreamFlow = "Stream Flow"
-    SurfaceWaves = "SurfaceWaves"
-    Taxonomy = "Taxonomy"
-    Temperature = "Temperature"
-    Time = "Time"
-    TotalSuspendedMatter = "Total Suspended Matter"
-    Unknown = "Unknown"
-    Wind = "Wind"
-    ZooplanktonSpecies = "Zooplankton Species"
-    ZooplanktonAbundance = "Zooplankton Abundance"
+    Acidity = variants("Acidity")
+    Bathymetry = variants("Bathymetry")
+    Biology = variants("Biology")
+    BottomCharacter = variants("Bottom Character")
+    CarbonDioxide = variants("CO2")
+    ColoredDissolvedOrganicMatter = variants("Color Dissolved Organic Matter")
+    Contaminants = variants("Contaminants")
+    Currents = variants("Currents")
+    DissolvedNutrients = variants("Dissolved Nutrients")
+    DissolvedOxygen = variants("Dissolved O2")
+    Ecology = variants("Ecology")
+    FishAbundance = variants("Fish Abundance")
+    FishSpecies = variants("Fish Species")
+    HeatFlux = variants("Heat Flux")
+    Hydrology = variants("Hydrology")
+    IceDistribution = variants("Ice Distribution")
+    Identifier = variants("Identifier")
+    Location = variants("Location")
+    Meteorology = variants("Meteorology")
+    OceanColor = variants("Ocean Color")
+    OpticalProperties = variants("Optical Properties")
+    Other = variants("Other")
+    Pathogens = variants("Pathogens")
+    PhytoplanktonSpecies = variants("PhytoplanktonSpecies")
+    Pressure = variants("Pressure")
+    Productivity = variants("Productivity")
+    Quality = variants("Quality")
+    Salinity = variants("Salinity")
+    SeaLevel = variants("Sea Level")
+    Statistics = variants("Statistics")
+    StreamFlow = variants("Stream Flow")
+    SurfaceWaves = variants("SurfaceWaves")
+    Taxonomy = variants("Taxonomy")
+    Temperature = variants("Temperature")
+    Time = variants("Time")
+    TotalSuspendedMatter = variants("Total Suspended Matter")
+    Unknown = variants("Unknown")
+    Wind = variants("Wind")
+    ZooplanktonSpecies = variants("Zooplankton Species")
+    ZooplanktonAbundance = variants("Zooplankton Abundance")
 
-    @classmethod
-    def _convert_value(cls, value: str):
-        return cls._compare_search(value, lambda x: x.lower().replace(' ', ''))
 
 
 class TimePrecision(MultiValuedEnum):
