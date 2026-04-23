@@ -123,7 +123,7 @@ class Payload(DataDictObject):
 
     def clone(self):
         """Create a deep copy of the payload."""
-        return Payload.from_map(self.export())
+        return Payload.from_map(copy.deepcopy(self.export()))
 
     def copy_details_from(self, payload):
         """Copy key details (workflow info and metadata and correlation_id) from another payload into this one."""
