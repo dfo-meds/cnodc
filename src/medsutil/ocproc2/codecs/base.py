@@ -225,6 +225,7 @@ class BaseCodec:
         if self.force_single_mode:
             result = self._decode_message(b''.join(data), options)
             result.message_idx = 0
+            result.single_message = True
             yield result
         else:
             idx = 0
