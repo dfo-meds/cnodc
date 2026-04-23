@@ -216,7 +216,10 @@ class BaseTestCase(ut.TestCase):
 
     @classmethod
     def start_container_by_name(cls, name, always_restart: bool = False) -> TestContainer:
-        container = TestContainer(name, always_restart)
+        return cls.start_container(TestContainer(name, always_restart))
+
+    @classmethod
+    def start_container(cls, container: TestContainer) -> TestContainer:
         cls.enterClassContext(container)
         return container
 
