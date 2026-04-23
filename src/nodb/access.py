@@ -30,6 +30,10 @@ class NODBUser(s.NODBBaseObject):
     old_expiry: AwareDateTime | None = s.DateTimeColumn()
     status: UserStatus = s.EnumColumn(UserStatus)
     roles: set = s.JsonSetColumn()
+    display: str = s.StringColumn()
+    email: str = s.StringColumn()
+    language_pref: str = s.StringColumn()
+    locked_until: AwareDateTime = s.DateTimeColumn()
 
     def assign_role(self, role_name: str):
         """Assign a role to the user."""
