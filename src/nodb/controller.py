@@ -103,7 +103,8 @@ class _PGCursor(interface.NODBCursor):
 class PostgresController(interface.NODBInstance):
     """Wrapper around a postgresql connection with NODB support"""
 
-    def __init__(self, conn):
+    def __init__(self, conn, cur_cls=_PGCursor):
+        self._cur_cls = cur_cls
         self._conn = conn
         self._is_closed = False
         self._log = zrlog.get_logger("cnodc.db")
@@ -115,7 +116,7 @@ class PostgresController(interface.NODBInstance):
         """Get a cursor and close it when done."""
         try:
             with self._conn.cursor() as cur:
-                yield _PGCursor(cur, self._conn)
+                yield self._cur_cls(cur, self._conn)
         finally:
             pass
 
