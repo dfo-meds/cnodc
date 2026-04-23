@@ -24,7 +24,10 @@ class LazyLoadDict[V]:
         yield from self.keys()
 
     def __getitem__(self, item: str) -> V:
-        return self._load(item)
+        try:
+            return self._load(item)
+        except KeyError:
+            raise KeyError(f"'{item}'")
 
     def __setitem__(self, item: str, value: V):
         self._dict[item] = value
