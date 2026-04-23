@@ -14,7 +14,7 @@ class TestSourceFile(BaseTestCase):
 
     def test_report_error(self):
         sf = NODBSourceFile()
-        self.assertIsNone(sf.history)
+        self.assertEqual(0, len(sf.history))
         sf.report_error('ohno', 'one', 'two', 'three')
         self.assertEqual(1, len(sf.history))
         h = sf.history[0]
@@ -28,7 +28,7 @@ class TestSourceFile(BaseTestCase):
 
     def test_report_warning(self):
         sf = NODBSourceFile()
-        self.assertIsNone(sf.history)
+        self.assertEqual(0, len(sf.history))
         sf.report_warning('ohno', 'one', 'two', 'three')
         self.assertEqual(1, len(sf.history))
         h = sf.history[0]
@@ -42,7 +42,7 @@ class TestSourceFile(BaseTestCase):
 
     def test_add_history(self):
         sf = NODBSourceFile()
-        self.assertIsNone(sf.history)
+        self.assertEqual(0, len(sf.history))
         sf.add_history('ohno', 'one', 'two', 'three')
         self.assertEqual(1, len(sf.history))
         h = sf.history[0]
@@ -168,7 +168,7 @@ class TestPlatform(BaseTestCase):
             platform_type='boat',
             service_start_date='2015-01-02T00:00:00+00:00',
             service_end_date='2015-02-02T00:00:00+00:00',
-            instrumentation=["one", "two", "three"],
+            instrumentation={"one": "two"},
             status=PlatformStatus.ACTIVE.value,
             embargo_data_days=2
         )
@@ -179,7 +179,7 @@ class TestPlatform(BaseTestCase):
         self.assertEqual(p.platform_type, 'boat')
         self.assertEqual(p.service_start_date, datetime.datetime(2015, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))
         self.assertEqual(p.service_end_date, datetime.datetime(2015, 2, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))
-        self.assertEqual(p.instrumentation, ["one", "two", "three"])
+        self.assertEqual(p.instrumentation, {"one": "two"})
         self.assertEqual(p.status, PlatformStatus.ACTIVE)
         self.assertEqual(p.embargo_data_days, 2)
 
@@ -395,8 +395,8 @@ class TestObservation(BaseTestCase):
 
     def test_surface_parameters(self):
         obs = NODBObservation()
-        self.assertIsNone(obs.surface_parameters)
-        self.assertIsNone(obs.profile_parameters)
+        self.assertEqual(0, len(obs.surface_parameters))
+        self.assertEqual(0, len(obs.profile_parameters))
         self.assertIsNone(obs.observation_type)
         record = ParentRecord()
         record.coordinates['Time'] = '2015-01-02T00:00:00+00:00'
@@ -415,8 +415,8 @@ class TestObservation(BaseTestCase):
 
     def test_profile_stuff(self):
         obs = NODBObservation()
-        self.assertIsNone(obs.surface_parameters)
-        self.assertIsNone(obs.profile_parameters)
+        self.assertEqual(0, len(obs.surface_parameters))
+        self.assertEqual(0, len(obs.profile_parameters))
         self.assertIsNone(obs.observation_type)
         self.assertIsNone(obs.max_depth)
         self.assertIsNone(obs.min_depth)
@@ -534,7 +534,7 @@ class TestObservationData(BaseTestCase):
         self.assertIsNone(obs_data.duplicate_received_date)
         self.assertIsNone(obs_data.status)
         self.assertIsNone(obs_data.processing_level)
-        self.assertIsNone(obs_data.qc_tests)
+        self.assertEqual(0, len(obs_data.qc_tests))
         obs_data.record = record
         with self.subTest(msg='duplicate info'):
             self.assertEqual(obs_data.duplicate_uuid, '12345')
