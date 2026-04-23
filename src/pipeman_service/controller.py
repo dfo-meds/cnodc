@@ -48,7 +48,7 @@ class _ProcessCreatorProtocol(typing.Protocol):
                  config_json: ct.JsonDictString) -> _ProcessProtocol: pass
 
 
-class BaseProcess(_ProcessProtocol):
+class BaseProcess:
 
     def __init__(self,
                  process_name: str,
