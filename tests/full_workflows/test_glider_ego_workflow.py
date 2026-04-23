@@ -1,8 +1,7 @@
 import functools
 import logging
-import unittest
 
-from tests.helpers.base_test_case import ordered_test, load_ordered_tests, ordered_after
+from tests.helpers.base_test_case import load_ordered_tests, ordered_after
 from medsutil.dynamic import dynamic_name
 from medsutil.ocproc2.codecs.netcdf import NetCDFCommonDecoder
 from nodb import NODBObservationData, NODBObservation, NODBSourceFile
