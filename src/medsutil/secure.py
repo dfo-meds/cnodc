@@ -9,6 +9,8 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 
 DEFAULT_PASSWORD_HASH_ITERATIONS: int = 752123
+MINIMUM_ITERATIONS: int = 100000
+ALGORITHM: str = 'sha512'
 
 logger = zrlog.get_logger('medsutil.secure')
 
@@ -33,13 +35,14 @@ def check_password(password: str, salt: bytes, password_hash: bytes) -> bool:
     return secrets.compare_digest(password_hash, hash_password(password, salt))
 
 def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
-    if iterations is None:
+    if iterations is None or iterations < MINIMUM_ITERATIONS:
         iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
+        iter
     return hashlib.pbkdf2_hmac(
-        'sha512',
+        ALGORITHM,
         str(password or '').encode('utf-8', errors='replace'),
         salt,
-        iterations if iterations > 100000 else DEFAULT_PASSWORD_HASH_ITERATIONS
+        iterations
     )
 
 PASSWORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTVWXYZabcdefghijklmnopqrstvwxyz2345679@#$%&'
