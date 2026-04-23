@@ -49,7 +49,7 @@ class TestWorkflow(BaseTestCase):
             wf.configuration = WorkflowConfiguration(permissions=['foobar', 'monkey'])
         self.assertFalse(wf.check_access(['barfoo', 'ape']))
 
-    def test_build_ordered_processing_steps(self):
+    def test_build_ordered_steps(self):
         tests = [
             ({}, []),
             ({'1': {'order': 1, 'name': '1'}}, ['1']),
@@ -89,9 +89,9 @@ class TestWorkflow(BaseTestCase):
         ]
         for old_steps, new_steps, exc, msg in tests:
             old_config = base_config.copy()
-            old_config['processing_steps'] = old_steps
+            old_config['steps'] = old_steps
             new_config = base_config.copy()
-            new_config['processing_steps'] = new_steps
+            new_config['steps'] = new_steps
             with self.subTest(msg=msg):
                 wf = NODBUploadWorkflow()
                 with wf.readonly_access():
