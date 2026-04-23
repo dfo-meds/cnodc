@@ -31,7 +31,7 @@ def add_glider_mission_platform_info(worker: NODBDecodeLoadWorker, record: Paren
             platforms = [x for x in nodb.NODBPlatform.search(
                 db=db,
                 wmo_id=wmoid,
-                in_service_time=record.coordinates['Time'].to_datetime()
+                in_service_time=record.coordinates['Time'].to_datetime() if 'Time' in record.coordinates else None
             )]
             if platforms:
                 record.metadata['CNODCPlatform'] = platforms[0].platform_uuid
