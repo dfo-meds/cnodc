@@ -8,7 +8,7 @@ from medsutil import json
 from medsutil.exceptions import CodedError
 from medsutil.sanitize import netcdf_string_to_vlen_bytes, unnumpy
 
-from tests.programs.gliders.helpers import GliderBaseTest
+from tests.pipeman.programs.gliders.helpers import GliderBaseTest
 
 
 class TestEmptyGliderConversion(GliderBaseTest):

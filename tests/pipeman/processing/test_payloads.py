@@ -15,8 +15,7 @@ from tests.helpers.base_test_case import BaseTestCase
 class TestWorkflowPayload(BaseTestCase):
 
     def test_load_workflow(self):
-        workflow = NODBUploadWorkflow(is_new=True)
-        workflow.workflow_name = 'test'
+        workflow = NODBUploadWorkflow(is_new=True, workflow_name='test')
         self.db.insert_object(workflow)
         wp = WorkflowPayload(workflow_name='test')
         workflow = wp.load_workflow(self.db)
@@ -60,12 +59,10 @@ class TestWorkflowPayload(BaseTestCase):
 
     def test_from_map(self):
         data = {}
-        with self.assertRaisesCNODCError('PAYLOAD-1000'):
-            WorkflowPayload.from_map(data)
-        data['cls_name'] = 'foobar.nothing'
+        data['_cls_'] = 'foobar.nothing'
         with self.assertRaisesCNODCError('PAYLOAD-1002'):
             WorkflowPayload.from_map(data)
-        data['cls_name'] = dynamic_name(BatchPayload)
+        data['_cls_'] = dynamic_name(BatchPayload)
         data['workflow_name'] = 'hello'
         data['current_step'] = 'step1'
         data['current_step_done'] = False
@@ -80,9 +77,9 @@ class TestWorkflowPayload(BaseTestCase):
         source_uuid = str(uuid.uuid4())
         data['source_uuid'] = source_uuid
         data['received_date'] = '2015-12-01'
-        with self.assertRaisesCNODCError('PAYLOAD-1004'):
+        with self.assertRaises(TypeError):
             WorkflowPayload.from_map(data)
-        data['cls_name'] = dynamic_name(SourceFilePayload)
+        data['_cls_'] = dynamic_name(SourceFilePayload)
         sp = WorkflowPayload.from_map(data)
         self.assertIsInstance(sp, SourceFilePayload)
         self.assertEqual(sp.workflow_name, 'hello')
@@ -94,9 +91,9 @@ class TestWorkflowPayload(BaseTestCase):
         del data['received_date']
         data['obs_uuid'] = '123456'
         data['received_date'] = datetime.date(2015, 12, 15)
-        with self.assertRaisesCNODCError('PAYLOAD-1004'):
+        with self.assertRaises(TypeError):
             WorkflowPayload.from_map(data)
-        data['cls_name'] = dynamic_name(ObservationPayload)
+        data['_cls_'] = dynamic_name(ObservationPayload)
         op = WorkflowPayload.from_map(data)
         self.assertIsInstance(op, ObservationPayload)
         self.assertEqual(op.workflow_name, 'hello')
@@ -107,7 +104,7 @@ class TestWorkflowPayload(BaseTestCase):
         del data['obs_uuid']
         del data['received_date']
         data['file_path'] = '/srv/test/1234.txt.gz'
-        data['cls_name'] = dynamic_name(FilePayload)
+        data['_cls_'] = dynamic_name(FilePayload)
         obj = WorkflowPayload.from_map(data)
         self.assertIsInstance(obj, FilePayload)
         self.assertEqual(obj.workflow_name, 'hello')

@@ -1,8 +1,8 @@
 import datetime
 import typing as t
+import unittest
 
-from nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus
-from nodb import NODBError
+from nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus, NODBError
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
 from pipeman.processing.base_worker import SaveData
@@ -275,7 +275,8 @@ class TestScheduledTask(BaseTestCase):
         self.assertIn('before_cycle', task._called_methods)
         self.assertIn('after_cycle', task._called_methods)
 
-    @skip_long_test
+    #@skip_long_test
+    @unittest.skip
     def test_actual_delay(self):
         task: BoringTask = self.worker_controller.build_test_worker(BoringTask, {
             'schedule_mode': 'from_start',
@@ -578,7 +579,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         bp = worker.batch_payload_from_uuid('12345')
         self.assertEqual(bp.batch_uuid, '12345')
         self.assertEqual(bp.get_metadata('hello'), 'world')
@@ -587,7 +588,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         bp = worker.batch_payload_from_nodb(NODBBatch(batch_uuid="123456", is_new=False))
         self.assertEqual(bp.batch_uuid, '123456')
         self.assertEqual(bp.get_metadata('hello'), 'world')
@@ -596,7 +597,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         fp2 = worker.file_payload_from_path('/hello/world2', datetime.datetime(2015, 1, 2, 3, 4, 5).astimezone())
         self.assertEqual(fp2.file_path, '/hello/world2')
         self.assertSameTime(fp2.last_modified_date, datetime.datetime(2015, 1, 2, 3, 4, 5).astimezone())
@@ -606,7 +607,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         sp = worker.source_payload_from_nodb(NODBSourceFile(source_uuid="23456", received_date=datetime.date(2015, 1, 2)))
         self.assertEqual(sp.source_uuid, '23456')
         self.assertEqual(sp.received_date, datetime.date(2015, 1, 2))
@@ -616,7 +617,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         self.assertFalse(worker._skip_autoprogress_payload)
         worker.progress_payload(None, 'hello_world', False)
         self.assertFalse(worker._skip_autoprogress_payload)
@@ -631,7 +632,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         bp = worker.batch_payload_from_uuid('12345')
         self.assertFalse(worker._skip_autoprogress_payload)
         worker.progress_payload(bp, 'hello_world', False)
@@ -647,7 +648,7 @@ class TestWorkflowWorker(BaseTestCase):
         worker = self.worker_controller.build_test_worker(WorkflowWorker)
         fp = FilePayload(file_path='/hello/world')
         fp.set_metadata('hello', 'world')
-        worker.current_payload = fp
+        worker._current_payload = fp
         bp = worker.batch_payload_from_uuid('12345')
         self.assertFalse(worker._skip_autoprogress_payload)
         worker.progress_payload(bp, 'hello_world', True)

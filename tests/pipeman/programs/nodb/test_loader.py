@@ -2,6 +2,7 @@ import datetime
 import os
 
 import nodb as nodb
+from medsutil.dynamic import dynamic_name
 from nodb import NODBQueueItem, NODBSourceFile, SourceFileStatus, NODBObservation, QueueStatus
 from nodb import NODBWorkingRecord, NODBObservationData
 from medsutil.ocproc2 import ParentRecord
@@ -252,14 +253,14 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
                 'allow_reprocessing': True
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')
         )
-        self.assertEqual(1, len(self.db.tables[NODBWorkingRecord.TABLE_NAME]))
-        self.assertEqual(1, len(self.db.tables[NODBQueueItem.TABLE_NAME]))
+        self.assertEqual(1, self.db.rows(NODBWorkingRecord.TABLE_NAME))
+        self.assertEqual(1, self.db.rows(NODBQueueItem.TABLE_NAME))
         obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
         self.assertIsNotNone(obj)
 
@@ -283,7 +284,7 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')
@@ -316,7 +317,7 @@ class TestLoader(BaseTestCase):
                 NODBLoaderBadRecordCreation,
                 {
                     'queue_name': 'test_intake',
-                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'decoder_class': dynamic_name(OCProc2JsonCodec),
                     'error_directory': str(err_dir),
                     '_test_result': CNODCError('foo', 'bar', 1, is_transient=True)
                 },
@@ -351,7 +352,7 @@ class TestLoader(BaseTestCase):
                 NODBLoaderBadRecordCreation,
                 {
                     'queue_name': 'test_intake',
-                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'decoder_class': dynamic_name(OCProc2JsonCodec),
                     'error_directory': str(err_dir),
                     '_test_result': CNODCError('foo', 'bar', 1, is_transient=False)
                 },
@@ -392,7 +393,7 @@ class TestLoader(BaseTestCase):
                 NODBLoaderBadRecordCreation,
                 {
                     'queue_name': 'test_intake',
-                    'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                    'decoder_class': dynamic_name(OCProc2JsonCodec),
                     'error_directory': str(err_dir),
                     '_test_result': ValueError('oh no'),
                 },
@@ -440,7 +441,7 @@ class TestLoader(BaseTestCase):
             NODBDecodeLoadWorker,
             {
                 'queue_name': 'test_intake',
-                'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec',
+                'decoder_class': dynamic_name(OCProc2JsonCodec),
                 'error_directory': str(err_dir),
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')

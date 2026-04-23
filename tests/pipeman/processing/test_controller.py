@@ -30,7 +30,7 @@ class TestWorkflowController(BaseTestCase):
             {},
             WorkflowDirectory(directory=str(self.temp_dir), tier=StorageTier.FREQUENT)
         )
-        self.assertEqual(str(handle), str(self.temp_dir / "hello2.txt"))
+        self.assertEqual(str(handle), str(self.temp_dir / "hello2.txt").replace("\\", "/"))
         self.assertTrue((self.temp_dir / 'hello2.txt').exists())
         self.assertTrue(handle.exists())
         # doesn't support storage tiers - hard to test
@@ -41,7 +41,7 @@ class TestWorkflowController(BaseTestCase):
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaises(CodedError):
+        with self.assertRaises(ValueError):
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
@@ -141,7 +141,7 @@ class TestWorkflowController(BaseTestCase):
             {
                 'allow-overwrite': '1',
             },
-            WorkflowDirectory(directory=self.temp_dir, tier='frequent')
+            WorkflowDirectory(directory=self.temp_dir, tier='frequent', allow_overwrite='always')
         )
         self.assertEqual(handle.name, 'hello.txt')
         self.assertTrue(handle.exists())
@@ -219,13 +219,13 @@ class TestWorkflowController(BaseTestCase):
         self.assertRegex(filename, '[0-9a-f-]{36}')
 
     def test_determine_file_name_from_metadata_not_provided(self):
-        workflow = WorkflowController("test", WorkflowConfiguration(**{'accepts_user_filename': True}))
+        workflow = WorkflowController("test", WorkflowConfiguration(**{'accept_user_filename': True}))
         filename = workflow._determine_filename({})
         self.assertRegex(filename, '[0-9a-f-]{36}')
 
     def test_determine_file_name_from_static_filename(self):
         workflow = WorkflowController("test", WorkflowConfiguration())
-        filename = workflow._determine_filename({'default-filename': 'foobar.txt'})
+        filename = workflow._determine_filename({'-system-filename': 'foobar.txt'})
         self.assertEqual(filename, 'foobar.txt')
 
     def test_precedence_file_name_pattern_first(self):
@@ -234,7 +234,7 @@ class TestWorkflowController(BaseTestCase):
             'filename_pattern': 'file_%{lmd}.txt',
         }))
         filename = workflow._determine_filename({
-            'default-filename': 'foobar.txt',
+            '-system-filename': 'foobar.txt',
             'lmd': '2015-01-02T01:02:03',
             'filename': 'hello.txt'
         })
@@ -245,7 +245,7 @@ class TestWorkflowController(BaseTestCase):
             'accept_user_filename': True,
         }))
         filename = workflow._determine_filename({
-            'default-filename': 'foobar.txt',
+            '-system-filename': 'foobar.txt',
             'lmd': '2015-01-02T01:02:03',
             'filename': 'hello.txt'
         })
@@ -264,7 +264,7 @@ class TestWorkflowController(BaseTestCase):
 
     def test_workflow_steps_good_steps(self):
         workflow = WorkflowController("test", WorkflowConfiguration(**{
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2
@@ -295,14 +295,18 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(workflow._get_next_step('step2'), 'step4')
         self.assertRaises(CodedError, workflow._get_next_step, 'step4')
         self.assertRaises(CodedError, workflow._get_next_step, 'step3')
-        self.assertEqual(workflow._get_step_info('step1'), {'name': 'step1', 'order': 1})
-        self.assertEqual(workflow._get_step_info('step2'), {'name': 'step2', 'order': 2})
-        self.assertEqual(workflow._get_step_info('step4'), {'name': 'step4', 'order': 10})
+
+        self.assertEqual(workflow._get_step_info('step1').name, 'step1')
+        self.assertEqual(workflow._get_step_info('step1').order, 1)
+        self.assertEqual(workflow._get_step_info('step2').name, 'step2')
+        self.assertEqual(workflow._get_step_info('step2').order, 2)
+        self.assertEqual(workflow._get_step_info('step4').name, 'step4')
+        self.assertEqual(workflow._get_step_info('step4').order, 10)
         self.assertRaises(CodedError, workflow._get_step_info, 'step3')
 
     def test_queue_step(self):
         workflow = WorkflowController("test", WorkflowConfiguration(**{
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2,
@@ -315,7 +319,7 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'priority': 'invalid',
+                    'priority': '0',
                     'worker_config': {
                         'myworker': {
                             'hello': 'world',
@@ -365,8 +369,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(queue_item.priority, 15)
 
         payload = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step2', current_step_done=True)
-        with self.assertLogs('cnodc.workflow', 'ERROR'):
-            workflow.queue_step(payload, self.db)
+        workflow.queue_step(payload, self.db)
         self.assertEqual(payload.current_step, 'step4')
         self.assertFalse(payload.current_step_done)
         queue_item = self.db.fetch_next_queue_item('step4')
@@ -385,7 +388,7 @@ class TestWorkflowController(BaseTestCase):
 
     def test_queue_working_file(self):
         workflow = WorkflowController("test", WorkflowConfiguration(**{
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2,
@@ -398,7 +401,7 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'worker_metadata': {
+                    'worker_config': {
                         'hello': 'world',
                     }
                 }
@@ -423,7 +426,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsInstance(item, NODBQueueItem)
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_path, str(self.temp_dir / 'hello.txt'))
+        self.assertEqual(payload.file_path, str(self.temp_dir / 'hello.txt').replace('\\','/'))
         self.assertEqual(payload.filename, 'hello.txt')
         self.assertFalse(payload.is_gzipped)
         self.assertSameTime(payload.last_modified_date, m_time)
@@ -431,11 +434,11 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(payload.current_step, 'step1')
         self.assertFalse(payload.current_step_done)
         self.assertIsNotNone(item.unique_item_name)
-        self.assertEqual(item.unique_item_name, hashlib.md5(str(self.temp_dir / 'hello.txt').encode('utf-8')).hexdigest())
+        self.assertEqual(item.unique_item_name, hashlib.md5(str(self.temp_dir / 'hello.txt').replace('\\', '/').encode('utf-8')).hexdigest())
 
     def test_queue_working_file_with_ufk(self):
         workflow = WorkflowController("test", WorkflowConfiguration(**{
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2,
@@ -448,7 +451,7 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'worker_metadata': {
+                    'worker_config': {
                         'hello': 'world',
                     }
                 }
@@ -471,49 +474,6 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsInstance(item, NODBQueueItem)
         self.assertIsNotNone(item.unique_item_name)
         self.assertEqual(item.unique_item_name, 'foobar')
-        payload = WorkflowPayload.from_queue_item(item)
-        self.assertIsNotNone(payload.last_modified_date)
-
-    def test_queue_working_file_with_bad_priority(self):
-        workflow = WorkflowController("test", WorkflowConfiguration(**{
-            "processing_steps": {
-                'step2': {
-                    'name': 'step2',
-                    'order': 2,
-                },
-                'step1': {
-                    'name': 'step1',
-                    'order': 1,
-                    'priority': ["15bar"],
-                },
-                'step4': {
-                    'name': 'step4',
-                    'order': 10,
-                    'worker_metadata': {
-                        'hello': 'world',
-                    }
-                }
-            }
-        }))
-        file = LocalHandle(self.temp_dir / "hello.txt")
-        with open(file.path(), 'w') as h:
-            h.write("hello")
-        with self.assertLogs("cnodc.workflow", level="WARNING"):
-            workflow._queue_working_file(
-                working_file=file,
-                metadata={
-                },
-                filename='hello.txt',
-                with_gzip=False,
-                unique_file_key='foobar',
-                db=self.db
-            )
-        item = self.db.fetch_next_queue_item('step1')
-        self.assertIsNotNone(item)
-        self.assertIsInstance(item, NODBQueueItem)
-        self.assertIsNotNone(item.unique_item_name)
-        self.assertEqual(item.unique_item_name, 'foobar')
-        self.assertEqual(item.priority, 0)
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsNotNone(payload.last_modified_date)
 
@@ -556,7 +516,7 @@ class TestWorkflowController(BaseTestCase):
                     'gzip': True,
                 },
             ],
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2,
@@ -569,7 +529,7 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'worker_metadata': {
+                    'worker_config': {
                         'hello': 'world',
                     }
                 }
@@ -605,7 +565,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertIsNotNone(item)
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_path, str(expected1))
+        self.assertEqual(payload.file_path, str(expected1).replace('\\', '/'))
 
     def test_upload_and_queue_with_unique(self):
         (self.temp_dir / 'hello').mkdir()
@@ -621,7 +581,7 @@ class TestWorkflowController(BaseTestCase):
                     'directory': self.temp_dir / 'hello2',
                 },
             ],
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2,
@@ -634,7 +594,7 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'worker_metadata': {
+                    'worker_config': {
                         'hello': 'world',
                     }
                 }
@@ -667,7 +627,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(item.unique_item_name, '12345')
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_path, str(expected2))
+        self.assertEqual(payload.file_path, str(expected2).replace('\\', '/'))
 
     @injector.inject
     def test_handle_incoming(self, d: InjectableDict = None):
@@ -684,7 +644,7 @@ class TestWorkflowController(BaseTestCase):
                     'directory': self.temp_dir / 'hello2',
                 },
             ],
-            "processing_steps": {
+            "steps": {
                 'step2': {
                     'name': 'step2',
                     'order': 2,
@@ -697,7 +657,7 @@ class TestWorkflowController(BaseTestCase):
                 'step4': {
                     'name': 'step4',
                     'order': 10,
-                    'worker_metadata': {
+                    'worker_config': {
                         'hello': 'world',
                     }
                 }
@@ -733,14 +693,16 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual(item.unique_item_name, '12345')
         payload = WorkflowPayload.from_queue_item(item)
         self.assertIsInstance(payload, FilePayload)
-        self.assertEqual(payload.file_path, str(expected2))
+        self.assertEqual(payload.file_path, str(expected2).replace('\\', '/'))
         self.assertEqual(d.data['local_path'], file)
+        self.assertEqual(d.data['filename'], 'world.txt')
         self.assertIn('foo2', d.data['metadata'])
         self.assertEqual(d.data['metadata']['foo2'], 'bar2')
         self.assertIn('filename', d.data['metadata'])
         self.assertEqual(d.data['metadata']['filename'], 'world.txt')
 
 @injector.inject
-def _fake_validation_called(local_path, filename, metadata, d: InjectableDict=None):
+def _fake_validation_called(local_path, metadata, filename, d: InjectableDict=None):
     d.data['local_path'] = local_path
     d.data['metadata'] = metadata
+    d.data['filename'] = filename

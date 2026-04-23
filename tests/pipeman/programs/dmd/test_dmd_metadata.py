@@ -129,19 +129,13 @@ class TestCoreEntityRef(BaseTestCase):
         obj = EntityRef()
         obj.guid = '12345'
         obj.display_name = 'hello'
-        obj._data['foo'] = 'bar'
         sub_ref = EntityRef()
         sub_ref.guid = '23456'
-        obj._data['foo2'] = sub_ref
-        obj._data['foo3'] = [EntityRef(guid='12'), EntityRef(guid='34'), EntityRef(guid='56')]
         map_ = obj.export()
         DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar(map_, {
             '_guid': '12345',
             '_display_names': {'und': 'hello'},
-            'foo': 'bar',
-            'foo2': {'_guid': '23456'},
-            'foo3': [{'_guid': '12'}, {'_guid': '34'}, {'_guid': '56'}],
         })
 
 

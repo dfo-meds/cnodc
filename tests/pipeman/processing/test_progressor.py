@@ -18,8 +18,7 @@ class TestProgressor(BaseTestCase):
         self.assertEqual(item.status, QueueStatus.UNLOCKED)
 
     def test_valid_workflow(self):
-        wf = NODBUploadWorkflow(is_new=True)
-        wf.workflow_name = 'test'
+        wf = NODBUploadWorkflow(is_new=True, workflow_name='test')
         wf.set_config({
             'working_target': { 'directory': self.temp_dir / 'hello', },
             "processing_steps": {
@@ -32,10 +31,10 @@ class TestProgressor(BaseTestCase):
         bp = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step1', current_step_done=True)
         bp.metadata['5'] = '4'
         item = self.worker_controller.payload_to_queue_item(bp)
-        self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 0)
+        self.assertEqual(len(self.db.table(NODBQueueItem)), 0)
         self.worker_controller.test_queue_worker(WorkflowProgressWorker, {}, item)
         self.assertEqual(item.status, QueueStatus.COMPLETE)
-        self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 1)
+        self.assertEqual(len(self.db.table(NODBQueueItem)), 1)
         item2 = self.db.fetch_next_queue_item('step2a')
         self.assertIsNotNone(item2)
         bp2 = WorkflowPayload.from_queue_item(item2)
@@ -44,8 +43,7 @@ class TestProgressor(BaseTestCase):
         self.assertFalse(bp2.current_step_done)
 
     def test_valid_workflow_last(self):
-        wf = NODBUploadWorkflow(is_new=True)
-        wf.workflow_name = 'test'
+        wf = NODBUploadWorkflow(is_new=True, workflow_name='test')
         wf.set_config({
             'working_target': { 'directory': self.temp_dir / 'hello', },
             "processing_steps": {
@@ -58,8 +56,8 @@ class TestProgressor(BaseTestCase):
         bp = BatchPayload(batch_uuid='12345', workflow_name='test', current_step='step2', current_step_done=True)
         bp.metadata['5'] = '4'
         item = self.worker_controller.payload_to_queue_item(bp)
-        self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 0)
+        self.assertEqual(len(self.db.table(NODBQueueItem)), 0)
         self.worker_controller.test_queue_worker(WorkflowProgressWorker, {}, item)
         self.assertEqual(item.status, QueueStatus.COMPLETE)
-        self.assertEqual(len(self.db.table(NODBQueueItem.TABLE_NAME)), 0)
+        self.assertEqual(len(self.db.table(NODBQueueItem)), 0)
 

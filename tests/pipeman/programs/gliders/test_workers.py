@@ -139,7 +139,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertEqual(2, self.db.rows(NODBQueueItem.TABLE_NAME))
         item = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[0])
         self.assertIsInstance(item, FilePayload)
-        self.assertEqual(item.file_path, str(og_file))
+        self.assertEqual(item.file_path, str(og_file).replace("\\", "/"))
         item2 = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[1])
         self.assertIsInstance(item2, SourceFilePayload)
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)
@@ -163,7 +163,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         og_erddap_dir = self.temp_dir / 'erddap'
         og_erddap_dir.mkdir()
         og_erddap_file = og_erddap_dir / input_file.name.lower()[:-3] / input_file.name
-        og_erddap_file._parent.mkdir()
+        og_erddap_file.parent.mkdir()
         og_erddap_file.touch()
         self.assertTrue(og_file.exists())
         self.assertTrue(og_erddap_file.exists())
@@ -189,7 +189,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertEqual(item0.queue_name, 'erddap_reload')
         item = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[1])
         self.assertIsInstance(item, FilePayload)
-        self.assertEqual(item.file_path, str(og_file))
+        self.assertEqual(item.file_path, str(og_file).replace("\\", "/"))
         item2 = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[2])
         self.assertIsInstance(item2, SourceFilePayload)
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)

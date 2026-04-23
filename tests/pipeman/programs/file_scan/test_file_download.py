@@ -1,3 +1,5 @@
+import os
+
 from nodb import NODBQueueItem, NODBUploadWorkflow
 from pipeman.processing.payloads import FilePayload, NewFilePayload
 from pipeman.programs.file_scan import FileDownloadWorker
@@ -52,16 +54,16 @@ class TestFileDownloadWorker(BaseTestCase):
     def _build_good_workflow(self):
         subdir = self.temp_dir / 'subdir'
         subdir.mkdir()
-        wf = NODBUploadWorkflow()
-        wf.workflow_name = 'test'
+        wf = NODBUploadWorkflow(workflow_name='test', is_new=True)
         wf.set_config({
             'label': {'und': 'test'},
+            'accept_user_filename': True,
             'working_target': {
-                'directory': str(subdir.absolute())
+                'directory': str(subdir.absolute()),
             },
             'processing_steps': {
                 'step1': {'order': 1, 'name': 'foobar'}
-            }
+            },
         })
         self.db.insert_object(wf)
 
@@ -78,7 +80,7 @@ class TestFileDownloadWorker(BaseTestCase):
         }, qi)
         self.assertEqual(1, self.db.rows(NODBQueueItem.TABLE_NAME))
         self.assertTrue((self.temp_dir / 'subdir' / 'file1.txt').exists())
-        item: NODBQueueItem = self.db.table(NODBQueueItem.TABLE_NAME)[0]
+        item: NODBQueueItem = self.db.table(NODBQueueItem)[0]
         file_path = str((self.temp_dir / 'subdir' / 'file1.txt').absolute())
         self.assertDictSimilar({
             '_cls_': dynamic_name(FilePayload),
@@ -88,14 +90,13 @@ class TestFileDownloadWorker(BaseTestCase):
             'metadata': {
                 'last-modified-date': m_time.isoformat(),
                 'source': worker.process_id,
-                'default-filename': 'file1.txt',
+                'filename': 'file1.txt',
             },
-            'file_path': file_path,
+            'file_path': file_path.replace('\\', '/'),
             'filename': 'file1.txt',
             'is_gzipped': False,
-            'last_modified_date': m_time,
+            'last_modified_date': m_time.isoformat(),
             'worker_config': {},
-            'cls_name': dynamic_name(FilePayload),
         }, item.data)
         self.assertFalse(test_file.exists())
 

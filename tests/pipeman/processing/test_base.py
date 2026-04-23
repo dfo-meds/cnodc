@@ -66,32 +66,32 @@ class TestSaveData(BaseTestCase):
 class TestBaseWorker(BaseTestCase):
 
     def test_save_file(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self._halt_flag, self._halt_flag, {
+        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
             'save_file': str(self.temp_dir / 'test.txt')
         })
         worker.save_data['foo'] = 'bar'
         self.assertEqual(worker.save_data['foo'], 'bar')
         worker.on_exit()
         del worker
-        worker2 = BaseWorker('foo', 'bar', 'foobar', self._halt_flag, self._halt_flag, {
+        worker2 = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
             'save_file': str(self.temp_dir / 'test.txt')
         })
         self.assertEqual(worker2.save_data['foo'], 'bar')
 
     def test_empty_save_file(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self._halt_flag, self._halt_flag, {})
+        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {})
         worker.on_start()
         worker.save_data['foo'] = 'bar'
         self.assertEqual(worker.save_data['foo'], 'bar')
         worker.on_exit()
         del worker
-        worker2 = BaseWorker('foo', 'bar', 'foobar', self._halt_flag, self._halt_flag, {
+        worker2 = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
             'save_file': str(self.temp_dir / 'test.txt')
         })
         self.assertIsNone(worker2.save_data.get('foo', None))
 
     def test_temp_dir_cleanup(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self._halt_flag, self._halt_flag, {})
+        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {})
         td = worker.temp_dir()
         self.assertTrue(td.exists())
         file = td / 'file.txt'
@@ -104,7 +104,7 @@ class TestBaseWorker(BaseTestCase):
         self.assertNotEqual(td2, td)
 
     def test_worker_config(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self._halt_flag, self._halt_flag, {
+        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
             'foo': 'bar',
             'six': 'seven'
         })
