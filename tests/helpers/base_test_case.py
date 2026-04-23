@@ -1,10 +1,10 @@
 import datetime
 import logging
-import os
 import pathlib
 import shutil
 import sys
 import tempfile
+import threading
 import typing
 import unittest
 import unittest as ut
@@ -31,9 +31,11 @@ class InjectableDict:
 
 TEST_FILE_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data'
 
+SKIP_FLAG = threading.Event()
+
 def skip_long_test(test_case):
-    if 'CNODC_WITH_LONG_TESTS' in os.environ and os.environ['CNODC_WITH_LONG_TESTS'] == 'N':
-        return unittest.skip('skipping long_tests')(test_case)
+    if SKIP_FLAG.is_set():
+        return unittest.skip('skipping long tests')(test_case)
     return test_case
 
 def ordered_test[**P, Q](x: int) -> t.Callable[P,Q]:
