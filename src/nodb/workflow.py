@@ -28,6 +28,8 @@ class ProcessingStep(ddo.DataDictObject):
         for key in self.worker_config:
             if not isinstance(self.worker_config[key], dict):
                 raise interface.NODBValidationError(f"Worker config [{key}] is not a dict", 2200)
+        if not self.name:
+            raise interface.NODBValidationError(f"Step is missing a name", 2201)
 
 
 class WorkflowDirectory(ddo.DataDictObject):
