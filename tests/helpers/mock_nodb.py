@@ -203,12 +203,12 @@ class DatabaseMock:
             for k in filters.keys()
         }
 
-    def _find_object_indexes(self, table_name, filters: dict=None, filter_type=' AND ', **kwargs):
+    def _find_object_indexes(self, table_name, filters: dict=None, join_str='AND', **kwargs):
         # TOOD: handle ordering
         if table_name in self.tables:
             filters = self._clean_filters(filters)
             limit_set = None
-            if filter_type == ' AND ':
+            if join_str != 'OR' and not any(isinstance(x, tuple) for x in filters.values()):
                 if table_name in self._lookups:
                     for index_key in self._lookups[table_name]:
                         keys = index_key.split('__')
@@ -217,9 +217,7 @@ class DatabaseMock:
                         lookup_key = '__'.join(str(filters[k]) for k in keys)
                         if lookup_key in self._lookups[table_name][index_key]:
                             limit_set = self._lookups[table_name][index_key][lookup_key]
-                        else:
-                            limit_set = []
-                        break
+                            break
             if limit_set is not None:
                 for idx in limit_set:
                     obj = self.tables[table_name][idx]
@@ -231,7 +229,7 @@ class DatabaseMock:
                 for idx, obj in enumerate(self.tables[table_name]):
                     if obj is None:
                         continue
-                    if filter_type == ' OR ':
+                    if join_str == 'OR':
                         if any(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
                             yield idx
                     else:
