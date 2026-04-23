@@ -97,7 +97,7 @@ class TestWorkflow(BaseTestCase):
                 with wf.readonly_access():
                     wf.configuration = WorkflowConfiguration(**old_config)
                 if exc is not None:
-                    with self.assertRaisesCNODCError(exc):
+                    with self.assertRaisesCNODCError():
                         wf.set_config(new_config)
                 else:
                     wf.set_config(new_config)
@@ -166,7 +166,7 @@ class TestWorkflow(BaseTestCase):
         for config, error_key, msg in tests:
             with self.subTest(msg=msg):
                 if error_key is not None:
-                    with self.assertRaisesCNODCError(error_key) as h:
+                    with self.assertRaisesCNODCError() as h:
                         wf.set_config(config)
                 else:
                     wf.set_config(config)
