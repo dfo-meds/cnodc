@@ -138,6 +138,8 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
         ('original_idx', 'original_uuid', 'received_date'),
     )
 
+    db_created_date: AwareDateTime = s.DateTimeColumn(readonly=True)
+    db_modified_date: AwareDateTime = s.DateTimeColumn(readonly=True)
     source_uuid: str = s.UUIDColumn()
     received_date: datetime.date = s.DateColumn()
 
