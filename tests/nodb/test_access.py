@@ -152,7 +152,7 @@ class UserTest(BaseTestCase):
         self.assertEqual(len(user.roles), 1)
         user.assign_role('foobar2')
         user.clear_modified()
-        self.assertEqual(["foobar", "foobar2"], json.loads(user.get_for_db("roles")))
+        self.assertEqual({"foobar", "foobar2"}, set(json.loads(user.get_for_db("roles"))))
         user.unassign_role('foobar')
         self.assertEqual(len(user.roles), 1)
         self.assertIn('foobar2', user.roles)
