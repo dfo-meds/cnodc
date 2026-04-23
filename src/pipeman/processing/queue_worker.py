@@ -16,7 +16,7 @@ from pipeman.processing.base_worker import BaseWorker
 
 import nodb as nodb_
 from pipeman.exceptions import CNODCError
-from medsutil.exceptions import HaltInterrupt
+from medsutil.exceptions import HaltInterrupt, CodedError
 from nodb import NODBQueueItem
 
 
@@ -96,7 +96,7 @@ class QueueWorker(BaseWorker):
                 self.before_queue_item(self._current_item)
                 self._process_result(self._current_item, self.process_queue_item(self._current_item))
                 return True
-        except CNODCError as ex:
+        except CodedError as ex:
             exc = ex
             # NB: NODB errors require us to rollback so that we can fix them.
             if isinstance(ex, nodb_.NODBError):
@@ -114,7 +114,7 @@ class QueueWorker(BaseWorker):
             exc = ex
             self._process_result(self._current_item, QueueItemResult.RETRY)
             self._log.critical(f"HaltInterrupt detected")
-            raise HaltInterrupt from ex
+            raise
         finally:
             if self._current_item is not None:
                 self.after_queue_item(self._current_item, exc)
