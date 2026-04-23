@@ -22,7 +22,7 @@ class DatabaseMock:
         pass
 
     def rollback_to_savepoint(self, name):
-        pass
+        self._rolled_back = True
 
     def release_savepoint(self, name):
         pass
