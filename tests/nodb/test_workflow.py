@@ -11,7 +11,7 @@ class TestWorkflow(BaseTestCase):
         wf = NODBUploadWorkflow()
         with wf.readonly_access():
             wf.configuration = WorkflowConfiguration(label='foo')
-        self.assertEqual(wf.configuration.label, 'foo')
+        self.assertEqual(wf.configuration.label, {'und': 'foo'})
 
     def test_find_by_name(self):
         wf = NODBUploadWorkflow(workflow_name='foobar')
