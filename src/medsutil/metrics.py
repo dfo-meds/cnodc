@@ -28,15 +28,22 @@ class PromMetrics:
             if os.environ.get("PROMETHEUS_MULTIPROC_DIR", default=None):
                 self._collector = pcmp.MultiProcessCollector(self._reg)
             else:
-                if for_mp:
+                if for_mp and not self.disable_metrics:
                     self.log.warning("PROMETHEUS_MULTIPROC_DIR not set, Prometheus metrics may be corrupt if using a multi-process WSGI server")
                 self._reg = self._reg
 
     def init_app(self, app):
+        self.init_metrics(True)
         if self.metric_flask is None:
+            if "medsutil" not in app.extensions:
+                app.extensions["medsutil"] = {}
             self.metric_flask = PrometheusMetrics(app, registry=self._reg)
+            app.extensions["medsutil"]["prometheus_registry"] = self._reg
+            app.extensions["medsutil"]["prometheus_collector"] = self._collector
+            app.extensions["medsutil"]["prometheus_metrics"] = self.metric_flask
 
     def get_stat(self, name, _metric_cls: type[MetricWrapperBase], documentation='', **kwargs):
+        self.init_metrics(True)
         if name not in self._metrics:
             with self._lock:
                 if name not in self._metrics:
@@ -75,8 +82,6 @@ class BaseMetric[X: MetricWrapperBase]:
     @contextmanager
     def _disabled_time(self, *args, **kwargs):
         yield self
-
-
 
 
 class Gauge(BaseMetric[pc.Gauge]):

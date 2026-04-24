@@ -1,3 +1,4 @@
+import os
 import pathlib
 import unittest
 import logging
@@ -22,6 +23,7 @@ if __name__ == '__main__':
     cov = coverage.Coverage(
         config_file=TEST_DIR.parent / ".coveragerc",
     )
+    os.environ["PROMETHEUS_MULTIPROC_DIR"] = "C:/my/cnodc/.temp_prometheus"
     with cov.collect():
         from pipeman.boot import init_for_tests
         init_for_tests(skip_long_tests)
