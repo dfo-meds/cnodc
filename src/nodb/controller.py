@@ -322,7 +322,7 @@ class PostgresController(interface.NODBInstance):
     def fast_renew_queue_item(self, queue_uuid: str, now_: AwareDateTime | None = None) -> AwareDateTime:
         with self.cursor() as cur:
             dt = now_ or AwareDateTime.now()
-            cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [dt.isoformat(), queue_uuid])
+            cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [dt.isoformat(), queue_uuid])  # nosec: B608 # not hard coded string
             return dt
 
     def fast_update_queue_status(self,
@@ -331,20 +331,8 @@ class PostgresController(interface.NODBInstance):
                                  release_at: datetime.datetime | None = None,
                                  reduce_priority: bool = False,
                                  escalation_level: int = 0):
-        with self.cursor() as cur:
-            cur.execute(f"""
-                UPDATE nodb_queues
-                SET
-                    status = %s,
-                    locked_by = NULL,
-                    locked_since = NULL,
-                    delay_release = %s,
-                    priority = priority + %s,
-                    escalation_level = %s
-                WHERE 
-                    queue_uuid = %s
-                    AND status = 'LOCKED'
-            """, [
+        with self.cursor() as cur:  # nosec B608 # not a hard coded query
+            cur.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s, priority = priority + %s, escalation_level = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [
                 new_status.value,
                 release_at.isoformat() if release_at else None,
                 1 if reduce_priority else 0,

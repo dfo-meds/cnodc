@@ -78,7 +78,7 @@ class ScheduledTask(BaseWorker):
             except (ValueError, TypeError):
                 raise CNODCError('Invalid fuzz delay', 'SCHEDTASK', 1003)
         if fuzz > 0:
-            delay += random.randint(0, fuzz) / 1000.0
+            delay += random.randint(0, fuzz) / 1000.0  # nosec B311 # random not for security purposes
         return datetime.timedelta(seconds=delay)
 
     def _check_execution(self, now: datetime.datetime) -> bool:

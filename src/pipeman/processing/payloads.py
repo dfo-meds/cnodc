@@ -377,7 +377,7 @@ class NewFilePayload(Payload):
             file_path=path,
             filename=handle.name,
             modified_time=handle.modified_datetime() if modified_time is Ellipsis else modified_time,
-            deduplicate_key=hashlib.md5(path.encode('utf-8', 'replace')).hexdigest(),
+            deduplicate_key=hashlib.md5(path.encode('utf-8', 'replace'), usedforsecurity=False).hexdigest(),
             **kwargs
         )
 
@@ -388,6 +388,6 @@ class NewFilePayload(Payload):
             file_path=str(path),
             filename=path.name,
             modified_time=AwareDateTime.fromtimestamp(path.stat().st_mtime),
-            deduplicate_key=hashlib.md5(str(path).encode('utf-8', 'replace')).hexdigest(),
+            deduplicate_key=hashlib.md5(str(path).encode('utf-8', 'replace'), usedforsecurity=False).hexdigest(),
             **kwargs
         )

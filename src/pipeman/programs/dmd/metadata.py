@@ -800,7 +800,7 @@ class ClassificationCode(enum.Enum):
     Confidential = "confidential"
     """ Material is classified as Confidential"""
 
-    Secret = "secret"
+    Secret = "secret"  # nosec B105 # not a hardcoded password
     """ Material is classified as Secret. """
 
     TopSecret = "topSecret"
@@ -1791,7 +1791,7 @@ class Common:
     Constraint_Unclassified = SecurityConstraint(guid="unclassified_data")
 
     Contact_CNODC = Organization(guid="cnodc")
-    Contact_DFO = Organization(guid="dfo")
+    Contact_DFO = Organization(guid="02qa1x782")
 
     ERDDAP_Primary = ERDDAPServer(guid="cnodc_primary")
 

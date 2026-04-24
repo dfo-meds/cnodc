@@ -158,7 +158,7 @@ class WorkflowController:
                 metadata=metadata,
                 workflow_name=self.name,
                 correlation_id=correlation_id or str(uuid.uuid4()),
-                deduplicate_key=unique_file_key or hashlib.md5(working_file.path().encode('utf-8', errors='replace')).hexdigest()
+                deduplicate_key=unique_file_key or hashlib.md5(working_file.path().encode('utf-8', errors='replace'), usedforsecurity=False).hexdigest()
             )
             self.queue_step(payload, db)
         else:

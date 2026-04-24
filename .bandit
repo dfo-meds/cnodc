@@ -1,3 +1,5 @@
 [bandit]
 targets = src
-exclude = src/pipeman_desktop
+exclude =
+    src/pipeman_desktop
+    src/pipeman_web

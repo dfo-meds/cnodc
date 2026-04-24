@@ -20,7 +20,7 @@ class MessageType(enum.Enum):
 class QCResult(enum.Enum):
     """Defines the outcome of the quality control test"""
 
-    PASS = 'P'
+    PASS = 'P'      # nosec: B105 # is not a password
     MANUAL_REVIEW = 'R'
     FAIL = 'F'
     SKIP = 'S'

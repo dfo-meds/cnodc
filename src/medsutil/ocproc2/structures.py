@@ -189,7 +189,7 @@ class ParentRecord(BaseRecord):
         return best
 
     def generate_hash(self) -> str:
-        h = hashlib.sha1()
+        h = hashlib.sha1(usedforsecurity=False)
         self.update_hash(t.cast(ct.SupportsHashUpdate, t.cast(object, h)))
         return h.hexdigest()
 

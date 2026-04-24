@@ -19,7 +19,7 @@ class SecureError(CodedError): CODE_SPACE = 'SECURE'
 def validate_password(password: str | None) -> typing.TypeGuard[str]:
     if not isinstance(password, str):
         raise SecureError("Password must be a string", 1000)
-    if password == '':
+    if not password:
         raise SecureError('No password provided', 1001)
     if len(password) > 1024:
         raise SecureError("Password is too long", 1002)
@@ -45,7 +45,7 @@ def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
         iterations
     )
 
-PASSWORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTVWXYZabcdefghijklmnopqrstvwxyz2345679@#$%&'
+PASSWORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTVWXYZabcdefghijklmnopqrstvwxyz2345679@#$%&'  # nosec B105 # not a hard coded password
 ENTROPY = 80
 PASSWORD_LENGTH = math.ceil(ENTROPY / math.log2(len(PASSWORD_CHARACTERS)))
 
