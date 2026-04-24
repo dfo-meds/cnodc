@@ -1,6 +1,21 @@
 [run]
 cover_pylib = false
+source=
+    src/pipeman
+    src/medsutil
+    src/pipeman_cli
+    src/pipeman_service
+data_file = .coverage
+debug =
+    trace
+    config
+    dataio
+    dataop
+    sys
+debug_file = .coverage.debug
 
 [report]
 exclude_also =
   raise NotImplementedError
+skip_covered = True
+skip_empty =  True

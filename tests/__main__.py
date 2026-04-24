@@ -21,9 +21,7 @@ if __name__ == '__main__':
 
     cov = coverage.Coverage(
         config_file=TEST_DIR.parent / ".coveragerc",
-        source_pkgs=["cnodc"]
     )
-
     with cov.collect():
 
         from pipeman.boot import init_cnodc

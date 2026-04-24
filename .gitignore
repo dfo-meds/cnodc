@@ -1,6 +1,8 @@
 htmlcov/*
 .cnodc.toml
 .coverage
+.coverage.debug
+report_bandit.txt
 .idea/*
 .venv/*
 tests/.cnodc.private.toml
