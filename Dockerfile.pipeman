@@ -28,7 +28,7 @@ RUN chmod +x start.sh
 
 COPY docker/gunicorn_conf.py gunicorn_conf.py
 
-COPY src app/src
+COPY src/* app/
 COPY vocab app/vocab
 COPY app.py app/app.py
 COPY process.py app/process.py

@@ -44,6 +44,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def on_start(self):
         _ = self.error_directory
+        self.create_counter("files_processed_total", description="Total number of new files processed", labels=("outcome",))
+        self.create_counter("messages_processed_total", description="Total number of messages processed", labels=("outcome",))
+        self.create_counter("records_loaded_total", description="Total number of records loaded", labels=("outcome",))
         super().on_start()
 
     @property
@@ -127,7 +130,12 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if had_any_errors and was_single_file:
             source_file.status = nodb.SourceFileStatus.ERROR
             create_next_queue = False
+            self.count("file_processed_total", outcome="error")
         else:
+            if had_any_errors:
+                self.count("file_processed_total", outcome="partial_success")
+            else:
+                self.count("file_processed_total", outcome="success")
             source_file.status = nodb.SourceFileStatus.COMPLETE
         self.db.update_object(source_file)
 
@@ -179,17 +187,21 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 self.after_message_success(source_file, result)
                 self.renew_item()
                 self.db.commit()
+                self.count("messages_processed_total", outcome="success")
             except CNODCError as ex:
                 if ex.is_transient:
-                    raise ex from ex
+                    self.count("messages_processed_total", outcome="error")
+                    raise ex
                 else:
                     self._handle_decode_failure(source_file, result, ex)
                     self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
                     had_error = True
+                    self.count("messages_processed_total", outcome="error")
             except Exception as ex:
                 self._handle_decode_failure(source_file, result, ex)
                 self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
                 had_error = True
+                self.count("messages_processed_total", outcome="error")
         else:
             self._handle_decode_failure(source_file, result)
             exc_info = None
@@ -197,6 +209,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 exc_info = (result.from_exception.__class__, result.from_exception, result.from_exception.__traceback__)
             self._log.error(f"An error occurred while decoding file [{source_file.source_uuid}] message [{result.message_idx}]", exc_info=exc_info)
             had_error = True
+            self.count("messages_processed_total", outcome="error")
         return success, skipped, had_error
 
     def _create_nodb_record(self,
@@ -205,23 +218,29 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             record_idx: int,
                             record: ocproc2.ParentRecord,
                             make_completed_records):
-        if make_completed_records:
-            return self.record_manager.create_completed_entry_from_source_file(
-                db=self.db,
-                record=record,
-                message_idx=message_idx,
-                record_idx=record_idx,
-                source_file=source_file,
-                memory=self.memory
-            )
-        else:
-            return self.record_manager.create_working_entry_from_source_file(
-                db=self.db,
-                record=record,
-                source_file=source_file,
-                message_idx=message_idx,
-                record_idx=record_idx
-            )
+        try:
+            if make_completed_records:
+                res = self.record_manager.create_completed_entry_from_source_file(
+                    db=self.db,
+                    record=record,
+                    message_idx=message_idx,
+                    record_idx=record_idx,
+                    source_file=source_file,
+                    memory=self.memory
+                )
+            else:
+                res = self.record_manager.create_working_entry_from_source_file(
+                    db=self.db,
+                    record=record,
+                    source_file=source_file,
+                    message_idx=message_idx,
+                    record_idx=record_idx
+                )
+            self.count("records_loaded_total", outcome="success")
+            return res
+        except Exception:
+            self.count("records_loaded_total", outcome="error")
+            raise
 
     def _handle_decode_failure(self,
                                source_file: nodb.NODBSourceFile,

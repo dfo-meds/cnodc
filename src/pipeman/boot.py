@@ -3,6 +3,9 @@ import pathlib
 import os
 import logging
 import zrlog
+from autoinject import injector
+
+
 
 
 __VERSION__ = '0.1.0'
@@ -58,3 +61,25 @@ def init_cnodc(app_type: str):
     zrlog.init_logging()
 
 
+
+def init_for_tests(skip_long_tests):
+    # Setup config and logging
+    init_cnodc('tests')
+    logging.disable(logging.NOTSET)
+
+    # Prevent metrics from being loaded
+    from medsutil.metrics import PromMetrics
+    @injector.inject
+    def _disable_metrics(pm: PromMetrics = None):
+        pm.disable_metrics = True
+    _disable_metrics()
+
+    # speed up password hashing for tests only!
+    import medsutil.secure as s
+    s.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
+    s.MINIMUM_ITERATIONS = 2
+
+    # skip long tests unless requested to run (there's a lot of them
+    if skip_long_tests:
+        import tests.helpers.base_test_case as btc
+        btc.SKIP_FLAG.set()

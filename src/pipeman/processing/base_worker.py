@@ -11,6 +11,8 @@ from zrlog.logger import ImprovedLogger
 from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.halts import HaltFlag, gzip_with_halt, ungzip_with_halt
+import medsutil.metrics as mum
+from medsutil.metrics import Gauge, Histogram
 
 from medsutil.storage import StorageController, FilePath
 
@@ -79,6 +81,9 @@ class BaseWorker(CachedObjectMixin):
         self._save_data: t.Optional[SaveData] = None
         self._hook_cache = {}
         self._events: list[str] = ['on_start', 'before_cycle', 'after_cycle', 'on_exit']
+        self._metrics = {}
+        self._last_run_gauge = None
+        self._run_time_histogram = None
 
     def add_events(self, events: list[str]):
         self._events.extend(events)
@@ -97,6 +102,18 @@ class BaseWorker(CachedObjectMixin):
 
     def possible_events(self) -> list[str]:
         return self._events
+
+    def create_counter(self, name: str, description: str = "", labels: list[str] | tuple | None = None) -> mum.Counter:
+        key = f"counter_{name}"
+        if key not in self._metrics:
+            self._metrics[key] = mum.Counter(name=name, namespace="pipeman", subsystem=self._process_name, documentation=description, labelnames=labels or tuple())
+        return self._metrics[key]
+
+    def count(self, name, *args, **kwargs):
+        if args or kwargs:
+            self.create_counter(name).labels(*args, **kwargs).inc()
+        else:
+            self.create_counter(name).inc()
 
     def run_hook(self, hook_name, **kwargs):
         self._log.debug('Hook [%s] fired', hook_name)
@@ -217,16 +234,18 @@ class BaseWorker(CachedObjectMixin):
         self._run_once()
 
     def _run(self):
-        """Override this method with a loop to process items."""
         while self.continue_loop():
             sleep_time = self._run_once()
             self.responsive_sleep(sleep_time)
 
     def _run_once(self) -> float:
+        """Override this method  to process items."""
         raise NotImplementedError
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""
+        self._last_run_gauge = Gauge(name="last_run", documentation="When did the last execution finish?", unit="timestamp_seconds", namespace="pipeman", subsystem=self.process_id.replace(":", "_"), multiprocess_mode="livemostrecent")
+        self._run_time_histogram = Histogram(name="run_time", documentation="How long did the execution take to finish", unit="seconds", namespace="pipeman", subsystem=self.process_id.replace(":", "_"))
         self.run_hook('on_start')
 
     def on_exit(self, exception: Exception = None):
@@ -247,6 +266,8 @@ class BaseWorker(CachedObjectMixin):
             self._log.trace('Cleaning up temp directory')
             self._temp_dir.cleanup()
             self._temp_dir = None
+        if self._last_run_gauge is not None:
+            self._last_run_gauge.set_to_current_time()
 
     @property
     def save_data(self):

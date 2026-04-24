@@ -133,9 +133,9 @@ class TestLoader(BaseTestCase):
             },
             self.worker_controller.payload_to_queue_item(fp, 'test_intake')
         )
-        self.assertEqual(1, len(self.db.tables[NODBObservation.TABLE_NAME]))
-        self.assertEqual(1, len(self.db.tables[NODBObservationData.TABLE_NAME]))
-        self.assertEqual(1, len(self.db.tables[NODBQueueItem.TABLE_NAME]))
+        self.assertEqual(1, self.db.rows(NODBObservation.TABLE_NAME))
+        self.assertEqual(1, self.db.rows(NODBObservationData.TABLE_NAME))
+        self.assertEqual(1, self.db.rows(NODBQueueItem.TABLE_NAME))
 
     def test_loader_from_fresh_file_bad_json_record(self):
         err_dir = self.temp_dir / 'errors'

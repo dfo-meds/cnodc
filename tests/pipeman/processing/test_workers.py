@@ -400,18 +400,6 @@ class TestQueueWorker(BaseTestCase):
         self.assertIn('after_cycle', worker._called_methods)
         self.assertEqual(obj.status, QueueStatus.ERROR)
 
-    def test_process_error_fetching_item(self):
-        worker: BoringQueueWorker = self.worker_controller.build_test_worker(BoringQueueWorker, {
-            'queue_name': 'hello'
-        })
-        self.db.create_queue_item(data={'foobar': 'hello'}, queue_name='hello')
-        obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})
-        self.assertIsNotNone(obj)
-        self.assertEqual(0, len(worker._called_methods))
-        with self.assertLogs('cnodc.worker.test', 'ERROR'):
-            worker._process_result(None, QueueItemResult.FAILED, ValueError('Bad Connection'))
-        self.assertEqual(0, len(worker._called_methods))
-
     def test_process_queue_result_halt_interrupt(self):
         worker: BoringQueueWorker = self.worker_controller.build_test_worker(BoringQueueWorker, {
             'queue_name': 'hello'
@@ -511,9 +499,7 @@ class TestQueueWorker(BaseTestCase):
         })
         self.assertEqual(0, len(worker._called_methods))
         worker.run_once()
-        self.assertEqual(2, len(worker._called_methods))
-        self.assertIn('before_cycle', worker._called_methods)
-        self.assertIn('after_cycle', worker._called_methods)
+        self.assertEqual(0, len(worker._called_methods))
 
     def test_run_loop_no_item(self):
         worker: BoringQueueWorker = self.worker_controller.build_test_worker(BoringQueueWorker, {
@@ -526,9 +512,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertEqual(0, len(worker._called_methods))
         worker.run_once()
         self.assertEqual(worker._current_delay_time, 0.5)
-        self.assertEqual(2, len(worker._called_methods))
-        self.assertIn('before_cycle', worker._called_methods)
-        self.assertIn('after_cycle', worker._called_methods)
+        self.assertEqual(0, len(worker._called_methods))
 
     def test_run_loop_items(self):
         worker: BoringQueueWorker = self.worker_controller.build_test_worker(BoringQueueWorker, {
@@ -541,9 +525,7 @@ class TestQueueWorker(BaseTestCase):
         self.assertEqual(0, len(worker._called_methods))
         worker.run_once()
         self.assertEqual(worker._current_delay_time, 0.5)
-        self.assertEqual(2, len(worker._called_methods))
-        self.assertIn('before_cycle', worker._called_methods)
-        self.assertIn('after_cycle', worker._called_methods)
+        self.assertEqual(0, len(worker._called_methods))
 
         self.db.create_queue_item(data={'foobar': 'hello'}, queue_name='hello')
         obj = self.db.load_object(NODBQueueItem, {'queue_name': 'hello'})

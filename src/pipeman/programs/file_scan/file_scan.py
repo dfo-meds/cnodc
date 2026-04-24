@@ -2,6 +2,8 @@ import functools
 import uuid
 import typing as t
 
+from prometheus_flask_exporter import PrometheusMetrics
+
 from nodb import NODB, NODBQueueItem, ScannedFileStatus, NODBError
 from pipeman.processing.payload_worker import PayloadWorker
 from pipeman.processing.scheduled_task import ScheduledTask
@@ -20,6 +22,7 @@ class FileScanTask(ScheduledTask):
 
     nodb: NODB = None
     storage: StorageController = None
+    metrics: PrometheusMetrics = None
 
     @injector.construct
     def __init__(self, **kwargs):
@@ -64,6 +67,7 @@ class FileScanTask(ScheduledTask):
         self._headers = self.get_config("metadata", {})
         self._pattern = self.get_config('pattern', '*')
         self._recursive = bool(self.get_config('recursive', False))
+        self.create_counter("files_scanned_total", description="The total number of files scanned", labels=("outcome",))
         super().on_start()
 
     def execute(self):
@@ -98,8 +102,10 @@ class FileScanTask(ScheduledTask):
                     payload.set_worker_config('file_downloader', self.get_config('downloader_config', {}))
                     payload.enqueue(db, self._queue_name)
                     db.commit()
+                    self.count("files_scanned_total", outcome="success")
                 else:
                     self._log.info(f"Skipping old file [%s][%s]", full_path, mod_time)
+                    self.count("files_scanned_total", outcome="skipped")
             except NODBError as ex:
 
                 # Serialization or unique key failure means we have one of two issues:
@@ -107,6 +113,7 @@ class FileScanTask(ScheduledTask):
                 # - The queue UUID was duplicated (unlikely)
                 # In either case, we can ignore it for now as long as we rollback.
                 # If the file doesn't get properly recorded, it will be checked on the next pass
+                self.count("files_scanned_total", outcome="error")
                 if ex.is_serialization_error():
                     db.rollback_to_savepoint('FILE_INSERT')
                     self._log.warning("Exception while creating database entry for scanned file [%s][%s]", full_path, mod_time, exc_info=True)

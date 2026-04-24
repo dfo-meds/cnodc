@@ -6,6 +6,7 @@ from autoinject import injector
 import enum
 import typing as t
 
+from medsutil.metrics import Counter
 from pipeman.exceptions import CNODCError
 from medsutil.web import web_request
 
@@ -29,6 +30,7 @@ class ErddapController:
         self._erddap_configs = self.app_config.as_dict(("erddaputil",))
         self._valid_configs = {}
         self._log = zrlog.get_logger("cnodc.erddap")
+        self._counter = Counter("requests_total", namespace="pipeman", subsystem="erddap", labelnames=("outcome",))
 
     def _get_config(self, cluster_name: t.Optional[str] = None):
         """Retrieve the configuration for the given cluster name."""
@@ -71,18 +73,23 @@ class ErddapController:
                        flag: ReloadFlag = ReloadFlag.SOFT,
                        cluster_name: str = None) -> bool:
         """Reload a given dataset."""
-        resp = self._make_authenticated_request(
-            endpoint="datasets/reload",
-            method="POST",
-            json_data={
-                'dataset_id': dataset_id,
-                'flag': flag.value
-            },
-            cluster_name=cluster_name
-        )
-        if not resp['success']:
-            raise CNODCError(f"Remote error while requesting ERDDAP dataset reload: {resp['message'] if 'message' in resp else 'unknown'}", 'ERDDAPUTIL', 1001)
-        return True
+        try:
+            resp = self._make_authenticated_request(
+                endpoint="datasets/reload",
+                method="POST",
+                json_data={
+                    'dataset_id': dataset_id,
+                    'flag': flag.value
+                },
+                cluster_name=cluster_name
+            )
+            if not resp['success']:
+                raise CNODCError(f"Remote error while requesting ERDDAP dataset reload: {resp['message'] if 'message' in resp else 'unknown'}", 'ERDDAPUTIL', 1001)
+            self._counter.labels(outcome="success").inc()
+            return True
+        except Exception:
+            self._counter.labels(outcome="error").inc()
+            raise
 
     def _make_authenticated_request(self, endpoint: str, method: str, json_data: dict, cluster_name: str = None):
         """Make an HTTP call to the endpoint with appropriate authentication."""

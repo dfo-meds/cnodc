@@ -32,7 +32,8 @@ class ScheduledTask(BaseWorker):
     def _run_once(self) -> float:
         now = awaretime.utc_now()
         if self._check_execution(now):
-            now = self._run_scheduled_task(now)
+            with self._run_time_histogram.time():
+                now = self._run_scheduled_task(now)
         return self._sleep_time(now)
 
     def on_start(self):

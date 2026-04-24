@@ -23,21 +23,8 @@ if __name__ == '__main__':
         config_file=TEST_DIR.parent / ".coveragerc",
     )
     with cov.collect():
-
-        from pipeman.boot import init_cnodc
-        init_cnodc('tests')
-        logging.disable(logging.NOTSET)
-
-        # speed up password hashing for tests only!
-        import medsutil.secure as s
-        s.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
-        s.MINIMUM_ITERATIONS = 2
-
-        # skip long tests unless requested to run (there's a lot of them
-        if skip_long_tests:
-            import tests.helpers.base_test_case as btc
-            btc.SKIP_FLAG.set()
-
+        from pipeman.boot import init_for_tests
+        init_for_tests(skip_long_tests)
         unittest.main(
             module=None,
             argv=new_argv

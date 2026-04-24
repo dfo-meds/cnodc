@@ -2,6 +2,7 @@ import zrlog
 import zirconium as zr
 from autoinject import injector
 
+from medsutil.metrics import Counter
 from pipeman.programs.dmd.metadata import DatasetMetadata
 from medsutil.web import web_request
 
@@ -14,6 +15,7 @@ class DataManagerController:
     @injector.construct
     def __init__(self):
         self._log = zrlog.get_logger("cnodc.dmd")
+        self._counter = Counter("requests_total", namespace="pipeman", subsystem="dmd", labelnames=("outcome",))
 
     def create_dataset(self, metadata: DatasetMetadata):
         return self._create_upsert_dataset(metadata, False)
@@ -22,15 +24,21 @@ class DataManagerController:
         return self._create_upsert_dataset(metadata, True)
 
     def _create_upsert_dataset(self, metadata: DatasetMetadata, allow_upsert: bool = False):
-        headers = {
-            'Authorization' : self._get_auth_header()
-        }
-        endpoint = self._get_api_endpoint('api/create-dataset' if not allow_upsert else 'api/upsert-dataset')
-        result = web_request('POST', endpoint,
-            json=metadata.build_request_body(),
-            headers=headers
-        )
-        return result.json()['guid']
+        try:
+            headers = {
+                'Authorization' : self._get_auth_header()
+            }
+            endpoint = self._get_api_endpoint('api/create-dataset' if not allow_upsert else 'api/upsert-dataset')
+            result = web_request('POST', endpoint,
+                json=metadata.build_request_body(),
+                headers=headers
+            )
+            res = result.json()['guid']
+            self._counter.labels(outcome="success").inc()
+            return res
+        except Exception:
+            self._counter.labels(outcome="error").inc()
+            raise
 
     def _get_api_endpoint(self, ep) -> str:
         return f"{self.app_config.as_str(("dmd", "base_url"), default='').rstrip('/')}/{ep.lstrip('/')}"
