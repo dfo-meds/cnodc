@@ -67,7 +67,7 @@ class FTPConnectionPool:
 
     @injector.construct
     def __init__(self):
-        self._server_notes = self.config.as_dict(('storage', 'servers', 'ftp'), default={})
+        self._server_notes = self.config.as_dict(('storage', 'ftp'), default={})
 
     def build_connection(self, url: str):
         parts = urllib.parse.urlsplit(url)
@@ -195,7 +195,7 @@ class _FTPWrapper:
     def __enter__(self):
         if self._server is None:
             if self._config['tls'] == 'explicit':
-                self._server = ftplib.FTP_TLS()  # pragma: no coverage; no TLS server to test with
+                self._server = ftplib.FTP_TLS(context=ssl.create_default_context())  # pragma: no coverage; no TLS server to test with
             elif self._config['tls'] == 'none':
                 self._server = ftplib.FTP()  # nosec B321 # no choice but to support FTP for now
             else:   # pragma: no coverage # no TLS server to test with
