@@ -211,10 +211,14 @@ class MockWorkflow:
 class BaseWorkflowTestCase(BaseTestCase):
 
     def assertEventDidOccur(self, process_name: str, event_name: str, msg: str = None):
+        unique_events = set()
         for x in self.workflow_result.worker_events:
-            if x.event_name == event_name and x.process_name == process_name:
-                return x
-        raise self.failureException(msg or f"Event {process_name}:{event_name} not found")
+            if x.process_name == process_name:
+                if x.event_name == event_name:
+                    return x
+                else:
+                    unique_events.add(x.event_name)
+        raise self.failureException(msg or f"Event {process_name}:{event_name} not found (found {','.join(unique_events)})")
 
 
     def assertEventDidNotOccur(self, process_name: str, event_name: str, msg: str = None):
