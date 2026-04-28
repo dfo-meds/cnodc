@@ -78,6 +78,15 @@ def init_cnodc(app_type: str, with_mp_prometheus_default: bool = False):
     zrlog.set_default_extra("version", __VERSION__)
     zrlog.init_logging()
 
+    # Configure our email system
+    from autoinject import injector
+    from medsutil.email import DelayedEmailController
+    from pipeman.delayed_emails import DelayedEmailsQueuer
+    injector.override(DelayedEmailController, DelayedEmailsQueuer)
+
+    from nodb.interface import NODB
+    from nodb.controller import NODBPostgresController
+    injector.override(NODB, NODBPostgresController)
 
 
 def init_for_tests(skip_long_tests: bool = True,
