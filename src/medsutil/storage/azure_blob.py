@@ -32,8 +32,6 @@ from medsutil.storage import StorageTier
 from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobBlock, BlockState, BlobProperties
 import typing as t
 from urllib.parse import urlparse
-import zirconium as zr
-from autoinject import injector
 
 
 def total_memory_size(__obj) -> int:
@@ -161,9 +159,6 @@ class BlobWalker:
 class AzureBlobHandle(AzureBaseHandle):
     """Handle class for Azure blobs"""
 
-    config: zr.ApplicationConfig = None
-
-    @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args,
                          essential_domain='.blob.core.windows.net',
