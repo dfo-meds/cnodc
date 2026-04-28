@@ -25,7 +25,8 @@ datefmt = "%H:%M:%S"
 # [tests.azure_storage]
 # account_name = 'ACCOUNT_NAME'
 # file_share = 'SHARE_NAME'
+# container_name = 'CONTAINER_NAME'
 # connection_string = 'CONN_STR'
 #
-# [azure.storage.ACCOUNT_NAME]
+# [storage.azure.ACCOUNT_NAME]
 # connection_string = 'CONN_STR'

@@ -1,0 +1,256 @@
+## Flask is used to provide the metrics endpoint and other web tools. All its usual settings
+## can be provided here.
+[flask]
+
+# Bytes, maximum size of the content to accept
+MAX_CONTENT_LENGTH = 1000
+
+# Where do we store uploaded files while they're being processed?
+UPLOAD_FOLDER = ""
+
+# How long does a session last
+PERMANENT_SESSION_LIFETIME = 2678400
+
+# A name of the instance
+INSTANCE_NAME = "test"
+
+# A secret key for signing secrets
+SECRET_KEY = ""  # DO NOT PUT THIS IN GIT
+
+
+
+
+
+## Flask doesn't handle proxy servers by default, so the
+## proxy_fix module handles most of it. In addition, we
+## add a trusted_upstreams so that proxy fixing is only done
+## when the upstream server is in the trusted list.
+[flask.proxy_fix]
+
+enabled = true
+
+## This should be set to one of the following values:
+## "*" to accept all upstream servers
+## "" to never accept any upstream servers
+## A string which is an IP subnet mask or IP address to accept as trusetd
+## A list of such strings
+trusted_upstreams = "*"   # DO NOT PUT THIS IN GIT
+
+# Number of X-Forwarded-For headers to accept
+x_for = 1
+
+# Number of X-Forwarded-Proto headers to accept
+x_proto = 1
+
+# Number of X-Forwarded-Host headers to accept
+x_host = 1
+
+# Number of X-Forwarded-Port headers to accept
+x_port = 1
+
+# Number of X-Forwarded-Prefix headers to accept
+x_prefix = 1
+
+
+
+
+
+## This is the database configuration, as a dictionary, for postgres.
+[nodb]
+
+## The name of the database to connect to
+dbname = ""
+
+## The username to login as
+user = ""
+
+## The password to login as
+password = ""   # DO NOT PUT THIS IN GIT
+
+## The host to connect to
+host = ""
+
+## The port to connect to
+port = 5432
+
+
+
+
+
+## This is how Azure account credentials should be provided.
+## One entry for each ACCOUNT is necessary
+[storage.azure.ACCOUNT_NAME]
+
+## The connection string can be obtained from the Azure web interface.
+connection_string = "" # DO NOT PUT THIS IN GIT
+
+
+
+
+
+## This is how FTP account details should be provided
+## One entry for each SERVER.DOMAIN is necessary.
+[storage.ftp."SERVER.DOMAIN"]
+
+## Forces TLS usage on the connection
+## If the protocol is ftps:// or ftpse://, this is set automatically
+tls = "explicit"
+
+## Port to connect on
+port = 21
+
+## Username to connect with
+username = ''
+
+## Password to connect with
+password = ''  # DO NOT PUT THIS IN GIT
+
+## FTP servers don't have an easy way of communicating their timezone.
+## Servers are assumed to be in UTC otherwise.
+## You must pass an IANA valid timezone string.
+server_timezone = 'Etc/UTC'
+
+## RFC3659 is a set of useful FTP commands such as MLST
+## If left blank, support for MLST is checked
+## If you know that the server does or does not support MLST, you can skip this check
+## by setting the appropriate boolean value
+rfc3659_support = ''
+
+
+
+
+
+## The configuration for storage handles can use the placeholder protocol
+## base:BASE_NAME:// to tell the storage engine to substitute the protocol
+## given here for the placeholder. For example, with the configuration below,
+## base:BASE_NAME://foo/bar.txt would become protocol://domain/path/foo/bar.txt
+[storage.base_names]
+BASE_NAME = "protocol://domain/path"
+
+
+
+
+
+## See https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig for all your options.
+## Note that the zrlog module adds two other logging levels you can use:
+##   NOTICE: for logs that are important to log but not actual warnings (in between INFO and WARNING)
+##   TRACE: for logs that are even more detailed that DEBUG
+[logging]
+version = 1
+
+[logging.root]
+level = "NOTICE"
+# Note: you should not attach handlers anywhere but the root logger
+handlers = ["console"]
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "brief"
+level = "NOTICE"
+stream = "ext://sys.stdout"
+
+[logging.formatters.brief]
+format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+
+
+
+
+
+## Email send configuration settings.
+[email]
+
+# The SMTP server to connect to. If left empty, email sending is disabled.
+host = ""
+
+## The port to connect to (defaults to 25 without SSL and 465 with SSL, see below)
+port = 0
+
+## Optionally, the host to send email from (if omitted,
+## attempts to load the current machine's host name)
+local_hostname = ""
+
+## Optionally, set the timeout to connect to the email server.
+timeout_seconds = 5.0
+
+## The username to connect with
+user = ""
+
+## The password to connect with
+password = ""
+
+## If true, uses SSL from the start of the connection and changes the default port to 465
+## This essentially uses smtplib.SMTP_SSL instead of smtplib.SMTP to make the connection.
+use_ssl = false
+
+## If true, calls the starttls() method as soon as a connection is made to the server.
+## Only use this if use_ssl causes you problems.
+start_tls = false
+
+## Send from email
+send_from = "no-reply@example.com"
+
+## Setting this to true will cause emails not to be sent even if a host name is provided.
+## If a hostname is not provided, this is automatically changed to true.
+no_send = false
+
+## A list of emails for administrators - this is used for error notifications
+admin_emails = ["", ""]
+
+## A list of template folders - these contain TEMPLATE.txt, TEMPLATE.html, and
+## TEMPLATE.subject.txt files which are used to format emails from templates.
+template_folders = ["", ""]
+
+
+
+## The pipeman service runs multiple workers using the multiprocessing package.
+## It is configured through either a file or a directory of files that define the workers.
+[pipeman.service]
+
+## The configuration file to use when launching the pipeman service
+config_file = ""
+
+## A directory of configuration files to use when laucnhing the pipeman service
+config_directory = ""
+
+## A unique name for the server. If not provided, a UUID will be generated.
+server_name = ""
+
+## The port that the service listens on for commands. Commands can only be sent from the same machine.
+port = 9173
+
+
+
+
+
+## Configuration settings for access to the metadata management tool
+[dmd]
+
+## URL for the DMD instance to communicate with
+base_url = ""
+
+## Authorization token, as provided by creating an API key in the DMD tool
+auth_token = ""  # DO NOT PUT THIS IN GIT
+
+
+
+
+
+## ERDDAPUtil is used to reload ERDDAP datasets if we make changes to them.
+[erddaputil]
+
+## The username for ERDDAPUtil
+username = ""
+
+## The password for ERDDAPUtil
+password = ""
+
+## The base url of ERDDAPUtil
+base_url = ""
+
+## Broadcast mode - see ERDDAPUtil documentation
+broadcast_mode = "no"
+
+## ERDDAPUtil allows for "clusters" to be defined, which are all
+## reloaded together. You can specify the same parameters above
+## in a block for each cluster.
+[erddaputil.CLUSTER_NAME]
