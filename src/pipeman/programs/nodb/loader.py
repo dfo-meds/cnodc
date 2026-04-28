@@ -1,4 +1,3 @@
-import functools
 import uuid
 
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
@@ -130,12 +129,12 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if had_any_errors and was_single_file:
             source_file.status = nodb.SourceFileStatus.ERROR
             create_next_queue = False
-            self.count("file_processed_total", outcome="error")
+            self.count("files_processed_total", outcome="error")
         else:
             if had_any_errors:
-                self.count("file_processed_total", outcome="partial_success")
+                self.count("files_processed_total", outcome="partial_success")
             else:
-                self.count("file_processed_total", outcome="success")
+                self.count("files_processed_total", outcome="success")
             source_file.status = nodb.SourceFileStatus.COMPLETE
         self.db.update_object(source_file)
 
