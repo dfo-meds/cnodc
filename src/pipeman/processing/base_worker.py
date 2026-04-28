@@ -272,9 +272,15 @@ class BaseWorker(CachedObjectMixin):
     @property
     def save_data(self):
         if self._save_data is None:
-            self._save_data = SaveData(self.get_config('save_file'))
+            self._save_data = SaveData(self._save_file_name())
             self._save_data.load_file()
         return self._save_data
+
+    def _save_file_name(self):
+        sn = self.get_config('save_file')
+        if sn is not None and '%process_id%' in sn:
+            sn = sn.replace('%process_id%', str(self.process_uuid))
+        return sn
 
     def temp_dir(self) -> pathlib.Path:
         """Get a temporary directory that will be cleaned up after the current item."""
