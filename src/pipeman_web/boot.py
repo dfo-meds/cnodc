@@ -45,17 +45,17 @@ def _init_flask():
         prom_metrics.init_app(app)
 
         # Configure proxy settings
-        if config.as_bool(("cnodc", "proxy_fix", "enabled"), default=False):
+        if config.as_bool(("flask", "proxy_fix", "enabled"), default=False):
             from medsutil.flask.trustedproxy import TrustedProxyFix
             log.info("Proxy fix: enabled")
             app.wsgi_app = TrustedProxyFix(
                 app.wsgi_app,
-                trust_from_ips=config.get(("cnodc", "proxy_fix", "trusted_upstreams"), default="*"),
-                x_for=config.get(("cnodc", "proxy_fix", "x_for"), default=1),
-                x_proto=config.get(("cnodc", "proxy_fix", "x_proto"), default=1),
-                x_host=config.get(("cnodc", "proxy_fix", "x_host"), default=1),
-                x_port=config.get(("cnodc", "proxy_fix", "x_port"), default=1),
-                x_prefix=config.get(("cnodc", "proxy_fix", "x_prefix"), default=1)
+                trust_from_ips=config.get(("flask", "proxy_fix", "trusted_upstreams"), default="*"),
+                x_for=config.get(("flask", "proxy_fix", "x_for"), default=1),
+                x_proto=config.get(("flask", "proxy_fix", "x_proto"), default=1),
+                x_host=config.get(("flask", "proxy_fix", "x_host"), default=1),
+                x_port=config.get(("flask", "proxy_fix", "x_port"), default=1),
+                x_prefix=config.get(("flask", "proxy_fix", "x_prefix"), default=1)
             )
         else:
             log.info("Proxy fix: disabled")
