@@ -31,7 +31,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self.set_defaults({
             'queue_name': None,
             'next_queue': 'workflow_continue',
-            'failure_queue': 'nodb_decode_failure',
+            'failure_queue': 'decode_failure',
             'error_directory': None,
             'default_metadata': {},
             'decoder_class': None,
