@@ -1,8 +1,5 @@
 from datetime import timedelta
-
 import click
-from medsutil import secure
-from medsutil.awaretime import AwareDateTime
 
 
 @click.group()
@@ -13,6 +10,7 @@ def main(): ...
 @click.argument("username")
 def create(username):
     from pipeman.users import UserController
+    from medsutil import secure
     uc = UserController()
     password = secure.generate_secure_random_password()
     uc.create_user(username, password)
@@ -24,6 +22,8 @@ def create(username):
 @click.argument("expiry_seconds", type=int)
 def rotate_password(username, expiry_seconds):
     from pipeman.users import UserController
+    from medsutil.awaretime import AwareDateTime
+    from medsutil import secure
     uc = UserController()
     password = secure.generate_secure_random_password()
     if expiry_seconds is None or expiry_seconds < 0:

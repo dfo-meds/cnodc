@@ -1,7 +1,6 @@
 import os
 import pathlib
 import traceback
-import medsutil.json as json
 
 import click
 
@@ -48,5 +47,6 @@ def convert_all(original_dir, output_dir):
 @click.argument("output_file")
 def dump_metadata(original_file, output_file):
     from pipeman.programs.glider.ego_convert import OpenGliderConverter
+    import medsutil.json as json
     with open(output_file, "wb", encoding="utf-8") as h:
         h.write(json.dumpb(OpenGliderConverter.build().build_metadata(original_file).build_request_body()))
