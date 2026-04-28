@@ -157,6 +157,8 @@ class EmailController:
             msg.add_alternative(message_html, subtype='html')
         if not self._dummy_send:
             return self._send_smtp_message(msg, to_addrs)
+        else:
+            self._log.notice(f"Email system is disable, but message would have been sent to [%s]:\n%s", to_addrs, msg)
         return True
 
     def _send_smtp_message(self, msg: email.message.EmailMessage, to_addrs: list[str]):
