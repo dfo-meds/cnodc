@@ -5,10 +5,13 @@ from medsutil.exceptions import CodedError
 class RequestError(CodedError): CODE_SPACE = 'WEB'
 
 
-def web_request(method: str, url: str, **kwargs) -> requests.Response:
+def web_request(method: str, url: str, session: requests.Session = None, **kwargs) -> requests.Response:
     """ Wrapper around requests.request() that converts errors to appropriate CNODC errors. """
     try:
-        result = requests.request(method, url, **kwargs)
+        if session is not None:
+            result = session.request(method, url, **kwargs)
+        else:
+            result = requests.request(method, url, **kwargs)
         result.raise_for_status()
         return result
     except Exception as ex:
