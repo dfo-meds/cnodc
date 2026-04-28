@@ -4,7 +4,6 @@ import click
 
 def build_cli():
     from pipeman.boot import init_cnodc
-    from medsutil.multiclick import CommandLineInterface
 
     init_cnodc('cli')
 
@@ -22,9 +21,10 @@ def build_cli():
     import pipeman_cli.transcode as transcode
     commands['transcode'] = t.cast(click.Command, transcode.transcode)
 
-    import pipeman_cli.process as process
-    commands['run_process'] = t.cast(click.Command, process.run_process)
+    import pipeman_cli.service as process
+    commands['service'] = t.cast(click.Group, process.service)
 
+    from medsutil.multiclick import CommandLineInterface
     return CommandLineInterface(None, commands)
 
 
