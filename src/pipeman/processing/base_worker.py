@@ -356,6 +356,7 @@ class SaveData:
         """Save the data to disk."""
         if self._save_file is not None and self._file_loaded and not self._save_failed:
             try:
+                self._save_file.parent.mkdir(mode=0o660, parents=True, exist_ok=True)
                 with open(self._save_file, "w") as h:
                     h.write(json.dumps(self._values))
             except OSError as ex:
