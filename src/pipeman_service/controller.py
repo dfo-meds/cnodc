@@ -248,6 +248,7 @@ class BaseController:
             "halt_flag": self._halt_flag,
             "no_start": self._no_start,
             "logging_queue": self._logging_queue,
+            "signals": "",
         }
 
     def _register_process(self,
