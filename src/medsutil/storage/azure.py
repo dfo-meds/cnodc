@@ -17,9 +17,7 @@ from medsutil.storage.interface import StorageError
 @injector.injectable
 class AzureClientPool:
 
-    config: zr.ApplicationConfig = None
 
-    @injector.construct
     def __init__(self):
         self._share_cache: dict[str, ShareClient] = {}
         self._container_cache: dict[str, ContainerClient] = {}
@@ -115,7 +113,7 @@ class AzureBaseHandle(UrlBaseHandle, ABC):
         return account_name, share_or_container_name, file_path
 
     def _get_connection_string(self, account_name: str) -> str:
-        return t.cast(str, self.config.as_str(('azure', 'storage', account_name, 'connection_string'), default=''))
+        return t.cast(str, self.config.as_str(('storage', 'azure', account_name, 'connection_string'), default=''))
 
     def _replace_path(self, new_path: str, as_dir: bool | None) -> str:
         if self._hard_prefix is not None and not new_path.startswith((self._hard_prefix, '/' + self._hard_prefix)):
