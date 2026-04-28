@@ -10,13 +10,13 @@ cd /srv/cnodc/app || exit
 if [ "$1" = "processor" ] ; then
 
   # Set the Prometheus directory
-  export PROMETHEUS_MULTIPROC_DIR=/srv/cnodc/_prometheus
+  export PROMETHEUS_MULTIPROC_DIR=/cnodc-data/_prometheus
 
   # Handle prometheus directory
-  if [ -e "/srv/cnodc/_prometheus" ] ; then
-    rm -r /srv/cnodc/_prometheus/*
+  if [ -e "/cnodc-data/_prometheus" ] ; then
+    rm -r /cnodc-data/_prometheus*
   else
-    mkdir /srv/cnodc/_prometheus
+    mkdir /cnodc-data/_prometheus
   fi
 
   python process.py
@@ -35,15 +35,8 @@ else
     shift 1
   fi
 
-  # Set the Prometheus directory
-  export PROMETHEUS_MULTIPROC_DIR=/srv/cnodc/_prometheus
-
-  # Handle prometheus directory
-  if [ -e "/srv/cnodc/_prometheus" ] ; then
-    rm -r /srv/cnodc/_prometheus/*
-  else
-    mkdir /srv/cnodc/_prometheus
-  fi
+  # Set the Prometheus directory for the flask endpoint
+  export PROMETHEUS_MULTIPROC_DIR=/cnodc-data/_prometheus
 
   # Start Gunicorn or Flask
   if [ -z "$USE_FLASK" ]; then
