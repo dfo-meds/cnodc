@@ -726,7 +726,7 @@ class NODBPostgresController(interface.NODB):
     def __init__(self, **kwargs):
         super().__init__()
         self._conn = None
-        self._connect_args: dict[str, t.Any] = kwargs if kwargs else t.cast(dict, self.config.as_dict(("cnodc", "nodb_connection"), default={}))
+        self._connect_args: dict[str, t.Any] = kwargs if kwargs else t.cast(dict, self.config.as_dict(("nodb",), default={}))
         if 'options' not in self._connect_args:
             self._connect_args['options'] = "-c search_path=public"
         self._connect_args['cursor_factory'] = pge.DictCursor
