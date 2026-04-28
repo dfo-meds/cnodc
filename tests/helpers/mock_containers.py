@@ -20,7 +20,7 @@ class TestContainer:
                  wait_for=None,
                  wait_max=6,
                  wait_sleep=0.25,
-                 docker_timeout=25):
+                 docker_timeout=30):
         self.name = name
         if name == 'nodb':
             self.docker_file = DB_DIR / 'compose.yaml'
