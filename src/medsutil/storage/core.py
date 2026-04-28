@@ -3,6 +3,7 @@ import typing as t
 import pathlib
 import enum
 
+import zirconium
 from autoinject import injector
 
 from medsutil.storage.interface import StorageError, FilePath, StorageTier
@@ -39,6 +40,9 @@ class StorageController:
         (default or path-like) -> LocalHandle
     """
 
+    config: zirconium.ApplicationConfig
+
+    @injector.construct
     def __init__(self):
         self.handle_classes = [
             AzureFileHandle,
@@ -54,6 +58,8 @@ class StorageController:
                      raise_ex: bool = False) -> t.Optional[FilePath]:
         """Build an appropriate handle for the given file path."""
         if file_path is not None and file_path != '':
+            if isinstance(file_path, str):
+                file_path = self.normalize_file_path(file_path)
             if isinstance(file_path, pathlib.Path):
                 return LocalHandle.build(str(file_path), halt_flag=halt_flag)
             for cls in self.handle_classes:
@@ -64,6 +70,22 @@ class StorageController:
         if raise_ex:
             raise StorageError(f'No handle supported for [{file_path}]', 9000)
         return None
+
+    def normalize_file_path(self, file_path: str) -> str:
+        if '://' in file_path and file_path.startswith("base:"):
+            pos = file_path.find("://")
+            base_name = file_path[5:pos]
+            rel_path = file_path[pos+3:]
+            actual_base = self.config.as_str(("storage", "base_names", base_name), default=None)
+            if actual_base is None:
+                raise StorageError(f"No root path defined for {base_name}")
+            if not actual_base.endswith("/"):
+                actual_base += "/"
+            return f"{actual_base}{rel_path}"
+        else:
+            return file_path
+
+
 
     @staticmethod
     def build_metadata(program_name: str = "UNKNOWN",
