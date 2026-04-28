@@ -1,0 +1,5 @@
+An error has occurred
+
+{{error_description}}
+
+{{error_details}}
