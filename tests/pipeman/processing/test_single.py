@@ -456,14 +456,11 @@ class TestBaseProcessController(BaseTestCase):
         self.assertFalse(nc._process_info['process1'].is_activated())
         for ap_key in nc._process_info['process1']._active_processes:
             ap = nc._process_info['process1']._active_processes[ap_key]
-            self.assertTrue(ap._end_flag.is_set())
-            self.assertFalse(ap._halt_flag.is_set())
+            self.assertTrue(ap.end_flag.is_set())
+            self.assertFalse(ap.halt_flag.is_set())
         self.assertTrue(nc._process_info['process1'].is_active(True))
         self.assertFalse(nc._process_info['process1'].is_active())
         self.assertTrue(nc.wait_for_all(0.5))
-
-
-
 
 
 
