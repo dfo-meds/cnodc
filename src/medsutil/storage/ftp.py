@@ -329,7 +329,7 @@ class FTPHandle(UrlBaseHandle):
             format_ = '%Y%m%d%H%M%S'
             if '.' in stat['modify']:  # pragma: no coverage (test server doesn't return this)
                 format_ = '%Y%m%d%H%M%S.%f'
-            tzinfo = None
+            tzinfo = 'Etc/UTC'
             if 'server_timezone' in stat and stat['server_timezone']:
                 try:
                     tzinfo = zoneinfo.ZoneInfo(stat['server_timezone'])
