@@ -1,10 +1,8 @@
 import pathlib
-
 import click
 import yaml
 import zrlog
 from autoinject import injector
-
 from nodb.interface import NODB, NODBInstance, LockType
 import nodb as structures
 
