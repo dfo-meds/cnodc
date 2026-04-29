@@ -1382,6 +1382,11 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         if managed_name.startswith('erddap') and value:
             self.profiles.add('erddap')
 
+    def activate_and_publish(self):
+        """ Note: you need the correct permissions to do this! """
+        self.activation_workflow = Common.ActivationWorkflowWithPublish
+        self.publication_workflow = Common.DefaultPublicationWorkflow
+
     def set_meds_defaults(self):
         self.metadata_constraints.append(Common.Constraint_Unclassified)
         self.metadata_constraints.append(Common.Constraint_OpenGovernmentLicense)
@@ -1396,8 +1401,8 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self.data_maintenance_frequency = MaintenanceFrequency.NotPlanned
         self.status = StatusCode.Final
         self.topic_category = TopicCategory.Oceans
-        self.activation_workflow = "cnodc_activation"
-        self.publication_workflow = "cnodc_publish"
+        self.activation_workflow = Common.DefaultActivationWorkflow
+        self.publication_workflow = Common.DefaultPublicationWorkflow
         self.cf_standard_name_vocab = "CF 1.13"
         self.security_level = 'unclassified'
         self.goc_publisher = GCPublisher.MEDS
@@ -1786,6 +1791,11 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
 
 class Common:
+
+    DefaultActivationWorkflow = "cnodc_activation"
+    DefaultPublicationWorkflow = "cnodc_publish"
+
+    ActivationWorkflowWithPublish = "activate_and_publish"
 
     Constraint_OpenGovernmentLicense = LegalConstraint(guid="open_government_license")
     Constraint_Unclassified = SecurityConstraint(guid="unclassified_data")

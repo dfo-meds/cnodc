@@ -110,6 +110,12 @@ class _AzureFileClient:
         self.directory_name = '/'.join(self.file_path[:-1])
         self._real_path = real_path
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
+
     def exists(self):
         return self._real_path.exists() and self._real_path.is_file()
 
@@ -170,6 +176,12 @@ class _AzureDirectoryClient:
         self.url = f"{account_url}/{share_name}/{file_path}"
         self._real_path = real_path
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
+
     def exists(self):
         return self._real_path.exists() and self._real_path.is_dir()
 
@@ -204,6 +216,12 @@ class _AzureFileShare:
         self._base_url = base_url.lstrip('/\\')
         self._base_path = base_path
         self._share_name = share_name
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
 
     def get_file_client(self, file_path: str):
         file_path = file_path.rstrip('/\\')
@@ -243,6 +261,12 @@ class _AzureBlob:
         self.name = name
         self.blob_name = name
         self.local_path = local_path
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
 
     def get_blob_properties(self):
         if not self.local_path.exists():
@@ -331,6 +355,12 @@ class _AzureContainer:
         self._base_url = base_url
         self._base_path = base_path
         self._blobs = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
 
     def list_blobs(self, name_starts_with: str):
         work = [self._base_path.absolute()]

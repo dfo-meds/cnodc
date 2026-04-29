@@ -36,6 +36,7 @@ class WorkflowDirectory(ddo.DataDictObject):
     directory: str = ddo.p_str(required=True)
     allow_overwrite: OverwriteOption = ddo.p_enum(OverwriteOption, default=OverwriteOption.NEVER)
     tier: StorageTier = ddo.p_enum(StorageTier, default=None)
+    keep_versions: bool = ddo.p_bool(default=False)
     metadata: dict[str, str] = ddo.p_json_dict()
     gzip: bool = ddo.p_bool(default=False)
 

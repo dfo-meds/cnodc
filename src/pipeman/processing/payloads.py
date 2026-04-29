@@ -141,27 +141,25 @@ class Payload(DataDictObject):
                      halt_flag: HaltFlag = None,
                      files: StorageController = None) -> pathlib.Path:
         """Download the file to a given directory."""
-        handle = files.get_filepath(file_path, halt_flag=halt_flag)
-        if handle is None:
-            raise CNODCError('Cannot handle file path', 'PAYLOAD', 2000)
-        if not handle.exists():
-            raise CNODCError('File path does not exist', 'PAYLOAD', 2001)
-        target_name = filename
-        if is_gzipped:
-            if target_name.lower().endswith('.gz'):
-                gzip_target_name = target_name
-                target_name = target_name[:-3]
+        with files.handle(file_path, halt_flag=halt_flag) as handle:
+            if not handle.exists():
+                raise CNODCError('File path does not exist', 'PAYLOAD', 2001)
+            target_name = filename
+            if is_gzipped:
+                if target_name.lower().endswith('.gz'):
+                    gzip_target_name = target_name
+                    target_name = target_name[:-3]
+                else:
+                    gzip_target_name = f"{target_name}.gz"
+                gzip_path = target_dir / gzip_target_name
+                target_path = target_dir / target_name
+                handle.download(gzip_path)
+                ungzip_with_halt(gzip_path, target_path, halt_flag=halt_flag)
+                return target_path
             else:
-                gzip_target_name = f"{target_name}.gz"
-            gzip_path = target_dir / gzip_target_name
-            target_path = target_dir / target_name
-            handle.download(gzip_path)
-            ungzip_with_halt(gzip_path, target_path, halt_flag=halt_flag)
-            return target_path
-        else:
-            fp = target_dir / target_name
-            handle.download(fp)
-            return fp
+                fp = target_dir / target_name
+                handle.download(fp)
+                return fp
 
     @staticmethod
     def from_queue_item(queue_item: nodb_.NODBQueueItem):

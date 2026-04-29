@@ -74,56 +74,64 @@ class FileScanTask(ScheduledTask):
         with self.nodb as db:
             self.scan_files(db)
 
+    @property
+    def scan_target(self) -> FilePath:
+        if self._scan_target is None:
+            raise RuntimeError("Scan target called too early")
+        return self._scan_target
+
     def scan_files(self, db):
+        scan_target = self.scan_target
         batch_id = str(uuid.uuid4())
-        self._log.info(f'Scanning [%s]', self._scan_target.path())
+        self._log.info(f'Scanning [%s]', scan_target.path())
         full_path = None
         mod_time = None
-        for file in self._scan_target.search(self._pattern, self._recursive):
-            db.create_savepoint('FILE_INSERT')
-            try:
-                full_path = file.path()
-                mod_time = file.modified_datetime() if self._reprocess_updated_files else None
-                status = db.scanned_file_status(full_path, mod_time)
-                if status is ScannedFileStatus.NOT_PRESENT:
-                    self._log.info("Found new file [%s][%s]", full_path, mod_time)
-                    db.note_scanned_file(full_path, mod_time)
-                    payload = NewFilePayload.from_handle(file,
-                                                         workflow_name=self._workflow_name,
-                                                         remove_when_complete=self._remove_when_complete,
-                                                         modified_time=mod_time)
-                    payload.metadata.update(self._headers)
-                    payload.metadata.update({
-                        'source': self.process_id,
-                        'scan-batch': batch_id,
-                        'scan-target': self._scan_target.path(),
-                        'scanned-time': awaretime.utc_now().isoformat()
-                    })
-                    payload.set_worker_config('file_downloader', self.get_config('downloader_config', {}))
-                    payload.enqueue(db, self._queue_name)
-                    db.commit()
-                    self.count("files_scanned_total", outcome="success")
-                else:
-                    self._log.info(f"Skipping old file [%s][%s]", full_path, mod_time)
-                    self.count("files_scanned_total", outcome="skipped")
-            except NODBError as ex:
+        with scan_target:
+            for file in scan_target.search(self._pattern, self._recursive):
+                db.create_savepoint('FILE_INSERT')
+                try:
+                    full_path = file.path()
+                    mod_time = file.modified_datetime() if self._reprocess_updated_files else None
+                    status = db.scanned_file_status(full_path, mod_time)
+                    if status is ScannedFileStatus.NOT_PRESENT:
+                        self._log.info("Found new file [%s][%s]", full_path, mod_time)
+                        db.note_scanned_file(full_path, mod_time)
+                        payload = NewFilePayload.from_handle(file,
+                                                             workflow_name=self._workflow_name,
+                                                             remove_when_complete=self._remove_when_complete,
+                                                             modified_time=mod_time)
+                        payload.metadata.update(self._headers)
+                        payload.metadata.update({
+                            'source': self.process_id,
+                            'scan-batch': batch_id,
+                            'scan-target': scan_target.path(),
+                            'scanned-time': awaretime.utc_now().isoformat()
+                        })
+                        payload.set_worker_config('file_downloader', self.get_config('downloader_config', {}))
+                        payload.enqueue(db, self._queue_name)
+                        db.commit()
+                        self.count("files_scanned_total", outcome="success")
+                    else:
+                        self._log.info(f"Skipping old file [%s][%s]", full_path, mod_time)
+                        self.count("files_scanned_total", outcome="skipped")
+                except NODBError as ex:
 
-                # Serialization or unique key failure means we have one of two issues:
-                # - The file path was inserted between our own checking and inserting
-                # - The queue UUID was duplicated (unlikely)
-                # In either case, we can ignore it for now as long as we rollback.
-                # If the file doesn't get properly recorded, it will be checked on the next pass
-                self.count("files_scanned_total", outcome="error")
-                if ex.is_serialization_error():
-                    db.rollback_to_savepoint('FILE_INSERT')
-                    self._log.warning("Exception while creating database entry for scanned file [%s][%s]", full_path, mod_time, exc_info=True)
+                    # Serialization or unique key failure means we have one of two issues:
+                    # - The file path was inserted between our own checking and inserting
+                    # - The queue UUID was duplicated (unlikely)
+                    # In either case, we can ignore it for now as long as we rollback.
+                    # If the file doesn't get properly recorded, it will be checked on the next pass
+                    self.count("files_scanned_total", outcome="error")
+                    if ex.is_serialization_error():
+                        db.rollback_to_savepoint('FILE_INSERT')
+                        self._log.warning("Exception while creating database entry for scanned file [%s][%s]", full_path, mod_time, exc_info=True)
 
-                # Other errors indicate a bigger issue, we want to raise those
-                else:
-                    raise
-            finally:
-                full_path = None
-                mod_time = None
+                    # Other errors indicate a bigger issue, we want to raise those
+                    else:
+                        raise
+                finally:
+                    full_path = None
+                    mod_time = None
 
 
 class FileDownloadWorker(PayloadWorker[NewFilePayload]):
@@ -196,8 +204,9 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
         elif current_status == ScannedFileStatus.PROCESSED and remove_when_finished:
             self._log.info(f"Item [%s] already processed [result %s], checking for removal", file_path, current_status)
             handle = self.get_handle(file_path, True)
-            if handle.exists():
-                handle.remove()
+            with handle:
+                if handle.exists():
+                    handle.remove()
         elif current_status == ScannedFileStatus.NOT_PRESENT:
             self._log.warning(f"Item [%s] was not registered!, skipping", file_path)
         else:

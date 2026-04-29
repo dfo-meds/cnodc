@@ -2,6 +2,7 @@ import ftplib  # nosec B402 # no choice but to support FTP for now
 import functools
 import logging
 import ssl
+import threading
 import typing as t
 import urllib.parse
 import zoneinfo
@@ -67,17 +68,28 @@ class FTPConnectionPool:
 
     @injector.construct
     def __init__(self):
-        self._server_notes = self.config.as_dict(('storage', 'ftp'), default={})
+        self._server_notes: dict = self.config.as_dict(('storage', 'ftp'), default={})
+        self._connections: dict[tuple[str, str, int | None], _FTPWrapper] = {}
+        self._cache_connections: bool = bool(self._server_notes['_cache']) if 'cache' in self._server_notes else True
 
-    def build_connection(self, url: str):
+    def build_connection(self, url: str) -> _FTPWrapper:
         parts = urllib.parse.urlsplit(url)
-        if parts.netloc not in self._server_notes:
-            self._server_notes[parts.netloc] = {}
-        if parts.scheme in ('ftps', 'ftpse') and 'tls' not in self._server_notes[parts.netloc]:
-            self._server_notes[parts.netloc]['tls'] = 'explicit'    # pragma: no coverage (I have no TLS server to test this on)
-        if parts.port and 'port' not in self._server_notes[parts.netloc]:
-            self._server_notes[parts.netloc]['port'] = parts.port   # pragma: no coverage
-        return _FTPWrapper(parts.netloc, self._server_notes[parts.netloc])
+        if not self._cache_connections:
+            return self._build_connection(parts)
+        key = (parts.netloc, parts.scheme, parts.port)
+        if key not in self._connections:
+            self._connections[key] = self._build_connection(parts)
+        return self._connections[key]
+
+    def _build_connection(self, parts):
+        config = {}
+        if parts.netloc in self._server_notes:
+            config.update(self._server_notes[parts.netloc])
+        if parts.scheme in ('ftps', 'ftpse') and 'tls' not in config:
+            config['tls'] = 'explicit'    # pragma: no coverage (I have no TLS server to test this on)
+        if parts.port and 'port' not in config:
+            config['port'] = parts.port   # pragma: no coverage
+        return _FTPWrapper(parts.netloc, config)
 
 
 class _FTPWrapper:
@@ -92,9 +104,14 @@ class _FTPWrapper:
             config['tls'] = 'none'
         if 'port' not in config:
             config['port'] = 21
+        if 'timeout' not in config:
+            config['timeout'] = 10
         self._config = config
         self._server: t.Optional[t.Union[ftplib.FTP, ftplib.FTP_TLS]] = None
         self._depth = 0
+        self._connected = False
+        self._cwd = None
+        self._lock = threading.Lock()
 
     @property
     def server(self) -> ftplib.FTP | ftplib.FTP_TLS:
@@ -102,14 +119,38 @@ class _FTPWrapper:
             raise StorageError('Server is not open for connections', 1006)
         return self._server
 
-    def connect(self):
-        self.server.connect(self._host, self._config['port'])
-        self.server.login(self._config['username'], self._config['password'])
-        if hasattr(self.server, 'prot_p'):
-            self.server.prot_p()  # pragma: no coverage (I have no TLS server to test this on)
-        self.test_features()
+    def streaming_read(self, name: str, buffer_size=1024*1024) -> t.Iterable[bytes]:
+        self.binary_mode()
+        with self.transfer_command(f"RETR {name}") as conn:
+            try:
+                while data := conn.recv(buffer_size):
+                    yield data
+            finally:
+                if isinstance(conn, ssl.SSLSocket): # pragma: no coverage (no TLS server to test with)
+                    conn.unwrap()
+        self.server.voidresp()
 
-    def test_features(self):
+    def streaming_write(self, name, chunks: t.Iterable[bytes]):
+        self.binary_mode()
+        with self.transfer_command(f"STOR {name}") as conn:
+            try:
+                for chunk in chunks:
+                    conn.sendall(chunk)
+            finally:
+                if isinstance(conn, ssl.SSLSocket):  # pragma: no coverage (no TLS to test with)
+                    conn.unwrap()
+        self.server.voidresp()
+
+    def connect(self):
+        if not self._connected:
+            self.server.connect(self._host, self._config['port'], timeout=self._config['timeout'])
+            self.server.login(self._config['username'], self._config['password'])
+            if hasattr(self.server, 'prot_p'):
+                self.server.prot_p()  # pragma: no coverage (I have no TLS server to test this on)
+            self._test_features()
+            self._connected = True
+
+    def _test_features(self):
         if 'rfc3659_support' not in self._config:
             try:
                 self.server.voidcmd('MLST /')
@@ -121,7 +162,10 @@ class _FTPWrapper:
                     raise ex from ex
 
     def cwd(self, path: str):
-        self.server.cwd(path)
+        if self._cwd is None or self._cwd != path or not path[0] == "/":
+            self.server.cwd(path)
+            # Don't guess at relative paths
+            self._cwd = path if path[0] == "/" else None
 
     def binary_mode(self):
         self.server.voidcmd('TYPE I')
@@ -149,31 +193,37 @@ class _FTPWrapper:
     def list_dir(self, dir_path='', facts: t.Optional[list[str]] = None):
         if self.supports_rfc3659_features():
             for name, facts in self.server.mlsd(dir_path, facts or []):
-                yield name, self.extend_info(facts)
+                if name not in (".", ".."):
+                    yield name, self.extend_info(facts)
         else:
             if dir_path and not dir_path.endswith('/'): # pragma: no coverage
                 dir_path += '/'
             pwd = self.server.pwd()
             for file in self.server.nlst(dir_path):
+                if file in (".", ".."):
+                    continue
                 self.binary_mode()
                 test_path = dir_path + file
                 try:
-                    self.server.cwd(test_path)
+                    self.cwd(test_path)
                     yield file, self.extend_info({'type': 'dir'})
                 except ftplib.error_perm as ex:
                     if ex.args[0][0:3] == '550':
                         yield file, self.extend_info({'type': 'file'})
                     else:
-                        raise ex from ex  # pragma: no coverage
-            self.server.cwd(pwd)
+                        raise # pragma: no coverage
+            self.cwd(pwd)
 
     def stat(self, file_path) -> t.Optional[dict[str, t.Any]]:
         if file_path in ('', '/'):
             return self.extend_info({'type': 'dir'})
         if self.supports_rfc3659_features():
             try:
+                self.server.sendcmd("OPTS MLST type;size;modify")
                 result = self.server.voidcmd(f'MLST {file_path}')
                 lines = result.strip().split("\n")
+                if len(lines) < 2:
+                    return None
                 pieces = lines[1].strip().split(' ')
                 details = {}
                 for x in pieces[0].split(';'):
@@ -184,15 +234,19 @@ class _FTPWrapper:
             except ftplib.error_perm as ex:
                 if ex.args[0][0:2] == '55':
                     return None
-                raise ex from ex  # pragma: no coverage (difficult to test)
+                raise ex  # pragma: no coverage (difficult to test)
         else:
             parts = file_path.split('/')
-            for file, info in self.list_dir('/'.join(parts[:-1])):
+            for file, info in self.list_dir('/'.join(parts[:-1]), ["type", "size", "modify"]):
                 if file == parts[-1]:
                     return info
             return None
 
     def __enter__(self):
+        self.enter()
+        return self
+
+    def enter(self):
         if self._server is None:
             if self._config['tls'] == 'explicit':
                 self._server = ftplib.FTP_TLS(context=ssl.create_default_context())  # pragma: no coverage; no TLS server to test with
@@ -200,16 +254,21 @@ class _FTPWrapper:
                 self._server = ftplib.FTP()  # nosec B321 # no choice but to support FTP for now
             else:   # pragma: no coverage # no TLS server to test with
                 raise StorageError("Invalid tls setting for FTP", 2005, is_transient=False)
+            self.connect()
         self._depth += 1
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.exit()
+
+    def exit(self, force: bool = False):
         self._depth -= 1
-        if self._depth <= 0:
+        if force or self._depth <= 0:
             self._depth = 0
+            self._connected = False
             if self._server is not None and self._server.sock is not None:
                 self._server.quit()
-                self._server = None
+            self._server = None
 
 
 class FTPHandle(UrlBaseHandle):
@@ -223,6 +282,7 @@ class FTPHandle(UrlBaseHandle):
                          supports=FeatureFlag.DEFAULT,
                          log_name='ftp',
                          **kwargs)
+        self._open_conn: _FTPWrapper | None = None
 
     def current_dir(self) -> str:
         return self._with_cache('current_dir', self._current_dir)
@@ -237,39 +297,34 @@ class FTPHandle(UrlBaseHandle):
             path_pieces = [x for x in self.current_file().split('/') if x]
             return '/' + '/'.join(path_pieces[:-1])
 
+    def _cwd(self, conn: _FTPWrapper):
+        try:
+            conn.cwd(self.current_dir())
+        except ftplib.error_perm as ex:
+            if str(ex)[0:2] != '55':
+                raise
+
     @contextmanager
-    def _connection(self):
-        with self.conn_pool.build_connection(self._path) as ftp:
-            ftp.connect()
-            try:
-                ftp.cwd(self.current_dir())
-            except ftplib.error_perm as ex:
-                if str(ex)[0:2] != '55':
-                    raise ex from ex
-            yield ftp
+    def _connection(self) -> t.Generator[_FTPWrapper, None, None]:
+        with self.persistent_connection(
+            "ftp",
+            self.conn_pool.build_connection,
+            self._path
+        ) as x:
+            self._cwd(x)
+            yield x
 
     @ftplib_error_wrap_generator
     def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
-        buffer_size = buffer_size or 1024 * 1024
         with self._connection() as ftp:
-            ftp.binary_mode()
-            with ftp.transfer_command(f"RETR {self.name}") as conn:
-                while data := conn.recv(buffer_size):
-                    yield data
-                    if self._halt_flag:
-                        self._halt_flag.breakpoint()
-                if isinstance(conn, ssl.SSLSocket):  # pragma: no coverage (no TLS server to test with)
-                    conn.unwrap()
+            yield from self._halt_flag.iterate(
+                ftp.streaming_read(self.name, buffer_size or 1024 * 1024)
+            )
 
     @ftplib_error_wrap
     def _streaming_write(self, chunks: t.Iterable[bytes], **kwargs):
         with self._connection() as ftp:
-            ftp.binary_mode()
-            with ftp.transfer_command(f"STOR {self.name}") as conn:
-                for chunk in self._halt_flag.iterate(chunks):
-                    conn.sendall(chunk)
-                if isinstance(conn, ssl.SSLSocket):  # pragma: no coverage (no TLS to test with)
-                    conn.unwrap()
+            ftp.streaming_write(self.name, self._halt_flag.iterate(chunks))
         self.clear_cache('stat')
 
     @ftplib_error_wrap_generator

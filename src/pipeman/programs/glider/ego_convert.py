@@ -138,14 +138,16 @@ class OpenGliderConverter:
         if self._halt is not None:
             self._halt.breakpoint()
 
-    def build_metadata(self, open_file: pathlib.Path, file_name: str = None) -> metadata.DatasetMetadata:
+    def build_metadata(self, open_file: pathlib.Path, file_name: str = None, autopublish: bool = False) -> metadata.DatasetMetadata:
         with nc.Dataset(open_file, "r") as ds:
-            return self._build_metadata(ds, file_name or open_file.name)
+            return self._build_metadata(ds, file_name or open_file.name, autopublish)
 
-    def _build_metadata(self, ds: nc.Dataset, file_name: str):
+    def _build_metadata(self, ds: nc.Dataset, file_name: str, autopublish: bool = False):
         glider_name, mission_time, data_mode = self._parse_file_name(file_name)
         dmd = metadata.DatasetMetadata()
         dmd.set_meds_defaults()
+        if autopublish:
+            dmd.activate_and_publish()
         dmd.set_from_netcdf_file(ds)
         if data_mode in 'RAP':
             dmd.processing_level = 'real-time'

@@ -130,6 +130,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
             og_target_name = file_name + '.gz'
             og_storage_metadata['Gzip'] = 'YES'
 
+
         target_file = self._target_dir.child(og_target_name, False)
         target_file.upload(gzip_file, True, metadata=og_storage_metadata, storage_tier=StorageTier.FREQUENT)
 
@@ -178,7 +179,8 @@ class GliderMetadataUploadWorker(FileWorkflowWorker):
         local_file = self.download_to_temp_file()
         meta = self._converter.build_metadata(
             local_file,
-            payload.get_metadata("glider_file_name", payload.filename)
+            payload.get_metadata("glider_file_name", payload.filename),
+            autopublish=self.get_config('autopublish', False)
         )
         storage_locations = [
             f"Original: {payload.get_metadata("glider_ego_file_path", "")}",

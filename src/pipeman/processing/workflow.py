@@ -13,7 +13,9 @@ import tempfile
 import uuid
 from urllib.parse import quote
 import zrlog
+from numpy.ma.core import copy
 
+from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import ex_pretty
 from nodb.workflow import WorkflowConfiguration, WorkflowDirectory, ProcessingStep, OverwriteOption
 from medsutil.storage import StorageController, StorageTier, FilePath
@@ -72,7 +74,7 @@ class WorkflowController:
         self._log.debug(f"Processing file [%s]", local_path)
         # Add the default metadata
         self._extend_metadata(metadata)
-        # Determine filename
+        # Determine default filename
         filename = self._determine_filename(metadata)
         # Validate the upload
         self._validate_file_upload(local_path, metadata, filename)
@@ -82,6 +84,22 @@ class WorkflowController:
     def _extend_metadata(self, metadata: dict[str, str]):
         """Extend the input metadata with the default metadata"""
         self.config.extend_metadata(metadata)
+        now_ = AwareDateTime.utcnow()
+        if 'last-modified-date' not in metadata or not metadata['last-modified-date']:
+            metadata['last-modified-date'] = now_.isoformat()
+        metadata['safe_mtime'] = AwareDateTime.fromisoformat(metadata['last-modified-date']).strftime('%Y%m%d%H%M%S')
+        if self.config.accept_user_filename and 'filename' in metadata and metadata['filename']:
+            filename = str(metadata['filename'])
+            metadata['safe_filename'] = filename
+            if '.' in filename:
+                pos = filename.find(".")
+                metadata['safe_stem'] = filename[:pos]
+                metadata['safe_ext'] = filename[pos+1:]
+            else:
+                metadata['safe_stem'] = filename
+                metadata['safe_ext'] = ''
+        metadata['now'] = now_.strftime('%Y%m%d%H%M%S')
+        metadata['today'] = now_.strftime('%Y%m%d')
 
     def _validate_file_upload(self, local_path: pathlib.Path, metadata: dict[str, str], filename: str):
         """Validate the uploaded file"""
@@ -143,11 +161,7 @@ class WorkflowController:
                             correlation_id: t.Optional[str] = None):
         """Queue the working file."""
         if self.has_more_steps(None):
-            if 'last-modified-date' in metadata and metadata['last-modified-date']:
-                lmd = awaretime.from_isoformat(metadata['last-modified-date'])
-            else:
-                lmd = awaretime.utc_now()
-                metadata['last-modified-date'] = lmd.isoformat()
+            lmd = AwareDateTime.fromisoformat(metadata['last-modified-date'])
             payload = FilePayload(
                 file_path=working_file.path(),
                 filename=filename,
@@ -249,10 +263,12 @@ class WorkflowController:
     @staticmethod
     def _substitute_headers(s: str, metadata: dict[str, str], _now: t.Optional[datetime.datetime] = None) -> str:
         """Sanitize and substitute headers"""
+        if _now is not None:
+            metadata['now'] = _now.strftime('%Y%m%d%H%M%S')
+            metadata['today'] = _now.strftime('%Y%m%d')
         for h in metadata:
             s = s.replace("%{" + h.lower() + "}", str(metadata[h]))
-        n = _now or awaretime.utc_now()
-        return s.replace('%{now}', n.isoformat())
+        return s
 
     @staticmethod
     def _sanitize_filename(filename: str) -> t.Optional[str]:
@@ -273,35 +289,42 @@ class WorkflowController:
                             upload_info: WorkflowDirectory,
                             gzip: bool = False) -> tuple[FilePath, t.Optional[StorageTier], str]:
         """Upload a file to a given location."""
-        target_dir_handle = self.storage.get_filepath(upload_info.directory, halt_flag=self.halt_flag)
-        if target_dir_handle is None:
-            raise CNODCError(f'Invalid directory [{upload_info.directory} for uploading', 'WORKFLOW', 1005)
-        file_handle = target_dir_handle.child(filename)
-        storage_tier = upload_info.tier
-        if not file_handle.supports_feature(FeatureFlag.TIERING):
-            storage_tier = None
-        storage_metadata = self.storage.build_metadata(
-            gzip=gzip,
-            storage_tier=storage_tier,
-        )
-        storage_metadata.update(WorkflowController._get_storage_metadata(upload_info.metadata, metadata))
+        with self.storage.handle(upload_info.directory, halt_flag=self.halt_flag) as target_dir_handle:
+            target_dir_handle.mkdir()
+            if upload_info.keep_versions:
+                version_dir_handle = target_dir_handle.subdir(metadata['now'])
+                version_dir_handle.mkdir()
+                file_handle = version_dir_handle.child(filename)
+            else:
+                file_handle = target_dir_handle.child(filename)
+            storage_tier = upload_info.tier
+            if not file_handle.supports_feature(FeatureFlag.TIERING):
+                storage_tier = None
+            if file_handle.supports_feature(FeatureFlag.METADATA):
+                storage_metadata = self.storage.build_metadata(
+                    gzip=gzip,
+                    storage_tier=storage_tier,
+                )
+                storage_metadata.update(WorkflowController._get_storage_metadata(upload_info.metadata, metadata))
+            else:
+                storage_metadata = None
 
-        allow_overwrite = metadata['allow-overwrite'] == '1' if 'allow-overwrite' in metadata else False
+            allow_overwrite = metadata['allow-overwrite'] == '1' if 'allow-overwrite' in metadata else False
 
-        if upload_info.allow_overwrite is OverwriteOption.NEVER:
-            allow_overwrite = False
-        elif upload_info.allow_overwrite is OverwriteOption.ALWAYS:
-            allow_overwrite = True
+            if upload_info.allow_overwrite is OverwriteOption.NEVER:
+                allow_overwrite = False
+            elif upload_info.allow_overwrite is OverwriteOption.ALWAYS:
+                allow_overwrite = True
 
-        self._log.info(f"Uploading file to [%s]", file_handle.path())
-        file_handle.upload(
-            local_path,
-            allow_overwrite=allow_overwrite,
-            storage_tier=StorageTier.FREQUENT,
-            metadata=storage_metadata
-        )
+            self._log.info(f"Uploading file to [%s]", file_handle.path())
+            file_handle.upload(
+                local_path,
+                allow_overwrite=allow_overwrite,
+                storage_tier=StorageTier.FREQUENT,
+                metadata=storage_metadata
+            )
 
-        if storage_tier is None or storage_tier == StorageTier.FREQUENT:
-            return file_handle, None, filename
-        else:
-            return file_handle, storage_tier, filename
+            if storage_tier is None or storage_tier == StorageTier.FREQUENT:
+                return file_handle, None, filename
+            else:
+                return file_handle, storage_tier, filename

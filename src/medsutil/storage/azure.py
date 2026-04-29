@@ -8,11 +8,42 @@ from autoinject import injector
 from azure.core import exceptions as ace
 from azure.storage.blob import ContainerClient, BlobClient
 from azure.storage.fileshare import ShareClient, ShareDirectoryClient, ShareFileClient
+from azure.core.pipeline.transport._requests_basic import RequestsTransport
 
 from medsutil.exceptions import CodedError
 from medsutil.storage.base import UrlBaseHandle
 from medsutil.storage.interface import StorageError
 
+import atexit
+
+class MyRequestsTransport(RequestsTransport):
+
+    def __init__(self):
+        super().__init__()
+        self._open_count = 0
+
+    def __enter__(self):
+        self._open_count += 1
+        return super().__enter__()
+
+    def __exit__(self, *args, **kwargs):
+        self._open_count -= 1
+        if self._open_count <= 0:
+            self._open_count = 0
+            super().__exit__()
+
+    def open(self):
+        super().open()
+        self._has_been_opened = False
+
+    def send(self, request, *args, **kwargs):
+        return super().send(request, *args, **kwargs)
+
+def long_lived_requests_transport():
+    x = MyRequestsTransport()
+    x.__enter__()
+    atexit.register(x.__exit__)
+    return x
 
 @injector.injectable
 class AzureClientPool:
@@ -21,6 +52,7 @@ class AzureClientPool:
     def __init__(self):
         self._share_cache: dict[str, ShareClient] = {}
         self._container_cache: dict[str, ContainerClient] = {}
+        self._transport = MyRequestsTransport()
 
     def _get_account_name(self, conn_string: str) -> str:
         pieces = conn_string.split(';')
@@ -36,12 +68,6 @@ class AzureClientPool:
             self._share_cache[key] = self._build_share_client(conn_string, share_name)
         return self._share_cache[key]
 
-    def get_share_directory(self, conn_string: str, share_name: str, directory_path: str) -> ShareDirectoryClient:
-        return self.get_share(conn_string, share_name).get_directory_client(directory_path)
-
-    def get_share_file(self, conn_string: str, share_name: str, file_path: str) -> ShareFileClient:
-        return self.get_share(conn_string, share_name).get_file_client(file_path)
-
     def get_container(self, conn_string: str, container_name: str) -> ContainerClient:
         account_name = self._get_account_name(conn_string)
         key = f"{account_name}_{container_name}"
@@ -49,16 +75,11 @@ class AzureClientPool:
             self._container_cache[key] = self._build_container_client(conn_string, container_name)
         return self._container_cache[key]
 
-    def get_blob(self, conn_string: str, container_name: str, blob_name: str) -> BlobClient:
-        return self.get_container(conn_string, container_name).get_blob_client(blob_name)
+    def _build_share_client(self, conn_string: str, share_name: str) -> ShareClient:
+        return ShareClient.from_connection_string(conn_string, share_name, transport=self._transport)
 
-    @staticmethod
-    def _build_share_client(conn_string: str, share_name: str) -> ShareClient:
-        return ShareClient.from_connection_string(conn_string, share_name)
-
-    @staticmethod
-    def _build_container_client(conn_string: str, container_name: str) -> ContainerClient:
-        return ContainerClient.from_connection_string(conn_string, container_name)
+    def _build_container_client(self, conn_string: str, container_name: str) -> ContainerClient:
+        return ContainerClient.from_connection_string(conn_string, container_name, transport=self._transport)
 
 
 
@@ -79,16 +100,10 @@ class AzureBaseHandle(UrlBaseHandle, ABC):
 
     def _build_client(self, client_type: t.Literal["container", "blob", "directory", "file"]):
         try:
-            account_name, share_or_container_name, file_path = self._parse_url_for_account_info()
+            account_name, share_or_container_name = self._parse_url_for_account_info()
             conn_string = self._get_connection_string(account_name)
             if client_type == 'container':
                 return self.client_pool.get_container(conn_string, share_or_container_name)
-            elif client_type == 'blob':
-                return self.client_pool.get_blob(conn_string, share_or_container_name, file_path)
-            elif client_type == 'directory':
-                return self.client_pool.get_share_directory(conn_string, share_or_container_name, file_path)
-            elif client_type == 'file':
-                return self.client_pool.get_share_file(conn_string, share_or_container_name, file_path)
             elif client_type == 'share':
                 return self.client_pool.get_share(conn_string, share_or_container_name)
             else:
@@ -99,7 +114,7 @@ class AzureBaseHandle(UrlBaseHandle, ABC):
             else:
                 raise StorageError(str(ex), 9000) from ex
 
-    def _parse_url_for_account_info(self) -> tuple[str, str, str]:
+    def _parse_url_for_account_info(self) -> tuple[str, str]:
         url_parts = self.parse_url()
         domain = url_parts.hostname
         if domain is None or not domain.endswith(self._essential_domain):
@@ -108,9 +123,13 @@ class AzureBaseHandle(UrlBaseHandle, ABC):
         path_parts = [x.strip() for x in url_parts.path.lstrip('/').split('/') if x.strip()]
         if len(path_parts) < 1 or path_parts[0] == "":
             raise StorageError(f"Missing share name", 4002)
-        share_or_container_name = path_parts[0]
-        file_path = '/'.join(path_parts[1:]) if len(path_parts) > 1 else ""
-        return account_name, share_or_container_name, file_path
+        return account_name, path_parts[0]
+
+    def _get_full_path(self):
+        url_parts = self.parse_url()
+        path_parts = [x.strip() for x in url_parts.path.lstrip('/').split('/') if x.strip()]
+        return '/'.join(path_parts[1:]) if len(path_parts) > 1 else ""
+
 
     def _get_connection_string(self, account_name: str) -> str:
         return t.cast(str, self.config.as_str(('storage', 'azure', account_name, 'connection_string'), default=''))

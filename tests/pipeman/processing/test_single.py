@@ -193,7 +193,7 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertIn('good', nc._process_info)
         self.assertIn('process1', nc._process_info)
-        self.assertIsInstance(nc._process_info['process1']._config, dict)
+        self.assertIsInstance(nc._process_info['process1']._info.json_config, str)
 
     def test_bad_process_count_warning(self):
         file = self.temp_dir / "test.yaml"
@@ -217,7 +217,7 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertIn('good', nc._process_info)
         self.assertIn('process1', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._quota, 1)
+        self.assertEqual(nc._process_info['process1']._info.quota, 1)
 
     def test_process_config_file(self):
         file = self.temp_dir / "test.yaml"
@@ -245,12 +245,12 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertIn('process1', nc._process_info)
         self.assertIn('process2', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process1']._quota, 1)
-        self.assertEqual(nc._process_info['process1']._config, {"five": 5})
-        self.assertEqual(nc._process_info['process2']._worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process2']._quota, 4)
-        self.assertEqual(nc._process_info['process2']._config, {"hello": "world"})
+        self.assertEqual(nc._process_info['process1']._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info['process1']._info.quota, 1)
+        self.assertEqual(nc._process_info['process1']._info.json_config, '{"five": 5}')
+        self.assertEqual(nc._process_info['process2']._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info['process2']._info.quota, 4)
+        self.assertEqual(nc._process_info['process2']._info.json_config, '{"hello": "world"}')
 
     def test_process_config_dir(self):
         with open(self.temp_dir / "process1.yaml", "w") as h:
@@ -284,12 +284,12 @@ class TestBaseProcessController(BaseTestCase):
         self.assertEqual(len(nc._process_info), 2)
         self.assertIn('process1', nc._process_info)
         self.assertIn('process2', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process1']._quota, 1)
-        self.assertEqual(nc._process_info['process1']._config, {"five": 5})
-        self.assertEqual(nc._process_info['process2']._worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process2']._quota, 4)
-        self.assertEqual(nc._process_info['process2']._config, {"hello": "world"})
+        self.assertEqual(nc._process_info['process1']._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info['process1']._info.quota, 1)
+        self.assertEqual(nc._process_info['process1']._info.json_config, '{"five": 5}')
+        self.assertEqual(nc._process_info['process2']._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info['process2']._info.quota, 4)
+        self.assertEqual(nc._process_info['process2']._info.json_config, '{"hello": "world"}')
 
     def test_process_config_reload(self):
         file = self.temp_dir / "test.yaml"

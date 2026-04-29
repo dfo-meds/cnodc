@@ -156,7 +156,7 @@ class TestWorkflowController(BaseTestCase):
         self.assertEqual('test_foo_str', t('test_%{test_str}_str', headers))
         self.assertEqual('test_5_str', t('test_%{test_int}_str', headers))
         now_ = datetime.datetime(2015, 2, 10, 19, 10, 15, 539432, datetime.timezone.utc)
-        self.assertEqual('2015-02-10T19:10:15.539432+00:00', t('%{now}', headers, _now=now_))
+        self.assertEqual('20150210191015', t('%{now}', headers, _now=now_))
 
     def test_bad_file_names(self):
         for invalid_file_name in (

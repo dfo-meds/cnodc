@@ -360,7 +360,7 @@ class TestLoader(BaseTestCase):
             )
         self.assertIs(qi.status, QueueStatus.COMPLETE)
         qi2 = self.db.table(NODBQueueItem.TABLE_NAME)[-1]
-        self.assertEqual(qi2.queue_name, 'nodb_decode_failure')
+        self.assertEqual(qi2.queue_name, 'decode_failure')
         pl = WorkflowPayload.from_queue_item(qi2)
         self.assertIsInstance(pl, SourceFilePayload)
         self.assertEqual(pl.source_uuid, '12345')
@@ -401,7 +401,7 @@ class TestLoader(BaseTestCase):
             )
         self.assertIs(qi.status, QueueStatus.COMPLETE)
         qi2 = self.db.table(NODBQueueItem.TABLE_NAME)[-1]
-        self.assertEqual(qi2.queue_name, 'nodb_decode_failure')
+        self.assertEqual(qi2.queue_name, 'decode_failure')
         pl = WorkflowPayload.from_queue_item(qi2)
         self.assertIsInstance(pl, SourceFilePayload)
         self.assertEqual(pl.source_uuid, '12345')

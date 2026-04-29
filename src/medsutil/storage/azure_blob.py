@@ -21,6 +21,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+from contextlib import contextmanager
 
 from azure.core.exceptions import ResourceNotFoundError
 
@@ -166,14 +167,20 @@ class AzureBlobHandle(AzureBaseHandle):
                          log_name='az_blob',
                          **kwargs)
         self.walk_max_memory = 1024 * 1024
+        self._open_container = None
+        self._open_blob = None
 
-    def client(self) -> BlobClient:
+    @contextmanager
+    def client(self) -> t.Generator[BlobClient, None, None]:
         """Build a blob client."""
-        return self._get_client('blob')
+        with self.container_client() as client:
+            yield client.get_blob_client(self._get_full_path())
 
-    def container_client(self) -> ContainerClient:
+    @contextmanager
+    def container_client(self) -> t.Generator[ContainerClient, None, None]:
         """Build a container client."""
-        return self._get_client('container')
+        with self.persistent_connection("container", self._get_client, "container") as x:
+            yield x
 
     @staticmethod
     def code_tier(tier: StandardBlobTier | None) -> StorageTier | None:
@@ -199,16 +206,17 @@ class AzureBlobHandle(AzureBaseHandle):
     def _stat(self) -> StatResult:
 
         try:
-            props = self.client().get_blob_properties()
-            return StatResult(
-                exists=True,
-                is_file=True,
-                is_dir=False,
-                metadata=props.metadata,
-                st_size=props.size,
-                st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
-                tier=self.code_tier(props.blob_tier)
-            )
+            with self.client() as client:
+                props = client.get_blob_properties()
+                return StatResult(
+                    exists=True,
+                    is_file=True,
+                    is_dir=False,
+                    metadata=props.metadata,
+                    st_size=props.size,
+                    st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
+                    tier=self.code_tier(props.blob_tier)
+                )
         except ResourceNotFoundError:
             if self._no_remote_is_dir():
                 return StatResult(exists=True, is_dir=True, is_file=False)
@@ -216,8 +224,9 @@ class AzureBlobHandle(AzureBaseHandle):
 
     @wrap_azure_errors
     def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
-        stream = self.client().download_blob()
-        yield from self._halt_flag.iterate(stream.chunks())
+        with self.client() as client:
+            stream = client.download_blob()
+            yield from self._halt_flag.iterate(stream.chunks())
 
     def _fast_blob_upload(self, client: BlobClient, chunk: bytes, metadata: dict[str, str]) -> dict:
         return client.upload_blob(chunk, length=len(chunk), metadata=metadata)
@@ -231,53 +240,54 @@ class AzureBlobHandle(AzureBaseHandle):
         return bb
 
     def _streaming_write(self, chunks: t.Iterable[bytes], **kwargs):
-        client_ = self.client()
-        bsr = ByteSequenceReader(chunks)
-        block_size: int = 1024 * 1024 * 4  # this should take around 2 seconds at most with a good connection
-        first_block = bytes(bsr.consume(block_size))
-        metadata = kwargs.pop('metadata', {})
-        tier = kwargs.pop('storage_tier', None)
-        # fast upload for small blobs
-        if bsr.at_eof():
-            new_data = self._fast_blob_upload(client_, first_block, metadata)
-            if tier is not None:
-                client_.set_standard_blob_tier(self.decode_tier(tier))
-            self._update_stat(
-                is_file=True,
-                is_dir=False,
-                exists=True,
-                st_size=len(first_block),
-                metadata=metadata,
-                st_mtime=new_data['last_modified'],
-                tier=tier
-            )
+        with self.client() as client_:
+            bsr = ByteSequenceReader(chunks)
+            block_size: int = 1024 * 1024 * 4  # this should take around 2 seconds at most with a good connection
+            first_block = bytes(bsr.consume(block_size))
+            metadata = kwargs.pop('metadata', {})
+            tier = kwargs.pop('storage_tier', None)
+            # fast upload for small blobs
+            if bsr.at_eof():
+                new_data = self._fast_blob_upload(client_, first_block, metadata)
+                if tier is not None:
+                    client_.set_standard_blob_tier(self.decode_tier(tier))
+                self._update_stat(
+                    is_file=True,
+                    is_dir=False,
+                    exists=True,
+                    st_size=len(first_block),
+                    metadata=metadata,
+                    st_mtime=new_data['last_modified'],
+                    tier=tier
+                )
 
-        # longer process for bigger blobs
-        else:
-            uncommitted = [self._blob_streaming_upload(client_, first_block, 0)]
-            offset: int = len(first_block)
-            while not bsr.at_eof():
-                self.breakpoint()
-                chunk = bytes(bsr.consume(block_size))
-                uncommitted.append(self._blob_streaming_upload(client_, chunk, offset))
-                offset += len(chunk)
-            new_data = client_.commit_block_list(uncommitted, metadata=metadata)
-            if tier is not None:
-                client_.set_standard_blob_tier(self.decode_tier(tier))
-            self._update_stat(
-                is_file=True,
-                is_dir=False,
-                exists=True,
-                st_size=offset,
-                metadata=metadata,
-                st_mtime=new_data['last_modified'],
-                tier=tier
-            )
+            # longer process for bigger blobs
+            else:
+                uncommitted = [self._blob_streaming_upload(client_, first_block, 0)]
+                offset: int = len(first_block)
+                while not bsr.at_eof():
+                    self.breakpoint()
+                    chunk = bytes(bsr.consume(block_size))
+                    uncommitted.append(self._blob_streaming_upload(client_, chunk, offset))
+                    offset += len(chunk)
+                new_data = client_.commit_block_list(uncommitted, metadata=metadata)
+                if tier is not None:
+                    client_.set_standard_blob_tier(self.decode_tier(tier))
+                self._update_stat(
+                    is_file=True,
+                    is_dir=False,
+                    exists=True,
+                    st_size=offset,
+                    metadata=metadata,
+                    st_mtime=new_data['last_modified'],
+                    tier=tier
+                )
 
     @wrap_azure_errors
     def _remove(self):
         try:
-            self.client().delete_blob()
+            with self.client() as client:
+                client.delete_blob()
             self._update_stat(exists=False, is_dir=None, is_file=None, metadata=None, tier=None, st_mtime=None, st_size=None)
         except ResourceNotFoundError: ...
 
@@ -287,20 +297,21 @@ class AzureBlobHandle(AzureBaseHandle):
 
     @wrap_azure_errors
     def _walk(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
-        client = self.container_client()
         full_name = self.full_name()
         walker = BlobWalker(full_name, self.walk_max_memory)
         try:
-            for blob_properties in self._halt_flag.iterate(client.list_blobs(name_starts_with=full_name)):
-                walker.append(blob_properties)
-            yield from walker.walk_all()
+            with self.container_client() as client:
+                for blob_properties in self._halt_flag.iterate(client.list_blobs(name_starts_with=full_name)):
+                    walker.append(blob_properties)
+                yield from walker.walk_all()
         finally:
             walker.cleanup()
             del walker
 
     @wrap_azure_errors
     def _set_metadata(self, metadata: dict[str, str]):
-        self.client().set_blob_metadata(metadata)
+        with self.client() as client:
+            client.set_blob_metadata(metadata)
         self._update_stat(metadata=metadata)
 
     def mkdir(self, mode=0o777, parents: bool = True):
@@ -313,7 +324,8 @@ class AzureBlobHandle(AzureBaseHandle):
             return
         current_tier = self.get_tier()
         if current_tier != tier:
-            self.client().set_standard_blob_tier(self.decode_tier(tier))
+            with self.client() as client:
+                client.set_standard_blob_tier(self.decode_tier(tier))
             self._update_stat(tier=tier)
 
     @staticmethod

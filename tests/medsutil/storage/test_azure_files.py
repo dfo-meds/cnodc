@@ -2,7 +2,7 @@ from autoinject import injector
 from zirconium import test_with_config
 
 from medsutil.storage.interface import PathType
-from tests.helpers.azure_mock import AzureMockClientPool
+from tests.helpers.mock_azure import AzureMockClientPool
 from medsutil.storage.azure import wrap_azure_errors, AzureClientPool
 from medsutil.storage.azure_files import AzureFileHandle
 from tests.helpers.base_test_case import BaseTestCase
@@ -49,7 +49,7 @@ class AzureFileTest(BaseTestCase):
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config(("azure", "storage", "test", 'connection_string'), 'ValueError')
+    @test_with_config(("storage", "azure", "test", 'connection_string'), 'ValueError')
     def test_bad_az_file_share_file(self):
         with self.subTest(msg='file test'):
             b = AzureFileHandle("https://test.file.core.windows.net/share/file.txt")
@@ -71,7 +71,7 @@ class AzureFileTest(BaseTestCase):
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config(("azure", "storage", "test", "connection_string"), "GoodString")
+    @test_with_config(("storage", "azure", "test", "connection_string"), "GoodString")
     def test_dir_properties(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/subdir/')
         self.assertEqual(file.full_path_within_share(), 'subdir')

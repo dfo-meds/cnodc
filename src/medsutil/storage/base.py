@@ -7,6 +7,7 @@ import typing as t
 import fnmatch
 import urllib.parse
 from abc import ABC
+from contextlib import contextmanager
 from types import EllipsisType
 from urllib.parse import urlsplit
 
@@ -215,6 +216,31 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
             'halt_flag': halt_flag,
         }
         self._log = zrlog.get_logger(f'storage_{log_name}')
+        self._open_as_context = False
+        self._open_context_handlers: dict[str, t.Any] = {}
+
+    def __enter__(self):
+        self._open_as_context = True
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self._open_as_context = False
+        self._close_connection(*args, **kwargs)
+
+    @contextmanager
+    def persistent_connection[Q](self, name: str, builder: t.Callable[..., Q], *args, **kwargs) -> t.Generator[Q, None, None]:
+        if self._open_as_context:
+            if name not in self._open_context_handlers:
+                self._open_context_handlers[name] = builder(*args, **kwargs)
+                self._open_context_handlers[name].__enter__()
+            yield self._open_context_handlers[name]
+        else:
+            with builder(*args, **kwargs) as x:
+                yield x
+
+    def _close_connection(self, *args, **kwargs):
+        for x in self._open_context_handlers.values():
+            x.__exit__(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.path()

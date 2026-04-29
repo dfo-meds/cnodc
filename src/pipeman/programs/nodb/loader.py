@@ -258,7 +258,8 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             )
             if child_file is None:
                 file = self.error_directory.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
-                file.upload([result.original], allow_overwrite=True)
+                with file:
+                    file.upload([result.original], allow_overwrite=True)
                 child_file = nodb.NODBSourceFile()
                 child_file.source_uuid = str(uuid.uuid4())
                 child_file.original_idx = result.message_idx

@@ -247,10 +247,16 @@ class BaseTestCase(ut.TestCase):
 
     @contextmanager
     def assertRaisesCNODCError(self, error_code: str = None, is_transient: bool = None, msg=None):
-        with self.assertRaises(CodedError) as h:
-            yield h
-        if (error_code and error_code != h.exception.internal_code) or (is_transient is not None and is_transient is not h.exception.is_transient):
-            self._log.warning(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'")
+        try:
+            with self.assertRaises(CodedError) as h:
+                yield h
+            if (error_code and error_code != h.exception.internal_code) or (is_transient is not None and is_transient is not h.exception.is_transient):
+                self._log.warning(msg or f"'{error_code}[{'any' if is_transient is None else is_transient}]' != '{h.exception.internal_code}[{h.exception.is_transient}]'")
+        except AssertionError as ex:
+            raise
+        except Exception as ex:
+            raise self.failureException(msg or f"Found unexpected error: {ex.__class__.__name__}: {ex}")
+        
 
     @contextmanager
     def assertNoError(self, msg: str = None):

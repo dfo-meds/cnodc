@@ -2,6 +2,7 @@ import datetime
 import typing as t
 import pathlib
 import enum
+from contextlib import contextmanager
 
 import zirconium
 from autoinject import injector
@@ -52,9 +53,15 @@ class StorageController:
         ]
         self.default_handle = LocalHandle
 
+    @contextmanager
+    def handle(self, file_path: t.Union[str, pathlib.Path, None], halt_flag: HaltFlag = None) -> t.Generator[FilePath, None, None]:
+        fp = t.cast(FilePath, self.get_filepath(file_path, halt_flag, True))
+        with fp as fp:
+            yield fp
+
     def get_filepath(self,
                      file_path: t.Union[str, pathlib.Path, None],
-                     halt_flag: HaltFlag = None,
+                     halt_flag: HaltFlag | None = None,
                      raise_ex: bool = False) -> t.Optional[FilePath]:
         """Build an appropriate handle for the given file path."""
         if file_path is not None and file_path != '':

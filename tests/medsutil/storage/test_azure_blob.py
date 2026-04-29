@@ -3,7 +3,7 @@ from azure.core.exceptions import AzureError, ClientAuthenticationError, Resourc
 from urllib3.exceptions import ConnectTimeoutError
 from zirconium import test_with_config
 
-from tests.helpers.azure_mock import AzureMockClientPool, make_and_wrap_exception
+from tests.helpers.mock_azure import AzureMockClientPool, make_and_wrap_exception
 from medsutil.storage import StorageController, StorageTier
 from medsutil.storage.azure_blob import AzureBlobHandle
 from medsutil.storage.azure import AzureClientPool

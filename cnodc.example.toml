@@ -86,6 +86,10 @@ connection_string = "" # DO NOT PUT THIS IN GIT
 
 
 
+[storage.ftp]
+
+## Set to false to prevent FTP connections from being reused between objects
+cache = true
 
 
 ## This is how FTP account details should be provided
