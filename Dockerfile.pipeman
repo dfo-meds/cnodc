@@ -4,7 +4,7 @@ FROM python:3.14.3-slim-trixie
 
 # Get the required libraries to compile psycopg
 RUN apt-get update
-RUN apt-get install libpq-dev build-essential dumb-init -y
+RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y
 
 WORKDIR /srv/cnodc
 
@@ -25,6 +25,7 @@ RUN pip install -r requirements/requirements_web.txt
 
 COPY docker/start.sh start.sh
 RUN chmod +x start.sh
+RUN dos2unix start.sh
 
 COPY docker/gunicorn_conf.py gunicorn_conf.py
 
