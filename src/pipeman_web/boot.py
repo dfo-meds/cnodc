@@ -16,7 +16,7 @@ def _init_flask():
 
     from medsutil.metrics import PromMetrics
     from pipeman.exceptions import CNODCError
-    from medsutil.flask.requestinfo import RequestInfo
+    from gcapp.requestinfo import RequestInfo
 
     @injector.inject
     def init_flask(app: flask.Flask, config: zr.ApplicationConfig=None, prom_metrics: PromMetrics = None):
@@ -46,7 +46,7 @@ def _init_flask():
 
         # Configure proxy settings
         if config.as_bool(("flask", "proxy_fix", "enabled"), default=False):
-            from medsutil.flask.trustedproxy import TrustedProxyFix
+            from gcflask.trustedproxy import TrustedProxyFix
             log.info("Proxy fix: enabled")
             app.wsgi_app = TrustedProxyFix(
                 app.wsgi_app,

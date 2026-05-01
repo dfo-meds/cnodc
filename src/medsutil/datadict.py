@@ -473,6 +473,13 @@ def p_bytes(**kwargs) -> _SimpleProperty[t.ByteString, bytes]:
         **kwargs
     )
 
+def p_bytes_b64(**kwargs) -> _ExportedProperty[t.ByteString | str, bytes, str]:
+    return ddo_property(
+        coerce_set=coerce.as_bytes_from_base64,
+        sanitizer=coerce.as_base64,
+        **kwargs
+    )
+
 def p_dynamic_object(**kwargs) -> _ExportedProperty[t.Any, t.Any, str]:
     return ddo_property(
         coerce_set=lambda x: dynamic_object(x) if isinstance(x, str) else x,
@@ -493,3 +500,28 @@ def p_dynamic_callable(**kwargs) -> _ExportedProperty[t.Any, t.Callable, str]:
         sanitizer=dynamic_name,
         **kwargs
     )
+
+
+class DataDictModifiedTracker(DataDictObject):
+
+    def __init__(self, is_new: bool = True, **kwargs):
+        self._modified_values: set[str] = set()
+        self.is_new = is_new
+        super().__init__(**kwargs)
+
+    def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
+        super().after_set(managed_name, value, original)
+        if (self.is_new or self._init_complete) and original != value:
+            self.mark_modified(managed_name)
+
+    @property
+    def modified_values(self) -> set[str]:
+        return self._modified_values
+
+    def mark_modified(self, item: str):
+        """Mark an item as modified"""
+        self._modified_values.add(item)
+
+    def clear_modified(self):
+        """Clear the set of modified values."""
+        self._modified_values.clear()

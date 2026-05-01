@@ -2,8 +2,11 @@ import os
 import shutil
 import subprocess
 import flask
+import zrlog
+from autoinject import injector
 
 
+@injector.injectable
 class RequestInfo:
 
     def __init__(self):
@@ -21,6 +24,42 @@ class RequestInfo:
         self._emulated_user = None
         self._logon_time = None
         self._system_remote_addr = None
+
+    def set_logging_defaults(self):
+        zrlog.set_default_extra("sys_username", "")
+        zrlog.set_default_extra("sys_emulated", "")
+        zrlog.set_default_extra("sys_logon", "")
+        zrlog.set_default_extra("sys_remote", "")
+        zrlog.set_default_extra("username", "")
+        zrlog.set_default_extra("remote_ip", "")
+        zrlog.set_default_extra("proxy_ip", "")
+        zrlog.set_default_extra("correlation_id", "")
+        zrlog.set_default_extra("client_id", "")
+        zrlog.set_default_extra("request_url", "")
+        zrlog.set_default_extra("user_agent", "")
+        zrlog.set_default_extra("referrer", "")
+        zrlog.set_default_extra("request_method", "")
+
+    def set_logging_extras_system(self):
+        zrlog.set_extras({
+            "sys_username": self.sys_username(),
+            "sys_emulated": self.sys_emulated_username(),
+            "sys_logon": self.sys_logon_time(),
+            "sys_remote": self.sys_remote_addr()
+        })
+
+    def set_logging_extras_web(self):
+        zrlog.set_extras({
+            'username': self.username(),
+            'remote_ip': self.remote_ip(),
+            'proxy_ip': self.proxy_ip(),
+            'correlation_id': self.correlation_id(),
+            'client_id': self.client_id(),
+            'request_url': self.request_url(),
+            'user_agent': self.user_agent(),
+            'referrer': self.referrer(),
+            'request_method': self.request_method(),
+        })
 
     def request_method(self) -> str | None:
         if self._request_method is None and flask.has_request_context():

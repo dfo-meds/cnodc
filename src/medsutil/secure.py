@@ -3,6 +3,7 @@ import secrets
 import hashlib
 import typing
 
+import itsdangerous
 import zrlog
 
 from medsutil.awaretime import AwareDateTime
@@ -37,7 +38,6 @@ def check_password(password: str, salt: bytes, password_hash: bytes) -> bool:
 def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
     if iterations is None or iterations < MINIMUM_ITERATIONS:
         iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
-        iter
     return hashlib.pbkdf2_hmac(
         ALGORITHM,
         str(password or '').encode('utf-8', errors='replace'),
@@ -61,3 +61,38 @@ def validate_secret_key(key: str | None) -> typing.TypeGuard[str]:
     if key is None or key == '':
         raise SecureError("No secret key provided", 2000)
     return True
+
+def generate_csp_nonce() -> str:
+    return secrets.token_urlsafe(32)
+
+
+from autoinject import injector
+import zirconium as zr
+
+@injector.injectable_global
+class SecureOperations:
+
+    config: zr.ApplicationConfig = None
+
+    @injector.construct
+    def __init__(self):
+        self._secret_key: bytes = self.config.get(('flask', 'SECRET_KEY'), None)
+        if not self._secret_key:
+            raise SecureError("Invalid secret key provided", 9000)
+        self._serializer = None
+        self._timed_serializer = None
+
+    @property
+    def serializer(self):
+        if self._serializer is None:
+            self._serializer = itsdangerous.URLSafeSerializer(self._secret_key, salt="medsutil")
+        return self._serializer
+
+    @property
+    def timed_serializer(self) -> itsdangerous.TimedSerializer:
+        if self._timed_serializer is None:
+            self._timed_serializer = itsdangerous.TimedSerializer(self._secret_key, salt="medsutil")
+        return self._timed_serializer
+
+
+

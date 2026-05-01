@@ -7,8 +7,8 @@ import zirconium
 from autoinject import injector
 
 from pipeman_web.boot import build_cnodc_webapp
-from medsutil.flask.requestinfo import RequestInfo
-from medsutil.flask.trustedproxy import TrustedProxyFix
+from gcapp.requestinfo import RequestInfo
+from gcflask.trustedproxy import TrustedProxyFix
 from tests.helpers.base_test_case import BaseTestCase, skip_long_test
 
 

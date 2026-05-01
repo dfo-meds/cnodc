@@ -5,6 +5,7 @@ import nodb.interface as interface
 from medsutil.cached import CachedObjectMixin
 import medsutil.datadict as ddo
 import medsutil.types as ct
+from medsutil.datadict import DataDictModifiedTracker
 from nodb.interface import NODBValidationError
 from pipeman.exceptions import CNODCError
 
@@ -36,21 +37,11 @@ JsonSetColumn = ddo.p_json_set
 WKTColumn = ddo.p_str
 
 
-class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin):
+class NODBBaseObject(DataDictModifiedTracker, CachedObjectMixin):
     """Base class for all NODB objects.
 
         This provides a lot of tools for building database classes.
     """
-
-    def __init__(self, *, is_new: bool = True, **kwargs):
-        self._modified_values: set[str] = set()
-        self.is_new = is_new
-        super().__init__(**kwargs)
-
-    def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
-        super().after_set(managed_name, value, original)
-        if (self.is_new or self._init_complete) and original != value:
-            self.mark_modified(managed_name)
 
     @classmethod
     def get_table_name(cls):
@@ -80,18 +71,6 @@ class NODBBaseObject(ddo.DataDictObject, CachedObjectMixin):
     def find_all(cls, db: interface.NODBInstance, **kwargs) -> t.Iterable[t.Self]:
         """Find all workflows."""
         yield from db.stream_objects(cls, **kwargs)
-
-    @property
-    def modified_values(self) -> set[str]:
-        return self._modified_values
-
-    def mark_modified(self, item: str):
-        """Mark an item as modified"""
-        self._modified_values.add(item)
-
-    def clear_modified(self):
-        """Clear the set of modified values."""
-        self._modified_values.clear()
 
     def get_for_db(self, item: str) -> interface.SupportsPostgres:
         """Get an item from the data dictionary for insertion into the database."""

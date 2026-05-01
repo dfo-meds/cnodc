@@ -1,3 +1,4 @@
+import base64
 import datetime
 import enum
 import math
@@ -299,6 +300,16 @@ class DataCoercer:
     @staticmethod
     def as_bytes(b: t.ByteString) -> bytes:
         return bytes(b)
+
+    @staticmethod
+    def as_bytes_from_base64(b: t.ByteString | str) -> bytes:
+        if isinstance(b, str):
+            return base64.b64decode(b.encode('ascii'))
+        return bytes(b)
+
+    @staticmethod
+    def as_base64(b: bytes) -> str:
+        return base64.b64encode(b).decode('ascii')
 
     @staticmethod
     def as_bytearray(b: t.ByteString) -> bytearray:
