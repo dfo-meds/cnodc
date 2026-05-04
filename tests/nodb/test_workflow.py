@@ -97,7 +97,7 @@ class TestWorkflow(BaseTestCase):
                 with wf.readonly_access():
                     wf.configuration = WorkflowConfiguration(**old_config)
                 if exc is not None:
-                    with self.assertRaisesCNODCError():
+                    with self.assertRaisesCoded():
                         wf.set_config(new_config)
                 else:
                     wf.set_config(new_config)
@@ -160,7 +160,7 @@ class TestWorkflow(BaseTestCase):
             with self.subTest(msg=msg):
                 wf = NODBUploadWorkflow()
                 if error_key is not None:
-                    with self.assertRaisesCNODCError() as h:
+                    with self.assertRaisesCoded() as h:
                         wf.set_config(config)
                 else:
                     wf.set_config(config)

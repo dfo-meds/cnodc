@@ -20,7 +20,7 @@ class TestGliderDecodeTools(BaseTestCase):
                '20150102030405+00:00', '20150102030405Z']
         for test in bad:
             with self.subTest(bad_date=test):
-                with self.assertRaisesCNODCError('EGO-DECODE-1000'):
+                with self.assertRaisesCoded('EGO-DECODE-1000'):
                     GliderEGOMapper._isoformat_ego_date(None, test, None)
 
     def test_old_ego_sensor_mapping_missing(self):
@@ -37,7 +37,7 @@ class TestGliderDecodeTools(BaseTestCase):
                 ('BBP700', 'flbbcd', '45678'),
                 ('TEST', 'wetlabs flbbcdslc', '56789')
             ])
-            with self.assertRaisesCNODCError('GLIDER-1000'):
+            with self.assertRaisesCoded('GLIDER-1000'):
                 sensor_info, param_map = ego_sensor_info(ds, {
                     'seabird electronics ctd 41cp': {
                         'make': 'SeaBird Electronics', 'model': 'CTD 41CP', 'type': 'CTD',
@@ -211,7 +211,7 @@ class TestGliderDecodeTools(BaseTestCase):
                 ('MOLDOXY', 'OPTODE_DOXY'),
                 ('OTHER', ''),
             ])
-            with self.assertRaisesCNODCError('GLIDER-1001'):
+            with self.assertRaisesCoded('GLIDER-1001'):
                 sensor_info, param_map = ego_sensor_info(ds, {}, {}, {})
 
     @staticmethod

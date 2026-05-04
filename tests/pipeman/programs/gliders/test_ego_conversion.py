@@ -94,7 +94,7 @@ class TestEmptyGliderConversion(GliderBaseTest):
         self.assertHasAttribute('id', 'TEST001_20150102030405_M')
 
     def test_can_set_filename_metadata_bad(self):
-        with self.assertRaisesCNODCError('GLIDER-2019'):
+        with self.assertRaisesCoded('GLIDER-2019'):
             self.converter._set_metadata_from_file_name(self.new_handle, 'TEST001', '20150102030405', 'Z')
 
     def test_copy_metadata(self):
@@ -179,31 +179,31 @@ class TestEmptyGliderConversion(GliderBaseTest):
 
     def test_cannot_build_contributors(self):
         self.converter._set_metadata_from_file_name(self.new_handle, 'TEST001', '20150102030405', 'R')
-        with self.assertRaisesCNODCError('GLIDER-2012'):
+        with self.assertRaisesCoded('GLIDER-2012'):
             self.converter._build_contributors(self.new_handle, self.old_handle)
 
     def test_cannot_build_deployment_info(self):
         self.converter._create_dimensions(self.new_handle)
         self.converter._build_variables(self.new_handle, self.old_handle)
-        with self.assertRaisesCNODCError('GLIDER-2014'):
+        with self.assertRaisesCoded('GLIDER-2014'):
             self.converter._build_deployment_info(self.new_handle, self.old_handle, 'TEST001', '20150102030405')
 
     def test_cannot_build_glider_info(self):
         self.converter._create_dimensions(self.new_handle)
         self.converter._build_variables(self.new_handle, self.old_handle)
-        with self.assertRaisesCNODCError('GLIDER-2009'):
+        with self.assertRaisesCoded('GLIDER-2009'):
             self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_cannot_build_bounds(self):
-        with self.assertRaisesCNODCError('GLIDER-2000'):
+        with self.assertRaisesCoded('GLIDER-2000'):
             self.converter._set_geospatial_bounds_metadata(self.new_handle, self.old_handle)
 
     def test_cannot_build_depths(self):
-        with self.assertRaisesCNODCError('GLIDER-2020'):
+        with self.assertRaisesCoded('GLIDER-2020'):
             self.converter._build_depths(self.new_handle, self.old_handle)
 
     def test_cannot_build_times(self):
-        with self.assertRaisesCNODCError('GLIDER-2005'):
+        with self.assertRaisesCoded('GLIDER-2005'):
             self.converter._build_times(self.new_handle, self.old_handle)
 
     def test_is_invalid(self):
@@ -231,7 +231,7 @@ class TestEmptyGliderConversion(GliderBaseTest):
         self.converter._validate_file_name('TEST001_20150102030405_R.nc')
 
     def test_parse_bad_filename(self):
-        with self.assertRaisesCNODCError('GLIDER-2021'):
+        with self.assertRaisesCoded('GLIDER-2021'):
             self.converter._parse_file_name('MISSING_UNDERSCORE.nc')
 
 
@@ -250,27 +250,27 @@ class TestPartialBadConversion(GliderBaseTest):
         old.createVariable('PHASE', 'i2', ('N_COUNT',))
 
     def test_cannot_build_bounds(self):
-        with self.assertRaisesCNODCError('GLIDER-2001'):
+        with self.assertRaisesCoded('GLIDER-2001'):
             self.converter._set_geospatial_bounds_metadata(self.new_handle, self.old_handle)
 
     def test_cannot_build_depths(self):
-        with self.assertRaisesCNODCError('GLIDER-2002'):
+        with self.assertRaisesCoded('GLIDER-2002'):
             self.converter._build_depths(self.new_handle, self.old_handle)
 
     def test_cannot_build_time(self):
-        with self.assertRaisesCNODCError('GLIDER-2006'):
+        with self.assertRaisesCoded('GLIDER-2006'):
             self.converter._build_times(self.new_handle, self.old_handle)
 
     def test_cannot_build_contributors(self):
-        with self.assertRaisesCNODCError('GLIDER-2013'):
+        with self.assertRaisesCoded('GLIDER-2013'):
             self.converter._build_contributors(self.new_handle, self.old_handle)
 
     def test_cannot_build_deployment_info(self):
-        with self.assertRaisesCNODCError('GLIDER-2008'):
+        with self.assertRaisesCoded('GLIDER-2008'):
             self.converter._build_deployment_info(self.new_handle, self.old_handle, 'TEST001', '20150102030405')
 
     def test_cannot_build_glider_info(self):
-        with self.assertRaisesCNODCError('GLIDER-2010'):
+        with self.assertRaisesCoded('GLIDER-2010'):
             self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_is_invalid(self):
@@ -298,15 +298,15 @@ class TestPartial2BadConversion(GliderBaseTest):
         old.setncattr('wmo_platform_code', '12345')
 
     def test_cannot_build_glider_info(self):
-        with self.assertRaisesCNODCError('GLIDER-2015'):
+        with self.assertRaisesCoded('GLIDER-2015'):
             self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_cannot_build_time(self):
-        with self.assertRaisesCNODCError('GLIDER-2006'):
+        with self.assertRaisesCoded('GLIDER-2006'):
             self.converter._build_times(self.new_handle, self.old_handle)
 
     def test_cannot_build_depths(self):
-        with self.assertRaisesCNODCError('GLIDER-2003'):
+        with self.assertRaisesCoded('GLIDER-2003'):
             self.converter._build_depths(self.new_handle, self.old_handle)
 
     def test_can_build_blank_deployment_info(self):
@@ -364,11 +364,11 @@ class TestPartial3BadConversion(GliderBaseTest):
         self.assertDoesNotHaveAttribute('time_coverage_end')
 
     def test_cannot_build_glider_info(self):
-        with self.assertRaisesCNODCError('GLIDER-2011'):
+        with self.assertRaisesCoded('GLIDER-2011'):
             self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_cannot_build_depths(self):
-        with self.assertRaisesCNODCError('GLIDER-2004'):
+        with self.assertRaisesCoded('GLIDER-2004'):
             self.converter._build_depths(self.new_handle, self.old_handle)
 
     def test_is_invalid(self):
@@ -457,7 +457,7 @@ class TestBadPosSystem(GliderBaseTest):
         self.converter._create_dimensions(self.new_handle)
         with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
             self.converter._build_variables(self.new_handle, self.old_handle)
-            with self.assertRaisesCNODCError('GLIDER-2018'):
+            with self.assertRaisesCoded('GLIDER-2018'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_is_invalid(self):
@@ -497,7 +497,7 @@ class TestBadTrackSystem(GliderBaseTest):
         self.converter._create_dimensions(self.new_handle)
         with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
             self.converter._build_variables(self.new_handle, self.old_handle)
-            with self.assertRaisesCNODCError('GLIDER-2017'):
+            with self.assertRaisesCoded('GLIDER-2017'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_deployment_info(self):
@@ -545,7 +545,7 @@ class TestBadBatterySystem(GliderBaseTest):
         self.converter._create_dimensions(self.new_handle)
         with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
             self.converter._build_variables(self.new_handle, self.old_handle)
-            with self.assertRaisesCNODCError('GLIDER-2016'):
+            with self.assertRaisesCoded('GLIDER-2016'):
                 self.converter._build_glider_info(self.new_handle, self.old_handle, 'TEST001')
 
     def test_deployment_info(self):

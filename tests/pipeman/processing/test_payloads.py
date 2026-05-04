@@ -60,7 +60,7 @@ class TestWorkflowPayload(BaseTestCase):
     def test_from_map(self):
         data = {}
         data['_cls_'] = 'foobar.nothing'
-        with self.assertRaisesCNODCError('PAYLOAD-1002'):
+        with self.assertRaisesCoded('PAYLOAD-1002'):
             WorkflowPayload.from_map(data)
         data['_cls_'] = dynamic_name(BatchPayload)
         data['workflow_name'] = 'hello'

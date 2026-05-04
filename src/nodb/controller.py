@@ -714,14 +714,6 @@ class NODBPostgresController(interface.NODB):
 
     config: zr.ApplicationConfig = None
 
-    TRANSIENT_ERRORS = (
-        'connection refused',
-        'server closed the connection unexpectedly',
-        'could not receive data from server',
-        'the database system is starting up',
-        'the database system is not yet accepting connections',
-    )
-
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__()

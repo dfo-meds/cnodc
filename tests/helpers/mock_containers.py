@@ -9,7 +9,7 @@ from nodb.controller import NODBPostgresController
 
 TEST_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent
 CONTAINER_DIR = TEST_DIR / 'containers'
-DB_DIR = TEST_DIR.parent / 'db'
+DB_DIR = TEST_DIR.parent.parent
 DOCKER_COMMAND = shutil.which('docker')
 
 class TestContainer:
@@ -22,10 +22,7 @@ class TestContainer:
                  wait_sleep=0.25,
                  docker_timeout=30):
         self.name = name
-        if name == 'nodb':
-            self.docker_file = DB_DIR / 'compose.yaml'
-        else:
-            self.docker_file = CONTAINER_DIR / name / 'compose.yaml'
+        self.docker_file = CONTAINER_DIR / name / 'compose.yaml'
         self._rebuild = always_rebuild
         self._timeout = docker_timeout
         self._running = False
@@ -87,7 +84,7 @@ class TestContainer:
         if DOCKER_COMMAND is None:
             raise RuntimeError('Error finding docker command')
         kwargs = {
-            'timeout': self._timeout
+            'timeout': self._timeout,
         }
         if silent:
             kwargs['stdout'] = subprocess.DEVNULL
@@ -142,11 +139,15 @@ class NODBContainer(TestContainer):
         try:
             with self.nodb as db:
 
+                # Bring us up to the latest version
+                from nodb._upgrade import Upgrader
+                Upgrader(db).upgrade()
+
                 # Truncate everything to ensure we start fresh
                 with db.cursor() as cur:
                     cur.execute(f"TRUNCATE TABLE {','.join(self.ALL_TABLES)} CASCADE")
 
-                return True
+            return True
         except NODBError as ex:
             if ex.is_transient:
                 return False

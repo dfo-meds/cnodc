@@ -44,7 +44,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_bad_auth_post(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('WEB-1001'):
+            with self.assertRaisesCoded('WEB-1001'):
                 x.upsert_dataset(DatasetMetadata())
 
     @injector.test_case
@@ -52,7 +52,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_good_auth_post_bad_url(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('WEB-1001'):
+            with self.assertRaisesCoded('WEB-1001'):
                 x.upsert_dataset(DatasetMetadata())
 
     @injector.test_case
@@ -68,7 +68,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_bad_auth_post_create(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('WEB-1001'):
+            with self.assertRaisesCoded('WEB-1001'):
                 x.create_dataset(DatasetMetadata())
 
     @injector.test_case
@@ -76,7 +76,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_good_auth_post_bad_url_create(self):
         x = DataManagerController()
         with self.mock_web_test():
-            with self.assertRaisesCNODCError('WEB-1001'):
+            with self.assertRaisesCoded('WEB-1001'):
                 x.create_dataset(DatasetMetadata())
 
     @injector.test_case

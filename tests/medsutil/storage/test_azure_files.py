@@ -27,15 +27,16 @@ class AzureFileTest(BaseTestCase):
         for conn, err_code in tests:
             with self.subTest(conn=conn):
                 b = AzureFileHandle(conn)
-                with self.assertRaisesCNODCError():
-                    b.file_client()
+                with self.assertRaisesCoded():
+                    with b.file_client():
+                        ...
 
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
     def test_bad_az_file_share_file(self):
         b = AzureFileHandle("https://test.file.core.windows.net/ValueError")
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             b.file_client()
 
     @injector.test_case({
@@ -43,8 +44,9 @@ class AzureFileTest(BaseTestCase):
     })
     def test_bad_az_file_share_dir(self):
         b = AzureFileHandle("https://test.file.core.windows.net/ValueError/")
-        with self.assertRaisesCNODCError():
-            b.directory_client()
+        with self.assertRaisesCoded():
+            with b.directory_client():
+                ...
 
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
@@ -53,12 +55,14 @@ class AzureFileTest(BaseTestCase):
     def test_bad_az_file_share_file(self):
         with self.subTest(msg='file test'):
             b = AzureFileHandle("https://test.file.core.windows.net/share/file.txt")
-            with self.assertRaisesCNODCError():
-                b.file_client()
+            with self.assertRaisesCoded():
+                with b.file_client():
+                    ...
         with self.subTest(msg='dir test'):
             b = AzureFileHandle("https://test.file.core.windows.net/share/")
-            with self.assertRaisesCNODCError():
-                b.directory_client()
+            with self.assertRaisesCoded():
+                with b.directory_client():
+                    ...
 
     @injector.test_case({
         AzureClientPool: AzureMockClientPool

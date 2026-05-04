@@ -666,7 +666,7 @@ class TestBatchWorker(BaseTestCase):
         fp = BatchPayload(batch_uuid='12345')
         bw._current_payload = fp
         try:
-            with self.assertRaisesCNODCError('PAYLOAD-1001'):
+            with self.assertRaisesCoded('PAYLOAD-1001'):
                 bw.download_to_temp_file()
         finally:
             bw.after_cycle()
@@ -781,5 +781,5 @@ class TestObservationWorker(BaseTestCase):
         ow: ObservationWorkflowWorker = self.worker_controller.build_test_worker(ObservationWorkflowWorker)
         op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
         ow._current_payload = op
-        with self.assertRaisesCNODCError('PAYLOAD-1001'):
+        with self.assertRaisesCoded('PAYLOAD-1001'):
             ow.download_to_temp_file()

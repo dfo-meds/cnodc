@@ -341,7 +341,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     'bar': {}
                 },
             }, 'test')
-            with self.assertRaisesCNODCError('NETCDF_COMMON_DECODE-2004'):
+            with self.assertRaisesCoded('NETCDF_COMMON_DECODE-2004'):
                 mapper._load_data()
             self.assertNotIn('var:test', mapper._get_ocproc2_map()['record_vars'])
 

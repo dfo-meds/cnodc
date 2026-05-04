@@ -73,7 +73,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         worker: GliderConversionWorker = self.worker_controller.build_test_worker(
             GliderConversionWorker, {}
         )
-        with self.assertRaisesCNODCError('STORAGE-9000'):
+        with self.assertRaisesCoded('STORAGE-9000'):
             worker.on_start()
 
     def test_bad_og_directory(self):
@@ -82,7 +82,7 @@ class GliderConversionWorkerTest(BaseTestCase):
                 'openglider_directory': self.temp_dir / 'foobar'
             }
         )
-        with self.assertRaisesCNODCError('GLIDER-CONVERT-1001'):
+        with self.assertRaisesCoded('GLIDER-CONVERT-1001'):
             worker.on_start()
 
     def test_missing_og_erddap_directory(self):
@@ -91,7 +91,7 @@ class GliderConversionWorkerTest(BaseTestCase):
                 'openglider_directory': self.temp_dir,
             }
         )
-        with self.assertRaisesCNODCError('STORAGE-9000'):
+        with self.assertRaisesCoded('STORAGE-9000'):
             worker.on_start()
 
     def test_bad_og_erddap_directory(self):
@@ -101,7 +101,7 @@ class GliderConversionWorkerTest(BaseTestCase):
                 'openglider_erddap_directory': self.temp_dir / 'foobar'
             }
         )
-        with self.assertRaisesCNODCError('GLIDER-CONVERT-1003'):
+        with self.assertRaisesCoded('GLIDER-CONVERT-1003'):
             worker.on_start()
 
     def test_new_file(self):

@@ -17,14 +17,14 @@ class TestFileScanTask(BaseTestCase):
         x = self.worker_controller.build_test_worker(FileScanTask, {
 
         })
-        with self.assertRaisesCNODCError('FILESCAN-1000'):
+        with self.assertRaisesCoded('FILESCAN-1000'):
             x.on_start()
 
     def test_no_workflow_name(self):
         x = self.worker_controller.build_test_worker(FileScanTask, {
             'scan_target': str(self.temp_dir)
         })
-        with self.assertRaisesCNODCError('FILESCAN-1002'):
+        with self.assertRaisesCoded('FILESCAN-1002'):
             x.on_start()
 
     def test_no_queue_name(self):
@@ -33,7 +33,7 @@ class TestFileScanTask(BaseTestCase):
             'workflow_name': 'test',
             'queue_name': '',
         })
-        with self.assertRaisesCNODCError('FILESCAN-1003'):
+        with self.assertRaisesCoded('FILESCAN-1003'):
             x.on_start()
 
     def test_bad_scan_target(self):
@@ -41,7 +41,7 @@ class TestFileScanTask(BaseTestCase):
             'scan_target': 'protocol://test/files/',
             'workflow_name': 'test',
         })
-        with self.assertRaisesCNODCError('STORAGE-9000'):
+        with self.assertRaisesCoded('STORAGE-9000'):
             x.on_start()
 
     def test_scan_new_files_full(self):
@@ -154,7 +154,7 @@ class TestFileScanTask(BaseTestCase):
         old = self.db.note_scanned_file
         try:
             self.db.note_scanned_file = functools.partial(raise_exception, ex=NODBError('oh no', 999, ''))
-            with self.assertRaisesCNODCError('NODB-999'):
+            with self.assertRaisesCoded('NODB-999'):
                 x.scan_files(self.db)
             self.assertEqual(0, len(self.db.table(NODBQueueItem.TABLE_NAME)))
             self.assertEqual(0, len(self.db._scanned_files))

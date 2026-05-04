@@ -178,7 +178,7 @@ class TestLocalHandle(BaseTestCase):
         upload = self.temp_dir / 'file.txt'
         handle = LocalHandle(upload)
         self.assertTrue(handle.exists())
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             handle.upload(fp)
 
     def test_overwrite(self):
@@ -227,7 +227,7 @@ class TestLocalHandle(BaseTestCase):
         with open(download, "w") as h:
             h.write("bar")
         self.assertTrue(download.exists())
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             handle.download(download)
 
     def test_search(self):
@@ -297,17 +297,17 @@ class TestLocalHandle(BaseTestCase):
 
     def test_read_dir(self):
         h = LocalHandle(self.temp_dir)
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             h.download(self.temp_dir / "file.txt")
 
     def test_read_bad_dir(self):
         h = LocalHandle(self.temp_dir)
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             h.download(self.temp_dir / "file.txt")
 
     def test_list_file(self):
         with open(self.temp_dir / "file.txt", "w") as h:
             h.write("a")
         h = LocalHandle(self.temp_dir / "file.txt")
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             _ = [x for x in h.iterdir()]

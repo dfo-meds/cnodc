@@ -82,6 +82,8 @@ class TestFileDownloadWorker(BaseTestCase):
         self.assertTrue((self.temp_dir / 'subdir' / 'file1.txt').exists())
         item: NODBQueueItem = self.db.table(NODBQueueItem)[0]
         file_path = str((self.temp_dir / 'subdir' / 'file1.txt').absolute())
+        del item.data['metadata']['now']
+        del item.data['metadata']['today']
         self.assertDictSimilar({
             '_cls_': dynamic_name(FilePayload),
             'workflow_name': 'test',
@@ -89,6 +91,10 @@ class TestFileDownloadWorker(BaseTestCase):
             'current_step_done': False,
             'metadata': {
                 'last-modified-date': m_time.isoformat(),
+                'safe_mtime': m_time.strftime('%Y%m%d%H%M%S'),
+                'safe_filename': 'file1.txt',
+                'safe_stem': 'file1',
+                'safe_ext': 'txt',
                 'source': worker.process_id,
                 'filename': 'file1.txt',
             },

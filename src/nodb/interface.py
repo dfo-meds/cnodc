@@ -41,8 +41,9 @@ RECOVERABLE_MESSAGE_FRAGMENTS: list[str] = [
     'server closed the connection unexpectedly',
     'could not receive data from server',
     'the database system is starting up',
+    'connection refused',
+    'the database system is not yet accepting connections',
 ]
-
 
 class ScannedFileStatus(enum.Enum):
     """The status of a scanned file"""

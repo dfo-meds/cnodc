@@ -67,7 +67,7 @@ class TestWorkflowController(BaseTestCase):
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
@@ -80,7 +80,7 @@ class TestWorkflowController(BaseTestCase):
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             workflow._handle_file_upload(
                 test_file,
                 'hello2.txt',
@@ -93,7 +93,7 @@ class TestWorkflowController(BaseTestCase):
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             workflow._handle_file_upload(
                 test_file,
                 'hello.txt',
@@ -120,7 +120,7 @@ class TestWorkflowController(BaseTestCase):
         test_file = self.temp_dir / "hello.txt"
         with open(test_file, "w") as h:
             h.write("hello world")
-        with self.assertRaisesCNODCError():
+        with self.assertRaisesCoded():
             workflow._handle_file_upload(
                 test_file,
                 'hello.txt',
@@ -463,6 +463,7 @@ class TestWorkflowController(BaseTestCase):
         workflow._queue_working_file(
             working_file=file,
             metadata={
+                'last-modified-date': '2015-01-02T03:04:05+0000'
             },
             filename='hello.txt',
             with_gzip=False,

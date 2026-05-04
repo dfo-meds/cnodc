@@ -161,7 +161,10 @@ class WorkflowController:
                             correlation_id: t.Optional[str] = None):
         """Queue the working file."""
         if self.has_more_steps(None):
-            lmd = AwareDateTime.fromisoformat(metadata['last-modified-date'])
+            try:
+                lmd = AwareDateTime.fromisoformat(metadata['last-modified-date'])
+            except KeyError:
+                lmd = AwareDateTime.utcnow()
             payload = FilePayload(
                 file_path=working_file.path(),
                 filename=filename,

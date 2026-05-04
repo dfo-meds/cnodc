@@ -49,7 +49,7 @@ class TestLoader(BaseTestCase):
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {
             'queue_name': 'test',
         })
-        with self.assertRaisesCNODCError('NODB-LOAD-1001'):
+        with self.assertRaisesCoded('NODB-LOAD-1001'):
             loader.on_start()
 
     def test_bad_err_dir_is_file(self):
@@ -59,7 +59,7 @@ class TestLoader(BaseTestCase):
             'queue_name': 'test',
             'error_directory': str(sd)
         })
-        with self.assertRaisesCNODCError('NODB-LOAD-1003'):
+        with self.assertRaisesCoded('NODB-LOAD-1003'):
             loader.on_start()
 
     def test_bad_err_dir_no_exist(self):
@@ -68,7 +68,7 @@ class TestLoader(BaseTestCase):
             'queue_name': 'test',
             'error_directory': str(sd)
         })
-        with self.assertRaisesCNODCError('NODB-LOAD-1003'):
+        with self.assertRaisesCoded('NODB-LOAD-1003'):
             loader.on_start()
 
     def test_bad_no_queue_name(self):
@@ -78,25 +78,25 @@ class TestLoader(BaseTestCase):
             'error_directory': str(sd),
             'decoder_class': 'cnodc.ocproc2.codecs.ocproc2json.OCProc2JsonCodec'
         })
-        with self.assertRaisesCNODCError('QUEUE-WORKER-1000'):
+        with self.assertRaisesCoded('QUEUE-WORKER-1000'):
             loader.on_start()
 
     def test_bad_payload_type_batch(self):
         bp = BatchPayload(batch_uuid='12345')
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {})
-        with self.assertRaisesCNODCError('NODB-LOAD-2000'):
+        with self.assertRaisesCoded('NODB-LOAD-2000'):
             loader._fetch_source_file(bp)
 
     def test_bad_payload_type_obs(self):
         op = ObservationPayload(obs_uuid='12345', received_date=datetime.date(2015, 1, 2))
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {})
-        with self.assertRaisesCNODCError('NODB-LOAD-2000'):
+        with self.assertRaisesCoded('NODB-LOAD-2000'):
             loader._fetch_source_file(op)
 
     def test_bad_payload_type_no_source(self):
         sp = SourceFilePayload(source_uuid='123456', received_date=datetime.date(2015, 1, 2))
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {})
-        with self.assertRaisesCNODCError('PAYLOAD-1012'):
+        with self.assertRaisesCoded('PAYLOAD-1012'):
             loader._fetch_source_file(sp)
 
     def test_loader_from_fresh_file(self):

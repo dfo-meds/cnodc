@@ -114,7 +114,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_password(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertRaisesCNODCError('WEB-1001'):
+            with self.assertRaisesCoded('WEB-1001'):
                 control.reload_dataset('foo')
             self.assertNotIn(('foo', 0, 0), self.reloaded)
 
@@ -125,7 +125,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_password(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertRaisesCNODCError('ERDDAPUTIL-1001'):
+            with self.assertRaisesCoded('ERDDAPUTIL-1001'):
                 control.reload_dataset('force_false')
             self.assertNotIn(('foo', 0, 0), self.reloaded)
 
@@ -136,7 +136,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
         with self.mock_web_test():
             control = ErddapController()
             with self.assertLogs('cnodc.erddap', 'ERROR'):
-                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                with self.assertRaisesCoded('ERDDAPUTIL-1000'):
                     control.reload_dataset('foo')
             self.assertEqual(0, len(self.reloaded))
 
@@ -147,7 +147,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
         with self.mock_web_test():
             control = ErddapController()
             with self.assertLogs('cnodc.erddap', 'ERROR'):
-                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                with self.assertRaisesCoded('ERDDAPUTIL-1000'):
                     control.reload_dataset('foo')
             self.assertEqual(0, len(self.reloaded))
 
@@ -158,7 +158,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
         with self.mock_web_test():
             control = ErddapController()
             with self.assertLogs('cnodc.erddap', 'ERROR'):
-                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                with self.assertRaisesCoded('ERDDAPUTIL-1000'):
                     control.reload_dataset('foo')
             self.assertEqual(0, len(self.reloaded))
 
@@ -170,7 +170,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
         with self.mock_web_test():
             control = ErddapController()
             with self.assertLogs('cnodc.erddap', 'ERROR'):
-                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                with self.assertRaisesCoded('ERDDAPUTIL-1000'):
                     control.reload_dataset('foo')
             self.assertEqual(0, len(self.reloaded))
 
@@ -194,7 +194,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
         with self.mock_web_test():
             control = ErddapController()
             with self.assertLogs('cnodc.erddap', 'ERROR'):
-                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                with self.assertRaisesCoded('ERDDAPUTIL-1000'):
                     control.reload_dataset('foo')
             self.assertEqual(0, len(self.reloaded))
 
@@ -205,7 +205,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_api_path(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertRaisesCNODCError('WEB-1001'):
+            with self.assertRaisesCoded('WEB-1001'):
                 control.reload_dataset('foo')
             self.assertEqual(0, len(self.reloaded))
 
@@ -217,7 +217,7 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
         with self.mock_web_test():
             control = ErddapController()
             with self.assertLogs('cnodc.erddap', 'ERROR'):
-                with self.assertRaisesCNODCError('ERDDAPUTIL-1000'):
+                with self.assertRaisesCoded('ERDDAPUTIL-1000'):
                     control.reload_dataset('foo', cluster_name='hello')
             self.assertEqual(0, len(self.reloaded))
 

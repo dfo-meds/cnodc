@@ -24,8 +24,9 @@ class BlobTest(BaseTestCase):
         for conn, error_name in bad_connections:
             with self.subTest(bad_blob_connection_info=conn):
                 b = AzureBlobHandle(conn)
-                with self.assertRaisesCNODCError(error_name, False):
-                    b.client()
+                with self.assertRaisesCoded(error_name, False):
+                    with b.client():
+                        ...
 
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
@@ -33,10 +34,12 @@ class BlobTest(BaseTestCase):
     @test_with_config(("azure", "storage", "test", "connection_string"), "ValueError")
     def test_bad_az_blob_conn_details(self):
         b = AzureBlobHandle("https://test.blob.core.windows.net/ValueError")
-        with self.assertRaisesCNODCError():
-            b.client()
-        with self.assertRaisesCNODCError():
-            b.container_client()
+        with self.assertRaisesCoded():
+            with b.client():
+                ...
+        with self.assertRaisesCoded():
+            with b.container_client():
+                ...
 
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
@@ -48,7 +51,7 @@ class BlobTest(BaseTestCase):
         ]
         for err, code, is_transient in errors:
             with self.subTest(error_type=err.__name__):
-                with self.assertRaisesCNODCError(code, is_transient) as h:
+                with self.assertRaisesCoded(code, is_transient) as h:
                     make_and_wrap_exception(AzureError("oh no2", error=err("oh no")))
 
     @injector.test_case({
@@ -63,7 +66,7 @@ class BlobTest(BaseTestCase):
         ]
         for err, code, is_transient in errors:
             with self.subTest(error_type=err.__name__):
-                with self.assertRaisesCNODCError(code, is_transient) as h:
+                with self.assertRaisesCoded(code, is_transient) as h:
                     make_and_wrap_exception(err("oh no"))
 
     @injector.test_case({
@@ -110,14 +113,14 @@ class BlobTest(BaseTestCase):
         with self.temp_data_file('azure_containers/container/test99.txt', metadata=True) as (p, mp):
             p.touch()
             mp.touch()
-            file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test99.txt')
-            self.assertTrue(file.exists())
-            self.assertTrue(p.exists())
-            self.assertTrue(mp.exists())
-            file.remove()
-            self.assertFalse(file.exists())
-            self.assertFalse(p.exists())
-            self.assertFalse(mp.exists())
+            with AzureBlobHandle.build('https://test.blob.core.windows.net/container/test99.txt') as file:
+                self.assertTrue(file.exists())
+                self.assertTrue(p.exists())
+                self.assertTrue(mp.exists())
+                file.remove()
+                self.assertFalse(file.exists())
+                self.assertFalse(p.exists())
+                self.assertFalse(mp.exists())
 
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
