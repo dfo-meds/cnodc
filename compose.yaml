@@ -1,16 +1,26 @@
 services:
   db:
-    build: .
+    image: postgis/postgis:15-3.4
     environment:
       POSTGRES_USER: example
       POSTGRES_PASSWORD: example
+      POSTGRES_DB: nodb
     ports:
       - 5432:5432
+    networks:
+      - localtest
   adminer:
     image: adminer
     restart: always
     ports:
       - 8080:8080
+    networks:
+      - localtest
 
 volumes:
   pgdata:
+
+networks:
+  localtest:
+    name: localtest
+    driver: bridge

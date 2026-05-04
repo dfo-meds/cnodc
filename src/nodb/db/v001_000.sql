@@ -91,6 +91,14 @@ BEGIN
 END$$;
 
 
+CREATE TABLE IF NOT EXISTS nodb_version (
+
+    lookup              INTEGER     DEFAULT 1       PRIMARY KEY,
+    version_major       INTEGER                     DEFAULT NULL,
+    version_minor       INTEGER                     DEFAULT NULL
+
+);
+
 CREATE TABLE IF NOT EXISTS nodb_users (
 
     username            VARCHAR(126)    NOT NULL    PRIMARY KEY,

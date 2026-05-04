@@ -24,6 +24,9 @@ def build_cli():
     import pipeman_cli.service as process
     commands['service'] = t.cast(click.Group, process.service)
 
+    import pipeman_cli.db as db
+    commands['upgrade'] = db.upgrade
+
     from medsutil.multiclick import CommandLineInterface
     return CommandLineInterface(None, commands)
 
