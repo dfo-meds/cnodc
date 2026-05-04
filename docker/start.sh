@@ -1,8 +1,11 @@
 #! /bin/sh
 set -e
 
-PYTHONBUFFERED=TRUE
+PYTHONUNBUFFERED=TRUE
 export PYTHONUNBUFFERED
+
+PYTHONOPTIMIZE = 2
+export PYTHONOPTIMIZE
 
 cd /srv/cnodc/app || exit
 
@@ -25,8 +28,7 @@ if [ "$1" = "processor" ] ; then
 # Upgrade or install
 elif [ "$1" = "upgrade" ] ; then
 
-  echo "not supported"
-  exit 1
+  python cli.py upgrade
 
 else
 
