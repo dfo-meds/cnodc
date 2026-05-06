@@ -1,9 +1,65 @@
+import pathlib
 import typing as t
+
+import yaml
+
 import flask
 from autoinject import injector
+import zirconium as zr
 from werkzeug.routing import Rule
 
 from gcflask.i18n import LanguageDetector, TranslationManager
+
+
+@injector.injectable_global
+class PathMapper:
+
+    cfg: zr.ApplicationConfig = None
+
+    @injector.construct
+    def __init__(self):
+        self._path_map = {}
+        path_map_files = self.cfg.get(("gcflask", "i18n_url_files"), default=[])
+        for file_path in path_map_files:
+            path_map_file = pathlib.Path(file_path)
+            if path_map_file.exists():
+                with open(path_map_file, "r", encoding="utf-8") as h:
+                    path_map = yaml.safe_load(h) or {}
+                    for p in path_map:
+                        if p in self._path_map:
+                            self._path_map.update(path_map[p])
+                        else:
+                            self._path_map = path_map[p] or {}
+
+    def get_path_translations(self, path):
+        if path in self._path_map and self._path_map[path]:
+            for lang in self._path_map[path]:
+                yield lang, self._path_map[path][lang]
+
+
+class MultiLanguageBlueprint(flask.Blueprint):
+
+    mapper: PathMapper = None
+
+    @injector.construct
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _register_i18n_route(self, fn, route: str, **kwargs):
+        all_langs = []
+        for lang, path in self.mapper.get_path_translations(route):
+            all_langs.append(lang)
+            self.route(path, accept_languages=lang, **kwargs)(fn)
+        if all_langs:
+            self.route(route, ignore_languages=all_langs, **kwargs)(fn)
+        else:
+            self.route(route, **kwargs)(fn)
+
+    def route(self, route: str, **kwargs):
+        def wrapper(fn):
+            self._register_i18n_route(fn, route, **kwargs)
+            return fn
+        return wrapper
 
 
 class BilingualRule(Rule):

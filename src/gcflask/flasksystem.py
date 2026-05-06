@@ -10,7 +10,7 @@ from flask_wtf import CSRFProtect
 
 from gcapp.requestinfo import RequestInfo
 from gcapp.system import System
-from gcflask.bilingual_rule import BilingualRule
+from gcflask.i18n_url import BilingualRule
 from gcflask.csp import CSPRegistry, csp_nonce, csp_allow
 from gcflask.nav import NavMenu, NavItem
 from gcflask.trustedproxy import TrustedProxyFix

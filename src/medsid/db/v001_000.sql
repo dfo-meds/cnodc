@@ -4,8 +4,10 @@
 CREATE TABLE IF NOT EXISTS users (
     user_id             SERIAL          NOT NULL    PRIMARY KEY
     username            VARCHAR(126)    NOT NULL    UNIQUE,
-    display             VARCHAR(126)                DEFAULT NULL,
     email               VARCHAR(1024)               UNIQUE  DEFAULT NULL,
+    email_verified      CHAR(1)                     DEFAULT 'N'
+
+    name                VARCHAR(126)                DEFAULT NULL,
 
     language_pref       CHAR(2)         NOT NULL    DEFAULT 'en',
     locked_until        TIMESTAMPTZ                 DEFAULT NULL,
@@ -22,15 +24,21 @@ CREATE TABLE IF NOT EXISTS users (
 
     totp                VARCHAR(126)                DEFAULT NULL,
 
-    
-
     active              CHAR(1)                     DEFAULT 'Y',
 );
 
 CREATE TABLE IF NOT EXISTS applications (
     app_id              SERIAL          NOT NULL        PRIMARY KEY,
+    app_str_id          VARCHAR(32)     NOT NULL        UNIQUE,
     name                VARCHAR(126)    NOT NULL        UNIQUE,
-    display             JSON            DEFAULT NULL
+    display             JSON            DEFAULT NULL,
+    oauth_config        JSON            DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS applications (
+    app_id              SERIAL          NOT NULL        PRIMARY KEY,
+    name                VARCHAR(126)    NOT NULL        UNIQUE,
+    display             JSON            DEFAULT NULL,
 );
 
 CREATE TABLE IF NOT EXISTS permissions (

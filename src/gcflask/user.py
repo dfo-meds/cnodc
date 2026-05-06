@@ -8,8 +8,10 @@ class AuthenticatedUser(fl.UserMixin):
     def __init__(self,
                  unique_id: str,
                  display_name: str,
+                 email: str,
                  permissions: list[str],
                  **extras):
+        self._email = email
         self._unique_id = unique_id
         self._permissions = permissions
         self._display = display_name

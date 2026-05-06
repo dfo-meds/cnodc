@@ -1,6 +1,7 @@
 import base64
 import binascii
 import enum
+import typing as t
 import uuid
 
 import itsdangerous
@@ -39,16 +40,19 @@ class AuthenticationHandler:
         self.supports_interactive = supports_interactive
         self._log = zrlog.get_logger(handler_name)
 
-    def link(self):
-        return flask.url_for('auth.login_method', method=self._handler_name)
+    def display_name(self):
+        return self._handler_name
 
-    def display_name(self): return self._handler_name
+    def load_user(self, user_id):
+        return None
 
-    def login_page(self): raise NotImplementedError
+    def login_page(self):
+        raise NotImplementedError
 
-    def logout(self): ...
+    def logout(self) -> t.Any: ...
 
-    def update_user(self, user: AuthenticatedUser): ...
+    def update_user(self, user: AuthenticatedUser):
+        raise NotImplementedError
 
     def _log_login_success(self, user: AuthenticatedUser, from_api: bool = False):
         self._create_login_record(
@@ -86,6 +90,17 @@ class AuthenticationHandler:
             ex.username = username
             self._log_login_error(ex)
 
+    def attempt_login_from_redirect(self, redirect_info: dict):
+        try:
+            user = self._attempt_login_from_redirect(redirect_info)
+            if user is not None:
+                self._log_login_success(user)
+                return user
+            return user
+        except AuthError as ex:
+            self._log_login_error(ex)
+            return None
+
     def attempt_login_from_request(self, request: flask.Request) -> AuthenticatedUser | None:
         try:
             auth_header = request.headers.get('Authorization', default=None)
@@ -99,9 +114,6 @@ class AuthenticationHandler:
         except AuthError as ex:
             self._log_login_error(ex, True)
             return None
-
-    def login_from_redirect(self):
-        return flask.abort(404)
 
     def _attempt_login_from_auth_header(self, auth_header: str) -> AuthenticatedUser | None:
         if ' ' not in auth_header:
@@ -133,6 +145,8 @@ class AuthenticationHandler:
     def _attempt_login_from_password(self, username: str, password: str) -> AuthenticatedUser | None:
         raise AuthError("Passwords not supported", 9001, create_record=False, username=username)
 
+    def _attempt_login_from_redirect(self, redirect_info: dict):
+        raise AuthError("Redirect not supported", 9002)
 
 
 class AuthResult(enum.Enum):
@@ -204,113 +218,18 @@ class AuthenticationManager:
         others = self.config.as_dict(("gcflask", "authentication", "handlers"), default={})
         for hname in others:
             self._login_managers[hname] = dynamic_object(others[hname])(authentication_manager=self)
-        self._login_select: str = self.config.as_str(("gcflask", "authentication", "login_select"), default="auth.select")
         self._login_required_redirect: str = self.config.as_str(("gcflask", "authentication", "login_required"), default="auth.login")
         self._login_redirect: str = self.config.as_str(("gcflask", "authentication", "login_success"), default="base.home")
         self._logout_redirect: str = self.config.as_str(("gcflask", "authentication", "logout_success"), default="base.home")
         self._forbidden_redirect: str = self.config.as_str(("gcflask", "authentication", "unauthorized"), default="base.home")
         self._csrf_redirect: str = self.config.as_str(("gcflask", "authentication", "referrer_failed"), default="base.splash")
+        self._login_selected_redirect: str = self.config.as_str(("gcflask", "authentication", "login_for_handler"), default="auth.login_for_handler")
         self._interactive_managers: list[str] = [x for x, y in self._login_managers.items() if y.supports_interactive]
 
     def anonymous_user(self):
         return AnonymousUser()
 
-    def login_from_request(self, request: flask.Request) -> AuthenticatedUser | None:
-        for h in self._login_managers:
-            user = self._login_managers[h].attempt_login_from_request(request)
-            if user is not None:
-                return user
-        return None
-
-    def login_page(self):
-        if len(self._interactive_managers) > 1:
-            return flask.redirect(flask.url_for(self._login_select, _external=True))
-        elif not self._interactive_managers:
-            raise flask.abort(404)
-        else:
-            return self.login_page_for_handler(self._interactive_managers[0])
-
-    def login_page_for_handler(self, handler_name: str):
-        if handler_name not in self._interactive_managers:
-            return flask.abort(404)
-        return self._login_managers[handler_name].login_page()
-
-    def redirect_for_login(self, url_for_redirect: str, callback_handler: str):
-        info = {
-            '_auth_handler': callback_handler,
-        }
-        if 'next_url' in flask.request.args:
-            try:
-                info["_next_url"] = self.secure_ops.timed_serializer.loads(flask.request.args["next_url"], 3600)
-            except itsdangerous.BadData:
-                info['_next_url'] = ''
-        flask.session['language'] = self.ld.detect_language(self.tm.supported_languages())
-        flask.session['login_info'] = self.secure_ops.timed_serializer.dumps(info)
-        flask.session.modified = True
-        return flask.redirect(url_for_redirect, 302)
-
-    def _get_login_info(self) -> dict | None:
-        if 'login_info' in flask.session:
-            try:
-                return self.secure_ops.timed_serializer.loads(flask.session['login_info'], 3600)
-            except itsdangerous.BadData:
-                self._log.exception("Bad data found during login")
-                return None
-        else:
-            self._log.error("No login info found")
-            return None
-
-    def login_from_redirect(self):
-        data = self._get_login_info()
-        if data is not None:
-            if '_auth_handler' in data:
-                handler = flask.session['_auth_handler']
-                if handler in self._login_managers:
-                    return self._login_managers[handler].login_from_redirect()
-                self._log.error(f"Handler %s not found when returning from redirect", handler)
-            else:
-                self._log.error(f"No handler specified when returning from redirect")
-        return self.login_page()
-
-    def login_user(self, user: AuthenticatedUser, auth_handler_name: str):
-        self.sessions.invalidate()
-        fl.login_user(user)
-        flask.session['auth_handler'] = auth_handler_name
-        return self.login_success()
-
-    def login_success(self):
-        data = self._get_login_info()
-        next_url: str | None = None
-        if data is not None and "_next_url" in data:
-            next_url = data['_next_url']
-        elif 'next_url' in flask.request.args:
-            try:
-                next_url = self.secure_ops.timed_serializer.loads(flask.request.args["next_url"], 3600)
-            except itsdangerous.BadData:
-                self._log.exception("Error while unserializing next_url from args")
-        lang = None
-        if 'lang' in flask.request.args:
-            lang = flask.request.args['lang']
-        elif 'language' in flask.session:
-            lang = flask.session['language']
-        if lang is None or lang not in self.tm.supported_languages():
-            lang = ""
-        if next_url is not None:
-            return flask.redirect(flask.url_for(next_url, lang=lang))
-        return flask.redirect(flask.url_for(self._login_redirect, lang=lang))
-
-    def logout_page(self):
-        auth_handler: str | None = flask.session.get('auth_handler')
-        if auth_handler and auth_handler in self._login_managers:
-            self._login_managers[auth_handler].logout()
-        fl.logout_user()
-        flask.session.modified = True
-        return self.logout_success()
-
-    def logout_success(self):
-        return flask.redirect(flask.url_for(self._logout_redirect))
-
-    def unauthorized(self, result=AuthResult.DENY, is_api_call: bool = False):
+    def unauthorized_handler(self, result=AuthResult.DENY, is_api_call: bool = False):
         """Handle unauthorized requests."""
         if is_api_call:
             return flask.abort(403)
@@ -328,4 +247,87 @@ class AuthenticationManager:
             self._forbidden_redirect
         ))
 
+    def endpoint_login(self, redirect_to: str = None):
+        if fl.current_user.is_authenticated:
+            return self.login_success(redirect_to)
 
+        if len(self._interactive_managers) > 1:
+            return flask.render_template('auth_handler_select.html', options={
+                x: flask.url_for(self._login_selected_redirect, handler=x)
+                for x in self._interactive_managers
+            })
+        elif not self._interactive_managers:
+            raise flask.abort(404)
+        else:
+            return self.endpoint_login_for_handler(self._interactive_managers[0])
+
+    def endpoint_login_for_handler(self, handler_name: str):
+        if fl.current_user.is_authenticated:
+            return self.login_success()
+        if handler_name not in self._interactive_managers:
+            return flask.abort(404)
+        return self._login_managers[handler_name].login_page()
+
+    def login_user(self, user: AuthenticatedUser, auth_handler_name: str, redirect_to: str = None, no_redirect: bool = False):
+        self.sessions.invalidate()
+        fl.login_user(user)
+        flask.session['auth_handler'] = auth_handler_name
+        if no_redirect:
+            return None
+        return self.login_success(redirect_to)
+
+    def login_success(self, redirect_to: str = None):
+        next_url: str | None = None
+        if 'next_url' in flask.request.args:
+            try:
+                next_url = self.secure_ops.timed_serializer.loads(flask.request.args["next_url"], 3600)
+            except itsdangerous.BadData:
+                self._log.exception("Error while unserializing next_url from args")
+        lang = None
+        if 'lang' in flask.request.args:
+            lang = flask.request.args['lang']
+        elif 'language' in flask.session:
+            lang = flask.session['language']
+        if lang is None or lang not in self.tm.supported_languages():
+            lang = ""
+        if next_url is not None:
+            return flask.redirect(flask.url_for(next_url, lang=lang))
+        return flask.redirect(flask.url_for(self._login_redirect, lang=lang))
+
+    def endpoint_logout(self):
+        auth_handler: str | None = flask.session.get('auth_handler')
+        response = None
+        if auth_handler and auth_handler in self._login_managers:
+            response = self._login_managers[auth_handler].logout()
+        fl.logout_user()
+        flask.session.modified = True
+        return response or self.logout_success()
+
+    def logout_success_url(self):
+        flask.url_for(self._logout_redirect, _external=True)
+
+    def user_loader(self, user_id):
+        auth_handler: str | None = flask.session.get('auth_handler')
+        if auth_handler and auth_handler in self._login_managers:
+            return self._login_managers[auth_handler].load_user(user_id)
+        return None
+
+    def logout_success(self):
+        return flask.redirect(flask.url_for(self._logout_redirect))
+
+    def request_loader(self, request: flask.Request) -> bool:
+        if fl.current_user.is_authenticated:
+            return True
+        for h in self._login_managers:
+            user = self._login_managers[h].attempt_login_from_request(request)
+            if user is not None:
+                self.login_user(user, h, no_redirect=True)
+                return True
+        return False
+
+    def endpoint_login_from_redirect(self, handler_name: str, redirect_info: dict):
+        if fl.current_user.is_authenticated:
+            return self.login_success()
+        if handler_name not in self._login_managers:
+            return flask.abort(404)
+        return self._login_managers[handler_name].attempt_login_from_redirect(redirect_info)

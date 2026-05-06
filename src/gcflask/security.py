@@ -101,13 +101,16 @@ def require_permission[**P,Q](
         required_permissions: str | t.Sequence[str] | None = None,
         check_referrer: bool = None,
         check_https: bool = None,
-        is_api: bool = False) -> t.Callable[[t.Callable[P, Q]], t.Callable[P,Q]]:
+        is_api: bool = False,
+        allow_auth_header_access: bool = False) -> t.Callable[[t.Callable[P, Q]], t.Callable[P,Q]]:
     """Ensure the current user is logged in and has one of the given permissions before allowing the request."""
 
     def _decorator(func: t.Callable[P, Q]) -> t.Callable[P,Q]:
         @functools.wraps(func)
         @injector.inject
         def _decorated(*args, rs: RequestSecurity = None, auth_man: AuthenticationManager = None, **kwargs):
+            if allow_auth_header_access or is_api:
+                auth_man.login_from_request_body(flask.request)
             result = rs.check_access(
                 required_permissions,
                 check_referrer,

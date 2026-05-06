@@ -1,4 +1,6 @@
 import typing as t
+
+import flask
 from autoinject import injector
 import zirconium as zr
 
