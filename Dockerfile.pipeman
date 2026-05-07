@@ -32,6 +32,7 @@ COPY docker/gunicorn_conf.py gunicorn_conf.py
 COPY src/ app/
 COPY vocab/ app/vocab/
 COPY app.py app/app.py
+COPY cli.py app/cli.py
 COPY process.py app/process.py
 COPY docker/defaults/ app/defaults/
 
