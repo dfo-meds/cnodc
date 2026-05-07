@@ -83,7 +83,7 @@ class MedsIDHandler(AuthenticationHandler):
 
     @injector.construct
     def __init__(self, **kwargs):
-        super().__init__('meds_oidc', True, **kwargs)
+        super().__init__('medsid_oidc', True, **kwargs)
         self._app_name = self.config.get(('medsid', 'app_name'), '')
 
     def login_page(self):
@@ -99,20 +99,28 @@ class MedsIDHandler(AuthenticationHandler):
         flask.session['token'] = userinfo.pop('bearer_token')
         flask.session['user_id'] = userinfo['sub']
         flask.session['userinfo'] = userinfo
-        return self._load_user(copy.deepcopy(userinfo))
+        return self._load_user(userinfo)
 
     def load_user(self, user_id):
         if flask.session['user_id'] == user_id:
-            return self._load_user(copy.deepcopy(flask.session['userinfo']))
+            return self._load_user(flask.session['userinfo'])
         return None
 
     def _load_user(self, userinfo: dict):
+        filtered = {}
+        for x in userinfo:
+            if x in ('sub', 'name', 'email', 'urn:medsid:permissions'):
+                continue
+            elif x.startswith('urn:medsid:'):
+                filtered[x[11:]] = userinfo[x]
+            else:
+                filtered[x] = userinfo[x]
         return AuthenticatedUser(
-            unique_id=userinfo.pop('sub'),
-            display_name=userinfo.pop('name'),
-            email=userinfo.pop('email'),
-            permissions=self._extract_permissions(userinfo.pop('urn:medsid:permissions')),
-            **userinfo
+            unique_id=userinfo.get('sub', ''),
+            display_name=userinfo.get('name', ''),
+            email=userinfo.get('email', ''),
+            permissions=self._extract_permissions(userinfo.get('urn:medsid:permissions', {})),
+            **filtered
         )
 
     def _extract_permissions(self, permissions: dict[str, list[str]]) -> list[str]:

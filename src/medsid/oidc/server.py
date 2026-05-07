@@ -53,10 +53,21 @@ class OpenIDServer:
                 'grant_types_supported': ['authorization_code', 'implicit'],
                 'claim_types_supported': ['normal'],
                 'claims_parameter_supported': True,
-                'claims_supported': ['sub', 'username', 'name', 'email', 'email_verified', 'locale', 'urn:medsid:permissions'],
+                'claims_supported': [
+                    'sub', 'username', 'name', 'email', 'email_verified', 'locale',
+                    'urn:medsid:permissions',
+                    'urn:medsid:last_success',
+                    'urn:medsid:last_error',
+                    'urn:medsid:last_success_ip',
+                    'urn:medsid:last_error_ip',
+                    'urn:medsid:total_errors',
+                ],
                 'request_parameter_supported': False,
                 'request_uri_parameter_supported': False,
-                'scopes_supported': ['openid', 'profile', 'email', 'urn:medsid:access_management'],
+                'scopes_supported': [
+                    'openid', 'profile', 'email',
+                    'urn:medsid:access_management'
+                ],
             },
             AuthorizationState(
                 HashBasedSubjectIdentifierFactory(
@@ -75,7 +86,12 @@ class OpenIDServer:
             Userinfo(PostgresUserInfo(self._db)),
             extra_scopes={
                 'urn:medsid:access_management': [
-                    'urn:medsid:permissions'
+                    'urn:medsid:permissions',
+                    'urn:medsid:last_success',
+                    'urn:medsid:last_error',
+                    'urn:medsid:last_success_ip',
+                    'urn:medsid:last_error_ip',
+                    'urn:medsid:total_errors',
                 ]
             }
         )
@@ -239,7 +255,7 @@ class PostgresUserInfo:
 
     def __getitem__(self, item):
         with self._db.cursor() as cur:
-            cur.execute("SELECT user_id, username, name, email, email_verified, language_pref FROM users WHERE user_id = %s", [item])
+            cur.execute("SELECT user_id, username, name, email, email_verified, language_pref, last_success, last_error, last_success_ip, last_error_ip, total_errors FROM users WHERE user_id = %s", [item])
             res = cur.fetchone()
             if not res:
                 raise KeyError(item)
@@ -263,6 +279,11 @@ class PostgresUserInfo:
                 'email': res[3],
                 'email_verified': res[4],
                 'locale': res[5],
+                'urn:medsid:last_success': AwareDateTime.from_datetime(res[6]).isoformat(),
+                'urn:medsid:last_error': AwareDateTime.from_datetime(res[7]).isoformat(),
+                'urn:medsid:last_success_ip': res[8],
+                'urn:medsid:last_error_ip': res[9],
+                'urn:medsid:total_errors': res[10],
                 'urn:medsid:permissions': {
                     k: list(permissions[k])
                     for k in permissions

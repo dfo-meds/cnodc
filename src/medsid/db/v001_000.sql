@@ -25,7 +25,14 @@ CREATE TABLE IF NOT EXISTS users (
     totp                VARCHAR(126)                DEFAULT NULL,
 
     active              CHAR(1)                     DEFAULT 'Y',
+
+    last_success        TIMESTAMPTZ                 DEFAULT NULL,
+    last_error          TIMESTAMPTZ                 DEFAULT NULL,
+    last_success_ip     VARCHAR(256)                DEFAULT NULL,
+    last_error_ip       VARCHAR(256)                DEFAULT NULL,
+    total_errors        INTEGER                     DEFAULT 0,
 );
+
 
 CREATE TABLE IF NOT EXISTS applications (
     app_id              SERIAL          NOT NULL        PRIMARY KEY,

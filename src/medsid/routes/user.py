@@ -18,3 +18,14 @@ def change_password():
 @user.route('/me/permissions')
 def permissions():
     ...
+
+@user.route('/users')
+def list_users():
+    ...
+
+@user.route('/users/<username>', methods=['GET', 'POST'])
+def edit_user(username):
+    ...
+
+@user.route('/api/users')
+def users()
