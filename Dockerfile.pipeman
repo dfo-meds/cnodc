@@ -21,7 +21,7 @@ RUN pip install --upgrade pip
 
 COPY requirements requirements
 
-RUN pip install -r requirements/requirements_web.txt
+RUN pip install -r requirements/requirements_docker.txt
 
 COPY docker/start.sh start.sh
 RUN chmod +x start.sh
