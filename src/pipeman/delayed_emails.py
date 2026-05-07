@@ -1,7 +1,7 @@
 import typing as t
 
 from autoinject import injector
-from medsutil.email import DelayedEmailController, EmailController
+from medsutil.email import EmailController
 from nodb import NODB, NODBQueueItem
 from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
 

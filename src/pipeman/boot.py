@@ -58,6 +58,13 @@ def init_cnodc(app_type: str, with_mp_prometheus_default: bool = False):
             app_config.register_file(pathlib.Path("./tests/.cnodc.tests.toml").absolute())
             app_config.register_file(pathlib.Path("./tests/.cnodc.private.toml").absolute())
 
+
+    # Configure our email system
+    from autoinject import injector
+    from medsutil.email import DelayedEmailController
+    from pipeman.delayed_emails import DelayedEmailsQueuer
+    injector.override(DelayedEmailController, DelayedEmailsQueuer)
+
     # Configure our logging
     import zrlog
     zrlog.set_default_extra("process_uuid", "")
@@ -78,12 +85,7 @@ def init_cnodc(app_type: str, with_mp_prometheus_default: bool = False):
     zrlog.set_default_extra("version", __VERSION__)
     zrlog.init_logging()
 
-    # Configure our email system
-    from autoinject import injector
-    from medsutil.email import DelayedEmailController
-    from pipeman.delayed_emails import DelayedEmailsQueuer
-    injector.override(DelayedEmailController, DelayedEmailsQueuer)
-
+    # Configure the database system
     from nodb.interface import NODB
     from nodb.controller import NODBPostgresController
     injector.override(NODB, NODBPostgresController)
