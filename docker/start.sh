@@ -17,7 +17,7 @@ if [ "$1" = "processor" ] ; then
 
   # Handle prometheus directory
   if [ -e "/cnodc-data/_prometheus" ] ; then
-    rm -r /cnodc-data/_prometheus*
+    rm -r /cnodc-data/_prometheus/*
   else
     mkdir /cnodc-data/_prometheus
   fi
@@ -39,6 +39,12 @@ else
 
   # Set the Prometheus directory for the flask endpoint
   export PROMETHEUS_MULTIPROC_DIR=/cnodc-data/_prometheus
+
+  if [ -e "/cnodc-data/_prometheus" ] ; then
+
+  else
+    mkdir /cnodc-data/_prometheus
+  fi
 
   # Start Gunicorn or Flask
   if [ -z "$USE_FLASK" ]; then
