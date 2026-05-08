@@ -88,9 +88,12 @@ class FlaskSystemMixin(System):
     def _configure_proxy_fix(self):
         if self.config.as_bool(('gcflask', 'proxy_fix', 'enabled'), default=False):
             self._log.info('Enabling proxy fix')
+            trust_from = self.config.get(("gcflask", "proxy_fix", "trusted_upstreams"), default="")
+            if ';' in trust_from:
+                trust_from = trust_from.split(';')
             self.flask_app.wsgi_app = TrustedProxyFix(
                 self.flask_app.wsgi_app,
-                trust_from_ips=self.config.get(("gcflask", "proxy_fix", "trusted_upstreams"), default=""),
+                trust_from_ips=trust_from,
                 x_for=self.config.as_int(("gcflask", "proxy_fix", "x_for"), default=1),
                 x_proto=self.config.as_int(("gcflask", "proxy_fix", "x_proto"), default=1),
                 x_host=self.config.as_int(("gcflask", "proxy_fix", "x_host"), default=1),

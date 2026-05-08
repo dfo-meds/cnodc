@@ -34,6 +34,7 @@ enabled = true
 ## "" to never accept any upstream servers
 ## A string which is an IP subnet mask or IP address to accept as trusetd
 ## A list of such strings
+## A semi-colon delimited list of such strings
 trusted_upstreams = "*"   # DO NOT PUT THIS IN GIT
 
 # Number of X-Forwarded-For headers to accept
