@@ -41,7 +41,7 @@ class StorageController:
         (default or path-like) -> LocalHandle
     """
 
-    config: zirconium.ApplicationConfig
+    config: zirconium.ApplicationConfig = None
 
     @injector.construct
     def __init__(self):
