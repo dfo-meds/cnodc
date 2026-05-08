@@ -194,7 +194,8 @@ class OCProc2Ontology:
         if ontology_file:
             self._onto_files.append(ontology_file)
         else:
-            vocab_dir = pathlib.Path(__file__).absolute().parent.parent.parent.parent / 'vocab'
+            from medsutil import ROOT_DIR
+            vocab_dir = ROOT_DIR / 'vocab'
             self._onto_files.append(vocab_dir / 'eov.ttl')
             self._onto_files.append(vocab_dir / 'ioos.ttl')
             self._onto_files.append(vocab_dir / 'cnodc.ttl')

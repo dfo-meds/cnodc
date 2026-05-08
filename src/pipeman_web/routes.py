@@ -156,9 +156,10 @@ def create_station(nodb_web: NODBWebController = None):
 
 @cnodc.route('/turtle/<file_name>', methods=['GET'])
 def deliver_turtle_file(file_name: str):
+    from medsutil import ROOT_DIR
     if not re.match('[a-z]+.ttl', file_name):
         flask.abort(400)
-    return flask.send_from_directory(pathlib.Path(__file__).absolute().parent.parent.parent / 'vocab', file_name)
+    return flask.send_from_directory(ROOT_DIR / 'vocab', file_name)
 
 
 # TODO: update station

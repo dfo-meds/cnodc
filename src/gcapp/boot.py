@@ -4,11 +4,6 @@ import os
 import logging
 
 
-ROOT_DIR = pathlib.Path(__file__).absolute().resolve()
-while ROOT_DIR.name in ('src', 'gcapp', 'boot.py'):
-    ROOT_DIR = ROOT_DIR.parent
-
-
 def _config_paths(extra_paths: t.Sequence[str | pathlib.Path] | None = None) -> t.Generator[pathlib.Path, None, None]:
     yield pathlib.Path(".").absolute().resolve()
     yield pathlib.Path("~").expanduser().absolute().resolve()

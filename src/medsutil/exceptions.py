@@ -1,8 +1,8 @@
 import traceback
 import pathlib
 
-SOURCES_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent
-SOURCES_DIR_STR = str(SOURCES_DIR)
+from medsutil import ROOT_DIR
+SOURCES_DIR_STR = str(ROOT_DIR)
 
 class CodedError(Exception):
 
