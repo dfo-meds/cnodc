@@ -97,10 +97,10 @@ class GliderConversionWorker(SourceWorkflowWorker):
     def on_start(self):
         self._target_dir = self.get_handle(self.get_config('openglider_directory', None), True)
         if not self._target_dir.exists():
-            raise CNODCError('OpenGlider directory does not exist', 'GLIDER-CONVERT', 1001)
+            self._target_dir.mkdir(parents=True)
         self._target_erddap_dir = self.get_handle(self.get_config('openglider_erddap_directory', None), True)
         if not self._target_erddap_dir.exists():
-            raise CNODCError('OpenGlider ERDDAP directory does not exist', 'GLIDER-CONVERT', 1003)
+            self._target_erddap_dir.mkdir(parents=True)
         self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
         super().on_start()
 
