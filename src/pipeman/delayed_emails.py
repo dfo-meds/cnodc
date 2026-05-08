@@ -24,12 +24,12 @@ class DelayedEmailsWorker(QueueWorker):
     emails: EmailController = None
 
     @injector.construct
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.set_defaults({
             'queue_name': 'emails'
         })
 
-    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queuee_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
         self.emails.bare_direct_send_email(**item.data)
 
