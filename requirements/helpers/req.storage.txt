@@ -1,0 +1,8 @@
+-r ./req.medsutil.txt
+azure-storage-blob~=12.28.0
+azure-storage-file-share~=12.24.0
+
+azure-core~=1.39.0
+isodate~=0.7.2
+
+

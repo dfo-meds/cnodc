@@ -1,0 +1,2 @@
+-r ./req.medsutil.txt
+psycopg2~=2.9.11

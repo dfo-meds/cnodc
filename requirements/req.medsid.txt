@@ -1,0 +1,11 @@
+-r ./helpers/req.medsutil.txt
+-r ./helpers/req.postgres.txt
+-r ./helpers/req.storage.txt
+-r ./helpers/req.gcflask.txt
+
+# testing stuff for now
+requests_oauth2client ~= 1.8.0
+pyop ~= 3.4.2
+shamirs ~=4.0.0
+lagrange ~= 4.0.1
+

@@ -1,0 +1,15 @@
+-r ./req.gcclick.txt
+
+flask ~= 3.1.3
+blinker ~= 1.9.0
+Werkzeug ~= 3.1.8
+
+prometheus_flask_exporter~=0.23.2
+prometheus_client~=0.25.0
+
+flask_autoinject~=2.0.2
+
+flask_csrf~=0.9.2
+flask_login~=0.6.3
+flask_wtf~=1.3.0
+wtforms~=3.2.2

@@ -1,8 +1,8 @@
 
 def build_processor(with_init: bool = True):
     if with_init:
-        from pipeman.boot import init_cnodc
-        init_cnodc("cli")
+        from pipeman.boot import init_pipeman
+        init_pipeman("cli")
     from autoinject import injector
     import zirconium as zr
     @injector.inject
@@ -20,8 +20,8 @@ def build_processor(with_init: bool = True):
 
 def build_single_processor(process_file: str, process_name: str, with_init: bool = True):
     if with_init:
-        from pipeman.boot import init_cnodc
-        init_cnodc("cli")
+        from pipeman.boot import init_pipeman
+        init_pipeman("cli")
 
     from autoinject import injector
     import zirconium as zr

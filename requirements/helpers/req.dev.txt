@@ -1,0 +1,32 @@
+-r req.base.txt
+
+# Code coverage tools
+coverage ~= 7.13.5
+
+# Bandit is for static code analysis
+bandit ~= 1.9.4
+rich ~= 15.0.0
+markdown-it-py ~= 4.2.0
+mdurl ~= 0.1.2
+Pygments ~= 2.20.0
+stevedore ~= 5.7.0
+
+# Auditing pip packages
+pip-audit ~= 2.10.0
+CacheControl ~= 0.14.4
+msgpack ~= 1.1.2
+cyclonedx-python-lib ~= 11.7.0
+license-expression ~= 30.4.4
+boolean.py ~= 5.0
+packageurl-python ~= 0.17.6
+py-serializable ~= 2.1.0
+defusedxml ~= 0.7.1
+sortedcontainers ~= 2.4.0
+pip-api ~= 0.0.34
+pip-requirements-parser ~= 32.0.1
+pyparsing ~= 3.3.2
+platformdirs ~= 4.9.6
+tomli ~= 2.4.1
+tomli_w ~= 1.2.0
+
+pipdeptree ~= 2.35.2

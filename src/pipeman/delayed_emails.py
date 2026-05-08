@@ -31,4 +31,4 @@ class DelayedEmailsWorker(QueueWorker):
         })
 
     def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
-        self.emails.direct_send_email(**item.data)
+        self.emails._direct_send_email(**item.data)

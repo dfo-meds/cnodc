@@ -6,22 +6,19 @@ FROM python:3.14.3-slim-trixie
 RUN apt-get update
 RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y
 
-WORKDIR /srv/cnodc
+WORKDIR /python-service
 
-VOLUME /cnodc-config
-VOLUME /cnodc-data
+VOLUME /service-config
+VOLUME /service-data
 
-ENV CNODC_CONFIG_SEARCH_PATHS=/srv/cnodc/app;/cnodc-config
-ENV PYTHONPATH=/srv/cnodc/app
+ENV CNODC_CONFIG_SEARCH_PATHS=/service-config/defaults;/service-config;/python-service
+ENV PYTHONPATH=/python-service
+ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONOPTIMIZE=2
 ENV MODULE_NAME=app
 ENV VARIABLE_NAME=app
-ENV GUNICORN_CONF=/srv/cnodc/gunicorn_conf.py
-
-RUN pip install --upgrade pip
-
-COPY requirements requirements
-
-RUN pip install -r requirements/requirements_docker.txt
+ENV GUNICORN_CONF=/python-service/gunicorn_conf.py
+ENV PROMETHEUS_MULTIPROC_DIR=/service-data/_prometheus
 
 COPY docker/start.sh start.sh
 RUN chmod +x start.sh
@@ -29,17 +26,17 @@ RUN dos2unix start.sh
 
 COPY docker/gunicorn_conf.py gunicorn_conf.py
 
-COPY src/ app/
-COPY vocab/ app/vocab/
-COPY app.py app/app.py
-COPY cli.py app/cli.py
-COPY process.py app/process.py
-COPY docker/defaults/ app/defaults/
+COPY requirements requirements
+RUN pip install --upgrade pip
+RUN pip install -r requirements/req.pipeman.docker.txt
+
+COPY src/ ./
+COPY vocab/ ./vocab/
+COPY app.py ./app.py
+COPY docker/defaults/pipeman/ ./defaults/
 
 EXPOSE 80
 
-WORKDIR /srv/cnodc/app
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/python-service/start.sh"]
 
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "/srv/cnodc/start.sh"]
-
-CMD ["web"]
+CMD ["gunicorn"]

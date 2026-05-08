@@ -1,56 +1,23 @@
 #! /bin/sh
 set -e
 
-PYTHONUNBUFFERED=TRUE
-export PYTHONUNBUFFERED
+cd "$PYTHONPATH" || exit
 
-PYTHONOPTIMIZE=2
-export PYTHONOPTIMIZE
-
-cd /srv/cnodc/app || exit
-
-# Run the daemon
-if [ "$1" = "processor" ] ; then
-
-  # Set the Prometheus directory
-  export PROMETHEUS_MULTIPROC_DIR=/cnodc-data/_prometheus
-
-  # Handle prometheus directory
-  if [ -e "/cnodc-data/_prometheus" ] ; then
-    rm -r /cnodc-data/_prometheus/*
-  else
-    mkdir /cnodc-data/_prometheus
+if [ -n "$PROMETHEUS_MULTIPROC_DIR" ] ; then
+  if [ ! -d "$PROMETHEUS_MULTIPROC_DIR" ] ; then
+    mkdir "$PROMETHEUS_MULTIPROC_DIR"
   fi
+fi
 
-  python process.py
+# Run gunicorn if requested
+if [ "$0" = "gunicorn" ] ; then
+  shift 1
+  exec gunicorn --chdir "$PYTHONPATH" -c "$GUNICORN_CONF" "$MODULE_NAME:$VARIABLE_NAME" "$@"
 
-
-# Upgrade or install
-elif [ "$1" = "upgrade" ] ; then
-
-  python cli.py upgrade
-
+# Otherwise, run our python script as requested
 else
-
-  # Check for the default name and remove it
-  if [ "$1" = "web" ] ; then
-    shift 1
-  fi
-
-  # Set the Prometheus directory for the flask endpoint
-  export PROMETHEUS_MULTIPROC_DIR=/cnodc-data/_prometheus
-
-  if [ -e "/cnodc-data/_prometheus" ] ; then
-
+  if [ -z "$PYTHON_MODULE"] ; then
+    python -m "$@"
   else
-    mkdir /cnodc-data/_prometheus
-  fi
-
-  # Start Gunicorn or Flask
-  if [ -z "$USE_FLASK" ]; then
-    exec gunicorn --chdir /srv/cnodc -c "$GUNICORN_CONF" "app:app" "$@"
-  else
-    python -m flask run --host="0.0.0.0" --port=80
-  fi
-
+    python -m "$PYTHON_MODULE" "$@"
 fi

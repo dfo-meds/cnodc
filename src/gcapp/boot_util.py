@@ -5,21 +5,28 @@ import zirconium as zr
 import zrlog
 from autoinject import injector
 
-from gcapp.requestinfo import RequestInfo
-
 
 @injector.inject
-def init_system_logging(rinfo: RequestInfo = None):
+def init_system_logging(version_no: str | None = None):
+
     # Setup logging
     zrlog.init_logging()
-    rinfo.set_logging_defaults()
-    rinfo.set_logging_extras_system()
+    zrlog.set_default_extra('version', version_no or 'unknown')
+
+    # Setup additional info
+    from gcapp.requestinfo import RequestInfo
+    def _init_rinfo(rinfo: RequestInfo = None):
+        rinfo.set_logging_defaults()
+        rinfo.set_logging_extras_system()
+    _init_rinfo()
 
 
 @injector.inject
 def init_overrides(overrides: dict[str | type, str | type | t.Callable | dict] | None = None,
                    config: zr.ApplicationConfig = None):
     """Override default objects with declared sub-classes as required."""
+    if not overrides:
+        overrides = {}
     overrides.update(config.get("autoinject", default={}))
     if overrides:
         for cls_name in overrides:

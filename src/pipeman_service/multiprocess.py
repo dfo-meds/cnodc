@@ -11,8 +11,8 @@ class _MultiProcessRunner(BaseProcess, mp.Process):
         super().__init__(*args, **kwargs, end_flag=mp.Event(), daemon=True)
 
     def setup(self):
-        from pipeman.boot import init_cnodc
-        init_cnodc('cli')
+        from pipeman.boot import init_pipeman
+        init_pipeman('cli')
         if self._proc_info.logging_queue is not None:
             import medsutil.logging as ml
             ml.init_as_subprocess(self._proc_info.logging_queue)

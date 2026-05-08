@@ -1,0 +1,11 @@
+-r req.base.txt
+
+# Handling floating point numbers with uncertainties
+uncertainties~=3.2.3
+
+# Templating (used in email messages)
+jinja2 ~= 3.1.6
+MarkupSafe ~= 3.0.3
+
+# Faster JSON
+orjson~=3.11.9

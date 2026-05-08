@@ -13,9 +13,20 @@ import zrlog
 from medsutil.exceptions import exception_kwargs_for_email, CodedError
 
 
-@injector.injectable
 class DelayedEmailController(t.Protocol):
     def send_delayed(self, kwargs: dict) -> bool: ...
+
+
+@injector.register(DelayedEmailController)
+class DelayedEmailNotSupportedController:
+
+    ec: EmailController = None
+
+    @injector.construct
+    def __init__(self): ...
+
+    def send_delayed(self, kwargs: dict) -> bool:
+        return self.ec.direct_send_email_from_delayed(**kwargs)
 
 
 
@@ -122,44 +133,59 @@ class EmailController:
             "bcc_emails": bcc_emails
         }
         if immediate:
-            try:
-                return self.direct_send_email(**kwargs)
-            except Exception:
-                return self.delayed_send_email(**kwargs)
+            return self.direct_send_email(**kwargs)
         else:
             return self.delayed_send_email(**kwargs)
 
     def delayed_send_email(self, **kwargs) -> bool:
         return self.delayed.send_delayed(kwargs)
 
-    def direct_send_email(self,
-                          to_emails: list[str] | str | None,
-                          subject: str,
-                          message_txt: str = None,
-                          message_html: str = None,
-                          cc_emails: list[str] | str | None = None,
-                          bcc_emails: list[str] | str | None = None,
-                          _no_output: bool = False) -> bool:
+    def direct_send_email(self, **kwargs) -> bool:
+        try:
+            return self._direct_send_email(**kwargs)
+        except CodedError:
+            self._log.exception("Failed to send an email (direct)")
+            return self.delayed_send_email(**kwargs)
+
+    def direct_send_email_from_delayed(self, **kwargs) -> bool:
+        try:
+            return self._direct_send_email(**kwargs)
+        except CodedError:
+            self._log.exception("Failed to send an email (delayed)")
+            return False
+
+    def _direct_send_email(self,
+                           to_emails: list[str] | str | None,
+                           subject: str,
+                           message_txt: str = None,
+                           message_html: str = None,
+                           cc_emails: list[str] | str | None = None,
+                           bcc_emails: list[str] | str | None = None,
+                           _no_output: bool = False) -> bool:
         # Build message
-        to_addrs = self._standardize_email_list(to_emails)
-        if cc_emails:
-            to_addrs.extend(self._standardize_email_list(cc_emails))
-        if bcc_emails:
-            to_addrs.extend(self._standardize_email_list(bcc_emails))
-        msg = email.message.EmailMessage()
-        msg['Subject'] = subject
-        msg['To'] = self._standardize_email_list(to_emails)
-        if cc_emails:
-            msg['CC'] = self._standardize_email_list(cc_emails)
-        msg['From'] = self._from_email
-        msg.set_content(message_txt)
-        if message_html:
-            msg.add_alternative(message_html, subtype='html')
-        if not self._dummy_send:
-            return self._send_smtp_message(msg, to_addrs)
-        else:
-            self._log.notice(f"Email system is disable, but message would have been sent to [%s]:\n%s", to_addrs, msg)
-        return True
+        try:
+            to_addrs = self._standardize_email_list(to_emails)
+            if cc_emails:
+                to_addrs.extend(self._standardize_email_list(cc_emails))
+            if bcc_emails:
+                to_addrs.extend(self._standardize_email_list(bcc_emails))
+            msg = email.message.EmailMessage()
+            msg['Subject'] = subject
+            msg['To'] = self._standardize_email_list(to_emails)
+            if cc_emails:
+                msg['CC'] = self._standardize_email_list(cc_emails)
+            msg['From'] = self._from_email
+            msg.set_content(message_txt)
+            if message_html:
+                msg.add_alternative(message_html, subtype='html')
+            if not self._dummy_send:
+                return self._send_smtp_message(msg, to_addrs)
+            else:
+                self._log.notice("Email system is disable, but message would have been sent to [%s]:\n%s", to_addrs, msg)
+                return True
+        except (ValueError, TypeError) as e:
+            raise CodedError("An error occurred while building the email message", 3000, code_space='SMTP') from e
+
 
     def _send_smtp_message(self, msg: email.message.EmailMessage, to_addrs: list[str]):
         # Actually send it

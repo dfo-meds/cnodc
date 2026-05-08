@@ -3,9 +3,9 @@ import click
 
 
 def build_cli():
-    from pipeman.boot import init_cnodc
+    from pipeman.boot import init_pipeman
 
-    init_cnodc('cli')
+    init_pipeman('cli', no_mp=True)
 
     commands: dict[str, click.Command | click.Group] = {}
 
