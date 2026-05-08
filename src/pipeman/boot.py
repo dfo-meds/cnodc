@@ -17,7 +17,7 @@ def init_pipeman(app_type: str,
         app_components=[app_type],
         extra_config_paths=None if app_type != 'tests' else ['./tests'],
         individual_log_levels={
-            'pybufrkit.coder': logging.WARNING
+            'pybufrkit.coder.log': logging.WARNING
         },
         manual_overrides={
             "medsutil.email.DelayedEmailController": "pipeman.delayed_emails.DelayedEmailQueuer",

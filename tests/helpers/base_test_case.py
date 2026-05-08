@@ -270,7 +270,6 @@ class BaseTestCase(ut.TestCase):
 
     @contextmanager
     def assertLogs(self, logger=None, level=None):
-        old_level = logging.root.disabled
         old_root_level = logging.getLogger().getEffectiveLevel()
         try:
             if not level:

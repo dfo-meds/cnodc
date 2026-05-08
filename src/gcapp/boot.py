@@ -80,16 +80,22 @@ def boot(
     init_overrides(manual_overrides)
     init_system_logging(version_no)
 
-    # Configure custom logging levels
-    if individual_log_levels:
-        for log_name, log_level in individual_log_levels.items():
-            logging.getLogger(log_name).setLevel(log_level)
-
     # We delay the messages to here to ensure everything is configured correctly.
     boot_logger = logging.getLogger('boot')
     for log_msg, log_lvl in delayed_log_messages:
         boot_logger.log(log_lvl, log_msg)
 
+    # Configure custom logging levels
+    import importlib
+    if individual_log_levels:
+        for log_obj, log_level in individual_log_levels.items():
+            module_name, obj_name = log_obj.rsplit(".", 1)
+            mod = importlib.import_module(module_name)
+            try:
+                logger = getattr(mod, obj_name)
+                logger.setLevel(log_level)
+            except AttributeError:
+                boot_logger.exception("Could not find logger for %s or it is not a logger", log_obj)
 
 def boot_system(
         app_name: str,
