@@ -20,4 +20,5 @@ else
     python -m "$@"
   else
     python -m "$PYTHON_MODULE" "$@"
+  fi
 fi
