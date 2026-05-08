@@ -20,13 +20,11 @@ class DelayedEmailController(t.Protocol):
 @injector.register(DelayedEmailController)
 class DelayedEmailNotSupportedController:
 
-    ec: EmailController = None
-
-    @injector.construct
     def __init__(self): ...
 
-    def send_delayed(self, kwargs: dict) -> bool:
-        return self.ec.direct_send_email_from_delayed(**kwargs)
+    @injector.inject
+    def send_delayed(self, kwargs: dict, ec: EmailController = None) -> bool:
+        return ec.direct_send_email_from_delayed(**kwargs)
 
 
 
