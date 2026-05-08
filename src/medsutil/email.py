@@ -142,26 +142,26 @@ class EmailController:
 
     def direct_send_email(self, **kwargs) -> bool:
         try:
-            return self._direct_send_email(**kwargs)
+            return self.bare_direct_send_email(**kwargs)
         except CodedError:
             self._log.exception("Failed to send an email (direct)")
             return self.delayed_send_email(**kwargs)
 
     def direct_send_email_from_delayed(self, **kwargs) -> bool:
         try:
-            return self._direct_send_email(**kwargs)
+            return self.bare_direct_send_email(**kwargs)
         except CodedError:
             self._log.exception("Failed to send an email (delayed)")
             return False
 
-    def _direct_send_email(self,
-                           to_emails: list[str] | str | None,
-                           subject: str,
-                           message_txt: str = None,
-                           message_html: str = None,
-                           cc_emails: list[str] | str | None = None,
-                           bcc_emails: list[str] | str | None = None,
-                           _no_output: bool = False) -> bool:
+    def bare_direct_send_email(self,
+                               to_emails: list[str] | str | None,
+                               subject: str,
+                               message_txt: str = None,
+                               message_html: str = None,
+                               cc_emails: list[str] | str | None = None,
+                               bcc_emails: list[str] | str | None = None,
+                               _no_output: bool = False) -> bool:
         # Build message
         try:
             to_addrs = self._standardize_email_list(to_emails)
@@ -204,7 +204,8 @@ class EmailController:
             except (
                     smtplib.SMTPConnectError,
                     smtplib.SMTPServerDisconnected,
-                    TimeoutError) as ex:
+                    TimeoutError
+            ) as ex:
                 raise CodedError(str(ex), 1000, code_space="SMTP", is_transient=True) from ex
 
             except Exception as ex:
