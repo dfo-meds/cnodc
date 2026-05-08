@@ -8,6 +8,10 @@ RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y
 
 WORKDIR /python-service
 
+COPY requirements requirements
+RUN pip install --upgrade pip
+RUN pip install -r requirements/req.pipeman.docker.txt
+
 VOLUME /service-config
 VOLUME /service-data
 
@@ -25,10 +29,6 @@ RUN chmod +x start.sh
 RUN dos2unix start.sh
 
 COPY docker/gunicorn_conf.py gunicorn_conf.py
-
-COPY requirements requirements
-RUN pip install --upgrade pip
-RUN pip install -r requirements/req.pipeman.docker.txt
 
 COPY src/ ./
 COPY vocab/ ./vocab/
