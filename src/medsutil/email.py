@@ -115,7 +115,7 @@ class EmailController:
                    immediate: bool = False) -> bool:
         kwargs = {
             "to_emails": to_emails,
-            "subject": subject,
+            "subject": subject.replace("\r", "").replace("\n", " "),
             "message_txt": message_txt,
             "message_html": message_html,
             "cc_emails": cc_emails,
