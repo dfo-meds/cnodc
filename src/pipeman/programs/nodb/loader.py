@@ -67,8 +67,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if err_dir is None:
             raise CNODCError(f"Specified error directory is not a directory", "NODB-LOAD", 1001)
         handle = self.storage.get_filepath(err_dir, self._halt_flag)
-        if handle is None or not (handle.is_dir() and handle.exists()):
-            raise CNODCError(f"Specified error directory is not a directory or doesn't exist", "NODB-LOAD", 1003)
+        if handle is None:
+            raise CNODCError(f"Specified error directory is not supported", "NODB-LOAD", 1003)
+        handle.mkdir(parents=True)
         return handle
 
     @property
