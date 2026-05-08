@@ -2,11 +2,13 @@
 
 FROM python:3.14.3-slim-trixie
 
-# Get the required libraries to compile psycopg
-RUN apt-get update
-RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y
+# One day I'd liek to revisit this, but it isn't working for now
+# note: we were trying gosu to get into the actual user
+# RUN adduser --system --no-create-home --group servicerunner
 
-RUN adduser --system --no-create-home --group servicerunner
+# Get the required libraries to compile psycopg
+RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y --update
+RUN apt-get dist-clean
 
 WORKDIR /python-service
 
@@ -18,9 +20,7 @@ VOLUME /service-config
 VOLUME /service-data
 
 RUN mkdir /service-control
-RUN chown servicerunner:servicerunner /service-control
-
-RUN chown servicerunner:servicerunner /service-data
+# RUN chown servicerunner:servicerunner /service-control
 
 ENV GUNICORN_CONTROL_SOCKET=/service-control/gunicorn.ctl
 ENV CNODC_CONFIG_SEARCH_PATHS=/service-config/defaults;/service-config;/python-service
@@ -44,8 +44,6 @@ COPY app.py ./app.py
 COPY docker/defaults/pipeman/ ./defaults/
 
 EXPOSE 80
-
-USER servicerunner
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/python-service/start.sh"]
 
