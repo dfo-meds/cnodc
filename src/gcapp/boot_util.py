@@ -15,6 +15,7 @@ def init_system_logging(version_no: str | None = None):
 
     # Setup additional info
     from gcapp.requestinfo import RequestInfo
+    @injector.inject
     def _init_rinfo(rinfo: RequestInfo = None):
         rinfo.set_logging_defaults()
         rinfo.set_logging_extras_system()
