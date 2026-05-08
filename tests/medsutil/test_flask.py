@@ -77,11 +77,9 @@ class TestProxyFix(BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        logging.disable(logging.ERROR)
 
     def tearDown(self):
         super().tearDown()
-        logging.disable(logging.NOTSET)
 
     def test_call_trusted(self):
         tpf = TrustedProxyFix(BoringApp(), "*")

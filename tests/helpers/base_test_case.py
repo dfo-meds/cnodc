@@ -271,18 +271,19 @@ class BaseTestCase(ut.TestCase):
     @contextmanager
     def assertLogs(self, logger=None, level=None):
         old_level = logging.root.disabled
+        old_root_level = logging.getLogger().getEffectiveLevel()
         try:
-            if level:
-                if isinstance(level, str):
-                    logging.disable(getattr(logging, level) - 1)
-                else:
-                    logging.disable(level - 1)
-            else:
-                logging.disable(logging.NOTSET)
+            if not level:
+                level = logging.NOTSET
+            elif isinstance(level, str):
+                level = getattr(logging, level)
+            logging.getLogger().setLevel(level)
+            print(logging.NOTICE)
+            print(logging.getLogger("medsutil.secure").getEffectiveLevel())
             with super().assertLogs(logger, level) as h:
                 yield h
         finally:
-            logging.disable(old_level)
+            logging.getLogger().setLevel(old_root_level)
 
     def assertSameTime(self, dt1: datetime.datetime | str | None, dt2: datetime.datetime | str, msg=None):
         if isinstance(dt1, str):

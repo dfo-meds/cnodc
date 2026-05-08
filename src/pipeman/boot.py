@@ -35,7 +35,6 @@ def init_for_tests(skip_long_tests: bool = True,
 
     # Setup config and logging
     init_pipeman('tests', with_mp_prometheus_default if not disable_metrics else False)
-    logging.disable(logging.NOTSET)
 
     if disable_metrics:
         # Prevent metrics from being loaded

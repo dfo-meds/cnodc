@@ -13,8 +13,6 @@ DEFAULT_PASSWORD_HASH_ITERATIONS: int = 752123
 MINIMUM_ITERATIONS: int = 100000
 ALGORITHM: str = 'sha512'
 
-logger = zrlog.get_logger('medsutil.secure')
-
 class SecureError(CodedError): CODE_SPACE = 'SECURE'
 
 def validate_password(password: str | None) -> typing.TypeGuard[str]:
@@ -28,7 +26,7 @@ def validate_password(password: str | None) -> typing.TypeGuard[str]:
 
 def check_expired_password(password: str, salt: bytes, password_hash: bytes, expired_date: AwareDateTime, username: str = None) -> bool:
     if expired_date > AwareDateTime.now() and check_password(password, salt, password_hash):
-        logger.notice('User [%s] has logged in with an expired password', username)
+        zrlog.get_logger('medsutil.secure').notice('User [%s] has logged in with an expired password', username)
         return True
     return False
 
@@ -54,7 +52,7 @@ def generate_secure_random_password() -> str:
 
 def generate_salt(length: int = 8) -> bytes:
     if length < 8:
-        logger.notice(f"Salt length is too short, minimum 64 bit required, got [%s]", length * 8)
+        zrlog.get_logger('medsutil.secure').notice(f"Salt length is too short, minimum 64 bit required, got [%s]", length * 8)
     return secrets.token_bytes(length)
 
 def validate_secret_key(key: str | None) -> typing.TypeGuard[str]:

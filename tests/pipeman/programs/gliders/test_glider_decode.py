@@ -340,9 +340,7 @@ class TestGliderDecodeFull(BaseTestCase):
             TestGliderDecodeTools._add_ego_parameter(ds, 'TEMP_DOXY', [13, 14, 15], [1, 1, 1], 'degree_Celsius')
 
             mapper = GliderEGOMapper(ds, GliderEGOMapper.DEFAULT_MAPPING_FILE)
-            logging.disable(logging.WARNING)
             cls.decoded_records = [x for x in mapper.build_records()]
-            logging.disable(logging.NOTSET)
 
     def test_record_length(self):
         self.assertEqual(3, len(self.decoded_records))
@@ -557,9 +555,7 @@ class TestGliderDecodeMinimum(BaseTestCase):
             TestGliderDecodeTools._add_ego_parameter(ds, 'TEMP_DOXY', [None, None, None], [None, None, None], 'degree_Celsius')
 
             mapper = GliderEGOMapper(ds, GliderEGOMapper.DEFAULT_MAPPING_FILE)
-            logging.disable(logging.WARNING)
             cls.decoded_records = [x for x in mapper.build_records()]
-            logging.disable(logging.NOTSET)
 
     def test_record_length(self):
         self.assertEqual(3, len(self.decoded_records))
