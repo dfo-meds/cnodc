@@ -3,9 +3,7 @@ import logging
 
 __VERSION__ = '0.1.0'
 
-ROOT_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent.parent
-
-
+MY_DIR = pathlib.Path(__file__).absolute().resolve().parent
 
 def init_pipeman(app_type: str,
                  with_mp_prometheus_default: bool = False,
@@ -15,6 +13,9 @@ def init_pipeman(app_type: str,
     gcboot.boot(
         app_name='pipeman',
         app_components=[app_type],
+        env_map_files=[
+            MY_DIR / '.env_map.yaml',
+        ],
         extra_config_paths=None if app_type != 'tests' else ['./tests'],
         individual_log_levels={
             'pybufrkit.coder.log': logging.WARNING

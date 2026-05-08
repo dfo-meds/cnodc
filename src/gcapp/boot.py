@@ -44,6 +44,23 @@ def _config_paths(extra_paths: t.Sequence[str | pathlib.Path] | None = None) -> 
                 yield path.absolute().resolve()
 
 
+def _env_variables(variables: dict[str, str]) -> dict[str, str]:
+    env_var_map = {}
+    existing_env_vars = list(os.environ.keys())
+    for key in variables:
+        if '$1' in key:
+            pos = key.find('$1')
+            prefix = key[:pos]
+            suffix = key[pos+2:]
+            for env_var in existing_env_vars:
+                if env_var.startswith(prefix) and env_var.endswith(suffix):
+                    dollar1 = env_var[len(prefix):-len(suffix)]
+                    env_var_map[env_var] = variables[key].replace("$1", dollar1)
+        else:
+            env_var_map[key] = variables[key]
+    return env_var_map
+
+
 def boot(
         app_name: str,
         app_components: t.Sequence[str] | None = None,
@@ -52,7 +69,8 @@ def boot(
         is_multiprocessing: bool = False,
         individual_log_levels: dict[str, int] | None = None,
         extra_config_paths: list[str | pathlib.Path] | None = None,
-        version_no: str | None = None
+        version_no: str | None = None,
+        env_map_files: list[pathlib.Path] | None = None
 ):
 
     delayed_log_messages: list[tuple[str, int]] = []
@@ -74,6 +92,16 @@ def boot(
                 for name in app_components:
                     config.register_default_file(path / f".{app_name}.{name}.defaults.toml")
                     config.register_file(path / f".{app_name}.{name}.toml")
+
+        import yaml
+        if env_map_files:
+            for file in env_map_files:
+                if file.exists():
+                    with open(file, 'r', encoding='utf-8') as h:
+                        d = yaml.safe_load(h)
+                        if not isinstance(d, dict):
+                            continue
+                        config.register_environ_map(_env_variables(d))
 
     # Initialize system logging and autoinject overrides
     from gcapp.boot_util import init_system_logging, init_overrides
