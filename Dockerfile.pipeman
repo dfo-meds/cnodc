@@ -23,7 +23,7 @@ RUN mkdir /service-control
 # RUN chown servicerunner:servicerunner /service-control
 
 ENV GUNICORN_CONTROL_SOCKET=/service-control/gunicorn.ctl
-ENV CNODC_CONFIG_SEARCH_PATHS=/service-config/defaults;/service-config;/python-service
+ENV GCAPP_CONFIG_DIRECTORIES=/service-config/defaults;/service-config;/python-service
 ENV PYTHONPATH=/python-service
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONOPTIMIZE=2
