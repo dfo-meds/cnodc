@@ -25,7 +25,11 @@ class DelayedEmailsWorker(QueueWorker):
 
     @injector.construct
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(
+            process_name="delayed_email_send",
+            process_version="1_0",
+            **kwargs
+        )
         self.set_defaults({
             'queue_name': 'emails'
         })
