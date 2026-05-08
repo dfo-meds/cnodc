@@ -20,7 +20,7 @@ def init_pipeman(app_type: str,
             'pybufrkit.coder.log': logging.WARNING
         },
         manual_overrides={
-            "medsutil.email.DelayedEmailController": "pipeman.delayed_emails.DelayedEmailQueuer",
+            "medsutil.email.DelayedEmailController": "pipeman.delayed_emails.DelayedEmailsQueuer",
             "nodb.interface.NODB": "nodb.controller.NODBPostgresController"
         },
         is_multiprocessing=not no_mp,
