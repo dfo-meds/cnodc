@@ -1,11 +1,10 @@
 [flask]
-MAX_CONTENT_LENGTH = 10485760  # 10 MiB
-UPLOAD_FOLDER = "/cnodc-data/uploads"
-PERMANENT_SESSION_LIFETIME = 604800  # 1 week
+UPLOAD_FOLDER = "/service-data/uploads"
+MAX_CONTENT_LENGTH = 26214400  # 25 MiB
+PERMANENT_SESSION_LIFETIME = 12200  # 2 hour renewal of sessions
 
-[cnodc]
-process_definition_directory = "/cnodc-config/processes"
-flag_file = "/cnodc-config/reload_flag"
+[pipeman.service]
+config_directory = "/service-config/processes"
 
 [logging]
 version = 1

@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import multiprocessing
 import os
+import pathlib
+import shutil
 
 from prometheus_client.multiprocess import mark_process_dead
 
@@ -37,18 +39,18 @@ if bind_env:
 else:
     bind = "{host}:{port}".format(host=host, port=port)
 
-cores = multiprocessing.cpu_count()
+cores = os.getenv("CPU_COUNT", multiprocessing.cpu_count())
 # Set number of workers as needed
 if web_concurrency_str:
     workers = int(web_concurrency_str)
 else:
     workers_per_core = float(workers_per_core_str)
-    default_web_concurrency = (workers_per_core * cores) + 1
+    default_web_concurrency = (workers_per_core * int(cores)) + 1
     workers = int(default_web_concurrency)
 assert workers > 0
 assert worker_class in ('sync', 'eventlet', 'gevent', 'tornado', 'gthread')
 
-if os.getenv("DUMP_GUNICORN_CONFIG", "1") == "1":
+if os.getenv("DUMP_GUNICORN_CONFIG", "0") == "1":
     # For debugging and testing
     log_data = {
         "loglevel": loglevel,

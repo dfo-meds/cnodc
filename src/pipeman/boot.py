@@ -24,8 +24,6 @@ def init_pipeman(app_type: str,
             "medsutil.email.DelayedEmailController": "pipeman.delayed_emails.DelayedEmailsQueuer",
             "nodb.interface.NODB": "nodb.controller.NODBPostgresController"
         },
-        is_multiprocessing=not no_mp,
-        create_local_prom_mp_dir=with_mp_prometheus_default,
         version_no=__VERSION__
     )
 

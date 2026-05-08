@@ -6,15 +6,23 @@ FROM python:3.14.3-slim-trixie
 RUN apt-get update
 RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y
 
+RUN adduser --system --no-create-home --group servicerunner
+
 WORKDIR /python-service
 
 COPY requirements requirements
-RUN pip install --upgrade pip
-RUN pip install -r requirements/req.pipeman.docker.txt
+RUN pip install --root-user-action ignore --upgrade pip
+RUN pip install --root-user-action ignore -r requirements/req.pipeman.docker.txt
 
 VOLUME /service-config
 VOLUME /service-data
 
+RUN mkdir /service-control
+RUN chown servicerunner:servicerunner /service-control
+
+RUN chown servicerunner:servicerunner /service-data
+
+ENV GUNICORN_CONTROL_SOCKET=/service-control/gunicorn.ctl
 ENV CNODC_CONFIG_SEARCH_PATHS=/service-config/defaults;/service-config;/python-service
 ENV PYTHONPATH=/python-service
 ENV PYTHONUNBUFFERED=TRUE
@@ -23,7 +31,7 @@ ENV MODULE_NAME=pipeman_web.app
 ENV VARIABLE_NAME=app
 ENV GUNICORN_CONF=/python-service/gunicorn_conf.py
 ENV PROMETHEUS_MULTIPROC_DIR=/service-data/_prometheus
-
+ENV RESET_PROMETHEUS_METRICS=N
 COPY docker/start.sh start.sh
 RUN chmod +x start.sh
 RUN dos2unix start.sh
@@ -36,6 +44,8 @@ COPY app.py ./app.py
 COPY docker/defaults/pipeman/ ./defaults/
 
 EXPOSE 80
+
+USER servicerunner
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/python-service/start.sh"]
 

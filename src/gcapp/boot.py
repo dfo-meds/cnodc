@@ -2,27 +2,11 @@ import pathlib
 import typing as t
 import os
 import logging
-import shutil
 
 
 ROOT_DIR = pathlib.Path(__file__).absolute().resolve()
 while ROOT_DIR.name in ('src', 'gcapp', 'boot.py'):
     ROOT_DIR = ROOT_DIR.parent
-
-
-def _fix_multiprocessing_directory(create_local_default: bool = False):
-    # Ensure we have a multiprocessing directory
-    prom_dir = os.environ.get('PROMETHEUS_MULTIPROC_DIR', '')
-    if not prom_dir:
-        if not create_local_default:
-            return False
-        prom_dir = str(ROOT_DIR / ".temp_prometheus")
-        os.environ['PROMETHEUS_MULTIPROC_DIR'] = prom_dir
-    prom_dir = pathlib.Path(prom_dir)
-    if prom_dir.exists():
-        shutil.rmtree(prom_dir)
-    prom_dir.mkdir()
-    return True
 
 
 def _config_paths(extra_paths: t.Sequence[str | pathlib.Path] | None = None) -> t.Generator[pathlib.Path, None, None]:
@@ -65,8 +49,6 @@ def boot(
         app_name: str,
         app_components: t.Sequence[str] | None = None,
         manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
-        create_local_prom_mp_dir: bool = False,
-        is_multiprocessing: bool = False,
         individual_log_levels: dict[str, int] | None = None,
         extra_config_paths: list[str | pathlib.Path] | None = None,
         version_no: str | None = None,
@@ -74,10 +56,6 @@ def boot(
 ):
 
     delayed_log_messages: list[tuple[str, int]] = []
-    # Ensure Prometheus metrics directory is correctly set up
-    if is_multiprocessing:
-        if not _fix_multiprocessing_directory(create_local_prom_mp_dir):
-            delayed_log_messages.append(('Prometheus directory not configured for a multiprocessing system; this may cause errors in your metrics!!', logging.WARNING))
 
     # Set up configuration files
     import zirconium as zr

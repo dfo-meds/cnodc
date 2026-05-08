@@ -7,12 +7,15 @@ if [ -n "$PROMETHEUS_MULTIPROC_DIR" ] ; then
   if [ ! -d "$PROMETHEUS_MULTIPROC_DIR" ] ; then
     mkdir "$PROMETHEUS_MULTIPROC_DIR"
   fi
+  if [ "$RESET_PROMETHEUS_METRICS" = 'Y' ] ; then
+    rm -rf "$PROMETHEUS_MULTIPROC_DIR/*"
+  fi
 fi
 
 # Run gunicorn if requested
-if [ "$0" = "gunicorn" ] ; then
+if [ "$1" = "gunicorn" ] ; then
   shift 1
-  exec gunicorn --chdir "$PYTHONPATH" -c "$GUNICORN_CONF" "$MODULE_NAME:$VARIABLE_NAME" "$@"
+  exec gunicorn --control-socket "$GUNICORN_CONTROL_SOCKET" --chdir "$PYTHONPATH" -c "$GUNICORN_CONF" "$MODULE_NAME:$VARIABLE_NAME" "$@"
 
 # Otherwise, run our python script as requested
 else
