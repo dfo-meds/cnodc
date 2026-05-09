@@ -90,6 +90,16 @@ class NODBWebController:
                     self._serializer = itsdangerous.Serializer(flask.current_app.config['SECRET_KEY'])
         return self._serializer
 
+    def status_report(self):
+        s = '<html><body><pre>\n'
+        with self.nodb as db:
+            for process in db.fetch_processes():
+                for key in process.keys():
+                    s += f'{key.replace('_', ' ')}: {process[key]}\n'
+                s += '\n\n'
+        s += '\n</pre></body></html>'
+        return s
+
     def get_next_queue_item(self,
                             service_name: str):
         services = self.config.as_dict(('cnodc', 'queue_services'), {})

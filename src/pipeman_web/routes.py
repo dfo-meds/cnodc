@@ -11,6 +11,17 @@ from .uploads import UploadResult, UploadController
 cnodc = flask.Blueprint("cnodc", __name__)
 
 
+@cnodc.route("/internal/health")
+def health():
+    return '<html><body>up</body></html>'
+
+
+@cnodc.route("/internal/status")
+@injector.inject
+def status(nodb: NODBWebController = None):
+    return nodb.status_report()
+
+
 @cnodc.route("/public/api/login", methods=["POST"])
 @require_inputs(["username", "password"])
 @injector.inject

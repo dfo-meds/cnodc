@@ -32,9 +32,6 @@ class QueueItemResult(enum.Enum):
 class QueueWorker(BaseWorker):
     """Execute a process on every queue item."""
 
-    nodb: nodb_.NODB = None
-
-    @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.set_defaults({
@@ -52,6 +49,13 @@ class QueueWorker(BaseWorker):
         self._current_delay_time = None
         self._current_item: t.Optional[NODBQueueItem] = None
         self._db: t.Optional[nodb_.NODBInstance] = None
+        self._status_info.update({
+            'items_processed': 0,
+            'fetch_errors': 0,
+            'items_error': 0,
+            'items_success': 0,
+            'items_retry': 0,
+        })
 
     @property
     def db(self) -> nodb_.NODBInstance:
@@ -86,6 +90,9 @@ class QueueWorker(BaseWorker):
             self._current_item = self._fetch_next_queue_item()
             # Run the process on the item
             if self._current_item is not None:
+                self._status_info['items_processed'] += 1
+                self.report(activity='processing')
+                self.db.commit()
                 with self._run_time_histogram.time():
                     self._actual_process_next_queue_item()
                 return True
@@ -138,6 +145,7 @@ class QueueWorker(BaseWorker):
         if self._current_item is not None:
             self._log.trace('Renewing queue item [%s]', self._current_item.queue_uuid)
             self._current_item.renew(self.db)
+            self.report()
 
     def _process_result(self, queue_item: t.Optional[NODBQueueItem], result: t.Optional[QueueItemResult], ex: Exception = None):
         """Handle the result of calling the queue processing function."""
@@ -150,15 +158,18 @@ class QueueWorker(BaseWorker):
                 self.on_success(queue_item)
                 after = self.after_success
                 queue_result = "success"
+                self._status_info['items_success'] += 1
             elif result == QueueItemResult.HANDLED:
                 self.on_success(queue_item)
                 after = self.after_success
                 queue_result = "success"
+                self._status_info['items_success'] += 1
             elif result == QueueItemResult.FAILED:
                 queue_item.mark_failed(self.db)
                 self.on_failure(queue_item, ex)
                 after = self.after_failure
                 queue_result = "failed"
+                self._status_info['items_error'] += 1
             else:
                 queue_item.release(
                     self.db,
@@ -168,6 +179,7 @@ class QueueWorker(BaseWorker):
                 self.on_retry(queue_item, ex)
                 after = self.after_retry
                 queue_result = "retry"
+                self._status_info['items_retry'] += 1
             self.db.commit()
             after(queue_item, ex)
             self.count("queue_items_total", result=queue_result, queue_name=queue_item.queue_name)
@@ -206,6 +218,7 @@ class QueueWorker(BaseWorker):
         self._queue_name = self.get_config('queue_name', None)
         if not self._queue_name:
             raise CNODCError("No queue specified for a queue worker", 'QUEUE-WORKER', 1000)
+        self._status_info['queue_name'] = self._queue_name
         self._current_delay_time = self.get_config("delay_time_seconds", 0.25)
         self._app_id = str(uuid.uuid4())
         self.create_counter("queue_items_total", description="Queue items processed", labels=("result", "queue_name"))

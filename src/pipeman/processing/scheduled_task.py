@@ -32,6 +32,10 @@ class ScheduledTask(BaseWorker):
     def _run_once(self) -> float:
         now = awaretime.utc_now()
         if self._check_execution(now):
+            if 'executions' not in self._status_info:
+                self._status_info['executions'] = 0
+            self._status_info['executions'] += 1
+            self.report(activity='executing')
             with self._run_time_histogram.time():
                 now = self._run_scheduled_task(now)
         return self._sleep_time(now)
@@ -63,6 +67,7 @@ class ScheduledTask(BaseWorker):
         # Round down the microseconds, this will help prevent the time from continually escalating
         self._next_execution = self._next_execution.replace(microsecond=0)
         self._log.debug(f"Next execution: {self._next_execution.isoformat()}")
+        self.report(next_execution=self._next_execution.isoformat())
 
     def _execution_delay(self, first_run: bool = False) -> datetime.timedelta:
         """Calculate the delay from a given time point (start or end) to the next execution."""

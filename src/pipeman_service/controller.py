@@ -95,6 +95,7 @@ class BaseProcess:
         self._log.trace('Building and running worker class')
         worker = dynamic_object(self._proc_info.worker_cls)(
             _process_uuid=self._proc_info.process_uuid,
+            _server_name=self._proc_info.server_name,
             _config=json.loads(self._proc_info.json_config),
             _halt_flag=HaltFlag(self.halt_flag),
             _end_flag=HaltFlag(self.end_flag),
@@ -117,8 +118,6 @@ class BaseProcess:
 
     def setup(self):
         ...
-
-
 
 
 class _ProcessSet:

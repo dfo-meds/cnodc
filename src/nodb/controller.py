@@ -319,6 +319,48 @@ class PostgresController(interface.NODBInstance):
         obj.clear_modified()
         return True
 
+    def upsert_process_info(self,
+                            server_name: str,
+                            process_id: str,
+                            process_name: str,
+                            process_version: str,
+                            info: dict[str, t.Any]):
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_processes (server_name, process_id, process_name, process_version, info) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (server_name, process_id) DO UPDATE SET info = EXCLUDED.info",[
+                server_name,
+                process_id,
+                process_name,
+                process_version,
+                json.dumps(info)
+            ])
+
+    def clear_process_info_for_server(self, server_name: str):
+        with self.cursor() as cur:
+            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE server_name = %s", [
+                server_name
+            ])
+
+    def clear_process_info(self, server_name: str, process_id: str):
+        with self.cursor() as cur:
+            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE server_name = %s AND process_id = %s", [
+                server_name,
+                process_id
+            ])
+
+    def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
+        with self.cursor() as cur:
+            cur.execute("SELECT server_name, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes")
+            for item in cur.fetch_stream(10):
+                process_info: dict[str, t.Any] = json.load_dict(item[6])
+                process_info['server_name'] = item[0]
+                process_info['process_id'] = item[1]
+                process_info['process_name'] = item[2]
+                process_info['process_version'] = item[3]
+                process_info['db_created_date'] = AwareDateTime.fromisoformat(item[4])
+                process_info['db_modified_date'] = AwareDateTime.fromisoformat(item[5])
+                process_info['exited'] = item[7]
+                yield process_info
+
     def fast_renew_queue_item(self, queue_uuid: str, now_: AwareDateTime | None = None) -> AwareDateTime:
         with self.cursor() as cur:
             dt = now_ or AwareDateTime.now()

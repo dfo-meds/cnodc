@@ -1,4 +1,5 @@
 import datetime
+import json
 import typing as t
 import uuid
 
@@ -7,12 +8,14 @@ from nodb import QueueStatus, NODBQueueItem, ScannedFileStatus
 
 from medsutil.sanitize import coerce
 from nodb.base import NODBBaseObject
+from pipeman_cli.user import create
 
 
 class DatabaseMock:
 
     def __init__(self):
         self.tables: dict[str, list[NODBBaseObject]] = {}
+        self._process_info: dict[str, dict[str, t.Any]] = {}
         self._permissions: dict[str, set[str]] = {}
         self._scanned_files: list[dict[str, t.Any]] = []
         self._lookups: dict[str, dict[str, dict[str, list[int]]]] = {}
@@ -69,6 +72,40 @@ class DatabaseMock:
         for item in self.table(NODBQueueItem):
             yield item.queue_name, item.queue_uuid, item.status.value
 
+    def upsert_process_info(self,
+                            server_name: str,
+                            process_id: str,
+                            process_name: str,
+                            process_version: str,
+                            info: dict[str, t.Any]):
+        key = f"{server_name}\x04{process_id}"
+        if key in self._process_info:
+            created_date = self._process_info[key]['db_created_date']
+        else:
+            created_date = AwareDateTime.now()
+        self._process_info[key] = {
+            'server_name': server_name,
+            'process_id': process_id,
+            'process_name': process_name,
+            'process_version': process_version,
+            'db_created_date': created_date,
+            'db_modified_date': AwareDateTime.now(),
+            'exited': 'N',
+            **info
+        }
+
+    def clear_process_info_for_server(self, server_name: str):
+        for key in self._process_info:
+            if key.startswith(f"{server_name}\x04"):
+                self._process_info[key]['exited'] = 'Y'
+
+    def clear_process_info(self, server_name: str, process_id: str):
+        key = f"{server_name}\x04{process_id}"
+        if key in self._process_info:
+            self._process_info[key]['exited'] = 'Y'
+
+    def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
+        yield from self._process_info.values()
 
     def mark_scanned_item_success(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
         file_path = str(file_path).replace("\\", "/")
@@ -126,6 +163,7 @@ class DatabaseMock:
         self.tables.clear()
         self._permissions.clear()
         self._scanned_files.clear()
+        self._process_info.clear()
         self._lookups.clear()
 
     def table[T](self, table_name: type[T] | str) -> list[T]:

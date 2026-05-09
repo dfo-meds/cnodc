@@ -7,9 +7,11 @@ import typing as t
 import zrlog
 from autoinject import injector
 from zrlog.logger import ImprovedLogger
+import nodb as nodb_
 
 from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
+from medsutil.exceptions import CodedError, HaltInterrupt
 from medsutil.halts import HaltFlag, gzip_with_halt, ungzip_with_halt
 import medsutil.metrics as mum
 from medsutil.metrics import Gauge, Histogram
@@ -53,14 +55,20 @@ class BaseWorker(CachedObjectMixin):
         that would not prevent the worker from continuing onto the next iteration.
     """
 
+    nodb: nodb_.NODB = None
+
+    @injector.construct
     def __init__(self,
                  process_name: str,
                  process_version: str,
+                 *,
+                 _server_name: str,
                  _process_uuid: str,
                  _halt_flag: HaltFlag,
                  _end_flag: HaltFlag,
                  _config: dict = None):
         super().__init__()
+        self._server_name = _server_name
         self._halt_flag = _halt_flag
         self._end_flag = _end_flag
         self._process_uuid = _process_uuid
@@ -84,6 +92,7 @@ class BaseWorker(CachedObjectMixin):
         self._metrics = {}
         self._last_run_gauge = None
         self._run_time_histogram = None
+        self._status_info = {}
 
     def add_events(self, events: list[str]):
         self._events.extend(events)
@@ -147,13 +156,16 @@ class BaseWorker(CachedObjectMixin):
             return
         elif time_seconds < (2 * max_delay):
             self._log.trace('Sleeping for [%s] seconds', time_seconds)
+            self.report(activity=f'sleeping {time_seconds} s')
             time.sleep(time_seconds)
         else:
             st = time.monotonic()
             et = st
             while (et - st) < time_seconds:
-                self._log.trace('Sleeping for [%s] seconds', time_seconds)
-                time.sleep(min(max_delay, max(time_seconds - (et - st), 0.01)))
+                time_to_sleep = min(max_delay, max(time_seconds - (et - st), 0.01))
+                self._log.trace('Sleeping for [%s] seconds', time_to_sleep)
+                self.report(activity=f'sleeping {time_to_sleep} s')
+                time.sleep(time_to_sleep)
                 et = time.monotonic()
                 if not self.continue_loop():
                     break
@@ -207,17 +219,26 @@ class BaseWorker(CachedObjectMixin):
         """Run the worker process with appropriate error handling."""
         exc = None
         try:
+            self.report(status='booting')
             self._log.debug('Starting process %s', self.process_id)
             self.on_start()
             self._log.debug(f'Process %s is running', self.process_id)
+            self.report(status='running')
             self._run()
+            self.report(status='shutdown')
+        except (HaltInterrupt, KeyboardInterrupt) as ex:
+            exc = ex
+            self.report(status='halted')
         except Exception as ex:
             exc = ex
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
+            self.report(status='errored')
         finally:
             self._log.debug(f'Cleaning up %s', self.process_id)
             self.on_exit(exc)
             self._log.debug(f'Process %s complete', self.process_id)
+            self._status_info['status'] += '-complete'
+            self.report(_end=True)
 
     def run_once(self):
         exc = None
@@ -241,6 +262,22 @@ class BaseWorker(CachedObjectMixin):
     def _run_once(self) -> float:
         """Override this method  to process items."""
         raise NotImplementedError
+
+    def report(self, _end: bool = False, **kwargs):
+        self._status_info.update(kwargs)
+        try:
+            with self.nodb as db:
+                db.upsert_process_info(
+                    self._server_name,
+                    self._process_uuid,
+                    self._process_name,
+                    self._process_version,
+                    self._status_info
+                )
+                if _end:
+                    db.clear_process_info(self._server_name, self._process_uuid)
+        except CodedError:
+            self._log.exception(f"Exception during reporting")
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""

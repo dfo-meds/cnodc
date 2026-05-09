@@ -399,6 +399,30 @@ CREATE OR REPLACE TRIGGER update_working_modified_date
     EXECUTE PROCEDURE update_modified_date();
 
 
+CREATE TABLE IF NOT EXISTS nodb_processes (
+    system_id           VARCHAR(1024)   NOT NULL,
+    process_id          VARCHAR(1024)   NOT NULL,
+
+    process_name        VARCHAR(1024)   NOT NULL,
+    process_version     VARCHAR(1024)   NOT NULL,
+
+    db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+
+    exited              CHAR(1)         NOT NULL    DEFAULT 'N',
+
+    info                JSON            NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_processes_id ON nodb_processes(system_id, process_id);
+
+-- Trigger for QC batch table modified date maintenance
+CREATE OR REPLACE TRIGGER update_processes_modified_date
+    BEFORE UPDATE ON nodb_processes
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_modified_date();
+
+
 -- Table for managing the queue
 CREATE TABLE IF NOT EXISTS nodb_queues (
     queue_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
