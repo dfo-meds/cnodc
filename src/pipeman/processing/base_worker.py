@@ -166,7 +166,7 @@ class BaseWorker(CachedObjectMixin):
             return
         elif time_seconds < (2 * max_delay):
             self._log.trace('Sleeping for [%s] seconds', time_seconds)
-            self.report(activity=f'sleeping {time_seconds} s', _resource_update=True)
+            self.report(activity=f'sleeping {time_seconds:.2f} s', _resource_update=True)
             time.sleep(time_seconds)
         else:
             st = time.monotonic()
@@ -174,7 +174,7 @@ class BaseWorker(CachedObjectMixin):
             while (et - st) < time_seconds:
                 time_to_sleep = min(max_delay, max(time_seconds - (et - st), 0.01))
                 self._log.trace('Sleeping for [%s] seconds', time_to_sleep)
-                self.report(activity=f'sleeping {time_to_sleep} s', _resource_update=True)
+                self.report(activity=f'sleeping {time_to_sleep:.2f} s', _resource_update=True)
                 time.sleep(time_to_sleep)
                 et = time.monotonic()
                 if not self.continue_loop():

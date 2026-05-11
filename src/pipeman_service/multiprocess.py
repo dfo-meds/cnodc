@@ -87,8 +87,8 @@ class MultiProcessController(BaseController):
         with self.nodb as db:
             db.upsert_process_info(
                 self._server_name or '',
-                '__root__',
                 self._controller_proc_name,
+                'controller',
                 '1.0',
                 self._status_info
             )

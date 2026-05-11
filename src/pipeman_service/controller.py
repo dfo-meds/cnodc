@@ -134,16 +134,16 @@ class _ProcessSet:
         self._active_processes: dict[str, _ProcessProtocol] = {}
         self._is_active = True
         self._log = zrlog.get_logger(f'cnodc.process_set.{process_info.process_name}')
-        self._idx = -1
+        self._idx = 0
 
     def _build_process(self) -> tuple[_ProcessProtocol, str]:
+        self._idx += 1
         n = AwareDateTime.now().strftime("%M%S%f")
-        proc_id = f"{self._info.server_name}:{self._info.process_name}:{n}:{self._idx}"
+        proc_id = f"{self._info.server_name}:{self._info.process_name}:{self._idx}:{n}"
         x = copy.copy(self._info)
         x.process_index = self._idx
         x.process_uuid = proc_id
         obj = self._process_cls(proc_info=x)
-        self._idx += 1
         return obj, proc_id
 
     def set_quota(self, new_count: int):
