@@ -12,7 +12,7 @@ class NODBFinalizeWorker(BatchWorkflowWorker):
     def __init__(self, **kwargs):
         super().__init__(
             process_name="finalizer",
-            process_version="1_0",
+            process_version="1.0",
             **kwargs
         )
         self.set_defaults({

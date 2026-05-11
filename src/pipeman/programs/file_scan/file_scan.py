@@ -82,10 +82,13 @@ class FileScanTask(ScheduledTask):
 
     def scan_files(self, db):
         scan_target = self.scan_target
+        if not scan_target.exists():
+            self._log.warning(f"Directory %s does not exist", self.scan_target.path())
+            return
         batch_id = str(uuid.uuid4())
-        self._log.info(f'Scanning [%s]', scan_target.path())
         full_path = None
         mod_time = None
+        self._log.info(f'Scanning [%s]', scan_target.path())
         with scan_target:
             for file in scan_target.search(self._pattern, self._recursive):
                 db.create_savepoint('FILE_INSERT')

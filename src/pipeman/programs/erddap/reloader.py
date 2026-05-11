@@ -16,7 +16,7 @@ class ERDDAPReloadWorker(QueueWorker):
     def __init__(self, **kwargs):
         super().__init__(
             process_name="erddap_reload",
-            process_version="1_0",
+            process_version="1.0",
             **kwargs
         )
         self.set_defaults({
