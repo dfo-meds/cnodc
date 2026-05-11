@@ -326,7 +326,7 @@ class PostgresController(interface.NODBInstance):
                             process_version: str,
                             info: dict[str, t.Any]):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_processes (server_name, process_id, process_name, process_version, info) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (server_name, process_id) DO UPDATE SET info = EXCLUDED.info",[
+            cur.execute("INSERT INTO nodb_processes (system_id, process_id, process_name, process_version, info) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (system_id, process_id) DO UPDATE SET info = EXCLUDED.info",[
                 server_name,
                 process_id,
                 process_name,
@@ -336,20 +336,20 @@ class PostgresController(interface.NODBInstance):
 
     def clear_process_info_for_server(self, server_name: str):
         with self.cursor() as cur:
-            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE server_name = %s", [
+            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s", [
                 server_name
             ])
 
     def clear_process_info(self, server_name: str, process_id: str):
         with self.cursor() as cur:
-            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE server_name = %s AND process_id = %s", [
+            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s AND process_id = %s", [
                 server_name,
                 process_id
             ])
 
     def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
         with self.cursor() as cur:
-            cur.execute("SELECT server_name, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes")
+            cur.execute("SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes")
             for item in cur.fetch_stream(10):
                 process_info: dict[str, t.Any] = json.load_dict(item[6])
                 process_info['server_name'] = item[0]
