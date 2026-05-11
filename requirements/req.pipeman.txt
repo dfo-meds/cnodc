@@ -2,3 +2,5 @@
 -r ./helpers/req.postgres.txt
 -r ./helpers/req.storage.txt
 -r ./helpers/req.gcclick.txt
+
+psutil ~= 7.2.2

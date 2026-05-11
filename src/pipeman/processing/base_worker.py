@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 import tempfile
 import time
@@ -6,9 +7,11 @@ import typing as t
 
 import zrlog
 from autoinject import injector
+from psutil import NoSuchProcess, AccessDenied
 from zrlog.logger import ImprovedLogger
-import nodb as nodb_
+import psutil
 
+import nodb as nodb_
 from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.exceptions import CodedError, HaltInterrupt
@@ -92,7 +95,13 @@ class BaseWorker(CachedObjectMixin):
         self._metrics = {}
         self._last_run_gauge = None
         self._run_time_histogram = None
-        self._status_info = {}
+        self._process = psutil.Process()
+        self._status_info: dict[str, str | int | float] = {
+            'activity': '',
+            'status': 'initializing',
+            'memory': '',
+
+        }
 
     def add_events(self, events: list[str]):
         self._events.extend(events)
@@ -219,26 +228,26 @@ class BaseWorker(CachedObjectMixin):
         """Run the worker process with appropriate error handling."""
         exc = None
         try:
-            self.report(status='booting')
+            self.report(status='booting', activity='')
             self._log.debug('Starting process %s', self.process_id)
             self.on_start()
             self._log.debug(f'Process %s is running', self.process_id)
-            self.report(status='running')
+            self.report(status='running', activity='')
             self._run()
-            self.report(status='shutdown')
+            self.report(status='shutdown', activity='cleaning up')
         except (HaltInterrupt, KeyboardInterrupt) as ex:
             exc = ex
-            self.report(status='halted')
+            self.report(status='halted', activity='cleaning up')
         except Exception as ex:
             exc = ex
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
-            self.report(status='errored')
+            self.report(status='errored', activity='cleaning up')
         finally:
             self._log.debug(f'Cleaning up %s', self.process_id)
             self.on_exit(exc)
             self._log.debug(f'Process %s complete', self.process_id)
             self._status_info['status'] += '-complete'
-            self.report(_end=True)
+            self.report(_end=True, activity='')
 
     def run_once(self):
         exc = None
@@ -263,8 +272,28 @@ class BaseWorker(CachedObjectMixin):
         """Override this method  to process items."""
         raise NotImplementedError
 
-    def report(self, _end: bool = False, **kwargs):
+    def _resource_report(self):
+        with self._process.oneshot():
+            try:
+                cpu_times = self._process.cpu_times()
+                self._status_info['cpu_percent'] = self._process.cpu_percent()
+                self._status_info['cpu_user'] = cpu_times.user
+                self._status_info['cpu_system'] = cpu_times.system
+                if hasattr(cpu_times, 'iowait'):
+                    self._status_info['cpu_iowait'] = cpu_times.iowait
+
+                mem_info = self._process.memory_full_info()
+                self._status_info['memory_total'] = mem_info.uss
+                self._status_info['memory_real'] = mem_info.rss
+                self._status_info['memory_virtual'] = mem_info.vms
+
+            except (NoSuchProcess, AccessDenied):
+                ...
+
+    def report(self, _end: bool = False, _resource_update: bool = False, **kwargs):
         self._status_info.update(kwargs)
+        if _resource_update:
+            self._resource_report()
         try:
             with self.nodb as db:
                 db.upsert_process_info(

@@ -246,6 +246,10 @@ class BaseController:
         self._process_info: dict[str, _ProcessSet] = {}
         self._no_start = _no_start
         self._logging_queue = logging_queue
+        self._status_info = {
+            'status': 'initializing'
+        }
+        self._controller_proc_name = f"controller_{AwareDateTime.now().strftime("%H%M%f")}"
 
         from medsutil.servicecmd import ServiceCommandManager
         self._manager = ServiceCommandManager(socket_port, self._handle_command)
@@ -394,6 +398,7 @@ class BaseController:
     def _reload_config(self):
         """Reload configuration from disk."""
         self._log.trace('Reloading process configuration')
+        self.report(activity='reloading configuration')
         config = self._load_config()
         # We will remove keys from this list as we see them and deregister all the ones we didn't see
         deregister_list = self._registered_process_names()
@@ -429,13 +434,19 @@ class BaseController:
         self.reload_check()
         self._manager.setup()
 
+    def report(self, **kwargs): ...
+
     def start(self):
         """Method to register all signals and start the process."""
         try:
+            self.report(status='booting', activity='', with_resource=True)
             self.startup()
+            self.report(status='running', activity='', with_resource=True)
             self.run()
         finally:
+            self.report(status='stopping', activity='cleanup')
             self.cleanup()
+            self.report(Status='stopped', activity='', with_resource=True)
 
     def run(self):
         """Run loop, will constantly check for configuration changes and ensure process sets are running until
@@ -444,15 +455,17 @@ class BaseController:
         self._log.info('Starting processes')
         try:
             while not (self._halt_flag.is_set() or self._shutdown_requested):
-                if self._check_reload():
-                    self._reload_config()
+                self.reload_check()
+                self.report(activity="reaping and sowing")
                 self.reap_and_sow()
+                self.report(activity="checking for signals", with_resource=True)
                 self._manager.check()
                 if self._kill_requested:
                     raise KeyboardInterrupt
         finally:
             if not self._kill_requested:
                 self._log.info('Closing processes')
+                self.report(activity='shutting down processes')
                 self.deactivate_all()
                 self.wait_for_all()
                 self._log.info('Complete, exiting')
