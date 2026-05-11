@@ -81,7 +81,8 @@ class FileScanTask(ScheduledTask):
         return self._scan_target
 
     def scan_files(self, db):
-        scan_target = self.scan_target
+        scan_target: FilePath = self.scan_target
+        scan_target.clear_cache()
         if not scan_target.exists():
             self._log.warning(f"Directory %s does not exist", self.scan_target.path())
             return
