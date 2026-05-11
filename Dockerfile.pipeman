@@ -44,6 +44,7 @@ COPY app.py ./app.py
 COPY docker/defaults/pipeman/ ./defaults/
 
 EXPOSE 80
+STOPSIGNAL SIGINT
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/python-service/start.sh"]
 
