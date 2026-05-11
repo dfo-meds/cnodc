@@ -115,7 +115,7 @@ class NODBWebController:
             ('Activity', 'activity'),
             ('Start Time', lambda x: x['db_created_date'].strftime('%Y-%m-%d %H:%M:%S')),
             ('Report Time', lambda x: x['db_modified_date'].strftime('%Y-%m-%d %H:%M:%S')),
-            ('CPU', lambda x: x['cpu_percent'] + '%' if 'cpu_percent' in x else ''),
+            ('CPU', lambda x: f"{x['cpu_percent']}%" if 'cpu_percent' in x else ''),
             ('CPU Time', lambda x: f"{x['cpu_user']} s / {x['cpu_system']} s" if 'cpu_user' in x else ''),
             ('IO Wait', lambda x: f"{x['cpu_iowait']} s" if 'cpu_iowait' in x else ''),
             ('Memory', lambda x: f"{x['memory_total'] / 1024 / 1024:.2f} MiB"),
