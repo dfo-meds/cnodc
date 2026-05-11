@@ -446,7 +446,7 @@ class BaseController:
         finally:
             self.report(status='stopping', activity='cleanup')
             self.cleanup()
-            self.report(Status='stopped', activity='', with_resource=True)
+            self.report(Status='stopped', activity='', with_resource=True, exit=True)
 
     def run(self):
         """Run loop, will constantly check for configuration changes and ensure process sets are running until
