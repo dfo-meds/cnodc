@@ -116,6 +116,10 @@ class BaseProcess:
         self.setup()
         self._log = zrlog.get_logger(f'cnodc.process.{self._proc_info.process_name}[{self._proc_info.process_index}]')
         self._build_and_run()
+        self.teardown()
+
+    def teardown(self):
+        ...
 
     def setup(self):
         ...

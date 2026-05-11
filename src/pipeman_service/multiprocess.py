@@ -1,7 +1,11 @@
 """Controller for multiple processes based on the multiprocessing library."""
+import os
+
 from autoinject import injector
 import multiprocessing as mp
 import zirconium as zr
+from prometheus_client.multiprocess import mark_process_dead
+
 from pipeman_service.controller import BaseController, BaseProcess
 
 class _MultiProcessRunner(BaseProcess, mp.Process):
@@ -17,6 +21,10 @@ class _MultiProcessRunner(BaseProcess, mp.Process):
             import medsutil.logging as ml
             ml.init_as_subprocess(self._proc_info.logging_queue)
         super().setup()
+
+    def teardown(self):
+        mark_process_dead(os.getpid())
+        super().teardown()
 
 
 
