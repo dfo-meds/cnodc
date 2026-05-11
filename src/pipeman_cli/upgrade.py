@@ -1,9 +1,11 @@
 import click
 from nodb.controller import NODBPostgresController
 import zirconium as zr
+from autoinject import injector
 
 @click.command
-def upgrade(config: zr.ApplicationConfig):
+@injector.inject
+def upgrade(config: zr.ApplicationConfig = None):
     try:
 
         # DB Upgrade
