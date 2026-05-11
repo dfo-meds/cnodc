@@ -101,20 +101,6 @@ class NODBWebController:
             report.append(f'Items Processed: {d["items_processed"]} [{d['items_success']} success; {d['items_error']} error; {d['items_retry']} retries]')
         if 'fetch_errors' in d:
             report.append(f'Fetch errors: {d['fetch_errors']}')
-        if 'cpu_percent' in d:
-            report.append(f'Process CPU Usage: {d['cpu_percent']}%')
-        if 'cpu_user' in d:
-            report.append(f'User CPU Time: {d['cpu_user']} s')
-        if 'cpu_system' in d:
-            report.append(f'System CPU Time: {d['cpu_system']} s')
-        if 'cpu_iowait' in d:
-            report.append(f'I/O Wait Time: {d['cpu_iowait']} s')
-        if 'memory_real' in d:
-            report.append(f'Memory Used (Real): {d['memory_real'] / 1024 / 1024:.2f} MiB')
-        if 'memory_virtual' in d:
-            report.append(f'Memory Used (Paged): {d['memory_virtual'] / 1024 / 1024:.2f} MiB')
-        if 'memory_total' in d:
-            report.append(f'Memory Total: {d['memory_total'] / 1024 / 1024:.2f} MiB')
         if 'temp_free' in d:
             report.append(f'Temp Free Space: {d['temp_free'] / 1024 / 1024:.2f} MiB')
         if 'temp_total' in d:
@@ -129,6 +115,10 @@ class NODBWebController:
             ('Activity', 'activity'),
             ('Start Time', lambda x: x['db_created_date'].strftime('%Y-%m-%d %H:%M:%S')),
             ('Report Time', lambda x: x['db_modified_date'].strftime('%Y-%m-%d %H:%M:%S')),
+            ('CPU', lambda x: x['cpu_percent'] + '%' if 'cpu_percent' in x else ''),
+            ('CPU Time', lambda x: f"{x['cpu_user']} s / {x['cpu_system']} s" if 'cpu_user' in x else ''),
+            ('IO Wait', lambda x: f"{x['cpu_iowait']} s" if 'cpu_iowait' in x else ''),
+            ('Memory', lambda x: f"{x['memory_total'] / 1024 / 1024:.2f} MiB"),
             ('Notes', self._build_notes)
         ]
         s = """<html><head><style>
