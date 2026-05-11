@@ -90,14 +90,59 @@ class NODBWebController:
                     self._serializer = itsdangerous.Serializer(flask.current_app.config['SECRET_KEY'])
         return self._serializer
 
+    @staticmethod
+    def _build_notes(d: dict[str, t.Any]) -> str:
+        report = []
+        if 'executions' in d:
+            report.append(f'Number of Executions: {d['executions']}')
+        if 'next_execution' in d:
+            report.append(f'Next Execution Time: {d['next_execution']}')
+        if 'items_processed' in d:
+            report.append(f'Items Processed: {d["items_processed"]} [{d['items_success']} success; {d['items_error']} error; {d['items_retry']} retries)')
+        if 'fetch_errors' in d:
+            report.append(f'Fetch errors: {d['fetch_errors']}')
+        return '<br />'.join(report)
+
     def status_report(self):
-        s = '<html><body><pre>\n'
+        map_: list[tuple[str, str | t.Callable[[dict[str, t.Any]], str]]] = [
+            ('Process ID', 'process_id'),
+            ('Server Name', 'server_name'),
+            ('Status', 'status'),
+            ('Activity', 'activity'),
+            ('Start Time', 'db_created_date'),
+            ('Last Seen Time', 'db_modified_date'),
+            ('Notes', self._build_notes)
+        ]
+        s = '<html><head></head><body><h1>Status Report</h1><h2>Registered Processes</h2><table><thead><tr>'
+        for header, _ in map_:
+            s += f'<th>{header}</th>'
+        s += '</tr></thead><tbody>'
         with self.nodb as db:
             for process in db.fetch_processes():
-                for key in process.keys():
-                    s += f'{key.replace('_', ' ')}: {process[key]}\n'
-                s += '\n\n'
-        s += '\n</pre></body></html>'
+                s += '<tr>'
+                for _, value_key in map_:
+                    if isinstance(value_key, str):
+                        s += f'<td>{process[value_key] if value_key in process else 'N/A'}</td>'
+                    else:
+                        s += f'<td>{value_key(process)}</td>'
+                s += '</tr>'
+            s += '</tbody></table><table><thead><tr><th>Queue Name</th>'
+            status_order = ('UNLOCKED', 'LOCKED', 'COMPLETE', 'DELAYED_RELEASE', 'ERROR')
+            for stat in status_order:
+                s += f'<th>{stat.lower().replace('_', ' ').capitalize()}</th>'
+            s += '</tr></thead><tbody>'
+            queues = db.fetch_queue_summary()
+            for queue_name in sorted(queues.keys()):
+                s += f'<tr><th>{queue_name}</th>'
+                for stat in status_order:
+                    if stat in queues[queue_name]:
+                        s += f'<td>{queues[queue_name][stat]}</td>'
+                    else:
+                        s += '<td>0</td>'
+                s += '</tr>'
+            s += '</tbody></table>'
+
+        s += '</body></html>'
         return s
 
     def get_next_queue_item(self,

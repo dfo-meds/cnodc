@@ -367,6 +367,16 @@ class PostgresController(interface.NODBInstance):
             cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [dt.isoformat(), queue_uuid])  # nosec: B608 # not hard coded string
             return dt
 
+    def fetch_queue_summary(self) -> dict[str, dict[str, int]]:
+        res = {}
+        with self.cursor() as cur:
+            cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status")
+            for row in cur.fetch_stream(25):
+                if row[1] not in res:
+                    res[row[1]] = {}
+                res[row[1]][row[2]] = row[0]
+        return res
+
     def fast_update_queue_status(self,
                                  queue_uuid: str,
                                  new_status: QueueStatus,

@@ -300,6 +300,18 @@ class DatabaseMock:
         else:
             return test_value == filter_info
 
+    def fetch_queue_summary(self) -> dict[str, dict[str, int]]:
+        report = {}
+        if NODBQueueItem.TABLE_NAME in self.tables:
+            for item in self.tables[NODBQueueItem.TABLE_NAME]:
+                item: NODBQueueItem = item
+                if item.queue_name not in report:
+                    report[item.queue_name] = {}
+                if item.status.value not in report[item.queue_name]:
+                    report[item.queue_name][item.status.value] = 0
+                report[item.queue_name][item.status.value] += 1
+        return report
+
     def create_queue_item(self, **kwargs):
         kwargs['queue_uuid'] = str(uuid.uuid4())
         kwargs['created_date'] = datetime.datetime.now()

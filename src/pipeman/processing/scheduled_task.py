@@ -28,12 +28,13 @@ class ScheduledTask(BaseWorker):
             "delay_seconds": None,
             "schedule_mode": "from_completion"
         })
+        self._status_info.update({
+            'executions': 0,
+        })
 
     def _run_once(self) -> float:
         now = awaretime.utc_now()
         if self._check_execution(now):
-            if 'executions' not in self._status_info:
-                self._status_info['executions'] = 0
             self._status_info['executions'] += 1
             self.report(activity='executing')
             with self._run_time_histogram.time():
