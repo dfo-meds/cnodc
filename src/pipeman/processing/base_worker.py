@@ -162,10 +162,11 @@ class BaseWorker(CachedObjectMixin):
     def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
         """Sleep for a given amount of time, with regular wake-ups to check the halt/end flags."""
         if time_seconds <= 0:
+            self.report(activity='', _resource_update=True)
             return
         elif time_seconds < (2 * max_delay):
             self._log.trace('Sleeping for [%s] seconds', time_seconds)
-            self.report(activity=f'sleeping {time_seconds} s')
+            self.report(activity=f'sleeping {time_seconds} s', _resource_update=True)
             time.sleep(time_seconds)
         else:
             st = time.monotonic()
@@ -173,7 +174,7 @@ class BaseWorker(CachedObjectMixin):
             while (et - st) < time_seconds:
                 time_to_sleep = min(max_delay, max(time_seconds - (et - st), 0.01))
                 self._log.trace('Sleeping for [%s] seconds', time_to_sleep)
-                self.report(activity=f'sleeping {time_to_sleep} s')
+                self.report(activity=f'sleeping {time_to_sleep} s', _resource_update=True)
                 time.sleep(time_to_sleep)
                 et = time.monotonic()
                 if not self.continue_loop():
@@ -228,11 +229,11 @@ class BaseWorker(CachedObjectMixin):
         """Run the worker process with appropriate error handling."""
         exc = None
         try:
-            self.report(status='booting', activity='')
+            self.report(status='booting', activity='', _resource_update=True)
             self._log.debug('Starting process %s', self.process_id)
             self.on_start()
             self._log.debug(f'Process %s is running', self.process_id)
-            self.report(status='running', activity='')
+            self.report(status='running', activity='', _resource_update=True)
             self._run()
             self.report(status='shutdown', activity='cleaning up')
         except (HaltInterrupt, KeyboardInterrupt) as ex:
@@ -241,13 +242,13 @@ class BaseWorker(CachedObjectMixin):
         except Exception as ex:
             exc = ex
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
-            self.report(status='errored', activity='cleaning up')
+            self.report(status='errored', activity='cleaning up', _resource_update=True)
         finally:
             self._log.debug(f'Cleaning up %s', self.process_id)
             self.on_exit(exc)
             self._log.debug(f'Process %s complete', self.process_id)
             self._status_info['status'] += '-complete'
-            self.report(_end=True, activity='')
+            self.report(_end=True, activity='', _resource_update=True)
 
     def run_once(self):
         exc = None
@@ -284,8 +285,6 @@ class BaseWorker(CachedObjectMixin):
 
                 mem_info = self._process.memory_full_info()
                 self._status_info['memory_total'] = mem_info.uss
-                self._status_info['memory_real'] = mem_info.rss
-                self._status_info['memory_virtual'] = mem_info.vms
 
             except (NoSuchProcess, AccessDenied):
                 ...

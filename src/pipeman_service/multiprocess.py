@@ -76,8 +76,6 @@ class MultiProcessController(BaseController):
 
                 mem_info = self._process.memory_full_info()
                 self._status_info['memory_total'] = mem_info.uss
-                self._status_info['memory_real'] = mem_info.rss
-                self._status_info['memory_virtual'] = mem_info.vms
 
             except (NoSuchProcess, AccessDenied):
                 ...

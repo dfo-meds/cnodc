@@ -98,7 +98,7 @@ class NODBWebController:
         if 'next_execution' in d:
             report.append(f'Next Execution Time: {d['next_execution']}')
         if 'items_processed' in d:
-            report.append(f'Items Processed: {d["items_processed"]} [{d['items_success']} success; {d['items_error']} error; {d['items_retry']} retries)')
+            report.append(f'Items Processed: {d["items_processed"]} [{d['items_success']} success; {d['items_error']} error; {d['items_retry']} retries]')
         if 'fetch_errors' in d:
             report.append(f'Fetch errors: {d['fetch_errors']}')
         if 'cpu_percent' in d:
@@ -127,11 +127,27 @@ class NODBWebController:
             ('Server Name', 'server_name'),
             ('Status', 'status'),
             ('Activity', 'activity'),
-            ('Start Time', 'db_created_date'),
-            ('Last Seen Time', 'db_modified_date'),
+            ('Start Time', lambda x: x['db_created_date'].strftime('%Y-%m-%d %H:%M:%S')),
+            ('Report Time', lambda x: x['db_modified_date'].strftime('%Y-%m-%d %H:%M:%S')),
             ('Notes', self._build_notes)
         ]
-        s = '<html><head></head><body><h1>Status Report</h1><h2>Registered Processes</h2><table><thead><tr>'
+        s = """<html><head><style>
+        body {
+            font-family: Calibri;
+            font-size: 11px;
+        }
+        table {
+            width: 100%;
+        }
+        table td, table th {
+            text-align: left;
+            vertical-align: top;
+            padding-left: 3px;
+            padding-right: 3px;
+            padding-top: 1px;
+            padding-bottom: 1px;
+        }
+        </style></head><body><h1>Status Report</h1><h2>Registered Processes</h2><table><thead><tr>"""
         for header, _ in map_:
             s += f'<th>{header}</th>'
         s += '</tr></thead><tbody>'
