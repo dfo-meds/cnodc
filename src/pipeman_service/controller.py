@@ -452,7 +452,7 @@ class BaseController:
         """Run loop, will constantly check for configuration changes and ensure process sets are running until
             the halt flag is set.
         """
-        self._log.info('Starting processes')
+        self._log.notice('Process server online')
         try:
             while not (self._halt_flag.is_set() or self._shutdown_requested):
                 self.reload_check()
