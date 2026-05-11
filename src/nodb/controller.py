@@ -356,8 +356,8 @@ class PostgresController(interface.NODBInstance):
                 process_info['process_id'] = item[1]
                 process_info['process_name'] = item[2]
                 process_info['process_version'] = item[3]
-                process_info['db_created_date'] = AwareDateTime.fromisoformat(item[4])
-                process_info['db_modified_date'] = AwareDateTime.fromisoformat(item[5])
+                process_info['db_created_date'] = item[4]
+                process_info['db_modified_date'] = item[5]
                 process_info['exited'] = item[7]
                 yield process_info
 
