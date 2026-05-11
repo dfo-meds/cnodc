@@ -349,7 +349,7 @@ class PostgresController(interface.NODBInstance):
 
     def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
         with self.cursor() as cur:
-            cur.execute("SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes")
+            cur.execute("SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes ORDER BY system_id, process_id")
             for item in cur.fetch_stream(10):
                 process_info: dict[str, t.Any] = item[6]
                 process_info['server_name'] = item[0]

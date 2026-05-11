@@ -119,6 +119,8 @@ class NODBWebController:
         s += '</tr></thead><tbody>'
         with self.nodb as db:
             for process in db.fetch_processes():
+                if process['exited'] == 'Y':
+                    continue
                 s += '<tr>'
                 for _, value_key in map_:
                     if isinstance(value_key, str):
