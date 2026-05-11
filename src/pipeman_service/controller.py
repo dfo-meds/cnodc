@@ -15,6 +15,7 @@ import pathlib
 
 import json
 import medsutil.types as ct
+from medsutil.awaretime import AwareDateTime
 
 if t.TYPE_CHECKING:
     from medsutil.halts import HaltFlag
@@ -132,7 +133,8 @@ class _ProcessSet:
         self._idx = -1
 
     def _build_process(self) -> tuple[_ProcessProtocol, str]:
-        proc_id = f"{self._info.server_name}_{self._info.process_name}_{self._idx}"
+        n = AwareDateTime.now().strftime("%M%S%f")
+        proc_id = f"{self._info.server_name}:{self._info.process_name}:{n}:{self._idx}"
         x = copy.copy(self._info)
         x.process_index = self._idx
         x.process_uuid = proc_id
