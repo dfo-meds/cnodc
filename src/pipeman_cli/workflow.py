@@ -22,8 +22,12 @@ def update_workflow(workflow_name, config_file, nodb: NODB):
 
 @main.command
 @click.argument("config_directory")
+def update_all_workflows(config_directory: str):
+    _update_from_config_directory(config_directory)
+
+
 @injector.inject
-def update_all_workflows(config_directory: str, nodb: NODB):
+def _update_from_config_directory(config_directory: str, nodb: NODB = None):
     p = pathlib.Path(config_directory)
     if not p.exists():
         print("config directory doesn't exist")

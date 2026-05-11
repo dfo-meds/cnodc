@@ -6,6 +6,9 @@ PERMANENT_SESSION_LIFETIME = 12200  # 2 hour renewal of sessions
 [pipeman.service]
 config_directory = "/service-config/processes"
 
+[pipeman.workflows]
+config_directory = '/service-config/workflows'
+
 [logging]
 version = 1
 
