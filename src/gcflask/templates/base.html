@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="{{language}}" xml:lang="{{language}}" dir="ltr">
+    <head>
+        <title>{% if title %}{{title}}{% else %}{{default_title}}{% endif %}</title>
+        {% block defaultHead %}
+        {% include 'jquery.html' %}
+        <script type="text/javascript" src="{{ url_for('resources', filename='sesstimeout.js') }}"></script>
+        <link rel="stylesheet" type="text/css" href="{{url_for('resources', filename='dfo_base.css')}}" />
+        <meta charset="utf-8" />
+        <meta name="Referrer-Policy" content="strict-origin-when-cross-origin" />
+        <meta http-equiv="content-language" content="{{language}}" />
+        <link rel="icon" type="image/x-icon" href="{{url_for('resources', filename='favicon.ico')}}" />
+        <link rel="shortcut icon" type="image/x-icon" href="{{url_for('resources', filename='favicon.ico')}}" />
+        {% endblock %}
+        {% block customHead %}{% endBlock %}
+    </head>
+    <body>
+        {% block body %}
+        <div class="container">
+            {% block header %}
+            <div class="header">
+                {% block gcLogo %}
+                <div class="sig_block">
+                    <img src="{{url_for('resources', filename='sig-blk-en.svg')}}" height="35" />
+                </div>
+                {% endblock %}
+                <div class="right_block">
+                    {% block siteTitle %}
+                    <p class="site_title">{{'gcflask.site_title' | gettext}}</p>
+                    {% endblock %}
+                    {% block languageSwitcher %}
+                    <ul class="langswitch">
+                        {% for lang in language_switchers %}
+                        {% with txt, url, show = language_switchers[lang] %}
+                        {% if show %}
+                        <li><a href="{{url}}">{{txt}}</a></li>
+                        {% endif %}
+                        {% endwith %}
+                        {% endfor %}
+                    </ul>
+                    {% endblock %}
+                    <br class="cb" />
+                </div>
+                <br class="cb" />
+            </div>
+            {% endblock %}
+            {% block userLine %}
+            <div class="topnav">
+                {% if topnav %1}
+                <div class="topnav_container">
+                    {{}}
+                </div>
+                {% endif %}
+                <div class="user_info">
+                    {% if current_user.is_authenticated %}
+                    {{ 'gcflask.user_welcome' | gettext}} {{current_user.display}}
+                    {% elif login_url %}
+                    <a href="{{login_url}}">{{ 'gcflask.login' | gettext }}</a>
+                    {% endif %}
+                </div>
+                <br class="cb" />
+            </div>
+            {% endblock %}
+            {% block container %}
+            <div class="main_body">
+                {% block main_body %}
+                {% if leftnav %}
+                <div class="nav">
+                    {{leftnav}}
+                </div>
+                {% endif %}
+                {% block inner_body %}
+                <div class="content">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <ul class="messages">
+                                {% for category, message in messages %}
+                                    <li class="{{category}}">{{message}}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    {% endwith %}
+                    <h1>{% if title %}{{title}}{% else %}{{default_title}}{% endif %}</h1>
+                    <div class="inner_content">
+                        <div class="main_content">
+                            {% block content %}
+                              {{content}}
+                            {% endblock %}
+                        </div>
+                        <div class="sidebar">
+                            {% block sidebar %}
+                              {{sidebar}}
+                            {% endblock %}
+                        </div>
+                    </div>
+                </div>
+                {% endblock %}
+                {% endblock %}
+            </div>
+            <div class="separator_block">
+                {% if bottomnav %}
+                {{ bottomnav }}
+                {% endif %}
+            </div>
+            <div class="footer">
+                {% block footer %}
+                {% block sessionBlock %}
+                {% if current_user.is_authenticated %}
+                <div class="session_block">
+                    <p class="session_timeout">{{'gcflask.session.logout' | gettext}}: {{session_timeout | format_date}}</p>
+                    <script language="javascript" type="text/javascript" nonce="{{csp_nonce('script-src')}}">
+                        $(document).ready(function() {
+                            start_session_timeout("#session_timeout_box", "#time_left", {{ session_timeout }}, "{{ logout_url }}", "{{ refresh_session_url }}", "{{'gcflask.session.refresh_ajax_error' | gettext}}", 300);
+                        });
+                    </script>
+                    <noscript>
+                        <p>{{'gcflask.session.noscript' | gettext }}</p>
+                    </noscript>
+                </div>
+                <div id="session_timeout_box" class="hidden">
+                    <p>{{'gcflask.session.timeout_warning' | gettext}}</p>
+                    <p id="time_left">0:00</p>
+                    {% if refresh_session_url %}
+                    <p><a href="javascript:refresh_session();">{{'gcflask.session.refresh_link_text' | gettext}}</a></p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endblock %}
+                {% block prettyFooter %}
+                <div class="bottom_image">
+                    <img src="{{url_for('resources', filename='wmms-blk.svg')}}" width="150" />
+                </div>
+                {% endBlock %}
+            {% endblock %}
+            </div>
+            {% endblock %}
+        </div>
+        {% endblock %}
+
+    </body>
+</html>

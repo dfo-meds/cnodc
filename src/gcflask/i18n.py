@@ -1,4 +1,5 @@
 import abc
+import datetime
 import typing as t
 
 import flask
@@ -238,5 +239,39 @@ class MLLink(MLString):
         return new_mlstring
 
 
-def tr(key: str, default, *args, **kwargs) -> str:
+def tr(key: str, default: str = "", *args, **kwargs) -> str:
     return t.cast(str, t.cast(object, TString(key, default, *args, **kwargs)))
+
+
+def format_date(dt: datetime.date | None) -> str:
+    if dt is None:
+        return tr("gcflask.format.no_date", default="N/A")
+    elif isinstance(dt, datetime.datetime):
+        return dt.strftime(str(tr("gcflask.format.datetime", default="%Y-%m-%d %H:%M:%S")))
+    else:
+        return dt.strftime(str(tr("gcflask.format.date", default="%Y-%m-%d")))
+
+def i18n_sort[T](to_sort: t.Iterable[T], *, key=None, reverse=False, insensitive=True, language_order=None) -> t.Iterable[T]:
+    if language_order is None:
+        language_order = ["und", "en"]
+    return sorted(to_sort, key=lambda x: i18n_sort_key(x, key, language_order, insensitive), reverse=reverse)
+
+
+def i18n_sort_key(x, key, language_order, ignore_case):
+    if key is not None:
+        if callable(key):
+            x = key(x)
+        else:
+            x = x[key]
+    if x is None:
+        return ""
+    if isinstance(x, str):
+        return x if not ignore_case else x.lower()
+    elif isinstance(x, t.Mapping):
+        for lang in language_order:
+            if lang in x and x[lang]:
+                return x[lang] if not ignore_case else x[lang].lower()
+        for lang in x.keys():
+            if x[lang]:
+                return x[lang] if not ignore_case else x[lang].lower()
+    return ""

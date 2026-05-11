@@ -1,0 +1,103 @@
+{% macro pager(current_page, page_count, page_size) %}
+<div class="pager_control">
+    <p>{{'pipeman.common.pages' | gettext}} {{current_page}} / {{page_count}}</p>
+    <ul class="table_actions">
+        {% for i in range(0, page_count) %}
+        <li><a href="{{self_url(page=i+1, size=page_size)}}">{{i+1}}</a></li>
+        {% endfor %}
+    </ul>
+    <br style="clear: both" />
+</div>
+{%- endmacro %}
+
+
+{% macro action_list(actions) %}
+{{actions.render('table_actions')}}
+{%- endmacro %}
+{% macro showmenu(menu_items) -%}
+    <ul class="menu">
+        {% for txt, pth, subitems, _ in menu_items %}
+            <li class="menu-item">
+                <a href="{{url_for(pth)}}">{{txt}}</a>
+                {% if subitems %}
+                {{ showmenu(subitems) }}
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{%- endmacro %}
+
+
+{% macro showformcontrol(control) %}
+    {% if control.__class__.__name__ == "CSRFTokenField" or control.__class__.__name__ == "HiddenField" %}
+        {{control}}
+    {% elif control.__class__.__name__ == "BooleanField" %}
+        <div class="form-field form-field-boolean-field">
+            <div class="form-label">
+                &nbsp;
+            </div>
+            <div class="form-control">
+                {{control}} {{control.label}}
+                {% if control.description %}
+                <div class="form-description">{{control.description}}</div>
+                {% endif %}
+            </div><br class="cb" />
+        </div>
+    {% elif control.__class__.__name__ == "SubmitField" %}
+        <div class="form-field form-field-submit-field">
+            <div class="form-label">
+                &nbsp;
+            </div>
+            <div class="form-control">
+                {{control}}
+            </div>
+            <br class="cb" />
+        </div>
+    {% elif control.__class__.__name__ == "FieldList" %}
+        <div class="form-field form-field-field-list">
+            <div class="form-label">
+                {{control.label}}
+            </div>
+            <div class="form-control">
+                <ul>
+                    {% for entry in control.entries %}
+                    <li>
+                        <div class="form-control-field-list-entry-controls">
+                            {% if entry.label.text %}
+                            {{entry.label}}
+                            {% endif %}
+                            {{entry}}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% if control.description %}
+            <div class="form-description">{{control.description}}</div>
+            {% endif %}
+            </div>
+            <br class="cb" />
+        </div>
+    {% else %}
+        <div class="form-field form-field-{{control.__class__.__name__ | caps_to_snake('-')}}">
+            <div class="form-label">
+                {{control.label}}
+            </div>
+            <div class="form-control">
+                {{control}}
+            {% if control.description %}
+            <div class="form-description">{{control.description}}</div>
+            {% endif %}
+            </div>
+            <br class="cb" />
+        </div>
+    {% endif %}
+{%- endmacro %}
+
+
+{% macro showform(form) -%}
+    <form action="" lang={{language}} method="POST"{% if form.with_file_upload %} enctype="multipart/form-data"{% endif %}>
+        {% for control in form %}
+            {{ showformcontrol(control) }}
+        {% endfor %}
+    </form>
+{%- endmacro %}

@@ -1,13 +1,17 @@
+import functools
 import logging
+import pathlib
 import typing as t
 
 import flask
 import flask_autoinject
-import markupsafe
+import jinja2
 import zrlog
 from autoinject import injector
 from flask_wtf import CSRFProtect
+from jinja2 import pass_context
 
+import gcflask.i18n
 from gcapp.requestinfo import RequestInfo
 from gcapp.system import System
 from gcflask.i18n_url import BilingualRule
@@ -27,6 +31,24 @@ class FlaskSystemMixin(System):
         self._flask_app: t.Optional[flask.Flask] = None
         self._flask_blueprints: list[tuple[str, str, str]] = []
         self._menus: dict[str, NavMenu] = {}
+        self._flask_globals: dict[str, t.Any] = {
+            'csp_nonce': csp_nonce,
+            'csp_allow': csp_allow,
+            'login_url': '',
+            'logout_url': '',
+            'refresh_session_url': ''
+        }
+        self._flask_filters: dict[str, t.Callable[..., str]] = {
+            'tr': gcflask.i18n.tr,
+            'format_date': gcflask.i18n.format_date,
+        }
+        gcflask_root = pathlib.Path(__file__).absolute().resolve().parent
+        self._template_directories: list[pathlib.Path] = [
+            gcflask_root / 'templates',
+        ]
+        self._resource_directories: list[tuple[pathlib.Path, int]] = [
+            (gcflask_root / 'resources', 0),
+        ]
 
     @property
     def flask_app(self) -> flask.Flask:
@@ -34,10 +56,31 @@ class FlaskSystemMixin(System):
             raise RuntimeError('Flask app not initialized yet')
         return self._flask_app
 
+    def register_template_global(self, name: str, value: t.Any):
+        self._flask_globals[name] = value
+
+    def register_template_filter(self, name: str, filter_: t.Callable[..., str]):
+        self._flask_filters[name] = filter_
+
+    def register_template_directory(self, path: pathlib.Path):
+        self._template_directories.append(path)
+
+    def register_resource_directory(self, path: pathlib.Path, weight: int = 0):
+        self._resource_directories.append((path, weight))
+
     def register_menu_item(self, menu_name: str, menu_hierarchy: str, item: NavItem):
         if menu_name not in self._menus:
             self._menus[menu_name] = NavMenu()
         self._menus[menu_name].append_at(menu_hierarchy.split("."), item)
+
+    def set_login_url(self, url: str):
+        self._flask_globals['login_url'] = url
+
+    def set_logout_url(self, url: str):
+        self._flask_globals['logout_url'] = url
+
+    def set_refresh_session_url(self, url: str):
+        self._flask_globals['refresh_session_url'] = url
 
     def before_flask_init(self, cb: t.Callable[[flask.Flask], t.Any] | str):
         self.events.on('init.flask.before', cb)
@@ -64,6 +107,8 @@ class FlaskSystemMixin(System):
         self._configure_csrf()
         self.events.fire("init.flask", self.flask_app)
         self._load_blueprints()
+        self._configure_jinja()
+        self._configure_resource_endpoint()
         self.events.fire("init.flask.after", self.flask_app)
 
     def _load_config(self):
@@ -84,6 +129,24 @@ class FlaskSystemMixin(System):
 
     def _configure_bilingual_routes(self):
         self.flask_app.url_rule_class = BilingualRule
+
+    def _configure_jinja(self):
+        for global_key, value in self._flask_globals.items():
+            self.flask_app.jinja_env.globals[global_key] = value
+        for filter_key, filter_ in self._flask_filters.items():
+            self.flask_app.jinja_env.filters[filter_key] = self._wrap_for_jinja(filter_)
+        self.flask_app.jinja_loader = jinja2.ChoiceLoader([
+            jinja2.FileSystemLoader(x)
+            for x in self._template_directories
+        ])
+        self.flask_app.jinja_env.globals['session_timeout'] = self._session_timeout
+
+    @staticmethod
+    def _wrap_for_jinja(func: t.Callable[..., str]) -> t.Callable[..., str]:
+        @pass_context
+        def _wrapper(ctx, *args, **kwargs):
+            return func(*args, **kwargs)
+        return _wrapper
 
     def _configure_proxy_fix(self):
         if self.config.as_bool(('gcflask', 'proxy_fix', 'enabled'), default=False):
@@ -127,17 +190,39 @@ class FlaskSystemMixin(System):
         cspr.add_headers(response)
         return response
 
-    def _context_processor(self):
-        processors: dict[str, t.Callable[..., str | markupsafe.Markup]] = {
-            'csp_nonce': csp_nonce,
-            'csp_allow': csp_allow,
+    @injector.inject
+    def _context_processor(self, ld: gcflask.i18n.LanguageDetector = None, tm: gcflask.i18n.TranslationManager = None):
+        language = ld.detect_language(tm.supported_languages())
+        contextual_vars: dict[str, t.Any] = {
+            'language': language,
+            'i18n_sort': functools.partial(gcflask.i18n.i18n_sort, language_order=[language, 'und']),
         }
         for menu_name in self._menus:
-            processors[f"menu_{menu_name}"] = self._menus[menu_name]
-        return processors
+            contextual_vars[f"menu_{menu_name}"] = self._menus[menu_name]
+        if flask.has_request_context():
+            contextual_vars["default_title"] = gcflask.i18n.tr(f"{flask.request.endpoint}.title", default=t.cast(str, flask.request.endpoint))
+        else:
+            contextual_vars["default_title"] = ''
+        return contextual_vars
 
     def _configure_csrf(self):
         self.flask_app.extensions['csrf'] = CSRFProtect(self.flask_app)
+
+    def _configure_resource_endpoint(self):
+        self.flask_app.add_url_rule(
+            f"resources/<path:filename>",
+            endpoint="resources",
+            host=None,
+            view_func=self._deliver_resource_file,
+        )
+        self._resource_directories.sort(key=lambda x: x[1], reverse=True)
+
+    def _deliver_resource_file(self, filename):
+        for path, _ in self._resource_directories:
+            test_path = (path / filename).absolute().resolve()
+            if test_path.exists():
+                return flask.send_from_directory(path, filename)
+        return flask.abort(404)
 
     def _load_blueprints(self):
         universal_prefix = self.config.get(('gcflask', 'path_prefix'), default='').rstrip('/')

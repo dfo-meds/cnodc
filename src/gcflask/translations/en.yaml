@@ -1,0 +1,14 @@
+gcflask:
+  site_title: "unknown"
+  user_welcome: "Welcome"
+  login: "Login"
+  format:
+    no_date: "N/A"
+    datetime: "%Y-%m-%d %H:%M"
+    date: "%Y-%m-%d"
+  session:
+    logout: "Session Time Remaining"
+    refresh_ajax_error: "An error occured while refreshing your session"
+    noscript: "Javascript is not enabled"
+    timeout_warning: "Your session will end soon!"
+    refresh_link_text: "Refresh your session"
