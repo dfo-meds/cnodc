@@ -351,7 +351,7 @@ class PostgresController(interface.NODBInstance):
         with self.cursor() as cur:
             cur.execute("SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes")
             for item in cur.fetch_stream(10):
-                process_info: dict[str, t.Any] = json.load_dict(item[6])
+                process_info: dict[str, t.Any] = item[6]
                 process_info['server_name'] = item[0]
                 process_info['process_id'] = item[1]
                 process_info['process_name'] = item[2]
