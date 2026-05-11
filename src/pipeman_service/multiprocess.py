@@ -54,7 +54,6 @@ class MultiProcessController(BaseController):
             **kwargs
         )
         import medsutil.logging as ml
-        ml.init_as_subprocess(lq)
         log_config = dict(self.config.as_dict("logging", default={}))
         self._logging_subprocess = ml.init_subprocess_handler(lq, logging_config=log_config)
 
