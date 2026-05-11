@@ -8,7 +8,6 @@ MY_DIR = pathlib.Path(__file__).absolute().resolve().parent
 def init_pipeman(app_type: str,
                  with_mp_prometheus_default: bool = False,
                  no_mp: bool = False):
-
     import gcapp.boot as gcboot
     gcboot.boot(
         app_name='pipeman',

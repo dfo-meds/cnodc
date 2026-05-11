@@ -51,7 +51,6 @@ def boot(
 ):
 
     delayed_log_messages: list[tuple[str, int]] = []
-
     # Set up configuration files
     import zirconium as zr
     @zr.configure

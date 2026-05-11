@@ -74,9 +74,13 @@ def init_as_subprocess(queue: multiprocessing.Queue):
         if isinstance(logger, logging.Logger) and logger.handlers:
             for handler in logger.handlers:
                 logger.removeHandler(handler)
+    log_level = logging.getLogger().getEffectiveLevel()
     for handler in logging.getLogger().handlers:
+        log_level = min(handler.level, log_level)
         logging.getLogger().removeHandler(handler)
-    logging.getLogger().addHandler(MultiprocessingQueueHandler(queue))
+    handler = MultiprocessingQueueHandler(queue, level=log_level)
+    logging.getLogger().addHandler(handler)
+    logging.getLogger("medslogging").info("Multiprocess logging started on %s", os.getpid())
 
 
 class MultiprocessingQueueHandler(QueueHandler):
@@ -84,6 +88,9 @@ class MultiprocessingQueueHandler(QueueHandler):
     def __init__(self, queue, level=logging.NOTSET):
         super().__init__(queue)
         self.setLevel(level)
+
+    def emit(self, record):
+        super().emit(record)
 
     def prepare(self, record):
         r = super().prepare(record)

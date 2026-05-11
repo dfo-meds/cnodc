@@ -106,6 +106,7 @@ class MultiProcessController(BaseController):
                 for x in lc.keys()
             }
         )
+        ml.init_as_subprocess(self._logging_queue)
 
     def cleanup(self):
         self._logging_subprocess.stop()
