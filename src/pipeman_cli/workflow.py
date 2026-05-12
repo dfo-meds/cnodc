@@ -28,13 +28,16 @@ def update_all_workflows(config_directory: str):
 
 @injector.inject
 def _update_from_config_directory(config_directory: str, nodb: NODB = None):
+    if not config_directory:
+        zrlog.get_logger("cli.upgrade.workflows").warning("config directory not specified")
+        raise SystemExit(1)
     p = pathlib.Path(config_directory)
     if not p.exists():
-        print("config directory doesn't exist")
-        exit(1)
+        zrlog.get_logger("cli.upgrade.workflows").warning("config directory %s does not exist", p)
+        raise SystemExit(1)
     if not p.is_dir():
-        print("config directory isn't a directory")
-        exit(2)
+        zrlog.get_logger("cli.upgrade.workflows").warning("config directory %s is not a directory", p)
+        raise SystemExit(1)
     with nodb as db:
         for f in p.iterdir():
             if f.name.endswith(".yaml"):
@@ -45,23 +48,26 @@ def _update_from_config_directory(config_directory: str, nodb: NODB = None):
 
 def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, db: NODBInstance):
     if not config_file.exists():
-        print("config file doesn't exist")
-        exit(1)
+        zrlog.get_logger("cli.upgrade.workflows").warning("config file %s does not exist", config_file)
+        raise SystemExit(1)
     try:
         config = {}
         with open(config_file, "r") as h:
             config = yaml.safe_load(h) or {}
         existing = structures.NODBUploadWorkflow.find_by_name(db, workflow_name, lock_type=LockType.FOR_NO_KEY_UPDATE)
         if existing:
+            zrlog.get_logger("cli.upgrade.workflows").notice("updating workflow %s from %s", workflow_name, config_file)
             existing.set_config(config)
             db.update_object(existing)
             db.commit()
         else:
+            zrlog.get_logger("cli.upgrade.workflows").notice("creating workflow %s from %s", workflow_name, config_file)
             existing = structures.NODBUploadWorkflow()
             existing.workflow_name = workflow_name
             existing.is_active = True
             existing.set_config(config)
             db.insert_object(existing)
             db.commit()
-    except Exception:
-        zrlog.get_logger('workflow_import').exception(f"An exception occurred while processing {config_file}")
+    except Exception as ex:
+        zrlog.get_logger('cli.upgrade.workflows').exception(f"An exception occurred while processing %s", config_file)
+        raise SystemExit(1) from ex

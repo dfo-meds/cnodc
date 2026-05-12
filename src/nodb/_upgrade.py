@@ -20,14 +20,14 @@ class Upgrader:
 
     def upgrade(self):
         if not self.version_table_exists():
-            self._log.info("No nodb version detected")
+            self._log.notice("No nodb version detected")
             upgrade_start = (0,0)
         else:
             upgrade_start = self.get_last_version()
-            self._log.info("Last nodb version detected as (%s, %s)", *upgrade_start)
+            self._log.notice("Last nodb version detected as (%s, %s)", *upgrade_start)
         for file in self.find_upgrade_files(*upgrade_start):
             self.apply_upgrade_file(*file)
-        self._log.info("Upgrade complete")
+        self._log.notice("Database upgrade complete")
 
     def find_upgrade_files(self, last_major_version: int, last_minor_version: int) -> t.Iterable[tuple[pathlib.Path, int, int]]:
         files: list[tuple[pathlib.Path, int, int]] = []
@@ -49,18 +49,18 @@ class Upgrader:
     def apply_upgrade_file(self, file_path: pathlib.Path, major_version: int, minor_version: int):
         with self.db.cursor() as cursor:
             try:
-                self._log.info("Applying database file %s", file_path)
+                self._log.notice("Applying database file %s", file_path)
                 self._apply_upgrade_file(cursor, file_path)
                 self._log.trace("Updating major/minor version to %s,%s", major_version, minor_version)
                 cursor.execute("INSERT INTO nodb_version (lookup, version_major, version_minor) VALUES (1, %s, %s) ON CONFLICT (lookup) DO UPDATE SET version_major = EXCLUDED.version_major, version_minor = EXCLUDED.version_minor", [major_version, minor_version])
                 self._log.trace("Committing changes")
                 cursor.commit()
                 self._log.debug("Success")
-            except Exception:
+            except Exception as ex:
                 self._log.exception("Error applying %s", file_path)
                 cursor.rollback()
                 self._log.trace("Rollback complete")
-                raise
+                raise SystemExit(1) from ex
 
     def _apply_upgrade_file(self, cursor: _PGCursor, file_path: pathlib.Path):
 
