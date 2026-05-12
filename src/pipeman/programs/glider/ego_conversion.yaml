@@ -935,10 +935,17 @@ data_maps:
     jamespegg:
       proper_name: James Pegg
       guid: james-pegg-ios
-    hayleydosse:
-      proper_name: Hayley Dosse
-    davehebert:
-      proper_name: Dave Hebert
+    hayleydosse: hayleydosser
+    hayleydosser:
+      proper_name: Hayley Dosser
+      research_id: 0000-0002-0880-026X
+    roberlennox: robertlennox
+    robertlennox:
+      proper_name: Robert Lennox
+      research_id: 0000-0003-1010-0577
+    davehebert: davidhebert
+    davidhebert:
+      proper_name: David Hebert
       research_id: 0000-0002-2538-5686
     fredericcyr:
       proper_name: Frederic Cyr
