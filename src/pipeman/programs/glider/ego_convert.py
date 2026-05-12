@@ -483,8 +483,9 @@ class OpenGliderConverter:
         return ContactInfo(**info)
 
     def _validate_contributors(self, original_nc: nc.Dataset):
-        if not hasattr(original_nc, 'principal_investigator'):
-            raise GliderError('Missing mandatory [principal_investigator] attribute', 2012)
+        # This is supposed to be mandatory in the new spec, but not all of the original ones have it
+        # if not hasattr(original_nc, 'principal_investigator'):
+        #     raise GliderError('Missing mandatory [principal_investigator] attribute', 2012)
         if 'OPERATING_INSTITUTION' not in original_nc.variables:
             raise GliderError('Missing mandatory [OPERATING_INSTITUTION] variable', 2013)
 
@@ -519,8 +520,9 @@ class OpenGliderConverter:
         self._validate_contributors(original_nc)
         contributors: list[ContactInfo] = []
         institutions: list[ContactInfo] = []
-        for pi in original_nc.getncattr('principal_investigator').split(';'):
-            contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
+        if hasattr(original_nc, 'principal_investigator'):
+            for pi in original_nc.getncattr('principal_investigator').split(';'):
+                contributors.append(self._build_contact_info(pi.strip(), 'CONT0004'))
         for op in netcdf_bytes_to_string(original_nc.variables['OPERATING_INSTITUTION'][:]).split(';'):
             institutions.append(self._build_contact_info(op.strip(), 'CONT0003'))
         if 'GLIDER_OWNER' in original_nc.variables:
