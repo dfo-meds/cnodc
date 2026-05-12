@@ -532,15 +532,24 @@ class OpenGliderConverter:
                 institutions.append(self._build_contact_info(owner.strip(), 'CONT0002'))
         else:
             self._log.warning('Missing suggested [GLIDER_OWNER] variable')
+        network = open_nc.getncattr('network') if hasattr(open_nc, 'network') else ''
+        glider_id = open_nc.getncattr('id') if hasattr(open_nc, 'id') else ''
         info_url = self._get_info_url(
-            open_nc.getncattr('network') if hasattr(open_nc, 'network') else '',
-            open_nc.getncattr('id') if hasattr(open_nc, 'id') else '',
+            network,
+            glider_id,
             institutions
         )
         if info_url:
             open_nc.setncattr('infoUrl', info_url)
         else:
-            self._log.warning(f'No infoUrl found')
+
+            self._log.warning(
+                f'No infoUrl found for %s [%s;%s;%s]',
+                original_nc.name,
+                network,
+                glider_id,
+                ','.join(x.key_name for x in institutions)
+            )
         if contributors:
             cont_emails = self._get_multilingual_contact_info(c.email for c in contributors)
             open_nc.setncattr('contributor_name', self._compress_join(c.short_name for c in contributors))
