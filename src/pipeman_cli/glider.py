@@ -21,8 +21,9 @@ def convert(original_file, output_file):
 @click.argument("original_dir")
 @click.argument("output_dir")
 def convert_all(original_dir, output_dir):
-    from pipeman.programs.glider.ego_convert import OpenGliderConverter
+    from pipeman.programs.glider.ego_convert import OpenGliderConverter, validate_ego_glider_file
     out_dir = pathlib.Path(output_dir)
+    out_dir.mkdir(exist_ok=True, parents=True)
     for file in os.scandir(original_dir):
         if not file.name.endswith(".nc"):
             continue
@@ -30,6 +31,7 @@ def convert_all(original_dir, output_dir):
         if out_path.exists():
             continue
         try:
+            validate_ego_glider_file(file.path, {}, file.name)
             OpenGliderConverter.build().convert(file.path, out_path)
         except KeyboardInterrupt as ex:
             out_path.unlink(True)
