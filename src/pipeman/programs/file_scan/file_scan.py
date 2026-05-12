@@ -176,7 +176,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
         self._log.debug('Looking for workflow [%s]', workflow_name)
         workflow = nodb.NODBUploadWorkflow.find_by_name(self.db, workflow_name)
         if workflow is None:
-            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
+            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_transient=True)
         return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
 
     def handle_queued_file(self,
