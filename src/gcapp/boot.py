@@ -85,11 +85,6 @@ def boot(
     init_overrides(manual_overrides)
     init_system_logging(version_no)
 
-    # We delay the messages to here to ensure everything is configured correctly.
-    boot_logger = logging.getLogger('boot')
-    for log_msg, log_lvl in delayed_log_messages:
-        boot_logger.log(log_lvl, log_msg)
-
     # Configure custom logging levels
     import importlib
     if individual_log_levels:
