@@ -23,9 +23,10 @@ def upgrade(config: zr.ApplicationConfig = None):
 
         # Install default workflows
         wf_config_dir = config.get(("pipeman", "workflows", "config_directory"), None)
-        zrlog.get_logger("cli.upgrade").notice("Updating configuration from %s", wf_config_dir or 'N/A')
-        from pipeman_cli.workflow import _update_from_config_directory
-        _update_from_config_directory(wf_config_dir)
+        zrlog.get_logger("cli.upgrade").notice("Updating configuration from %s", wf_config_dir or '-')
+        if wf_config_dir:
+            from pipeman_cli.workflow import _update_from_config_directory
+            _update_from_config_directory(wf_config_dir)
 
     except Exception as ex:
         raise SystemExit(1) from ex
