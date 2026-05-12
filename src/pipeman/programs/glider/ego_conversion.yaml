@@ -837,12 +837,20 @@ data_maps:
     6: 0
 
   sensor_makes:
+    rbr: RBR Canada
     sbe: SeaBird Electronics
+    aanderaa: Aanderaa Data Instruments
     wetlabs: Wetlabs
+    jac: JFE Advantech Company
 
   sensor_models:
     gpctd: GPCTD
     eco_flbbcd: ECO FLBBCD
+    flbbcdslc: FLBBCD-SLC
+    do43f:  43F
+    rbrlegato3ctd: Legato3 CTD
+    aanderaa_optode_4831: Oxygen Optode 4831
+    arod-ft: AROD-FT
 
   sensors:
     "seabird electronics ctd 41cp":
@@ -898,6 +906,43 @@ data_maps:
       maker: "Alseamar"
 
   contacts:
+    tetjanaross:
+      proper_name: Tetjana Ross
+      research_id: 0000-0002-3351-2622
+      email: tetjana.ross@dfo-mpo.gc.ca
+    jodyklymak:
+      proper_name: Jody Klymak
+      research_id: 0000-0003-4612-8600
+      email: jklymak@uvic.ca
+    robynwalker:
+      proper_name: Robyn Walker
+      guid: robyn-walker-dartmouth
+    kimdavies:
+      proper_name: Kimberley Davies
+      email: kim.davies@unb.ca
+    richarddavis:
+      proper_name: Richard David
+      email: rfdavis@dal.ca
+    adamcomeau:
+      proper_name: Adam Comeau
+      email: adam.comeau@dal.ca
+    xiangling:
+      proper_name: Xiang Ling
+      email: xiang.ling@dal.ca
+    zachviva:
+      proper_name: Zach Viva
+      guid: zach-viva-dalhousie
+    jamespegg:
+      proper_name: James Pegg
+      guid: james-pegg-ios
+    hayleydosse:
+      proper_name: Hayley Dosse
+    davehebert:
+      proper_name: Dave Hebert
+      research_id: 0000-0002-2538-5686
+    fredericcyr:
+      proper_name: Frederic Cyr
+      research_id: 0000-0002-1581-7502
     erinturnbull:
       proper_name: Erin Turnbull
       research_id: 0009-0004-9696-0758
@@ -977,6 +1022,7 @@ data_maps:
     marineenvironmentaldatasection: meds
     coastalenvironmentalobservationtechnologyandresearch: ceotr
     northatlanticfisheriescentre: nafc
+    nfld: nafc
     instituteofoceansciences: ios
     memorialuniversity: memorial
     universityofvictoria: uvic
