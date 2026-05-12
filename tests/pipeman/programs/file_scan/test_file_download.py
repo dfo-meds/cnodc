@@ -34,7 +34,8 @@ class TestFileDownloadWorker(BaseTestCase):
         sfp = NewFilePayload.from_path(test_file)
         with self.assertLogs('cnodc.worker.file_downloader', 'ERROR'):
             self.worker_controller.test_queue_worker(FileDownloadWorker, {}, self.worker_controller.payload_to_queue_item(sfp))
-        self.assertEqual(0, len(self.db._scanned_files))
+        self.assertEqual(1, len(self.db._scanned_files))
+        self.assertTrue(self.db._scanned_files[0]['was_errored'])
 
     def test_bad_queue_item_workflow_empty_workflow(self):
         test_file = self.temp_dir / 'file1.txt'
@@ -49,7 +50,8 @@ class TestFileDownloadWorker(BaseTestCase):
                 qi = self.worker_controller.payload_to_queue_item(sfp)
                 with self.assertLogs('cnodc.worker.file_downloader', 'ERROR'):
                     self.worker_controller.test_queue_worker(FileDownloadWorker, {}, qi)
-                self.assertEqual(0, len(self.db._scanned_files))
+                self.assertEqual(1, len(self.db._scanned_files))
+                self.assertTrue(self.db._scanned_files[0]['was_errored'])
 
     def _build_good_workflow(self):
         subdir = self.temp_dir / 'subdir'

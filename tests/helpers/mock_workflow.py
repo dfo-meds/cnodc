@@ -199,7 +199,8 @@ class MockWorkflow:
                 _process_uuid=str(uuid.uuid4()),
                 _config={},
                 _halt_flag=self.halt_flag,
-                _end_flag=self.end_flag
+                _end_flag=self.end_flag,
+                _server_name='test',
             )
             worker._config = test_result.update_worker_config(worker, worker_config)
             if hasattr(worker, 'nodb'):

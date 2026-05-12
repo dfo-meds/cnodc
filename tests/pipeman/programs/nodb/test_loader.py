@@ -63,10 +63,9 @@ class TestLoader(BaseTestCase):
             loader.on_start()
 
     def test_bad_err_dir_no_exist(self):
-        sd = self.temp_dir / 'subdir'
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(NODBDecodeLoadWorker, {
             'queue_name': 'test',
-            'error_directory': str(sd)
+            'error_directory': self.bad_directory()
         })
         with self.assertRaisesCoded('NODB-LOAD-1003'):
             loader.on_start()

@@ -37,11 +37,8 @@ def init_for_tests(skip_long_tests: bool = True,
     if disable_metrics:
         # Prevent metrics from being loaded
         from autoinject import injector
-        from medsutil.metrics import PromMetrics
-        @injector.inject
-        def _disable_metrics(pm: PromMetrics = None):
-            pm.disable_metrics = True
-        _disable_metrics()
+        import medsutil.metrics as metrics
+        metrics.DISABLE_METRICS = True
 
     if fast_password_hashing:
         # speed up password hashing for tests only!

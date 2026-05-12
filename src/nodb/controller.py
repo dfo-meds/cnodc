@@ -7,6 +7,7 @@ import typing as t
 
 import psycopg2 as pg
 import psycopg2.extras as pge
+import psycopg2.extensions as pgext
 import psycopg2.sql as pgs
 import zirconium as zr
 import zrlog
@@ -517,7 +518,7 @@ class PostgresController(interface.NODBInstance):
         except NODBError as ex:
             cur.rollback_to_savepoint("fetch_queue_item")
             # Retry deadlock and serialization errors
-            if ex.is_serialization_error():
+            if ex.is_retryable_error:
                 return None
             else:
                 raise ex
@@ -769,7 +770,7 @@ class NODBPostgresController(interface.NODB):
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__()
-        self._conn = None
+        self._conn: t.Optional[pgext.connection] = None
         self._connect_args: dict[str, t.Any] = kwargs if kwargs else t.cast(dict, self.config.as_dict(("nodb",), default={}))
         if 'options' not in self._connect_args:
             self._connect_args['options'] = "-c search_path=public"
@@ -781,6 +782,22 @@ class NODBPostgresController(interface.NODB):
 
     @interface.wrap_nodb_exceptions
     def _build_controller_instance(self):
+        self._verify_connection()
         if self._conn is None:
             self._conn = pg.connect(**self._connect_args)
         return PostgresController(self._conn)
+
+    def _verify_connection(self):
+        if self._conn is not None:
+            # Verify status
+            if self._conn.closed:
+                self._conn = None
+            else:
+                try:
+                    status = self._conn.info.transaction_status
+                    if status == pgext.TRANSACTION_STATUS_UNKNOWN:
+                        self._conn.close()
+                        self._conn = None
+                except pg.Error:
+                    self._conn = None
+

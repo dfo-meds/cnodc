@@ -9,12 +9,14 @@ import os
 import zrlog
 from autoinject import injector
 
+# Used to disable metrics in tests only!
+DISABLE_METRICS = False
 
 @injector.injectable_global
 class PromMetrics:
 
     def __init__(self):
-        self.disable_metrics: bool = False
+        self.disable_metrics: bool = DISABLE_METRICS
         self.metric_flask = None
         self._metrics = {}
         self._lock = threading.RLock()
@@ -27,10 +29,8 @@ class PromMetrics:
             self._reg = pc.CollectorRegistry()
             if os.environ.get("PROMETHEUS_MULTIPROC_DIR", default=None):
                 self._collector = pcmp.MultiProcessCollector(self._reg)
-            else:
-                if for_mp and not self.disable_metrics:
-                    self.log.warning("PROMETHEUS_MULTIPROC_DIR not set, Prometheus metrics may be corrupt if using a multi-process WSGI server")
-                self._reg = self._reg
+            elif for_mp and not self.disable_metrics:
+                self.log.warning("PROMETHEUS_MULTIPROC_DIR not set, Prometheus metrics may be corrupt if using a multi-process WSGI server")
 
     def init_app(self, app):
         self.init_metrics(True)

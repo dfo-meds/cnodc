@@ -239,6 +239,7 @@ class BaseWorker(CachedObjectMixin):
         except (HaltInterrupt, KeyboardInterrupt) as ex:
             exc = ex
             self.report(status='halted', activity='cleaning up')
+            raise
         except Exception as ex:
             exc = ex
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
@@ -305,7 +306,7 @@ class BaseWorker(CachedObjectMixin):
                 if _end:
                     db.clear_process_info(self._server_name, self._process_uuid)
         except CodedError:
-            self._log.exception(f"Exception during reporting")
+            self._log.exception(f"Exception during reporting, ignoring and moving on")
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""

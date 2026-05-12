@@ -57,7 +57,8 @@ class TestFileScanTask(BaseTestCase):
         self.assertDictSimilar({
             'file_path': str(self.temp_dir / 'file1.txt').replace("\\", "/"),
             'was_processed': False,
-            'modified_date': None
+            'modified_date': None,
+            'was_errored': False,
         }, self.db._scanned_files[0])
 
     def test_scan_new_files(self):
@@ -73,6 +74,7 @@ class TestFileScanTask(BaseTestCase):
         self.assertEqual(1, len(self.db.table(NODBQueueItem.TABLE_NAME)))
         self.assertEqual(1, len(self.db._scanned_files))
         self.assertDictSimilar({
+            'was_errored': False,
             'file_path': str(self.temp_dir / 'file1.txt').replace("\\", "/"),
             'was_processed': False,
             'modified_date': None
@@ -95,6 +97,7 @@ class TestFileScanTask(BaseTestCase):
         self.assertDictSimilar({
             'file_path': str(file).replace("\\", "/"),
             'was_processed': False,
+            'was_errored': False,
             'modified_date': datetime.datetime.fromtimestamp(file.stat().st_mtime).astimezone()
         }, self.db._scanned_files[0])
 
@@ -114,6 +117,7 @@ class TestFileScanTask(BaseTestCase):
         self.assertEqual(0, len(self.db.table(NODBQueueItem.TABLE_NAME)))
         self.assertEqual(1, len(self.db._scanned_files))
         self.assertDictSimilar({
+            'was_errored': False,
             'file_path': str(file).replace("\\", "/"),
             'was_processed': False,
             'modified_date': None
@@ -136,6 +140,7 @@ class TestFileScanTask(BaseTestCase):
         self.assertEqual(0, len(self.db.table(NODBQueueItem)))
         self.assertEqual(1, len(self.db._scanned_files))
         self.assertDictSimilar({
+            'was_errored': False,
             'file_path': str(file).replace("\\", "/"),
             'was_processed': True,
             'modified_date': None

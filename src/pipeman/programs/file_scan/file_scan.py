@@ -126,7 +126,7 @@ class FileScanTask(ScheduledTask):
                     # In either case, we can ignore it for now as long as we rollback.
                     # If the file doesn't get properly recorded, it will be checked on the next pass
                     self.count("files_scanned_total", outcome="error")
-                    if ex.is_serialization_error():
+                    if ex.is_retryable_error:
                         db.rollback_to_savepoint('FILE_INSERT')
                         self._log.warning("Exception while creating database entry for scanned file [%s][%s]", full_path, mod_time, exc_info=True)
 
@@ -176,7 +176,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
         self._log.debug('Looking for workflow [%s]', workflow_name)
         workflow = nodb.NODBUploadWorkflow.find_by_name(self.db, workflow_name)
         if workflow is None:
-            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002, is_transient=True)
+            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
         return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
 
     def handle_queued_file(self,

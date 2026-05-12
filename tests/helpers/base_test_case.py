@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import pathlib
 import shutil
 import sys
@@ -225,6 +226,13 @@ class BaseTestCase(ut.TestCase):
         cls.enterClassContext(container)
         return container
 
+    @staticmethod
+    def bad_directory() -> str:
+        if os.name == 'nt':
+            return "//notadirectoryandneverwillbe/stuff"
+        else:
+            return "c:/notadirectoryandneverwillbe"
+
     @property
     def temp_dir(self):
         if not hasattr(self, '_temp_dir'):
@@ -277,8 +285,6 @@ class BaseTestCase(ut.TestCase):
             elif isinstance(level, str):
                 level = getattr(logging, level)
             logging.getLogger().setLevel(level)
-            print(logging.NOTICE)
-            print(logging.getLogger("medsutil.secure").getEffectiveLevel())
             with super().assertLogs(logger, level) as h:
                 yield h
         finally:

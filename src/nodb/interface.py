@@ -25,24 +25,15 @@ type JoinString = t.Literal["AND", "OR"]
 if t.TYPE_CHECKING:
     from nodb import NODBQueueItem
 
-RECOVERABLE_ERRORS: list[str] = [
-    '08***',  # Connection errors
-    '25***',  # transaction states
-    '28***',  # Authorization errors
-    '40***',  # Transaction isolation errors
-    '53***',  # Insufficient resource errors
-    '58***',  # Non-postgresql errors
-    '57***',  # Operator intervention
-    '55***',  # Invalid prerequisite state
-    '42501',  # Insufficient privileges
-]
 
+# These are non-pgcode errors from the psycopg2 library
 RECOVERABLE_MESSAGE_FRAGMENTS: list[str] = [
     'server closed the connection unexpectedly',
     'could not receive data from server',
     'the database system is starting up',
     'connection refused',
     'the database system is not yet accepting connections',
+    'connection already closed',
 ]
 
 class ScannedFileStatus(enum.Enum):
@@ -74,15 +65,84 @@ class LockType(enum.Enum):
     FOR_KEY_SHARE = "5"
 
 
+class EType(enum.IntFlag):
+    NONE = 0
+    CONNECTION = 1
+    SERIALIZATION = 2
+    RECOVERABLE = 4
+
+
 class SqlState(enum.Enum):
     """Specific postgresql SQL state codes that are used to properly handle errors."""
 
-    UNIQUE_VIOLATION = '23505'
-    FOREIGN_KEY_VIOLATION = '23503'
-    NOT_NULL_VIOLATION = '23502'
+    def __new__(cls, value: str, error_type: EType = EType.NONE):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.error_type = error_type
+        return obj
 
-    SERIALIZATION_FAILURE = '40001'
-    DEADLOCK_DETECTED = '40P01'
+    CONNECTION_ERROR = '08000', EType.CONNECTION | EType.RECOVERABLE
+    CONNECTION_DOES_NOT_EXIST = '08003', EType.CONNECTION | EType.RECOVERABLE
+    CONNECTION_FAILURE = '08006', EType.CONNECTION | EType.RECOVERABLE
+    SQLCLIENT_NO_CONNECTION = '08001', EType.CONNECTION | EType.RECOVERABLE
+    SQLSERVER_REJECTED_CONNECTION = '08004', EType.CONNECTION | EType.RECOVERABLE
+    TRANSACTION_RESOLUTION_UNKNOWN = '08007', EType.CONNECTION | EType.RECOVERABLE
+    PROTOCOL_VIOLATION = '08P01', EType.CONNECTION | EType.RECOVERABLE
+
+    UNIQUE_VIOLATION = '23505', EType.SERIALIZATION
+
+    INVALID_TRANSACTION_STATE = '25000', EType.RECOVERABLE
+    ACTIVE_SQL_TRANSACTION = '25001', EType.RECOVERABLE
+    BRANCH_TRANSACTION_ALREADY_ACTIVE = '25002', EType.RECOVERABLE
+    HELD_CURSOR_REQUIRES_SAME_ISOLATION = '25008', EType.RECOVERABLE
+    INAPPROPRIATE_ACCESS_MODE = '25003', EType.RECOVERABLE
+    INAPPROPRIATE_ISOLATION_MODE = '25004', EType.RECOVERABLE
+    NO_ACTIVE_SQL_TRANSACTION_FOR_BRANCH = '25005', EType.RECOVERABLE
+    READ_ONLY_SQL_TRANSACTION = '25006', EType.RECOVERABLE
+    SCHEMA_DATA_MIXING_NOT_SUPPORTED = '25007', EType.RECOVERABLE
+    NO_ACTIVE_SQL_TRANSACTION = '25P01', EType.RECOVERABLE
+    IN_FAILED_SQL_TRANSACTION = '25P02', EType.RECOVERABLE
+    IDLE_IN_TRANSACTION_TIMEOUT = '25P03', EType.RECOVERABLE
+    TRANSACTION_TIMEOUT = '25P04', EType.RECOVERABLE
+
+    INVALID_AUTHORIZATION_SPEC = '28000', EType.RECOVERABLE
+    INVALID_PASSWORD = '28P01', EType.RECOVERABLE
+
+    TRANSACTION_ROLLBACK = '40000', EType.RECOVERABLE
+    SERIALIZATION_FAILURE = '40001', EType.SERIALIZATION | EType.RECOVERABLE
+    TRANSACTION_INTEGRITY_CONSTRAINT_VIOLATION = '40002', EType.RECOVERABLE
+    DEADLOCK_DETECTED = '40P01', EType.SERIALIZATION | EType.RECOVERABLE
+    STATEMENT_COMPLETION_UNKNOWN = '40003', EType.RECOVERABLE
+
+    INSUFFICIENT_PRIVILEGES = '42501', EType.RECOVERABLE
+
+    INSUFFICIENT_RESOURCES = '53000', EType.RECOVERABLE
+    DISK_FULL = '53100', EType.RECOVERABLE
+    OUT_OF_MEMORY = '53200', EType.RECOVERABLE
+    TOO_MANY_CONNECTIONS = '53300', EType.RECOVERABLE
+    CONFIGURATION_LIMIT_EXCEEDED = '53400', EType.RECOVERABLE
+
+    OBJECT_NOT_IN_PREREQ_STATE = '55000', EType.RECOVERABLE
+    OBJECT_IN_USE = '55006', EType.RECOVERABLE
+    CANT_CHANGE_RUNTIME_PARAM = '55P02', EType.RECOVERABLE
+    LOCK_NOT_AVAILABLE = '55P03', EType.RECOVERABLE
+    UNSAFE_NEW_ENUM_USAGE = '55P04', EType.RECOVERABLE
+
+    OP_INTERVENTION = '57000', EType.RECOVERABLE
+    QUERY_CANCELLED = '57014', EType.RECOVERABLE
+    ADMIN_SHUTDOWN = '57P01', EType.RECOVERABLE | EType.CONNECTION
+    CRASH_SHUTDOWN = '57P02', EType.RECOVERABLE | EType.CONNECTION
+    CANNOT_CONNECT_NOW = '57P03', EType.RECOVERABLE | EType.CONNECTION
+    DATABASE_DROPPED = '57P04', EType.RECOVERABLE
+    IDLE_SESSION_TIMEOUT = '57P05', EType.RECOVERABLE | EType.CONNECTION
+
+    SYSTEM_ERROR = '58000', EType.RECOVERABLE
+    IO_ERROR = '58030', EType.RECOVERABLE
+    UNDEFINED_FILE = '58P01', EType.RECOVERABLE
+    DUPLICATE_FILE = '58P02', EType.RECOVERABLE
+    FILENAME_TOO_LONG = '58P03', EType.RECOVERABLE
+
+
 
 
 class NODBError(CodedError):
@@ -90,30 +150,42 @@ class NODBError(CodedError):
     CODE_SPACE = 'NODB'
 
     def __init__(self, msg, code, pgcode: str | None, is_transient: bool = False):
-        ist = is_transient
-        super().__init__(
-            f"Database error: {msg} [{pgcode or ''}]",
-            code,
-            is_transient=(
-                    ist
-                    or (pgcode is not None and (pgcode in RECOVERABLE_ERRORS or f"{pgcode[0:2]}***" in RECOVERABLE_ERRORS))
-                    or (msg is not None and any(x in msg for x in RECOVERABLE_MESSAGE_FRAGMENTS))
-            )
-        )
+        super().__init__(f"Database error: {msg} [{pgcode or ''}]", code)
+        self._state = None
         self.pgcode = pgcode
-
-    def is_serialization_error(self):
-        return self.pgcode in (
-            SqlState.UNIQUE_VIOLATION.value,
-            SqlState.SERIALIZATION_FAILURE.value,
-            SqlState.DEADLOCK_DETECTED.value
-        )
-
-    def sql_state(self) -> t.Optional[SqlState]:
         try:
-            return SqlState(self.pgcode)
+            if self.pgcode:
+                self._state = SqlState(self.pgcode)
         except ValueError:
-            return None
+            ...
+
+        self._is_db_available = True
+        self._is_retryable = False
+
+        if msg and any(x in msg for x in RECOVERABLE_MESSAGE_FRAGMENTS):
+            self._is_db_available = False
+            self.is_transient = True
+
+        if self._state:
+            if EType.CONNECTION in self._state.error_type:
+                self._is_db_available = False
+            if EType.RECOVERABLE in self._state.error_type:
+                self.is_transient = True
+            if EType.SERIALIZATION in self._state.error_type:
+                self._is_retryable = True
+
+    @property
+    def is_db_available(self) -> bool:
+        return self._is_db_available
+
+    @property
+    def state(self) -> t.Optional[SqlState]:
+        return self._state
+
+    @property
+    def is_retryable_error(self):
+        return self._is_retryable
+
 
 class NODBValidationError(CodedError): CODE_SPACE = 'NODB-VALIDATION'
 

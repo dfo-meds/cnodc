@@ -149,6 +149,7 @@ class NODBContainer(TestContainer):
 
             return True
         except NODBError as ex:
-            if ex.is_transient:
+            if not ex.is_db_available:
                 return False
-            raise
+            else:
+                raise

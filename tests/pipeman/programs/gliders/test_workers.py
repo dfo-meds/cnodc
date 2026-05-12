@@ -79,7 +79,7 @@ class GliderConversionWorkerTest(BaseTestCase):
     def test_bad_og_directory(self):
         worker: GliderConversionWorker = self.worker_controller.build_test_worker(
             GliderConversionWorker, {
-                'openglider_directory': self.temp_dir / 'foobar'
+                'openglider_directory': self.bad_directory()
             }
         )
         with self.assertRaisesCoded('GLIDER-CONVERT-1001'):
@@ -98,7 +98,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         worker: GliderConversionWorker = self.worker_controller.build_test_worker(
             GliderConversionWorker, {
                 'openglider_directory': self.temp_dir,
-                'openglider_erddap_directory': self.temp_dir / 'foobar'
+                'openglider_erddap_directory': self.bad_directory()
             }
         )
         with self.assertRaisesCoded('GLIDER-CONVERT-1003'):

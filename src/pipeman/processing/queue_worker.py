@@ -116,15 +116,27 @@ class QueueWorker(BaseWorker):
             self._process_result(self._current_item, self.process_queue_item(self._current_item))
         except CodedError as ex:
             exc = ex
+
+            db_available = True
             # NB: NODB errors require us to rollback so that we can fix them.
             if isinstance(ex, nodb_.NODBError):
-                self.db.rollback()
+                db_available = ex.is_db_available
+                # but only if we can still reach the database
+                if db_available:
+                    self.db.rollback()
+
+            # If we can't reach the database, this is all pointless, so we don't do it
+            if not db_available:
+                self._log.exception("Database connection lost, queue item may be stuck in limbo")
+
             # Recoverable errors may be fixable later, so we requeue the item for retrying
-            if ex.is_transient:
+            elif ex.is_transient:
                 self._process_result(self._current_item, QueueItemResult.RETRY, ex)
+
             # Non-recoverable mean the entire item should fail
             else:
                 self._process_result(self._current_item, QueueItemResult.FAILED, ex)
+
         except Exception as ex:
             exc = ex
             self._process_result(self._current_item, QueueItemResult.FAILED, ex)

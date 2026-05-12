@@ -56,6 +56,8 @@ class DatabaseMock:
             if x['file_path'] == file_path and x['modified_date'] == mod_time:
                 if x['was_processed']:
                     return ScannedFileStatus.PROCESSED
+                elif x['was_errored']:
+                    return ScannedFileStatus.ERRORED
                 else:
                     return ScannedFileStatus.UNPROCESSED
         return ScannedFileStatus.NOT_PRESENT
@@ -65,6 +67,7 @@ class DatabaseMock:
         self._scanned_files.append({
             'file_path': str(file_path),
             'was_processed': False,
+            'was_errored': False,
             'modified_date': mod_time
         })
 
@@ -125,9 +128,11 @@ class DatabaseMock:
                 self._scanned_files.append({
                     'file_path': str(file_path),
                     'was_processed': True,
-                    'modified_date': mod_date
+                    'modified_date': mod_date,
+                    'was_errored': False,
                 })
 
+    # TODO: update to match test container code
     def mark_scanned_item_failed(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
         file_path = str(file_path).replace("\\", "/")
         remove_indices = set()
@@ -136,11 +141,9 @@ class DatabaseMock:
                 if x['was_processed']:
                     continue
                 if x['modified_date'] is None and mod_date is None:
-                    remove_indices.add(idx)
+                    self._scanned_files[idx]['was_errored'] = True
                 elif x['modified_date'] is not None and mod_date is not None and x['modified_date'] <= mod_date:
-                    remove_indices.add(idx)
-        for idx in sorted(remove_indices, reverse=True):
-            self._scanned_files.pop(idx)
+                    self._scanned_files[idx]['was_errored'] = True
 
     def grant_permission(self, role_name, perm_name):
         if role_name not in self._permissions:

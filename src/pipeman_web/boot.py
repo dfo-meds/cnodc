@@ -1,7 +1,8 @@
 
-def build_cnodc_webapp(name: str, with_default_prometheus_dir: bool = False):
+def build_cnodc_webapp(name: str, with_default_prometheus_dir: bool = False, no_boot: bool = False):
     from pipeman.boot import init_pipeman
-    init_pipeman('web', with_default_prometheus_dir)
+    if not no_boot:
+        init_pipeman('web', with_default_prometheus_dir)
     import flask
     app = flask.Flask(name)
     _init_flask()(app)

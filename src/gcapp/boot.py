@@ -5,23 +5,21 @@ import logging
 import sys
 
 
-def _config_paths(extra_paths: t.Sequence[str | pathlib.Path] | None = None) -> t.Generator[pathlib.Path, None, None]:
-    yield pathlib.Path(".").absolute().resolve()
-    yield pathlib.Path("~").expanduser().absolute().resolve()
+def _config_paths(extra_paths: t.Sequence[str] | None = None) -> t.Generator[pathlib.Path, None, None]:
+    paths = [".", "~"]
+
     custom_config_path = os.environ.get("GCAPP_CONFIG_DIRECTORIES", "./config")
     if custom_config_path:
-        paths = custom_config_path.split(";")
-        for path in paths:
-            if path:
-                p = pathlib.Path(path).absolute().resolve()
-                if p.exists():
-                    yield p
+        paths.extend(custom_config_path.split(";"))
+
     if extra_paths:
-        for path in extra_paths:
-            if isinstance(path, str):
-                yield pathlib.Path(path).absolute().resolve()
-            else:
-                yield path.absolute().resolve()
+        paths.extend(extra_paths)
+
+    for path in paths:
+        if path:
+            p = pathlib.Path(path).expanduser().absolute().resolve()
+            if p.exists():
+                yield p
 
 
 def _env_variables(variables: dict[str, str]) -> dict[str, str]:
@@ -46,14 +44,16 @@ def boot(
         app_components: t.Sequence[str] | None = None,
         manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
         individual_log_levels: dict[str, int] | None = None,
-        extra_config_paths: list[str | pathlib.Path] | None = None,
+        extra_config_paths: list[str] | None = None,
         version_no: str | None = None,
         env_map_files: list[pathlib.Path] | None = None,
-        boot_log_level: int = logging.INFO
+        boot_log_level: int = logging.WARNING
 ):
 
     # Temporary logging settings during boot process
-    logging.getLogger().addHandler(temp_handle := logging.StreamHandler(sys.stdout))
+    temp_handle = logging.StreamHandler(sys.stdout)
+    temp_handle.setLevel(boot_log_level)
+    logging.getLogger().addHandler(temp_handle)
     logging.getLogger().setLevel(boot_log_level)
 
     # Set up configuration files
@@ -67,8 +67,8 @@ def boot(
             config.register_file(path / f".{app_name}.toml")
             if app_components:
                 for name in app_components:
-                    config.register_default_file(path / f".{app_name}.{name}.defaults.toml")
                     config.register_file(path / f".{app_name}.{name}.toml")
+                    config.register_default_file(path / f".{app_name}.{name}.defaults.toml")
 
         import yaml
         if env_map_files:

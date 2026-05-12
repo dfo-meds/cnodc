@@ -76,6 +76,7 @@ class WorkerTestController:
             '_end_flag': self._halt,
             '_process_uuid': str(uuid.uuid4()),
             '_config': worker_config or {},
+            '_server_name': 'tests',
         }
         if worker_cls in (BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, ObservationWorkflowWorker, FileWorkflowWorker, QueueWorker, ScheduledTask):
             kwargs['process_name'] = 'test'

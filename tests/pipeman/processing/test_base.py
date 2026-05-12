@@ -71,33 +71,51 @@ class TestSaveData(BaseTestCase):
 
 class TestBaseWorker(BaseTestCase):
 
+    def _base_worker(self,
+                     config: dict | None = None,
+                     process_name='foo',
+                     process_version='bar',
+                     _process_uuid='foobar',
+                     _server_name='test',
+                     _halt_flag=None,
+                     _end_flag=None):
+        return BaseWorker(
+            process_name=process_name,
+            process_version=process_version,
+            _server_name=_server_name,
+            _process_uuid=_process_uuid,
+            _halt_flag=_halt_flag or self.halt_flag,
+            _end_flag=_end_flag or self.halt_flag,
+            _config=config or {}
+        )
+
     def test_save_file(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
+        worker = self._base_worker(config={
             'save_file': str(self.temp_dir / 'test.txt')
         })
         worker.save_data['foo'] = 'bar'
         self.assertEqual(worker.save_data['foo'], 'bar')
         worker.on_exit()
         del worker
-        worker2 = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
+        worker2 = self._base_worker(config={
             'save_file': str(self.temp_dir / 'test.txt')
         })
         self.assertEqual(worker2.save_data['foo'], 'bar')
 
     def test_empty_save_file(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {})
+        worker = self._base_worker(config={})
         worker.on_start()
         worker.save_data['foo'] = 'bar'
         self.assertEqual(worker.save_data['foo'], 'bar')
         worker.on_exit()
         del worker
-        worker2 = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
+        worker2 = self._base_worker(config={
             'save_file': str(self.temp_dir / 'test.txt')
         })
         self.assertIsNone(worker2.save_data.get('foo', None))
 
     def test_temp_dir_cleanup(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {})
+        worker = self._base_worker(config={})
         try:
             td = worker.temp_dir()
             self.assertTrue(td.exists())
@@ -113,7 +131,7 @@ class TestBaseWorker(BaseTestCase):
             worker.after_cycle()
 
     def test_worker_config(self):
-        worker = BaseWorker('foo', 'bar', 'foobar', self.halt_flag, self.halt_flag, {
+        worker = self._base_worker(config={
             'foo': 'bar',
             'six': 'seven'
         })
@@ -129,12 +147,10 @@ class TestBaseWorker(BaseTestCase):
     def test_flags(self):
         flag1 = threading.Event()
         flag2 = threading.Event()
-        worker = BaseWorker(
-            'foo',
-            'bar',
-            'foobar',
-            HaltFlag(flag1),
-            HaltFlag(flag2))
+        worker = self._base_worker(
+            _halt_flag=HaltFlag(flag1),
+            _end_flag=HaltFlag(flag2)
+        )
         with self.subTest("no flags set"):
             self.assertTrue(worker.continue_loop())
             try:

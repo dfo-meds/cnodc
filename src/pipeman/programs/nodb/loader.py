@@ -42,7 +42,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._memory = None
 
     def on_start(self):
-        _ = self.error_directory
+        e = self.error_directory
         self.create_counter("files_processed_total", description="Total number of new files processed", labels=("outcome",))
         self.create_counter("messages_processed_total", description="Total number of messages processed", labels=("outcome",))
         self.create_counter("records_loaded_total", description="Total number of records loaded", labels=("outcome",))
@@ -68,8 +68,10 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             raise CNODCError(f"Specified error directory is not a directory", "NODB-LOAD", 1001)
         handle = self.storage.get_filepath(err_dir, self._halt_flag)
         if handle is None:
-            raise CNODCError(f"Specified error directory is not supported", "NODB-LOAD", 1003)
+            raise CNODCError(f"Specified error directory is not supported", "NODB-LOAD", 1002)
         handle.mkdir(parents=True)
+        if not handle.exists():
+            raise CNODCError(f"Specified error directory cannot be created", "NODB-LOAD", 1003)
         return handle
 
     @property
