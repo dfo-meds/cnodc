@@ -10,6 +10,8 @@ from autoinject import injector
 def init_system_logging(version_no: str | None = None):
 
     # Setup logging
+    for h in logging.getLogger().handlers:
+        logging.getLogger().removeHandler(h)
     zrlog.init_logging()
     zrlog.set_default_extra('version', version_no or 'unknown')
 

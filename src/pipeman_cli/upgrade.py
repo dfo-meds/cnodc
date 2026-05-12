@@ -10,6 +10,9 @@ from autoinject import injector
 def upgrade(config: zr.ApplicationConfig = None):
     try:
 
+        # Config Info
+
+
         # DB Upgrade
         zrlog.get_logger("cli.upgrade").notice("Checking for database updates")
         pgc = NODBPostgresController()

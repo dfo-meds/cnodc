@@ -2,6 +2,7 @@ import pathlib
 import typing as t
 import os
 import logging
+import sys
 
 
 def _config_paths(extra_paths: t.Sequence[str | pathlib.Path] | None = None) -> t.Generator[pathlib.Path, None, None]:
@@ -47,10 +48,14 @@ def boot(
         individual_log_levels: dict[str, int] | None = None,
         extra_config_paths: list[str | pathlib.Path] | None = None,
         version_no: str | None = None,
-        env_map_files: list[pathlib.Path] | None = None
+        env_map_files: list[pathlib.Path] | None = None,
+        boot_log_level: int = logging.DEBUG
 ):
 
-    delayed_log_messages: list[tuple[str, int]] = []
+    # Temporary logging settings during boot process
+    logging.getLogger().addHandler(temp_handle := logging.StreamHandler(sys.stdout))
+    logging.getLogger().setLevel(boot_log_level)
+
     # Set up configuration files
     import zirconium as zr
     @zr.configure
