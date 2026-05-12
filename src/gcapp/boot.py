@@ -49,7 +49,7 @@ def boot(
         extra_config_paths: list[str | pathlib.Path] | None = None,
         version_no: str | None = None,
         env_map_files: list[pathlib.Path] | None = None,
-        boot_log_level: int = logging.DEBUG
+        boot_log_level: int = logging.INFO
 ):
 
     # Temporary logging settings during boot process

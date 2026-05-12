@@ -62,8 +62,7 @@ def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, 
             db.commit()
         else:
             zrlog.get_logger("cli.upgrade.workflows").notice("creating workflow %s from %s", workflow_name, config_file)
-            existing = structures.NODBUploadWorkflow()
-            existing.workflow_name = workflow_name
+            existing = structures.NODBUploadWorkflow(workflow_name=workflow_name)
             existing.is_active = True
             existing.set_config(config)
             db.insert_object(existing)
