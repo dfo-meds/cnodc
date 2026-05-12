@@ -178,7 +178,9 @@ class OpenGliderConverter:
 
     def _parse_file_name(self, file_name: str):
         try:
-            gn, mt, dm = file_name[:-3].rsplit('_', maxsplit=2)
+            if "." in file_name:
+                file_name = file_name[:file_name.find(".")]
+            gn, mt, dm = file_name.rsplit('_', maxsplit=2)
             return gn, mt, dm
         except Exception as ex:
             raise GliderError(f'Invalid filename [{file_name}]', 2021) from ex
