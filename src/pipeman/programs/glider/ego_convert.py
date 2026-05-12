@@ -219,7 +219,7 @@ class OpenGliderConverter:
             if hasattr(original_nc, old_key):
                 open_nc.setncattr(key, original_nc.getncattr(old_key))
             else:
-                self._log.warning(f"EGO file does not have the attribute [{old_key}]")
+                self._log.info(f"EGO file does not have the attribute [{old_key}]")
 
     def _set_metadata_from_file_name(self, open_nc: nc.Dataset, platform, start_time, data_mode):
         rtqc_method = None
