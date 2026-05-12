@@ -7,7 +7,7 @@ from autoinject import injector
 
 from pipeman_web.auth import LoginController
 from medsutil.ocproc2.codecs import OCProc2BinCodec
-from nodb import NODB, LockType, NODBQueueItem
+from nodb import NODB, LockType, NODBQueueItem, NODBUploadWorkflow
 from medsutil.ocproc2.operations import QCOperator
 import medsutil.ocproc2 as ocproc2
 from pipeman.exceptions import CNODCError
@@ -152,7 +152,7 @@ class NODBWebController:
                     else:
                         s += f'<td>{value_key(process)}</td>'
                 s += '</tr>'
-            s += '</tbody></table><table><thead><tr><th>Queue Name</th>'
+            s += '</tbody></table><h2>Queue Items</h2><table><thead><tr><th>Queue Name</th>'
             status_order = ('UNLOCKED', 'LOCKED', 'COMPLETE', 'DELAYED_RELEASE', 'ERROR')
             for stat in status_order:
                 s += f'<th>{stat.lower().replace('_', ' ').capitalize()}</th>'
@@ -166,6 +166,9 @@ class NODBWebController:
                     else:
                         s += '<td>0</td>'
                 s += '</tr>'
+            s += '</tbody></table><h2>Workflows</h2><table><thead><tr><th>Workflow Name</th></tr></thead><tbody>'
+            for workflow in NODBUploadWorkflow.find_all(db):
+                s += f'<tr><td>{workflow.workflow_name}</td></tr>'
             s += '</tbody></table>'
 
         s += '</body></html>'
