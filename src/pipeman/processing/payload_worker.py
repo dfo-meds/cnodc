@@ -31,7 +31,7 @@ class PayloadWorker[T: Payload](QueueWorker):
         """Handles extracting the payload and checking that it is of the correct type"""
         payload = Payload.from_queue_item(item)
         if self._require_type is not None and not isinstance(payload, self._require_type):
-            raise CNODCError('Payload is not of valid type', 'PAYLOAD', 1000)
+            raise CNODCError(f'Payload is not of valid type [found {payload.__class__.__name__}, expecting {self._require_type.__class__.__name__}]', 'PAYLOAD', 1000)
         self._log.trace('Processing payload %s', payload)
         self._current_payload = payload
         self.before_payload()
