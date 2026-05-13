@@ -9,6 +9,7 @@ import enum
 
 from autoinject import injector
 
+from medsutil import json
 from medsutil.first import first_i18n
 from medsutil.sanitize import unnumpy
 import medsutil.awaretime as awaretime
@@ -1771,23 +1772,24 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     @staticmethod
     def clean_for_request_body(d):
-        if isinstance(d, dict):
-            for key in list(d.keys()):
-                if d[key] is None or (isinstance(d[key], str) and (d[key] == '' or key == '_cls_')):
-                    del d[key]
-                elif isinstance(d[key], (list, tuple, set, dict)):
-                    if len(d[key]) == 0:
-                        del d[key]
-                    else:
-                        DatasetMetadata.clean_for_request_body(d[key])
-            return d
-        elif isinstance(d, (list, tuple, set)):
+        def _is_empty_value(v, k):
+            if v is None:
+                return True
+            elif isinstance(v, str):
+                return v == '' or k == '_cls_'
+            elif isinstance(v, t.Sequence):
+                return len(v) == 0
+            return False
+        if isinstance(d, t.Mapping):
+            return {
+                str(k): DatasetMetadata.clean_for_request_body(v) for k, v in d.items() if not _is_empty_value(v, k)
+            }
+        elif isinstance(d, t.Sequence) and not isinstance(d, str):
             return [
-                DatasetMetadata.clean_for_request_body(x) if isinstance(x, (dict, list, tuple, set)) else x
-                for x in d
+                DatasetMetadata.clean_for_request_body(v) for v in d
             ]
         else:
-            return d
+            return json.clean_for_json(d)
 
 
 class Common:

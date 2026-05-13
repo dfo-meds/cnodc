@@ -30,7 +30,7 @@ class DataManagerController:
             }
             endpoint = self._get_api_endpoint('api/create-dataset' if not allow_upsert else 'api/upsert-dataset')
             result = web_request('POST', endpoint,
-                json=json.clean_for_json(metadata.build_request_body()),
+                json=metadata.build_request_body(),
                 headers=headers
             )
             res = result.json()['guid']
