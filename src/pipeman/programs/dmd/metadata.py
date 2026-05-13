@@ -1780,7 +1780,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             elif isinstance(v, t.Sequence):
                 return len(v) == 0
             return False
-        if isinstance(d, t.Mapping):
+        if isinstance(d, (t.Mapping, FrozenDict)):
             return {
                 str(k): DatasetMetadata.clean_for_request_body(v) for k, v in d.items() if not _is_empty_value(v, k)
             }
