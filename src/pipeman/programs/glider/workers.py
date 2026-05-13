@@ -9,7 +9,6 @@ from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.processing.payload_worker import FileWorkflowWorker, SourceWorkflowWorker
 from pipeman.programs.nodb import NODBDecodeLoadWorker
 from medsutil.storage import StorageController, FilePath, StorageTier
-from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import FilePayload, SourceFilePayload
 from pipeman.programs.glider.ego_convert import OpenGliderConverter
 import pipeman.programs.dmd.dmd as dmd
