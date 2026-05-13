@@ -81,6 +81,7 @@ class BaseWorker(CachedObjectMixin):
         self._cycle_config = {}
         self._defaults = {
             'save_file': None,
+            'max_check_delay_seconds': 1,
         }
         self._log: ImprovedLogger = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
         zrlog.set_extras({
@@ -159,8 +160,9 @@ class BaseWorker(CachedObjectMixin):
         self._log.trace('Breakpoint')
         self._halt_flag.breakpoint()
 
-    def responsive_sleep(self, time_seconds: float, max_delay: float = 1.0):
+    def responsive_sleep(self, time_seconds: float):
         """Sleep for a given amount of time, with regular wake-ups to check the halt/end flags."""
+        max_delay = self.get_config('max_check_delay_seconds', default=1.0)
         if time_seconds <= 0:
             self.report(activity='', _resource_update=True)
             return
