@@ -133,16 +133,18 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             source_file.status = nodb.SourceFileStatus.ERROR
             create_next_queue = False
             self.count("files_processed_total", outcome="error")
+            result = QueueItemResult.FAILED
         else:
             if had_any_errors:
                 self.count("files_processed_total", outcome="partial_success")
             else:
                 self.count("files_processed_total", outcome="success")
             source_file.status = nodb.SourceFileStatus.COMPLETE
+            result = QueueItemResult.HANDLED
         self.db.update_object(source_file)
-
         if create_next_queue:
             self.progress_payload(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
+        return result
 
     def _fetch_source_file(self, payload: WorkflowPayload) -> nodb.NODBSourceFile:
         if isinstance(payload, FilePayload):
