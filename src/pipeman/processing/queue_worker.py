@@ -240,8 +240,8 @@ class QueueWorker(BaseWorker):
     def _delay_time(self) -> float:
         """Calculate the delay time"""
         curr_time = self._current_delay_time
-        self._current_delay_time *= self.get_config("delay_factor")
-        _max_time = self.get_config("max_delay_time_seconds")
+        self._current_delay_time *= self.get_config("delay_factor", default=2)
+        _max_time = self.get_config("max_delay_time_seconds", default=128)
         if self._current_delay_time >= _max_time:
             self._current_delay_time = _max_time
         self._log.trace("Next delay time is [%s]", self._current_delay_time)
