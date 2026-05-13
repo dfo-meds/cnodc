@@ -1,5 +1,4 @@
-import medsutil.json as json
-
+import json
 import requests
 from requests import RequestException
 
@@ -43,10 +42,10 @@ class QuickWebMock:
         key = f'{method.upper()}::{url}'
         if key in self._refs:
             try:
-                #if 'json' in kwargs:
-                    #json_data = json.dumps(kwargs.pop('json'))
-                    #kwargs['json'] = json.loads(json_data)
-
+                # Requests uses the JSON library so this should ensure our dicts are all requests-friendly
+                if 'json' in kwargs:
+                    json_data = json.dumps(kwargs.pop('json'))
+                    kwargs['json'] = json.loads(json_data)
                 res = self._refs[key](method, url, **kwargs)
                 if not isinstance(res, MockResponse):
                     res = MockResponse(str(res).encode('utf-8'), 200)
