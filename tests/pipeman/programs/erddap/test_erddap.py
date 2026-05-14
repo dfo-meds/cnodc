@@ -12,9 +12,9 @@ import zirconium as zr
 
 RELOADED = []
 
-def reload_dataset(method, url, reload_list, username, password, **kwargs):
+def reload_dataset(method, url, reload_list, username, password, data, **kwargs):
     headers = kwargs.pop('headers', {})
-    json_data: dict = kwargs.pop('json', None)
+    json_data: dict = json.loads(data)
     auth_header = headers.pop('Authorization', '')
     if not auth_header.startswith('Basic '):
         return MockResponse(b'Unauthorized: no valid auth header', 403)

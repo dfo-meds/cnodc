@@ -703,6 +703,12 @@ class IDSystem(enum.Enum):
     EPSG = FrozenDict(_guid="EPSG")
     """ EPSG coordinate reference systems """
 
+    WMO = FrozenDict(_guid="WMO")
+    """ WMO number """
+
+    WIGOS = FrozenDict(_guid="WIGOS")
+    """ WIGOS number """
+
 
 class TelephoneType(enum.Enum):
 
@@ -830,6 +836,22 @@ class KeywordType(enum.Enum):
     Taxon = "taxon"
     Temporal = "temporal"
     Theme = "theme"
+
+
+class MissionType(MultiValuedEnum):
+    REAL = "real"
+    SIMULATION = "simulated"
+    MIXED = "synthesized"
+
+
+class CNODCPlatformType(MultiValuedEnum):
+    GLIDER = "glider"
+
+
+class CNODCInstrumentType(MultiValuedEnum):
+    CTD = "ctd", "CTD"
+    FLUOROMETER = "fluorometer", "FLUOROMETER"
+    DOXY = "doxy_optode", "DOXY"
 
 
 class EntityRef(dd.DataDictObject):
@@ -1252,6 +1274,42 @@ class TemporalResolution(EntityRef):
                 return cls(years=parts[0] or None, months=parts[1] or None, days=parts[2] or None, hours=parts[3] or None, minutes=parts[4] or None, seconds=int(parts[5]) or None)
 
 
+class _Manufactured(EntityRef, _IdentifierMixin):
+    manufacturer: t.Optional[_Contact] = dd.p_ddo(_Contact)
+    model_number: str = dd.p_str()
+    serial_number: str = dd.p_str()
+
+
+class Sensor(_Manufactured):
+    cnodc_instrument_types: set[CNODCInstrumentType] = dd.p_enum_set(CNODCInstrumentType)
+    instrument_type: t.Optional[LanguageDict] = dd.p_i18n_text(managed_name='type')
+    citation: t.Optional[Citation] = dd.p_ddo(Citation)
+    description: t.Optional[LanguageDict] = dd.p_i18n_text(managed_name='description')
+
+
+class Instrument(Sensor):
+    sensors: list[Sensor] = dd.p_object_list(Sensor)
+
+
+class Platform(_Manufactured):
+    citations: list[Citation] = dd.p_object_list(Citation)
+    sponsors: list[_ResponsibleParty] = dd.p_object_list(_ResponsibleParty)
+    cnodc_platform_type: t.Optional[CNODCPlatformType] = dd.p_enum(CNODCPlatformType)
+    other_identifiers: list[str] = dd.p_list()
+    instruments: list[Instrument] = dd.p_object_list(Instrument)
+
+    def add_sponsor(self, role: ContactRole, contact: _Contact):
+        self.sponsors.append(_ResponsibleParty(role=role, contact=contact))
+
+
+
+class Mission(EntityRef, _IdentifierMixin, _ResponsiblesMixin):
+    citation: t.Optional[Citation] = dd.p_ddo(Citation)
+    status: t.Optional[StatusCode] = dd.p_enum(StatusCode)
+    mission_type: t.Optional[MissionType] = dd.p_enum(MissionType)
+    parent_mission: t.Optional[Mission] = dd.p_ddo()
+    platforms: list[Platform] = dd.p_object_list(Platform)
+
 
 class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
@@ -1279,6 +1337,9 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     metadata_profiles: list[Citation] = dd.p_object_list(Citation)
     additional_docs: list[Citation] = dd.p_object_list(Citation)
     canon_urls: list[Citation] = dd.p_object_list(Citation)
+    missions: list[Mission] = dd.p_object_list(Mission)
+    platforms: list[Platform] = dd.p_object_list(Platform)
+    instruments: list[Instrument] = dd.p_object_list(Instrument)
 
     spatial_resolution: t.Optional[SpatialResolution] = dd.p_ddo(SpatialResolution)
     temporal_resolution: t.Optional[TemporalResolution] = dd.p_ddo(TemporalResolution)
@@ -1740,14 +1801,12 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     def build_request_body(self) -> dict:
         body = {
-            'metadata': super().export()
+            'metadata': DatasetMetadata.clean_for_request_body(self.export())
         }
-        DatasetMetadata.clean_for_request_body(body['metadata'])
         for key in list(body['metadata'].keys()):
             if key[0] == '_':
                 body[key[1:]] = body['metadata'][key]
                 del body['metadata'][key]
-
         return body
 
     def add_file_direct_link(self,
@@ -1777,7 +1836,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
                 return True
             elif isinstance(v, str):
                 return v == '' or k == '_cls_'
-            elif isinstance(v, t.Sequence):
+            elif isinstance(v, t.Collection):
                 return len(v) == 0
             return False
         if isinstance(d, (t.Mapping, FrozenDict)):

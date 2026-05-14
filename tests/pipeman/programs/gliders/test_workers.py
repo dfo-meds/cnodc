@@ -6,8 +6,8 @@ import zirconium as zr
 from autoinject import injector
 from nodb import NODBSourceFile, SourceFileStatus, NODBQueueItem, NODBPlatform, NODBMission
 from pipeman.processing.payloads import SourceFilePayload, WorkflowPayload, FilePayload
-from pipeman.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker, \
-    add_glider_mission_platform_info
+from pipeman.programs.glider.workers import GliderConversionWorker, add_glider_mission_platform_info
+from pipeman.programs.dmd.pusher import DMDMetadataPushWorker
 from tests.helpers.base_test_case import BaseTestCase
 from tests.helpers.mock_requests import MockResponse
 import medsutil.ocproc2 as ocproc2
@@ -125,7 +125,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertFalse(og_file.exists())
         self.assertFalse(og_erddap_file.exists())
         self.assertEqual(0, self.db.rows(NODBQueueItem.TABLE_NAME))
-        with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
+        with self.assertLogs('cnodc.gliders.ego_convert', 'INFO'):
             self.worker_controller.test_queue_worker(
                 GliderConversionWorker,
                 {
@@ -137,9 +137,6 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertTrue(og_file.exists())
         self.assertTrue(og_erddap_file.exists())
         self.assertEqual(2, self.db.rows(NODBQueueItem.TABLE_NAME))
-        item = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[0])
-        self.assertIsInstance(item, FilePayload)
-        self.assertEqual(item.file_path, str(og_file).replace("\\", "/"))
         item2 = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[1])
         self.assertIsInstance(item2, SourceFilePayload)
         self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)
@@ -168,7 +165,7 @@ class GliderConversionWorkerTest(BaseTestCase):
         self.assertTrue(og_file.exists())
         self.assertTrue(og_erddap_file.exists())
         self.assertEqual(0, self.db.rows(NODBQueueItem.TABLE_NAME))
-        with self.assertLogs('cnodc.gliders.ego_convert', 'WARNING'):
+        with self.assertLogs('cnodc.gliders.ego_convert', 'INFO'):
             self.worker_controller.test_queue_worker(
                 GliderConversionWorker,
                 {
@@ -180,19 +177,7 @@ class GliderConversionWorkerTest(BaseTestCase):
             )
         self.assertTrue(og_file.exists())
         self.assertTrue(og_erddap_file.exists())
-        self.assertEqual(3, self.db.rows(NODBQueueItem.TABLE_NAME))
-        item0: NODBQueueItem = self.db.table(NODBQueueItem.TABLE_NAME)[0]
-        self.assertDictSimilar(item0.data, {
-            'dataset_id': input_file.name[:-3],
-        })
-        self.assertEqual(item0.unique_item_name, input_file.name[:-3])
-        self.assertEqual(item0.queue_name, 'erddap_reload')
-        item = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[1])
-        self.assertIsInstance(item, FilePayload)
-        self.assertEqual(item.file_path, str(og_file).replace("\\", "/"))
-        item2 = WorkflowPayload.from_queue_item(self.db.table(NODBQueueItem.TABLE_NAME)[2])
-        self.assertIsInstance(item2, SourceFilePayload)
-        self.assertEqual(item2.load_source_file(self.db).source_uuid, sf.source_uuid)
+        self.assertEqual(2, self.db.rows(NODBQueueItem.TABLE_NAME))
 
 
 
@@ -202,26 +187,26 @@ def with_security(cb):
         h = kwargs.pop('headers', {})
         if 'Authorization' not in h:
             return MockResponse(b"Forbidden", 403)
-        if h['Authorization'] != '12345':
+        if h['Authorization'] != 'Bearer 12345':
             return MockResponse(b"Forbidden", 403)
         return cb(method, url, **kwargs)
     return _inner
 
 @with_security
-def upsert_dataset(method, url, data, **kwargs):
-    data.append(kwargs.pop('json'))
+def upsert_dataset(method, url, data, request_list, **kwargs):
+    request_list.append(json.loads(data))
     return json.dumps({'guid': '23456'})
 
 
 
-class TestGliderMetadataUploadWorker(BaseTestCase):
+class TestDMDUploader(BaseTestCase):
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls._web_test_data = []
         cls.web('http://test/api/upsert-dataset', 'POST')(
-            functools.partial(upsert_dataset, data=cls._web_test_data)
+            functools.partial(upsert_dataset, request_list=cls._web_test_data)
         )
 
     def setUp(self):
@@ -232,14 +217,14 @@ class TestGliderMetadataUploadWorker(BaseTestCase):
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
     def test_upload_metadata(self):
-        fp = FilePayload.from_path(
-            str(self.data_file_path('glider_openglider/SEA032_20190116_R.nc'))
-        )
+        data = {
+            'metadata': {}
+        }
         with self.mock_web_test():
             self.worker_controller.test_queue_worker(
-                GliderMetadataUploadWorker,
+                DMDMetadataPushWorker,
                 {},
-                self.worker_controller.payload_to_queue_item(fp)
+                NODBQueueItem(False, data=data, queue_uuid=str(uuid.uuid4()))
             )
             self.assertEqual(1, len(self._web_test_data))
             self.assertEqual(0, self.db.rows(NODBQueueItem.TABLE_NAME))

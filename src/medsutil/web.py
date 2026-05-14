@@ -1,10 +1,12 @@
 import typing as t
-from _typeshed import SupportsRead
-
 import requests
 
 from medsutil import json
 from medsutil.exceptions import CodedError
+
+
+if t.TYPE_CHECKING:
+    from _typeshed import SupportsRead
 
 
 class RequestError(CodedError): CODE_SPACE = 'WEB'
@@ -38,7 +40,7 @@ def request(method: str,
         if session is not None:
             result = session.request(method, url, data=data, headers=headers, **kwargs)
         else:
-            result = requests.request(method, url, **kwargs)
+            result = requests.request(method, url, data=data, headers=headers, **kwargs)
         result.raise_for_status()
 
         return result

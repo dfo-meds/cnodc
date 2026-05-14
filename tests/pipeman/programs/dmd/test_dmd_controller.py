@@ -17,7 +17,7 @@ def with_security(cb):
         h = kwargs.pop('headers', {})
         if 'Authorization' not in h:
             return MockResponse(b"Forbidden", 403)
-        if h['Authorization'] != '12345':
+        if h['Authorization'] != 'Bearer 12345':
             return MockResponse(b"Forbidden", 403)
         return cb(method, url, **kwargs)
     return _inner
@@ -45,7 +45,7 @@ class TestDataManagerConnection(BaseTestCase):
         x = DataManagerController()
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1001'):
-                x.upsert_dataset(DatasetMetadata())
+                x.upsert_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
@@ -53,7 +53,7 @@ class TestDataManagerConnection(BaseTestCase):
         x = DataManagerController()
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1001'):
-                x.upsert_dataset(DatasetMetadata())
+                x.upsert_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
@@ -61,7 +61,7 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_good_auth_post_url(self):
         x = DataManagerController()
         with self.mock_web_test():
-            self.assertEqual(x.upsert_dataset(DatasetMetadata()), '23456')
+            self.assertEqual(x.upsert_dataset(DatasetMetadata().build_request_body()), '23456')
 
     @injector.test_case
     @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
@@ -69,7 +69,7 @@ class TestDataManagerConnection(BaseTestCase):
         x = DataManagerController()
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1001'):
-                x.create_dataset(DatasetMetadata())
+                x.create_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
@@ -77,7 +77,7 @@ class TestDataManagerConnection(BaseTestCase):
         x = DataManagerController()
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1001'):
-                x.create_dataset(DatasetMetadata())
+                x.create_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
     @zr.test_with_config(('dmd', 'auth_token'), '12345')
@@ -85,4 +85,4 @@ class TestDataManagerConnection(BaseTestCase):
     def test_dmd_good_auth_post_url_create(self):
         x = DataManagerController()
         with self.mock_web_test():
-            self.assertEqual(x.create_dataset(DatasetMetadata()), '34567')
+            self.assertEqual(x.create_dataset(DatasetMetadata().build_request_body()), '34567')

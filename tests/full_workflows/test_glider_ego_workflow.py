@@ -10,8 +10,8 @@ from pipeman.processing.progressor import WorkflowProgressWorker
 from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
 from pipeman.programs.glider.ego_convert import validate_ego_glider_file
 from pipeman.programs.glider.ego_decode import GliderEGOMapper
-from pipeman.programs.glider.workers import GliderConversionWorker, GliderMetadataUploadWorker, \
-    add_glider_mission_platform_info
+from pipeman.programs.glider.workers import GliderConversionWorker, add_glider_mission_platform_info
+from pipeman.programs.dmd.pusher import DMDMetadataPushWorker
 from pipeman.programs.nodb import NODBDecodeLoadWorker
 from tests.helpers.base_test_case import skip_long_test
 from tests.helpers.mock_workflow import MockWorkflow, WorkflowTestResult, BaseWorkflowTestCase
@@ -34,8 +34,8 @@ def with_security(cb):
     return _inner
 
 @with_security
-def upsert_dataset(method, url, data, **kwargs):
-    data.append(kwargs.pop('json'))
+def upsert_dataset(method, url, data, request_list, **kwargs):
+    request_list.append(json.loads(data))
     return json.dumps({'guid': '23456'})
 
 
@@ -83,7 +83,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
             'openglider_directory': str(glider_dir),
             'openglider_erddap_directory': str(erddap_dir),
         })
-        workflow.add_worker(GliderMetadataUploadWorker)
+        workflow.add_worker(DMDMetadataPushWorker)
         workflow.add_workflow(
             'test_glider_decode',
             str(ego_dir),
@@ -106,7 +106,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
         )
         cls._web_test_data = []
         cls.web('http://test/api/upsert-dataset', 'POST')(
-            functools.partial(upsert_dataset, data=cls._web_test_data)
+            functools.partial(upsert_dataset, request_list=cls._web_test_data)
         )
         with cls.mock_web_test():
             return workflow.test_file(

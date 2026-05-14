@@ -3,9 +3,7 @@ import zirconium as zr
 from autoinject import injector
 
 from medsutil.metrics import Counter
-from pipeman.programs.dmd.metadata import DatasetMetadata
 from medsutil.web import request
-import medsutil.json as json
 
 @injector.injectable
 class DataManagerController:
@@ -17,22 +15,19 @@ class DataManagerController:
         self._log = zrlog.get_logger("cnodc.dmd")
         self._counter = Counter("requests_total", namespace="pipeman", subsystem="dmd", labelnames=("outcome",))
 
-    def create_dataset(self, metadata: DatasetMetadata):
-        return self._create_upsert_dataset(metadata, False)
+    def create_dataset(self, request_body: dict):
+        return self._create_upsert_dataset(request_body, False)
 
-    def upsert_dataset(self, metadata: DatasetMetadata):
-        return self._create_upsert_dataset(metadata, True)
+    def upsert_dataset(self, request_body: dict):
+        return self._create_upsert_dataset(request_body, True)
 
-    def _create_upsert_dataset(self, metadata: DatasetMetadata, allow_upsert: bool = False):
+    def _create_upsert_dataset(self, metadata: dict, allow_upsert: bool = False):
         try:
             headers = {
-                'Authorization' : self._get_auth_header()
+                'Authorization' : f"Bearer {self._get_auth_header()}"
             }
             endpoint = self._get_api_endpoint('api/create-dataset' if not allow_upsert else 'api/upsert-dataset')
-            result = request('POST', endpoint,
-                             json=metadata.build_request_body(),
-                             headers=headers
-                             )
+            result = request('POST', endpoint, json=metadata, headers=headers)
             res = result.json()['guid']
             self._counter.labels(outcome="success").inc()
             return res

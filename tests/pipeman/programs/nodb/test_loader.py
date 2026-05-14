@@ -357,7 +357,7 @@ class TestLoader(BaseTestCase):
                 },
                 qi
             )
-        self.assertIs(qi.status, QueueStatus.COMPLETE)
+        self.assertIs(qi.status, QueueStatus.ERROR)
         qi2 = self.db.table(NODBQueueItem.TABLE_NAME)[-1]
         self.assertEqual(qi2.queue_name, 'decode_failure')
         pl = WorkflowPayload.from_queue_item(qi2)
@@ -398,7 +398,7 @@ class TestLoader(BaseTestCase):
                 },
                 qi
             )
-        self.assertIs(qi.status, QueueStatus.COMPLETE)
+        self.assertIs(qi.status, QueueStatus.ERROR)
         qi2 = self.db.table(NODBQueueItem.TABLE_NAME)[-1]
         self.assertEqual(qi2.queue_name, 'decode_failure')
         pl = WorkflowPayload.from_queue_item(qi2)

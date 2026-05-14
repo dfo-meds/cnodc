@@ -39,16 +39,26 @@ class GliderError(CNODCError):
         super().__init__(msg, 'GLIDER', code, is_transient)
 
 
+class SensorInfo(t.TypedDict):
+    make: str
+    model: str
+    type: str
+    serial: str
+    location: str
+
+
+SensorInfoType = tuple[dict[str, SensorInfo], dict[str, str]]
+
 def ego_sensor_info(ds: nc.Dataset,
                     sensor_map: dict[str, dict[str, str]],
                     model_map: dict[str, str],
-                    make_map: dict[str, str]):
+                    make_map: dict[str, str]) -> SensorInfoType:
     if 'PARAMETER' in ds.variables:
         return _ego_new_sensor_info(ds, model_map, make_map)
     else:
         return _ego_old_sensor_info(ds, sensor_map)
 
-def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str, str]]):
+def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str, str]]) -> SensorInfoType:
     sensors = {}
     sensors_seen = set()
     param_map = {}
@@ -61,6 +71,7 @@ def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str
             raise GliderError(f"Unknown sensor [{sensor_full_name}]", 1000)
         info: dict = copy(sensor_map[sensor_full_name])
         info['serial'] = getattr(var, 'sensor_serial_number') if hasattr(var, 'sensor_serial_number') else 'unknown'
+        info['location'] = ''
         key = f"SENSOR_{info['type']}_{info['serial']}"
         param_map[var.name] = key
         if key in sensors_seen:
@@ -70,7 +81,7 @@ def _ego_old_sensor_info(original_nc: nc.Dataset, sensor_map: dict[str, dict[str
     return sensors, param_map
 
 
-def _ego_new_sensor_info(original_nc: nc.Dataset, model_map: dict[str, str], make_map: dict[str, str]):
+def _ego_new_sensor_info(original_nc: nc.Dataset, model_map: dict[str, str], make_map: dict[str, str]) -> SensorInfoType:
     sensor_names = [netcdf_bytes_to_string(x) for x in original_nc.variables['SENSOR'][:]]
     sensor_makers = [netcdf_bytes_to_string(x) for x in original_nc.variables['SENSOR_MAKER'][:]]
     sensor_models = [netcdf_bytes_to_string(x) for x in original_nc.variables['SENSOR_MODEL'][:]]
@@ -138,43 +149,10 @@ class OpenGliderConverter:
         if self._halt is not None:
             self._halt.breakpoint()
 
-    def build_metadata(self, open_file: pathlib.Path, file_name: str = None, autopublish: bool = False) -> metadata.DatasetMetadata:
-        with nc.Dataset(open_file, "r") as ds:
-            return self._build_metadata(ds, file_name or open_file.name, autopublish)
-
-    def _build_metadata(self, ds: nc.Dataset, file_name: str, autopublish: bool = False):
-        glider_name, mission_time, data_mode = self._parse_file_name(file_name)
-        dmd = metadata.DatasetMetadata()
-        dmd.set_meds_defaults()
-        if autopublish:
-            dmd.activate_and_publish()
-        dmd.set_from_netcdf_file(ds)
-        if data_mode in 'RAP':
-            dmd.processing_level = 'real-time'
-        mission_id = ds.getncattr('id')
-        for var in dmd.variables:
-            if var.source_name in ('LATITUDE', 'LONGITUDE', 'DEPTH', 'TIME'):
-                var.destination_name = var.source_name.lower()
-        if 'users' in self._mapping_data['netcdf_conversion'] and self._mapping_data['netcdf_conversion']['users']:
-            dmd.users.update(self._mapping_data['netcdf_conversion']['users'])
-        dmd.erddap_servers.append(metadata.Common.ERDDAP_Primary)
-        dmd.erddap_dataset_id = mission_id
-        dmd.erddap_data_file_path = f"/cloud_data/gliders/{mission_id.lower()}/"
-        dmd.erddap_dataset_type = metadata.ERDDAPDatasetType.DSGTable
-        dmd.erddap_data_file_pattern = '*\\.nc\\.gz'
-        dmd.add_file_direct_link(
-            f"https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/glider-planeur/{file_name}",
-            {
-                "en": "NetCDF File in OpenGlider format",
-                "fr:": "Ficher NetCDF en format OpenGlider"
-            },
-        )
-        return dmd
-
-    def convert(self, ego_file, og_file, file_name: t.Optional[str] = None):
+    def convert(self, ego_file, og_file, file_name: t.Optional[str] = None, **kwargs):
         with nc.Dataset(ego_file, "r") as original_nc:
             with nc.Dataset(og_file, "w", format="NETCDF4") as open_nc:
-                return self._convert(open_nc, original_nc, file_name or pathlib.Path(ego_file).name)
+                return self._convert(open_nc, original_nc, file_name or pathlib.Path(ego_file).name, **kwargs)
 
     def _parse_file_name(self, file_name: str):
         try:
@@ -185,26 +163,88 @@ class OpenGliderConverter:
         except Exception as ex:
             raise GliderError(f'Invalid filename [{file_name}]', 2021) from ex
 
-    def _convert(self, open_nc: nc.Dataset, original_nc: nc.Dataset, file_name: str):
+    def _convert(self,
+                 open_nc: nc.Dataset,
+                 original_nc: nc.Dataset,
+                 file_name: str,
+                 autopublish: bool = False,
+                 gzip_erddap: bool = True) -> tuple[str, str, metadata.DatasetMetadata]:
+        dmd = metadata.DatasetMetadata()
+        dmd.set_meds_defaults()
+        if autopublish:
+            dmd.activate_and_publish()
         platform, start_time, data_mode = self._parse_file_name(file_name)
+        md_platform = self._build_initial_platform(platform)
+        md_mission = self._build_initial_mission(f"{platform}-{start_time}")
+        if data_mode in 'RAP':
+            dmd.processing_level = 'real-time'
         self._create_dimensions(open_nc)
         self._map_static_metadata(open_nc)
         self._copy_metadata(open_nc, original_nc)
         self._set_metadata_from_file_name(open_nc, platform, start_time, data_mode)
         self.breakpoint()
         self._set_geospatial_bounds_metadata(open_nc, original_nc)
-        sensor_map = self._set_sensor_metadata(open_nc, original_nc)
+        sensor_map = self._set_sensor_metadata(open_nc, original_nc, md_platform)
         self._build_variables(open_nc, original_nc)
         self._build_parameters(open_nc, original_nc, sensor_map)
         self._build_depths(open_nc, original_nc)
         self._build_times(open_nc, original_nc)
         self._build_contributors(open_nc, original_nc)
-        self._build_deployment_info(open_nc, original_nc, platform, start_time)
-        self._build_glider_info(open_nc, original_nc, platform)
+        self._build_deployment_info(open_nc, original_nc, platform, start_time, md_mission)
+        self._build_glider_info(open_nc, original_nc, platform, md_platform)
         self._build_phase_info(open_nc, original_nc)
         open_nc.setncattr('date_created', awaretime.utc_now().strftime('%Y%m%dT%H%M%SZ'))
         mission_id = open_nc.getncattr('id')
-        return file_name, mission_id
+        dmd.set_from_netcdf_file(open_nc)
+        self._build_additional_metadata(dmd, mission_id, file_name, gzip_erddap)
+        md_mission.platforms.append(md_platform)
+        dmd.missions.append(md_mission)
+        return file_name, mission_id, dmd
+
+    def _build_initial_mission(self, mission_id: str):
+        return metadata.Mission(
+            guid=f'glider-mission-{mission_id}',
+            display_name={
+                "en": f"Glider Mission - {mission_id}",
+                "fr": f"Glider Mission - {mission_id}",
+            },
+            mission_type=metadata.MissionType.REAL,
+        )
+
+
+    def _build_initial_platform(self, platform: str) -> metadata.Platform:
+        return metadata.Platform(
+            guid=f'glider-{platform}',
+            display_name={
+                'en': f'Glider - {platform}',
+                'fr': f'Glider - {platform}',
+            },
+            cnodc_platform_type = metadata.CNODCPlatformType.GLIDER
+        )
+
+    def _build_additional_metadata(self, dmd: metadata.DatasetMetadata, mission_id: str, file_name: str, gzip_erddap: bool = True):
+        for var in dmd.variables:
+            if var.source_name in ('LATITUDE', 'LONGITUDE', 'DEPTH', 'TIME'):
+                var.destination_name = var.source_name.lower()
+        metadata_config = self._mapping_data['dmd_metadata'] if 'dmd_metadata' in self._mapping_data else {}
+        if 'users' in metadata_config and metadata_config['users']:
+            dmd.users.update(metadata_config['users'])
+
+        dmd.erddap_servers.append(metadata.Common.ERDDAP_Primary)
+        dmd.erddap_dataset_id = mission_id
+        dmd.erddap_data_file_path = f"{metadata_config["erddap_local_path"].rstrip("/")}/{mission_id.lower()}/"
+        dmd.erddap_dataset_type = metadata.ERDDAPDatasetType.DSGTable
+        dmd.erddap_data_file_pattern = '*\\.nc\\.gz' if gzip_erddap else "*\\.nc"
+
+        if 'public_paths' in metadata_config and metadata_config['public_paths']:
+            for pp_info in metadata_config['public_paths']:
+                dmd.add_file_direct_link(
+                    f"{pp_info['url_prefix'].rstrip('/')}/{file_name}",
+                    {
+                        "en": pp_info['en'],
+                        "fr": pp_info['fr'],
+                    }
+                )
 
     def _create_dimensions(self, open_nc: nc.Dataset):
         open_nc.createDimension("N_MEASUREMENTS", None)
@@ -271,12 +311,30 @@ class OpenGliderConverter:
         else:
             self._log.warning(f'No longitude values detected')
 
-    def _set_sensor_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset):
+    def _set_sensor_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: metadata.Platform):
         sensor_info, param_map = ego_sensor_info(
             original_nc,
             self._get_data_map('sensors'),
             self._get_data_map('sensor_models'),
             self._get_data_map('sensor_makes')
+        )
+        platform.instruments.extend(
+            metadata.Instrument(
+                cnodc_instrument_types=[metadata.CNODCInstrumentType(info['type'])],
+                instrument_type=metadata.CNODCInstrumentType(info['type']).value,
+                manufacturer=metadata.Organization(
+                    name=info['make'],
+                    display_name=info['make'],
+                    guid=info['make'].lower().replace(' ', '-'),
+                ) if info['make'] and info['make'].lower() != 'unknown' else None,
+                model_number=info['model'] if info['model'] and info[
+                    'model'].lower() != 'unknown' else None,
+                serial_number=info['serial'] if info['serial'] and info[
+                    'serial'].lower() != 'unknown' else None,
+                guid=f"[{info['type']}-{info['make']}-{info['model']}-{info['serial']}",
+                display_name=f'{info['make']} {info['model']} [{info['serial']}]'
+            )
+            for info in sensor_info.values()
         )
         self._create_openglider_sensor_vars(open_nc, sensor_info)
         return param_map
@@ -618,14 +676,16 @@ class OpenGliderConverter:
         else:
             raise GliderError(f"Unknown date format for [{deploy_start}]", 2023)
 
-    def _build_deployment_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: str, start_time: str):
+    def _build_deployment_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: str, start_time: str, md_mission: metadata.Mission):
         start_date = self._validate_deployment_info(original_nc)
         end_date = self._validate_deployment_end_info(original_nc)
         if end_date is None:
+            md_mission.status = metadata.StatusCode.OnGoing
             open_nc.setncattr('is_ongoing', 'Y')
             open_nc.setncattr('data_maintenance_frequency', MaintenanceFrequency.AsNeeded.value)
             open_nc.setncattr('metadata_maintenance_frequency', MaintenanceFrequency.AsNeeded.value)
         else:
+            md_mission.status = metadata.StatusCode.Completed
             open_nc.setncattr('is_ongoing', 'N')
             open_nc.setncattr('data_maintenance_frequency', MaintenanceFrequency.NotPlanned.value)
             open_nc.setncattr('metadata_maintenance_frequency', MaintenanceFrequency.NotPlanned.value)
@@ -647,14 +707,31 @@ class OpenGliderConverter:
             raise GliderError(f'Unknown platform model: {ego_model_code}', 2011)
         return model_map[ego_model_code.lower()]
 
-    def _build_glider_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform_name: str):
+    def _build_glider_info(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform_name: str, platform_md: metadata.Platform):
         model_info = self._validate_glider_info(original_nc)
+
+        platform_md.other_identifiers.append(platform_name)
         open_nc.variables['PLATFORM_NAME'][:] = netcdf_string_to_vlen_bytes(platform_name)
-        open_nc.variables['WMO_IDENTIFIER'][:] = netcdf_string_to_vlen_bytes(original_nc.getncattr('wmo_platform_code'))
+
+        wmo_number = original_nc.getncattr('wmo_platform_code')
+        platform_md.id_code = wmo_number
+        platform_md.id_system = metadata.IDSystem.WMO if '-' not in wmo_number else metadata.IDSystem.WIGOS
+        open_nc.variables['WMO_IDENTIFIER'][:] = netcdf_string_to_vlen_bytes(wmo_number)
+
         open_nc.variables['PLATFORM_MODEL'][:] = netcdf_string_to_vlen_bytes(model_info['model'])
+        platform_md.model_number = model_info['ocproc2_model']
+
         serial_no = netcdf_bytes_to_string(original_nc.variables['GLIDER_SERIAL_NO'][:])
+        platform_md.serial_number = serial_no
         open_nc.variables['PLATFORM_SERIAL_NUMBER'][:] = netcdf_string_to_vlen_bytes(f"{model_info['prefix']}{serial_no}")
+
         open_nc.variables['PLATFORM_MAKER'][:] = netcdf_string_to_vlen_bytes(model_info['maker'])
+        platform_md.manufacturer = metadata.Organization(
+            guid=model_info['maker'].lower().replace(' ', '-'),
+            name=model_info['maker'],
+            display_name=model_info['maker']
+        )
+
         if 'BATTERY_TYPE' in original_nc.variables:
             battery_type = netcdf_bytes_to_string(original_nc.variables['BATTERY_TYPE'][:])
             if battery_type:

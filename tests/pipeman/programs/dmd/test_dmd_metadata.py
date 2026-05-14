@@ -132,7 +132,7 @@ class TestCoreEntityRef(BaseTestCase):
         sub_ref = EntityRef()
         sub_ref.guid = '23456'
         map_ = obj.export()
-        DatasetMetadata.clean_for_request_body(map_)
+        map_ = DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar(map_, {
             '_guid': '12345',
             '_display_names': {'und': 'hello'},
@@ -575,7 +575,7 @@ class TestCitation(BaseTestCase):
         cit = Citation()
         cit.title = 'foobar'
         map_ = cit.export()
-        DatasetMetadata.clean_for_request_body(map_)
+        map_ = DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar(map_, {
             'title': {'und': 'foobar'}
         })
@@ -585,7 +585,7 @@ class TestCitation(BaseTestCase):
         cit.title = 'foobar'
         cit.resource = Resource(url='http://foobar.com')
         map_ = cit.export()
-        DatasetMetadata.clean_for_request_body(map_)
+        map_ = DatasetMetadata.clean_for_request_body(map_)
         self.assertDictSimilar({
             'title': {'und': 'foobar'},
             'resource': {

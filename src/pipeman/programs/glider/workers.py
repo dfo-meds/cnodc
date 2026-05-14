@@ -6,13 +6,11 @@ from autoinject import injector
 import nodb as nodb
 from medsutil.ocproc2 import ParentRecord
 from pipeman.processing.queue_worker import QueueItemResult
-from pipeman.processing.payload_worker import FileWorkflowWorker, SourceWorkflowWorker
+from pipeman.processing.payload_worker import SourceWorkflowWorker
 from pipeman.programs.nodb import NODBDecodeLoadWorker
 from medsutil.storage import StorageController, FilePath, StorageTier
-from pipeman.processing.payloads import FilePayload, SourceFilePayload
+from pipeman.processing.payloads import SourceFilePayload
 from pipeman.programs.glider.ego_convert import OpenGliderConverter
-import pipeman.programs.dmd.dmd as dmd
-import medsutil.awaretime as awaretime
 
 
 def add_glider_mission_platform_info(worker: NODBDecodeLoadWorker, record: ParentRecord, **kwargs):
@@ -84,10 +82,10 @@ class GliderConversionWorker(SourceWorkflowWorker):
             'openglider_directory': None,
             'openglider_erddap_directory': None,
             'next_queue': 'workflow_continue',
-            'erddap_reload_queue': 'erddap_reload',
-            'metadata_queue': 'glider_metadata_upload',
+            'metadata_queue': 'dmd_metadata_push',
             'gzip_erddap': True,
             'gzip_openglider': True,
+            'direct_publication': True,
         })
         self._target_dir: t.Optional[FilePath] = None
         self._target_erddap_dir: t.Optional[FilePath] = None
@@ -106,8 +104,17 @@ class GliderConversionWorker(SourceWorkflowWorker):
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
         local_file = self.download_to_temp_file()
         new_file = self.temp_dir() / "openglider.nc"
-        file_name, mission_id = self._converter.convert(local_file, new_file, payload.load_source_file(self.db).file_name)
-
+        sf = payload.load_source_file(self.db)
+        file_name, mission_id, dmd_metadata = self._converter.convert(
+            ego_file=local_file,
+            og_file=new_file,
+            file_name=sf.file_name,
+            autopublish=self.get_config('direct_publication', True),
+            gzip_erddap=self.get_config('gzip_erddap', True)
+        )
+        storage_locations = [
+            f'Original: {payload.load_source_file(self.db).source_path}'
+        ]
         erddap_storage_metadata = self.storage.build_metadata(
             program_name='GLIDERS',
             dataset_name=file_name[:-6]
@@ -118,77 +125,42 @@ class GliderConversionWorker(SourceWorkflowWorker):
         gzipped = False
         erddap_target_name = file_name
         og_target_name = file_name
+        og_file = new_file
+        erddap_file = new_file
         if self.get_config('gzip_erddap', True):
             self.gzip_local_file(new_file, gzip_file)
             gzipped = True
             erddap_target_name = file_name + '.gz'
             erddap_storage_metadata['Gzip'] = 'YES'
+            erddap_file = gzip_file
         if self.get_config('gzip_openglider', True):
             if not gzipped:
                 self.gzip_local_file(new_file, gzip_file)
             og_target_name = file_name + '.gz'
             og_storage_metadata['Gzip'] = 'YES'
+            og_file = gzip_file
 
 
         target_file = self._target_dir.child(og_target_name, False)
-        target_file.upload(gzip_file, True, metadata=og_storage_metadata, storage_tier=StorageTier.FREQUENT)
+        target_file.upload(og_file, True, metadata=og_storage_metadata, storage_tier=StorageTier.FREQUENT)
+        storage_locations.append(f'Public: {target_file.path()}')
 
         erddap_dir = self._target_erddap_dir.child(mission_id.lower(), True)
         erddap_dir.mkdir()
         target_erddap_file = erddap_dir.child(erddap_target_name, False)
-        already_exists = target_erddap_file.exists()
-        target_erddap_file.upload(gzip_file, True, metadata=erddap_storage_metadata, storage_tier=StorageTier.FREQUENT)
+        target_erddap_file.upload(erddap_file, True, metadata=erddap_storage_metadata, storage_tier=StorageTier.FREQUENT)
+        storage_locations.append(f'ERDDAP: {target_erddap_file.path()}')
 
-        if already_exists:
-            erddap_queue = self.get_config('erddap_reload_queue')
-            if erddap_queue:
-                self.db.create_queue_item(
-                    queue_name=erddap_queue,
-                    data={'dataset_id': mission_id,},
-                    unique_item_name=mission_id
-                )
-        payload: FilePayload = self.file_payload_from_path(target_file.path(), awaretime.utc_now())
-        payload.set_metadata("glider_erddap_file_path", target_erddap_file.path())
-        payload.set_metadata("glider_ego_file_path", payload.file_path)
-        payload.set_metadata("glider_file_name", file_name)
-        self.progress_payload(payload, self.get_config('metadata_queue'))
+        dmd_metadata.file_storage_location = {"en": "\n".join(storage_locations)}
 
-
-class GliderMetadataUploadWorker(FileWorkflowWorker):
-
-    metadb: dmd.DataManagerController = None
-
-    @injector.construct
-    def __init__(self, **kwargs):
-        super().__init__(
-            process_name="glider_metadata_uploader",
-            process_version="1.0",
-            **kwargs
-        )
-        self.set_defaults({
-            'queue_name': 'glider_metadata_upload',
-        })
-        self._converter: t.Optional[OpenGliderConverter] = None
-
-    def on_start(self):
-        self._converter = OpenGliderConverter.build(halt_flag=self._halt_flag)
-        super().on_start()
-
-    def process_payload(self, payload: FilePayload) -> t.Optional[QueueItemResult]:
-        local_file = self.download_to_temp_file()
-        meta = self._converter.build_metadata(
-            local_file,
-            payload.get_metadata("glider_file_name", payload.filename),
-            autopublish=self.get_config('autopublish', False)
-        )
-        storage_locations = [
-            f"Original: {payload.get_metadata("glider_ego_file_path", "")}",
-            f"ERDDAP: {payload.get_metadata("glider_erddap_file_path", "")}",
-            f"Public: {payload.file_path}",
-        ]
-        meta.file_storage_location = {"en": "\n".join(storage_locations)}
-        self.metadb.upsert_dataset(meta)
-        self._skip_autoprogress_payload = True
+        # NOTE: let DMD handle ERDDAP reload after it is done updating ERDDAP's metadata
+        metadata_queue = self.get_config('metadata_queue')
+        if metadata_queue:
+            self.db.create_queue_item(
+                queue_name=metadata_queue,
+                data=dmd_metadata.build_request_body(),
+                unique_item_name=mission_id
+            )
 
 
 
