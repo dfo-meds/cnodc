@@ -248,6 +248,7 @@ class BaseController:
         self._process_info: dict[str, _ProcessSet] = {}
         self._no_start = _no_start
         self._logging_queue = logging_queue
+        self._sleep_time = 2.5
         self._status_info = {
             'status': 'initializing'
         }
@@ -463,7 +464,9 @@ class BaseController:
                 self.report(activity="checking for signals", with_resource=True)
                 self._manager.check()
                 if self._kill_requested:
-                    raise KeyboardInterrupt
+                    raise SystemExit(1)
+                if hasattr(self._halt_flag, 'wait'):
+                    self._halt_flag.wait(self._sleep_time)
         finally:
             if not self._kill_requested:
                 self._log.info('Closing processes')
