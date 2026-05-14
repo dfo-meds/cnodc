@@ -1,18 +1,46 @@
+import typing as t
+from _typeshed import SupportsRead
+
 import requests
+
+from medsutil import json
 from medsutil.exceptions import CodedError
 
 
 class RequestError(CodedError): CODE_SPACE = 'WEB'
 
+UrlParamValueType = str | int | float | bytes | None | list[str | int | float | bytes | None]
 
-def web_request(method: str, url: str, session: requests.Session = None, **kwargs) -> requests.Response:
+
+def get(url: str, session: requests.Session | None = None, **kwargs) -> requests.Response:
+    return request('GET', url, session, **kwargs)
+
+def post(url: str, session: requests.Session | None = None, **kwargs) -> requests.Response:
+    return request('POST', url, session, **kwargs)
+
+def request(method: str,
+            url: str,
+            session: requests.Session | None = None,
+            headers: t.MutableMapping[str, str] | None = None,
+            data: str | bytes | dict[str, UrlParamValueType] | list[tuple[str, UrlParamValueType]] | SupportsRead | None = None,
+            **kwargs) -> requests.Response:
     """ Wrapper around requests.request() that converts errors to appropriate CNODC errors. """
     try:
+
+        # Custom handling for JSON to have it done by orjson and our custom handling of objects instead
+        if (not data) and 'json' in kwargs:
+            data = json.dumpb(kwargs.pop('json'))
+            if headers is None:
+                headers = {'Content-Type': 'application/json'}
+            else:
+                headers['Content-Type'] = 'application/json'
+
         if session is not None:
-            result = session.request(method, url, **kwargs)
+            result = session.request(method, url, data=data, headers=headers, **kwargs)
         else:
             result = requests.request(method, url, **kwargs)
         result.raise_for_status()
+
         return result
     except Exception as ex:
         if isinstance(ex, (requests.ConnectionError, requests.Timeout, requests.TooManyRedirects)):
