@@ -4,7 +4,7 @@ from autoinject import injector
 
 from medsutil.metrics import Counter
 from pipeman.programs.dmd.metadata import DatasetMetadata
-from medsutil.web import web_request
+from medsutil.web import request
 import medsutil.json as json
 
 @injector.injectable
@@ -29,10 +29,10 @@ class DataManagerController:
                 'Authorization' : self._get_auth_header()
             }
             endpoint = self._get_api_endpoint('api/create-dataset' if not allow_upsert else 'api/upsert-dataset')
-            result = web_request('POST', endpoint,
-                json=metadata.build_request_body(),
-                headers=headers
-            )
+            result = request('POST', endpoint,
+                             json=metadata.build_request_body(),
+                             headers=headers
+                             )
             res = result.json()['guid']
             self._counter.labels(outcome="success").inc()
             return res

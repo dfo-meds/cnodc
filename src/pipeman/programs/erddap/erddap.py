@@ -8,7 +8,7 @@ import typing as t
 
 from medsutil.metrics import Counter
 from pipeman.exceptions import CNODCError
-from medsutil.web import web_request
+from medsutil.web import request
 
 
 class ReloadFlag(enum.Enum):
@@ -104,5 +104,5 @@ class ErddapController:
         headers = {
             'Authorization': f'Basic {auth_key}'
         }
-        resp = web_request(method, f"{config['base_url']}/{endpoint.lstrip('/')}", json=json_data, headers=headers)
+        resp = request(method, f"{config['base_url']}/{endpoint.lstrip('/')}", json=json_data, headers=headers)
         return resp.json()

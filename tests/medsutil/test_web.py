@@ -2,7 +2,7 @@ import functools
 
 import requests
 
-from medsutil.web import web_request
+from medsutil.web import request
 from tests.helpers.base_test_case import BaseTestCase
 from tests.helpers.mock_requests import MockResponse
 
@@ -23,19 +23,19 @@ class TestWebRequest(BaseTestCase):
 
     def test_success(self):
         with self.mock_web_test():
-            self.assertIsNotNone(web_request('GET', 'http://test_success'))
+            self.assertIsNotNone(request('GET', 'http://test_success'))
 
     def test_server_failure(self):
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1001'):
-                web_request('GET', 'http://test_server_failure')
+                request('GET', 'http://test_server_failure')
 
     def test_other_failure(self):
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1001'):
-                web_request('GET', 'http://test_other_failure')
+                request('GET', 'http://test_other_failure')
 
     def test_connection_failure(self):
         with self.mock_web_test():
             with self.assertRaisesCoded('WEB-1000'):
-                web_request('GET', 'http://test_connection_failure')
+                request('GET', 'http://test_connection_failure')
