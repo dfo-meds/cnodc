@@ -25,14 +25,24 @@ def run():
 def reload(config: zr.ApplicationConfig = None):
     from medsutil.servicecmd import send_command
     socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
-    send_command(socket_port, b'reload')
+    res = send_command(socket_port, b'reload')
+    exit(0 if res == b'0' else 1)
 
 
 @service.command()
 def shutdown(config: zr.ApplicationConfig = None):
     from medsutil.servicecmd import send_command
     socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
-    send_command(socket_port, b'shutdown')
+    res = send_command(socket_port, b'shutdown')
+    exit(0 if res == b'0' else 1)
+
+
+@service.command()
+def health_check(config: zr.ApplicationConfig = None):
+    from medsutil.servicecmd import send_command
+    socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
+    res = send_command(socket_port, b'health')
+    exit(0 if res == b'0' else 1)
 
 
 @service.command()
@@ -44,7 +54,8 @@ def interrupt(no_prompt: bool, config: zr.ApplicationConfig = None):
         if check != 'y':
             return
     socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
-    send_command(socket_port, b'interrupt')
+    res = send_command(socket_port, b'interrupt')
+    exit(0 if res == b'0' else 1)
 
 
 @service.command()
@@ -56,4 +67,5 @@ def kill(no_prompt: bool, config: zr.ApplicationConfig = None):
         if check != 'y':
             return
     socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
-    send_command(socket_port, b'kill')
+    res = send_command(socket_port, b'kill')
+    exit(0 if res == b'0' else 1)

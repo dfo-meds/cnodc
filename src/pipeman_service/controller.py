@@ -476,6 +476,8 @@ class BaseController:
 
     def _handle_command(self, message: bytes, address):
         match message:
+            case b'health':
+                return b'0'
             case b'interrupt':
                 self._halt_flag.set()
                 return b'0'
