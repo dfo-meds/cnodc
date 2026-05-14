@@ -85,7 +85,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
             'metadata_queue': 'dmd_metadata_push',
             'gzip_erddap': True,
             'gzip_openglider': True,
-            'direct_publication': True,
+            'autopublish': True,
         })
         self._target_dir: t.Optional[FilePath] = None
         self._target_erddap_dir: t.Optional[FilePath] = None
@@ -109,7 +109,7 @@ class GliderConversionWorker(SourceWorkflowWorker):
             ego_file=local_file,
             og_file=new_file,
             file_name=sf.file_name,
-            autopublish=self.get_config('direct_publication', True),
+            autopublish=self.get_config('autopublish', True),
             gzip_erddap=self.get_config('gzip_erddap', True)
         )
         storage_locations = [
