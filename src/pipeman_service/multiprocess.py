@@ -1,4 +1,5 @@
 """Controller for multiple processes based on the multiprocessing library."""
+import typing as t
 import os
 import tempfile
 
@@ -93,7 +94,7 @@ class MultiProcessController(BaseController):
                 self._status_info
             )
             if exit:
-                db.clear_process_info(self._server_name or '', self._controller_proc_name)
+                db.clear_process_info_for_server(t.cast(self._server_name, str))
 
     def startup(self):
         super().startup()
