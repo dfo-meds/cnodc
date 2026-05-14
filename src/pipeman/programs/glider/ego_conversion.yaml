@@ -802,6 +802,7 @@ data_maps:
     c-proof: c-proof
     "fisheries and oceans canada": dfo
     fisheriesandoceanscanada: dfo
+    framstraitobservatory: fram strait observatory
 
   data_modes:
     r: REAL_TIME
