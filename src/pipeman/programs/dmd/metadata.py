@@ -1430,6 +1430,8 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     custom_metadata: dict[str, SupportsExtendedJson] = dd.p_dict(value_coerce=unnumpy)
 
+    autostart: bool = dd.p_bool(default=False)
+
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1447,6 +1449,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         """ Note: you need the correct permissions to do this! """
         self.activation_workflow = Common.ActivationWorkflowWithPublish
         self.publication_workflow = Common.DefaultPublicationWorkflow
+        self.autostart = True
 
     def set_meds_defaults(self):
         self.metadata_constraints.append(Common.Constraint_Unclassified)
