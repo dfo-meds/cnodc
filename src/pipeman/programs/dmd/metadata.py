@@ -1009,14 +1009,14 @@ class Resource(QuickWebPage):
     additional_app_info: LanguageDict = dd.p_i18n_text(managed_name='app_profile')
     goc_content_type: GCContentType = dd.p_enum(GCContentType)
     goc_languages: GCLanguage = dd.p_enum(GCLanguage)
-    goc_format: GCContentFormat = dd.p_enum(GCContentFormat)
+    goc_format: set[GCContentFormat] = dd.p_enum_set(GCContentFormat, managed_name='goc_formats')
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value)
-        if managed_name == 'url' and value and self.goc_format is None:
-            self._data['goc_format'] = self.autodetect_gc_content_format(value)
+        if managed_name == 'url' and value and not self.goc_format:
+            self._data['goc_formats'] = [self.autodetect_gc_content_format(value)]
         if managed_name == 'goc_formats' and value and value is GCContentFormat.Auto:
-            self._data['goc_format'] = self.autodetect_gc_content_format(self.url)
+            self._data['goc_formats'] = [self.autodetect_gc_content_format(self.url)]
 
     @staticmethod
     def autodetect_gc_content_format(full_url: t.Optional[dict]) -> GCContentFormat | None:
@@ -1824,7 +1824,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             name=file_name,
             goc_languages=GCLanguage.Bilingual,
             goc_content_type=GCContentType.Dataset,
-            goc_format=GCContentFormat.DataNetCDF,
+            goc_format=[GCContentFormat.DataNetCDF],
             purpose=ResourcePurpose.FileAccess,
             resource_type=ResourceType.File
         )
