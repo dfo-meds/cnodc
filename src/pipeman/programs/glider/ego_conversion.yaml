@@ -642,6 +642,7 @@ ocproc2_map:
       - metadata/EndLongitude/metadata/Quality
       - metadata/EndDate/metadata/Quality
     order: 50
+    nowarn_missing_target: yes
 
   globalvar:FIRMWARE_VERSION_NAVIGATION:
     target: metadata/FirmwareVersion
