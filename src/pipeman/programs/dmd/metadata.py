@@ -1708,18 +1708,19 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
                             id_vocabulary: str | None,
                             guid: str | None):
         if contact_type == 'institution' or contact_type == 'group':
-            contact = Organization(guid=guid or None, name=name)
+            contact = Organization(guid=guid or None, name=name, display_name=name)
             if contact_id is not None and contact_id != "":
                 if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://ror.org"):
                     contact.ror = contact_id
                 else:
                     self._log.warning(f"Unknown ID vocabulary for organization: {id_vocabulary}")
         elif contact_type == 'position':
-            contact = Position(guid=guid or None, name=name)
+            contact = Position(guid=guid or None, name=name, display_name=name)
             if contact_id:
                 self._log.warning(f"ID provided for position: {contact_id} [{id_vocabulary}]")
         else:
-            contact = Individual(guid=guid or None, name=first_i18n(name))
+            name = first_i18n(name)
+            contact = Individual(guid=guid or None, name=name, display_name=name)
             if contact_id is not None and contact_id != "":
                 if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://orcid.org"):
                     contact.orcid = contact_id
