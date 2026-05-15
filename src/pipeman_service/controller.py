@@ -247,6 +247,7 @@ class BaseController:
         self._process_runner_cls = process_creator
         self._process_info: dict[str, _ProcessSet] = {}
         self._no_start = _no_start
+        self._no_report = False
         self._logging_queue = logging_queue
         self._sleep_time = 2.5
         self._status_info = {
@@ -321,11 +322,12 @@ class BaseController:
         self._signals = set()
         self._manager.cleanup()
 
-    def _handle_halt(self, sig_num, frame):
+    def _handle_halt(self, sig_num, frame=None):
         """Handle a halt signal"""
         self._log.info("Signal %s caught", sig_num)
         self._halt_flag.set()
         self._break_count += 1
+        self._log.debug("Break count [%s], halt flag [%s]", self._break_count, self._halt_flag.is_set())
         if self._break_count >= 3:
             self._log.critical("Critical halt")
             raise KeyboardInterrupt
@@ -433,6 +435,7 @@ class BaseController:
         self._register_halt_signal("SIGTERM")
         self._register_halt_signal("SIGBREAK")
         self._register_halt_signal("SIGQUIT")
+        self._register_halt_signal("SIGABRT")
         self._base_kwargs['signals'] = "\n".join(self._signals)
         self.reload_check()
         self._manager.setup()

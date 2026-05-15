@@ -101,8 +101,8 @@ class BaseWorker(CachedObjectMixin):
             'activity': '',
             'status': 'initializing',
             'memory': '',
-
         }
+        self._no_report = False
 
     def add_events(self, events: list[str]):
         self._events.extend(events)
@@ -296,19 +296,20 @@ class BaseWorker(CachedObjectMixin):
         self._status_info.update(kwargs)
         if _resource_update:
             self._resource_report()
-        try:
-            with self.nodb as db:
-                db.upsert_process_info(
-                    self._server_name,
-                    self._process_uuid,
-                    self._process_name,
-                    self._process_version,
-                    self._status_info
-                )
-                if _end:
-                    db.clear_process_info(self._server_name, self._process_uuid)
-        except CodedError:
-            self._log.exception(f"Exception during reporting, ignoring and moving on")
+        if not self._no_report:
+            try:
+                with self.nodb as db:
+                    db.upsert_process_info(
+                        self._server_name,
+                        self._process_uuid,
+                        self._process_name,
+                        self._process_version,
+                        self._status_info
+                    )
+                    if _end:
+                        db.clear_process_info(self._server_name, self._process_uuid)
+            except CodedError:
+                self._log.exception(f"Exception during reporting, ignoring and moving on")
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""

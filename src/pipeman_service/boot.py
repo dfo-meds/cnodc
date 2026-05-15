@@ -3,6 +3,8 @@ def build_processor(with_init: bool = True):
     if with_init:
         from pipeman.boot import init_pipeman
         init_pipeman("cli")
+    import multiprocessing as mp
+    mp.set_start_method("spawn")
     from autoinject import injector
     import zirconium as zr
     @injector.inject

@@ -13,11 +13,28 @@ from psutil import NoSuchProcess, AccessDenied
 from nodb import NODB
 from pipeman_service.controller import BaseController, BaseProcess
 
+
+class ImprovedEvent:
+
+    def __init__(self):
+        self.value = mp.Value('b')
+        self.value.value = 0
+
+    def is_set(self):
+        return self.value.value == 1
+
+    def set(self):
+        self.value.value = 1
+
+    def clear(self):
+        self.value.value = 0
+
+
 class _MultiProcessRunner(BaseProcess, mp.Process):
     """Implementation of a process that runs a worker class."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, end_flag=mp.Event(), daemon=True)
+        super().__init__(*args, **kwargs, end_flag=ImprovedEvent(), daemon=True)
 
     def setup(self):
         from pipeman.boot import init_pipeman
@@ -28,7 +45,8 @@ class _MultiProcessRunner(BaseProcess, mp.Process):
         super().setup()
 
     def teardown(self):
-        mark_process_dead(os.getpid())
+        if os.environ.get("PROMETHEUS_MULTIPROC_DIR", default=None):
+            mark_process_dead(os.getpid())
         super().teardown()
 
 
@@ -50,14 +68,24 @@ class MultiProcessController(BaseController):
 
     @injector.construct
     def __init__(self, **kwargs):
+        import medsutil.logging as ml
+        lc = self.config.as_dict("logging", default={})
+        lq = mp.Queue()
+        self._logging_subprocess = ml.init_subprocess_handler(
+            lq,
+            logging_config={
+                x: lc[x]
+                for x in lc.keys()
+            }
+        )
+        ml.init_as_subprocess(lq)
         super().__init__(
             process_creator=_MultiProcessRunner,
             log_name="cnodc.multi_process",
-            logging_queue=mp.Queue(),
-            halt_flag=mp.Event(),
+            logging_queue=lq,
+            halt_flag=ImprovedEvent(),
             **kwargs
         )
-        self._logging_subprocess = None
         self._process = psutil.Process()
 
     def _resource_report(self):
@@ -85,30 +113,21 @@ class MultiProcessController(BaseController):
         self._status_info.update(kwargs)
         if with_resource:
             self._resource_report()
-        with self.nodb as db:
-            db.upsert_process_info(
-                self._server_name or '',
-                self._controller_proc_name,
-                'controller',
-                '1.0',
-                self._status_info
-            )
-            if exit:
-                db.clear_process_info_for_server(t.cast(self._server_name, str))
+        if not self._no_report:
+            with self.nodb as db:
+                db.upsert_process_info(
+                    self._server_name or '',
+                    self._controller_proc_name,
+                    'controller',
+                    '1.0',
+                    self._status_info
+                )
+                if exit:
+                    db.clear_process_info_for_server(t.cast(self._server_name, str))
 
     def startup(self):
         super().startup()
-        import medsutil.logging as ml
-        lc = self.config.as_dict("logging", default={})
-        self._logging_subprocess = ml.init_subprocess_handler(
-            self._logging_queue,
-            logging_config={
-                x: lc[x]
-                for x in lc.keys()
-            }
-        )
-        ml.init_as_subprocess(self._logging_queue)
 
     def cleanup(self):
-        self._logging_subprocess.stop()
         super().cleanup()
+        self._logging_subprocess.stop()
