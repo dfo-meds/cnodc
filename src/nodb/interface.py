@@ -320,7 +320,8 @@ class NODBInstance(t.Protocol):
                                  new_status: QueueStatus,
                                  release_at: datetime.datetime | None = None,
                                  reduce_priority: bool = False,
-                                 escalation_level: int = 0): ...
+                                 escalation_level: int = 0,
+                                 is_closed: bool = False) -> AwareDateTime | None: ...
     def create_queue_item(self,
                           queue_name: str,
                           data: dict[str, ct.SupportsExtendedJson],

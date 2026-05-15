@@ -383,15 +383,19 @@ class PostgresController(interface.NODBInstance):
                                  new_status: QueueStatus,
                                  release_at: datetime.datetime | None = None,
                                  reduce_priority: bool = False,
-                                 escalation_level: int = 0):
+                                 escalation_level: int = 0,
+                                 is_closed: bool = False) -> AwareDateTime | None:
+        now_ = AwareDateTime.now() if is_closed else None
         with self.cursor() as cur:  # nosec B608 # not a hard coded query
-            cur.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s, priority = priority + %s, escalation_level = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [
+            cur.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s, priority = priority + %s, escalation_level = %s, db_closed_date = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [
                 new_status.value,
                 release_at.isoformat() if release_at else None,
                 1 if reduce_priority else 0,
                 escalation_level,
-                queue_uuid
+                queue_uuid,
+                now_
             ])
+        return now_
 
     def scanned_file_status(self, file_path: str, mod_time: datetime.datetime | None = None) -> ScannedFileStatus:
         """Get the status of a scanned file."""

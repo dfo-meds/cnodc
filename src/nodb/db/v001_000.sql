@@ -428,6 +428,8 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     queue_uuid          UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+    db_closed_date      TIMESTAMPTZ                 DEFAULT NULL,
+    db_locked_date      TIMESTAMPTZ                 DEFAULT NULL,
 
     status              queue_status    NOT NULL    DEFAULT 'UNLOCKED',
     locked_by           VARCHAR(126)                DEFAULT NULL,
@@ -589,7 +591,9 @@ BEGIN
         SET
             status = 'LOCKED',
             locked_by = app_id,
-            locked_since = CURRENT_TIMESTAMP(0)
+            locked_since = CURRENT_TIMESTAMP(0),
+            db_locked_date = CURRENT_TIMESTAMP(0),
+            db_closed_date = NULL
         WHERE
             queue_uuid = item_key
             AND status IN ('UNLOCKED', 'DELAYED_RELEASE')

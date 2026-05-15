@@ -24,6 +24,8 @@ class NODBQueueItem(s.NODBBaseObject):
     queue_uuid: str = s.UUIDColumn()
     created_date: AwareDateTime = s.DateTimeColumn(readonly=True, managed_name='db_created_date')
     modified_date: AwareDateTime = s.DateTimeColumn(readonly=True, managed_name='db_modified_date')
+    locked_date: AwareDateTime | None = s.DateTimeColumn(readonly=True, managed_name='db_locked_date')
+    closed_date: AwareDateTime | None = s.DateTimeColumn(readonly=True, managed_name='db_closed_date')
     delay_release: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     status: interface.QueueStatus = s.EnumColumn(interface.QueueStatus)
     locked_by: str | None = s.StringColumn(readonly=True)
@@ -58,11 +60,11 @@ class NODBQueueItem(s.NODBBaseObject):
 
     def mark_complete(self, db: interface.NODBInstance):
         """Mark the queue item as complete."""
-        self._set_queue_status(db=db, new_status=interface.QueueStatus.COMPLETE)
+        self._set_queue_status(db=db, new_status=interface.QueueStatus.COMPLETE, is_closed=True)
 
     def mark_failed(self, db: interface.NODBInstance):
         """Mark the queue item as failed."""
-        self._set_queue_status(db=db, new_status=interface.QueueStatus.ERROR)
+        self._set_queue_status(db=db, new_status=interface.QueueStatus.ERROR, is_closed=True)
 
     def release(self,
                 db: interface.NODBInstance,
@@ -97,15 +99,17 @@ class NODBQueueItem(s.NODBBaseObject):
                           new_status: interface.QueueStatus,
                           release_at: AwareDateTime | None = None,
                           reduce_priority: bool = False,
-                          escalation_level: t.Optional[int] = None):
+                          escalation_level: t.Optional[int] = None,
+                          is_closed: bool = False):
         """Set the queue status from LOCKED to a new status."""
         if self.status == interface.QueueStatus.LOCKED:
-            db.fast_update_queue_status(
+            new_closed: AwareDateTime | None = db.fast_update_queue_status(
                 self.queue_uuid,
                 new_status,
                 release_at,
                 reduce_priority,
-                escalation_level if escalation_level is not None else (self.escalation_level or 0)
+                escalation_level if escalation_level is not None else (self.escalation_level or 0),
+                is_closed
             )
             with self.readonly_access():
                 self.status = new_status
@@ -114,6 +118,7 @@ class NODBQueueItem(s.NODBBaseObject):
                 self.locked_since = None
                 if escalation_level is not None:
                     self.escalation_level = escalation_level
+                self.closed_date = new_closed
                 self.delay_release = release_at
 
     @classmethod
