@@ -176,6 +176,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                                         result: DecodeResult) -> tuple[int, int, bool]:
         success = 0
         skipped = 0
+        n = 0
         had_error = False
         make_completed_records = self.get_config('autocomplete_records', False)
         self.before_message(source_file, result)
@@ -208,6 +209,10 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 self._log.exception(f"An error occurred while processing file [{source_file.source_uuid}] message [{result.message_idx}]")
                 had_error = True
                 self.count("messages_processed_total", outcome="error")
+            finally:
+                n += 1
+                if n % 500 == 0:
+                    self.report(_resource_update=True)
         else:
             self._handle_decode_failure(source_file, result)
             exc_info = None
@@ -216,6 +221,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             self._log.error(f"An error occurred while decoding file [{source_file.source_uuid}] message [{result.message_idx}]", exc_info=exc_info)
             had_error = True
             self.count("messages_processed_total", outcome="error")
+            self.report(_resource_update=True)
         return success, skipped, had_error
 
     def _create_nodb_record(self,
