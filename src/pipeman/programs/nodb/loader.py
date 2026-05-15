@@ -140,7 +140,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             else:
                 self.count("files_processed_total", outcome="success")
             source_file.status = nodb.SourceFileStatus.COMPLETE
-            result = QueueItemResult.HANDLED
+            result = QueueItemResult.SUCCESS
         self.db.update_object(source_file)
         if create_next_queue:
             self.progress_payload(self.source_payload_from_nodb(source_file), prevent_default_progression=True)
