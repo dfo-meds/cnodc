@@ -1811,13 +1811,14 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     def add_file_direct_link(self,
                              file_url: AcceptAsLanguageDict,
-                             file_name: dict[str, str]):
+                             file_name: dict[str, str],
+                             guid: str = 'direct_link_channel'):
         dist = DistributionChannel(
-            guid='direct_link_channel',
-            display_name={"en": "Direct Link", "fr": "Lien direct"}
+            guid=guid,
+            display_name=file_name
         )
         dist.primary_link = Resource(
-            guid='direct_link_resource',
+            guid=f"{guid}_resource",
             url=file_url,
             display_name=file_name,
             name=file_name,
@@ -1827,6 +1828,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             purpose=ResourcePurpose.FileAccess,
             resource_type=ResourceType.File
         )
+        dist.add_contact(ContactRole.Distributor, Common.Contact_CNODC)
         self.distributors.append(dist)
 
     @staticmethod

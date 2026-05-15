@@ -246,7 +246,8 @@ class OpenGliderConverter:
                     {
                         "en": pp_info['en'],
                         "fr": pp_info['fr'],
-                    }
+                    },
+                    guid=pp_info['guid']
                 )
 
     def _create_dimensions(self, open_nc: nc.Dataset):

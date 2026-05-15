@@ -6,9 +6,11 @@ dmd_metadata:
     - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders-planeurs/og"
       en: NetCDF File (OpenGlider)
       fr: Ficher NetCDF (OpenGlider)
+      guid: distribute_openglider
     - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders-planeurs/ego"
       en: NetCDF File (EGO)
       fr: Ficher NetCDF (EGO)
+      guid: distribute_ego
 netcdf_conversion:
   static_metadata:
       Conventions: 'CF-1.0,ACDD-1.3,OG-1.0,CNODC-1.0'
