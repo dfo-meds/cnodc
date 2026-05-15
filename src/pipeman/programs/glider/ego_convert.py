@@ -8,6 +8,7 @@ import netCDF4 as nc
 import zrlog
 import dataclasses
 
+from medsutil.awaretime import AwareDateTime
 from pipeman.programs.dmd.metadata import MaintenanceFrequency
 from pipeman.exceptions import CNODCError
 from medsutil.sanitize import utf_normalize_string, unnumpy
@@ -173,6 +174,8 @@ class OpenGliderConverter:
         dmd.set_meds_defaults()
         if autopublish:
             dmd.activate_and_publish()
+        dmd.date_issued = AwareDateTime.now()
+        dmd.date_modified = AwareDateTime.now()
         platform, start_time, data_mode = self._parse_file_name(file_name)
         md_platform = self._build_initial_platform(platform)
         md_mission = self._build_initial_mission(f"{platform}-{start_time}")
