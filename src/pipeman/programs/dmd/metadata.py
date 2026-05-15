@@ -1122,12 +1122,12 @@ class _ResponsiblesMixin:
 
     responsibles: list[_ResponsibleParty] = dd.p_object_list(_ResponsibleParty)
 
-    def add_contact(self, role: ContactRole, contact: _Contact):
+    def add_contact(self, role: ContactRole, contact: Position | Organization | Individual):
         """
         :param role: The role the person plays for this citation
         :param contact: Their contact information
         """
-        self.responsibles.append(_ResponsibleParty(role=role, contact=contact))
+        self.responsibles.append(_ResponsibleParty(display_name=f"{contact.name} - {role.value}", role=role, contact=contact))
 
 
 class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
@@ -1298,9 +1298,8 @@ class Platform(_Manufactured):
     other_identifiers: list[str] = dd.p_list()
     instruments: list[Instrument] = dd.p_object_list(Instrument)
 
-    def add_sponsor(self, role: ContactRole, contact: _Contact):
-        self.sponsors.append(_ResponsibleParty(role=role, contact=contact))
-
+    def add_sponsor(self, role: ContactRole, contact: Individual | Organization | Position):
+        self.sponsors.append(_ResponsibleParty(display_name=f"{contact.name} - {role.value}", role=role, contact=contact))
 
 
 class Mission(EntityRef, _IdentifierMixin, _ResponsiblesMixin):
