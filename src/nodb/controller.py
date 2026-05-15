@@ -392,8 +392,8 @@ class PostgresController(interface.NODBInstance):
                 release_at.isoformat() if release_at else None,
                 1 if reduce_priority else 0,
                 escalation_level,
-                queue_uuid,
-                now_
+                now_,
+                queue_uuid
             ])
         return now_
 
