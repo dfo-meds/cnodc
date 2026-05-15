@@ -1861,7 +1861,7 @@ class Common:
     DefaultActivationWorkflow = "cnodc_activation"
     DefaultPublicationWorkflow = "cnodc_publish"
 
-    ActivationWorkflowWithPublish = "activate_and_publish"
+    ActivationWorkflowWithPublish = "cnodc_activate_and_publish"
 
     Constraint_OpenGovernmentLicense = LegalConstraint(guid="open_government_license")
     Constraint_Unclassified = SecurityConstraint(guid="unclassified_data")
