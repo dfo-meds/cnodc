@@ -78,6 +78,7 @@ class MappingInfo:
     separator: str | None = None
     regex_separator: str | None = None
     data_processor: t.Callable | None = None
+    order: int = 0
     map_call: t.Callable[[MappingInfo, dict[str, t.Any]], SingleElement | MultiElement | None] | t.Callable[[MappingInfo, None], SingleElement | MultiElement | None] = None
     nowarn_missing_target: bool = False
 
@@ -253,7 +254,7 @@ class NetCDFCommonMapper:
                 elif mapping_type not in ('var', 'attribute', 'globalvar'):
                     self._log.warning(f"Invalid mapping type [%s] for [%s], ignoring mapping instructions", map_info.mapping_type, k)
                 else:
-                    self._log.warning(f"Missing input value [%s:%s], ignoring mapping instructions", map_info.mapping_type, map_info.source)
+                    self._log.info(f"Missing input value [%s:%s], ignoring mapping instructions", map_info.mapping_type, map_info.source)
         return self._cache['ocproc_map']
 
     def _get_netcdf_data(self, data_vars: list[str]) -> dict[str, list[int | float]]:
@@ -279,13 +280,15 @@ class NetCDFCommonMapper:
             raise NetCDFCommonDecoderError('Missing key variable', 3000)
         else:
             data = self._get_netcdf_data(ocproc_map['data_vars'])
+            record_keys = list(ocproc_map['record_vars'].keys())
+            record_keys.sort(key=lambda x: ocproc_map['record_vars'][x].order)
             for i in range(0, len(data[key_var])):
-                yield self._build_record(ocproc_map, i, {key: (data[key][i] if i < len(data[key]) else None) for key in data})
+                yield self._build_record(ocproc_map, i, {key: (data[key][i] if i < len(data[key]) else None) for key in data}, record_keys)
 
-    def _build_record(self, ocproc_map: NetCDFMappingDict, index: int, data: dict[str, t.Any]) -> ParentRecord:
+    def _build_record(self, ocproc_map: NetCDFMappingDict, index: int, data: dict[str, t.Any], record_keys: list[str]) -> ParentRecord:
         record = ParentRecord()
         record.coordinates.set('RecordNumber', index + 1)
-        for key in ocproc_map['record_vars']:
+        for key in record_keys:
             map_info = ocproc_map['record_vars'][key]
             element = None
             if map_info.map_call is not None:
@@ -299,10 +302,12 @@ class NetCDFCommonMapper:
 
     def _apply_global_elements(self, ocproc_map: NetCDFMappingDict, record: ParentRecord):
         global_vars: dict[str, MappingInfo] = ocproc_map['global_vars']
-        if global_vars is not None:
-            if 'global_elements' not in self._cache:
-                self._cache['global_elements'] = []
-                for key in global_vars:
+        if 'global_elements' not in self._cache:
+            self._cache['global_elements'] = []
+            if global_vars is not None:
+                global_keys: list[str] = list(global_vars.keys())
+                global_keys.sort(key=lambda x: global_vars[x].order)
+                for key in global_keys:
                     map_info = global_vars[key]
                     element = None
                     if map_info.map_call is not None:
@@ -310,8 +315,8 @@ class NetCDFCommonMapper:
                     if element is not None:
                         self._after_element(element, map_info)
                         self._cache['global_elements'].append((key, element))
-            for key, element in self._cache['global_elements']:
-                self._apply_element(record, element, global_vars[key])
+        for key, element in self._cache['global_elements']:
+            self._apply_element(record, element, global_vars[key])
 
     def _apply_element(self, record: ParentRecord, element: AbstractElement, map_info: MappingInfo):
         for target_name in map_info.targets:
@@ -324,7 +329,7 @@ class NetCDFCommonMapper:
                 if map_info.nowarn_missing_target:
                     self._log.info(f"Missing target [{target_name}]: {type(ex)}: {str(ex)}")
                 else:
-                    self._log.warning(f"Missing target [{target_name}]: {ex.__class__.__name__}: {str(ex)}", exc_info=True)
+                    self._log.warning(f"Missing target [{target_name}]: {ex.__class__.__name__}: {str(ex)}")
 
     def _after_record(self, record: ParentRecord, index: int):
         pass
