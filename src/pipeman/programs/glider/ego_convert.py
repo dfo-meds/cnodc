@@ -412,7 +412,7 @@ class OpenGliderConverter:
                         'rtqc_methodology_fr': "Boîte à outils Coriolis Matlab",
                         'missing_value': -127,
                         'valid_min': 0,
-                        'valid_max': 0,
+                        'valid_max': 9,
                 },
                     'copy_attributes': ['flag_values', 'flag_meanings'],
                 })
