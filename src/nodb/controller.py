@@ -499,6 +499,20 @@ class PostgresController(interface.NODBInstance):
                 retries -= 1
             return None
 
+    def run_maintenance(self,
+                        lock_expiry_seconds: int = interface.LOCK_EXPIRY_TIME,
+                        completed_lifetime_seconds: int = interface.COMPLETED_QUEUE_ITEM_LIFETIME,
+                        error_lifetime_seconds: int = interface.ERRORED_QUEUE_ITEM_LIFETIME,
+                        process_expiry_seconds: int = interface.PROCESS_EXPIRY_TIME):
+        with self.cursor() as cur:
+            cur.execute("CALL run_nodb_maintenance (%s, %s, %s, %s)", [
+                lock_expiry_seconds,
+                completed_lifetime_seconds,
+                error_lifetime_seconds,
+                process_expiry_seconds
+            ])
+            cur.commit()
+
     @staticmethod
     def _attempt_fetch_queue_item(queue_name: str, subqueue_name: t.Optional[str], app_id: str, cur: _PGCursor) -> t.Optional[str]:
         """Make a single attempt to get a queue item."""

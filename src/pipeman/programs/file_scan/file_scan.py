@@ -20,7 +20,6 @@ from medsutil.awaretime import AwareDateTime
 
 class FileScanTask(ScheduledTask):
 
-    nodb: NODB = None
     storage: StorageController = None
     metrics: PrometheusMetrics = None
 

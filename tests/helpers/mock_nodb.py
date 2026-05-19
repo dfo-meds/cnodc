@@ -4,6 +4,7 @@ import uuid
 
 from medsutil.awaretime import AwareDateTime
 from nodb import QueueStatus, NODBQueueItem, ScannedFileStatus
+import nodb.interface as interface
 
 from medsutil.sanitize import coerce
 from nodb.base import NODBBaseObject
@@ -179,6 +180,14 @@ class DatabaseMock:
 
     def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level, is_closed: bool = False) -> datetime.datetime | None:
         return AwareDateTime.now() if is_closed else None
+
+    def run_maintenance(self,
+                        lock_expiry_seconds: int = interface.LOCK_EXPIRY_TIME,
+                        completed_lifetime_seconds: int = interface.COMPLETED_QUEUE_ITEM_LIFETIME,
+                        error_lifetime_seconds: int = interface.ERRORED_QUEUE_ITEM_LIFETIME,
+                        process_expiry_seconds: int = interface.PROCESS_EXPIRY_TIME):
+        pass
+        # TODO: we could replicate this for testing
 
     def stream_objects(self, obj_cls, **kwargs):
         for idx in self._find_object_indexes(obj_cls.TABLE_NAME, **kwargs):

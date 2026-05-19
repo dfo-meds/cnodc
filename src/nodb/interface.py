@@ -26,6 +26,11 @@ if t.TYPE_CHECKING:
     from nodb import NODBQueueItem
 
 
+LOCK_EXPIRY_TIME = 3600
+COMPLETED_QUEUE_ITEM_LIFETIME = 2592000
+ERRORED_QUEUE_ITEM_LIFETIME = 2592000
+PROCESS_EXPIRY_TIME = 86400
+
 # These are non-pgcode errors from the psycopg2 library
 RECOVERABLE_MESSAGE_FRAGMENTS: list[str] = [
     'server closed the connection unexpectedly',
@@ -345,6 +350,11 @@ class NODBInstance(t.Protocol):
     def mark_scanned_item_failed(self, file_path: str, mod_time: datetime.datetime | None = None): ...
     def mark_scanned_item_success(self, file_path: str, mod_time: datetime.datetime | None = None): ...
 
+    def run_maintenance(self,
+                        lock_expiry_seconds: int = LOCK_EXPIRY_TIME,
+                        completed_lifetime_seconds: int = COMPLETED_QUEUE_ITEM_LIFETIME,
+                        error_lifetime_seconds: int = ERRORED_QUEUE_ITEM_LIFETIME,
+                        process_expiry_seconds: int = PROCESS_EXPIRY_TIME): ...
 
 @injector.injectable_global
 class NODB[X: NODBInstance]:

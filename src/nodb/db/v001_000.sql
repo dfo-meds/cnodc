@@ -465,8 +465,9 @@ CREATE OR REPLACE TRIGGER update_queues_modified_date
 -- Procedure to clean-up queue table and create partitions
 CREATE OR REPLACE PROCEDURE run_nodb_maintenance(
     release_locks_older_than_seconds INTEGER DEFAULT 3600,
-    delete_completed_older_than_seconds INTEGER DEFAULT 86400,
-    delete_errors_older_than_seconds INTEGER DEFAULT 2592000
+    delete_completed_older_than_seconds INTEGER DEFAULT 2592000,
+    delete_errors_older_than_seconds INTEGER DEFAULT 2592000,
+    exit_processes_older_than_seconds INTEGER DEFAULT 86400
 )
 LANGUAGE plpgsql
 AS $$
@@ -488,6 +489,14 @@ BEGIN
         locked_by = 'LOCKED'
         AND locked_since < (CURRENT_TIMESTAMP(0) - (release_locks_older_than_seconds * INTERVAL '1 SECOND'));
 
+    -- Flag processes as exited if they haven't been heard from recently
+    UPDATE nodb_processes
+    SET
+        exited = 'Y'
+    WHERE
+        exited = 'N'
+        AND db_modified_date < (CURRENT_TIMESTAMP(0) - (exit_processes_older_than_seconds * INTERVAL '1 SECOND'));
+
     -- Remove completed items
     DELETE FROM nodb_queues
     WHERE
@@ -499,22 +508,6 @@ BEGIN
     WHERE
         status = 'ERROR'
         AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_errors_older_than_seconds * INTERVAL '1 second'));
-
-    -- Create next years nodb_source_files partition if it doesn't exist
-    start_date := DATE_TRUNC('year', CURRENT_DATE + interval '1 year');
-    end_date := DATE_TRUNC('year', CURRENT_DATE + interval '2 year');
-    source_table_name := 'nodb_source_files_' || DATE_PART('year', start_date)::text;
-    obs_table_name := 'nodb_obs_' || DATE_PART('year', start_date)::text;
-    obs_data_table_name := 'nodb_obs_data_' || DATE_PART('year', start_date)::text;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = source_table_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || source_table_name || ' PARTITION OF nodb_source_files FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_table_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_table_name || ' PARTITION OF nodb_obs FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
-    IF NOT EXISTS (SELECT relname FROM pg_class WHERE relname = obs_data_table_name) THEN
-        EXECUTE 'CREATE TABLE IF NOT EXISTS ' || obs_data_table_name || ' PARTITION OF nodb_obs_data FOR VALUES FROM (''' || start_date::text || ''') TO (''' || end_date::text || ''');';
-    END IF;
 
 END; $$;
 
