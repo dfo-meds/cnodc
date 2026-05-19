@@ -10,7 +10,7 @@ import enum
 from autoinject import injector
 
 from medsutil import json
-from medsutil.first import first_i18n
+from medsutil.first import first_i18n, first
 from medsutil.sanitize import unnumpy
 import medsutil.awaretime as awaretime
 import medsutil.datadict as dd
@@ -1117,6 +1117,33 @@ class _ResponsibleParty(EntityRef):
     role: ContactRole = dd.p_enum(ContactRole)
     contact: _Contact = dd.p_ddo(_Contact)
 
+    def __init__(self, role: ContactRole, contact: Individual | Organization | Position, **kwargs):
+        if 'guid' not in kwargs and contact.guid:
+            kwargs['guid'] = f"{contact.guid}_{role.value}"
+        if "display_name" not in kwargs:
+            if isinstance(contact.name, str) and contact.name:
+                kwargs["display_name"] = f"{contact.name} - {role.value}"
+            elif isinstance(contact.name, dict) and any(contact.name.values()):
+                kwargs["display_name"] = {
+                    k: f"{contact.name[k]} - {role.value}"
+                    for k in contact.name
+                }
+            elif contact.email and any(contact.email.values()):
+                kwargs["display_name"] = {
+                    k: f"{contact.email[k]} - {role.value}"
+                    for k in contact.name
+                }
+            elif contact.guid:
+                kwargs["display_name"] = {
+                    "und": f"{contact.guid} - {role.value}",
+                }
+        super().__init__(
+            role=role,
+            contact=contact,
+            **kwargs
+        )
+
+
 
 class _ResponsiblesMixin:
 
@@ -1127,7 +1154,7 @@ class _ResponsiblesMixin:
         :param role: The role the person plays for this citation
         :param contact: Their contact information
         """
-        self.responsibles.append(_ResponsibleParty(display_name=f"{contact.name} - {role.value}", role=role, contact=contact))
+        self.responsibles.append(_ResponsibleParty(role=role, contact=contact))
 
 
 class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
@@ -1299,7 +1326,7 @@ class Platform(_Manufactured):
     instruments: list[Instrument] = dd.p_object_list(Instrument)
 
     def add_sponsor(self, role: ContactRole, contact: Individual | Organization | Position):
-        self.sponsors.append(_ResponsibleParty(display_name=f"{contact.name} - {role.value}", role=role, contact=contact))
+        self.sponsors.append(_ResponsibleParty(role=role, contact=contact))
 
 
 class Mission(EntityRef, _IdentifierMixin, _ResponsiblesMixin):
@@ -1430,7 +1457,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     custom_metadata: dict[str, SupportsExtendedJson] = dd.p_dict(value_coerce=unnumpy)
 
-    autostart: bool = dd.p_bool(default=False)
+    autostart: bool = dd.p_bool(managed_name="_autostart", default=False)
 
     @injector.construct
     def __init__(self, **kwargs):

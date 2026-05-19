@@ -416,7 +416,8 @@ class TestResource(BaseTestCase):
         self.assertEqual(res.resource_type, ResourceType.WebPage)
         self.assertEqual(res.additional_app_info, {'und': 'browser'})
         self.assertEqual(res.additional_request_info, {'und': 'dont'})
-        self.assertIs(res.goc_format, GCContentFormat.Hypertext)
+        self.assertEqual(1, len(res.goc_format))
+        self.assertIs(list(res.goc_format)[0], GCContentFormat.Hypertext)
         self.assertIs(res.goc_content_type, GCContentType.Dataset)
         self.assertIs(res.goc_languages, GCLanguage.French)
         self.assertIs(res.purpose, ResourcePurpose.Information)
@@ -590,7 +591,7 @@ class TestCitation(BaseTestCase):
             'title': {'und': 'foobar'},
             'resource': {
                 'url': {'und': 'http://foobar.com'},
-                'goc_format': 'HTML',
+                'goc_formats': ['HTML'],
                 'protocol': ResourceType.WebPage.value,
             }
         }, map_)

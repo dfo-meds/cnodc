@@ -458,6 +458,7 @@ def p_nonumpy(**kwargs) -> _SimpleProperty[ct.NumpyNumberLike, ct.NumberLike]:
 def p_i18n_text(**kwargs) -> _SimpleProperty[ct.AcceptAsLanguageDict, ct.LanguageDict]:
     return ddo_property(
         coerce_set=coerce.as_i18n_text,
+        validators=[functools.partial(require.type_is, required_type=dict)],
         **kwargs
     )
 

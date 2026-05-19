@@ -2,6 +2,10 @@
   "metadata": {
     "responsibles": [
       {
+        "_guid": "erin@fake.com_originator",
+        "_display_names": {
+          "und": "Erin Turnbull - originator"
+        },
         "role": "originator",
         "contact": {
           "id_system": {
@@ -12,10 +16,18 @@
           "email": {
             "en": "erin@fake.com"
           },
-          "individual_name": "Erin Turnbull"
+          "individual_name": "Erin Turnbull",
+          "_display_names": {
+            "und":  "Erin Turnbull"
+          }
         }
       },
       {
+        "_guid": "meds@fake.com_publisher",
+        "_display_names": {
+            "en": "Marine Environmental Data Section - publisher",
+            "fr": "SDMM - publisher"
+        },
         "role": "publisher",
         "contact": {
           "id_system": {
@@ -37,10 +49,18 @@
           "organization_name": {
             "en": "Marine Environmental Data Section",
             "fr": "SDMM"
+          },
+          "_display_names": {
+            "en": "Marine Environmental Data Section",
+            "fr": "SDMM"
           }
         }
       },
       {
+        "_guid": "anh@fake.com_contributor",
+        "_display_names": {
+          "und": "Anh Tran - contributor"
+        },
         "role": "contributor",
         "contact": {
           "id_system": {
@@ -51,10 +71,17 @@
           "email": {
             "en": "anh@fake.com"
           },
-          "individual_name": "Anh Tran"
+          "individual_name": "Anh Tran",
+          "_display_names": {
+            "und": "Anh Tran"
+          }
         }
       },
       {
+        "_guid": "jenny@fake.com_editor",
+        "_display_names": {
+            "und": "Jenny Chiu - editor"
+        },
         "role": "editor",
         "contact": {
           "id_system": {
@@ -65,10 +92,17 @@
           "email": {
             "en": "jenny@fake.com"
           },
-          "individual_name": "Jenny Chiu"
+          "individual_name": "Jenny Chiu",
+          "_display_names": {
+            "und": "Jenny Chiu"
+          }
         }
       },
       {
+        "_guid": "bio@fake.com_funder",
+        "_display_names": {
+            "en": "BIO - funder"
+        },
         "role": "funder",
         "contact": {
           "id_system": {
@@ -81,10 +115,18 @@
           },
           "organization_name": {
             "en": "BIO"
+          },
+          "_display_names": {
+            "en": "BIO"
           }
         }
       },
       {
+        "_guid": "coordinator@fake.com_mediator",
+        "_display_names": {
+          "en": "MEDS Coordinator - mediator",
+          "fr": "Coordinateur de SDMM - mediator"
+        },
         "role": "mediator",
         "contact": {
           "_guid": "coordinator@fake.com",
@@ -94,13 +136,23 @@
           "position_name": {
             "en": "MEDS Coordinator",
             "fr": "Coordinateur de SDMM"
+          },
+          "_display_names": {
+            "en": "MEDS Coordinator",
+            "fr": "Coordinateur de SDMM"
           }
         }
       },
       {
+        "_display_names": {
+          "en": "C-PROOF - contributor"
+        },
         "role": "contributor",
         "contact": {
           "organization_name": {
+            "en": "C-PROOF"
+          },
+          "_display_names": {
             "en": "C-PROOF"
           }
         }
@@ -149,7 +201,7 @@
           },
           "protocol": "https",
           "goc_content_type": "support_doc",
-          "goc_format": "XML"
+          "goc_formats": ["XML"]
         }
       }
     ],
@@ -305,5 +357,6 @@
   "security_level": "unclassified",
   "profiles": [
     "cnodc"
-  ]
+  ],
+  "autostart": false
 }

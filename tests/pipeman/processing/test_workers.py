@@ -2,6 +2,7 @@ import datetime
 import typing as t
 import unittest
 
+from medsutil.awaretime import AwareDateTime
 from nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus, NODBError
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
@@ -124,8 +125,10 @@ class TestScheduledTask(BaseTestCase):
             'delay_seconds': '50',
             'delay_fuzz_milliseconds': '0',
         })
+        now = AwareDateTime(2015, 1, 2, 3, 4, 5)
         for _ in range(0, 50):
-            self.assertEqual(50, task._execution_delay().total_seconds())
+            dt = (task._next_execution_from_iso_time(now.isoformat()) - now).total_seconds()
+            self.assertEqual(50, dt)
 
     def test_execution_delay_fuzz(self):
         task: ScheduledTask = self.worker_controller.build_test_worker(ScheduledTask, {
@@ -133,8 +136,9 @@ class TestScheduledTask(BaseTestCase):
             'delay_seconds': '50',
             'delazy_fuzz_milliseconds': '1000',
         })
+        now = AwareDateTime(2015, 1, 2, 3, 4, 5)
         for _ in range(0, 1000):
-            dt = task._execution_delay(False).total_seconds()
+            dt = (task._next_execution_from_iso_time(now.isoformat()) - now).total_seconds()
             self.assertGreaterEqual(dt, 49.0)
             self.assertLessEqual(dt, 51.0)
 
@@ -145,8 +149,7 @@ class TestScheduledTask(BaseTestCase):
             'run_on_boot': True,
             'delay_fuzz_milliseconds': '0',
         })
-        self.assertEqual(50, task._execution_delay(False).total_seconds())
-        self.assertEqual(0, task._execution_delay(True).total_seconds())
+        self.assertEqual("2015-01-02T03:04:55+00:00", task._next_execution_from_iso_time("2015-01-02T03:04:05+0000").isoformat())
 
     def test_check_execution(self):
         task: ScheduledTask = self.worker_controller.build_test_worker(ScheduledTask, {
@@ -154,9 +157,10 @@ class TestScheduledTask(BaseTestCase):
             'delay_seconds': 60,
         })
         task.on_start()
-        self.assertTrue(task._check_execution(task._next_execution))
-        self.assertTrue(task._check_execution(task._next_execution + datetime.timedelta(seconds=1)))
-        self.assertFalse(task._check_execution(task._next_execution - datetime.timedelta(seconds=1)))
+        ne = t.cast(AwareDateTime, task.next_execution)
+        self.assertTrue(task._check_execution(ne))
+        self.assertTrue(task._check_execution(ne + datetime.timedelta(seconds=1)))
+        self.assertFalse(task._check_execution(ne - datetime.timedelta(seconds=1)))
 
     def test_from_start_fresh(self):
         task: ScheduledTask = self.worker_controller.build_test_worker(ScheduledTask, {
@@ -165,11 +169,11 @@ class TestScheduledTask(BaseTestCase):
             'delay_fuzz_milliseconds': '0',
         })
         task.on_start()
-        dt = datetime.datetime.now(datetime.timezone.utc)
+        dt = AwareDateTime.utcnow()
         self.assertLessEqual(task._sleep_time(dt), 60)
 
     def test_from_start_saved(self):
-        dt = datetime.datetime.fromisoformat('2015-01-02T03:04:05+00:00')
+        dt = AwareDateTime.fromisoformat('2015-01-02T03:04:05+00:00')
         sf = self.temp_dir / 'save.dat'
         sd = SaveData(sf)
         sd['last_start'] = '2015-01-02T03:04:05+00:00'
@@ -190,11 +194,11 @@ class TestScheduledTask(BaseTestCase):
             'delay_fuzz_milliseconds': '0',
         })
         task.on_start()
-        dt = datetime.datetime.now(datetime.timezone.utc)
+        dt = AwareDateTime.utcnow()
         self.assertLessEqual(task._sleep_time(dt), 59.75)
 
     def test_from_end_saved(self):
-        dt = datetime.datetime.fromisoformat('2015-01-02T03:04:05+00:00')
+        dt = AwareDateTime.fromisoformat('2015-01-02T03:04:05+00:00')
         sf = self.temp_dir / 'save.dat'
         sd = SaveData(sf)
         sd['last_end'] = '2015-01-02T03:04:05+00:00'
@@ -217,7 +221,7 @@ class TestScheduledTask(BaseTestCase):
             'save_file': str(sf)
         })
         task.on_start()
-        dt = datetime.datetime.now(datetime.timezone.utc)
+        dt = AwareDateTime.utcnow()
         task._next_execution = dt
         self.assertEqual(0, len(task._called_methods))
         self.assertIsInstance(task._run_scheduled_task(dt), datetime.datetime)
@@ -239,7 +243,7 @@ class TestScheduledTask(BaseTestCase):
         })
         task.on_start()
         task._ret_value = CNODCError('one', 'one', 1, True)
-        dt = datetime.datetime.now(datetime.timezone.utc)
+        dt = AwareDateTime.utcnow()
         task._next_execution = dt
         self.assertEqual(0, len(task._called_methods))
         with self.assertLogs('cnodc.worker.test', 'ERROR'):
@@ -262,7 +266,7 @@ class TestScheduledTask(BaseTestCase):
         })
         task.on_start()
         task._ret_value = CNODCError('one', 'one', 1, False)
-        dt = datetime.datetime.now(datetime.timezone.utc)
+        dt = AwareDateTime.utcnow()
         task._next_execution = dt
         self.assertEqual(0, len(task._called_methods))
         with self.assertRaises(CodedError):

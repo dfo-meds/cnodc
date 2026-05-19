@@ -610,10 +610,10 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs('test', 'INFO') as info:
+            with self.assertLogs('test', 'DEBUG') as info:
                 records = [x for x in mapper.build_records()]
                 for x in info.records:
-                    self.assertEqual(x.levelno, logging.INFO)
+                    self.assertEqual(x.levelno, logging.DEBUG)
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
                 with self.subTest(record_no=idx):
@@ -635,7 +635,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs("test", "WARNING"):
+            with self.assertLogs("test", "INFO"):
                 records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
@@ -658,7 +658,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs("test", "WARNING"):
+            with self.assertLogs("test", "INFO"):
                 records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
@@ -707,7 +707,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs('test', 'WARNING'):
+            with self.assertLogs('test', 'INFO'):
                 records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
@@ -1245,7 +1245,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                     }
                 },
             }, 'test')
-            with self.assertLogs('test', 'ERROR'):
+            with self.assertLogs('test', 'WARNING'):
                 records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
@@ -1328,7 +1328,7 @@ class TestNetCDFCommonDecode(BaseTestCase):
                 },
                 'data_maps': {},
             }, 'test')
-            with self.assertLogs('test', 'ERROR'):
+            with self.assertLogs('test', 'WARNING'):
                 records = [x for x in mapper.build_records()]
             self.assertEqual(5, len(records))
             for idx, record in enumerate(records):
