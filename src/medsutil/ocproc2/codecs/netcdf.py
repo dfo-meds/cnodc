@@ -327,7 +327,7 @@ class NetCDFCommonMapper:
                     record.set_element(target_name, element)
             except ValueError as ex:
                 if map_info.nowarn_missing_target:
-                    self._log.info(f"Missing target [{target_name}]: {type(ex)}: {str(ex)}")
+                    self._log.debug(f"Missing target [{target_name}]: {ex.__class__.__name__}: {str(ex)}")
                 else:
                     self._log.warning(f"Missing target [{target_name}]: {ex.__class__.__name__}: {str(ex)}")
 
