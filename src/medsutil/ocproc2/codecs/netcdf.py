@@ -169,7 +169,7 @@ class NetCDFCommonMapper:
                         if info['unadjusted_source'] and info['unadjusted_source'] in self._dataset.variables:
                             self._cache['ocproc_map']['data_vars'].append(info['unadjusted_source'])
                         else:
-                            self._log.warning(f'Omitting [unadjusted] for %s, not found in dataset variables', source_name)
+                            self._log.info(f'Omitting [unadjusted] for %s, not found in dataset variables', source_name)
                             info['unadjusted_source'] = None
                     else:
                         info['unadjusted_source'] = None
@@ -177,7 +177,7 @@ class NetCDFCommonMapper:
                         if info['adjusted_source'] and info['adjusted_source'] in self._dataset.variables:
                             self._cache['ocproc_map']['data_vars'].append(info['adjusted_source'])
                         else:
-                            self._log.warning(f'Omitting [adjusted_source] for %s, not found in dataset variables', source_name)
+                            self._log.info(f'Omitting [adjusted_source] for %s, not found in dataset variables', source_name)
                             info['adjusted_source'] = None
                     else:
                         info['adjusted_source'] = None
@@ -191,7 +191,7 @@ class NetCDFCommonMapper:
                         info['qc_source'] = None
                     if 'data_map' in info:
                         if not info['data_map']:
-                            self._log.warning(f'Removing [data_map] from %s, blank value', source_name)
+                            self._log.info(f'Removing [data_map] from %s, blank value', source_name)
                             del info['data_map']
                         elif isinstance(info['data_map'], str):
                             if info['data_map'] in self._data['data_maps'] and isinstance(self._data['data_maps'][info['data_map']], dict):
@@ -214,7 +214,7 @@ class NetCDFCommonMapper:
                         info['metadata'] = {}
                     if 'separator' in info:
                         if not info['separator']:
-                            self._log.warning(f'Omitting [separator] for %s, is blank', source_name)
+                            self._log.info(f'Omitting [separator] for %s, is blank', source_name)
                             del info['separator']
                         elif len(info['separator']) > 1:
                             info['regex_separator'] = re.compile(info['separator'])
@@ -455,12 +455,12 @@ class NetCDFCommonMapper:
                 if sub_key in data_map[check_name]:
                     return data_map[check_name][sub_key]
                 else:
-                    self._log.error(f'Missing subkey [%s] for data mapped value [%s] (source [%s]), defaulting to original value', sub_key, check_name, field_name)
+                    self._log.warning(f'Missing subkey [%s] for data mapped value [%s] (source [%s]), defaulting to original value', sub_key, check_name, field_name)
                     return check_name
             else:
                 return data_map[check_name]
         else:
-            self._log.error(f'Unknown value [%s] for data map (source [%s]), defaulting to original value', check_name, field_name)
+            self._log.warning(f'Unknown value [%s] for data map (source [%s]), defaulting to original value', check_name, field_name)
             return item_name
 
     def _time_since(self, value, minfo: MappingInfo):
