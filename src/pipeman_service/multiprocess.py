@@ -109,7 +109,7 @@ class MultiProcessController(BaseController):
             except (NoSuchProcess, AccessDenied):
                 ...
 
-    def report(self, with_resource: bool = False, exit: bool = False, **kwargs):
+    def report(self, with_resource: bool = False, _exit: bool = False, **kwargs):
         self._status_info.update(kwargs)
         if with_resource:
             self._resource_report()
@@ -122,8 +122,8 @@ class MultiProcessController(BaseController):
                     '1.0',
                     self._status_info
                 )
-                if exit:
-                    db.clear_process_info_for_server(t.cast(self._server_name, str))
+                if _exit:
+                    db.clear_process_info_for_server(t.cast(str, self._server_name))
 
     def startup(self):
         super().startup()

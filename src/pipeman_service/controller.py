@@ -477,6 +477,7 @@ class BaseController:
                 self.deactivate_all()
                 self.wait_for_all()
                 self._log.info('Complete, exiting')
+                self.report(activity='shutdown', _exit=True)
             else:
                 self._log.critical("Kill requested, some processes may not have gracefully exited")
 
