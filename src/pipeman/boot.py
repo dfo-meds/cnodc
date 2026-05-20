@@ -19,12 +19,17 @@ def init_pipeman(app_type: str,
         individual_log_levels={
             'pybufrkit.coder.log': logging.WARNING
         },
+
         manual_overrides={
             "medsutil.email.DelayedEmailController": "pipeman.delayed_emails.DelayedEmailsQueuer",
             "nodb.interface.NODB": "nodb.controller.NODBPostgresController"
         },
         version_no=__VERSION__
     )
+
+    # This logger spams A LOT
+    if not logging.getLogger().isEnabledFor(logging.DEBUG):
+        logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
 
 def init_for_tests(skip_long_tests: bool = True,
                    disable_metrics: bool = True,
