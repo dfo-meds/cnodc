@@ -501,13 +501,13 @@ BEGIN
     DELETE FROM nodb_queues
     WHERE
         status = 'COMPLETE'
-        AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_completed_older_than_seconds * INTERVAL '1 second'));
+        AND db_modified_date < (CURRENT_TIMESTAMP(0) - (delete_completed_older_than_seconds * INTERVAL '1 second'));
 
     -- Remove errored items
     DELETE FROM nodb_queues
     WHERE
         status = 'ERROR'
-        AND modified_date < (CURRENT_TIMESTAMP(0) - (delete_errors_older_than_seconds * INTERVAL '1 second'));
+        AND db_modified_date < (CURRENT_TIMESTAMP(0) - (delete_errors_older_than_seconds * INTERVAL '1 second'));
 
 END; $$;
 
