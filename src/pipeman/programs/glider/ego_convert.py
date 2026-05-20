@@ -604,7 +604,6 @@ class OpenGliderConverter:
         if info_url:
             open_nc.setncattr('infoUrl', info_url)
         else:
-
             self._log.warning(
                 f'No infoUrl found for %s [%s;%s;%s], using default',
                 original_nc.name,
