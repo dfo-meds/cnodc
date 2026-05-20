@@ -137,7 +137,7 @@ class CompiledCron:
             return current_time.replace(
                 minute=min(self._cron_config[0]),
                 hour=min(self._cron_config[1]),
-                seconds=0, microsecond=0
+                second=0, microsecond=0
             )
 
         # if we're not in the right day of the month, calculate the next valid day
