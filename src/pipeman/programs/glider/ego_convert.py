@@ -496,7 +496,7 @@ class OpenGliderConverter:
             open_nc.setncattr('time_coverage_start', min_time.strftime('%Y%m%dT%H%M%S%:z'))
             open_nc.setncattr('time_coverage_end', min_time.strftime('%Y%m%dT%H%M%S%:z'))
 
-    def _get_data_map(self, name):
+    def _get_data_map(self, name: str) -> dict[str, t.Any]:
         if name not in self._data_maps:
             self._data_maps[name] = {}
             if name in self._mapping_data['data_maps'] and self._mapping_data['data_maps'][name] and isinstance(self._mapping_data['data_maps'][name], dict):
@@ -606,12 +606,13 @@ class OpenGliderConverter:
         else:
 
             self._log.warning(
-                f'No infoUrl found for %s [%s;%s;%s]',
+                f'No infoUrl found for %s [%s;%s;%s], using default',
                 original_nc.name,
                 network,
                 glider_id,
                 ','.join(x.key_name for x in institutions)
             )
+            open_nc.setncattr('infoUrl', self._get_data_map('institution_urls').get("meds", ""))
         if contributors:
             cont_emails = self._get_multilingual_contact_info(c.email for c in contributors)
             open_nc.setncattr('contributor_name', self._compress_join(c.short_name for c in contributors))
