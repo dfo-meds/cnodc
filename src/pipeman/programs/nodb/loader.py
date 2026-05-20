@@ -321,7 +321,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self.run_hook('after_record', source_file=source_file, record=record, was_inserted=was_inserted)
 
     def after_message_success(self, source_file, result):
+        self.report(activity=f"processed {result.message_idx}: success", _resource_update=True)
         self.run_hook('after_message_success', source_file=source_file, result=result)
 
     def after_decode_error(self, source_file, result, additional_exception):
+        self.report(activity=f"processed {result.message_idx}: error", _resource_update=True)
         self.run_hook('after_decode_error', source_file=source_file, result=result, exception=additional_exception)
