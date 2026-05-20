@@ -197,10 +197,15 @@ def _expand_cron_str(cron_spec) -> tuple[CRON_SPEC_PIECE, CRON_SPEC_PIECE, CRON_
     if isinstance(cron_spec, str):
         if cron_spec in SPECIAL_DEFS:
             return SPECIAL_DEFS[cron_spec]
+        x = cron_spec.split(" ")
+        if len(x) == 5:
+            return x[0], x[1], x[2], x[3], x[4]
         else:
-            raise ValueError(f'Invalid special cron spec: {cron_spec}')
+            raise ValueError(f'Invalid string cron spec: {cron_spec}')
+    elif len(cron_spec) != 5:
+        raise ValueError(f'Invalid sequence cron spec: {cron_spec}')
     else:
-        return cron_spec
+        return cron_spec[0], cron_spec[1], cron_spec[2], cron_spec[3], cron_spec[4]
 
 def _validate_and_expand_cron_piece(piece: CRON_SPEC_PIECE,
                                     min_value: int,

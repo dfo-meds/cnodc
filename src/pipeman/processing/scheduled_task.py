@@ -39,6 +39,7 @@ class ScheduledTask(BaseWorker):
             "run_on_boot": False,
             "delay_seconds": None,
             "schedule_mode": "from_completion",
+            "cron": None,
             "cron_job_hash": None,
         })
         self._status_info.update({
