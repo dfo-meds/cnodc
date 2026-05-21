@@ -176,6 +176,7 @@ class OpenGliderConverter:
             dmd.activate_and_publish()
         dmd.date_issued = AwareDateTime.now()
         dmd.date_modified = AwareDateTime.now()
+        dmd.date_created = AwareDateTime.now()
         platform, start_time, data_mode = self._parse_file_name(file_name)
         md_platform = self._build_initial_platform(platform)
         md_mission = self._build_initial_mission(f"{platform}-{start_time}")

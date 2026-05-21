@@ -2,6 +2,10 @@
   "metadata": {
     "responsibles": [
       {
+        "_guid": "clark.richards@dfo-mpo.gc.ca_principalInvestigator",
+        "_display_names": {
+          "und": "Clark Richards - principalInvestigator"
+        },
         "role": "principalInvestigator",
         "contact": {
           "id_system": {
@@ -9,6 +13,9 @@
           },
           "id_code": "0000-0002-7833-206X",
           "_guid": "clark.richards@dfo-mpo.gc.ca",
+          "_display_names": {
+            "und": "Clark Richards"
+          },
           "email": {
             "en": "clark.richards@dfo-mpo.gc.ca",
             "fr": "clark.richards@dfo-mpo.gc.ca"
@@ -17,18 +24,32 @@
         }
       },
       {
+        "_guid": "03bz9t645_contributor",
+        "_display_names": {
+          "en": "BIO - contributor"
+        },
         "role": "contributor",
         "contact": {
           "_guid": "03bz9t645",
+          "_display_names": {
+            "en": "BIO"
+          },
           "organization_name": {
             "en": "BIO"
           }
         }
       },
       {
+        "_guid": "02qa1x782_contributor",
+        "_display_names": {
+          "en": "DFO-MPO - contributor"
+        },
         "role": "contributor",
         "contact": {
           "_guid": "02qa1x782",
+          "_display_names": {
+            "en": "DFO-MPO"
+          },
           "organization_name": {
             "en": "DFO-MPO"
           }
@@ -37,24 +58,36 @@
     ],
     "distributors": [
       {
-        "_guid": "direct_link_channel",
+        "responsibles": [
+          {
+            "_guid": "cnodc_distributor",
+            "_display_names": {
+              "und": "cnodc - distributor"
+            },
+            "role": "distributor",
+            "contact": {
+              "_guid": "cnodc"
+            }
+          }
+        ],
+        "_guid": "distribute_openglider",
         "_display_names": {
-          "en": "Direct Link",
-          "fr": "Lien direct"
+          "en": "NetCDF File (OpenGlider)",
+          "fr": "Ficher NetCDF (OpenGlider)"
         },
         "primary_web_link": {
-          "_guid": "direct_link_resource",
+          "_guid": "distribute_openglider_resource",
           "_display_names": {
-            "en": "NetCDF File in OpenGlider format",
-            "fr:": "Ficher NetCDF en format OpenGlider"
+            "en": "NetCDF File (OpenGlider)",
+            "fr": "Ficher NetCDF (OpenGlider)"
           },
           "name": {
-            "en": "NetCDF File in OpenGlider format",
-            "fr:": "Ficher NetCDF en format OpenGlider"
+            "en": "NetCDF File (OpenGlider)",
+            "fr": "Ficher NetCDF (OpenGlider)"
           },
           "function": "fileAccess",
           "url": {
-            "und": "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/glider-planeur/SEA032_20250606_R.nc"
+            "und": "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders-planeurs/og/SEA032_20250606_R.nc"
           },
           "protocol": "file",
           "goc_content_type": "dataset",
@@ -62,7 +95,52 @@
             "ENG",
             "FRA"
           ],
-          "goc_format": "NetCDF"
+          "goc_formats": [
+            "NetCDF"
+          ]
+        }
+      },
+      {
+        "responsibles": [
+          {
+            "_guid": "cnodc_distributor",
+            "_display_names": {
+              "und": "cnodc - distributor"
+            },
+            "role": "distributor",
+            "contact": {
+              "_guid": "cnodc"
+            }
+          }
+        ],
+        "_guid": "distribute_ego",
+        "_display_names": {
+          "en": "NetCDF File (EGO)",
+          "fr": "Ficher NetCDF (EGO)"
+        },
+        "primary_web_link": {
+          "_guid": "distribute_ego_resource",
+          "_display_names": {
+            "en": "NetCDF File (EGO)",
+            "fr": "Ficher NetCDF (EGO)"
+          },
+          "name": {
+            "en": "NetCDF File (EGO)",
+            "fr": "Ficher NetCDF (EGO)"
+          },
+          "function": "fileAccess",
+          "url": {
+            "und": "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders-planeurs/ego/SEA032_20250606_R.nc"
+          },
+          "protocol": "file",
+          "goc_content_type": "dataset",
+          "goc_languages": [
+            "ENG",
+            "FRA"
+          ],
+          "goc_formats": [
+            "NetCDF"
+          ]
         }
       }
     ],
@@ -751,6 +829,8 @@
         "_display_names": {
           "und": "PRES_QC"
         },
+        "actual_min": 1,
+        "actual_max": 1,
         "source_name": "PRES_QC",
         "source_data_type": "byte",
         "dimensions": [
@@ -762,7 +842,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -814,6 +894,8 @@
         "_display_names": {
           "und": "PSAL_QC"
         },
+        "actual_min": 1,
+        "actual_max": 4,
         "source_name": "PSAL_QC",
         "source_data_type": "byte",
         "dimensions": [
@@ -825,7 +907,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -878,6 +960,8 @@
         "_display_names": {
           "und": "TEMP_QC"
         },
+        "actual_min": 1,
+        "actual_max": 1,
         "source_name": "TEMP_QC",
         "source_data_type": "byte",
         "dimensions": [
@@ -889,7 +973,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -951,7 +1035,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -1002,6 +1086,8 @@
         "_display_names": {
           "und": "CHLA_QC"
         },
+        "actual_min": 1,
+        "actual_max": 4,
         "source_name": "CHLA_QC",
         "source_data_type": "byte",
         "dimensions": [
@@ -1013,7 +1099,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -1063,6 +1149,8 @@
         "_display_names": {
           "und": "BBP700_QC"
         },
+        "actual_min": 1,
+        "actual_max": 1,
         "source_name": "BBP700_QC",
         "source_data_type": "byte",
         "dimensions": [
@@ -1074,7 +1162,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -1135,7 +1223,7 @@
         },
         "missing_value": -127,
         "valid_min": 0,
-        "valid_max": 0,
+        "valid_max": 9,
         "custom_metadata": {
           "coordinates": "TIME,LONGITUDE,LATITUDE,DEPTH",
           "rtqc_methodology": "Coriolis MATLAB toolbox",
@@ -1183,22 +1271,117 @@
         "_guid": "metadata_profile_cioos"
       }
     ],
+    "missions": [
+      {
+        "_guid": "glider-mission-SEA032-20250606",
+        "_display_names": {
+          "en": "Glider Mission - SEA032-20250606",
+          "fr": "Glider Mission - SEA032-20250606"
+        },
+        "status": "completed",
+        "mission_type": "real",
+        "platforms": [
+          {
+            "id_system": {
+              "_guid": "WMO"
+            },
+            "id_code": "4800937",
+            "_guid": "glider-SEA032",
+            "_display_names": {
+              "en": "Glider - SEA032",
+              "fr": "Glider - SEA032"
+            },
+            "manufacturer": {
+              "_guid": "alseamar",
+              "_display_names": {
+                "und": "Alseamar"
+              },
+              "organization_name": {
+                "und": "Alseamar"
+              }
+            },
+            "model_number": "X2",
+            "serial_number": "32",
+            "cnodc_platform_type": "glider",
+            "other_identifiers": [
+              "SEA032"
+            ],
+            "instruments": [
+              {
+                "_guid": "[CTD-SeaBird Electronics-GPCTD-00184",
+                "_display_names": {
+                  "und": "SeaBird Electronics GPCTD [00184]"
+                },
+                "manufacturer": {
+                  "_guid": "seabird-electronics",
+                  "_display_names": {
+                    "und": "SeaBird Electronics"
+                  },
+                  "organization_name": {
+                    "und": "SeaBird Electronics"
+                  }
+                },
+                "model_number": "GPCTD",
+                "serial_number": "00184",
+                "cnodc_instrument_types": [
+                  "ctd"
+                ],
+                "type": {
+                  "und": "ctd"
+                }
+              },
+              {
+                "_guid": "[FLUOROMETER-Wetlabs-ECO FLBBCD-04550",
+                "_display_names": {
+                  "und": "Wetlabs ECO FLBBCD [04550]"
+                },
+                "manufacturer": {
+                  "_guid": "wetlabs",
+                  "_display_names": {
+                    "und": "Wetlabs"
+                  },
+                  "organization_name": {
+                    "und": "Wetlabs"
+                  }
+                },
+                "model_number": "ECO FLBBCD",
+                "serial_number": "04550",
+                "cnodc_instrument_types": [
+                  "fluorometer"
+                ],
+                "type": {
+                  "und": "fluorometer"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "metadata_owner": {
       "_guid": "cnodc"
     },
     "publisher": {
       "_guid": "cnodc"
     },
+    "info_link": {
+      "function": "information",
+      "url": {
+        "en": "https://www.meds-sdmm.dfo-mpo.gc.ca/"
+      },
+      "protocol": "https"
+    },
     "institution": "DFO-MPO",
     "standard_name_vocab": "CF 1.13",
-    "processing_level": "real-time",
     "geospatial_lat_min": 44.07899999999999,
     "geospatial_lon_min": -63.378883333333334,
     "geospatial_lat_max": 44.427533333333336,
     "geospatial_lon_max": -63.11738333333333,
     "geospatial_vertical_min": 0.027377504018605548,
     "geospatial_vertical_max": 164.32994947062187,
-    "date_created": "2026-04-16",
+    "date_issued": "2026-05-21",
+    "date_created": "2026-05-21",
+    "date_modified": "2026-05-21",
     "time_coverage_start": "2025-06-06T12:42:26+00:00",
     "time_coverage_end": "2025-06-09T14:18:44+00:00",
     "title": {
@@ -1210,7 +1393,7 @@
       "fr": "Données régularisées, corrigées et/ou dérivées des données brutes du planeur."
     },
     "file_storage_location": {
-      "en": "Original: C:\\Users\\TURNBULLER\\AppData\\Local\\Temp\\1\\tmp540gfff5\\gliders\\SEA032_20250606_R.nc.gz\nERDDAP: C:\\Users\\TURNBULLER\\AppData\\Local\\Temp\\1\\tmp540gfff5\\erddap\\sea032_20250606_r\\SEA032_20250606_R.nc.gz\nPublic: C:\\Users\\TURNBULLER\\AppData\\Local\\Temp\\1\\tmp540gfff5\\gliders\\SEA032_20250606_R.nc.gz"
+      "en": "Original: C:/Users/TURNBULLER/AppData/Local/Temp/1/tmppwag2dcg/ego/SEA032_20250606_R.nc\nPublic: C:/Users/TURNBULLER/AppData/Local/Temp/1/tmppwag2dcg/gliders/SEA032_20250606_R.nc.gz\nERDDAP: C:/Users/TURNBULLER/AppData/Local/Temp/1/tmppwag2dcg/erddap/sea032_20250606_r/SEA032_20250606_R.nc.gz"
     },
     "summary": {
       "en": "Real-time data from glider mission SEA032_20250606",
@@ -1257,9 +1440,9 @@
       "scientists"
     ],
     "cioos_eovs": [
-      "subSurfaceSalinity",
       "dissolvedOrganicCarbon",
-      "subSurfaceTemperature"
+      "subSurfaceTemperature",
+      "subSurfaceSalinity"
     ],
     "conventions": [
       "ACDD-1.3",
@@ -1268,15 +1451,15 @@
       "CNODC-1.0"
     ],
     "cf_standard_names": [
-      "sea_water_electrical_conductivity",
-      "longitude",
-      "sea_water_practical_salinity",
       "sea_water_pressure",
-      "sea_water_temperature",
       "mass_concentration_of_cholorphyll_a_in_sea_water",
+      "depth",
+      "sea_water_electrical_conductivity",
       "time",
+      "sea_water_temperature",
+      "sea_water_practical_salinity",
       "latitude",
-      "depth"
+      "longitude"
     ],
     "feature_type": "Trajectory",
     "erddap_servers": [
@@ -1291,11 +1474,11 @@
     "custom_metadata": {
       "platform_vocabulary": "https://vocab.nerc.ac.uk/collection/L06/current/27/",
       "platform": "sub-surface gliders",
+      "contributor_role_vocabulary": "https://vocab.nerc.ac.uk/collection/W08/current/",
       "geospatial_vertical_positive": "down",
       "internal_mission_identifier": "GLI2025_SEA032_089",
       "network": "OceanGliders > BOON > Northwest Atlantic Ocean",
       "rtqc_method": "Coriolis MATLAB Toolbox",
-      "contributor_role_vocabulary": "https://vocab.nerc.ac.uk/collection/W08/current/",
       "contributing_institutions_id": "03bz9t645,02qa1x782",
       "contributing_institutions_id_vocabulary": "https://ror.org/",
       "contributing_institutions_role": "CONT0003,CONT0002",
@@ -1310,7 +1493,7 @@
     "fr": "Planeur SEA032 - 20250606 (temps réel)"
   },
   "authority": "ca.dfo-mpo.cnodc-cndoc",
-  "activation_workflow": "cnodc_activation",
+  "activation_workflow": "cnodc_activate_and_publish",
   "publication_workflow": "cnodc_publish",
   "security_level": "unclassified",
   "profiles": [
@@ -1319,5 +1502,6 @@
   ],
   "users": [
     "trana"
-  ]
+  ],
+  "autostart": true
 }
