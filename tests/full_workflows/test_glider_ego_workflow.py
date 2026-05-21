@@ -166,11 +166,11 @@ class TestGliderDecode(BaseWorkflowTestCase):
 
     @ordered_after(test_conversion_ran)
     def test_metadata_uploader_ran(self):
-        self.assertEventDidOccur("glider_metadata_uploader", "before_queue_item")
-        self.assertEventDidOccur("glider_metadata_uploader", "after_queue_item")
-        self.assertEventDidOccur("glider_metadata_uploader", "on_success")
-        self.assertEventDidNotOccur("glider_metadata_uploader", "on_retry")
-        self.assertEventDidNotOccur("glider_metadata_uploader", "on_failure")
+        self.assertEventDidOccur("dmd_metadata_pusher", "before_queue_item")
+        self.assertEventDidOccur("dmd_metadata_pusher", "after_queue_item")
+        self.assertEventDidOccur("dmd_metadata_pusher", "on_success")
+        self.assertEventDidNotOccur("dmd_metadata_pusher", "on_retry")
+        self.assertEventDidNotOccur("dmd_metadata_pusher", "on_failure")
 
     @ordered_after(test_metadata_uploader_ran)
     def test_dmd_request_made(self):
