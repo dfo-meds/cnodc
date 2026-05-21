@@ -167,7 +167,7 @@ class NODBError(CodedError):
         self._is_db_available = True
         self._is_retryable = False
 
-        if msg and any(x in msg for x in RECOVERABLE_MESSAGE_FRAGMENTS):
+        if msg and any(x in msg.lower() for x in RECOVERABLE_MESSAGE_FRAGMENTS):
             self._is_db_available = False
             self.is_transient = True
 
