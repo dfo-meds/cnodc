@@ -72,8 +72,10 @@ class PayloadWorker[T: Payload](QueueWorker):
 
     def download_to_temp_file(self) -> pathlib.Path:
         if hasattr(self.current_payload, 'download_from_db'):
+            self._log.debug("Downloading file from payment")
             return self.current_payload.download_from_db(db=self.db, target_dir=self.temp_dir(), halt_flag=self._halt_flag)
         elif hasattr(self.current_payload, 'download'):
+            self._log.debug("Downloading file from payment")
             return self.current_payload.download(target_dir=self.temp_dir(), halt_flag=self._halt_flag)
         else:
             raise CNODCError('Invalid payload type for downloading', 'PAYLOAD', 1001)
