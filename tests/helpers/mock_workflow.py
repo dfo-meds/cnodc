@@ -151,6 +151,7 @@ class MockWorkflow:
         self._worker_info.append((worker_cls, worker_config or {}))
 
     def test_file(self, source_file: pathlib.Path, target_directory: pathlib.Path, max_cycles: int = None):
+        self._log.debug("Starting with test file %s in [%s]", source_file, target_directory)
         shutil.copy(source_file, target_directory / source_file.name)
         return self._run_test(max_cycles)
 
