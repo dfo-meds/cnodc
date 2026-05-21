@@ -28,7 +28,7 @@ def with_security(cb):
         h = kwargs.pop('headers', {})
         if 'Authorization' not in h:
             return MockResponse(b"Forbidden", 403)
-        if h['Authorization'] != '12345':
+        if h['Authorization'] != 'Bearer 12345':
             return MockResponse(b"Forbidden", 403)
         return cb(method, url, **kwargs)
     return _inner
