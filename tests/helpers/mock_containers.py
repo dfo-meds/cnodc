@@ -45,7 +45,7 @@ class TestContainer:
             while (now - t) < self._max_delay:
                 check = self._wait_for_cb()
                 if check:
-                    self._log.info(f'Container check passed for [{self.name}] after [{time.monotonic() - t}] seconds')
+                    self._log.info(f'Container check passed for [{self.name}] after [{time.monotonic() - t:.3f}] seconds')
                     break
                 else:
                     time.sleep(self._wait_sleep)
