@@ -31,27 +31,27 @@ def init_pipeman(app_type: str,
     if not logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
 
-def init_for_tests(skip_long_tests: bool = True,
-                   disable_metrics: bool = True,
-                   fast_password_hashing: bool = True,
+def init_for_tests(with_long_tests: bool = True,
+                   with_metrics: bool = True,
+                   with_fast_passwords: bool = True,
                    with_mp_prometheus_default: bool = True):
 
     # Setup config and logging
-    init_pipeman('tests', with_mp_prometheus_default if not disable_metrics else False)
+    init_pipeman('tests', with_mp_prometheus_default if not with_metrics else False)
 
-    if disable_metrics:
+    if not with_metrics:
         # Prevent metrics from being loaded
         from autoinject import injector
         import medsutil.metrics as metrics
         metrics.DISABLE_METRICS = True
 
-    if fast_password_hashing:
+    if with_fast_passwords:
         # speed up password hashing for tests only!
         import medsutil.secure as s
         s.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
         s.MINIMUM_ITERATIONS = 2
 
-    # skip long tests unless requested to run (there's a lot of them
-    if skip_long_tests:
+    # skip long tests unless requested to run (there's a lot of them)
+    if not with_long_tests:
         import tests.helpers.base_test_case as btc
         btc.SKIP_FLAG.set()
