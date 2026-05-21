@@ -84,46 +84,9 @@ class MultiProcessController(BaseController):
             log_name="cnodc.multi_process",
             logging_queue=lq,
             halt_flag=ImprovedEvent(),
+            _no_report=False,
             **kwargs
         )
-        self._process = psutil.Process()
-
-    def _resource_report(self):
-        with self._process.oneshot():
-            try:
-                with tempfile.TemporaryDirectory() as tdir:
-                    du = psutil.disk_usage(tdir)
-                    self._status_info['temp_free'] = du.free
-                    self._status_info['temp_total'] = du.total
-
-                cpu_times = self._process.cpu_times()
-                self._status_info['cpu_percent'] = self._process.cpu_percent()
-                self._status_info['cpu_user'] = cpu_times.user
-                self._status_info['cpu_system'] = cpu_times.system
-                if hasattr(cpu_times, 'iowait'):
-                    self._status_info['cpu_iowait'] = cpu_times.iowait
-
-                mem_info = self._process.memory_full_info()
-                self._status_info['memory_total'] = mem_info.uss
-
-            except (NoSuchProcess, AccessDenied):
-                ...
-
-    def report(self, with_resource: bool = False, _exit: bool = False, **kwargs):
-        self._status_info.update(kwargs)
-        if with_resource:
-            self._resource_report()
-        if not self._no_report:
-            with self.nodb as db:
-                db.upsert_process_info(
-                    self._server_name or '',
-                    self._controller_proc_name,
-                    'controller',
-                    '1.0',
-                    self._status_info
-                )
-                if _exit:
-                    db.clear_process_info_for_server(t.cast(str, self._server_name))
 
     def startup(self):
         super().startup()

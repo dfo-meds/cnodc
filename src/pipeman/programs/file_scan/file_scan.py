@@ -66,7 +66,7 @@ class FileScanTask(ScheduledTask):
         self._headers = self.get_config("metadata", {})
         self._pattern = self.get_config('pattern', '*')
         self._recursive = bool(self.get_config('recursive', False))
-        self.create_counter("files_scanned_total", description="The total number of files scanned", labels=("outcome",))
+        self.counter("files_scanned_total", description="The total number of files scanned", labels=("outcome",))
         super().on_start()
 
     def execute(self):
@@ -105,7 +105,7 @@ class FileScanTask(ScheduledTask):
                                                              modified_time=mod_time)
                         payload.metadata.update(self._headers)
                         payload.metadata.update({
-                            'source': self.process_id,
+                            'source': self.process_full_id,
                             'scan-batch': batch_id,
                             'scan-target': scan_target.path(),
                             'scanned-time': awaretime.utc_now().isoformat()
@@ -220,7 +220,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
 
     def _update_payload_metadata(self, metadata: dict, handle: FilePath):
         if 'source' not in metadata:
-            metadata['source'] = self.process_id
+            metadata['source'] = self.process_full_id
         metadata['filename'] = handle.name
         md = handle.modified_datetime()
         if md is None:  # pragma: no coverage (fallback for weird edge cases when the modified time can't be determined)

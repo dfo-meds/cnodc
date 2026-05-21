@@ -97,7 +97,7 @@ class TestFileDownloadWorker(BaseTestCase):
                 'safe_filename': 'file1.txt',
                 'safe_stem': 'file1',
                 'safe_ext': 'txt',
-                'source': worker.process_id,
+                'source': worker.process_full_id,
                 'filename': 'file1.txt',
             },
             'file_path': file_path.replace('\\', '/'),

@@ -16,6 +16,7 @@ import pathlib
 import json
 import medsutil.types as ct
 from medsutil.awaretime import AwareDateTime
+from pipeman.instrumented import InstrumentedObject
 
 if t.TYPE_CHECKING:
     from medsutil.halts import HaltFlag
@@ -218,7 +219,7 @@ class _ProcessSet:
 def original_signal_handler(*args, **kwargs):
     raise KeyboardInterrupt
 
-class BaseController:
+class BaseController(InstrumentedObject):
     """Base class for controllers"""
 
     def __init__[T: _ProcessProtocol](self,
@@ -231,9 +232,19 @@ class BaseController:
                  server_name: t.Optional[str] = None,
                  _no_start: bool = False,
                  socket_port: int = 9173,
+                 _no_report: bool = True,
                  logging_queue=None):
-        self._log = zrlog.get_logger(log_name)
-        self._server_name: str | None = server_name
+        super().__init__(
+            log_name=log_name,
+            subsystem='controller',
+            server_name=server_name or 'unknown',
+            process_id='-',
+            process_name=f"controller_{AwareDateTime.now().strftime("%H%M%f")}",
+            process_version='1.0',
+            no_report=_no_report,
+            report_temp_free=True,
+            resources_as_metrics=True
+        )
         self._break_count = 0
         self._halt_flag = halt_flag
         self._kill_requested: bool = False
@@ -247,13 +258,8 @@ class BaseController:
         self._process_runner_cls = process_creator
         self._process_info: dict[str, _ProcessSet] = {}
         self._no_start = _no_start
-        self._no_report = False
         self._logging_queue = logging_queue
         self._sleep_time = 2.5
-        self._status_info = {
-            'status': 'initializing'
-        }
-        self._controller_proc_name = f"controller_{AwareDateTime.now().strftime("%H%M%f")}"
 
         from medsutil.servicecmd import ServiceCommandManager
         self._manager = ServiceCommandManager(socket_port, self._handle_command)
@@ -440,19 +446,17 @@ class BaseController:
         self.reload_check()
         self._manager.setup()
 
-    def report(self, **kwargs): ...
-
     def start(self):
         """Method to register all signals and start the process."""
         try:
-            self.report(status='booting', activity='', with_resource=True)
+            self.report(status='booting', activity='', _update_resources=True)
             self.startup()
-            self.report(status='running', activity='', with_resource=True)
+            self.report(status='running', activity='', _update_resources=True)
             self.run()
         finally:
             self.report(status='stopping', activity='cleanup')
             self.cleanup()
-            self.report(Status='stopped', activity='', with_resource=True, exit=True)
+            self.report(Status='stopped', activity='', _update_resources=True, exit=True)
 
     def run(self):
         """Run loop, will constantly check for configuration changes and ensure process sets are running until
@@ -464,7 +468,7 @@ class BaseController:
                 self.reload_check()
                 self.report(activity="reaping and sowing")
                 self.reap_and_sow()
-                self.report(activity="checking for signals", with_resource=True)
+                self.report(activity="checking for signals", _update_resources=True)
                 self._manager.check()
                 if self._kill_requested:
                     raise SystemExit(1)
@@ -477,7 +481,7 @@ class BaseController:
                 self.deactivate_all()
                 self.wait_for_all()
                 self._log.info('Complete, exiting')
-                self.report(activity='shutdown', _exit=True)
+                self.report(activity='shutdown', _last_report=True)
             else:
                 self._log.critical("Kill requested, some processes may not have gracefully exited")
 

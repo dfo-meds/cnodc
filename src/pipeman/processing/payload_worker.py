@@ -62,7 +62,7 @@ class PayloadWorker[T: Payload](QueueWorker):
         """Add the current payload's metadata to the new payload."""
         if self.current_payload is not None:
             new_payload.copy_details_from(self.current_payload)
-        new_payload.set_metadata('_source_info', self.process_id)
+        new_payload.set_metadata('_source_info', self.process_full_id)
 
     def copy_payload[W: Payload](self, payload: W) -> W:
         """Create a copy of the given payload with the current payload's metadata."""

@@ -16,13 +16,13 @@ from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.exceptions import CodedError, HaltInterrupt
 from medsutil.halts import HaltFlag, gzip_with_halt, ungzip_with_halt
-import medsutil.metrics as mum
 from medsutil.metrics import Gauge, Histogram
 
 from medsutil.storage import StorageController, FilePath
+from pipeman.instrumented import InstrumentedObject
 
 
-class BaseWorker(CachedObjectMixin):
+class BaseWorker(CachedObjectMixin, InstrumentedObject):
     """Base class for all workers, provides common utility functions.
 
         A worker generally is started by one of the controllers and runs until the controller
@@ -70,69 +70,34 @@ class BaseWorker(CachedObjectMixin):
                  _halt_flag: HaltFlag,
                  _end_flag: HaltFlag,
                  _config: dict = None):
-        super().__init__()
-        self._server_name = _server_name
+        super().__init__(
+            log_name=f"cnodc.worker.{process_name.lower()}",
+            subsystem=process_name.lower(),
+            server_name=_server_name,
+            process_id=_process_uuid,
+            process_name=process_name,
+            process_version=process_version,
+        )
         self._halt_flag = _halt_flag
         self._end_flag = _end_flag
-        self._process_uuid = _process_uuid
-        self._process_name = process_name
-        self._process_version = process_version
         self._config = _config or {}
         self._cycle_config = {}
         self._defaults = {
             'save_file': None,
             'max_check_delay_seconds': 1,
         }
-        self._log: ImprovedLogger = zrlog.get_logger(f"cnodc.worker.{process_name.lower()}")
-        zrlog.set_extras({
-            'process_uuid': self._process_uuid,
-            'process_name': self._process_name,
-            'process_version': self._process_version,
-        })
         self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
         self._save_data: t.Optional[SaveData] = None
         self._hook_cache = {}
         self._events: list[str] = ['on_start', 'before_cycle', 'after_cycle', 'on_exit']
-        self._metrics = {}
         self._last_run_gauge = None
         self._run_time_histogram = None
-        self._process = psutil.Process()
-        self._status_info: dict[str, str | int | float] = {
-            'activity': '',
-            'status': 'initializing',
-            'memory': '',
-        }
-        self._no_report = False
 
     def add_events(self, events: list[str]):
         self._events.extend(events)
 
-    @property
-    def process_name(self):
-        return self._process_name
-
-    @property
-    def process_uuid(self):
-        return self._process_uuid
-
-    @property
-    def process_version(self):
-        return self._process_version
-
     def possible_events(self) -> list[str]:
         return self._events
-
-    def create_counter(self, name: str, description: str = "", labels: list[str] | tuple | None = None) -> mum.Counter:
-        key = f"counter_{name}"
-        if key not in self._metrics:
-            self._metrics[key] = mum.Counter(name=name, namespace="pipeman", subsystem=self._process_name, documentation=description, labelnames=labels or tuple())
-        return self._metrics[key]
-
-    def count(self, name, *args, **kwargs):
-        if args or kwargs:
-            self.create_counter(name).labels(*args, **kwargs).inc()
-        else:
-            self.create_counter(name).inc()
 
     def run_hook(self, hook_name, **kwargs):
         self._log.debug('Hook [%s] fired', hook_name)
@@ -223,18 +188,14 @@ class BaseWorker(CachedObjectMixin):
         """Set the default values for the configuration settings."""
         self._defaults.update(values)
 
-    @property
-    def process_id(self):
-        return f"{self.process_name}:{self.process_version}:{self.process_uuid}"
-
     def run(self) -> None:
         """Run the worker process with appropriate error handling."""
         exc = None
         try:
             self.report(status='booting', activity='', _resource_update=True)
-            self._log.debug('Starting process %s', self.process_id)
+            self._log.debug('Starting process %s', self.process_full_id)
             self.on_start()
-            self._log.debug(f'Process %s is running', self.process_id)
+            self._log.debug(f'Process %s is running', self.process_full_id)
             self.report(status='running', activity='', _resource_update=True)
             self._run()
             self.report(status='shutdown', activity='cleaning up')
@@ -247,9 +208,9 @@ class BaseWorker(CachedObjectMixin):
             self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
             self.report(status='errored', activity='cleaning up', _resource_update=True)
         finally:
-            self._log.debug(f'Cleaning up %s', self.process_id)
+            self._log.debug(f'Cleaning up %s', self.process_full_id)
             self.on_exit(exc)
-            self._log.debug(f'Process %s complete', self.process_id)
+            self._log.debug(f'Process %s complete', self.process_full_id)
             self._status_info['status'] += '-complete'
             self.report(_end=True, activity='', _resource_update=True)
 
@@ -276,45 +237,10 @@ class BaseWorker(CachedObjectMixin):
         """Override this method  to process items."""
         raise NotImplementedError
 
-    def _resource_report(self):
-        with self._process.oneshot():
-            try:
-                cpu_times = self._process.cpu_times()
-                self._status_info['cpu_percent'] = self._process.cpu_percent()
-                self._status_info['cpu_user'] = cpu_times.user
-                self._status_info['cpu_system'] = cpu_times.system
-                if hasattr(cpu_times, 'iowait'):
-                    self._status_info['cpu_iowait'] = cpu_times.iowait
-
-                mem_info = self._process.memory_full_info()
-                self._status_info['memory_total'] = mem_info.uss
-
-            except (NoSuchProcess, AccessDenied):
-                ...
-
-    def report(self, _end: bool = False, _resource_update: bool = False, **kwargs):
-        self._status_info.update(kwargs)
-        if _resource_update:
-            self._resource_report()
-        if not self._no_report:
-            try:
-                with self.nodb as db:
-                    db.upsert_process_info(
-                        self._server_name,
-                        self._process_uuid,
-                        self._process_name,
-                        self._process_version,
-                        self._status_info
-                    )
-                    if _end:
-                        db.clear_process_info(self._server_name, self._process_uuid)
-            except CodedError:
-                self._log.exception(f"Exception during reporting, ignoring and moving on")
-
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""
-        self._last_run_gauge = Gauge(name="last_run", documentation="When did the last execution finish?", unit="timestamp_seconds", namespace="pipeman", subsystem=self.process_id.replace(":", "_"), multiprocess_mode="livemostrecent")
-        self._run_time_histogram = Histogram(name="run_time", documentation="How long did the execution take to finish", unit="seconds", namespace="pipeman", subsystem=self.process_id.replace(":", "_"))
+        self._last_run_gauge = Gauge(name="last_run", documentation="When did the last execution finish?", unit="timestamp_seconds", namespace="pipeman", subsystem=self.process_full_id.replace(":", "_"), multiprocess_mode="livemostrecent")
+        self._run_time_histogram = Histogram(name="run_time", documentation="How long did the execution take to finish", unit="seconds", namespace="pipeman", subsystem=self.process_full_id.replace(":", "_"))
         self.run_hook('on_start')
 
     def on_exit(self, exception: Exception = None):

@@ -233,8 +233,8 @@ class QueueWorker(BaseWorker):
         self._status_info['queue_name'] = self._queue_name
         self._current_delay_time = self.get_config("delay_time_seconds", 0.25)
         self._app_id = str(uuid.uuid4())
-        self.create_counter("queue_items_total", description="Queue items processed", labels=("result", "queue_name"))
-        self.create_counter("queue_fetch_errors_total", description="Queue items processed", labels=("queue_name", ))
+        self.counter("queue_items_total", description="Queue items processed", labels=("result", "queue_name"))
+        self.counter("queue_fetch_errors_total", description="Queue items processed", labels=("queue_name",))
         super().on_start()
 
     def _delay_time(self) -> float:

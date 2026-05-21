@@ -9,6 +9,7 @@ from types import EllipsisType
 from autoinject import injector
 
 import nodb as nodb_
+from medsutil.cached import CachedObjectMixin
 from nodb import NODBWorkingRecord, NODBQueueItem
 from medsutil.storage import StorageController, FilePath
 
@@ -17,8 +18,12 @@ from medsutil.halts import HaltFlag, ungzip_with_halt
 from medsutil.awaretime import AwareDateTime
 from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_dict
 
+if t.TYPE_CHECKING:
+    from pipeman.processing.workflow import WorkflowController
 
-class Payload(DataDictObject):
+
+
+class Payload(CachedObjectMixin, DataDictObject):
 
     metadata: dict = p_dict()
     worker_config: dict = p_dict()
@@ -180,10 +185,14 @@ class WorkflowPayload(Payload):
 
     def load_workflow(self,
                       db: nodb_.NODBInstance,
-                      halt_flag: HaltFlag = None):
+                      halt_flag: HaltFlag = None,
+                      **kwargs) -> WorkflowController:
         """Find the workflow associated with this payload and load the controller for it."""
+        return self._with_cache('workflow', self._load_workflow, db=db, halt_flag=halt_flag, **kwargs)
+
+    def _load_workflow(self, db: nodb_.NODBInstance, halt_flag: HaltFlag, **kwargs) -> WorkflowController:
         from pipeman.processing.workflow import WorkflowController
-        workflow_config = nodb_.NODBUploadWorkflow.find_by_name(db, self.workflow_name)
+        workflow_config = nodb_.NODBUploadWorkflow.find_by_name(db, self.workflow_name, **kwargs)
         if workflow_config is None:
             raise CNODCError(f'Invalid workflow name: [{self.workflow_name}]', is_transient=True)
         return WorkflowController(
@@ -248,10 +257,14 @@ class SourceFilePayload(WorkflowPayload):
 
     def load_source_file(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBSourceFile:
         """Load the referenced source file from the database."""
+        return self._with_cache('source_file', self._load_source_file, db=db, **kwargs)
+
+    def _load_source_file(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBSourceFile:
         source_file = nodb_.NODBSourceFile.find_by_uuid(
             db=db,
             source_uuid=self.source_uuid,
-            received_date=self.received_date, **kwargs
+            received_date=self.received_date,
+            **kwargs
         )
         if source_file is None:
             raise CNODCError('Invalid payload, no such UUID', 'PAYLOAD', 1012, is_transient=False)
@@ -280,6 +293,9 @@ class BatchPayload(WorkflowPayload):
         return f'<BatchPayload:{self.batch_uuid}:{self.workflow_name}:{self.current_step}>'
 
     def load_batch(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBBatch:
+        return self._load_batch('batch', db=db, **kwargs)
+
+    def _load_batch(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBBatch:
         """Load the referenced batch from the database."""
         batch = nodb_.NODBBatch.find_by_uuid(
             db=db,
@@ -288,6 +304,7 @@ class BatchPayload(WorkflowPayload):
         if batch is None:
             raise CNODCError('Invalid batch, no such UUID', 'PAYLOAD', 1013)
         return batch
+
     @staticmethod
     def from_batch(batch: nodb_.NODBBatch, **kwargs):
         """Build a payload from a batch object"""
@@ -302,7 +319,10 @@ class WorkingRecordPayload(WorkflowPayload):
     def __str__(self):  # pragma: no coverage (debugging only)
         return f'<WorkingRecordPayload:{self.working_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
 
-    def load_working_record(self, db, **kwargs) -> nodb_.NODBWorkingRecord:
+    def load_working_record(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBWorkingRecord:
+        return self._with_cache('working_record', self._load_working_record, db=db, **kwargs)
+
+    def _load_working_record(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBWorkingRecord:
         """Find the related observation in the database"""
         record = nodb_.NODBWorkingRecord.find_by_uuid(db, working_uuid=self.working_uuid, received_date=self.received_date, **kwargs)
         if record is None:
@@ -328,6 +348,9 @@ class ObservationPayload(WorkflowPayload):
         return f'<ObservationPayload:{self.obs_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
 
     def load_observation(self, db, **kwargs) -> nodb_.NODBObservation:
+        return self._with_cache('observation', self._load_observation, db=db, **kwargs)
+
+    def _load_observation(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBObservation:
         """Find the related observation in the database"""
         obs = nodb_.NODBObservation.find_by_uuid(db, self.obs_uuid, self.received_date, **kwargs)
         if obs is None:
@@ -335,6 +358,9 @@ class ObservationPayload(WorkflowPayload):
         return obs
 
     def load_observation_data(self, db, **kwargs) -> nodb_.NODBObservationData:
+        return self._with_cache('obs_data', self._load_observation_data, db=db, **kwargs)
+
+    def _load_observation_data(self, db, **kwargs) -> nodb_.NODBObservationData:
         """Find the related observation data in the database"""
         obs_data = nodb_.NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date, **kwargs)
         if obs_data is None:

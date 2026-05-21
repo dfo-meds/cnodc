@@ -94,7 +94,7 @@ class MultiprocessingQueueHandler(QueueHandler):
 
     def prepare(self, record):
         r = super().prepare(record)
-        r.process_id = os.getpid()
+        r.process_full_id = os.getpid()
         for x in dir(record):
             if x.startswith('_'):
                 continue

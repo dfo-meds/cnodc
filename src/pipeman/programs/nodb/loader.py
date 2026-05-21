@@ -43,9 +43,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def on_start(self):
         e = self.error_directory
-        self.create_counter("files_processed_total", description="Total number of new files processed", labels=("outcome",))
-        self.create_counter("messages_processed_total", description="Total number of messages processed", labels=("outcome",))
-        self.create_counter("records_loaded_total", description="Total number of records loaded", labels=("outcome",))
+        self.counter("files_processed_total", description="Total number of new files processed", labels=("outcome",))
+        self.counter("messages_processed_total", description="Total number of messages processed", labels=("outcome",))
+        self.counter("records_loaded_total", description="Total number of records loaded", labels=("outcome",))
         super().on_start()
 
     @property
