@@ -38,15 +38,22 @@ def shutdown(config: zr.ApplicationConfig = None):
 
 
 @service.command()
-def health_check(config: zr.ApplicationConfig = None):
-    from medsutil.servicecmd import send_command
-    socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
-    res = send_command(socket_port, b'health')
-    exit(0 if res == b'0' else 1)
+@click.option('--silent', default=False, is_flag=True)
+def health_check(silent: bool = False, config: zr.ApplicationConfig = None):
+    try:
+        from medsutil.servicecmd import send_command
+        socket_port: int = config.as_int(("pipeman", "service", "port"), default=9173),
+        res = send_command(socket_port, b'health')
+        exit(0 if res == b'0' else 1)
+    except Exception as ex:
+        if not silent:
+            import traceback
+            traceback.print_exc()
+        exit(1)
 
 
 @service.command()
-@click.option('--no-prompt', default=False)
+@click.option('--no-prompt', default=False, is_flag=True)
 def interrupt(no_prompt: bool, config: zr.ApplicationConfig = None):
     from medsutil.servicecmd import send_command
     if not no_prompt:
@@ -59,7 +66,7 @@ def interrupt(no_prompt: bool, config: zr.ApplicationConfig = None):
 
 
 @service.command()
-@click.option('--no-prompt', default=False)
+@click.option('--no-prompt', default=False, is_flag=True)
 def kill(no_prompt: bool, config: zr.ApplicationConfig = None):
     from medsutil.servicecmd import send_command
     if not no_prompt:
