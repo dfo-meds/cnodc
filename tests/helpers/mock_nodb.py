@@ -10,6 +10,16 @@ from medsutil.sanitize import coerce
 from nodb.base import NODBBaseObject
 
 
+class PreparedInsert:
+    def __init__(self, db):
+        self.db = db
+
+    def insert(self, obj: interface.NODBObject):
+        return self.db.insert_object(obj)
+
+    def __enter__(self): ...
+    def __exit__(self, exc_type, exc_val, exc_tb): ...
+
 class DatabaseMock:
 
     def __init__(self):
@@ -167,6 +177,9 @@ class DatabaseMock:
         self._scanned_files.clear()
         self._process_info.clear()
         self._lookups.clear()
+
+    def prepared_insert(self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]):
+        return PreparedInsert(self)
 
     def table[T](self, table_name: type[T] | str) -> list[T]:
         tn = table_name.get_table_name() if not isinstance(table_name, str) else table_name
