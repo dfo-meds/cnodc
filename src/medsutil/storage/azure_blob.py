@@ -229,7 +229,7 @@ class AzureBlobHandle(AzureBaseHandle):
             yield from self._halt_flag.iterate(stream.chunks())
 
     def _fast_blob_upload(self, client: BlobClient, chunk: bytes, metadata: dict[str, str]) -> dict:
-        return client.upload_blob(chunk, length=len(chunk), metadata=metadata)
+        return client.upload_blob(chunk, length=len(chunk), metadata=metadata, overwrite=True)
 
     @staticmethod
     def _blob_streaming_upload(client: BlobClient, chunk: bytes, offset: int) -> BlobBlock:
