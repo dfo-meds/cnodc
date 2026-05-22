@@ -256,6 +256,13 @@ class NODBObject(t.Protocol):
 ConcreteNODBObject = t.TypeVar("ConcreteNODBObject", bound=NODBObject)
 NODBObjectType = type[ConcreteNODBObject]
 
+
+class PreparedStatementProtocol(t.Protocol):
+    def execute(self, nodb_object: NODBObject): ...
+    def __enter__(self): ...
+    def __exit__(self, exc_type, exc_val, exc_tb): ...
+
+
 class NODBInstance(t.Protocol):
 
     @contextmanager
@@ -278,6 +285,8 @@ class NODBInstance(t.Protocol):
                             process_name: str,
                             process_version: str,
                             info: dict[str, t.Any]): ...
+
+    def prepared_insert(self, object_type: NODBObjectType, name: str, data_map: dict[str, str]) -> PreparedStatementProtocol: ...
 
     def rows(self, table_name: DatabaseIdentifier) -> int: ...
 

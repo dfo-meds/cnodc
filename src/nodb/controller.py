@@ -51,6 +51,78 @@ class _SqlQueryStringifier:
         return self._cursor.mogrify(query, self._args).decode('utf-8')
 
 
+class PreparedStatement:
+
+    def __init__(self,
+                 db: PostgresController,
+                 object_type: interface.NODBObjectType,
+                 data_map: dict[str, str],
+                 name: str):
+        self.db = db
+        self.object_type = object_type
+        self.name = name
+        self.data_map = data_map
+        self.data_map_columns = [*self.data_map.keys()]
+        self._execute_statement = None
+        self._cursor = None
+
+    def __enter__(self):
+        self._cursor = self.db.raw_cursor()
+        self._cursor.__enter__()
+        self._make_prepared_statement()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._deallocate_prepared_statement()
+        self._cursor.__exit__(exc_type, exc_val, exc_tb)
+        self._cursor = None
+
+    @wrap_nodb_exceptions
+    def execute(self, obj: interface.NODBObject):
+        self._cursor.execute(self._execute_statement, [
+            obj.get_for_db(x) for x in self.data_map_columns
+        ])
+
+    @wrap_nodb_exceptions
+    def _make_prepared_statement(self):
+        prepared = f"PREPARE {self.name} ({','.join(self.data_map[x] for x in self.data_map_columns)}) AS "
+        prepared += self._build_prepared_statement()
+        self._cursor.execute(prepared)
+        self._execute_statement = f"EXECUTE {self.name}({','.join('%s' for _ in self.data_map_columns)})"
+
+    def _build_prepared_statement(self):
+        raise NotImplementedError
+
+    @wrap_nodb_exceptions
+    def _deallocate_prepared_statement(self):
+        self._execute_statement = None
+        self._cursor.execute(f"DEALLOCATE {self.name}")
+
+class PreparedInsert(PreparedStatement):
+
+    @wrap_nodb_exceptions
+    def _build_prepared_statement(self):
+        prepared = f"INSERT INTO {self.object_type.get_table_name()} ("
+        prepared += ",".join(self.data_map_columns)
+        prepared += ") VALUES ("
+        prepared += ",".join(f"${n}" for n in range(1, len(self.data_map_columns) + 1))
+        prepared += ")"
+        return prepared
+
+
+class PreparedSelect(PreparedStatement):
+
+    @wrap_nodb_exceptions
+    def _build_prepared_statement(self):
+        prepared = f"INSERT INTO {self.object_type.get_table_name()} ("
+        prepared += ",".join(self.data_map_columns)
+        prepared += ") VALUES ("
+        prepared += ",".join(f"${n}" for n in range(1, len(self.data_map_columns) + 1))
+        prepared += ")"
+        return prepared
+
+
+
 class _PGCursor(interface.NODBCursor):
     """Cursor class for postgresql."""
 
@@ -59,7 +131,12 @@ class _PGCursor(interface.NODBCursor):
         self._conn = pg_conn
         self._log = zrlog.get_logger("cnodc.nodb")
 
-    @wrap_nodb_exceptions
+    def __enter__(self):
+        self._cursor.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cursor.__exit__(exc_type, exc_val, exc_tb)
+
     def execute(self, query: str | pgs.Composable, args=None):
         """Execute a query against the database."""
         if _DEBUG_SQL_CALLS:
@@ -136,6 +213,9 @@ class PostgresController(interface.NODBInstance):
         self._max_in_size = 32767
         self._stable_sort_columns = False
 
+    def raw_cursor(self) -> _PGCursor:
+        return self._cur_cls(self._conn.cursor(), self._conn)
+
     @contextlib.contextmanager
     def cursor(self) -> t.Generator[_PGCursor, t.Any, None]:
         """Get a cursor and close it when done."""
@@ -158,6 +238,9 @@ class PostgresController(interface.NODBInstance):
     def close(self):
         """Close the connection"""
         pass
+
+    def prepared_insert(self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]):
+        return PreparedInsert(db=self, object_type=object_type, data_map=data_map, name=name)
 
     def create_savepoint(self, name):
         """Create a savepoint"""
