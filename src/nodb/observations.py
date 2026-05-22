@@ -531,6 +531,19 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         }, **kwargs)
 
     @classmethod
+    def find_all_by_source_file_raw(cls,
+                            db: interface.NODBInstance,
+                            source_file_uuid: str,
+                            source_received_date: ct.AcceptAsDateTime,
+                            **kwargs) -> t.Iterable[dict]:
+        """Locate a record by information about it in the source file."""
+        filters = {
+            "received_date": coerce.as_date(source_received_date),
+            "source_file_uuid": source_file_uuid,
+        }
+        return db.stream_raw(cls, filters, **kwargs)
+
+    @classmethod
     def find_by_source_info(cls,
                             db: interface.NODBInstance,
                             source_file_uuid: str,
