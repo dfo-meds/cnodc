@@ -572,19 +572,21 @@ class PostgresController(interface.NODBInstance):
                           priority: t.Optional[int] = None,
                           unique_item_name: t.Optional[str] = None,
                           subqueue_name: t.Optional[str] = None,
-                          correlation_id: t.Optional[str] = None) -> str:
+                          correlation_id: t.Optional[str] = None,
+                          tag: t.Optional[str] = None) -> str:
         correlation_id = correlation_id or str(uuid.uuid4())
         """Create a new queue item."""
         with self.cursor() as cur:
             cur.execute("""
-                INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id) 
-                    VALUES (%s, %s, %s, %s, %s, %s)""", [
+                INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id, tag) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)""", [
                 queue_name,
                 subqueue_name or None,
                 priority if priority is not None else 0,
                 unique_item_name or None,
                 json.dumps(data),
-                correlation_id
+                correlation_id,
+                tag
             ])
         return t.cast(str, correlation_id)
 

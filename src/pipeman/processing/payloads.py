@@ -33,12 +33,18 @@ class Payload(CachedObjectMixin, DataDictObject):
                  priority: t.Optional[int] = None,
                  correlation_id: t.Optional[str] = None,
                  subqueue_name: t.Optional[str] = None,
+                 tag: t.Optional[str] = None,
                  **kwargs):
         super().__init__(**kwargs)
         self._priority = priority or 0
         self._subqueue_name = subqueue_name or None
         self._deduplicate_key = deduplicate_key or None
         self._correlation_id = correlation_id or None
+        self._tag = tag or None
+
+    @property
+    def tag(self) -> str | None:
+        return self._tag
 
     def set_metadata(self, key, value):
         """Set a metadata property (or delete it if the value is None)"""
@@ -113,7 +119,8 @@ class Payload(CachedObjectMixin, DataDictObject):
             priority=override_priority or self.priority,
             subqueue_name=self.subqueue_name,
             unique_item_name=self.deduplicate_key,
-            correlation_id=self.correlation_id
+            correlation_id=self.correlation_id,
+            tag=self.tag
         )
 
     def to_queue_item(self, queue_name: str) -> NODBQueueItem:
@@ -124,6 +131,7 @@ class Payload(CachedObjectMixin, DataDictObject):
         qi.subqueue_name = self.subqueue_name
         qi.unique_item_name = self.deduplicate_key
         qi.correlation_id = self.correlation_id or ''
+        qi.tag = self.tag
         return qi
 
     def clone(self):
@@ -136,6 +144,7 @@ class Payload(CachedObjectMixin, DataDictObject):
             if key not in self.metadata:
                 self.metadata[key] = copy.deepcopy(payload.metadata[key])
         self.correlation_id = payload.correlation_id
+        self._tag = payload.tag
 
     @staticmethod
     @injector.inject
@@ -173,6 +182,7 @@ class Payload(CachedObjectMixin, DataDictObject):
         payload.priority = queue_item.priority
         payload.deduplicate_key = queue_item.unique_item_name
         payload.subqueue_name = queue_item.subqueue_name
+        payload._tag = queue_item.tag
         return payload
 
 
@@ -182,6 +192,10 @@ class WorkflowPayload(Payload):
     workflow_name: str = p_str()
     current_step: str = p_str()
     current_step_done: bool = p_bool(default=False)
+
+    @property
+    def tag(self) -> str | None:
+        return self.workflow_name
 
     def load_workflow(self,
                       db: nodb_.NODBInstance,
@@ -384,6 +398,10 @@ class NewFilePayload(Payload):
     modified_time: AwareDateTime | None = p_awaretime()
     workflow_name: str = p_str()
     remove_when_complete: bool = p_bool(default=False)
+
+    @property
+    def tag(self) -> str | None:
+        return self.workflow_name
 
     def download(self, target_dir: pathlib.Path, halt_flag: t.Optional[HaltFlag] = None) -> pathlib.Path:
         return Payload._do_download(

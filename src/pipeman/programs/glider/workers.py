@@ -124,7 +124,9 @@ class GliderConversionWorker(PayloadWorker):
             self.db.create_queue_item(
                 queue_name=metadata_queue,
                 data=dmd_metadata.build_request_body(),
-                unique_item_name=mission_id
+                unique_item_name=mission_id,
+                tag=payload.tag,
+                correlation_id=payload.correlation_id,
             )
         else:
             self._log.warning("No metadata queue configured!")

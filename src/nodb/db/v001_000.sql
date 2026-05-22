@@ -435,6 +435,7 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     locked_by           VARCHAR(126)                DEFAULT NULL,
     locked_since        TIMESTAMPTZ                 DEFAULT NULL,
     delay_release       TIMESTAMPTZ                 DEFAULT NULL,
+    tag                 VARCHAR(126)                DEFAULT NULL,
 
     escalation_level    INTEGER         NOT NULL    DEFAULT 0,
     queue_name          VARCHAR(126)    NOT NULL,

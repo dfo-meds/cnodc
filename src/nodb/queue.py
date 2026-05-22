@@ -37,6 +37,7 @@ class NODBQueueItem(s.NODBBaseObject):
     priority: int = s.IntColumn(readonly=True, default=0)
     correlation_id: str = s.UUIDColumn()
     data: dict = s.JsonDictColumn()
+    tag: str | None = s.StringColumn()
 
     def get_worker_config(self, process_name: str, process_version: str) -> dict[str, t.Any]:
         worker_config = {}
