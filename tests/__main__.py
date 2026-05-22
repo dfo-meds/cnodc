@@ -21,16 +21,18 @@ def run_tests(argv: list,
         import cProfile
         import pstats
         profile = cProfile.Profile()
-        with profile as pr:
+        with profile:
             run_tests(argv, False, False, **kwargs)
-            pr.dump_stats(TEST_DIR.parent / ".profile.dat")
-            stats = pstats.Stats(pr)
-            stats.sort_stats('time')
-            stats.print_stats(25)
-            with open(TEST_DIR.parent / ".profile_results.txt", "w") as f:
-                stats2 = pstats.Stats(pr, stream=f)
-                stats2.sort_stats('time')
-                stats2.print_stats()
+        profile.dump_stats(TEST_DIR.parent / ".profile.dat")
+        stats = pstats.Stats(profile)
+        stats.sort_stats('time')
+        stats.print_stats(50)
+        with open(TEST_DIR.parent / ".profile_results.txt", "w") as f:
+            stats2 = pstats.Stats(profile, stream=f)
+            stats2.sort_stats('cumtime')
+            stats2.print_stats()
+            stats2.sort_stats('cumtime')
+            stats2.print_callers()
 
 
 
@@ -39,7 +41,8 @@ def run_tests(argv: list,
         init_for_tests(**kwargs)
         unittest.main(
             module=None,
-            argv=new_argv
+            argv=new_argv,
+            exit=False
         )
 
 
