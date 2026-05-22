@@ -11,58 +11,8 @@ from medsutil.storage import StorageController, FilePath, StorageTier
 from pipeman.processing.payloads import SourceFilePayload, Payload, FilePayload
 from pipeman.programs.glider.ego_convert import OpenGliderConverter
 
-
 def add_glider_mission_platform_info(worker: NODBDecodeLoadWorker, record: ParentRecord, **kwargs):
-    memory: dict[str, t.Any] = worker.memory or {}
-    db = worker.db
-    if 'platform_map' not in memory:
-        memory['platform_map'] = {}
-    if 'mission_map' not in memory:
-        memory['mission_map'] = {}
-    if record.metadata.has_value('WMOID'):
-        wmoid = record.metadata['WMOID'].to_string()
-        if  wmoid in memory['platform_map']:
-            record.metadata['CNODCPlatform'] = memory['platform_map'][wmoid]
-        else:
-            platforms = [x for x in nodb.NODBPlatform.search(
-                db=db,
-                wmo_id=wmoid,
-                in_service_time=record.coordinates['Time'].to_datetime() if 'Time' in record.coordinates else None
-            )]
-            if platforms:
-                record.metadata['CNODCPlatform'] = platforms[0].platform_uuid
-                memory['platform_map'][wmoid] = platforms[0].platform_uuid
-            else:
-                platform = nodb.NODBPlatform()
-                platform.platform_type = 'glider'
-                platform.platform_uuid = str(uuid.uuid4())
-                platform.wmo_id = wmoid
-                if record.metadata.has_value('PlatformName'):
-                    platform.platform_name = record.metadata['PlatformName'].to_string()
-                if record.metadata.has_value('PlatformID'):
-                    platform.platform_id = record.metadata['PlatformID'].to_string()
-                db.insert_object(platform)
-                memory['platform_map'][wmoid] = platform.platform_uuid
-                record.metadata['CNODCPlatform'] = platform.platform_uuid
-    if record.metadata.has_value('CruiseID'):
-        cruise_id = record.metadata['CruiseID'].to_string()
-        if cruise_id in memory['mission_map']:
-            record.metadata['CNODCMission'] = memory['mission_map'][cruise_id]
-        else:
-            missions = [x for x in nodb.NODBMission.search(
-                db=db,
-                mission_id=cruise_id,
-            )]
-            if missions:
-                record.metadata['CNODCMission'] = missions[0].mission_uuid
-                memory['mission_map'][cruise_id] = missions[0].mission_uuid
-            else:
-                mission = nodb.NODBMission()
-                mission.mission_id = cruise_id
-                mission.mission_uuid = str(uuid.uuid4())
-                db.insert_object(mission)
-                memory['mission_map'][cruise_id] = mission.mission_uuid
-                record.metadata['CNODCMission'] = mission.mission_uuid
+    ...
 
 class GliderConversionWorker(PayloadWorker):
 

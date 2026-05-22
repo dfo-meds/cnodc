@@ -116,15 +116,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         was_single_file = False
 
         # Decode each entry and save them
-        with open(temp_file, "rb") as h:
-            for result in self._decode_records(h):
-                success, skipped, had_error = self._create_nodb_record_from_result(source_file, result)
-                total_created += success
-                total_skipped += skipped
-                had_any_errors = had_any_errors or had_error
-                was_single_file = result.single_message or not result.original
-                if had_any_errors and was_single_file:
-                    break
+        with NODBRecordManager(self._db) as rm:
+            with open(temp_file, "rb") as h:
+                for result in self._decode_records(h):
+                    success, skipped, had_error = self._create_nodb_record_from_result(rm, source_file, result)
+                    total_created += success
+                    total_skipped += skipped
+                    had_any_errors = had_any_errors or had_error
+                    was_single_file = result.single_message or not result.original
+                    if had_any_errors and was_single_file:
+                        break
 
         self._log.info(f"{total_created} records created, {total_skipped} skipped")
 
@@ -174,6 +175,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             raise CNODCError('invalid payload type', 'NODB-LOAD', 2000)
 
     def _create_nodb_record_from_result(self,
+                                        rm: NODBRecordManager,
                                         source_file: nodb.NODBSourceFile,
                                         result: DecodeResult) -> tuple[int, int, bool]:
         success = 0
@@ -186,7 +188,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             try:
                 for record_idx, record in enumerate(result.records):
                     self.before_record(source_file, record)
-                    record_result = self._create_nodb_record(source_file, result.message_idx, record_idx, record, make_completed_records)
+                    record_result = self._create_nodb_record(rm, source_file, result.message_idx, record_idx, record, make_completed_records)
                     if record_result:
                         success += 1
                     else:
@@ -227,6 +229,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         return success, skipped, had_error
 
     def _create_nodb_record(self,
+                            rm: NODBRecordManager,
                             source_file: nodb.NODBSourceFile,
                             message_idx: int,
                             record_idx: int,
@@ -234,17 +237,14 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             make_completed_records):
         try:
             if make_completed_records:
-                res = self.record_manager.create_completed_entry_from_source_file(
-                    db=self.db,
+                res = rm.create_completed_entry_from_source_file(
                     record=record,
                     message_idx=message_idx,
                     record_idx=record_idx,
-                    source_file=source_file,
-                    memory=self.memory
+                    source_file=source_file
                 )
             else:
-                res = self.record_manager.create_working_entry_from_source_file(
-                    db=self.db,
+                res = rm.create_working_entry_from_source_file(
                     record=record,
                     source_file=source_file,
                     message_idx=message_idx,
