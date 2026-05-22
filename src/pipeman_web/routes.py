@@ -22,6 +22,11 @@ def status(nodb: NODBWebController = None):
     return nodb.status_report()
 
 
+@cnodc.route("/internal/workflows")
+@injector.inject
+def status(nodb: NODBWebController = None):
+    return nodb.workflow_report()
+
 @cnodc.route("/public/api/login", methods=["POST"])
 @require_inputs(["username", "password"])
 @injector.inject

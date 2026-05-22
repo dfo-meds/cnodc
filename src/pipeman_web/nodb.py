@@ -107,6 +107,29 @@ class NODBWebController:
             report.append(f'Temp Total Space: {d['temp_total'] / 1024 / 1024:.2f} MiB')
         return '<br />'.join(report)
 
+    def workflow_report(self):
+        s = "<html><head></head><body>"
+        status_order = ('UNLOCKED', 'LOCKED', 'COMPLETE', 'DELAYED_RELEASE', 'ERROR')
+        with self.nodb as db:
+            for workflow in NODBUploadWorkflow.find_all(db):
+                queue_info = db.fetch_queue_summary(workflow.workflow_name)
+                s += f'<h2>{workflow.workflow_name}</h2>'
+                s += '<table><thead><tr><th>Step Name</th><th>Unlocked</th><th>Locked</th><th>Complete</th><th>Pending Release</th><th>Errored</th></thead><tbody>'
+                for step_name in workflow.configuration.ordered_steps():
+                    step_info = workflow.configuration.steps[step_name]
+                    s += f'<tr><th>{step_name}</th>'
+                    for stat in status_order:
+                        s += '<td>'
+                        if step_info.name in queue_info and stat in queue_info[step_info.name]:
+                            s += str(queue_info[step_info.name][stat])
+                        else:
+                            s += "0"
+                        s += '</td>'
+                    s += '</tr>'
+                s += '</tbody></table>'
+        s += "</body></html>"
+        return s
+
     def status_report(self):
         map_: list[tuple[str, str | t.Callable[[dict[str, t.Any]], str]]] = [
             ('Process ID', 'process_id'),
@@ -166,10 +189,7 @@ class NODBWebController:
                     else:
                         s += '<td>0</td>'
                 s += '</tr>'
-            s += '</tbody></table><h2>Workflows</h2><table><thead><tr><th>Workflow Name</th></tr></thead><tbody>'
-            for workflow in NODBUploadWorkflow.find_all(db):
-                s += f'<tr><td>{workflow.workflow_name}</td></tr>'
-            s += '</tbody></table>'
+            s += '</tbody></table><h2>Workflows</h2><table><thead><tr><th>Workflow Name</th></tr>'
 
         s += '</body></html>'
         return s

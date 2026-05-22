@@ -326,11 +326,13 @@ class DatabaseMock:
         else:
             return test_value == filter_info
 
-    def fetch_queue_summary(self) -> dict[str, dict[str, int]]:
+    def fetch_queue_summary(self, tag_name: str | None = None) -> dict[str, dict[str, int]]:
         report = {}
         if NODBQueueItem.TABLE_NAME in self.tables:
             for item in self.tables[NODBQueueItem.TABLE_NAME]:
                 item: NODBQueueItem = item
+                if tag_name and item.tag != tag_name:
+                    continue
                 if item.queue_name not in report:
                     report[item.queue_name] = {}
                 if item.status.value not in report[item.queue_name]:

@@ -489,10 +489,13 @@ class PostgresController(interface.NODBInstance):
             return dt
 
     @wrap_nodb_exceptions
-    def fetch_queue_summary(self) -> dict[str, dict[str, int]]:
+    def fetch_queue_summary(self, tag_name: str | None = None) -> dict[str, dict[str, int]]:
         res = {}
         with self.cursor() as cur:
-            cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status")
+            if tag_name:
+                cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status WHERE tag = %s", [tag_name])
+            else:
+                cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status")
             for row in cur.fetch_stream(25):
                 if row[1] not in res:
                     res[row[1]] = {}
