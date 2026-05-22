@@ -183,11 +183,12 @@ class DataDictObject(object):
         if managed_name in self._data:
             del self._data[managed_name]
 
-    @resolve_delayed
     def set_data(self, value: t.Any, *, managed_prop: _ManagedNameProperty, coerce_set: t.Callable = None, readonly: bool = False, validators: list[t.Callable] | None = None, as_default: bool = False):
         managed_name = managed_prop.managed_name
         if readonly and not self._allow_readonly_access:
             raise AttributeError(f"{managed_name} is read-only")
+        if as_default and isinstance(value, _DelayedDefaultValue):
+            value = value()
         if value is not None and coerce_set is not None:
             value = coerce_set(value)
         if value is not None and validators:
