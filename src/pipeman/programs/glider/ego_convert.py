@@ -169,7 +169,7 @@ class OpenGliderConverter:
                  original_nc: nc.Dataset,
                  file_name: str,
                  autopublish: bool = False,
-                 gzip_erddap: bool = True) -> tuple[str, str, metadata.DatasetMetadata]:
+                 gzip_erddap: bool = True) -> tuple[str, metadata.DatasetMetadata]:
         dmd = metadata.DatasetMetadata()
         dmd.set_meds_defaults()
         if autopublish:
@@ -203,7 +203,7 @@ class OpenGliderConverter:
         self._build_additional_metadata(dmd, mission_id, file_name, gzip_erddap)
         md_mission.platforms.append(md_platform)
         dmd.missions.append(md_mission)
-        return file_name, mission_id, dmd
+        return mission_id, dmd
 
     def _build_initial_mission(self, mission_id: str):
         return metadata.Mission(

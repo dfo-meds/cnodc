@@ -115,7 +115,7 @@ class GliderConversionWorker(PayloadWorker):
 
         self._log.debug(f"Converting file and building metadata")
         new_file = self.temp_dir() / "openglider.nc"
-        file_name, mission_id, dmd_metadata = self._converter.convert(
+        mission_id, dmd_metadata = self._converter.convert(
             ego_file=local_file,
             og_file=new_file,
             file_name=filename,
