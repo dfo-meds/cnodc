@@ -23,6 +23,19 @@ import medsutil.json as json
 import medsutil.types as ct
 from medsutil.awaretime import AwareDateTime
 
+_DEBUG_SQL_CALLS = False
+
+if _DEBUG_SQL_CALLS:
+    # This gives me some additional insight into the timing of SQL
+    # Eventually I should make this a metric for key queries
+    import time
+    import atexit
+    log: dict[str, list[int | float]] = {}
+    def print_log():
+        for k, v in log.items():
+            print(f"{k}: {v[0]} [{v[1] / v[0]:.3f}] [{v[1]:.3f}]")
+    atexit.register(print_log)
+
 
 class _SqlQueryStringifier:
     def __init__(self, cursor, q: str | pgs.Composable, args):
@@ -49,8 +62,18 @@ class _PGCursor(interface.NODBCursor):
     @wrap_nodb_exceptions
     def execute(self, query: str | pgs.Composable, args=None):
         """Execute a query against the database."""
-        self._log.trace(f"SQL Query: [%s]", _SqlQueryStringifier(self._cursor, query, args))
-        self._cursor.execute(query, args)
+        if _DEBUG_SQL_CALLS:
+            self._log.trace(f"SQL Query: [%s]", _SqlQueryStringifier(self._cursor, query, args))
+            t_start = time.monotonic()
+            self._cursor.execute(query, args)
+            t_total = time.monotonic() - t_start
+            key = str(_SqlQueryStringifier(self._cursor, query, args)).strip()[:22]
+            if key not in log:
+                log[key] = [0, 0]
+            log[key][0] += 1
+            log[key][1] += t_total
+        else:
+            self._cursor.execute(query, args)
 
     @wrap_nodb_exceptions
     def fetchone(self):
