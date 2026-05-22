@@ -967,7 +967,7 @@ class QuickWebPage(EntityRef):
     name: LanguageDict | None = dd.p_i18n_text()
     description: LanguageDict | None = dd.p_i18n_text()
     purpose: ResourcePurpose | None = dd.p_enum(ResourcePurpose, managed_name='function')
-    url: LanguageDict | None = dd.p_i18n_text()
+    url: LanguageDict | None = dd.p_i18n_text(order=1)
     resource_type: ResourceType | None = dd.p_enum(ResourceType, managed_name='protocol')
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
@@ -1013,10 +1013,8 @@ class Resource(QuickWebPage):
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value)
-        if managed_name == 'url' and value and not self.goc_format:
+        if managed_name == 'url' and value and ('goc_formats' not in self._data or not self._data['goc_formats']):
             self._data['goc_formats'] = [self.autodetect_gc_content_format(value)]
-        if managed_name == 'goc_formats' and value and value is GCContentFormat.Auto:
-            self._data['goc_formats'] = [self.autodetect_gc_content_format(self.url)]
 
     @staticmethod
     def autodetect_gc_content_format(full_url: t.Optional[dict]) -> GCContentFormat | None:
