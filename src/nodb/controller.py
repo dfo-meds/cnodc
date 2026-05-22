@@ -494,7 +494,7 @@ class PostgresController:
         res = {}
         with self.cursor() as cur:
             if tag_name:
-                cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status WHERE tag = %s", [tag_name])
+                cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues WHERE tag = %s GROUP BY queue_name, status", [tag_name])
             else:
                 cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status")
             for row in cur.fetch_stream(25):

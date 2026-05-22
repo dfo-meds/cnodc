@@ -141,9 +141,9 @@ class NODBWebController:
             ('Start Time', lambda x: x['db_created_date'].strftime('%Y-%m-%d %H:%M:%S')),
             ('Report Time', lambda x: x['db_modified_date'].strftime('%Y-%m-%d %H:%M:%S')),
             ('CPU', lambda x: f"{x['cpu_percent']}%" if 'cpu_percent' in x else ''),
-            ('CPU Time', lambda x: f"{x['cpu_user']} s / {x['cpu_system']} s" if 'cpu_user' in x else ''),
+            ('CPU Time', lambda x: f"{x['cpu_user']} s / {x['cpu_system']} s" if 'cpu_user' in x and 'cpu_system' in x else ''),
             ('IO Wait', lambda x: f"{x['cpu_iowait']} s" if 'cpu_iowait' in x else ''),
-            ('Memory', lambda x: f"{x['memory_total'] / 1024 / 1024:.2f} MiB"),
+            ('Memory', lambda x: f"{x['memory_total'] / 1024 / 1024:.2f} MiB" if 'memory_total' in x else ''),
             ('Notes', self._build_notes)
         ]
         s = """<html><head><style>
