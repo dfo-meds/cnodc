@@ -1852,7 +1852,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             name=file_name,
             goc_languages=GCLanguage.Bilingual,
             goc_content_type=GCContentType.Dataset,
-            goc_format=[GCContentFormat.DataNetCDF],
+            goc_formats=[GCContentFormat.DataNetCDF],
             purpose=ResourcePurpose.FileAccess,
             resource_type=ResourceType.File
         )
