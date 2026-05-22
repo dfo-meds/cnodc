@@ -4,7 +4,7 @@ import re
 import flask
 from autoinject import injector
 from .auth import LoginController
-from .nodb import NODBWebController
+from pipeman_web.nodb import NODBWebController
 from .util import require_login, require_inputs, require_permission, json_api
 from .uploads import UploadResult, UploadController
 
@@ -24,7 +24,7 @@ def status(nodb: NODBWebController = None):
 
 @cnodc.route("/internal/workflows")
 @injector.inject
-def status(nodb: NODBWebController = None):
+def workflow_status(nodb: NODBWebController = None):
     return nodb.workflow_report()
 
 @cnodc.route("/public/api/login", methods=["POST"])

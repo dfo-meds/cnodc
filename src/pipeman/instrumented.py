@@ -9,7 +9,7 @@ from autoinject import injector
 
 import medsutil.metrics as mum
 from medsutil.exceptions import CodedError
-from nodb import interface
+import nodb.interface as interface
 
 
 class InstrumentedObject:

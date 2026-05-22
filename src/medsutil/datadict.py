@@ -471,7 +471,12 @@ def p_json_enum_set[X](enum_type: type[X], **kwargs) -> _ExportedProperty[t.Iter
         **kwargs
     )
 
-def p_nonumpy(**kwargs) -> _SimpleProperty[ct.NumpyNumberLike, ct.NumberLike]:
+if t.TYPE_CHECKING:
+    import numpy as _np
+    NumpyNumberLike = ct.NumberLike | _np.int8 | _np.int16 | _np.int32 | _np.int64 | _np.float16 | _np.float32 | _np.float64
+
+
+def p_nonumpy(**kwargs) -> _SimpleProperty[NumpyNumberLike, ct.NumberLike]:
     if 'validators' not in kwargs:
         kwargs['validators'] = []
     kwargs['validators'].append(functools.partial(require.type_is, required_type=(int, float, decimal.Decimal)))

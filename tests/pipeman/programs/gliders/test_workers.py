@@ -5,7 +5,8 @@ import uuid
 import functools
 import zirconium as zr
 from autoinject import injector
-from nodb import NODBSourceFile, SourceFileStatus, NODBQueueItem, NODBPlatform, NODBMission
+from nodb.observations import NODBSourceFile, SourceFileStatus, NODBPlatform, NODBMission
+from nodb.queue import NODBQueueItem
 from pipeman.processing.payloads import SourceFilePayload, WorkflowPayload, FilePayload
 from pipeman.programs.glider.workers import GliderConversionWorker, add_glider_mission_platform_info
 from pipeman.programs.dmd.pusher import DMDMetadataPushWorker

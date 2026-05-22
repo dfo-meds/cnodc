@@ -14,9 +14,10 @@ import zrlog
 from autoinject import injector
 
 from medsutil.exceptions import CodedError
-from nodb import QueueStatus
-import nodb.interface as interface
-from nodb.interface import NODBError, wrap_nodb_exceptions, POSTGRES_ALLOWED_CHARACTERS, ScannedFileStatus, LockType
+from nodb.interface import (
+    wrap_nodb_exceptions, NODBObjectType, NODBObject, POSTGRES_ALLOWED_CHARACTERS, FilterDict, LockType, JoinString, SupportsPostgres, ScannedFileStatus, QueueStatus,
+    LOCK_EXPIRY_TIME, COMPLETED_QUEUE_ITEM_LIFETIME, ERRORED_QUEUE_ITEM_LIFETIME, PROCESS_EXPIRY_TIME, NODBError, NODB
+)
 from nodb.queue import NODBQueueItem
 from pipeman.exceptions import CNODCError
 import medsutil.json as json
@@ -55,7 +56,7 @@ class PreparedStatement:
 
     def __init__(self,
                  db: PostgresController,
-                 object_type: interface.NODBObjectType,
+                 object_type: NODBObjectType,
                  data_map: dict[str, str],
                  name: str):
         self.db = db
@@ -78,7 +79,7 @@ class PreparedStatement:
         self._cursor = None
 
     @wrap_nodb_exceptions
-    def execute(self, obj: interface.NODBObject):
+    def execute(self, obj: NODBObject):
         self._cursor.execute(self._execute_statement, [
             obj.get_for_db(x) for x in self.data_map_columns
         ])
@@ -126,7 +127,7 @@ class PreparedSelect(PreparedStatement):
 
 
 
-class _PGCursor(interface.NODBCursor):
+class _PGCursor:
     """Cursor class for postgresql."""
 
     def __init__(self, cursor, pg_conn):
@@ -200,7 +201,7 @@ class _PGCursor(interface.NODBCursor):
         return ''.join(n for n in name.lower() if n in POSTGRES_ALLOWED_CHARACTERS)
 
 
-class PostgresController(interface.NODBInstance):
+class PostgresController:
     """Wrapper around a postgresql connection with NODB support"""
 
     def __init__(self, conn, cur_cls=_PGCursor):
@@ -237,7 +238,7 @@ class PostgresController(interface.NODBInstance):
         """Close the connection"""
         pass
 
-    def prepared_insert(self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]):
+    def prepared_insert(self, object_type: NODBObjectType, name: str, data_map: dict[str, str]):
         return PreparedInsert(db=self, object_type=object_type, data_map=data_map, name=name)
 
     @wrap_nodb_exceptions
@@ -259,7 +260,7 @@ class PostgresController(interface.NODBInstance):
             cur.release_savepoint(name)
 
     @wrap_nodb_exceptions
-    def delete_object(self, obj: interface.NODBObject):
+    def delete_object(self, obj: NODBObject):
         """Delete an object."""
         args = {
             x: obj.get_for_db(x)
@@ -277,9 +278,9 @@ class PostgresController(interface.NODBInstance):
     @wrap_nodb_exceptions
     def load_object[T](self,
                        obj_cls: type[T],
-                       filters: interface.FilterDict,
-                       join_str: interface.JoinString = None,
-                       lock_type: interface.LockType = None,
+                       filters: FilterDict,
+                       join_str: JoinString = None,
+                       lock_type: LockType = None,
                        limit_fields: list[str] = None,
                        key_only: bool = False, ) -> T | None:
         """Load an object."""
@@ -317,7 +318,7 @@ class PostgresController(interface.NODBInstance):
             return row[0]
 
     @wrap_nodb_exceptions
-    def count_objects(self, obj_cls: interface.NODBObjectType, filters: interface.FilterDict = None, join_str: interface.JoinString = None) -> int:
+    def count_objects(self, obj_cls: NODBObjectType, filters: FilterDict = None, join_str: JoinString = None) -> int:
         """Load an object."""
         query = self.assemble_query(
             self.build_select_clause(obj_cls.get_table_name(), ['COUNT(*)'], False),
@@ -330,13 +331,13 @@ class PostgresController(interface.NODBInstance):
 
     @wrap_nodb_exceptions
     def stream_raw(self,
-                   obj_cls: interface.NODBObjectType,
-                   filters: interface.FilterDict = None,
-                   join_str: interface.JoinString = None,
-                   lock_type: interface.LockType = LockType.NONE,
+                   obj_cls: NODBObjectType,
+                   filters: FilterDict = None,
+                   join_str: JoinString = None,
+                   lock_type: LockType = LockType.NONE,
                    limit_fields: t.Optional[list[str]] = None,
                    key_only: bool = False,
-                   order_by: t.Optional[list[str]] = None) -> t.Iterable[dict[str, interface.SupportsPostgres]]:
+                   order_by: t.Optional[list[str]] = None) -> t.Iterable[dict[str, SupportsPostgres]]:
         """Load an object."""
         query = self.assemble_query(
             self.build_select_clause(
@@ -355,13 +356,13 @@ class PostgresController(interface.NODBInstance):
 
     @wrap_nodb_exceptions
     def stream_objects(self,
-                       obj_cls: interface.NODBObjectType,
-                       filters: interface.FilterDict = None,
-                       join_str: interface.JoinString = None,
-                       lock_type: interface.LockType = LockType.NONE,
+                       obj_cls: NODBObjectType,
+                       filters: FilterDict = None,
+                       join_str: JoinString = None,
+                       lock_type: LockType = LockType.NONE,
                        limit_fields: t.Optional[list[str]] = None,
                        key_only: bool = False,
-                       order_by: t.Optional[list[str]] = None) -> t.Iterable[interface.NODBObject]:
+                       order_by: t.Optional[list[str]] = None) -> t.Iterable[NODBObject]:
         for row in self.stream_raw(
             obj_cls=obj_cls,
             filters=filters,
@@ -373,7 +374,7 @@ class PostgresController(interface.NODBInstance):
         ):
             yield obj_cls(is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)})
 
-    def upsert_object(self, obj: interface.NODBObject) -> bool:
+    def upsert_object(self, obj: NODBObject) -> bool:
         """Upsert an object, if necessary."""
         if obj.is_new:
             return self.insert_object(obj)
@@ -383,7 +384,7 @@ class PostgresController(interface.NODBInstance):
             return True
 
     @wrap_nodb_exceptions
-    def update_object(self, obj: interface.NODBObject) -> bool:
+    def update_object(self, obj: NODBObject) -> bool:
         """Update an object, if necessary."""
         if not obj.modified_values:
             return True
@@ -409,7 +410,7 @@ class PostgresController(interface.NODBInstance):
         return True
 
     @wrap_nodb_exceptions
-    def insert_object(self, obj: interface.NODBObject) -> bool:
+    def insert_object(self, obj: NODBObject) -> bool:
         """Insert an object into its table."""
         primary_keys = list(obj.get_primary_keys())
         insert_statement = self.assemble_query(
@@ -594,8 +595,8 @@ class PostgresController(interface.NODBInstance):
         return t.cast(str, correlation_id)
 
     @wrap_nodb_exceptions
-    def bulk_update_objects(self, obj_cls: interface.NODBObjectType, updates: dict[str, interface.SupportsPostgres], key_field: str, key_values: list[
-        interface.SupportsPostgres]):
+    def bulk_update_objects(self, obj_cls: NODBObjectType, updates: dict[str, SupportsPostgres], key_field: str, key_values: list[
+        SupportsPostgres]):
         base_query = self.assemble_query(
             self.build_update_clause(obj_cls.get_table_name(), updates, self._stable_sort_columns),
             (
@@ -634,10 +635,10 @@ class PostgresController(interface.NODBInstance):
 
     @wrap_nodb_exceptions
     def run_maintenance(self,
-                        lock_expiry_seconds: int = interface.LOCK_EXPIRY_TIME,
-                        completed_lifetime_seconds: int = interface.COMPLETED_QUEUE_ITEM_LIFETIME,
-                        error_lifetime_seconds: int = interface.ERRORED_QUEUE_ITEM_LIFETIME,
-                        process_expiry_seconds: int = interface.PROCESS_EXPIRY_TIME):
+                        lock_expiry_seconds: int = LOCK_EXPIRY_TIME,
+                        completed_lifetime_seconds: int = COMPLETED_QUEUE_ITEM_LIFETIME,
+                        error_lifetime_seconds: int = ERRORED_QUEUE_ITEM_LIFETIME,
+                        process_expiry_seconds: int = PROCESS_EXPIRY_TIME):
         with self.cursor() as cur:
             cur.execute("CALL run_nodb_maintenance (%s, %s, %s, %s)", [
                 lock_expiry_seconds,
@@ -755,9 +756,9 @@ class PostgresController(interface.NODBInstance):
     @staticmethod
     def extend_selected_fields(
             limit_fields: t.Iterable[str] | None,
-            filters: interface.FilterDict | None,
+            filters: FilterDict | None,
             key_only: bool,
-            obj_cls: interface.NODBObjectType
+            obj_cls: NODBObjectType
     ) -> set[str] | None:
         fields: set[str] = set()
         if limit_fields:
@@ -919,7 +920,7 @@ class PostgresController(interface.NODBInstance):
 
 
 @injector.injectable_global
-class NODBPostgresController(interface.NODB):
+class NODBPostgresController(NODB):
     """Postgresql-linked instance of the controller object."""
 
     config: zr.ApplicationConfig = None
@@ -937,7 +938,7 @@ class NODBPostgresController(interface.NODB):
         if self._conn is not None:
             self._conn.close()
 
-    @interface.wrap_nodb_exceptions
+    @wrap_nodb_exceptions
     def _build_controller_instance(self):
         self._verify_connection()
         if self._conn is None:

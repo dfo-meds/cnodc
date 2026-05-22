@@ -3,7 +3,7 @@ import pathlib
 import typing as t
 from autoinject import injector
 
-from nodb import interface
+import nodb.interface as interface
 from medsutil.storage.core import StorageController
 from medsutil.storage import StorageTier
 import medsutil.datadict as ddo

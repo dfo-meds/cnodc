@@ -2,7 +2,7 @@ import datetime
 import json
 
 from medsutil.awaretime import AwareDateTime
-from nodb import NODBSession, NODBUser, UserStatus
+from nodb.access import NODBSession, NODBUser, UserStatus
 from medsutil.exceptions import CodedError
 from tests.helpers.base_test_case import BaseTestCase
 

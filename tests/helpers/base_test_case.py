@@ -16,7 +16,7 @@ import zrlog
 from autoinject import injector
 from medsutil.awaretime import AwareDateTime
 from medsutil.halts import DummyHaltFlag
-from nodb import NODB
+from nodb.interface import NODB
 from tests.helpers.mock_containers import TestContainer, NODBContainer
 from tests.helpers.mock_runner import WorkerTestController
 from medsutil.exceptions import CodedError

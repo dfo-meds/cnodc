@@ -7,7 +7,7 @@ import zrlog
 import medsutil.ocproc2 as ocproc2
 import medsutil.amath
 from nodb.controller import NODBPostgresController, PostgresController
-from nodb import NODBWorkingRecord, NODBPlatform
+from nodb.observations import NODBWorkingRecord, NODBPlatform
 from medsutil.seawater import eos80_pressure
 from medsutil.units import UnitConverter
 from autoinject import injector

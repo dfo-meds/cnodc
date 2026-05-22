@@ -4,7 +4,6 @@ from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs.base import BaseCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil import types as ct
-from medsutil.types import ByteStrings
 from pipeman.exceptions import CNODCError
 from medsutil.vlq import vlq_encode
 import lzma
@@ -13,10 +12,10 @@ import bz2
 
 class StreamWrapper:
 
-    def wrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def wrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         yield from stream  # pragma: no coverage
 
-    def unwrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def unwrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         yield from stream  # pragma: no coverage
 
 
@@ -38,7 +37,7 @@ class OCProc2BinCodec(BaseCodec):
             **kwargs
         )
 
-    def _encode_records(self, data: t.Iterable[ocproc2.ParentRecord], options: dict) -> ByteStrings:
+    def _encode_records(self, data: t.Iterable[ocproc2.ParentRecord], options: dict) -> ct.ByteStrings:
         options['_codec'] = self._get_codec(options['codec'])
         wrappers = self._get_wrappers(options['compression'], options['correction'])
         yield from self._make_header(options)
@@ -47,21 +46,21 @@ class OCProc2BinCodec(BaseCodec):
             out_stream = wrapper.wrap_stream(out_stream)
         yield from out_stream
 
-    def _make_header(self, options: dict) -> ByteStrings:
+    def _make_header(self, options: dict) -> ct.ByteStrings:
         s = f"{options['codec']},{options['compression'] or ''},{options['correction'] or ''}"
         if len(s) > 65000:
             raise CNODCError(f'Header string is too long', 'OCPROC2BIN', 1006)
         yield len(s).to_bytes(2, 'little', signed=False)
         yield s.encode('ascii')
 
-    def _all_bytes(self, data: t.Iterable[ocproc2.ParentRecord], options: dict) -> ByteStrings:
+    def _all_bytes(self, data: t.Iterable[ocproc2.ParentRecord], options: dict) -> ct.ByteStrings:
         for x in self._encode_record_wrapper(data, options):
             yield from self._encode_record_data_for_file(x, options)
 
     def _encode_single_record(self, record: ParentRecord, options: dict) -> ct.ByteStrings:
         yield from options['_codec']._encode_single_record(record, options)
 
-    def _encode_record_data_for_file(self, record_data: ByteStrings, options: dict):
+    def _encode_record_data_for_file(self, record_data: ct.ByteStrings, options: dict):
         ba = bytearray()
         for bytes_ in record_data:
             ba.extend(bytes_)
@@ -69,8 +68,8 @@ class OCProc2BinCodec(BaseCodec):
         yield ba
 
     def _parse_into_messages(self,
-                            data: ByteStrings,
-                            options: dict) -> ByteStrings:
+                            data: ct.ByteStrings,
+                            options: dict) -> ct.ByteStrings:
         stream = ByteSequenceReader(data)
         header = self._parse_header(stream)
         options['_codec'] = self._get_codec(header[0])
@@ -165,13 +164,13 @@ class _Bz2Compression(StreamWrapper):
     def __init__(self, preset=None):
         self._preset = preset or 6
 
-    def wrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def wrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         compressor = bz2.BZ2Compressor(self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
-    def unwrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def unwrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         decompressor = bz2.BZ2Decompressor()
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)
@@ -185,13 +184,13 @@ class _ZlibCompression(StreamWrapper):
     def __init__(self, preset=None):
         self._preset = preset or 6
 
-    def wrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def wrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         compressor = zlib.compressobj(self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
-    def unwrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def unwrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         decompressor = zlib.decompressobj()
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)
@@ -204,13 +203,13 @@ class _LZMACompression(StreamWrapper):
         self._crc_check = crc_check
         self._preset = preset or 6
 
-    def wrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def wrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         compressor = lzma.LZMACompressor(check=self._crc_check, preset=self._preset)
         for bytes_ in stream:
             yield compressor.compress(bytes_)
         yield compressor.flush()
 
-    def unwrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def unwrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         decompressor = lzma.LZMADecompressor()
         for bytes_ in stream:
             yield decompressor.decompress(bytes_)
@@ -225,7 +224,7 @@ class _ReedSoloCorrection(StreamWrapper):
         self._out_chunk_size = batch_size * (nsize - nsym)
         self._in_chunk_size = batch_size * nsize
 
-    def wrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def wrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         buffer = bytearray()
         for input_ in stream:
             buffer.extend(input_)
@@ -235,7 +234,7 @@ class _ReedSoloCorrection(StreamWrapper):
         if buffer:
             yield self.rsc.encode(buffer)
 
-    def unwrap_stream(self, stream: ByteStrings) -> ByteStrings:
+    def unwrap_stream(self, stream: ct.ByteStrings) -> ct.ByteStrings:
         buffer = bytearray()
         for input_ in stream:
             buffer.extend(input_)

@@ -16,23 +16,19 @@ connection_string = "..."
 #3: Include the SAS token in the URL (not recommended)
 
 """
-import io
-import tempfile
 import typing as t
 from contextlib import contextmanager
-from urllib.parse import urlparse
 
-from azure.core.exceptions import ResourceNotFoundError, ResourceExistsError
-from azure.storage.fileshare import ShareFileClient, ShareDirectoryClient, ShareClient
-
-import medsutil.types as ct
-from medsutil.awaretime import AwareDateTime
-from medsutil.byteseq import ByteSequenceReader
-from medsutil.storage.azure import AzureBaseHandle, wrap_azure_errors
+from medsutil.storage.azure import _AzureBaseHandle, wrap_azure_errors
 from medsutil.storage.interface import FeatureFlag, StatResult
 
 
-class AzureFileHandle(AzureBaseHandle):
+if t.TYPE_CHECKING:
+    from azure.storage.fileshare import ShareFileClient, ShareDirectoryClient, ShareClient
+    import medsutil.types as ct
+
+
+class AzureFileHandle(_AzureBaseHandle):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args,
@@ -60,6 +56,7 @@ class AzureFileHandle(AzureBaseHandle):
             yield share.get_directory_client(self._get_full_path())
 
     def _mkdir(self, mode: int = 0o777):
+        from azure.core.exceptions import ResourceExistsError
         try:
             with self.directory_client() as client:
                 client.create_directory()
@@ -73,7 +70,9 @@ class AzureFileHandle(AzureBaseHandle):
             yield from self._halt_flag.iterate(stream.chunks())
 
     def _upload_from_seekable_file(self, readable: ct.SupportsBinarySeek, chunk_size: int = None, **kwargs):
-        readable.seek(0, io.SEEK_END)
+        from azure.core.exceptions import ResourceExistsError
+        from medsutil.byteseq import ByteSequenceReader
+        readable.seek(0, 2)
         file_size = readable.tell()
         readable.seek(0)
         with self.file_client() as client_:
@@ -103,12 +102,14 @@ class AzureFileHandle(AzureBaseHandle):
 
     @wrap_azure_errors
     def _streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs):
+        import tempfile
         with tempfile.SpooledTemporaryFile(mode='w+b') as stf:
             self._halt_flag.write_all(stf, chunks)
             self._upload_from_seekable_file(stf, **kwargs)
 
     @wrap_azure_errors
     def _remove(self):
+        from azure.core.exceptions import ResourceNotFoundError
         try:
             with self.directory_client() as client:
                 client.delete_directory()
@@ -146,6 +147,8 @@ class AzureFileHandle(AzureBaseHandle):
                 yield from self.subdir(d)._walk()
 
     def _stat(self) -> StatResult:
+        from azure.core.exceptions import ResourceNotFoundError
+        from medsutil.awaretime import AwareDateTime
         with self.directory_client() as client:
             try:
                 props = client.get_directory_properties()
@@ -176,6 +179,7 @@ class AzureFileHandle(AzureBaseHandle):
 
     @wrap_azure_errors
     def _set_metadata(self, metadata: dict[str, str]):
+        from azure.core.exceptions import ResourceNotFoundError
         try:
             with self.directory_client() as client:
                 client.set_directory_metadata(metadata)
@@ -189,5 +193,6 @@ class AzureFileHandle(AzureBaseHandle):
     def supports(file_path: str) -> bool:
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
+        from urllib.parse import urlparse
         pieces = urlparse(file_path)
         return pieces.hostname is not None and pieces.hostname.endswith(".file.core.windows.net")

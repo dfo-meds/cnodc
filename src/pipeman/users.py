@@ -11,8 +11,8 @@ from autoinject import injector
 from medsutil import awaretime as awaretime, secure
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
-from nodb import NODBSession, NODBUser, LockType, UserStatus
-from nodb.interface import NODB, NODBInstance
+from nodb.interface import NODB, NODBInstance, LockType
+from nodb.access import NODBUser, NODBSession, UserStatus
 
 
 class UserError(CodedError): CODE_SPACE = 'USERCTRL'

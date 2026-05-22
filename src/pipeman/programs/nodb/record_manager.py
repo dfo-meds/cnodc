@@ -9,8 +9,8 @@ from autoinject import injector
 
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
-from nodb import NODBSourceFile, NODBInstance, LockType
-from nodb import NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, NODBMission
+from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, NODBMission
+from nodb.interface import NODBInstance, LockType
 from medsutil.ocproc2 import OCProc2Ontology
 from medsutil.units import UnitConverter
 

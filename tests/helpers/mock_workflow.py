@@ -12,7 +12,9 @@ from unittest import SkipTest
 
 import zrlog
 
-from nodb import NODBQueueItem, NODBUploadWorkflow, NODB
+from nodb.interface import NODB
+from nodb.queue import NODBQueueItem
+from nodb.workflow import NODBUploadWorkflow
 from pipeman.processing.base_worker import BaseWorker
 from medsutil.halts import HaltFlag
 from medsutil.awaretime import AwareDateTime

@@ -2,7 +2,7 @@ import base64
 import functools
 import json
 
-from nodb import NODBQueueItem
+from nodb.queue import NODBQueueItem
 from pipeman.programs.erddap import ErddapController, ReloadFlag
 from pipeman.programs.erddap.reloader import ERDDAPReloadWorker
 from tests.helpers.mock_requests import MockResponse

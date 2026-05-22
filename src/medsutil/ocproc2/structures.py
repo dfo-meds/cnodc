@@ -3,13 +3,17 @@ import hashlib
 import typing as t
 import datetime
 
-from medsutil.ocproc2.elements import ElementMap, SupportedValueOrElement, AbstractElement, SingleElement, DefaultValueDict, AnyElementExport, MetadataDict
+from medsutil.ocproc2.elements import ElementMap, AbstractElement, SingleElement, AnyElementExport, MetadataDict
 from medsutil.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 from medsutil.lazy_load import LazyLoadList
 import medsutil.awaretime as awaretime
-import medsutil.types as ct
 
-type FindType = BaseRecord | RecordSet | AbstractElement | ElementMap | RecordMap | dict[int, RecordSet] | None
+
+
+if t.TYPE_CHECKING:
+    from medsutil.ocproc2.elements import DefaultValueDict, SupportedValueOrElement
+    import medsutil.types as ct
+    type FindType = BaseRecord | RecordSet | AbstractElement | ElementMap | RecordMap | dict[int, RecordSet] | None
 
 
 class BaseRecord:
@@ -190,7 +194,7 @@ class ParentRecord(BaseRecord):
 
     def generate_hash(self) -> str:
         h = hashlib.sha1(usedforsecurity=False)
-        self.update_hash(t.cast(ct.SupportsHashUpdate, t.cast(object, h)))
+        self.update_hash(h)
         return h.hexdigest()
 
     def update_hash(self, h: ct.SupportsHashUpdate):

@@ -23,7 +23,7 @@ type FilterDict = dict[str, SupportsPostgres | tuple[str, SupportsPostgres] | tu
 type JoinString = t.Literal["AND", "OR"]
 
 if t.TYPE_CHECKING:
-    from nodb import NODBQueueItem
+    from nodb.queue import NODBQueueItem
 
 
 LOCK_EXPIRY_TIME = 3600

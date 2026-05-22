@@ -5,7 +5,8 @@
 import datetime
 import pathlib
 
-from nodb import NODBQueueItem, NODBBatch, NODBSourceFile
+from nodb.observations import NODBBatch, NODBSourceFile
+from nodb.queue import NODBQueueItem
 from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 

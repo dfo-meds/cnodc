@@ -5,21 +5,21 @@ import hashlib
 import typing as t
 import datetime
 
-from uncertainties import ufloat, UFloat
-from decimal import Decimal
-
 from medsutil.awaretime import AwareDateTime
 from medsutil.lazy_load import LazyLoadDict
 from medsutil.units.units import convert
 import medsutil.awaretime as awaretime
-import medsutil.types as ct
+
 from medsutil.sanitize import coerce
 import medsutil.ocproc2.util as ocut
-from medsutil.ocproc2.util import SupportedStorage
 
 UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
-type SupportedValueOrElement = ocut.SupportedValue | AbstractElement
-DefaultValueDict = dict[str, SupportedValueOrElement]
+
+if t.TYPE_CHECKING:
+    from uncertainties import ufloat, UFloat
+    import medsutil.types as ct
+    type SupportedValueOrElement = ocut.SupportedValue | AbstractElement
+    DefaultValueDict = dict[str, SupportedValueOrElement]
 
 
 def normalize_data_value(dv: ocut.SupportedValue) -> ocut.SupportedStorage:
@@ -68,7 +68,7 @@ class ExportMultipleWithMetadata(t.TypedDict):
     _metadata: MetadataDict
 
 
-class AbstractElement[X: SupportedStorage]:
+class AbstractElement[X]:
     """Base class for Value and MultiValue."""
 
     _metadata: ElementMap | None = None
@@ -121,7 +121,7 @@ class AbstractElement[X: SupportedStorage]:
         """Check if the value is an ISO 8601 date-time."""
         self.to_datetime()
 
-    def _coerce_to_numeric[T: (int, float, Decimal, UFloat)](self,
+    def _coerce_to_numeric[T](self,
                                                              coerce: t.Callable[[str | int | float | None], T] | type[T],
                                                              units: str | None = None,
                                                              no_loss: bool = False) -> T:
@@ -141,16 +141,17 @@ class AbstractElement[X: SupportedStorage]:
 
     def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
         """Convert this value to a decimal number"""
-        return self._coerce_to_numeric(Decimal, units)
+        return self._coerce_to_numeric(decimal.Decimal, units)
 
     def to_ufloat(self, units: t.Optional[str] = None) -> UFloat | float:
         """Convert this value to a UFloat."""
         bv: AbstractElement = self.ideal()
         if bv.metadata.has_value('Uncertainty'):
-            unc = bv.metadata.best('Uncertainty', coerce=Decimal)
+            unc = bv.metadata.best('Uncertainty', coerce=decimal.Decimal)
             if bv.metadata.best('UncertaintyType', 'normal') == 'uniform':
                 unc = unc * UNIFORM_CONVERSION_FACTOR
             if unc != decimal.Decimal("0"):
+                from uncertainties import ufloat
                 return self._coerce_to_numeric(lambda x: ufloat(x, abs(unc)), units)
         return self._coerce_to_numeric(float, units)
 
@@ -271,13 +272,13 @@ class AbstractElement[X: SupportedStorage]:
 
 
 
-class SingleElement(AbstractElement[SupportedStorage]):
+class SingleElement(AbstractElement):
     """Represents a single value with a single set of metadata."""
 
     __slots__ = ('_metadata', '_value')
 
     def __init__(self, value: ocut.SupportedValue = None, _skip_normalization: bool = False, **kwargs):
-        self._value: ocut.SupportedStorage = t.cast(ocut.SupportedStorage, value) if _skip_normalization else normalize_data_value(value)
+        self._value: ocut.SupportedStorage = value if _skip_normalization else normalize_data_value(value)
         self._metadata = None
         if kwargs:
             self.metadata.update(kwargs)
@@ -325,7 +326,7 @@ class SingleElement(AbstractElement[SupportedStorage]):
             h.update(b"\x00")
         else:
             h.update(str(self._value).encode('utf-8', errors='replace'))
-        self.metadata.update_hash(t.cast(ct.SupportsHashUpdate, t.cast(object, h)))
+        self.metadata.update_hash(h)
         return h.digest()
 
     def to_mapping(self) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
@@ -594,7 +595,7 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         return super().to_mapping()
 
     def from_mapping(self, map_: MetadataDict):
-        super().from_mapping(t.cast(dict[str, ct.SupportsNativeJson], map_))
+        super().from_mapping(map_)
 
     @staticmethod
     def ensure_element(value: SupportedValueOrElement, metadata: t.Optional[DefaultValueDict] = None, **kwargs: SupportedValueOrElement) -> AbstractElement:

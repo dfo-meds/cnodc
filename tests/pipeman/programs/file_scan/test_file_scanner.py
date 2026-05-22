@@ -1,8 +1,8 @@
 import datetime
 import functools
 
-from nodb import NODBQueueItem, NODBError
-from nodb.interface import SqlState
+from nodb.queue import NODBQueueItem
+from nodb.interface import SqlState, NODBError
 from pipeman.programs.file_scan import FileScanTask
 from tests.helpers.base_test_case import BaseTestCase
 

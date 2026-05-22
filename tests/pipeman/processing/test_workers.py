@@ -3,7 +3,9 @@ import typing as t
 import unittest
 
 from medsutil.awaretime import AwareDateTime
-from nodb import NODBBatch, NODBSourceFile, NODBQueueItem, QueueStatus, NODBError
+from nodb.observations import NODBBatch, NODBSourceFile
+from nodb.interface import QueueStatus, NODBError
+from nodb.queue import NODBQueueItem
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
 from pipeman.processing.base_worker import SaveData

@@ -4,8 +4,8 @@ from contextlib import contextmanager
 import typing as t
 
 from nodb.controller import PostgresController, NODBPostgresController
-from nodb import NODBUser, NODBSession, UserStatus
-from nodb import NODBError
+from nodb.access import NODBUser, NODBSession, UserStatus
+from nodb.interface import NODBError
 
 from medsutil.awaretime import AwareDateTime
 from tests.helpers.base_test_case import BaseTestCase, skip_long_test

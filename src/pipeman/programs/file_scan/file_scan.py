@@ -4,14 +4,16 @@ import typing as t
 
 from prometheus_flask_exporter import PrometheusMetrics
 
-from nodb import NODB, NODBQueueItem, ScannedFileStatus, NODBError
+from nodb.interface import ScannedFileStatus, NODBError
+from nodb.workflow import NODBUploadWorkflow
+from nodb.queue import NODBQueueItem
 from pipeman.processing.payload_worker import PayloadWorker
 from pipeman.processing.scheduled_task import ScheduledTask
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.processing.workflow import WorkflowController
 from pipeman.processing.payloads import NewFilePayload
 from medsutil.storage import StorageController, FilePath
-import nodb as nodb
+
 from pipeman.exceptions import CNODCError
 from autoinject import injector
 import medsutil.awaretime as awaretime
@@ -173,7 +175,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
 
     def get_workflow(self, workflow_name: str):
         self._log.debug('Looking for workflow [%s]', workflow_name)
-        workflow = nodb.NODBUploadWorkflow.find_by_name(self.db, workflow_name)
+        workflow = NODBUploadWorkflow.find_by_name(self.db, workflow_name)
         if workflow is None:
             raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
         return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)

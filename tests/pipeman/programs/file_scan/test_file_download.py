@@ -1,6 +1,7 @@
 import os
 
-from nodb import NODBQueueItem, NODBUploadWorkflow
+from nodb.queue import NODBQueueItem
+from nodb.workflow import NODBUploadWorkflow
 from pipeman.processing.payloads import FilePayload, NewFilePayload
 from pipeman.programs.file_scan import FileDownloadWorker
 import medsutil.awaretime as awaretime

@@ -1,4 +1,6 @@
-from nodb import QueueStatus, NODBUploadWorkflow, NODBQueueItem
+from nodb.interface import QueueStatus
+from nodb.queue import NODBQueueItem
+from nodb.workflow import NODBUploadWorkflow
 from pipeman.processing.payloads import BatchPayload, WorkflowPayload
 from pipeman.processing.progressor import WorkflowProgressWorker
 from tests.helpers.base_test_case import BaseTestCase

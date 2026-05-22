@@ -1,15 +1,15 @@
 import datetime
 import os
 
-import nodb as nodb
 from medsutil.dynamic import dynamic_name
-from nodb import NODBQueueItem, NODBSourceFile, SourceFileStatus, NODBObservation, QueueStatus
-from nodb import NODBWorkingRecord, NODBObservationData
+from nodb.interface import QueueStatus
+from nodb.queue import NODBQueueItem
+from nodb.observations import NODBWorkingRecord, NODBObservationData, NODBObservation, SourceFileStatus, NODBSourceFile
 from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs import OCProc2JsonCodec
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import FilePayload, SourceFilePayload, BatchPayload, ObservationPayload, WorkflowPayload
-from pipeman.programs.nodb import NODBDecodeLoadWorker
+from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
 from medsutil.exceptions import CodedError
 import medsutil.ocproc2 as ocproc2
 from tests.helpers.base_test_case import BaseTestCase

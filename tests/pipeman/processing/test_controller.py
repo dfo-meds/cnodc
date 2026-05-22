@@ -11,7 +11,7 @@ from medsutil.storage.local import LocalHandle
 from nodb.workflow import WorkflowDirectory, WorkflowConfiguration
 from pipeman.processing.workflow import WorkflowController
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, BatchPayload
-from nodb import NODBQueueItem
+from nodb.queue import NODBQueueItem
 from medsutil.exceptions import CodedError
 from medsutil.awaretime import from_timestamp
 from tests.helpers.base_test_case import BaseTestCase, InjectableDict

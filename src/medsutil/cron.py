@@ -2,7 +2,7 @@ import datetime
 import random
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.types import TimeZoneInfo
+import medsutil.types as ct
 import typing as t
 
 CRON_SPEC_PIECE = int | str | list[int]
@@ -54,7 +54,7 @@ SPECIAL_DEFS = {
 
 class CompiledCron:
 
-    def __init__(self, cron_spec: CRON_SPEC, hash_key: str | int = None, cron_spec_timezone: t.Optional[TimeZoneInfo] = None):
+    def __init__(self, cron_spec: CRON_SPEC, hash_key: str | int = None, cron_spec_timezone: t.Optional[ct.TimeZoneInfo] = None):
         if hash_key is None:
             rgen = random.Random(id(self))
         elif isinstance(hash_key, str):

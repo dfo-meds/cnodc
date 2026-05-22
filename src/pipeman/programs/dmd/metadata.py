@@ -10,13 +10,13 @@ import enum
 from autoinject import injector
 
 from medsutil import json
-from medsutil.first import first_i18n, first
+from medsutil.first import first_i18n
 from medsutil.sanitize import unnumpy
 import medsutil.awaretime as awaretime
 import medsutil.datadict as dd
 from medsutil.multienum import MultiValuedEnum, variants
 from medsutil.frozendict import FrozenDict
-from medsutil.types import *
+import medsutil.types as ct
 from medsutil.ocproc2.ontology import OCProc2Ontology
 
 def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
@@ -857,7 +857,7 @@ class CNODCInstrumentType(MultiValuedEnum):
 class EntityRef(dd.DataDictObject):
 
     guid: str = dd.p_str(managed_name='_guid')
-    display_name: LanguageDict = dd.p_i18n_text(managed_name='_display_names')
+    display_name: ct.LanguageDict = dd.p_i18n_text(managed_name='_display_names')
 
 
 class Variable(EntityRef):
@@ -874,7 +874,7 @@ class Variable(EntityRef):
     destination_name: str = dd.p_str()
     destination_data_type: NetCDFDataType = dd.p_enum(NetCDFDataType)
     dimensions: set[str] = dd.p_set(value_coerce=str)
-    long_name: LanguageDict = dd.p_i18n_text()
+    long_name: ct.LanguageDict = dd.p_i18n_text()
     standard_name: str = dd.p_str()
     time_precision: TimePrecision = dd.p_enum(TimePrecision)
     calendar: Calendar = dd.p_enum(Calendar)
@@ -895,7 +895,7 @@ class Variable(EntityRef):
     variable_order: int = dd.p_int()
     is_axis: bool = dd.p_bool()
     is_altitude_proxy: bool = dd.p_bool(managed_name='altitude_proxy')
-    additional_properties: dict[str, SupportsExtendedJson] = dd.p_dict(managed_name='custom_metadata')
+    additional_properties: dict[str, ct.SupportsExtendedJson] = dd.p_dict(managed_name='custom_metadata')
 
     def set_time_units(self, base_units: NumericTimeUnits, epoch: datetime.datetime):
         """
@@ -958,16 +958,16 @@ class Variable(EntityRef):
 class MaintenanceRecord(EntityRef):
 
     date: datetime.date = dd.p_date()
-    notes: LanguageDict = dd.p_i18n_text()
+    notes: ct.LanguageDict = dd.p_i18n_text()
     scope: MaintenanceScope = dd.p_enum(MaintenanceScope)
 
 
 class QuickWebPage(EntityRef):
 
-    name: LanguageDict | None = dd.p_i18n_text()
-    description: LanguageDict | None = dd.p_i18n_text()
+    name: ct.LanguageDict | None = dd.p_i18n_text()
+    description: ct.LanguageDict | None = dd.p_i18n_text()
     purpose: ResourcePurpose | None = dd.p_enum(ResourcePurpose, managed_name='function')
-    url: LanguageDict | None = dd.p_i18n_text(order=1)
+    url: ct.LanguageDict | None = dd.p_i18n_text(order=1)
     resource_type: ResourceType | None = dd.p_enum(ResourceType, managed_name='protocol')
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
@@ -1005,8 +1005,8 @@ class QuickWebPage(EntityRef):
 
 class Resource(QuickWebPage):
 
-    additional_request_info: LanguageDict = dd.p_i18n_text(managed_name='protocol_request')
-    additional_app_info: LanguageDict = dd.p_i18n_text(managed_name='app_profile')
+    additional_request_info: ct.LanguageDict = dd.p_i18n_text(managed_name='protocol_request')
+    additional_app_info: ct.LanguageDict = dd.p_i18n_text(managed_name='app_profile')
     goc_content_type: GCContentType = dd.p_enum(GCContentType)
     goc_languages: GCLanguage = dd.p_enum(GCLanguage)
     goc_format: set[GCContentFormat] = dd.p_enum_set(GCContentFormat, managed_name='goc_formats')
@@ -1054,7 +1054,7 @@ class TelephoneNumber(EntityRef):
 
 class _IdentifierMixin:
 
-    id_description: LanguageDict = dd.p_i18n_text()
+    id_description: ct.LanguageDict = dd.p_i18n_text()
     id_system: IDSystem = dd.p_enum(IDSystem)
     id_code: str = dd.p_str()
 
@@ -1079,14 +1079,14 @@ class _IdentifierMixin:
 
 class _Contact(EntityRef, _IdentifierMixin):
 
-    email: LanguageDict = dd.p_i18n_text()
-    service_hours: LanguageDict = dd.p_i18n_text()
-    instructions: LanguageDict = dd.p_i18n_text()
+    email: ct.LanguageDict = dd.p_i18n_text()
+    service_hours: ct.LanguageDict = dd.p_i18n_text()
+    instructions: ct.LanguageDict = dd.p_i18n_text()
     resources: list[Resource] = dd.p_object_list(Resource, managed_name='web_resources')
     phone_numbers: list[TelephoneNumber] = dd.p_object_list(TelephoneNumber, managed_name='phone')
-    address: LanguageDict = dd.p_i18n_text(managed_name='delivery_point')
+    address: ct.LanguageDict = dd.p_i18n_text(managed_name='delivery_point')
     city: str = dd.p_str()
-    province: LanguageDict = dd.p_i18n_text(managed_name='admin_area')
+    province: ct.LanguageDict = dd.p_i18n_text(managed_name='admin_area')
     country: Country = dd.p_enum(Country)
     postal_code: str = dd.p_str()
     web_page: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage)
@@ -1100,14 +1100,14 @@ class Individual(_Contact):
 
 class Organization(_Contact):
 
-    name: LanguageDict = dd.p_i18n_text(managed_name='organization_name')
+    name: ct.LanguageDict = dd.p_i18n_text(managed_name='organization_name')
     individuals: list[_Contact] = dd.p_object_list(_Contact)
     ror: str = _IdentifierMixin.id_property(IDSystem.ROR, ('https://ror.org/', 'http://ror.org/'))
 
 
 class Position(_Contact):
 
-    name: LanguageDict = dd.p_i18n_text(managed_name='position_name')
+    name: ct.LanguageDict = dd.p_i18n_text(managed_name='position_name')
 
 
 class _ResponsibleParty(EntityRef):
@@ -1157,10 +1157,10 @@ class _ResponsiblesMixin:
 
 class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
 
-    title: LanguageDict = dd.p_i18n_text()
-    alt_title: LanguageDict = dd.p_i18n_text()
-    details: LanguageDict = dd.p_i18n_text()
-    edition: LanguageDict = dd.p_i18n_text()
+    title: ct.LanguageDict = dd.p_i18n_text()
+    alt_title: ct.LanguageDict = dd.p_i18n_text()
+    details: ct.LanguageDict = dd.p_i18n_text()
+    edition: ct.LanguageDict = dd.p_i18n_text()
     publication_date: datetime.date = dd.p_date()
     revision_date: datetime.date = dd.p_date()
     creation_date: datetime.date = dd.p_date()
@@ -1172,8 +1172,8 @@ class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
 
 class GeneralUseConstraint(EntityRef, _ResponsiblesMixin):
 
-    description: LanguageDict = dd.p_i18n_text()
-    plain_text: LanguageDict = dd.p_i18n_text()
+    description: ct.LanguageDict = dd.p_i18n_text()
+    plain_text: ct.LanguageDict = dd.p_i18n_text()
     citations: list[Citation] = dd.p_object_list(Citation, managed_name='reference')
 
 
@@ -1181,19 +1181,19 @@ class LegalConstraint(GeneralUseConstraint):
 
     access_constraints: set[RestrictionCode] = dd.p_enum_set(RestrictionCode)
     use_constraints: set[RestrictionCode] = dd.p_enum_set(RestrictionCode)
-    other_constraints: LanguageDict = dd.p_i18n_text()
+    other_constraints: ct.LanguageDict = dd.p_i18n_text()
 
 
 class SecurityConstraint(GeneralUseConstraint):
 
     classification: ClassificationCode = dd.p_enum(ClassificationCode)
-    user_notes: LanguageDict = dd.p_i18n_text()
-    classification_system: LanguageDict = dd.p_i18n_text()
+    user_notes: ct.LanguageDict = dd.p_i18n_text()
+    classification_system: ct.LanguageDict = dd.p_i18n_text()
 
 
 class ERDDAPServer(EntityRef, _ResponsiblesMixin):
 
-    base_url: LanguageDict = dd.p_str()
+    base_url: ct.LanguageDict = dd.p_str()
 
 
 class Thesaurus(EntityRef):
@@ -1205,14 +1205,14 @@ class Thesaurus(EntityRef):
 
 class Keyword(EntityRef):
 
-    text: LanguageDict = dd.p_i18n_text(managed_name='keyword')
-    description: LanguageDict = dd.p_i18n_text()
+    text: ct.LanguageDict = dd.p_i18n_text(managed_name='keyword')
+    description: ct.LanguageDict = dd.p_i18n_text()
     thesaurus: t.Optional[Thesaurus] = dd.p_ddo(Thesaurus)
 
 
 class DistributionChannel(EntityRef, _ResponsiblesMixin):
 
-    description: LanguageDict = dd.p_i18n_text()
+    description: ct.LanguageDict = dd.p_i18n_text()
     primary_link: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage, managed_name='primary_web_link')
     links: list[Resource] = dd.p_object_list(Resource)
 
@@ -1220,7 +1220,7 @@ class DistributionChannel(EntityRef, _ResponsiblesMixin):
 class SpatialResolution(EntityRef):
 
     scale: int = dd.p_int()
-    level_of_detail: LanguageDict = dd.p_i18n_text()
+    level_of_detail: ct.LanguageDict = dd.p_i18n_text()
     horizontal_resolution: int | float = dd.p_nonumpy(managed_name='distance')
     vertical_resolution: int | float = dd.p_nonumpy(managed_name='vertical')
     angular_resolution: int | float = dd.p_nonumpy(managed_name='angular')
@@ -1307,9 +1307,9 @@ class _Manufactured(EntityRef, _IdentifierMixin):
 
 class Sensor(_Manufactured):
     cnodc_instrument_types: set[CNODCInstrumentType] = dd.p_enum_set(CNODCInstrumentType)
-    instrument_type: t.Optional[LanguageDict] = dd.p_i18n_text(managed_name='type')
+    instrument_type: t.Optional[ct.LanguageDict] = dd.p_i18n_text(managed_name='type')
     citation: t.Optional[Citation] = dd.p_ddo(Citation)
-    description: t.Optional[LanguageDict] = dd.p_i18n_text(managed_name='description')
+    description: t.Optional[ct.LanguageDict] = dd.p_i18n_text(managed_name='description')
 
 
 class Instrument(Sensor):
@@ -1336,8 +1336,6 @@ class Mission(EntityRef, _IdentifierMixin, _ResponsiblesMixin):
 
 
 class DatasetMetadata(EntityRef, _ResponsiblesMixin):
-
-    ontology: OCProc2Ontology = None
 
     REPRESENTATION_MAP = {
         CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
@@ -1381,7 +1379,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     id_code: str = dd.p_str(managed_name='dataset_id_code')
     id_system: IDSystem = dd.p_enum(IDSystem, managed_name='dataset_id_system')
-    id_description: LanguageDict = dd.p_i18n_text(managed_name='dataset_id_description')
+    id_description: ct.LanguageDict = dd.p_i18n_text(managed_name='dataset_id_description')
     doi = _IdentifierMixin.id_property(IDSystem.DOI, ('https://doi.org/', 'http://doi.org/', 'doi:'))
 
     geospatial_lat_min: int | float = dd.p_nonumpy()
@@ -1398,17 +1396,17 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     time_coverage_start: awaretime.AwareDateTime = dd.p_awaretime()
     time_coverage_end: awaretime.AwareDateTime = dd.p_awaretime()
 
-    title: LanguageDict = dd.p_i18n_text()
-    comment: LanguageDict = dd.p_i18n_text()
-    processing_description: LanguageDict = dd.p_i18n_text()
-    processing_environment: LanguageDict = dd.p_i18n_text()
-    purpose: LanguageDict = dd.p_i18n_text()
-    references: LanguageDict = dd.p_i18n_text()
-    file_storage_location: LanguageDict = dd.p_i18n_text()
-    internal_notes: LanguageDict = dd.p_i18n_text()
-    source: LanguageDict = dd.p_i18n_text()
-    abstract: LanguageDict = dd.p_i18n_text(managed_name='summary')
-    credit: LanguageDict = dd.p_i18n_text(managed_name='acknowledgement')
+    title: ct.LanguageDict = dd.p_i18n_text()
+    comment: ct.LanguageDict = dd.p_i18n_text()
+    processing_description: ct.LanguageDict = dd.p_i18n_text()
+    processing_environment: ct.LanguageDict = dd.p_i18n_text()
+    purpose: ct.LanguageDict = dd.p_i18n_text()
+    references: ct.LanguageDict = dd.p_i18n_text()
+    file_storage_location: ct.LanguageDict = dd.p_i18n_text()
+    internal_notes: ct.LanguageDict = dd.p_i18n_text()
+    source: ct.LanguageDict = dd.p_i18n_text()
+    abstract: ct.LanguageDict = dd.p_i18n_text(managed_name='summary')
+    credit: ct.LanguageDict = dd.p_i18n_text(managed_name='acknowledgement')
 
     goc_publisher: GCPublisher = dd.p_enum(GCPublisher)
     processing_system: IDSystem = dd.p_enum(IDSystem)
@@ -1453,11 +1451,10 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     erddap_dataset_id: str = dd.p_str()
     erddap_dataset_type: ERDDAPDatasetType = dd.p_enum(ERDDAPDatasetType)
 
-    custom_metadata: dict[str, SupportsExtendedJson] = dd.p_dict(value_coerce=unnumpy)
+    custom_metadata: dict[str, ct.SupportsExtendedJson] = dd.p_dict(value_coerce=unnumpy)
 
     autostart: bool = dd.p_bool(managed_name="_autostart", default=False)
 
-    @injector.construct
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._log = logging.getLogger("cnodc.dmd.metadata")
@@ -1500,12 +1497,13 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self.goc_audiences.add(GCAudience.Scientists)
         self.goc_collection = GCCollectionType.Geospatial
 
-    def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en'):
+    @injector.inject
+    def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en', ontology: OCProc2Ontology = None):
         attrs = { x: dataset.getncattr(x) for x in dataset.ncattrs()}
         locale_map = self._set_locales_from_netcdf(attrs, default_lang)
         depths = self._identify_levels(dataset)
         for ds_var in dataset.variables:
-            self.add_variable(Variable.build_from_netcdf(dataset.variables[ds_var], locale_map), depths)
+            self.add_variable(Variable.build_from_netcdf(dataset.variables[ds_var], locale_map), depths, ontology=ontology)
         title = get_bilingual_attribute(attrs, 'title', locale_map)
         self.title = title
         self.display_name = title
@@ -1773,7 +1771,8 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         else:
             self.add_contact(ContactRole(role) if isinstance(role, str) else role, contact)
 
-    def add_variable(self, var: Variable, eov_prefixes: t.Optional[list[str]] = None):
+    @injector.inject
+    def add_variable(self, var: Variable, eov_prefixes: t.Optional[list[str]] = None, ontology: OCProc2Ontology = None):
         """
         :param var: A variable to add to the dataset
         :param eov_prefixes: Provide either or both of "seaSurface" or "subSurface" to set the EOVs properly. Otherwise you'll need to set the EOVs manually depending on the depths sampled.
@@ -1784,8 +1783,8 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             if '/' in cnodc_name:
                 pieces = cnodc_name.rsplit("/")
                 cnodc_name = pieces[-1]
-            if self.ontology.exists(cnodc_name):
-                element = self.ontology.info(cnodc_name)
+            if ontology.exists(cnodc_name):
+                element = ontology.info(cnodc_name)
                 if not element.ioos_category:
                     ioos_cat = IOOSCategory.Other
                 else:
@@ -1838,7 +1837,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         return body
 
     def add_file_direct_link(self,
-                             file_url: AcceptAsLanguageDict,
+                             file_url: ct.AcceptAsLanguageDict,
                              file_name: dict[str, str],
                              guid: str = 'direct_link_channel'):
         dist = DistributionChannel(

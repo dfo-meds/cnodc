@@ -7,11 +7,8 @@ import typing as t
 
 import zrlog
 from autoinject import injector
-from psutil import NoSuchProcess, AccessDenied
-from zrlog.logger import ImprovedLogger
-import psutil
 
-import nodb as nodb_
+import nodb.interface as interface
 from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.exceptions import CodedError, HaltInterrupt
@@ -58,7 +55,7 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         that would not prevent the worker from continuing onto the next iteration.
     """
 
-    nodb: nodb_.NODB = None
+    nodb: interface.NODB = None
 
     @injector.construct
     def __init__(self,

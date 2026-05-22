@@ -3,7 +3,6 @@ import decimal
 import math
 import typing as t
 
-from uncertainties import UFloat
 
 TRIG_FLOAT_ACCURACY = "0.0000000000000005"
 
@@ -26,6 +25,7 @@ class AccurateDecimal:
         return AccurateDecimal(self.num if self.num > 0 else -1 * self.num, self.std_dev)
 
     def __eq__(self, other):
+        from uncertainties import UFloat
         if isinstance(other, AccurateDecimal):
             return not ((self.num + self.std_dev) < (other.num - other.std_dev) or (self.num - self.std_dev) > (other.num - other.std_dev))
         elif isinstance(other, UFloat):
@@ -34,6 +34,7 @@ class AccurateDecimal:
             return not ((self.num + self.std_dev) < other or (self.num - self.std_dev) > other)
 
     def __gt__(self, other):
+        from uncertainties import UFloat
         if isinstance(other, AccurateDecimal):
             return (self.num - self.std_dev) > (other.num + other.std_dev)
         elif isinstance(other, UFloat):
@@ -42,6 +43,7 @@ class AccurateDecimal:
             return (self.num - self.std_dev) > other
 
     def __lt__(self, other):
+        from uncertainties import UFloat
         if isinstance(other, AccurateDecimal):
             return (self.num + self.std_dev) < (other.num - other.std_dev)
         elif isinstance(other, UFloat):
@@ -53,6 +55,7 @@ class AccurateDecimal:
         return f"{self.num:.15f} ± {self.std_dev:.15f}"
 
     def __add__(self, other):
+        from uncertainties import UFloat
         if isinstance(other, AccurateDecimal):
             return AccurateDecimal(
                 self.num + other.num,
@@ -71,6 +74,7 @@ class AccurateDecimal:
         return self + other
 
     def __sub__(self, other):
+        from uncertainties import UFloat
         if isinstance(other, AccurateDecimal):
             return AccurateDecimal(
                 self.num - other.num,
@@ -89,6 +93,7 @@ class AccurateDecimal:
         return self - other
 
     def __mul__(self, other):
+        from uncertainties import UFloat
         if isinstance(other, AccurateDecimal):
             product = self.num * other.num
             return AccurateDecimal(
@@ -136,6 +141,7 @@ class AccurateDecimal:
     def __pow__(self, power, modulo=None):
         if modulo is not None:
             raise ValueError('modulo not supported yet')
+        from uncertainties import UFloat
         if isinstance(power, (UFloat, AccurateDecimal)):
             raise ValueError('cannot power by uncertainty yet')
         num = self

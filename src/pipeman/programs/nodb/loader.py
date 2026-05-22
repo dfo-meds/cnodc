@@ -1,14 +1,14 @@
 import uuid
 
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
-from nodb import LockType
+from nodb.interface import LockType
 import medsutil.ocproc2 as ocproc2
-import nodb as nodb
 import typing as t
 
 from pipeman.processing.payload_worker import WorkflowWorker
 from medsutil.storage import StorageController, FilePath
 from pipeman.exceptions import CNODCError
+from nodb.observations import SourceFileStatus, NODBSourceFile
 from medsutil.dynamic import dynamic_object
 
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload
@@ -94,16 +94,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         allow_reprocessing = self.get_config('allow_reprocessing')
 
         # If it is already completed, then don't process it again
-        if source_file.status == nodb.SourceFileStatus.COMPLETE and not allow_reprocessing:
+        if source_file.status == SourceFileStatus.COMPLETE and not allow_reprocessing:
             self._log.info(f"Source file already processed, skipping")
             return QueueItemResult.HANDLED
 
-        if source_file.status == nodb.SourceFileStatus.ERROR:
+        if source_file.status == SourceFileStatus.ERROR:
             self._log.info(f"Source file contains errors, skipping")
             return QueueItemResult.FAILED
 
         # Mark the source file as in progress
-        source_file.status = nodb.SourceFileStatus.IN_PROGRESS
+        source_file.status = SourceFileStatus.IN_PROGRESS
         self.db.update_object(source_file)
         self.db.commit()
 
@@ -131,7 +131,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
         create_next_queue = total_created > 0
         if had_any_errors and was_single_file:
-            source_file.status = nodb.SourceFileStatus.ERROR
+            source_file.status = SourceFileStatus.ERROR
             create_next_queue = False
             self.count("files_processed_total", outcome="error")
             result = QueueItemResult.FAILED
@@ -140,7 +140,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 self.count("files_processed_total", outcome="partial_success")
             else:
                 self.count("files_processed_total", outcome="success")
-            source_file.status = nodb.SourceFileStatus.COMPLETE
+            source_file.status = SourceFileStatus.COMPLETE
             result = QueueItemResult.SUCCESS
         self.db.update_object(source_file)
         if create_next_queue:
@@ -151,18 +151,18 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._memory = None
         return result
 
-    def _fetch_source_file(self, payload: WorkflowPayload) -> nodb.NODBSourceFile:
+    def _fetch_source_file(self, payload: WorkflowPayload) -> NODBSourceFile:
         if isinstance(payload, FilePayload):
-            source_file = nodb.NODBSourceFile.find_by_source_path(
+            source_file = NODBSourceFile.find_by_source_path(
                 self.db,
                 payload.file_path,
                 lock_type=LockType.FOR_NO_KEY_UPDATE
             )
             if source_file is None:
-                source_file = nodb.NODBSourceFile()
+                source_file = NODBSourceFile()
                 source_file.source_path = payload.file_path
                 source_file.received_date = (payload.last_modified_date or AwareDateTime.utcnow()).date()
-                source_file.status = nodb.SourceFileStatus.NEW
+                source_file.status = SourceFileStatus.NEW
                 source_file.file_name = payload.filename
                 source_file.source_name = payload.get_metadata('source_name', '')
                 source_file.program_name = payload.get_metadata('program_name', '')
@@ -176,7 +176,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def _create_nodb_record_from_result(self,
                                         rm: NODBRecordManager,
-                                        source_file: nodb.NODBSourceFile,
+                                        source_file: NODBSourceFile,
                                         result: DecodeResult) -> tuple[int, int, bool]:
         success = 0
         skipped = 0
@@ -230,7 +230,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def _create_nodb_record(self,
                             rm: NODBRecordManager,
-                            source_file: nodb.NODBSourceFile,
+                            source_file: NODBSourceFile,
                             message_idx: int,
                             record_idx: int,
                             record: ocproc2.ParentRecord,
@@ -257,7 +257,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             raise
 
     def _handle_decode_failure(self,
-                               source_file: nodb.NODBSourceFile,
+                               source_file: NODBSourceFile,
                                result: DecodeResult,
                                additional_exception: Exception = None):
         self.db.rollback()
@@ -265,7 +265,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if result.single_message or result.original is None:
             child_file = source_file
         else:
-            child_file = nodb.NODBSourceFile.find_by_original_info(
+            child_file = NODBSourceFile.find_by_original_info(
                 self.db,
                 source_file.original_uuid,
                 source_file.received_date,
@@ -275,7 +275,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 file = self.error_directory.child(f'{source_file.source_uuid}-{result.message_idx}.bin')
                 with file:
                     file.upload([result.original], allow_overwrite=True)
-                child_file = nodb.NODBSourceFile()
+                child_file = NODBSourceFile()
                 child_file.source_uuid = str(uuid.uuid4())
                 child_file.original_idx = result.message_idx
                 child_file.original_uuid = source_file.source_uuid
@@ -286,7 +286,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 child_file.source_path = file.path()
                 mode = self.db.insert_object
 
-        child_file.status = nodb.SourceFileStatus.ERROR
+        child_file.status = SourceFileStatus.ERROR
         if result.from_exception:
             child_file.report_error(
                 f"Decode error: {result.from_exception.__class__.__name__}: {str(result.from_exception)}",
@@ -311,7 +311,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self.after_decode_error(source_file, result, additional_exception)
         self.db.commit()
 
-    def before_message(self, source_file: nodb.NODBSourceFile, result: DecodeResult):
+    def before_message(self, source_file: NODBSourceFile, result: DecodeResult):
         self.run_hook('before_message', source_file=source_file, result=result)
 
     def before_record(self, source_file, record):

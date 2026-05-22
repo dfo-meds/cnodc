@@ -1,7 +1,7 @@
 import math
 from datetime import datetime
 from .base import BaseCodec
-from medsutil.types import ByteStrings
+import medsutil.types as ct
 import typing as t
 
 import medsutil.ocproc2 as ocproc2
@@ -13,7 +13,7 @@ class OCProc2DebugCodec(BaseCodec):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, log_name="cnodc.codecs.debug", is_encoder=True, is_decoder=False, **kwargs)
 
-    def _encode_single_record(self, record: ocproc2.ParentRecord, options) -> ByteStrings:
+    def _encode_single_record(self, record: ocproc2.ParentRecord, options) -> ct.ByteStrings:
         yield self._record_to_text(record).encode('utf-8')
 
     def _record_to_text(self, record: ocproc2.ParentRecord):

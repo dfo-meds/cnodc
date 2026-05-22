@@ -8,9 +8,8 @@ from autoinject import injector
 import multiprocessing as mp
 import zirconium as zr
 from prometheus_client.multiprocess import mark_process_dead
-from psutil import NoSuchProcess, AccessDenied
 
-from nodb import NODB
+from nodb.interface import NODB
 from pipeman_service.controller import BaseController, BaseProcess
 
 

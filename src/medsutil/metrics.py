@@ -1,13 +1,17 @@
 import threading
 from contextlib import contextmanager
 
-import prometheus_client as pc
-import prometheus_client.multiprocess as pcmp
-from prometheus_client.metrics import MetricWrapperBase
-from prometheus_flask_exporter import PrometheusMetrics
 import os
 import zrlog
 from autoinject import injector
+import typing as t
+
+
+if t.TYPE_CHECKING:
+    import prometheus_client as pc
+    import prometheus_client.multiprocess as pcmp
+    from prometheus_client.metrics import MetricWrapperBase
+
 
 # Used to disable metrics in tests only!
 DISABLE_METRICS = False
@@ -26,8 +30,10 @@ class PromMetrics:
 
     def init_metrics(self, for_mp: bool = True):
         if self._reg is None:
+            import prometheus_client as pc
             self._reg = pc.CollectorRegistry()
             if os.environ.get("PROMETHEUS_MULTIPROC_DIR", default=None):
+                import prometheus_client.multiprocess as pcmp
                 self._collector = pcmp.MultiProcessCollector(self._reg)
             elif for_mp and not self.disable_metrics:
                 self.log.warning("PROMETHEUS_MULTIPROC_DIR not set, Prometheus metrics may be corrupt if using a multi-process WSGI server")
@@ -35,6 +41,7 @@ class PromMetrics:
     def init_app(self, app):
         self.init_metrics(True)
         if self.metric_flask is None:
+            from prometheus_flask_exporter import PrometheusMetrics
             if "medsutil" not in app.extensions:
                 app.extensions["medsutil"] = {}
             self.metric_flask = PrometheusMetrics(app, registry=self._reg)
@@ -50,7 +57,7 @@ class PromMetrics:
                     self._metrics[name] = _metric_cls(name, documentation, registry=self._reg if self._collector is None else None, **kwargs)
         return self._metrics[name]
 
-class BaseMetric[X: MetricWrapperBase]:
+class BaseMetric[X]:
 
     metrics: PromMetrics = None
 
@@ -84,27 +91,29 @@ class BaseMetric[X: MetricWrapperBase]:
         yield self
 
 
-class Gauge(BaseMetric[pc.Gauge]):
+class Gauge(BaseMetric):
 
     def __init__(self, name, **kwargs):
+        import prometheus_client as pc
         super().__init__(name,**kwargs, _metric_cls=pc.Gauge)
 
 
-class Counter(BaseMetric[pc.Counter]):
+class Counter(BaseMetric):
 
     def __init__(self, name, **kwargs):
+        import prometheus_client as pc
         super().__init__(name, **kwargs, _metric_cls=pc.Counter)
 
 
-class Summary(BaseMetric[pc.Summary]):
+class Summary(BaseMetric):
 
     def __init__(self, name, **kwargs):
+        import prometheus_client as pc
         super().__init__(name, **kwargs, _metric_cls=pc.Summary)
 
 
-class Histogram(BaseMetric[pc.Histogram]):
+class Histogram(BaseMetric):
 
     def __init__(self, name, **kwargs):
+        import prometheus_client as pc
         super().__init__(name, **kwargs, _metric_cls=pc.Histogram)
-
-

@@ -7,13 +7,15 @@ from autoinject import injector
 
 from pipeman_web.auth import LoginController
 from medsutil.ocproc2.codecs import OCProc2BinCodec
-from nodb import NODB, LockType, NODBQueueItem, NODBUploadWorkflow
+from nodb.observations import NODBBatch, NODBWorkingRecord, NODBPlatform
+from nodb.interface import NODB, LockType, QueueStatus
+from nodb.queue import NODBQueueItem
+from nodb.workflow import NODBUploadWorkflow
 from medsutil.ocproc2.operations import QCOperator
 import medsutil.ocproc2 as ocproc2
 from pipeman.exceptions import CNODCError
 from medsutil.vlq import vlq_encode
 import uuid
-import nodb as structures
 import threading
 import itsdangerous
 from medsutil.sanitize import coerce
@@ -57,7 +59,7 @@ class NODBWebController:
     def _all_workflows(self, access_perms: set) -> dict:
         results = {}
         with self.nodb as db:
-            for workflow in structures.NODBUploadWorkflow.find_all(db):
+            for workflow in NODBUploadWorkflow.find_all(db):
                 if workflow.check_access(access_perms):
                     results[workflow.workflow_name] = {
                         'url': flask.url_for('cnodc.submit_file', workflow_name=workflow.workflow_name, _external=True),
@@ -248,7 +250,7 @@ class NODBWebController:
                 if 'batch_info' in queue_item.data:
                     response['actions']['download_working'] = flask.url_for('cnodc.download_batch', **kwargs)
                     response['actions']['apply_working'] = flask.url_for('cnodc.apply_changes', **kwargs)
-                    response['batch_size'] = structures.NODBBatch.count_working_by_uuid(db, queue_item.data['batch_info']['uuid'])
+                    response['batch_size'] = NODBBatch.count_working_by_uuid(db, queue_item.data['batch_info']['uuid'])
                     if f'clear_actions_{queue_name}' in access_perms:
                         response['actions']['clear_actions'] = flask.url_for('cnodc.reset_actions', **kwargs)
                 elif 'source_info' in queue_item.data:
@@ -330,7 +332,7 @@ class NODBWebController:
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id, 'clear_actions')
             if 'batch_info' in queue_item.data:
-                batch: structures.NODBBatch = structures.NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
+                batch: NODBBatch = NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
                 for wr in batch.stream_working_records(db, lock_type=LockType.FOR_NO_KEY_UPDATE):
                     if not isinstance(wr.qc_metadata, dict):
                         continue
@@ -352,7 +354,7 @@ class NODBWebController:
                                      enc_app_id: str) -> t.Iterable[bytes]:
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id, 'handle')
-            batch: structures.NODBBatch = structures.NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
+            batch: NODBBatch = NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
             if batch is None:
                 raise ValueError('invalid batch')
             codec = OCProc2BinCodec()
@@ -389,7 +391,7 @@ class NODBWebController:
         # TODO: station validation
         # TODO: check for conflicts with existing station identifiers
         with self.nodb as db:
-            station = structures.NODBStation(**station_def)
+            station = NODBPlatform(**station_def)
             db.insert_object(station)
             db.commit()
             return {
@@ -399,7 +401,7 @@ class NODBWebController:
 
     def list_stations(self):
         with self.nodb as db:
-            for station_raw in structures.NODBPlatform.find_all_raw(db):
+            for station_raw in NODBPlatform.find_all_raw(db):
                 yield coerce.as_json_safe(station_raw)
 
     def save_updates(self,
@@ -408,12 +410,12 @@ class NODBWebController:
                      update_json: dict[str, dict]):
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id, 'handle')
-            batch: structures.NODBBatch = structures.NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
+            batch: NODBBatch = NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
             if batch is None:
                 raise ValueError('invalid batch')
             results = {}
             for wr_uuid in update_json:
-                working_record: structures.NODBWorkingRecord = structures.NODBWorkingRecord.find_by_uuid(
+                working_record: NODBWorkingRecord = NODBWorkingRecord.find_by_uuid(
                     db=db,
                     obs_uuid=wr_uuid,
                     lock_type=LockType.FOR_NO_KEY_UPDATE
@@ -444,7 +446,7 @@ class NODBWebController:
         with self.nodb as db:
             queue_item = self._load_queue_item(db, item_uuid, enc_app_id, 'complete')
             if 'batch_info' in queue_item.data:
-                batch: structures.NODBBatch = structures.NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
+                batch: NODBBatch = NODBBatch.find_by_uuid(db, queue_item.data['batch_info']['uuid'])
                 for wr in batch.stream_working_records(db, lock_type=LockType.FOR_NO_KEY_UPDATE):
                     actions = wr.get_metadata('actions', [])
                     if actions:
@@ -466,11 +468,11 @@ class NODBWebController:
                 'success': True
             }
 
-    def _load_queue_item(self, db, item_uuid: str, enc_app_id: str, perm_prefix: str) -> structures.NODBQueueItem:
+    def _load_queue_item(self, db, item_uuid: str, enc_app_id: str, perm_prefix: str) -> NODBQueueItem:
         queue_item = NODBQueueItem.find_by_uuid(db, item_uuid)
         if queue_item is None:
             raise CNODCError('Invalid queue item ID', 'NODBWEB', 1001)
-        if queue_item.status != structures.QueueStatus.LOCKED:
+        if queue_item.status != QueueStatus.LOCKED:
             raise CNODCError('Invalid queue state', 'NODBWEB', 1002)
         perms = self.login.current_permissions()
         if f'{perm_prefix}_{queue_item.queue_name}' not in perms:

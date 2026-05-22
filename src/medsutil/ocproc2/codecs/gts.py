@@ -1,6 +1,6 @@
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
 from medsutil.byteseq import ByteSequenceReader
-from medsutil.types import ByteStrings
+import medsutil.types as ct
 import typing as t
 
 
@@ -29,7 +29,7 @@ class GtsCodec(BaseCodec):
         }
         self._skip_ascii = []
 
-    def _decode_messages(self, data: ByteStrings, options: dict) -> t.Iterable[DecodeResult]:
+    def _decode_messages(self, data: ct.ByteStrings, options: dict) -> t.Iterable[DecodeResult]:
         reader = ByteSequenceReader(data)
         header = ''
         reader.lstrip(GtsCodec.WHITESPACE)

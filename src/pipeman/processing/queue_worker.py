@@ -10,14 +10,12 @@ import uuid
 import typing as t
 import enum
 
-from autoinject import injector
 
 from pipeman.processing.base_worker import BaseWorker
-
-import nodb as nodb_
+import nodb.interface as interface
 from pipeman.exceptions import CNODCError
 from medsutil.exceptions import HaltInterrupt, CodedError
-from nodb import NODBQueueItem
+from nodb.queue import NODBQueueItem
 
 
 class QueueItemResult(enum.Enum):
@@ -48,7 +46,7 @@ class QueueWorker(BaseWorker):
         self._app_id = None
         self._current_delay_time = None
         self._current_item: t.Optional[NODBQueueItem] = None
-        self._db: t.Optional[nodb_.NODBInstance] = None
+        self._db: t.Optional[interface.NODBInstance] = None
         self._status_info.update({
             'items_processed': 0,
             'fetch_errors': 0,
@@ -58,7 +56,7 @@ class QueueWorker(BaseWorker):
         })
 
     @property
-    def db(self) -> nodb_.NODBInstance:
+    def db(self) -> interface.NODBInstance:
         if self._db is None:
             raise CNODCError('Access to db when not processing queue item', 'QUEUE', 2000)
         return self._db
@@ -119,7 +117,7 @@ class QueueWorker(BaseWorker):
 
             db_available = True
             # NB: NODB errors require us to rollback so that we can fix them.
-            if isinstance(ex, nodb_.NODBError):
+            if isinstance(ex, interface.NODBError):
                 db_available = ex.is_db_available
                 # but only if we can still reach the database
                 if db_available:

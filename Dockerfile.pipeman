@@ -43,6 +43,8 @@ COPY vocab/ ./vocab/
 COPY app.py ./app.py
 COPY docker/defaults/pipeman/ ./defaults/
 
+RUN python -m compileall
+
 EXPOSE 80
 STOPSIGNAL SIGINT
 

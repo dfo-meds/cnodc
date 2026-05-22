@@ -6,7 +6,6 @@ from nodb import LockType
 from nodb import NODBWorkingRecord
 from pipeman.processing.payload_worker import WorkflowWorker
 import typing as t
-import nodb as nodb
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.programs.nodb.qc.qc import QCTestRunner
 from medsutil.dynamic import dynamic_object

@@ -3,7 +3,7 @@ import typing as t
 from autoinject import injector
 
 from pipeman.programs.erddap import ErddapController, ReloadFlag
-import nodb as nodb
+from nodb.queue import NODBQueueItem
 from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
 from pipeman.exceptions import CNODCError
 
@@ -24,7 +24,7 @@ class ERDDAPReloadWorker(QueueWorker):
             'default_cluster': None
         })
 
-    def process_queue_item(self, item: nodb.NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
         if 'dataset_id' not in item.data or not item.data['dataset_id']:
             raise CNODCError(f"Missing dataset ID", "ERDDAPRELOAD", 1000, False)
         flag = ReloadFlag.SOFT

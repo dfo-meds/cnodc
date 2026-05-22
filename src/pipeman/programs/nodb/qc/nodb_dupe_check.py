@@ -3,10 +3,9 @@ import itertools
 from uncertainties import UFloat
 
 import medsutil.amath
-from nodb import PostgresController
+from nodb.interface import NODB
 from pipeman.programs.nodb.qc import BaseTestSuite, BatchTest, TestContext, QCSkipTest
 import medsutil.ocproc2 as ocproc2
-import nodb.structures as structures
 import enum
 import typing as t
 from autoinject import injector

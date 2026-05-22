@@ -4,7 +4,7 @@ from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs.base import BaseCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.ocproc2.structures import ParentExport
-from medsutil.types import ByteStrings
+import medsutil.types as ct
 import medsutil.ocproc2 as ocproc2
 import medsutil.json as json
 
@@ -20,7 +20,7 @@ class OCProc2JsonCodec(BaseCodec):
     def _encode_start(self, options: dict) -> t.Union[None, bytes, bytearray]:
         return b'['
 
-    def _encode_single_record(self, record: ocproc2.ParentRecord, options: dict) -> ByteStrings:
+    def _encode_single_record(self, record: ocproc2.ParentRecord, options: dict) -> ct.ByteStrings:
         yield json.dumpb(record.to_mapping())
 
     def _encode_separator(self, options: dict) -> t.Union[None, bytes, bytearray]:
@@ -29,7 +29,7 @@ class OCProc2JsonCodec(BaseCodec):
     def _encode_end(self, options: dict) -> t.Union[None, bytes, bytearray]:
         return b']'
 
-    def _parse_into_messages(self, data: ByteStrings, options: dict) -> ByteStrings:
+    def _parse_into_messages(self, data: ct.ByteStrings, options: dict) -> ct.ByteStrings:
         stream = self._as_byte_sequence(data)
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
         if not stream.at_eof():
@@ -38,7 +38,7 @@ class OCProc2JsonCodec(BaseCodec):
             else:
                 yield stream.consume_all()
 
-    def _decode_streaming_records(self, stream: ByteSequenceReader) -> ByteStrings:
+    def _decode_streaming_records(self, stream: ByteSequenceReader) -> ct.ByteStrings:
         # Skip the initial byte, its a square bracket
         depth = 0
         buffer = bytearray()

@@ -16,26 +16,18 @@ connection_string = "..."
 
 
 """
-import base64
-import shutil
-import sqlite3
-import sys
-import tempfile
+import typing as t
 from contextlib import contextmanager
 
-from azure.core.exceptions import ResourceNotFoundError
+from medsutil.storage.azure import wrap_azure_errors, _AzureBaseHandle
+from medsutil.storage.interface import FeatureFlag, StatResult, StorageTier
 
-from medsutil.awaretime import AwareDateTime
-from medsutil.byteseq import ByteSequenceReader
-from medsutil.storage.azure import wrap_azure_errors, AzureBaseHandle
-from medsutil.storage.interface import FeatureFlag, StatResult
-from medsutil.storage import StorageTier
-from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobBlock, BlockState, BlobProperties
-import typing as t
-from urllib.parse import urlparse
-
+if t.TYPE_CHECKING:
+    import sqlite3
+    from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobBlock, BlockState, BlobProperties
 
 def total_memory_size(__obj) -> int:
+    import sys
     seen = set()
     def _size_of(obj) -> int:
         if id(obj) in seen:
@@ -69,6 +61,7 @@ class BlobWalker:
             self._sql_handle.close()
             del self._sql_handle
         if self._temp_dir:
+            import shutil
             shutil.rmtree(self._temp_dir)
             del self._temp_dir
         del self._memory_dict
@@ -91,6 +84,8 @@ class BlobWalker:
                 self._rollover()
 
     def _rollover(self):
+        import sqlite3
+        import tempfile
         self._use_file_system = True
         self._temp_dir: str = tempfile.mkdtemp()
         self._sql_handle = sqlite3.connect(self._temp_dir.rstrip('/\\') + '/walker.db')
@@ -157,7 +152,7 @@ class BlobWalker:
             BlobWalker._deep_append(d['_dirs'][next_name], dir_names, file_name)
 
 
-class AzureBlobHandle(AzureBaseHandle):
+class AzureBlobHandle(_AzureBaseHandle):
     """Handle class for Azure blobs"""
 
     def __init__(self, *args, **kwargs):
@@ -184,27 +179,30 @@ class AzureBlobHandle(AzureBaseHandle):
 
     @staticmethod
     def code_tier(tier: StandardBlobTier | None) -> StorageTier | None:
-        if tier == StandardBlobTier.HOT:
+        from azure.storage.blob import StandardBlobTier
+        if tier is StandardBlobTier.HOT:
             return StorageTier.FREQUENT
-        elif tier == StandardBlobTier.COOL:
+        elif tier is StandardBlobTier.COOL:
             return StorageTier.INFREQUENT
-        elif tier == StandardBlobTier.ARCHIVE:
+        elif tier is StandardBlobTier.ARCHIVE:
             return StorageTier.ARCHIVAL
         return None
 
     @staticmethod
     def decode_tier(tier: StorageTier | None) -> StandardBlobTier:
+        from azure.storage.blob import StandardBlobTier
         if tier is StorageTier.FREQUENT:
             return StandardBlobTier.HOT
-        elif tier == StorageTier.INFREQUENT:
+        elif tier is StorageTier.INFREQUENT:
             return StandardBlobTier.COOL
-        elif tier == StorageTier.ARCHIVAL:
+        elif tier is StorageTier.ARCHIVAL:
             return StandardBlobTier.ARCHIVE
         return StandardBlobTier.HOT
 
     @wrap_azure_errors
     def _stat(self) -> StatResult:
-
+        from azure.core.exceptions import ResourceNotFoundError
+        from medsutil.awaretime import AwareDateTime
         try:
             with self.client() as client:
                 props = client.get_blob_properties()
@@ -233,6 +231,8 @@ class AzureBlobHandle(AzureBaseHandle):
 
     @staticmethod
     def _blob_streaming_upload(client: BlobClient, chunk: bytes, offset: int) -> BlobBlock:
+        import base64
+        from azure.storage.blob import BlobBlock, BlockState
         block_id = base64.b64encode(f"{offset:032d}".encode('utf-8')).decode('utf-8')
         client.stage_block(block_id, chunk, len(chunk))
         bb = BlobBlock(block_id, BlockState.UNCOMMITTED)
@@ -240,6 +240,7 @@ class AzureBlobHandle(AzureBaseHandle):
         return bb
 
     def _streaming_write(self, chunks: t.Iterable[bytes], **kwargs):
+        from medsutil.byteseq import ByteSequenceReader
         with self.client() as client_:
             bsr = ByteSequenceReader(chunks)
             block_size: int = 1024 * 1024 * 4  # this should take around 2 seconds at most with a good connection
@@ -285,6 +286,7 @@ class AzureBlobHandle(AzureBaseHandle):
 
     @wrap_azure_errors
     def _remove(self):
+        from azure.core.exceptions import ResourceNotFoundError
         try:
             with self.client() as client:
                 client.delete_blob()
@@ -332,5 +334,6 @@ class AzureBlobHandle(AzureBaseHandle):
     def supports(file_path: str) -> bool:
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
+        from urllib.parse import urlparse
         pieces = urlparse(file_path)
         return pieces.hostname is not None and pieces.hostname.endswith(".blob.core.windows.net")

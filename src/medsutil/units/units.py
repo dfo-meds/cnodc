@@ -6,10 +6,12 @@ import xml.etree.ElementTree as ET  # nosec B314 # file is under our control
 import zrlog
 import threading
 from autoinject import injector
-from uncertainties import UFloat, ufloat
 
 from medsutil.units.parsing import parse_unit_string
 from medsutil.units.structures import LinearFunction, Converter, UnitExpression, UnitError
+
+if t.TYPE_CHECKING:
+    from uncertainties import UFloat
 
 ADDITIONAL_UNITS = {
     'psu': '0.001',
@@ -124,6 +126,7 @@ class UnitConverter:
             return None
 
     def convert(self, quantity: t.Union[float, int, UFloat, decimal.Decimal], original_units: str, output_units: str) -> t.Union[float, int, UFloat, decimal.Decimal]:
+        from uncertainties import UFloat, ufloat
         if isinstance(quantity, UFloat):
             nv = self._convert(decimal.Decimal(quantity.nominal_value), original_units, output_units)
             sv = self._convert(decimal.Decimal(quantity.std_dev), original_units, output_units)

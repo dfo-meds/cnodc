@@ -8,7 +8,6 @@ import nodb.base as s
 import medsutil.types as ct
 import nodb.interface as interface
 from medsutil.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
-from medsutil.seawater import eos80_depth
 from medsutil.awaretime import AwareDateTime
 from medsutil.sanitize import coerce
 
@@ -444,6 +443,7 @@ class NODBObservation(s.NODBBaseObject):
         if 'Depth' in position:
             depth = position['Depth']
         elif 'Pressure' in position and 'Depth' not in position and 'Latitude' in position:
+            from medsutil.seawater import eos80_depth
             depth = eos80_depth(position['Pressure'], position['Latitude'])
         if depth is not None:
             if ref_info.min_depth is None or ref_info.min_depth > depth:

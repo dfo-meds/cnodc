@@ -2,7 +2,7 @@ import typing as t
 
 from autoinject import injector
 
-from nodb import NODBQueueItem
+from nodb.queue import NODBQueueItem
 from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
 from pipeman.programs.dmd import dmd as dmd
 

@@ -95,7 +95,7 @@ def boot(
                 logger = getattr(mod, obj_name)
                 logger.setLevel(log_level)
             except AttributeError:
-                boot_logger.exception("Could not find logger for %s or it is not a logger", log_obj)
+                logging.getLogger().exception("Could not find logger for %s or it is not a logger", log_obj)
 
 def boot_system(
         app_name: str,

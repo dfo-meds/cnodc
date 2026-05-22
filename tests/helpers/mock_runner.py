@@ -2,7 +2,8 @@ import datetime
 import typing as t
 import uuid
 
-from nodb import NODBQueueItem, QueueStatus
+from nodb.interface import QueueStatus
+from nodb.queue import NODBQueueItem
 from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, ObservationWorkflowWorker, FileWorkflowWorker
 from pipeman.processing.queue_worker import QueueWorker
 from pipeman.processing.scheduled_task import ScheduledTask

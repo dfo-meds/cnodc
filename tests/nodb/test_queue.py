@@ -1,6 +1,7 @@
 import datetime
 
-from nodb import NODBQueueItem, QueueStatus
+from nodb.queue import NODBQueueItem
+from nodb.interface import QueueStatus
 from tests.helpers.base_test_case import BaseTestCase
 
 

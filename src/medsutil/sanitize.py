@@ -5,17 +5,18 @@ import math
 import typing as t
 
 import unicodedata
-import numpy as np
-import numpy.typing as npt
-from numpy.ma.core import MaskedConstant, MaskedArray
-from uncertainties import UFloat
 from decimal import Decimal
 
-from uncertainties.core import AffineScalarFunc
 
 from medsutil import json as json
 from medsutil.awaretime import AwareDateTime
-import medsutil.types as ct
+
+if t.TYPE_CHECKING:
+    import numpy as np
+    import numpy.typing as npt
+    from numpy.ma.core import MaskedConstant, MaskedArray
+    from uncertainties import UFloat
+    import medsutil.types as ct
 
 
 UNICODE_SPACES = "\t\u00A0\u180E\u2002\u2000\u2003\u2004\u2005\u2006\u2008\u2007\u2009\u200A\u200B\u202F\u205F\u3000\uFEFF"
@@ -63,6 +64,7 @@ class DataCoercer:
 
     @staticmethod
     def as_float(f: ct.AcceptAsFloat) -> float:
+        from uncertainties.core import AffineScalarFunc
         if isinstance(f, AffineScalarFunc):
             return f.nominal_value
         else:
@@ -81,6 +83,7 @@ class DataCoercer:
 
     @staticmethod
     def string_as_nc_bytes(s: t.Sequence[str] | str, fixed_len: int = None) -> npt.NDArray:
+        import numpy as np
         """ Converts a string (or a sequence of strings) into a fixed- or variable-length NetCDF-compatible array. """
         if fixed_len is not None:
             if isinstance(s, str):
@@ -138,6 +141,8 @@ class DataCoercer:
 
     @staticmethod
     def numpy_as_native(x: t.Any) -> t.Any:
+        import numpy as np
+        from numpy.ma.core import MaskedConstant, MaskedArray
         if x is None:
             return None
         elif isinstance(x, (np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64, np.bool, np.float16, np.float32, np.float64)):

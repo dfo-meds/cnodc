@@ -5,15 +5,14 @@ import unittest
 from tests.helpers.base_test_case import load_ordered_tests, ordered_after
 from medsutil.dynamic import dynamic_name
 from medsutil.ocproc2.codecs.netcdf import NetCDFCommonDecoder
-from nodb import NODBObservationData, NODBObservation, NODBSourceFile
-from nodb import NODBWorkingRecord
+from nodb.observations import NODBWorkingRecord, NODBSourceFile, NODBObservation, NODBObservationData
 from pipeman.processing.progressor import WorkflowProgressWorker
 from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
 from pipeman.programs.glider.ego_convert import validate_ego_glider_file
 from pipeman.programs.glider.ego_decode import GliderEGOMapper
 from pipeman.programs.glider.workers import GliderConversionWorker, add_glider_mission_platform_info
 from pipeman.programs.dmd.pusher import DMDMetadataPushWorker
-from pipeman.programs.nodb import NODBDecodeLoadWorker
+from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
 from tests.helpers.base_test_case import skip_long_test
 from tests.helpers.mock_workflow import MockWorkflow, WorkflowTestResult, BaseWorkflowTestCase
 from tests.helpers.mock_requests import MockResponse

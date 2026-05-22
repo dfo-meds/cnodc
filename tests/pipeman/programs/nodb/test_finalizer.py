@@ -1,11 +1,10 @@
 import datetime
 import unittest
 
-from nodb import NODBBatch, BatchStatus, NODBObservation
-from nodb import NODBWorkingRecord, NODBObservationData
+from nodb.observations import NODBWorkingRecord, NODBObservationData, NODBBatch, BatchStatus, NODBObservation
 from medsutil.ocproc2 import ParentRecord
 from pipeman.processing.payloads import BatchPayload
-from pipeman.programs.nodb import NODBFinalizeWorker
+from pipeman.programs.nodb.finalizer import NODBFinalizeWorker
 
 from tests.helpers.base_test_case import BaseTestCase
 

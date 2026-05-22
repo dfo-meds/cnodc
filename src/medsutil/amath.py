@@ -1,11 +1,11 @@
 import math
 import typing as t
 
-from uncertainties import umath, UFloat, ufloat
-
 from medsutil.adecimal import AccurateDecimal, NonAccurateNumber
 
-AnyNumber = t.Union[AccurateDecimal, NonAccurateNumber, UFloat]
+if t.TYPE_CHECKING:
+    from uncertainties import umath, UFloat, ufloat
+    AnyNumber = t.Union[AccurateDecimal, NonAccurateNumber, UFloat]
 
 TRIG_FLOAT_ACCURACY = "5e-15"
 
@@ -13,6 +13,7 @@ PI = AccurateDecimal("3.1415926535898", "0.00000000000001")
 
 
 def with_minimum_uncertainty(n: AnyNumber, uncertainty: NonAccurateNumber):
+    from uncertainties import UFloat, ufloat
     if isinstance(n, AccurateDecimal):
         if uncertainty > n.std_dev:
             return AccurateDecimal(n.num, uncertainty)
@@ -26,6 +27,7 @@ def with_minimum_uncertainty(n: AnyNumber, uncertainty: NonAccurateNumber):
 
 
 def sin(rads: AnyNumber) -> AnyNumber:
+    from uncertainties import UFloat
     if isinstance(rads, AccurateDecimal):
         if rads.std_dev < 0.2:
             # warning? small angle not appropriate
@@ -43,6 +45,7 @@ def sin(rads: AnyNumber) -> AnyNumber:
 
 
 def cos(rads: AnyNumber) -> AnyNumber:
+    from uncertainties import UFloat
     if isinstance(rads, AccurateDecimal):
         adecimal = AccurateDecimal(
             math.cos(rads.num),
@@ -56,6 +59,7 @@ def cos(rads: AnyNumber) -> AnyNumber:
         return math.cos(rads)
 
 def atan2(x: AnyNumber, y: AnyNumber) -> AnyNumber:
+    from uncertainties import UFloat
     if isinstance(x, AccurateDecimal):
         return AccurateDecimal(
             math.atan2(x.num, y.num),
@@ -69,6 +73,7 @@ def atan2(x: AnyNumber, y: AnyNumber) -> AnyNumber:
         return math.atan2(x, y)
 
 def radians(degrees: AnyNumber) -> AnyNumber:
+    from uncertainties import UFloat
     if isinstance(degrees, AccurateDecimal):
         res = degrees * (PI * (1 / 180))
         res.set_minimum_accuracy("5e-14")
@@ -79,6 +84,7 @@ def radians(degrees: AnyNumber) -> AnyNumber:
         return math.radians(degrees)
 
 def sqrt(num: AnyNumber) -> AnyNumber:
+    from uncertainties import UFloat
     if isinstance(num, AccurateDecimal):
         return num ** 2
     elif isinstance(num, UFloat):
@@ -125,6 +131,7 @@ def is_less_than(*args, **kwargs) -> bool:
 
 
 def min_max_range(n: AnyNumber, std_devs: float = 2) -> tuple[NonAccurateNumber, NonAccurateNumber]:
+    from uncertainties import UFloat
     if isinstance(n, AccurateDecimal):
         diff = (std_devs * n.std_dev)
         return n.num - diff, n.num + diff
@@ -136,6 +143,7 @@ def min_max_range(n: AnyNumber, std_devs: float = 2) -> tuple[NonAccurateNumber,
 
 
 def to_float(n: AnyNumber):
+    from uncertainties import UFloat
     if isinstance(n, UFloat):
         return float(n.nominal_value)
     else:

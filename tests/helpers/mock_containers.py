@@ -4,7 +4,7 @@ import subprocess
 import time
 
 import zrlog
-from nodb import NODBError
+from nodb.interface import NODBError
 from nodb.controller import NODBPostgresController
 
 TEST_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent

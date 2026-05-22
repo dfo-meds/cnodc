@@ -6,7 +6,7 @@ from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import ParentRecord
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.processing.payload_worker import PayloadWorker
-from pipeman.programs.nodb import NODBDecodeLoadWorker
+from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
 from medsutil.storage import StorageController, FilePath, StorageTier
 from pipeman.processing.payloads import SourceFilePayload, Payload, FilePayload
 from pipeman.programs.glider.ego_convert import OpenGliderConverter

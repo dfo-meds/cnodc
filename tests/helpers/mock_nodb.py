@@ -3,7 +3,8 @@ import typing as t
 import uuid
 
 from medsutil.awaretime import AwareDateTime
-from nodb import QueueStatus, NODBQueueItem, ScannedFileStatus
+from nodb.interface import QueueStatus, ScannedFileStatus
+from nodb.queue import NODBQueueItem
 import nodb.interface as interface
 
 from medsutil.sanitize import coerce

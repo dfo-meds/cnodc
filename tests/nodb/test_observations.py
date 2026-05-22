@@ -2,9 +2,8 @@ import datetime
 import enum
 
 from medsutil.awaretime import AwareDateTime
-from nodb import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, PlatformStatus, \
-    NODBBatch, ProcessingLevel, ObservationType, ObservationStatus
-from nodb import NODBWorkingRecord, BatchStatus
+from nodb.observations import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, PlatformStatus, \
+    NODBBatch, ProcessingLevel, ObservationType, ObservationStatus, NODBWorkingRecord, BatchStatus
 from medsutil.ocproc2 import ParentRecord, ChildRecord, QCResult
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from tests.helpers.base_test_case import BaseTestCase

@@ -3,9 +3,9 @@ import pathlib
 import uuid
 import datetime
 
-from nodb import NODBBatch, NODBObservation, NODBObservationData, NODBUploadWorkflow
+from nodb.workflow import NODBUploadWorkflow
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, ObservationPayload
-from nodb import NODBSourceFile
+from nodb.observations import NODBSourceFile, NODBBatch, NODBObservation, NODBObservationData
 from medsutil.exceptions import CodedError
 from medsutil.dynamic import dynamic_name
 

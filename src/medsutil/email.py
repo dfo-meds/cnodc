@@ -1,16 +1,16 @@
-import email
 import pathlib
-import smtplib
-import ssl
 import typing as t
 
-import jinja2
 from autoinject import injector
 import zirconium as zr
 import threading
 import zrlog
 
 from medsutil.exceptions import exception_kwargs_for_email, CodedError
+
+if t.TYPE_CHECKING:
+    import email
+    from ssl import SSLContext
 
 
 class DelayedEmailController(t.Protocol):
@@ -37,7 +37,7 @@ class EmailController:
     @injector.construct
     def __init__(self):
         self._log = zrlog.get_logger("medsutil.email")
-        self._connect_args: dict[str, str | int | None | ssl.SSLContext] = {
+        self._connect_args: dict[str, str | int | None | SSLContext] = {
             "host": self.config.as_str(("email", "host"), default=""),
             "port": self.config.as_int(("email", "port"), default=0),
             'local_hostname': self.config.as_str(("email", "local_hostname"), default=None),
@@ -52,22 +52,11 @@ class EmailController:
         self._from_email: str = self.config.as_str(("email", "send_from"), default="no-reply@example.com")
         self._dummy_send: bool = self.config.as_bool(("email", "no_send"), default=False) or not self._connect_args['host']
         self.admin_emails: list[str] = self.config.as_list(("email", "admin_emails"), default=[])
-        extra_template_folders = self.config.as_list(("email", "template_folders"), default=None)
-        if extra_template_folders:
-            extra_template_folders = [
-                pathlib.Path(x)
-                for x in reversed(extra_template_folders)
-            ]
-        else:
-            extra_template_folders = []
-        base_path = pathlib.Path(__file__).absolute().parent / ".email_templates"
-        self._email_jinja_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader([base_path, *extra_template_folders]),
-            autoescape=jinja2.select_autoescape()
-        )
         self._template_cache = {}
         self._lock = threading.Lock()
+        self._email_jinja_env = None
         if self._use_ssl:
+            import ssl
             self._connect_args['context'] = ssl.create_default_context()
 
     def send_error_report(self, ex: BaseException, immediate: bool = True):
@@ -104,6 +93,21 @@ class EmailController:
         return (subject or f"{name}"), message_txt, message_html
 
     def _render_template_content(self, name: str, lang: t.Literal["en", "fr"], extension: str, kwargs: dict[str, t.Any]) -> str:
+        import jinja2
+        base_path = pathlib.Path(__file__).absolute().parent / ".email_templates"
+        if self._email_jinja_env is None:
+            extra_template_folders = self.config.as_list(("email", "template_folders"), default=None)
+            if extra_template_folders:
+                extra_template_folders = [
+                    pathlib.Path(x)
+                    for x in reversed(extra_template_folders)
+                ]
+            else:
+                extra_template_folders = []
+            self._email_jinja_env = jinja2.Environment(
+                loader=jinja2.FileSystemLoader([base_path, *extra_template_folders]),
+                autoescape=jinja2.select_autoescape()
+            )
         file_name_options = [
             f"{name}.{lang}.{extension}",
             f"{name}.{extension}"
@@ -167,6 +171,7 @@ class EmailController:
                 to_addrs.extend(self._standardize_email_list(cc_emails))
             if bcc_emails:
                 to_addrs.extend(self._standardize_email_list(bcc_emails))
+            import email
             msg = email.message.EmailMessage()
             msg['Subject'] = subject
             msg['To'] = self._standardize_email_list(to_emails)
@@ -190,6 +195,7 @@ class EmailController:
         if not to_addrs:
             return False
         with self._lock:
+            import smtplib
             try:
                 smtp = smtplib.SMTP_SSL if self._use_ssl else smtplib.SMTP
                 with smtp(**self._connect_args) as smtp:

@@ -4,7 +4,7 @@ import click
 from autoinject import injector
 
 from medsutil.awaretime import AwareDateTime
-from nodb import NODB, QueueStatus
+from nodb.interface import NODB, QueueStatus
 
 
 @click.group("db", help="Database management tools, use with care!")

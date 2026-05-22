@@ -7,7 +7,7 @@ import zrlog
 from autoinject import injector
 
 from medsutil.exceptions import CodedError
-from nodb import NODBSession, NODBUser
+from nodb.access import NODBSession, NODBUser
 import medsutil.awaretime as awaretime
 from pipeman.users import UserController
 

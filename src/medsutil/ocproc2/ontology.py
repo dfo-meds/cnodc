@@ -1,9 +1,7 @@
-import rdflib
 import pathlib
 import threading
 import typing as t
 
-import rdflib.term
 from autoinject import injector
 
 
@@ -28,8 +26,10 @@ SKOS_LABEL = f'http://www.w3.org/2004/02/skos/core#prefLabel'
 SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
 
 
-LiteralValue = t.Union[set[rdflib.term.Literal], rdflib.term.Literal]
-ReferenceValue = t.Union[str, set[str]]
+if t.TYPE_CHECKING:
+    import rdflib.term
+    LiteralValue = t.Union[set[rdflib.term.Literal], rdflib.term.Literal]
+    ReferenceValue = t.Union[str, set[str]]
 
 class _BaseInfo:
 
@@ -185,7 +185,6 @@ class OCProc2ElementInfo(_BaseInfo):
     def set_max_value(self, max_value: LiteralValue):
         self.max_value = _BaseInfo.build_one_from_literal(max_value)
 
-
 @injector.injectable_global
 class OCProc2Ontology:
 
@@ -209,6 +208,7 @@ class OCProc2Ontology:
         if self._parameters is None:
             with self._load_lock:
                 if self._parameters is None:
+                    import rdflib
                     self._parameters = {}
                     self._recordset_types = {}
                     graph = rdflib.Graph()

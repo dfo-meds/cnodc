@@ -313,7 +313,7 @@ class _AzureBlob:
         with open(metadata_path, "w") as h:
             h.write(json.dumps(md))
 
-    def upload_blob(self, data, length: int = None, metadata=None, standard_blob_tier=None):
+    def upload_blob(self, data, length: int = None, metadata=None, standard_blob_tier=None, overwrite: bool = False):
         if not self.local_path.parent.exists():
             self.local_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.local_path, 'wb') as h:

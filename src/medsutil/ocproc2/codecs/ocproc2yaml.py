@@ -1,5 +1,5 @@
 from medsutil.ocproc2.codecs.base import BaseCodec
-from medsutil.types import ByteStrings
+import medsutil.types as ct
 import typing as t
 import medsutil.ocproc2 as ocproc2
 import yaml
@@ -19,7 +19,7 @@ class OCProc2YamlCodec(BaseCodec):
     def _encode_start(self, options: dict) -> t.ByteString:
         return b'%YAML 1.1\n---\n'
 
-    def _encode_single_record(self, record: ocproc2.ParentRecord, options) -> ByteStrings:
+    def _encode_single_record(self, record: ocproc2.ParentRecord, options) -> ct.ByteStrings:
         yield yaml.dump(record.to_mapping()).encode(options.get('encoding', 'utf-8'))
 
     def _encode_separator(self, options: dict) -> t.ByteString:

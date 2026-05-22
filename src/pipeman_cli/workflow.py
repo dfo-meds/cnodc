@@ -4,7 +4,7 @@ import yaml
 import zrlog
 from autoinject import injector
 from nodb.interface import NODB, NODBInstance, LockType
-import nodb as structures
+from nodb.workflow import NODBUploadWorkflow
 
 
 @click.group()
@@ -54,7 +54,7 @@ def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, 
         config = {}
         with open(config_file, "r") as h:
             config = yaml.safe_load(h) or {}
-        existing = structures.NODBUploadWorkflow.find_by_name(db, workflow_name, lock_type=LockType.FOR_NO_KEY_UPDATE)
+        existing = NODBUploadWorkflow.find_by_name(db, workflow_name, lock_type=LockType.FOR_NO_KEY_UPDATE)
         if existing:
             zrlog.get_logger("cli.upgrade.workflows").notice("updating workflow %s from %s", workflow_name, config_file)
             existing.set_config(config)
@@ -62,7 +62,7 @@ def _update_from_config_dir_file(workflow_name: str, config_file: pathlib.Path, 
             db.commit()
         else:
             zrlog.get_logger("cli.upgrade.workflows").notice("creating workflow %s from %s", workflow_name, config_file)
-            existing = structures.NODBUploadWorkflow(workflow_name=workflow_name)
+            existing = NODBUploadWorkflow(workflow_name=workflow_name)
             existing.is_active = True
             existing.set_config(config)
             db.insert_object(existing)

@@ -2,9 +2,9 @@ import flask
 from autoinject import injector
 
 from medsutil.exceptions import CodedError
-from nodb import NODBUploadWorkflow, LockType
+from nodb.workflow import NODBUploadWorkflow
 from pipeman.users import UserController
-from nodb.interface import NODB
+from nodb.interface import NODB, LockType
 from pipeman_web.util import require_inputs, require_permission
 
 

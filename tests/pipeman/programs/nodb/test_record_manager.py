@@ -1,8 +1,7 @@
 import datetime
 import unittest
 
-from nodb import NODBObservationData, NODBMission, NODBPlatform
-from nodb import NODBWorkingRecord
+from nodb.observations import NODBWorkingRecord, NODBObservationData, NODBMission, NODBPlatform
 from pipeman.programs.nodb.record_manager import NODBRecordManager
 from tests.helpers.base_test_case import BaseTestCase
 import medsutil.ocproc2 as ocproc2

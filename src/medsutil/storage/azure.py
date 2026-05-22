@@ -1,58 +1,57 @@
-import functools
-from abc import ABC
 import typing as t
 
-import urllib3.exceptions
 import zirconium as zr
 from autoinject import injector
-from azure.core import exceptions as ace
-from azure.storage.blob import ContainerClient, BlobClient
-from azure.storage.fileshare import ShareClient, ShareDirectoryClient, ShareFileClient
-from azure.core.pipeline.transport._requests_basic import RequestsTransport
 
 from medsutil.exceptions import CodedError
-from medsutil.storage.base import UrlBaseHandle
 from medsutil.storage.interface import StorageError
+from medsutil.storage.base import UrlBaseHandle
 
-import atexit
 
-class MyRequestsTransport(RequestsTransport):
+if t.TYPE_CHECKING:
+    from azure.storage.blob import ContainerClient
+    from azure.storage.fileshare import ShareClient
 
-    def __init__(self):
-        super().__init__()
-        self._open_count = 0
-
-    def __enter__(self):
-        self._open_count += 1
-        return super().__enter__()
-
-    def __exit__(self, *args, **kwargs):
-        self._open_count -= 1
-        if self._open_count <= 0:
-            self._open_count = 0
-            super().__exit__()
-
-    def open(self):
-        super().open()
-        self._has_been_opened = False
-
-    def send(self, request, *args, **kwargs):
-        return super().send(request, *args, **kwargs)
-
-def long_lived_requests_transport():
-    x = MyRequestsTransport()
-    x.__enter__()
-    atexit.register(x.__exit__)
-    return x
 
 @injector.injectable
 class AzureClientPool:
 
-
     def __init__(self):
         self._share_cache: dict[str, ShareClient] = {}
         self._container_cache: dict[str, ContainerClient] = {}
-        self._transport = MyRequestsTransport()
+        self._transport = self.better_requests_transport()
+
+    def better_requests_transport(self, long_lived: bool = False):
+        from azure.core.pipeline.transport._requests_basic import RequestsTransport
+        class MyRequestsTransport(RequestsTransport):
+
+            def __init__(self):
+                super().__init__()
+                self._open_count = 0
+
+            def __enter__(self):
+                self._open_count += 1
+                return super().__enter__()
+
+            def __exit__(self, *args, **kwargs):
+                self._open_count -= 1
+                if self._open_count <= 0:
+                    self._open_count = 0
+                    super().__exit__()
+
+            def open(self):
+                super().open()
+                self._has_been_opened = False
+
+            def send(self, request, *args, **kwargs):
+                return super().send(request, *args, **kwargs)
+
+        x = MyRequestsTransport()
+        if long_lived:
+            import atexit
+            x.__enter__()
+            atexit.register(x.__exit__)
+        return x
 
     def _get_account_name(self, conn_string: str) -> str:
         pieces = conn_string.split(';')
@@ -76,14 +75,16 @@ class AzureClientPool:
         return self._container_cache[key]
 
     def _build_share_client(self, conn_string: str, share_name: str) -> ShareClient:
+        from azure.storage.fileshare import ShareClient
         return ShareClient.from_connection_string(conn_string, share_name, transport=self._transport)
 
     def _build_container_client(self, conn_string: str, container_name: str) -> ContainerClient:
+        from azure.storage.blob import ContainerClient
         return ContainerClient.from_connection_string(conn_string, container_name, transport=self._transport)
 
 
 
-class AzureBaseHandle(UrlBaseHandle, ABC):
+class _AzureBaseHandle(UrlBaseHandle):
 
     config: zr.ApplicationConfig = None
     client_pool: AzureClientPool = None
@@ -130,7 +131,6 @@ class AzureBaseHandle(UrlBaseHandle, ABC):
         path_parts = [x.strip() for x in url_parts.path.lstrip('/').split('/') if x.strip()]
         return '/'.join(path_parts[1:]) if len(path_parts) > 1 else ""
 
-
     def _get_connection_string(self, account_name: str) -> str:
         return t.cast(str, self.config.as_str(('storage', 'azure', account_name, 'connection_string'), default=''))
 
@@ -142,9 +142,12 @@ class AzureBaseHandle(UrlBaseHandle, ABC):
 
 def wrap_azure_errors(cb):
     """Converts Azure storage errors into CNODCErrors with an appropriate is_recoverable setting."""
+    import functools
 
     @functools.wraps(cb)
     def _inner(*args, **kwargs):
+        from azure.core import exceptions as ace
+        import urllib3.exceptions
         try:
             return cb(*args, **kwargs)
         except ace.AzureError as ex:
