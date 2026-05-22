@@ -376,6 +376,24 @@ class NODBObservation(s.NODBBaseObject):
     processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel)
     embargo_date: t.Optional[AwareDateTime] = s.DateTimeColumn()
 
+    @classmethod
+    def prepare_insert(cls, db: interface.NODBInstance, name: str) -> interface.PreparedStatementProtocol:
+        return db.prepared_insert(cls, data_map={
+            'obs_uuid': 'UUID',
+            'received_date': 'DATE',
+            'platform_uuid': 'UUID',
+            'mission_uuid': 'UUID',
+            'obs_time': 'TIMESTAMPTZ',
+            'min_depth': 'FLOAT',
+            'max_depth': 'FLOAT',
+            'location': 'geography',
+            'observation_type': 'obs_type',
+            'surface_parameters': 'JSON',
+            'profile_parameters': 'JSON',
+            'processing_level': 'processing_level',
+            'embargo_date': 'TIMESTAMPTZ',
+        }, name=name)
+
     def find_observation_data(self, db: interface.NODBInstance) -> NODBObservationData | None:
         return NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date)
 
@@ -456,8 +474,23 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     qc_tests: dict[str, dict[str, str]] = s.JsonDictColumn()
     duplicate_uuid: str = s.UUIDColumn()
     duplicate_received_date: datetime.date = s.DateColumn()
-    status: ObservationStatus = s.EnumColumn(ObservationStatus)
-    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel)
+    status: ObservationStatus = s.EnumColumn(ObservationStatus, default=ObservationStatus.UNVERIFIED)
+    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel, default=ProcessingLevel.UNKNOWN)
+
+    @classmethod
+    def prepare_insert(cls, db: interface.NODBInstance, name: str) -> interface.PreparedStatementProtocol:
+        return db.prepared_insert(cls, data_map={
+            'obs_uuid': 'UUID',
+            'received_date': 'DATE',
+            'source_file_uuid': 'UUID',
+            'message_idx': 'INT',
+            'record_idx': 'INT',
+            'qc_tests': 'JSON',
+            'duplicate_uuid': 'UUID',
+            'duplicate_received_date': 'DATE',
+            'status': 'obs_status',
+            'processing_level': 'processing_level',
+        }, name=name)
 
     @classmethod
     def get_mock_index_keys(cls) -> list[list[str]]:
