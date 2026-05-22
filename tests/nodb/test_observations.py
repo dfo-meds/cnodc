@@ -532,8 +532,8 @@ class TestObservationData(BaseTestCase):
         obs_data = NODBObservationData()
         self.assertIsNone(obs_data.duplicate_uuid)
         self.assertIsNone(obs_data.duplicate_received_date)
-        self.assertIsNone(obs_data.status)
-        self.assertIsNone(obs_data.processing_level)
+        self.assertIs(obs_data.status, ObservationStatus.UNVERIFIED)
+        self.assertIs(obs_data.processing_level, ProcessingLevel.UNKNOWN)
         self.assertEqual(0, len(obs_data.qc_tests))
         obs_data.record = record
         with self.subTest(msg='duplicate info'):

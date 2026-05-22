@@ -21,7 +21,7 @@ class WorkerTestController:
                               queue_name: str = '',
                               priority: int = 0,
                               subqueue_name: t.Optional[str] = None,
-                              unique_item_name: t.Optional[str] = None):
+                              unique_item_name: t.Optional[str] = None,):
         return NODBQueueItem(
             is_new=False,
             queue_name=queue_name,

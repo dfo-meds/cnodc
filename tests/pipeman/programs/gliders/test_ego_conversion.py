@@ -769,8 +769,8 @@ class TestFullConversionWithMetadata(GliderBaseTest):
         super().setUpClass()
         cls.old_handle.close()
         cls.new_file = cls.class_temp_dir / 'og.nc'
-        cls.result: tuple[str, str, DatasetMetadata] = cls.converter.convert(cls.old_file, cls.new_file)
-        cls.metadata = cls.result[2]
+        cls.result: tuple[str, DatasetMetadata] = cls.converter.convert(cls.old_file, cls.new_file)
+        cls.metadata = cls.result[1]
         cls.new_handle = netCDF4.Dataset(cls.new_file, 'r')
 
     @classmethod

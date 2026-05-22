@@ -293,7 +293,7 @@ class BatchPayload(WorkflowPayload):
         return f'<BatchPayload:{self.batch_uuid}:{self.workflow_name}:{self.current_step}>'
 
     def load_batch(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBBatch:
-        return self._load_batch('batch', db=db, **kwargs)
+        return self._with_cache('batch', self._load_batch, db=db, **kwargs)
 
     def _load_batch(self, db: nodb_.NODBInstance, **kwargs) -> nodb_.NODBBatch:
         """Load the referenced batch from the database."""

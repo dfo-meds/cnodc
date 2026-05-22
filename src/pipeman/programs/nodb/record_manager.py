@@ -246,7 +246,7 @@ class NODBRecordManager:
 
     def create_working_entry(self, record: ocproc2.ParentRecord, source_file_uuid: str, received_date: datetime.date, message_idx: int, record_idx: int):
         check = NODBWorkingRecord.find_by_source_info(
-            source_file_uuid, received_date, message_idx, record_idx, key_only=True
+            self._db, source_file_uuid, received_date, message_idx, record_idx, key_only=True
         )
         if check is not None:
             return False

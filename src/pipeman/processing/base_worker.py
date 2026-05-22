@@ -211,6 +211,8 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
             self._log.debug(f'Cleaning up %s', self.process_full_id)
             self.on_exit(exc)
             self._log.debug(f'Process %s complete', self.process_full_id)
+            if 'status' not in self._status_info:
+                self._status_info['status'] = 'unknown'
             self._status_info['status'] += '-complete'
             self.report(_end=True, activity='', _resource_update=True)
 

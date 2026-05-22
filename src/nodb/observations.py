@@ -541,7 +541,11 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
             "received_date": coerce.as_date(source_received_date),
             "source_file_uuid": source_file_uuid,
         }
-        return db.stream_raw(cls, filters, **kwargs)
+        if 'filters' in kwargs:
+            kwargs['filters'].update(filters)
+        else:
+            kwargs['filters'] = filters
+        return db.stream_raw(cls, **kwargs)
 
     @classmethod
     def find_by_source_info(cls,

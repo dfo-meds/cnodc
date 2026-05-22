@@ -79,7 +79,7 @@ class TestBaseWorker(BaseTestCase):
                      _server_name='test',
                      _halt_flag=None,
                      _end_flag=None):
-        return BaseWorker(
+        bw = BaseWorker(
             process_name=process_name,
             process_version=process_version,
             _server_name=_server_name,
@@ -88,6 +88,8 @@ class TestBaseWorker(BaseTestCase):
             _end_flag=_end_flag or self.halt_flag,
             _config=config or {}
         )
+        bw._no_report = True
+        return bw
 
     def test_save_file(self):
         worker = self._base_worker(config={

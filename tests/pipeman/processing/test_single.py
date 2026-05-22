@@ -32,7 +32,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         nc.reload_check()
         self.assertFalse(nc._halt_flag.is_set())
@@ -56,7 +57,8 @@ class TestBaseProcessController(BaseTestCase):
         file.touch()
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertLogs("cnodc.single_process", "ERROR"):
             with self.assertRaises(CodedError):
@@ -66,7 +68,8 @@ class TestBaseProcessController(BaseTestCase):
         subdir = self.temp_dir / "subdir"
         nc = SingleProcessController(
             process_name="foo",
-            config_file_dir=subdir
+            config_file_dir=subdir,
+            _no_report=True
         )
         with self.assertLogs("cnodc.single_process", "ERROR"):
             with self.assertRaises(CodedError):
@@ -77,7 +80,8 @@ class TestBaseProcessController(BaseTestCase):
         file.touch()
         nc = SingleProcessController(
             process_name="foo",
-            config_file_dir=file
+            config_file_dir=file,
+            _no_report=True
         )
         with self.assertLogs("cnodc.single_process", "ERROR"):
             with self.assertRaises(CodedError):
@@ -87,7 +91,8 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertRaises(CodedError):
             with self.assertLogs("cnodc.single_process", "ERROR"):
@@ -97,7 +102,8 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         nc = SingleProcessController(
             process_name="foo",
-            config_file_dir=file
+            config_file_dir=file,
+            _no_report=True
         )
         with self.assertRaises(CodedError):
             with self.assertLogs("cnodc.single_process", "ERROR"):
@@ -117,7 +123,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertLogs('cnodc.single_process', 'ERROR'):
             nc.reload_check()
@@ -140,7 +147,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertLogs('cnodc.single_process', 'ERROR'):
             nc.reload_check()
@@ -163,7 +171,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertLogs('cnodc.single_process', 'ERROR'):
             nc.reload_check()
@@ -186,7 +195,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertLogs('cnodc.single_process', 'WARNING'):
             nc.reload_check()
@@ -210,7 +220,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         with self.assertLogs('cnodc.single_process', 'WARNING'):
             nc.reload_check()
@@ -239,7 +250,8 @@ class TestBaseProcessController(BaseTestCase):
             }, h)
         nc = SingleProcessController(
             process_name="foo",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         nc.reload_check()
         self.assertEqual(len(nc._process_info), 2)
@@ -279,6 +291,7 @@ class TestBaseProcessController(BaseTestCase):
         nc = SingleProcessController(
             process_name="foo",
             config_file_dir=self.temp_dir,
+            _no_report=True
         )
         nc.reload_check()
         self.assertEqual(len(nc._process_info), 2)
@@ -314,7 +327,8 @@ class TestBaseProcessController(BaseTestCase):
         nc = SingleProcessController(
             process_name="foo",
             config_file=file,
-            flag_file=flag_file
+            flag_file=flag_file,
+            _no_report=True
         )
         nc.reload_check()
         self.assertFalse(flag_file.exists())
@@ -364,7 +378,8 @@ class TestBaseProcessController(BaseTestCase):
         nc = SingleProcessController(
             process_name="foo",
             config_file=file,
-            flag_file=flag_file
+            flag_file=flag_file,
+            _no_report=True
         )
         nc.reload_check()
         self.assertFalse(flag_file.exists())
@@ -384,7 +399,8 @@ class TestBaseProcessController(BaseTestCase):
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
             process_name="process1",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         nc.reload_check()
         with self.assertLogs("cnodc.single_process", "DEBUG"):
@@ -405,7 +421,8 @@ class TestBaseProcessController(BaseTestCase):
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
             process_name="process1",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         nc.reload_check()
         with self.assertLogs('cnodc.worker.test', 'ERROR'):
@@ -426,7 +443,8 @@ class TestBaseProcessController(BaseTestCase):
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
             process_name="process2",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         nc.reload_check()
         with self.assertRaises(CodedError):
@@ -445,7 +463,8 @@ class TestBaseProcessController(BaseTestCase):
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
             process_name="process1",
-            config_file=file
+            config_file=file,
+            _no_report=True
         )
         nc.reload_check()
         self.assertIn('process1', nc._process_info)
@@ -475,6 +494,7 @@ class GoodTest(BaseWorker):
         self._did_run = False
         self._on_exit = False
         self._exception = None
+        self._no_report = True
 
     def on_start(self):
         self._on_start = True

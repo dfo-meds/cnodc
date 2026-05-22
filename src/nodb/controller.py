@@ -100,6 +100,9 @@ class PreparedStatement:
 
 class PreparedInsert(PreparedStatement):
 
+    def insert(self, obj):
+        self.execute(obj)
+
     @wrap_nodb_exceptions
     def _build_prepared_statement(self):
         prepared = f"INSERT INTO {self.object_type.get_table_name()} ("

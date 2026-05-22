@@ -25,12 +25,7 @@ class NODBLoaderBadRecordCreation(NODBDecodeLoadWorker):
         self.res = self.get_config('_test_result', True)
         super().on_start()
 
-    def _create_nodb_record(self,
-                            source_file: nodb.NODBSourceFile,
-                            message_idx: int,
-                            record_idx: int,
-                            record: ocproc2.ParentRecord,
-                            make_completed_records) -> bool:
+    def _create_nodb_record(self, *args, **kwargs) -> bool:
         if self.res is True or self.res is False:
             return self.res
         raise self.res
@@ -199,8 +194,8 @@ class TestLoader(BaseTestCase):
             },
             self.worker_controller.payload_to_queue_item(sp, 'test_intake')
         )
-        self.assertEqual(1, len(self.db.tables[NODBWorkingRecord.TABLE_NAME]))
-        self.assertEqual(1, len(self.db.tables[NODBQueueItem.TABLE_NAME]))
+        self.assertEqual(1, self.db.rows(NODBWorkingRecord.TABLE_NAME))
+        self.assertEqual(1, self.db.rows(NODBQueueItem.TABLE_NAME))
         obj = NODBWorkingRecord.find_by_source_info(self.db, '12345', '2015-01-02', 0, 0)
         self.assertIsNotNone(obj)
 

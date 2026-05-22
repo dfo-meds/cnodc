@@ -231,19 +231,19 @@ class BaseController(InstrumentedObject):
                  flag_file: t.Optional[pathlib.Path] = None,
                  server_name: t.Optional[str] = None,
                  _no_start: bool = False,
+                 _is_master: bool = True,
                  socket_port: int = 9173,
                  _no_report: bool = True,
                  logging_queue=None):
         super().__init__(
             log_name=log_name,
             subsystem='controller',
-            server_name=server_name or 'unknown',
-            process_id='-',
-            process_name=f"controller_{AwareDateTime.now().strftime("%H%M%f")}",
+            server_name=server_name or '',
+            process_id=AwareDateTime.now().strftime("%Y%M%d%H%M%f"),
+            process_name=f"controller",
             process_version='1.0',
             no_report=_no_report,
-            report_temp_free=True,
-            resources_as_metrics=True
+            is_master=_is_master,
         )
         self._break_count = 0
         self._halt_flag = halt_flag
@@ -275,8 +275,6 @@ class BaseController(InstrumentedObject):
                           process_cls_name: str,
                           count: int = 1,
                           config: dict[str, ct.SupportsExtendedJson] = None):
-        if self._server_name is None:
-            self._server_name = str(uuid.uuid4())
         if process_name not in self._process_info:
             self._log.debug("Registering process %s", process_name)
             self._process_info[process_name] = _ProcessSet(self._process_runner_cls, ProcessInfo(
@@ -284,7 +282,7 @@ class BaseController(InstrumentedObject):
                 worker_cls=process_cls_name,
                 quota=count,
                 json_config=json.dumps(config or {}),
-                server_name=str(self._server_name),
+                server_name=self.server_name,
                 **self._base_kwargs
             ))
         else:
@@ -356,8 +354,6 @@ class BaseController(InstrumentedObject):
                 self._log.error(f"Config directory [%s] is not a directory", self._config_dir)
             else:
                 self._log.debug("Reading configuration from YAML files in %s", self._config_dir)
-                if self._server_name is None:
-                    self._server_name = self._config_dir.name
                 work_dirs = [str(self._config_dir)]
                 while work_dirs:
                     for file in os.scandir(work_dirs.pop()):
@@ -369,8 +365,6 @@ class BaseController(InstrumentedObject):
             if not self._config_file.exists():
                 self._log.error('Config file [%s] specified but does not exist', self._config_file)
             else:
-                if self._server_name is None:
-                    self._server_name = self._config_file.stem
                 self._populate_config_from_file(config, self._config_file)
         if not config:
             from pipeman.exceptions import CNODCError

@@ -14,6 +14,9 @@ class PreparedInsert:
     def __init__(self, db):
         self.db = db
 
+    def execute(self, obj):
+        self.insert(obj)
+
     def insert(self, obj: interface.NODBObject):
         return self.db.insert_object(obj)
 
