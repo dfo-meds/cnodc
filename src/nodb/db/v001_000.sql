@@ -345,7 +345,7 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
 CREATE INDEX IF NOT EXISTS ix_nodb_obs_data_status ON nodb_obs_data(status) WHERE status != 'VERIFIED';
 
 -- Unique index on observations source info to ensure we don't duplicate records from the same file.
-CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(received_date, source_file_uuid, message_idx, record_idx);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_obs_data_source_info ON nodb_obs_data(received_date, source_file_uuid, message_idx, record_idx, processing_level);
 
 
 -- Partition tables for 1980 to 2040

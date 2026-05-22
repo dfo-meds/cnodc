@@ -242,6 +242,7 @@ class PostgresController(interface.NODBInstance):
     def prepared_insert(self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]):
         return PreparedInsert(db=self, object_type=object_type, data_map=data_map, name=name)
 
+    @wrap_nodb_exceptions
     def create_savepoint(self, name):
         """Create a savepoint"""
         with self.cursor() as cur:
