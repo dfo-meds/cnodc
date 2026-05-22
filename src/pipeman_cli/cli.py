@@ -27,6 +27,9 @@ def build_cli():
     import pipeman_cli.upgrade as db
     commands['upgrade'] = db.upgrade
 
+    import pipeman_cli.dbman as dbman
+    commands['db'] = t.cast(click.Group, dbman.db)
+
     from medsutil.multiclick import CommandLineInterface
     return CommandLineInterface(None, commands)
 
