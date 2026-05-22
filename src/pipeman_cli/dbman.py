@@ -50,5 +50,5 @@ def unlock(queue_uuid: str, nodb: NODB = None):
         uuids = [queue_uuid]
     with nodb as db:
         for uuid in uuids:
-            db.fast_update_queue_status(uuid, QueueStatus.UNLOCKED)
+            db.fast_update_queue_status(uuid, QueueStatus.UNLOCKED, require_locked=False)
         db.commit()

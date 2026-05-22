@@ -195,7 +195,7 @@ class DatabaseMock:
         renew = datetime.datetime.now(datetime.timezone.utc)
         return renew
 
-    def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level, is_closed: bool = False) -> datetime.datetime | None:
+    def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level, is_closed: bool = False, require_locked: bool = True) -> datetime.datetime | None:
         return AwareDateTime.now() if is_closed else None
 
     def run_maintenance(self,

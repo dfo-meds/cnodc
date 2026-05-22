@@ -510,10 +510,14 @@ class PostgresController:
                                  release_at: datetime.datetime | None = None,
                                  reduce_priority: bool = False,
                                  escalation_level: int = 0,
-                                 is_closed: bool = False) -> AwareDateTime | None:
+                                 is_closed: bool = False,
+                                 require_locked: bool = True) -> AwareDateTime | None:
         now_ = AwareDateTime.now() if is_closed else None
         with self.cursor() as cur:  # nosec B608 # not a hard coded query
-            cur.execute("UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s, priority = priority + %s, escalation_level = %s, db_closed_date = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [
+            query = "UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s, priority = priority + %s, escalation_level = %s, db_closed_date = %s WHERE queue_uuid = %s"
+            if require_locked:
+                query += " AND status = 'LOCKED'"
+            cur.execute(query, [
                 new_status.value,
                 release_at.isoformat() if release_at else None,
                 1 if reduce_priority else 0,
