@@ -290,16 +290,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if result.from_exception:
             child_file.report_error(
                 f"Decode error: {result.from_exception.__class__.__name__}: {str(result.from_exception)}",
-                self._process_name,
-                self._process_version,
-                self._process_uuid
+                self.process_name,
+                self.process_version,
+                self.process_uuid
             )
         if additional_exception:
             child_file.report_error(
                 f"Save error: {additional_exception.__class__.__name__}: {str(additional_exception)}",
-                self._process_name,
-                self._process_version,
-                self._process_uuid
+                self.process_name,
+                self.process_version,
+                self.process_uuid
             )
         failure_queue = self.get_config('failure_queue')
         if failure_queue is not None:
