@@ -108,12 +108,15 @@ class DataDictObject(object):
 
     def __init__(self, *args, _cls_=None, **kwargs):
         self._data = {}
+        self._prop_cache = None
         self._allow_readonly_access: bool = True
         self._in_init: bool = True
         self._init_complete: bool = False
         self._after_init: list[t.Callable] = []
         with self.readonly_access():
-            for prop in self._datadict_props():
+            properties: list[_ManagedNameProperty] = [*self._datadict_props().values()]
+            properties.sort(key=lambda x: x.order)
+            for prop in properties:
                 if prop.property_name in kwargs:
                     setattr(self, prop.property_name, kwargs.pop(prop.property_name))
                     if prop.managed_name:
@@ -158,14 +161,12 @@ class DataDictObject(object):
 
     def export(self) -> dict[str, ct.SupportsExtendedJson]:
         map_ = {'_cls_': dynamic_name(self)}
-        for prop in self._datadict_props():
+        for prop in self._datadict_props().values():
             map_[prop.managed_name] = prop.sanitize(getattr(self, prop.property_name))
         return map_
 
     def get_sanitized_data(self, managed_name: str):
         prop = self._find_datadict_prop(managed_name)
-        if not prop:
-            raise KeyError(f'Missing managed name {managed_name}')
         return prop.sanitize(getattr(self, prop.property_name))
 
     def get_data(self, *, managed_prop: _ManagedNameProperty, coerce_get: t.Callable = None):
@@ -207,17 +208,36 @@ class DataDictObject(object):
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         pass
 
-    def _find_datadict_prop(self, name: str) -> _ManagedNameProperty:
-        for prop in self._datadict_props():
-            if prop.managed_name == name or prop.property_name == name:
-                return prop
-        raise KeyError(f'Missing managed name {name}')
+    @classmethod
+    def _find_datadict_prop(cls, name: str) -> _ManagedNameProperty:
+        props = cls._datadict_props()
+        if name in props:
+            return props[name]
+        else:
+            for prop in props.values():
+                if prop.property_name == name:
+                    return prop
+        raise KeyError(f'Missing managed or property name {name}')
 
-    def _datadict_props(self) -> t.Iterable[_ManagedNameProperty]:
-        for cls in reversed(self.__class__.mro()):
-            if hasattr(cls, '_datadict_props_'):
-                if cls in cls._datadict_props_:
-                    yield from cls._datadict_props_[cls].values()
+    @classmethod
+    def _datadict_props(cls) -> dict[str, _ManagedNameProperty]:
+        if not hasattr(cls, '_datadict_all_props_'):
+            setattr(cls, '_datadict_all_props_', {})
+        ddp_by_class = getattr(cls, '_datadict_all_props_')
+        if cls not in ddp_by_class:
+            ddp_by_class[cls] = cls._build_datadict_props()
+        return ddp_by_class[cls]
+
+    @classmethod
+    def _build_datadict_props(cls) -> dict[str, _ManagedNameProperty]:
+        props = {}
+        for rcls in reversed(cls.mro()):
+            if hasattr(rcls, '_datadict_props_'):
+                if rcls in rcls._datadict_props_:
+                    for prop in rcls._datadict_props_[rcls].values():
+                        props[prop.managed_name] = prop
+        return props
+
 
     @classmethod
     def from_map(cls, data: t.Mapping[str, t.Any]):
