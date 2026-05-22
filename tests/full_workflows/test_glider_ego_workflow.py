@@ -183,7 +183,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
         with open(self.data_file_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
             content = h.read()
             content = json.load_dict(content)
-        for key in ('date_created', 'file_storage_locaion', 'date_issued', 'date_modified'):
+        for key in ('date_created', 'file_storage_location', 'date_issued', 'date_modified'):
             if key in content['metadata'] and key in data_reloaded['metadata']:
                 del content['metadata'][key]
                 del data_reloaded['metadata'][key]
