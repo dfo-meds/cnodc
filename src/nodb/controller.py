@@ -152,12 +152,10 @@ class _PGCursor(interface.NODBCursor):
         else:
             self._cursor.execute(query, args)
 
-    @wrap_nodb_exceptions
     def fetchone(self):
         """Fetch a single record"""
         return self._cursor.fetchone()
 
-    @wrap_nodb_exceptions
     def fetchmany(self, size=None):
         """Fetch many records."""
         if size:
@@ -165,7 +163,6 @@ class _PGCursor(interface.NODBCursor):
         else:
             return self._cursor.fetchmany()
 
-    @wrap_nodb_exceptions
     def fetch_stream(self, size=None):
         """Fetch records in a stream using fetchmany() repeatedly."""
         res = self.fetchmany(size)
@@ -173,12 +170,10 @@ class _PGCursor(interface.NODBCursor):
             yield from res
             res = self.fetchmany(size)
 
-    @wrap_nodb_exceptions
     def commit(self):
         """Commit the current transaction."""
         self._conn.commit()
 
-    @wrap_nodb_exceptions
     def rollback(self):
         """Rollback the current transaction."""
         self._conn.rollback()
@@ -248,16 +243,19 @@ class PostgresController(interface.NODBInstance):
         with self.cursor() as cur:
             cur.create_savepoint(name)
 
+    @wrap_nodb_exceptions
     def rollback_to_savepoint(self, name):
         """Rollback to a savepoint"""
         with self.cursor() as cur:
             cur.rollback_to_savepoint(name)
 
+    @wrap_nodb_exceptions
     def release_savepoint(self, name):
         """Release a savepoint."""
         with self.cursor() as cur:
             cur.release_savepoint(name)
 
+    @wrap_nodb_exceptions
     def delete_object(self, obj: interface.NODBObject):
         """Delete an object."""
         args = {
@@ -273,6 +271,7 @@ class PostgresController(interface.NODBInstance):
         with self.cursor() as cur:
             cur.execute(query)
 
+    @wrap_nodb_exceptions
     def load_object[T](self,
                        obj_cls: type[T],
                        filters: interface.FilterDict,
@@ -304,6 +303,7 @@ class PostgresController(interface.NODBInstance):
                     raise CodedError(f"Data class [{obj_cls.__name__}]cannot handle fields from database, found [{','.join(fields.keys())}]") from ex
         return None
 
+    @wrap_nodb_exceptions
     def rows(self, table_name: str) -> int:
         query = self.assemble_query(
             self.build_select_clause(table_name, [pgs.SQL('COUNT(*)')], False)
@@ -313,6 +313,7 @@ class PostgresController(interface.NODBInstance):
             row = cur.fetchone()
             return row[0]
 
+    @wrap_nodb_exceptions
     def count_objects(self, obj_cls: interface.NODBObjectType, filters: interface.FilterDict = None, join_str: interface.JoinString = None) -> int:
         """Load an object."""
         query = self.assemble_query(
@@ -324,6 +325,7 @@ class PostgresController(interface.NODBInstance):
             row = cur.fetchone()
             return row[0]
 
+    @wrap_nodb_exceptions
     def stream_raw(self,
                    obj_cls: interface.NODBObjectType,
                    filters: interface.FilterDict = None,
@@ -348,6 +350,7 @@ class PostgresController(interface.NODBInstance):
             for row in cur.fetch_stream():
                 yield row
 
+    @wrap_nodb_exceptions
     def stream_objects(self,
                        obj_cls: interface.NODBObjectType,
                        filters: interface.FilterDict = None,
@@ -376,6 +379,7 @@ class PostgresController(interface.NODBInstance):
         else:
             return True
 
+    @wrap_nodb_exceptions
     def update_object(self, obj: interface.NODBObject) -> bool:
         """Update an object, if necessary."""
         if not obj.modified_values:
@@ -401,6 +405,7 @@ class PostgresController(interface.NODBInstance):
         obj.clear_modified()
         return True
 
+    @wrap_nodb_exceptions
     def insert_object(self, obj: interface.NODBObject) -> bool:
         """Insert an object into its table."""
         primary_keys = list(obj.get_primary_keys())
@@ -427,6 +432,7 @@ class PostgresController(interface.NODBInstance):
         obj.clear_modified()
         return True
 
+    @wrap_nodb_exceptions
     def upsert_process_info(self,
                             server_name: str,
                             process_id: str,
@@ -442,12 +448,14 @@ class PostgresController(interface.NODBInstance):
                 json.dumps(info)
             ])
 
+    @wrap_nodb_exceptions
     def clear_process_info_for_server(self, server_name: str):
         with self.cursor() as cur:
             cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s", [
                 server_name
             ])
 
+    @wrap_nodb_exceptions
     def clear_process_info(self, server_name: str, process_id: str):
         with self.cursor() as cur:
             cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s AND process_id = %s", [
@@ -455,6 +463,7 @@ class PostgresController(interface.NODBInstance):
                 process_id
             ])
 
+    @wrap_nodb_exceptions
     def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
         with self.cursor() as cur:
             cur.execute("SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes ORDER BY system_id, process_id")
@@ -469,12 +478,14 @@ class PostgresController(interface.NODBInstance):
                 process_info['exited'] = item[7]
                 yield process_info
 
+    @wrap_nodb_exceptions
     def fast_renew_queue_item(self, queue_uuid: str, now_: AwareDateTime | None = None) -> AwareDateTime:
         with self.cursor() as cur:
             dt = now_ or AwareDateTime.now()
             cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [dt.isoformat(), queue_uuid])  # nosec: B608 # not hard coded string
             return dt
 
+    @wrap_nodb_exceptions
     def fetch_queue_summary(self) -> dict[str, dict[str, int]]:
         res = {}
         with self.cursor() as cur:
@@ -485,6 +496,7 @@ class PostgresController(interface.NODBInstance):
                 res[row[1]][row[2]] = row[0]
         return res
 
+    @wrap_nodb_exceptions
     def fast_update_queue_status(self,
                                  queue_uuid: str,
                                  new_status: QueueStatus,
@@ -504,6 +516,7 @@ class PostgresController(interface.NODBInstance):
             ])
         return now_
 
+    @wrap_nodb_exceptions
     def scanned_file_status(self, file_path: str, mod_time: datetime.datetime | None = None) -> ScannedFileStatus:
         """Get the status of a scanned file."""
         with self.cursor() as cur:
@@ -521,11 +534,13 @@ class PostgresController(interface.NODBInstance):
             else:
                 return ScannedFileStatus.UNPROCESSED
 
+    @wrap_nodb_exceptions
     def note_scanned_file(self, file_path: str, mod_time: datetime.datetime | None = None):
         """Mark a scanned file as visited."""
         with self.cursor() as cur:
             cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_time.isoformat() if mod_time is not None else None])
 
+    @wrap_nodb_exceptions
     def mark_scanned_item_success(self, file_path: str, mod_time: datetime.datetime | None = None) -> None:
         """Mark a scanned file as a success."""
         with self.cursor() as cur:
@@ -538,6 +553,7 @@ class PostgresController(interface.NODBInstance):
                     cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_time.isoformat()])
                 cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND (modified_date <= %s or modified_date IS NULL) AND was_processed = FALSE AND was_errored = FALSE", [file_path, mod_time.isoformat()])
 
+    @wrap_nodb_exceptions
     def mark_scanned_item_failed(self, file_path: str, mod_time: datetime.datetime | None = None):
         """Mark a scanned file as failing."""
         with self.cursor() as cur:
@@ -546,6 +562,7 @@ class PostgresController(interface.NODBInstance):
             else:
                 cur.execute("UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date = %s AND was_processed = FALSE AND was_errored = FALSE", [file_path, mod_time.isoformat()])
 
+    @wrap_nodb_exceptions
     def create_queue_item(self,
                           queue_name: str,
                           data: dict[str, ct.SupportsExtendedJson],
@@ -568,6 +585,7 @@ class PostgresController(interface.NODBInstance):
             ])
         return t.cast(str, correlation_id)
 
+    @wrap_nodb_exceptions
     def bulk_update_objects(self, obj_cls: interface.NODBObjectType, updates: dict[str, interface.SupportsPostgres], key_field: str, key_values: list[
         interface.SupportsPostgres]):
         base_query = self.assemble_query(
@@ -606,6 +624,7 @@ class PostgresController(interface.NODBInstance):
                 retries -= 1
             return None
 
+    @wrap_nodb_exceptions
     def run_maintenance(self,
                         lock_expiry_seconds: int = interface.LOCK_EXPIRY_TIME,
                         completed_lifetime_seconds: int = interface.COMPLETED_QUEUE_ITEM_LIFETIME,
@@ -621,6 +640,7 @@ class PostgresController(interface.NODBInstance):
             cur.commit()
 
     @staticmethod
+    @wrap_nodb_exceptions
     def _attempt_fetch_queue_item(queue_name: str, subqueue_name: t.Optional[str], app_id: str, cur: _PGCursor) -> t.Optional[str]:
         """Make a single attempt to get a queue item."""
         sp = False
@@ -652,6 +672,7 @@ class PostgresController(interface.NODBInstance):
                 cur.rollback_to_savepoint("fetch_queue_item")
             raise ex
 
+    @wrap_nodb_exceptions
     def grant_permission(self, role_name: str, permission_name: str):
         """Grant a permission to a role."""
         with self.cursor() as cur:
@@ -666,6 +687,7 @@ class PostgresController(interface.NODBInstance):
                     permission_name
                 ])
 
+    @wrap_nodb_exceptions
     def remove_permission(self, role_name: str, permission_name: str):
         """Remove a permission from a role."""
         with self.cursor() as cur:
@@ -674,12 +696,14 @@ class PostgresController(interface.NODBInstance):
                 permission_name
             ])
 
+    @wrap_nodb_exceptions
     def load_queue_items(self) -> t.Iterable[tuple[str, str, str]]:
         with self.cursor() as cur:
             cur.execute('SELECT queue_name, queue_uuid, status FROM nodb_queues')
             for x in cur.fetch_stream(100):
                 yield x[0], x[1], x[2]
 
+    @wrap_nodb_exceptions
     def load_permissions(self, roles: t.Iterable[str]) -> set[str]:
         permissions = set()
         roles = list(roles)
@@ -690,11 +714,13 @@ class PostgresController(interface.NODBInstance):
                 permissions.update(row[0] for row in cur.fetch_stream(20))
         return permissions
 
+    @wrap_nodb_exceptions
     def delete_session(self, session_id: str):
         """Delete a user session."""
         with self.cursor() as cur:
             cur.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
 
+    @wrap_nodb_exceptions
     def record_login(self,
                      username: str,
                      ip_address: str | None,
@@ -726,13 +752,11 @@ class PostgresController(interface.NODBInstance):
             obj_cls: interface.NODBObjectType
     ) -> set[str] | None:
         fields: set[str] = set()
-        if limit_fields is not None:
+        if limit_fields:
             fields.update(limit_fields)
             fields.update(obj_cls.get_primary_keys())
-        if key_only:
+        elif key_only:
             fields.update(obj_cls.get_primary_keys())
-        if fields and filters is not None:
-            fields.update(filters.keys())
         return fields if fields else None
 
     @staticmethod
