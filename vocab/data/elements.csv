@@ -253,3 +253,6 @@ WindGustMaxDirection,Wind Gust Max Direction (From),Direction des rafales de ven
 WindGustMaxSpeed,Wind Gust Max Speed,Vitesse maximale des rafales de vent,Speed of the maximum wind gusts,,Parameters,decimal,m s-1,wind_speed_of_gust,,Wind,0,,,N,Y,
 WindSpeed,Wind Speed,Vitesse du vent,Average wind speed,,Parameters,decimal,m s-1,wind_speed,wind_speed__vitesse_vents,Wind,0,,,N,Y,
 WMOAirPressureCharacteristic,WMO Air Pressure Characteristic,,,,Parameters,text,,,,Meteorology,,,,N,Y,
+PlatformCNODCType,CNODC Platform Code,,,,Metadata (Platform),text,,,,Identifier,,,glider;unknown,N,N,
+PlatformServiceStart,CNODC Platform Service Start Date,,,,Metadata (Platform),datetime,,,,,,,,Y,N,
+PlatformServiceEnd,CNODC Platform Service End Date,,,,Metadata (Platform),datetime,,,,,,,,Y,N,
