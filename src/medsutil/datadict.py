@@ -46,7 +46,9 @@ class _ManagedNameProperty[AcceptType, GetType, StoreType, ExportType](property)
                  doc: t.Optional[str] = None,
                  default: AllAcceptTypes | EllipsisType = None,
                  managed_name: t.Optional[str] = None,
-                 sanitizer: t.Optional[_ManagedNameSanitizer[StoreType, ExportType]] = None):
+                 sanitizer: t.Optional[_ManagedNameSanitizer[StoreType, ExportType]] = None,
+                 order: int = 0):
+        self.order = order
         self.managed_name: str = managed_name
         self.property_name: str = None
         self.default = default
@@ -86,7 +88,8 @@ def ddo_property[AcceptType, GetType, StoreType, ExportType](
         doc: str | None = None,
         validators: list[_ManagedNameValidator[GetType]] | None = None,
         readonly: bool = False,
-        sanitizer: _ManagedNameSanitizer[StoreType, ExportType] | None = None) -> _ManagedNameProperty[AcceptType, GetType, StoreType, ExportType]:
+        sanitizer: _ManagedNameSanitizer[StoreType, ExportType] | None = None,
+        order: int = 0) -> _ManagedNameProperty[AcceptType, GetType, StoreType, ExportType]:
     if required:
         default = ...
     return _ManagedNameProperty[AcceptType, GetType, StoreType, ExportType](
@@ -96,7 +99,8 @@ def ddo_property[AcceptType, GetType, StoreType, ExportType](
         doc=doc,
         managed_name=managed_name,
         default=default,
-        sanitizer=sanitizer
+        sanitizer=sanitizer,
+        order=order
     )
 
 
