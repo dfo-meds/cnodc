@@ -16,33 +16,23 @@ class _DelayedDefaultValue[T]:
         return self._cb()
 
 
-def _resolve_default_values(func_sig: inspect.Signature, args, kwargs):
-    arg_index = 0
-    for pname in func_sig.parameters:
-        param = func_sig.parameters[pname]
-        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
-            continue
-        if param.kind != inspect.Parameter.KEYWORD_ONLY and arg_index < len(args):
-            if isinstance(args[arg_index], _DelayedDefaultValue):
-                args[arg_index] = args[arg_index]()
-            arg_index += 1
-        elif param.kind != inspect.Parameter.POSITIONAL_ONLY and param.name in kwargs and isinstance(kwargs[param.name], _DelayedDefaultValue):
-            kwargs[param.name] = kwargs[param.name]()
-        elif not param.default == inspect.Parameter.empty:
-            if param.kind == inspect.Parameter.POSITIONAL_ONLY:
-                args.append(param.default() if isinstance(param.default, _DelayedDefaultValue) else param.default)
-                arg_index += 1
-            elif isinstance(param.default, _DelayedDefaultValue):
-                kwargs[param.name] = param.default()
-
+def _resolve_default_values(func_sig: inspect.Signature, args: tuple, kwargs: dict) -> tuple[list, dict]:
+    ba = func_sig.bind(*args, **kwargs)
+    ba.apply_defaults()
+    return [
+        x() if isinstance(x, _DelayedDefaultValue) else x
+        for x in ba.args
+    ], {
+        k: (x() if isinstance(x, _DelayedDefaultValue) else x)
+        for k, x in ba.kwargs.items()
+    }
 
 def resolve_delayed(f):
     func_sig = inspect.signature(f)
     @functools.wraps(f)
     def _inner(*args, **kwargs):
-        args = list(args or [])
-        _resolve_default_values(func_sig, args, kwargs)
-        return f(*args, **kwargs)
+        nargs, nkwargs = _resolve_default_values(func_sig, args, kwargs)
+        return f(*nargs, **nkwargs)
     return _inner
 
 
