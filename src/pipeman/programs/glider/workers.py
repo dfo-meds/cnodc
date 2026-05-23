@@ -60,6 +60,9 @@ class GliderConversionWorker(PayloadWorker):
         else:
             raise CodedError("Invalid payload type for worker", 1000, code_space="GLIDERCONVERT")
 
+        if filename.endswith(".gz"):
+            filename = filename[:-3]
+
         self._log.info("Processing file %s", filepath)
         local_file = self.download_to_temp_file()
 
