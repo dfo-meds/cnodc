@@ -1,13 +1,13 @@
 dmd_metadata:
   users:
     - trana
-  erddap_local_path: "/cloud_data/gliders/"
+  erddap_local_path: "/cloud_data/data/gliders/"
   public_paths:
-    - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders-planeurs/og"
+    - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders/og"
       en: NetCDF File (OpenGlider)
       fr: Ficher NetCDF (OpenGlider)
       guid: distribute_openglider
-    - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders-planeurs/ego"
+    - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders/ego"
       en: NetCDF File (EGO)
       fr: Ficher NetCDF (EGO)
       guid: distribute_ego
