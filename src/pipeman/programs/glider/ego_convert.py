@@ -238,7 +238,7 @@ class OpenGliderConverter:
         dmd.erddap_dataset_id = mission_id
         dmd.erddap_data_file_path = f"{metadata_config["erddap_local_path"].rstrip("/")}/{mission_id.lower()}/"
         dmd.erddap_dataset_type = metadata.ERDDAPDatasetType.DSGTable
-        dmd.erddap_data_file_pattern = '*\\.nc\\.gz' if gzip_erddap else "*\\.nc"
+        dmd.erddap_data_file_pattern = '.*\\.nc\\.gz' if gzip_erddap else ".*\\.nc"
 
         if 'public_paths' in metadata_config and metadata_config['public_paths']:
             for pp_info in metadata_config['public_paths']:
