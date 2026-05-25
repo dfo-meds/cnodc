@@ -1470,7 +1470,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     def activate_and_publish(self):
         """ Note: you need the correct permissions to do this! """
         self.activation_workflow = Common.ActivationWorkflowWithPublish
-        self.publication_workflow = Common.DefaultPublicationWorkflow
+        self.publication_workflow = Common.DirectPublishWorkflow
         self.autostart = True
 
     def set_meds_defaults(self):
@@ -1886,6 +1886,7 @@ class Common:
     DefaultPublicationWorkflow = "cnodc_publish"
 
     ActivationWorkflowWithPublish = "cnodc_activate_and_publish"
+    DirectPublishWorkflow = "cnodc_direct_publish"
 
     Constraint_OpenGovernmentLicense = LegalConstraint(guid="open_government_license")
     Constraint_Unclassified = SecurityConstraint(guid="unclassified_data")
