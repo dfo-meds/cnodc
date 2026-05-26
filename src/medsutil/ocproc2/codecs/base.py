@@ -19,6 +19,9 @@ class DecodeResult:
     @t.overload
     def __init__(self, exc: Exception, message_idx: int = 0, original: t.ByteString | None = None, skipped: bool = False, single_message: bool = False): ...
 
+    @t.overload
+    def __init__(self, skipped: t.Literal[True], original: t.ByteString | None = None): ...
+
     def __init__(self,
                  records: t.Optional[list[ParentRecord]] = None,
                  exc: t.Optional[Exception] = None,
