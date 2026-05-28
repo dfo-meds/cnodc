@@ -203,6 +203,8 @@ class OpenGliderConverter:
         self._build_additional_metadata(dmd, mission_id, file_name, gzip_erddap)
         md_mission.platforms.append(md_platform)
         dmd.missions.append(md_mission)
+        dmd.cnodc_storage_label = mission_id
+        dmd.parent_collection_guid = "cnodc_glider_collection"
         return mission_id, dmd
 
     def _build_initial_mission(self, mission_id: str):

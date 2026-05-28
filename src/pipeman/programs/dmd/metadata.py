@@ -1358,7 +1358,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     metadata_standards: list[Citation] = dd.p_object_list(Citation)
     metadata_profiles: list[Citation] = dd.p_object_list(Citation)
     additional_docs: list[Citation] = dd.p_object_list(Citation)
-    canon_urls: list[Citation] = dd.p_object_list(Citation)
+    canon_urls: list[Resource] = dd.p_object_list(Citation)
     missions: list[Mission] = dd.p_object_list(Mission)
     platforms: list[Platform] = dd.p_object_list(Platform)
     instruments: list[Instrument] = dd.p_object_list(Instrument)
@@ -1442,8 +1442,14 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     publication_workflow: str = dd.p_str(managed_name='_publication_workflow')
     organization_name: str = dd.p_str(managed_name='_org_name')
     security_level: str = dd.p_str(managed_name='_security_level')
+    parent_collection_guid: str | None = dd.p_str(managed_name='_parent_collection_guid')
+    parent_collection_authority: str | None = dd.p_str(managed_name='_parent_collection_authority')
+    is_collection: bool = dd.p_bool(managed_name="_is_collection", default=False)
     profiles: set[str] = dd.p_set(managed_name='_profiles', value_coerce=str)
     users: set[str] = dd.p_set(managed_name='_users', value_coerce=str)
+
+    cnodc_storage_label: str | None = dd.p_str(managed_name='cnodc_storage_label')
+    cnodc_embargo_period: str | None = dd.p_str(managed_name='cnodc_embargo_period')
 
     erddap_servers: list[ERDDAPServer] = dd.p_object_list(ERDDAPServer)
     erddap_data_file_path: str = dd.p_str()
