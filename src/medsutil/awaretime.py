@@ -90,11 +90,15 @@ class AwareDateTime(datetime.datetime):
         return cls.from_datetime(datetime.datetime.strptime(date_string, format), tzinfo='Etc/UTC')
 
     @classmethod
-    def from_datetime(cls, dt: datetime.datetime, tzinfo: ct.TimeZoneInfo = None) -> AwareDateTime:
+    def from_datetime(cls, dt: datetime.datetime | str | datetime.date | None, tzinfo: ct.TimeZoneInfo = None) -> AwareDateTime:
+        if dt is None:
+            return None
         if isinstance(dt, AwareDateTime):
             return dt
         elif isinstance(dt, datetime.datetime):
             return cls(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond, dt.tzinfo or tzinfo, dt.fold)
+        elif isinstance(dt, str):
+            return cls.fromisoformat(dt, tzinfo=tzinfo)
         else:
             return cls(dt.year, dt.month, dt.day)
 
