@@ -22,6 +22,7 @@ class StorageTier(enum.Enum):
 @dataclasses.dataclass
 class StatResult:
     st_size: int | None = None
+    st_ctime: AwareDateTime | None = None
     st_mtime: AwareDateTime | None = None
     metadata: dict[str, str] | None = None
     tier: StorageTier | None = None
@@ -42,6 +43,7 @@ class FeatureFlag(enum.IntFlag):
     WALK = 32
     REMOVAL = 64
     CHMOD = 128
+    CREATED_TIME = 256
     DEFAULT = FOLDERS | MODIFIED_TIME | SIZE | WALK | REMOVAL
 
 
@@ -74,6 +76,7 @@ class FilePath(t.Protocol):
 
     def stat(self) -> StatResult: ...
     def modified_datetime(self) -> AwareDateTime | None: ...
+    def creation_datetime(self) -> AwareDateTime | None: ...
     def size(self) -> int | None: ...
 
     def exists(self) -> bool: ...
