@@ -19,6 +19,9 @@ from medsutil.frozendict import FrozenDict
 import medsutil.types as ct
 from medsutil.ocproc2.ontology import OCProc2Ontology
 
+if t.TYPE_CHECKING:
+    from medsutil.storage import FilePath
+
 def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
     attr = {}
     for suffix in locale_map.keys():
@@ -854,6 +857,46 @@ class CNODCInstrumentType(MultiValuedEnum):
     DOXY = "doxy_optode", "DOXY"
 
 
+class CNODCRole(MultiValuedEnum):
+    OWNER = "owner"
+    TRUSTEE = "trustee"
+    STEWARD = "steward"
+    CNODC_LEAD = "cnodc_lead"
+    EXPERT = "expert"
+
+
+class StorageType(MultiValuedEnum):
+    BLOB_PREMIUM = "azure_blob_premium"
+    BLOB_HOT = "azure_blob_hot"
+    BLOB_COOL = "azure_blob_cool"
+    BLOB_COLD = "azure_blob_cold"
+    BLOB_ARCHIVAL = "azure_blob_archival"
+    SHARE_HOT = "azure_file_v1_hot"
+    SHARE_COOL = "azure_file_v1_cool"
+    SHARE_TO = "azure_file_v1_to"
+    SHARE_HDD = "azure_file_v2_hdd"
+    SHARE_SSD = "azure_file_v2_ssd"
+    SHARED_DRIVE = "dfo_shared_drive"
+    EXTERNAL_DRIVE = "external_hard_drive"
+    OTHER = "other"
+
+
+class CompressionType(MultiValuedEnum):
+    NONE = "none"
+    GZIP = "gzip"
+
+
+class ProductionUnit(MultiValuedEnum):
+    NATIONAL = "national"
+    NEWFOUNDLAND = "newfoundland"
+    MARITIMES = "maritimes"
+    GULF = "gulf"
+    QUEBEC = "quebec"
+    ONTARIO = "ontario"
+    ARCTIC = "arctic"
+    PACIFIC = "pacific"
+
+
 class EntityRef(dd.DataDictObject):
 
     guid: str = dd.p_str(managed_name='_guid')
@@ -1142,7 +1185,6 @@ class _ResponsibleParty(EntityRef):
         )
 
 
-
 class _ResponsiblesMixin:
 
     responsibles: list[_ResponsibleParty] = dd.p_object_list(_ResponsibleParty)
@@ -1335,6 +1377,46 @@ class Mission(EntityRef, _IdentifierMixin, _ResponsiblesMixin):
     platforms: list[Platform] = dd.p_object_list(Platform)
 
 
+class CNODCResponsible(EntityRef):
+    role: CNODCRole | None = dd.p_enum(CNODCRole)
+    contact: _Contact | None = dd.p_ddo(_Contact)
+
+
+class CNODCStorageLocation(EntityRef):
+    file_path: str | None = dd.p_str()
+    storage_type: StorageType | None = dd.p_enum(StorageType)
+    file_size: int | None = dd.p_int()
+    compression_type: CompressionType | None = dd.p_enum(CompressionType, default=CompressionType.NONE)
+    created_date: awaretime.AwareDateTime | None = dd.p_datetime()
+    notes: str | None = dd.p_str()
+
+    @classmethod
+    def build_from_storage_object(cls, obj: FilePath, notes: str | None = None):
+        from medsutil.storage import FilePath, StorageTier
+        from medsutil.storage.azure_blob import AzureBlobHandle
+        from medsutil.storage.azure_files import AzureFileHandle
+        kwargs: dict[str, t.Any] = {
+            'file_path': obj.path(),
+            'file_size': obj.size(),
+            'created_date': obj.creation_datetime(),
+            'notes': notes,
+            'storage_type': StorageType.OTHER
+        }
+        if obj.name.lower().endswith(".gz"):
+            kwargs['compression_type'] = CompressionType.GZIP
+        if isinstance(obj, AzureBlobHandle):
+            tier = obj.get_tier()
+            if tier == StorageTier.FREQUENT:
+                kwargs['storage_type'] = StorageType.BLOB_HOT
+            elif tier == StorageTier.ARCHIVAL:
+                kwargs['storage_type'] = StorageType.BLOB_ARCHIVAL
+            elif tier == StorageTier.INFREQUENT:
+                kwargs['storage_type'] = StorageType.BLOB_COOL
+        elif isinstance(obj, AzureFileHandle):
+            kwargs['storage_type'] = StorageType.SHARE_TO
+        return CNODCStorageLocation(**kwargs)
+
+
 class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     REPRESENTATION_MAP = {
@@ -1448,8 +1530,17 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     profiles: set[str] = dd.p_set(managed_name='_profiles', value_coerce=str)
     users: set[str] = dd.p_set(managed_name='_users', value_coerce=str)
 
-    cnodc_storage_label: str | None = dd.p_str(managed_name='cnodc_storage_label')
-    cnodc_embargo_period: str | None = dd.p_str(managed_name='cnodc_embargo_period')
+    cnodc_storage_label: str | None = dd.p_str()
+    cnodc_embargo_period: str | None = dd.p_str()
+    cnodc_production_units: set[ProductionUnit] = dd.p_enum_set(ProductionUnit)
+    cnodc_cost_centre: ProductionUnit | None = dd.p_enum(ProductionUnit)
+    cnodc_responsibles: list[CNODCResponsible] = dd.p_object_list(CNODCResponsible)
+    cnodc_partnerships: ct.LanguageDict | None = dd.p_i18n_text()
+    cnodc_regulations: ct.LanguageDict | None = dd.p_i18n_text()
+    cnodc_security_rules: ct.LanguageDict | None = dd.p_i18n_text()
+    cnodc_quality_control: ct.LanguageDict | None = dd.p_i18n_text()
+    data_volume: str | None = dd.p_str()
+    detailed_storage_locations: list[CNODCStorageLocation] = dd.p_object_list(CNODCStorageLocation)
 
     erddap_servers: list[ERDDAPServer] = dd.p_object_list(ERDDAPServer)
     erddap_data_file_path: str = dd.p_str()
@@ -1465,6 +1556,27 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         super().__init__(**kwargs)
         self._log = logging.getLogger("cnodc.dmd.metadata")
         self.profiles.add('cnodc')
+
+    SIZE_GATES: list[tuple[int, str]] = [
+        (1024 ** 4, 'TiB'),
+        (1024 ** 3, 'GiB'),
+        (1024 ** 2, 'MiB'),
+        (1024, 'KiB'),
+    ]
+
+    def set_size_from_detailed_files(self):
+        s = 0
+        for f in self.detailed_storage_locations:
+            s += f.file_size
+        for size_gate, suffix in self.SIZE_GATES:
+            if s >= size_gate:
+                self.data_volume = f"{(s / size_gate):.3f} {suffix}"
+                break
+        else:
+            self.data_volume = f"{s} B"
+
+    def add_internal_contact(self, cnodc_role: CNODCRole, contact: _Contact):
+        self.cnodc_responsibles.append(CNODCResponsible(role=cnodc_role, contact=contact))
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value, original)
