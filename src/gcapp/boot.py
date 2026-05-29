@@ -102,7 +102,7 @@ def boot_system(
         other_names: t.Sequence[str] | None = None,
         manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
         init_hooks: t.Sequence[str | t.Callable] | None = None,
-        system_cls: type = None,
+        system_cls: type | str | None = None,
 ):
 
     boot(app_name, other_names, manual_overrides)

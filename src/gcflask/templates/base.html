@@ -12,7 +12,7 @@
         <link rel="icon" type="image/x-icon" href="{{url_for('resources', filename='favicon.ico')}}" />
         <link rel="shortcut icon" type="image/x-icon" href="{{url_for('resources', filename='favicon.ico')}}" />
         {% endblock %}
-        {% block customHead %}{% endBlock %}
+        {% block customHead %}{% endblock %}
     </head>
     <body>
         {% block body %}
@@ -26,7 +26,7 @@
                 {% endblock %}
                 <div class="right_block">
                     {% block siteTitle %}
-                    <p class="site_title">{{'gcflask.site_title' | gettext}}</p>
+                    <p class="site_title">{{'gcflask.site_title' | tr}}</p>
                     {% endblock %}
                     {% block languageSwitcher %}
                     <ul class="langswitch">
@@ -46,16 +46,16 @@
             {% endblock %}
             {% block userLine %}
             <div class="topnav">
-                {% if topnav %1}
+                {% if topnav %}
                 <div class="topnav_container">
-                    {{}}
+                    {{topnav}}
                 </div>
                 {% endif %}
                 <div class="user_info">
                     {% if current_user.is_authenticated %}
-                    {{ 'gcflask.user_welcome' | gettext}} {{current_user.display}}
+                    {{ 'gcflask.user_welcome' | tr}} {{current_user.display}}
                     {% elif login_url %}
-                    <a href="{{login_url}}">{{ 'gcflask.login' | gettext }}</a>
+                    <a href="{{login_url}}">{{ 'gcflask.login' | tr }}</a>
                     {% endif %}
                 </div>
                 <br class="cb" />
@@ -107,21 +107,21 @@
                 {% block sessionBlock %}
                 {% if current_user.is_authenticated %}
                 <div class="session_block">
-                    <p class="session_timeout">{{'gcflask.session.logout' | gettext}}: {{session_timeout | format_date}}</p>
+                    <p class="session_timeout">{{'gcflask.session.logout' | tr}}: {{session_timeout | format_date}}</p>
                     <script language="javascript" type="text/javascript" nonce="{{csp_nonce('script-src')}}">
                         $(document).ready(function() {
-                            start_session_timeout("#session_timeout_box", "#time_left", {{ session_timeout }}, "{{ logout_url }}", "{{ refresh_session_url }}", "{{'gcflask.session.refresh_ajax_error' | gettext}}", 300);
+                            start_session_timeout("#session_timeout_box", "#time_left", {{ session_timeout }}, "{{ logout_url }}", "{{ refresh_session_url }}", "{{'gcflask.session.refresh_ajax_error' | tr}}", 300);
                         });
                     </script>
                     <noscript>
-                        <p>{{'gcflask.session.noscript' | gettext }}</p>
+                        <p>{{'gcflask.session.noscript' | tr }}</p>
                     </noscript>
                 </div>
                 <div id="session_timeout_box" class="hidden">
-                    <p>{{'gcflask.session.timeout_warning' | gettext}}</p>
+                    <p>{{'gcflask.session.timeout_warning' | tr}}</p>
                     <p id="time_left">0:00</p>
                     {% if refresh_session_url %}
-                    <p><a href="javascript:refresh_session();">{{'gcflask.session.refresh_link_text' | gettext}}</a></p>
+                    <p><a href="javascript:refresh_session();">{{'gcflask.session.refresh_link_text' | tr}}</a></p>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -130,7 +130,7 @@
                 <div class="bottom_image">
                     <img src="{{url_for('resources', filename='wmms-blk.svg')}}" width="150" />
                 </div>
-                {% endBlock %}
+                {% endblock %}
             {% endblock %}
             </div>
             {% endblock %}

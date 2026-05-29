@@ -5,12 +5,10 @@ import typing as t
 import uuid
 
 from cryptography.fernet import Fernet, InvalidToken
-import shamirs
 from autoinject import injector
-
+import os
 from medsutil.exceptions import CodedError
 from medsutil.storage import StorageController
-from medsutil.vlq import vlq_encode, vlq_decode
 import medsutil.datadict as dd
 
 from oceanvault.policies import PolicyGroup, AccessType
@@ -45,15 +43,9 @@ class SecretVault:
     storage: StorageController = None
 
     @injector.construct
-    def __init__(self,
-                 secret_file: str | pathlib.Path,
-                 modulus: int = (2 * 10) - 1,
-                 threshold: int = 2):
+    def __init__(self, secret_file: str | pathlib.Path):
         self._secret_file = secret_file
-        self._modulus = modulus
-        self._threshold = threshold
-        self._shared_key: bytes | None = None
-        self._real_key: bytes | None = None
+        self._master_key: bytes | None = None
         self._key_length = 4
         self._loaded: bool = False
         self._modified: bool = False
@@ -62,33 +54,13 @@ class SecretVault:
     def set_secret(self, secret: BaseSecret):
         self._secrets[secret.path] = secret
         secret.set_vault(self)
+        self.mark_modified()
 
     def get_secret(self, path: str) -> BaseSecret:
         return self._secrets[path.strip('/')]
 
     def mark_modified(self):
         self._modified = True
-
-    def create_vault(self, quantity: int = 5) -> list[bytes]:
-        self._require_not_loaded()
-        self._generate_real_key()
-        self._generate_shared_key()
-        keys = self._build_shared_keys(quantity)
-        self._loaded = True
-        self._save()
-        return keys
-
-    def rotate_main_key(self):
-        self._require_loaded()
-        self._generate_real_key()
-        self._save()
-
-    def rotate_shared_key(self, quantity: int = 5) -> list[bytes]:
-        self._require_loaded()
-        self._generate_shared_key()
-        keys = self._build_shared_keys(quantity)
-        self._save()
-        return keys
 
     def _require_loaded(self):
         if not self._loaded:
@@ -98,70 +70,35 @@ class SecretVault:
         if self._loaded:
             raise VaultError('Vault is already open', 1001)
 
-    def _generate_shared_key(self):
-        self._shared_key = Fernet.generate_key()
-        self._modified = True
+    def _generate_master_key(self):
+        self._master_key = Fernet.generate_key()
+        self.mark_modified()
 
-    def _generate_real_key(self):
-        self._real_key = Fernet.generate_key()
-        self._modified = True
-
-    def _build_shared_keys(self, quantity: int = 5) -> list[bytes]:
-        shared_key_as_int = int.from_bytes(base64.urlsafe_b64decode(t.cast(bytes, self._shared_key)), byteorder='little')
-        shares = shamirs.shares(shared_key_as_int, quantity=quantity, modulus=self._modulus, threshold=self._threshold)
-        return list(x.to_bytes() for x in shares)
-
-    def _decrypt_shared_key(self, shares: t.Sequence[bytes]):
-        real_shares = [
-            shamirs.share.from_bytes(x)
-            for x in shares
-        ]
-        shared_key_as_int = shamirs.interpolate(real_shares, modulus=self._modulus, threshold=self._threshold)
-        self._shared_key = base64.urlsafe_b64encode(int.to_bytes(self._key_length, shared_key_as_int, byteorder='little'))
-
-    def open_vault(self, *shares):
+    def initialize_vault(self) -> bytes:
         self._require_not_loaded()
-        self._decrypt_shared_key(shares)
-        fernet_shared = Fernet(t.cast(bytes, self._shared_key))
+        self._generate_master_key()
+        self._loaded = True
+        self._save()
+        return t.cast(bytes, self._master_key)
+
+    def rotate_shared_key(self) -> bytes:
+        self._require_loaded()
+        self._generate_master_key()
+        self._save()
+        return t.cast(bytes, self._master_key)
+
+    def open_vault(self, master_key: bytes):
+        self._master_key = master_key
+        self._open()
+
+    def _open(self):
+        self._require_not_loaded()
+        fernet_shared = Fernet(t.cast(bytes, self._master_key))
         with self.storage.handle(self._secret_file) as sf:
-            data = sf.read_bytes()
-            key_length, offset = vlq_decode(data)
-            encrypted_key = data[offset:offset + key_length]
-            encrypted_data = data[offset+key_length:]
             try:
-                self._real_key = fernet_shared.decrypt(encrypted_key)
-            except InvalidToken as ex:
-                raise VaultError("Invalid shared key", 2000) from ex
-            try:
-                fernet_real = Fernet(t.cast(bytes, self._real_key))
-                self._import_secret_info(fernet_real.decrypt(encrypted_data))
+                self._import_secret_info(fernet_shared.decrypt(sf.read_bytes()))
             except InvalidToken as ex:
                 raise VaultError("Invalid real key", 2001) from ex
-
-    def save_vault(self):
-        self._require_loaded()
-        if self._modified:
-            self._save()
-
-    def _save(self):
-        with self.storage.handle(self._secret_file) as sf:
-            temp = sf.with_name(str(uuid.uuid4()))
-            fernet_real = Fernet(t.cast(bytes, self._real_key))
-            fernet_shared = Fernet(t.cast(bytes, self._shared_key))
-            encrypted_key = fernet_shared.encrypt(t.cast(bytes, self._real_key))
-            encrypted_data = fernet_real.encrypt(self._export_secret_info())
-            with temp.open('wb') as h:
-                h.write(vlq_encode(len(encrypted_key)))
-                h.write(encrypted_key)
-                h.write(encrypted_data)
-            temp.rename(sf)
-
-    def _export_secret_info(self) -> bytes:
-        raw = [
-            self._secrets[x].export()
-            for x in self._secrets
-        ]
-        return json.dumps(raw).encode('utf-8')
 
     def _import_secret_info(self, data: bytes):
         temp = {}
@@ -173,3 +110,29 @@ class SecretVault:
             temp[secret.path] = secret
             secret.set_vault(self)
         self._secrets = temp
+
+    def save_vault(self):
+        if self._modified:
+            self._save()
+
+    def _save(self):
+        self._require_loaded()
+        with self.storage.handle(self._secret_file) as sf:
+            temp = sf.with_name(str(uuid.uuid4()))
+            fernet_shared = Fernet(t.cast(bytes, self._master_key))
+            with temp.open('wb') as h:
+                h.write(fernet_shared.encrypt(self._export_secret_info()))
+            temp.rename(sf)
+
+    def _export_secret_info(self) -> bytes:
+        raw = [
+            self._secrets[x].export()
+            for x in self._secrets
+        ]
+        return json.dumps(raw).encode('utf-8')
+
+    @staticmethod
+    def from_environ_b64(secret_key_env_name: str, secrets_file: str | pathlib.Path):
+        sv = SecretVault(secrets_file)
+        sv.open_vault(base64.urlsafe_b64decode(os.environ.get(secret_key_env_name, '')))
+        return sv

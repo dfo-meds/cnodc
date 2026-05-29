@@ -4,6 +4,7 @@ import enum
 import typing as t
 import uuid
 
+import flask_login
 import itsdangerous
 import zirconium as zr
 from autoinject import injector
@@ -226,6 +227,10 @@ class AuthenticationManager:
         self._login_selected_redirect: str = self.config.as_str(("gcflask", "authentication", "login_for_handler"), default="auth.login_for_handler")
         self._interactive_managers: list[str] = [x for x, y in self._login_managers.items() if y.supports_interactive]
 
+    @property
+    def login_view(self):
+        return self._login_required_redirect
+
     def anonymous_user(self):
         return AnonymousUser()
 
@@ -250,8 +255,7 @@ class AuthenticationManager:
     def endpoint_login(self, redirect_to: str = None):
         if fl.current_user.is_authenticated:
             return self.login_success(redirect_to)
-
-        if len(self._interactive_managers) > 1:
+        elif len(self._interactive_managers) > 1:
             return flask.render_template('auth_handler_select.html', options={
                 x: flask.url_for(self._login_selected_redirect, handler=x)
                 for x in self._interactive_managers
@@ -264,9 +268,10 @@ class AuthenticationManager:
     def endpoint_login_for_handler(self, handler_name: str):
         if fl.current_user.is_authenticated:
             return self.login_success()
-        if handler_name not in self._interactive_managers:
+        elif handler_name not in self._interactive_managers:
             return flask.abort(404)
-        return self._login_managers[handler_name].login_page()
+        else:
+            return self._login_managers[handler_name].login_page()
 
     def login_user(self, user: AuthenticatedUser, auth_handler_name: str, redirect_to: str = None, no_redirect: bool = False):
         self.sessions.invalidate()
@@ -306,7 +311,7 @@ class AuthenticationManager:
     def logout_success_url(self):
         flask.url_for(self._logout_redirect, _external=True)
 
-    def user_loader(self, user_id):
+    def user_loader(self, user_id) -> t.Optional[AuthenticatedUser]:
         auth_handler: str | None = flask.session.get('auth_handler')
         if auth_handler and auth_handler in self._login_managers:
             return self._login_managers[auth_handler].load_user(user_id)
@@ -315,15 +320,13 @@ class AuthenticationManager:
     def logout_success(self):
         return flask.redirect(flask.url_for(self._logout_redirect))
 
-    def request_loader(self, request: flask.Request) -> bool:
-        if fl.current_user.is_authenticated:
-            return True
+    def request_loader(self, request: flask.Request) -> t.Optional[AuthenticatedUser]:
         for h in self._login_managers:
             user = self._login_managers[h].attempt_login_from_request(request)
             if user is not None:
                 self.login_user(user, h, no_redirect=True)
-                return True
-        return False
+                return user
+        return None
 
     def endpoint_login_from_redirect(self, handler_name: str, redirect_info: dict):
         if fl.current_user.is_authenticated:
@@ -331,3 +334,16 @@ class AuthenticationManager:
         if handler_name not in self._login_managers:
             return flask.abort(404)
         return self._login_managers[handler_name].attempt_login_from_redirect(redirect_info)
+
+
+@injector.inject
+def init_app(app: flask.Flask, am: AuthenticationManager = None):
+    lm = flask_login.LoginManager()
+    lm.session_protection = 'strong'
+    lm.init_app(app)
+    lm.user_loader(am.user_loader)
+    lm.request_loader(am.request_loader)
+    lm.unauthorized_handler(am.unauthorized_handler)
+    lm.anonymous_user = am.anonymous_user
+    lm.login_view = am.login_view
+    app.extensions['login_manager'] = lm

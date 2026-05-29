@@ -90,10 +90,6 @@ CREATE TABLE IF NOT EXISTS user_role (
 
 );
 
-
-
-
-
 CREATE TABLE IF NOT EXISTS login_attempts (
     username            VARCHAR(126)    NOT NULL    REFERENCES users(username),
     login_time          TIMESTAMPTZ     NOT NULL,

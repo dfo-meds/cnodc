@@ -1,6 +1,6 @@
 from gcflask.i18n_url import MultiLanguageBlueprint
 
-user = MultiLanguageBlueprint('base', __name__)
+user = MultiLanguageBlueprint('user', __name__)
 
 
 @user.route('/me')
@@ -28,4 +28,5 @@ def edit_user(username):
     ...
 
 @user.route('/api/users')
-def users()
+def users():
+    ...

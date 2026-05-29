@@ -74,7 +74,7 @@ class SecureOperations:
 
     @injector.construct
     def __init__(self):
-        self._secret_key: bytes = self.config.get(('flask', 'SECRET_KEY'), None)
+        self._secret_key: str = self.config.get('flask', 'SECRET_KEY', default=None)
         if not self._secret_key:
             raise SecureError("Invalid secret key provided", 9000)
         self._serializer = None
