@@ -9,7 +9,7 @@ ANYONE_PRIVILEGE = '__anyone__'
 
 class BaseUserMixin:
 
-    def __init__(self, display_name: str, email: str = None, permissions: list[str] = None, **extras):
+    def __init__(self, display_name: str | None = None, email: str | None = None, permissions: list[str] = None, **extras):
         super().__init__()
         self._permissions: set[str] = set(permissions or [])
         self._permissions.add(ANYONE_PRIVILEGE)
@@ -69,20 +69,22 @@ class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
     """Represents an authenticated user."""
 
     def __init__(self,
-                 unique_id: str,
+                 unique_id: str | None,
                  display_name: str,
                  email: str = None,
                  permissions: list[str] = None,
                  **extras):
-        super(BaseUserMixin, self).__init__(display_name, email, permissions, **extras)
+        super().__init__(display_name, email, permissions, **extras)
         self._unique_id = unique_id
 
     def get_id(self):
         return self._unique_id
 
 
-class AnonymousUser(BaseUserMixin, fl.AnonymousUserMixin):
+class AnonymousUser(fl.AnonymousUserMixin, BaseUserMixin):
     """Anonymous implementation of the AuthenticatedUser."""
 
     def __init__(self):
-        super(BaseUserMixin, self).__init__(permissions=[ANONYMOUS_PRIVILEGE])
+        super().__init__(
+            permissions=[ANONYMOUS_PRIVILEGE]
+        )

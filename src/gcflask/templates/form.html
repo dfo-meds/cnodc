@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import 'macros.html' as macros %}
+{% block content %}
+{% if instructions %}
+<div class="instructions">{{instructions}}</div>
+{% endif %}
+{{ macros.showform(form) }}
+{% endblock %}
+{% block sidebar %}
+{% if back %}
+<div class="subnav">
+    <ul class="action_list"><li><a href="{{back}}">{{'gcflask.common.back' | tr}}</a></li></ul>
+</div>
+{% endif %}
+{% endblock %}

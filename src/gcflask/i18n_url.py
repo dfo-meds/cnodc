@@ -49,11 +49,11 @@ class MultiLanguageBlueprint(flask.Blueprint):
         all_langs = []
         for lang, path in self.mapper.get_path_translations(route):
             all_langs.append(lang)
-            self.route(path, accept_languages=lang, **kwargs)(fn)
+            super().route(path, accept_languages=lang, **kwargs)(fn)
         if all_langs:
-            self.route(route, ignore_languages=all_langs, **kwargs)(fn)
+            super().route(route, ignore_languages=all_langs, **kwargs)(fn)
         else:
-            self.route(route, **kwargs)(fn)
+            super().route(route, **kwargs)(fn)
 
     def route(self, route: str, **kwargs):
         def wrapper(fn):

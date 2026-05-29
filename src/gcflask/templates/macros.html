@@ -1,6 +1,6 @@
 {% macro pager(current_page, page_count, page_size) %}
 <div class="pager_control">
-    <p>{{'pipeman.common.pages' | gettext}} {{current_page}} / {{page_count}}</p>
+    <p>{{'gcflask.common.pages' | tr}} {{current_page}} / {{page_count}}</p>
     <ul class="table_actions">
         {% for i in range(0, page_count) %}
         <li><a href="{{self_url(page=i+1, size=page_size)}}">{{i+1}}</a></li>

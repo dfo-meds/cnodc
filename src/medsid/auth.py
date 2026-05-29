@@ -1,7 +1,7 @@
-import wtforms
+import flask
 
 from gcflask.auth import AuthenticationHandler
-from gcflask.forms import GCFlaskForm
+import gcflask.forms as forms
 from gcflask.user import AuthenticatedUser
 
 
@@ -14,7 +14,7 @@ class LocalMedsIDHandler(AuthenticationHandler):
         form = LoginForm()
         if form.validate_on_submit():
             ...
-
+        return flask.render_template('form.html', form=form)
 
     def logout(self):
         pass
@@ -29,5 +29,16 @@ class LocalMedsIDHandler(AuthenticationHandler):
         ...
 
 
-class LoginForm(GCFlaskForm):
-    ...
+class LoginForm(forms.GCFlaskForm):
+
+    username = forms.StringField(
+        delayed_label="gcflask.common.username",
+        validators=[forms.NoControlCharacters(), forms.InputRequired()],
+    )
+
+    password = forms.PasswordField(
+        delayed_label="gcflask.common.password",
+        validators=[forms.InputRequired()],
+    )
+
+    submit = forms.SubmitField()

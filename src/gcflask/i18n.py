@@ -147,10 +147,10 @@ class DStringIndividual(BaseDString):
 
 class TString(DStringIndividual):
 
-    def __init__(self, text_key: str, default: str = '', *args, **kwargs):
+    def __init__(self, text_key: str, default: str | None = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text_key = text_key
-        self.default = default
+        self.default = default if default is not None else text_key
 
     def empty(self) -> bool:
         return self.text_key == '' and self.default == ''

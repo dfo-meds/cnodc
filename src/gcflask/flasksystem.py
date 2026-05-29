@@ -12,6 +12,7 @@ from flask_wtf import CSRFProtect
 from jinja2 import pass_context
 
 import gcflask.i18n
+from gcflask.util import caps_to_snake
 from gcapp.requestinfo import RequestInfo
 from gcapp.system import System
 from gcflask.i18n_url import BilingualRule
@@ -41,6 +42,7 @@ class FlaskSystemMixin(System):
         self._flask_filters: dict[str, t.Callable[..., str]] = {
             'tr': gcflask.i18n.tr,
             'format_date': gcflask.i18n.format_date,
+            'caps_to_snake': caps_to_snake,
         }
         gcflask_root = pathlib.Path(__file__).absolute().resolve().parent
         self._template_directories: list[pathlib.Path] = [
@@ -91,12 +93,11 @@ class FlaskSystemMixin(System):
     def after_flask_init(self, cb: t.Callable[[flask.Flask], t.Any] | str):
         self.events.on('init.flask.after', cb)
 
-    def init(self, *args, app: flask.Flask, **kwargs):
+    def init_app(self, app: flask.Flask):
         self._flask_app = app
-        super().init(*args, app=app, **kwargs)
+        self._init_app()
 
-    def _subclass_init(self):
-        super()._subclass_init()
+    def _init_app(self):
         self._load_config()
         self._verify_secret_key()
         self.events.fire("init.flask.before", self.flask_app)
@@ -108,6 +109,7 @@ class FlaskSystemMixin(System):
         self.events.fire("init.flask", self.flask_app)
         self._load_blueprints()
         self._configure_jinja()
+        self._configure_health_endpoint()
         self._configure_resource_endpoint()
         self.events.fire("init.flask.after", self.flask_app)
 
@@ -115,7 +117,7 @@ class FlaskSystemMixin(System):
         self.flask_app.config.update(self.config.get("flask", default={}))
         if 'PERMANENT_SESSION_LIFETIME' not in self.flask_app.config:
             self.flask_app.config['PERMANENT_SESSION_LIFETIME'] = 44640
-        self._session_timeout = int(self.flask_app.config['PERMANENT_SESSION_LIFETIME']) - 1
+        self._session_timeout = self.flask_app.config['PERMANENT_SESSION_LIFETIME'].total_seconds() - 1
 
     def _verify_secret_key(self):
         secret_key = self.flask_app.config.get('SECRET_KEY', None)
@@ -210,12 +212,24 @@ class FlaskSystemMixin(System):
 
     def _configure_resource_endpoint(self):
         self.flask_app.add_url_rule(
-            f"resources/<path:filename>",
+            f"/resources/<path:filename>",
             endpoint="resources",
             host=None,
             view_func=self._deliver_resource_file,
         )
         self._resource_directories.sort(key=lambda x: x[1], reverse=True)
+
+    def _configure_health_endpoint(self):
+        self.flask_app.add_url_rule(
+            f"/-/health",
+            endpoint="health",
+            host=None,
+            view_func=self._health_check
+        )
+        self._resource_directories.sort(key=lambda x: x[1], reverse=True)
+
+    def _health_check(self):
+        return 'healthy', 200
 
     def _deliver_resource_file(self, filename):
         for path, _ in self._resource_directories:
@@ -224,9 +238,16 @@ class FlaskSystemMixin(System):
                 return flask.send_from_directory(path, filename)
         return flask.abort(404)
 
+    def register_blueprint(self, module_name, object_name, path_prefix = ""):
+        self._flask_blueprints.append((module_name, object_name, path_prefix))
+
     def _load_blueprints(self):
         universal_prefix = self.config.get(('gcflask', 'path_prefix'), default='').rstrip('/')
         if universal_prefix:
             universal_prefix = f"/{universal_prefix.lstrip('/')}"
         for module_name, object_name, path_prefix in self._flask_blueprints:
-            self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"), url_prefix=f"{universal_prefix}/{path_prefix}")
+            if universal_prefix or path_prefix:
+                prefix = '/' + ('/'.join((universal_prefix.strip('/'), path_prefix.strip('/'))))
+                self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"), url_prefix=prefix)
+            else:
+                self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"))
