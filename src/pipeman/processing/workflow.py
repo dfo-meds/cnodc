@@ -128,7 +128,10 @@ class WorkflowController:
                     else:
                         lp, fn = local_path, filename
                     file_handles.append(self._handle_file_upload(lp, fn, metadata, target))
-
+                metadata['workflow-uploaded-files'] = ";".join(
+                    str(x[0].path())
+                    for x in file_handles
+                )
                 # NB: these are done in the try/except so that the file handles can be removed upon failure
                 if self.config.working_target is not None:
                     self._queue_working_file(file_handles[0][0], metadata, file_handles[0][2], self.config.working_target.gzip, db, unique_queue_id, correlation_id)
