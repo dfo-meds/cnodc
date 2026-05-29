@@ -516,6 +516,12 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
             return self.stat().st_mtime
         return None
 
+    def created_datetime(self) -> AwareDateTime | None:
+        """Get the last modified time of the entry."""
+        if self.supports_feature(FeatureFlag.CREATED_TIME):
+            return self.stat().st_ctime
+        return None
+
     def set_metadata(self, metadata: dict[str, str]):
         """Set metadata."""
         if self.supports_feature(FeatureFlag.METADATA):

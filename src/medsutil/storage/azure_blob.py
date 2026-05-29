@@ -158,7 +158,7 @@ class AzureBlobHandle(_AzureBaseHandle):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,
                          essential_domain='.blob.core.windows.net',
-                         supports=FeatureFlag.DEFAULT | FeatureFlag.TIERING | FeatureFlag.METADATA,
+                         supports=FeatureFlag.DEFAULT | FeatureFlag.TIERING | FeatureFlag.METADATA | FeatureFlag.CREATED_TIME,
                          log_name='az_blob',
                          **kwargs)
         self.walk_max_memory = 1024 * 1024
@@ -212,6 +212,7 @@ class AzureBlobHandle(_AzureBaseHandle):
                     is_dir=False,
                     metadata=props.metadata,
                     st_size=props.size,
+                    st_ctime=AwareDateTime.from_datetime(props.creation_time, 'Etc/UTC'),
                     st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
                     tier=self.code_tier(props.blob_tier)
                 )

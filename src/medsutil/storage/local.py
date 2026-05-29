@@ -32,7 +32,7 @@ class LocalHandle(BaseStorageHandle):
         super().__init__(
             path,
             force_is_dir,
-            supports=FeatureFlag.DEFAULT | FeatureFlag.CHMOD,
+            supports=FeatureFlag.DEFAULT | FeatureFlag.CHMOD | FeatureFlag.CREATED_TIME,
             log_name='local',
             **kwargs
         )
@@ -52,6 +52,7 @@ class LocalHandle(BaseStorageHandle):
                 is_dir=stat.S_ISDIR(s.st_mode),
                 is_file=stat.S_ISREG(s.st_mode),
                 st_size=s.st_size,
+                st_ctime=AwareDateTime.fromtimestamp(s.st_birthtime,) if hasattr(s, 'st_birthtime') and s.st_birthtime is not None else None,
                 st_mtime=AwareDateTime.fromtimestamp(s.st_mtime) if s.st_mtime is not None else None
             )
         except FileNotFoundError:

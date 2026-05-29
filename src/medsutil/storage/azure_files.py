@@ -33,7 +33,7 @@ class AzureFileHandle(_AzureBaseHandle):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,
                          essential_domain='.file.core.windows.net',
-                         supports=FeatureFlag.DEFAULT | FeatureFlag.METADATA,
+                         supports=FeatureFlag.DEFAULT | FeatureFlag.METADATA | FeatureFlag.CREATED_TIME,
                          log_name='az_share',
                          **kwargs)
         self._file_client = None
@@ -155,6 +155,7 @@ class AzureFileHandle(_AzureBaseHandle):
                 return StatResult(
                     exists=True,
                     st_size=None,
+                    st_ctime=AwareDateTime.from_datetime(props.creation_time, 'Etc/UTC'),
                     st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
                     is_dir=props.is_directory,
                     is_file=not props.is_directory,
@@ -170,6 +171,7 @@ class AzureFileHandle(_AzureBaseHandle):
                     is_dir=props.is_directory,
                     is_file=not props.is_directory,
                     metadata=props.metadata,
+                    st_ctime=AwareDateTime.from_datetime(props.creation_time, 'Etc/UTC'),
                     st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
                     st_size=props.size
                 )
