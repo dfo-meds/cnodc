@@ -6,6 +6,7 @@ from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import ParentRecord
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.processing.payload_worker import PayloadWorker
+from pipeman.programs.dmd.metadata import CNODCStorageLocation
 from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
 from medsutil.storage import StorageController, FilePath, StorageTier
 from pipeman.processing.payloads import SourceFilePayload, Payload, FilePayload
@@ -76,9 +77,22 @@ class GliderConversionWorker(PayloadWorker):
             gzip_erddap=self.get_config('gzip_erddap', True)
         )
 
-        storage_locations = [
-            f'Original: {filepath}'
-        ]
+        dmd_metadata.detailed_storage_locations.append(
+            CNODCStorageLocation.build_from_storage_object(
+                t.cast(FilePath, self.storage.get_filepath(filepath, self._halt_flag)),
+                "ego format; working copy"
+            )
+        )
+
+        for other_path in payload.metadata.get('workflow-uploaded-files', '').split(';'):
+            if other_path and other_path != filepath:
+                dmd_metadata.detailed_storage_locations.append(
+                    CNODCStorageLocation.build_from_storage_object(
+                        t.cast(FilePath, self.storage.get_filepath(other_path, self._halt_flag)),
+                        "ego format"
+                    )
+                )
+
         erddap_storage_metadata = self.storage.build_metadata(
             program_name='GLIDERS',
             dataset_name=mission_id
@@ -109,16 +123,20 @@ class GliderConversionWorker(PayloadWorker):
         target_file = self._target_dir.child(og_target_name, False)
         self._log.debug("Uploading file to %s", target_file)
         target_file.upload(og_file, True, metadata=og_storage_metadata, storage_tier=StorageTier.FREQUENT)
-        storage_locations.append(f'Public: {target_file.path()}')
+        dmd_metadata.detailed_storage_locations.append(
+            CNODCStorageLocation.build_from_storage_object(target_file, "openglider format; stored copy")
+        )
 
         erddap_dir = self._target_erddap_dir.child(mission_id.lower(), True)
         erddap_dir.mkdir()
         target_erddap_file = erddap_dir.child(erddap_target_name, False)
         self._log.debug("Uploading file to %s", target_erddap_file)
         target_erddap_file.upload(erddap_file, True, metadata=erddap_storage_metadata, storage_tier=StorageTier.FREQUENT)
-        storage_locations.append(f'ERDDAP: {target_erddap_file.path()}')
+        dmd_metadata.detailed_storage_locations.append(
+            CNODCStorageLocation.build_from_storage_object(target_file, "openglider format; ERDDAP copy")
+        )
 
-        dmd_metadata.file_storage_location = {"en": "\n".join(storage_locations)}
+        dmd_metadata.set_size_from_detailed_files()
 
         # NOTE: let DMD handle ERDDAP reload after it is done updating ERDDAP's metadata
         metadata_queue = self.get_config('metadata_queue', default='dmd_metadata_push')

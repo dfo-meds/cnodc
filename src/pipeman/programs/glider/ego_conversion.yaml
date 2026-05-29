@@ -2,6 +2,14 @@ dmd_metadata:
   users:
     - trana
   erddap_local_path: "/cloud_data/data/gliders/"
+  static_metadata:
+    parent_collection_guid: "cnodc_glider_collection"
+    cnodc_cost_centre: national
+    cnodc_production_units:
+      - national
+    cnodc_quality_control:
+      en: Data regularized, corrected and/or derived from raw glider data using the Coriolis MATLAB toolbox.
+      fr: Données régularisées, corrigées et/ou dérivées des données brutes du planeur en utilisant le boîte à outils Coriolis Matlab
   public_paths:
     - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders/og"
       en: NetCDF File (OpenGlider)

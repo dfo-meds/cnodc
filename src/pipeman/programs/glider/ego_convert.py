@@ -188,7 +188,7 @@ class OpenGliderConverter:
         self._set_metadata_from_file_name(open_nc, platform, start_time, data_mode)
         self.breakpoint()
         self._set_geospatial_bounds_metadata(open_nc, original_nc)
-        sensor_map = self._set_sensor_metadata(open_nc, original_nc, md_platform)
+        sensor_map = self._set_sensor_metadata(open_nc, original_nc, dmd)
         self._build_variables(open_nc, original_nc)
         self._build_parameters(open_nc, original_nc, sensor_map)
         self._build_depths(open_nc, original_nc)
@@ -204,7 +204,6 @@ class OpenGliderConverter:
         md_mission.platforms.append(md_platform)
         dmd.missions.append(md_mission)
         dmd.cnodc_storage_label = mission_id
-        dmd.parent_collection_guid = "cnodc_glider_collection"
         return mission_id, dmd
 
     def _build_initial_mission(self, mission_id: str):
@@ -235,6 +234,10 @@ class OpenGliderConverter:
         metadata_config = self._mapping_data['dmd_metadata'] if 'dmd_metadata' in self._mapping_data else {}
         if 'users' in metadata_config and metadata_config['users']:
             dmd.users.update(metadata_config['users'])
+
+        if 'static_metadata' in metadata_config and metadata_config['static_metadata']:
+            for key, value in metadata_config['static_metadata'].items():
+                setattr(dmd, key, value)
 
         dmd.erddap_servers.append(metadata.Common.ERDDAP_Primary)
         dmd.erddap_dataset_id = mission_id
@@ -318,14 +321,14 @@ class OpenGliderConverter:
         else:
             self._log.warning(f'No longitude values detected')
 
-    def _set_sensor_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset, platform: metadata.Platform):
+    def _set_sensor_metadata(self, open_nc: nc.Dataset, original_nc: nc.Dataset, dmd: metadata.DatasetMetadata):
         sensor_info, param_map = ego_sensor_info(
             original_nc,
             self._get_data_map('sensors'),
             self._get_data_map('sensor_models'),
             self._get_data_map('sensor_makes')
         )
-        platform.instruments.extend(
+        dmd.instruments.extend(
             metadata.Instrument(
                 cnodc_instrument_types=[metadata.CNODCInstrumentType(info['type'])],
                 instrument_type=metadata.CNODCInstrumentType(info['type']).value,
