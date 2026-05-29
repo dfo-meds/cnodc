@@ -2,7 +2,7 @@ import functools
 import logging
 import unittest
 
-from tests.helpers.base_test_case import load_ordered_tests, ordered_after
+from tests.helpers.base_test_case import load_ordered_tests, ordered_after, BaseTestCase, skip_integration_test
 from medsutil.dynamic import dynamic_name
 from medsutil.ocproc2.codecs.netcdf import NetCDFCommonDecoder
 from nodb.observations import NODBWorkingRecord, NODBSourceFile, NODBObservation, NODBObservationData
@@ -10,7 +10,7 @@ from pipeman.processing.progressor import WorkflowProgressWorker
 from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
 from pipeman.programs.glider.ego_convert import validate_ego_glider_file
 from pipeman.programs.glider.ego_decode import GliderEGOMapper
-from pipeman.programs.glider.workers import GliderConversionWorker, add_glider_mission_platform_info
+from pipeman.programs.glider.workers import GliderConversionWorker
 from pipeman.programs.dmd.pusher import DMDMetadataPushWorker
 from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
 from tests.helpers.base_test_case import skip_long_test
@@ -39,19 +39,32 @@ def upsert_dataset(method, url, data, request_list, **kwargs):
     return json.dumps({'guid': '23456'})
 
 
-@skip_long_test
+@skip_integration_test
+class TestGliderWithDMD(BaseTestCase):
+
+    def test_dmd_ready(self):
+        import requests
+        res = requests.get(self.real_dmd.base_url())
+        res.raise_for_status()
+        auth_token = self.real_dmd.create_bot_user('testbot')
+        print(auth_token)
+
+
+@skip_integration_test
 class TestGliderDecode(BaseWorkflowTestCase):
 
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-    @classmethod
+    @injector.inject
     @injector.test_case
-    @zr.test_with_config(('dmd', 'auth_token'), '12345')
-    @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
-    def build_and_run_workflow(cls, workflow: MockWorkflow) -> WorkflowTestResult:
+    def build_and_run_workflow(cls, workflow: MockWorkflow, cfg: zr.ApplicationConfig) -> WorkflowTestResult:
         cls.set_log_level_for_class(logging.ERROR)
+        auth_token = cls.real_dmd.create_bot_user('testbot')
+        cfg.set_defaults({
+            'dmd': {
+                'auth_token': 'foobar',
+                'base_url': 'http://localhost:9100/metadb/'
+            }
+        })
         input_dir = cls.class_temp_dir / 'inputs'
         input_dir.mkdir()
         error_dir = cls.class_temp_dir / 'errors'

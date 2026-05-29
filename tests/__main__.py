@@ -72,10 +72,13 @@ if __name__ == '__main__':
         'with_long_tests': False,
         'with_metrics': False,
         'with_fast_passwords': True,
+        'with_integration_tests': False,
     }
-    flag_map = {
+    flag_map: dict[str, tuple[str, bool]] = {
         '--long-tests': ('with_long_tests', True),
         '-L': ('with_long_tests', True),
+        '--integration-tests': ('with_integration_tests', True),
+        '-I': ('with_integration_tests', True),
         '--metrics': ('with_metrics', True),
         '-M': ('with_metrics', True),
         '--coverage': ('with_coverage', True),

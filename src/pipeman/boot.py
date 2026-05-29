@@ -31,22 +31,22 @@ def init_pipeman(app_type: str,
     if not logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
 
-def init_for_tests(with_long_tests: bool = True,
-                   with_metrics: bool = True,
+def init_for_tests(with_long_tests: bool = False,
+                   with_metrics: bool = False,
                    with_fast_passwords: bool = True,
+                   with_integration_tests: bool = False,
                    with_mp_prometheus_default: bool = True):
 
     # Setup config and logging
     init_pipeman('tests', with_mp_prometheus_default if not with_metrics else False)
 
+    # Prevent metrics from being loaded
     if not with_metrics:
-        # Prevent metrics from being loaded
-        from autoinject import injector
         import medsutil.metrics as metrics
-        metrics.DISABLE_METRICS = True
+        metrics.DISABLE_METRICS.set()
 
+    # speed up password hashing for tests only!
     if with_fast_passwords:
-        # speed up password hashing for tests only!
         import medsutil.secure as s
         s.DEFAULT_PASSWORD_HASH_ITERATIONS = 1
         s.MINIMUM_ITERATIONS = 2
@@ -54,4 +54,9 @@ def init_for_tests(with_long_tests: bool = True,
     # skip long tests unless requested to run (there's a lot of them)
     if not with_long_tests:
         import tests.helpers.base_test_case as btc
-        btc.SKIP_FLAG.set()
+        btc.SKIP_LONG_TESTS.set()
+
+    # integration tests are long tests that test the interface between two pieces of software
+    if not with_integration_tests:
+        import tests.helpers.base_test_case as btc
+        btc.SKIP_INTEGRATION_TESTS.set()

@@ -1,32 +1,18 @@
-name: dmd
+name: dmd_upgrade
 services:
-  web:
+  up:
     build:
       context: "."
     volumes:
       - "./data:/metadb-data"
       - "./config:/metadb-config"
-    ports:
-      - "9100:80"
     environment:
       - "SCRIPT_NAME=/metadb"
       - "REQUEST_TIMEOUT=120"
     restart: "no"
     networks:
       - localtest2
-  cron:
-    build:
-      context: "."
-    volumes:
-      - "./data:/metadb-data"
-      - "./config:/metadb-config"
-    command: [ 'cron' ]
-    environment:
-      - "SCRIPT_NAME=/metadb"
-    restart: "no"
-    networks:
-      - localtest2
-
+    command: ["upgrade"]
 
 networks:
   localtest2:

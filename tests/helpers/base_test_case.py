@@ -17,7 +17,7 @@ from autoinject import injector
 from medsutil.awaretime import AwareDateTime
 from medsutil.halts import DummyHaltFlag
 from nodb.interface import NODB
-from tests.helpers.mock_containers import TestContainer, NODBContainer
+from tests.helpers.mock_containers import TestContainer, NODBContainer, DMDContainer, DMDInstallContainer
 from tests.helpers.mock_runner import WorkerTestController
 from medsutil.exceptions import CodedError
 from tests.helpers.mock_nodb import DatabaseMock, DummyNODB
@@ -32,10 +32,16 @@ class InjectableDict:
 
 TEST_FILE_DIR = pathlib.Path(__file__).absolute().resolve().parent.parent / 'test_data'
 
-SKIP_FLAG = threading.Event()
+SKIP_LONG_TESTS = threading.Event()
+SKIP_INTEGRATION_TESTS = threading.Event()
+
+def skip_integration_test(test_case):
+    if SKIP_INTEGRATION_TESTS.is_set():
+        return unittest.skip("skipping integration tests")(test_case)
+    return test_case
 
 def skip_long_test(test_case):
-    if SKIP_FLAG.is_set():
+    if SKIP_LONG_TESTS.is_set():
         return unittest.skip('skipping long tests')(test_case)
     return test_case
 
@@ -134,6 +140,17 @@ class BaseTestCase(ut.TestCase):
             cls._real_nodb = NODBContainer()
             cls.enterClassContext(cls._real_nodb)
         return cls._real_nodb.nodb
+
+    @classproperty
+    @classmethod
+    def real_dmd(cls) -> DMDContainer:
+        if not hasattr(cls, '_dmd'):
+            _ = cls.real_nodb
+            cls._dmd_install = DMDInstallContainer()
+            cls._dmd_install.up()
+            cls._dmd = DMDContainer()
+            cls.start_container(cls._dmd)
+        return cls._dmd
 
     @classmethod
     def set_log_level_for_class(cls, new_level):

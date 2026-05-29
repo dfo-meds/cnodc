@@ -5,7 +5,7 @@ SESSION_COOKIE_SECURE = false
 PREFERRED_URL_SCHEME = "http"
 
 [database]
-url = "postgresql+psycopg2://example:example@localhost/metadb"
+url = "postgresql+psycopg2://example:example@nodb-db-1/metadb"
 
 [logging.root]
 level = 20
@@ -58,11 +58,11 @@ connection_string = ""
 root_directory = "/metadb-data/local_storage/html_staging"
 
 [cnodc.erddaputil.live]
-notify_base_url = "http://localhost:9200"
+notify_base_url = "http://erddap-web-1:9200"
 username = "admin"
 password = "admin"
 
 [cnodc.erddaputil.staging]
-notify_base_url = "http://locahost:9200"
+notify_base_url = "http://erddap-web-1:9200"
 username = "admin"
 password = "admin"

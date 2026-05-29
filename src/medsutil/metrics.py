@@ -5,6 +5,7 @@ import os
 import zrlog
 from autoinject import injector
 import typing as t
+import threading
 
 
 if t.TYPE_CHECKING:
@@ -14,13 +15,13 @@ if t.TYPE_CHECKING:
 
 
 # Used to disable metrics in tests only!
-DISABLE_METRICS = False
+DISABLE_METRICS = threading.Event()
 
 @injector.injectable_global
 class PromMetrics:
 
     def __init__(self):
-        self.disable_metrics: bool = DISABLE_METRICS
+        self.disable_metrics: bool = DISABLE_METRICS.is_set()
         self.metric_flask = None
         self._metrics = {}
         self._lock = threading.RLock()
