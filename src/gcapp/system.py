@@ -1,8 +1,6 @@
-import importlib
 import threading
 import typing as t
 
-import flask
 import zrlog
 from autoinject import injector, NamedContextInformant
 import zirconium as zr
@@ -55,15 +53,15 @@ class System:
         self.events.fire("cleanup")
         self.events.fire("cleanup.after")
 
-    def before_load(self, load_cb: t.Callable[[System], t.Any] | str):
+    def before_load(self, load_cb: t.Callable[[t.Self], t.Any] | str):
         """Register a function to call at the start of init()."""
         self.events.on("init.before", load_cb)
 
-    def on_load(self, load_cb: t.Callable[[System], t.Any] | str):
+    def on_load(self, load_cb: t.Callable[[t.Self], t.Any] | str):
         """Register a function to call during init()."""
         self.events.on("init", load_cb)
 
-    def after_load(self, load_cb: t.Callable[[System], t.Any] | str):
+    def after_load(self, load_cb: t.Callable[[t.Self], t.Any] | str):
         self.events.on("init.after", load_cb)
 
     def before_setup(self, cb: t.Callable[[], t.Any] | str):

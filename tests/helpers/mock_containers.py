@@ -1,3 +1,4 @@
+import enum
 import pathlib
 import shutil
 import subprocess
@@ -12,17 +13,27 @@ CONTAINER_DIR = TEST_DIR / 'containers'
 DB_DIR = TEST_DIR.parent.parent
 DOCKER_COMMAND = shutil.which('docker')
 
+
+class DockerOutput(enum.Enum):
+    SILENT = 0
+    STDOUT = 1
+    CAPTURE = 2
+
+
 class TestContainer:
 
     def __init__(self,
                  name,
                  always_rebuild: bool = False,
                  wait_for=None,
-                 wait_max=6,
-                 wait_sleep=0.25,
-                 docker_timeout=30):
+                 wait_max=30,
+                 wait_sleep=0.5,
+                 docker_timeout=30,
+                 compose_file = "compose.yaml",
+                 no_detach: bool = False):
         self.name = name
-        self.docker_file = CONTAINER_DIR / name / 'compose.yaml'
+        self._no_detach = no_detach
+        self.docker_file = CONTAINER_DIR / name / compose_file
         self._rebuild = always_rebuild
         self._timeout = docker_timeout
         self._running = False
@@ -57,7 +68,9 @@ class TestContainer:
         return True
 
     def up(self):
-        up_cmd = ['up', '--detach', '--quiet-build', '--quiet-pull']
+        up_cmd = ['up', '--quiet-build', '--quiet-pull']
+        if not self._no_detach:
+            up_cmd.append('--detach')
         if self._rebuild:
             up_cmd.append('--build')
         self._log.debug(f'Booting test container [{self.name}]')
@@ -80,15 +93,18 @@ class TestContainer:
             self._log.debug(f'Test container [{self.name}] is shut down')
             self._running = False
 
-    def _docker_command(self, cmd: list[str], silent: bool = True):
+    def _docker_command(self, cmd: list[str], output: DockerOutput = DockerOutput.STDOUT):
         if DOCKER_COMMAND is None:
             raise RuntimeError('Error finding docker command')
         kwargs = {
             'timeout': self._timeout,
         }
-        if silent:
+        if output is DockerOutput.SILENT:
             kwargs['stdout'] = subprocess.DEVNULL
             kwargs['stderr'] = subprocess.DEVNULL
+        elif output is DockerOutput.CAPTURE:
+            kwargs['text'] = True
+            kwargs['capture_output'] = True
         args: list[str] = [
             DOCKER_COMMAND,
             'compose',
@@ -155,21 +171,37 @@ class NODBContainer(TestContainer):
                 raise
 
 
+class DMDInstallContainer(TestContainer):
+
+    def __init__(self):
+        super().__init__('dmd', always_rebuild=True, compose_file="compose.upgrade.yaml", no_detach=True, docker_timeout=300)
+
 
 class DMDContainer(TestContainer):
 
 
     def __init__(self):
-        super().__init__('dmd', True, self._check_dmd_available)
+        super().__init__('dmd', always_rebuild=True, wait_for=self._check_dmd_available)
+
+    def base_url(self):
+        return 'http://localhost:9100/metadb/'
 
     def _check_dmd_available(self):
         import requests
         try:
-            resp = requests.get("http://localhost:9100/")
+            resp = requests.get(self.base_url())
             resp.raise_for_status()
-        except:
+        except Exception as ex:
             return False
 
-    def after_boot(self):
-        self._docker_command(["exec", "web", "python", "-m", "alembic", "upgrade", "head"])
-        self._docker_command(["exec", "web", "python", "cli.py", "core", "setup"])
+    def create_bot_user(self, username: str, display: str | None = None, email: str | None = None) -> str:
+        self._docker_command(["exec", "web", "python", "cli.py", "user", "create", "--no-email", "1", "--password-entry", "random", username, email or f"{username}@example.com", "--display", display or username])
+        self._docker_command(["exec", "web", "python", "cli.py", "user", "enable-api-access", username])
+        res = self._docker_command(["exec", "web", "python", "cli.py", "user", "create-api-key", username, "api_access", "365"], output=DockerOutput.CAPTURE)
+        lines = res.stdout.split("\n")
+        result = ""
+        for line in lines:
+            if line.startswith("Authorization: Bearer "):
+                result = line[22:]
+        self._docker_command(["exec", "web", "python", "cli.py", "group", "assign", username, "api_access_direct"])
+        return result
