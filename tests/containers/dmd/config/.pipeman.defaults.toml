@@ -1,0 +1,112 @@
+
+[autoinject]
+"pipeman.i18n.i18n.TranslationManager" = "pipeman.builtins.i18n_yaml.translator.YamlTranslationManager"
+"pipeman.i18n.i18n.LanguageDetector" = "pipeman.builtins.basic_lang_detect.detector.BasicRequestLanguageDetector"
+"pipeman.i18n.workflow.TranslationEngine" = "pipeman.builtins.mtrans.mtrans.ManualTranslationEngine"
+
+[cnodc.metadata.patterns]
+staging_erddap = "config/staging/datasets.d/{guid}.xml"
+staging_iso19115_erddap = "config/staging/metadata/{guid}.xml"
+live_erddap = "config/pilot/datasets.d/{guid}.xml"
+live_iso19115_erddap = "config/pilot/metadata/{guid}.xml"
+staging_iso19115 = "staging/metadata/iso19115/{guid}.xml"
+staging_iso19139 = "staging/metadata/iso19139/{guid}.xml"
+live_iso19115 = "live/metadata/iso19115/{guid}.xml"
+live_iso19139 = "live/metadata/iso19139/{guid}.xml"
+
+[csp]
+enable = false
+upstream = true
+report = false
+
+[flask]
+UPLOAD_FOLDER = "/srv/metadb/data"
+MAX_CONTENT_LENGTH = 1073741824
+SESSION_COOKIE_NAME = "dfosessid"
+APPLICATION_ROOT = "/metadb"
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+[pipeman]
+session_expiry = 36000
+authority = "ca.dfo-mpo.cnodc-cndoc"
+
+[pipeman.authentication]
+logout_route = "base.home"
+unauthorized_route = "base.home"
+login_required = "auth.login"
+login_route = "base.home"
+
+[pipeman.metadata]
+languages = ['en', 'fr']
+
+[pipeman.proxy_fix]
+enabled = true
+x_for = 1
+x_proto = 1
+x_host = 1
+x_port = 1
+x_prefix = 1
+
+[pipeman.security]
+require_https = false # HTTPS offloading by nginx means we can't require it here
+hash_algorithm = "sha256"
+password_min_length = 15
+
+[pipeman.storage.default.metadata]
+AccessLevel = "GENERAL"
+SecurityLabel = "UNCLASSIFIED"
+StoragePlan = "TIER 3"
+PublicationPlan = "_METADATA"
+Program = "_METADATA"
+Dataset = "_METADATA"
+CostUnit = "CNODC"
+
+[pipeman.storage.erddap_config.metadata]
+AccessLevel = "GENERAL"
+SecurityLabel = "UNCLASSIFIED"
+StoragePlan = "TIER 3"
+PublicationPlan = "_METADATA"
+Program = "_METADATA"
+Dataset = "_METADATA"
+CostUnit = "CNODC"
+
+[pipeman.storage.erddap_staging_config.metadata]
+AccessLevel = "GENERAL"
+SecurityLabel = "UNCLASSIFIED"
+StoragePlan = "TIER 3"
+PublicationPlan = "_METADATA"
+Program = "_METADATA"
+Dataset = "_METADATA"
+CostUnit = "CNODC"
+
+[pipeman.storage.html_live.metadata]
+AccessLevel = "GENERAL"
+SecurityLabel = "UNCLASSIFIED"
+StoragePlan = "TIER 3"
+PublicationPlan = "_METADATA"
+Program = "_METADATA"
+Dataset = "_METADATA"
+CostUnit = "CNODC"
+
+[pipeman.storage.html_staging.metadata]
+AccessLevel = "GENERAL"
+SecurityLabel = "UNCLASSIFIED"
+StoragePlan = "TIER 3"
+PublicationPlan = "_METADATA"
+Program = "_METADATA"
+Dataset = "_METADATA"
+CostUnit = "CNODC"
+
+
+[logging]
+version = 1
+
+[logging.root]
+level = 21
+handlers = ["console"]
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "brief"
+level = 21
+stream = "ext://sys.stdout"

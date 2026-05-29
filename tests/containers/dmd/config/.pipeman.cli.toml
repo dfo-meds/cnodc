@@ -1,0 +1,3 @@
+
+[logging.formatters.brief]
+format = "%(name)s %(levelname)s [%(sys_username)s %(sys_remote)s] %(message)s"
