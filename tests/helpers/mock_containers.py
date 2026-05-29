@@ -153,3 +153,23 @@ class NODBContainer(TestContainer):
                 return False
             else:
                 raise
+
+
+
+class DMDContainer(TestContainer):
+
+
+    def __init__(self):
+        super().__init__('dmd', True, self._check_dmd_available)
+
+    def _check_dmd_available(self):
+        import requests
+        try:
+            resp = requests.get("http://localhost:9100/")
+            resp.raise_for_status()
+        except:
+            return False
+
+    def after_boot(self):
+        self._docker_command(["exec", "web", "python", "-m", "alembic", "upgrade", "head"])
+        self._docker_command(["exec", "web", "python", "cli.py", "core", "setup"])

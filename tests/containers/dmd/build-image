@@ -1,0 +1,1 @@
+docker build -t local-dmd-image:latest ../dmd

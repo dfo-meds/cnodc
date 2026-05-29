@@ -1,10 +1,13 @@
 services:
   db:
     image: postgis/postgis:15-3.4
+    volumes:
+    - "./config:/docker-entrypoint-initdb.d/"
+    - "pgdata:/var/lib/postgresql/data"
     environment:
       POSTGRES_USER: example
       POSTGRES_PASSWORD: example
-      POSTGRES_DB: nodb
+      POSTGRES_DB: default
     ports:
       - 5432:5432
     networks:

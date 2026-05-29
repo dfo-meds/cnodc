@@ -1,0 +1,28 @@
+services:
+  web:
+    build:
+      context: "."
+      network: host
+    volumes:
+      - "./data:/metadb-data"
+      - "./config:/metadb-config"
+    ports:
+      - "9100:80"
+    environment:
+      - "SCRIPT_NAME=metadb"
+      - "REQUEST_TIMEOUT=120"
+  cron:
+    build:
+      context: "."
+      network: host
+    volumes:
+      - "./data:/metadb-data"
+      - "./config:/metadb-config"
+    command: [ 'cron' ]
+    environment:
+      - "SCRIPT_NAME=metadb"
+
+networks:
+  localtest2:
+    name: localtest2
+    external: true

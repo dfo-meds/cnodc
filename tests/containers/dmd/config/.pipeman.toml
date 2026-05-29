@@ -1,0 +1,68 @@
+[flask]
+SECRET_KEY = "NOTVERYSECRET"
+SERVER_NAME = "localhost"
+SESSION_COOKIE_SECURE = false
+PREFERRED_URL_SCHEME = "http"
+
+[database]
+url = "postgresql+psycopg2://example:example@localhost/metadb"
+
+[logging.root]
+level = 20
+
+[pipeman.email]
+
+[pipeman.security]
+allowed_hosts = [ "localhost",]
+hash_rounds = "5"
+pepper = "pepper"
+past_peppers = [ "",]
+
+[pipeman.proxy_fix]
+upstream_proxies = ""
+
+[pipeman.metadata]
+naming_authority = "testing"
+
+[logging.handlers.console]
+level = 20
+
+[pipeman.storage.default]
+type = "local"
+container_name = "metadata"
+connection_string = ""
+root_directory = "/metadb-data/local_storage/default"
+
+[pipeman.storage.erddap_config]
+type = "local"
+share_name = "erddapdata"
+connection_string = ""
+root_directory = "/metadb-data/local_storage/erddap"
+
+[pipeman.storage.erddap_staging_config]
+type = "local"
+share_name = "erddapdata"
+connection_string = ""
+root_directory = "/metadb-data/local_storage/erddap_staging"
+
+[pipeman.storage.html_live]
+type = "local"
+share_name = "publichtml"
+connection_string = ""
+root_directory = "/metadb-data/local_storage/html"
+
+[pipeman.storage.html_staging]
+type = "local"
+share_name = "publichtml"
+connection_string = ""
+root_directory = "/metadb-data/local_storage/html_staging"
+
+[cnodc.erddaputil.live]
+notify_base_url = "http://localhost:9200"
+username = "admin"
+password = "admin"
+
+[cnodc.erddaputil.staging]
+notify_base_url = "http://locahost:9200"
+username = "admin"
+password = "admin"
