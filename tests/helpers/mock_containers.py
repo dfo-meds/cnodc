@@ -71,6 +71,10 @@ class TestContainer:
         up_cmd = ['up', '--quiet-build', '--quiet-pull']
         if not self._no_detach:
             up_cmd.append('--detach')
+        else:
+            up_cmd.append('--exit-code-from')
+            up_cmd.append("up")
+            up_cmd.append('--yes')
         if self._rebuild:
             up_cmd.append('--build')
         self._log.debug(f'Booting test container [{self.name}]')

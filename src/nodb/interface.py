@@ -221,8 +221,6 @@ class NODBCursor(t.Protocol):
 
 class NODBObject(t.Protocol):
 
-    def __init__(self, *, is_new: bool = False, **kwargs): ...
-
     @classmethod
     def get_table_name(cls) -> DatabaseIdentifier: ...
 
@@ -233,7 +231,7 @@ class NODBObject(t.Protocol):
     def get_primary_keys(cls) -> t.Sequence[str]: ...
 
     @classmethod
-    def find_all[X](cls: X, db: NODBInstance) -> t.Iterable[X]: ...
+    def find_all(cls, db: NODBInstance) -> t.Iterable[t.Self]: ...
 
     @property
     def is_new(self) -> bool: ...
@@ -289,6 +287,27 @@ class NODBInstance(t.Protocol):
     def prepared_insert(self, object_type: NODBObjectType, name: str, data_map: dict[str, str]) -> PreparedStatementProtocol: ...
 
     def rows(self, table_name: DatabaseIdentifier) -> int: ...
+
+    def stream_relation_objects(self,
+                                obj_cls: NODBObjectType,
+                                relation_table: str,
+                                relation_keys: dict[str, str],
+                                limit_fields: list[str] | None = None,
+                                key_only: bool = False,
+                                join_str: JoinString = None,
+                                filters: FilterDict | None = None,
+                                order_by: list[str] | None = None,
+                                lock_type: LockType = LockType.NONE) -> t.Iterable[NODBObject]: ...
+    def stream_relation_raw(self,
+                        obj_cls: NODBObjectType,
+                        relation_table: str,
+                        relation_keys: dict[str, str],
+                        limit_fields: list[str] | None = None,
+                        key_only: bool = False,
+                        join_str: JoinString = None,
+                        filters: FilterDict | None = None,
+                        order_by: list[str] | None = None,
+                        lock_type: LockType = LockType.NONE) -> t.Iterable[dict[str, SupportsPostgres]]: ...
 
     def count_objects(self,
                       obj_cls: NODBObjectType,

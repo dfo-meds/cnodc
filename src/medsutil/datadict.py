@@ -537,8 +537,16 @@ class DataDictModifiedTracker(DataDictObject):
 
     def __init__(self, is_new: bool = True, **kwargs):
         self._modified_values: set[str] = set()
-        self.is_new = is_new
+        self._is_new = is_new
         super().__init__(**kwargs)
+
+    @property
+    def is_new(self) -> bool:
+        return self._is_new
+
+    @is_new.setter
+    def is_new(self, b: bool):
+        self._is_new = b
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value, original)
