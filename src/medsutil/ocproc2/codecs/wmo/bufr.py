@@ -1,6 +1,7 @@
 import typing as t
 import pybufrkit.descriptors
 import zrlog
+from pybufrkit.descriptors import BufrTemplate
 
 from medsutil.ocproc2.codecs.gts import GtsSubDecoder
 from medsutil.ocproc2.codecs.base import DecodeResult
@@ -94,6 +95,25 @@ class Bufr4Decoder(GtsSubDecoder):
     @injector.construct
     def __init__(self):
         pass
+
+    def get_message_type(self, reader: ByteSequenceReader, header: str) -> t.Hashable:
+        content = bytearray()
+        try:
+            reader.consume(4)
+            message_length = int.from_bytes(reader.consume(3), 'big')
+            bufr_version = int(reader.consume(1)[0])
+            content.extend(b'BUFR')
+            content.extend(message_length.to_bytes(3, 'big'))
+            content.extend(bufr_version.to_bytes(1, 'big'))
+            content.extend(reader.consume(message_length - 8))
+            if bufr_version != 4:
+                return f"bufr{bufr_version}:error"
+            instance = _Bufr4Decoder(header, content, self.bufr_tables)
+            return instance.get_message_type()
+        except Exception as ex:
+            import traceback
+            traceback.print_exc()
+            return f"bufr4:error"
 
     def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool) -> DecodeResult:
         content = bytearray()
@@ -230,6 +250,9 @@ class _Bufr4Decoder:
         self.message = decoder.process(self.raw_content)
         self.raw_data: TemplateData = self.message.template_data.value
         self.pybufr_tables = TableGroupCacheManager.get_table_group_by_key(self.message.table_group_key)
+
+    def get_message_type(self) -> str:
+        return f"bufr4:{';'.join(str(x) for x in self.message.unexpanded_descriptors.value)}"
 
     def get_text_representation(self) -> str:
         return NestedTextRenderer().render(self.message)
@@ -522,7 +545,7 @@ class _Bufr4Decoder:
                 map_key = str(value) if value is not None else ""
                 for x in instruction["instruction_map"]:
                     if str(x) == map_key:
-                        self._apply_instruction(instruction["instruction_map"][map_key], value, ctx, node)
+                        self._apply_instruction(instruction["instruction_map"][x], value, ctx, node)
                         break
                 else:
                     self.warn(f"No instruction found for [{map_key}] (really {value}) in {node.descriptor.id if node else 'unknown'}", ctx)
@@ -548,6 +571,7 @@ class _Bufr4Decoder:
         if node.descriptor.id == 1087:
             if raw_value is None:
                 return None
+            raw_value = str(raw_value)
             if len(raw_value) < 2:
                 return raw_value
             return f"{raw_value[0:2]}{raw_value[2:].zfill(5)}"

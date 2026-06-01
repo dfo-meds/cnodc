@@ -6,6 +6,9 @@ import typing as t
 
 class GtsSubDecoder:
 
+    def get_message_type(self, reader: ByteSequenceReader, header: str) -> t.Hashable:
+        raise NotImplementedError  # pragma: no coverage (default)
+
     def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool) -> DecodeResult:
         raise NotImplementedError  # pragma: no coverage (default)
 
@@ -31,21 +34,50 @@ class GtsCodec(BaseCodec):
 
     def _decode_messages(self, data: ct.ByteStrings, options: dict) -> t.Iterable[DecodeResult]:
         reader = ByteSequenceReader(data)
-        header = ''
-        reader.lstrip(GtsCodec.WHITESPACE)
-        current_idx = 0
         s = options.get('skip_to_message_idx', None)
         skip_to = int(s) if s is not None else None
+        for current_idx, header in self._find_headers(reader):
+            x = self._attempt_decode_next_gts_message(reader, header, skip_to is not None and (skip_to > current_idx))
+            if x is not None:
+                yield x
+
+    def _find_headers(self, reader: ByteSequenceReader) -> t.Iterable[tuple[int, str]]:
+        current_idx = 0
+        header = ''
+        reader.lstrip(GtsCodec.WHITESPACE)
         while not reader.at_eof():
             test_line = reader.peek_line(True).decode('ascii', 'replace')
             if self._is_gts_header(test_line):
                 header = reader.consume_line(True).decode('ascii')
             reader.lstrip(GtsCodec.WHITESPACE)
-            x = self._attempt_decode_next_gts_message(reader, header, skip_to is not None and (skip_to > current_idx))
-            if x is not None:
-                yield x
+            yield current_idx, header
             current_idx += 1
             reader.lstrip(GtsCodec.WHITESPACE)
+
+    def report_message_structures(self, data: bytes) -> dict[t.Hashable, int]:
+        reader = ByteSequenceReader([data])
+        type_info: dict[t.Hashable, int] = {}
+        for _, header in self._find_headers(reader):
+            msg_type_info = self._attempt_decode_next_gts_message_type(reader, header)
+            if msg_type_info not in type_info:
+                type_info[msg_type_info] = 0
+            type_info[msg_type_info] += 1
+        return type_info
+
+
+    def _attempt_decode_next_gts_message_type(self, reader: ByteSequenceReader, header: str) -> t.Hashable:
+        message_type = reader.peek(5)
+        for key in self._sub_codecs:
+            if message_type.startswith(key):
+                return self._sub_codecs[key].get_message_type(reader, header)
+        discard_line = reader.consume_line(True)
+        # Exclude some common issues
+        if len(discard_line) > 4 and discard_line[0:4] == b'****':
+            ...
+        else:
+            self.log.debug(f"Discarding line {discard_line.decode('ascii', 'replace')}, unrecognized start sequence")
+            print(discard_line.decode('ascii'))
+        return None
 
     def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False) -> t.Optional[DecodeResult]:
         message_type = reader.peek(5)

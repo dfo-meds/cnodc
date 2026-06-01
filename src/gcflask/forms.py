@@ -65,6 +65,7 @@ class SubmitField(wtf.SubmitField):
         super().__init__(**kwargs)
 
 
+
 class GCFlaskForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):

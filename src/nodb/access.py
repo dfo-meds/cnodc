@@ -8,6 +8,7 @@ from medsutil.awaretime import AwareDateTime
 
 import nodb.interface as interface
 import nodb.base as s
+from nodb.interface import NODBObject
 
 
 class UserStatus(enum.Enum):
@@ -15,6 +16,26 @@ class UserStatus(enum.Enum):
 
     ACTIVE = 'ACTIVE'
     INACTIVE = 'INACTIVE'
+
+
+class NODBOrganization(s.NODBBaseObject):
+
+    TABLE_NAME: str = "nodb_organizations"
+    PRIMARY_KEYS = ("organization_name",)
+
+    organization_name: str = s.StringColumn()
+    display_name: dict = s.JsonDictColumn()
+    db_created_date: AwareDateTime = s.DateTimeColumn(readonly=True)
+    db_modified_date: AwareDateTime = s.DateTimeColumn(readonly=True)
+
+    def load_users(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBUser]:
+        yield from _UserOrganization.load_for_parent(db, self, **kwargs)
+
+    @classmethod
+    def find_by_organization_name(cls, db: interface.NODBInstance, name: str, **kwargs) -> NODBOrganization | None:
+        return db.load_object(cls, filters={
+            'organization_name': name
+        }, **kwargs)
 
 
 class NODBUser(s.NODBBaseObject):
@@ -86,6 +107,9 @@ class NODBUser(s.NODBBaseObject):
         """Locate a user by their username."""
         return db.load_object(cls, {"username": username}, **kwargs)
 
+    def load_organizations(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBOrganization]:
+        yield from _UserOrganization.load_for_parent(db, self, **kwargs)
+
 
 class NODBSession(s.NODBBaseObject):
 
@@ -115,3 +139,6 @@ class NODBSession(s.NODBBaseObject):
     def find_by_session_id(cls, db: interface.NODBInstance, session_id: str, **kwargs) -> NODBSession | None:
         """Locate a session by its ID."""
         return db.load_object(cls, {"session_id": session_id}, **kwargs)
+
+
+_UserOrganization = s.NODBRelationship(NODBUser, NODBOrganization, "nodb_organization_user")

@@ -330,6 +330,73 @@ class PostgresController:
             return row[0]
 
     @wrap_nodb_exceptions
+    def stream_relation_raw(self,
+                        obj_cls: NODBObjectType,
+                        relation_table: str,
+                        relation_keys: dict[str, str],
+                        limit_fields: list[str] | None = None,
+                        key_only: bool = False,
+                        join_str: JoinString = None,
+                        filters: FilterDict | None = None,
+                        order_by: list[str] | None = None,
+                        lock_type: LockType = LockType.NONE) -> t.Iterable[dict[str, SupportsPostgres]]:
+        query = self.assemble_query(
+            self.build_select_clause(
+                obj_cls.get_table_name(),
+                self.extend_selected_fields(limit_fields, None, key_only, obj_cls),
+                self._stable_sort_columns,
+            ),
+            self._build_join_clause(
+                relation_table,
+                relation_keys
+            ),
+            self.build_where_clause(filters, join_str),
+            self.build_order_by_clause(order_by),
+            self.build_lock_type_clause(lock_type)
+        )
+        with self.cursor() as cur:
+            cur.execute(query)
+            for row in cur.fetch_stream():
+                yield row
+
+    @wrap_nodb_exceptions
+    def stream_relation_objects(self,
+                        obj_cls: NODBObjectType,
+                        relation_table: str,
+                        relation_keys: dict[str, str],
+                        limit_fields: list[str] | None = None,
+                        key_only: bool = False,
+                        join_str: JoinString = None,
+                        filters: FilterDict | None = None,
+                        order_by: list[str] | None = None,
+                        lock_type: LockType = LockType.NONE) -> t.Iterable[NODBObject]:
+        for row in self.stream_relation_raw(
+            obj_cls=obj_cls,
+            relation_table=relation_table,
+            relation_keys=relation_keys,
+            limit_fields=limit_fields,
+            key_only=key_only,
+            join_str=join_str,
+            filters=filters,
+            order_by=order_by,
+            lock_type=lock_type
+        ):
+            yield obj_cls(is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)})
+
+    def _build_join_clause(self, right_table_name: str, join_keys: dict[str, str]):
+        yield pgs.SQL("JOIN")
+        yield pgs.Identifier(right_table_name)
+        if join_keys:
+            yield pgs.SQL("ON")
+            first = True
+            for left_key, right_key in join_keys.items():
+                if first:
+                    first = False
+                else:
+                    yield pgs.SQL("AND")
+                yield pgs.SQL(f"{left_key} = {right_key}")
+
+    @wrap_nodb_exceptions
     def stream_raw(self,
                    obj_cls: NODBObjectType,
                    filters: FilterDict = None,
@@ -812,7 +879,7 @@ class PostgresController:
             yield pgs.SQL('RETURNING ') + pgs.SQL(',').join(pgs.Identifier(x) for x in primary_keys)
 
     @staticmethod
-    def build_select_clause(table_name, fields, stable_sort) -> t.Iterable[pgs.Composable]:
+    def build_select_clause(table_name, fields, stable_sort, alias: str | None = None) -> t.Iterable[pgs.Composable]:
         yield pgs.SQL('SELECT')
         if not fields:
             yield pgs.SQL('*')
@@ -824,6 +891,9 @@ class PostgresController:
             yield pgs.SQL(',').join(pgs.Identifier(field) if isinstance(field, str) else field for field in fields)
         yield pgs.SQL('FROM')
         yield pgs.Identifier(table_name)
+        if alias:
+            yield pgs.SQL("AS")
+            yield pgs.Identifier(alias)
 
     @staticmethod
     def build_where_clause(filters=None, join_str = None) -> t.Iterable[pgs.Composable]:
