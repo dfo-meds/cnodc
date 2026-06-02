@@ -96,11 +96,9 @@ class AuthenticationHandler:
             user = self._attempt_login_from_redirect(redirect_info)
             if user is not None:
                 self._log_login_success(user)
-                return user
             return user
         except AuthError as ex:
             self._log_login_error(ex)
-            return None
 
     def attempt_login_from_request(self, request: flask.Request) -> AuthenticatedUser | None:
         try:
@@ -114,7 +112,6 @@ class AuthenticationHandler:
             return user
         except AuthError as ex:
             self._log_login_error(ex, True)
-            return None
 
     def _attempt_login_from_auth_header(self, auth_header: str) -> AuthenticatedUser | None:
         if ' ' not in auth_header:

@@ -1,6 +1,6 @@
 from gcflask.i18n_url import MultiLanguageBlueprint
 
-user = MultiLanguageBlueprint('user', __name__)
+user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
 
 
 @user.route('/me')

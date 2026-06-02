@@ -18,6 +18,9 @@ class PluginManager:
         self._plugins: set[str] = set()
         self._log = zrlog.get_logger('gcapp.plugins')
 
+    def discover_from_module(self, module_name: str):
+        self._plugin_discovery_roots.append(module_name)
+
     def init_plugins(self):
         """Find and initialize all of the plugins."""
         # Get list of configured plugins

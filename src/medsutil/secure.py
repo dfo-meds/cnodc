@@ -15,48 +15,53 @@ ALGORITHM: str = 'sha512'
 
 class SecureError(CodedError): CODE_SPACE = 'SECURE'
 
-def validate_password(password: str | None) -> typing.TypeGuard[str]:
-    if not isinstance(password, str):
-        raise SecureError("Password must be a string", 1000)
+def validate_password(password: str | bytes | None) -> typing.TypeGuard[str]:
+    if not isinstance(password, (str, bytes)):
+        raise SecureError("Password must be a string or bytes", 1000)
     if not password:
         raise SecureError('No password provided', 1001)
     if len(password) > 1024:
         raise SecureError("Password is too long", 1002)
     return True
 
-def check_expired_password(password: str, salt: bytes, password_hash: bytes, expired_date: AwareDateTime, username: str = None) -> bool:
+def check_expired_password(password: str | bytes, salt: bytes, password_hash: bytes, expired_date: AwareDateTime, username: str = None) -> bool:
     if expired_date > AwareDateTime.now() and check_password(password, salt, password_hash):
         zrlog.get_logger('medsutil.secure').notice('User [%s] has logged in with an expired password', username)
         return True
     return False
 
-def check_password(password: str, salt: bytes, password_hash: bytes) -> bool:
+def check_password(password: str | bytes, salt: bytes, password_hash: bytes) -> bool:
     return secrets.compare_digest(password_hash, hash_password(password, salt))
 
-def hash_password(password: str, salt: bytes, iterations=None) -> bytes:
+def hash_password(password: str | bytes, salt: bytes, iterations=None) -> bytes:
     if iterations is None or iterations < MINIMUM_ITERATIONS:
         iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
     return hashlib.pbkdf2_hmac(
         ALGORITHM,
-        str(password or '').encode('utf-8', errors='replace'),
+        str(password or '').encode('utf-8', errors='replace') if isinstance(password, str) else password,
         salt,
         iterations
     )
 
 PASSWORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTVWXYZabcdefghijklmnopqrstvwxyz2345679@#$%&'  # nosec B105 # not a hard coded password
-ENTROPY = 80
+ENTROPY = 120
 PASSWORD_LENGTH = math.ceil(ENTROPY / math.log2(len(PASSWORD_CHARACTERS)))
 
 def generate_secure_random_password() -> str:
     return ''.join(secrets.choice(PASSWORD_CHARACTERS) for _ in range(0, PASSWORD_LENGTH))
+
+def generate_secure_key(length: int = 16) -> bytes:
+    if length < 16:
+        zrlog.get_logger('medsutil.secure').notice(f"Salt length is too short, minimum 128 bit required, got [%s]", length * 8)
+    return secrets.token_bytes(length)
 
 def generate_salt(length: int = 8) -> bytes:
     if length < 8:
         zrlog.get_logger('medsutil.secure').notice(f"Salt length is too short, minimum 64 bit required, got [%s]", length * 8)
     return secrets.token_bytes(length)
 
-def validate_secret_key(key: str | None) -> typing.TypeGuard[str]:
-    if key is None or key == '':
+def validate_secret_key(key: str | bytes | None) -> typing.TypeGuard[str]:
+    if key is None or key == '' or key == b'':
         raise SecureError("No secret key provided", 2000)
     return True
 

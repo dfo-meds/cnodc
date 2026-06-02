@@ -1,8 +1,6 @@
 import abc
 import datetime
 import typing as t
-
-import flask
 import markupsafe
 from autoinject import injector
 import zirconium as zr

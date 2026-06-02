@@ -802,16 +802,35 @@ class PostgresController:
 
     @wrap_nodb_exceptions
     def record_login(self,
-                     username: str,
-                     ip_address: str | None,
-                     instance_name: str):
+                     username: str | None,
+                     remote_addr: str | None,
+                     success: bool,
+                     from_api: bool,
+                     message: str | None = None,
+                     max_failures: int = 0,
+                     max_failure_window_seconds: int = 300,
+                     user_lock_time_seconds: int = 3600):
         """Record a user logging in."""
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_logins (username, login_time, login_addr, instance_name) VALUES (%s, CURRENT_TIMESTAMP, %s, %s)", [
+            if success and username is not None:
+                cur.execute("UPDATE nodb_logins SET since_last = 'Y' WHERE username = %s", [username])
+            cur.execute("INSERT INTO nodb_logins (username, success, from_api, message, remote_addr) VALUES (%s, %s, %s, %s, %s)", [
                 username,
-                ip_address or '??',
-                instance_name
+                success,
+                from_api,
+                message,
+                remote_addr
             ])
+            if username and max_failures > 0 and user_lock_time_seconds > 0 and max_failure_window_seconds > 0 and not success:
+                cur.execute("SELECT COUNT(*) FROM nodb_logins WHERE username = %s AND success = 'N' AND since_last = 'N' AND db_created_date >= %s", [
+                    username,
+                    AwareDateTime.utcnow() + datetime.timedelta(seconds=max_failure_window_seconds)
+                ])
+                if cur.fetchone()[0] > max_failures:
+                    cur.execute("UPDATE nodb_users SET locked_until = %s WHERE username = %s", [
+                        AwareDateTime.utcnow() + datetime.timedelta(seconds=user_lock_time_seconds),
+                        username
+                    ])
 
     @staticmethod
     def assemble_query(*args):

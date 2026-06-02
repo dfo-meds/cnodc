@@ -1,4 +1,4 @@
-from medsid.boot import boot_medsid
+from medweb.boot import boot_medsid
 
 
 def create_app():

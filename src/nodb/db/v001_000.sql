@@ -134,7 +134,6 @@ CREATE TABLE IF NOT EXISTS nodb_logins (
     instance_name       VARCHAR(126)    NOT NULL
 );
 
-
 CREATE INDEX IF NOT EXISTS ix_nodb_logins_login_time ON nodb_logins USING brin(login_time);
 
 
