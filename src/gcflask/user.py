@@ -6,10 +6,11 @@ from medsutil.awaretime import AwareDateTime
 ADMIN_PRIVILEGE = '__admin__'
 ANONYMOUS_PRIVILEGE = '__anonymous__'
 ANYONE_PRIVILEGE = '__anyone__'
+AUTHENTICATED_PRIVILEGE = '__authenticated__'
 
 class BaseUserMixin:
 
-    def __init__(self, display_name: str | None = None, email: str | None = None, permissions: list[str] = None, **extras):
+    def __init__(self, display_name: str | None = None, email: str | None = None, permissions: t.Iterable[str] | None = None, **extras):
         super().__init__()
         self._permissions: set[str] = set(permissions or [])
         self._permissions.add(ANYONE_PRIVILEGE)
@@ -31,7 +32,7 @@ class BaseUserMixin:
 
     def require_all(self, permission_names: t.Sequence[str]):
         """Check if the user has the given permission."""
-        if self.is_admin:
+        if (not permission_names) or self.is_admin:
             return True
         return all(x in self._permissions for x in permission_names)
 
@@ -76,6 +77,7 @@ class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
                  **extras):
         super().__init__(display_name, email, permissions, **extras)
         self._unique_id = unique_id
+        self._permissions.add(AUTHENTICATED_PRIVILEGE)
 
     def get_id(self):
         return self._unique_id

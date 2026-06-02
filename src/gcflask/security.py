@@ -1,15 +1,17 @@
 import functools
 
+import flask_login
 import flask_login as fl
 import flask
 import zirconium as zr
-from autoinject import injector
+from autoinject import injector, auto
 import typing as t
 import zrlog
 from urllib.parse import urlparse
 
 from gcflask.auth import AuthResult, AuthenticationManager
-from gcflask.user import AuthenticatedUser
+from gcflask.user import AuthenticatedUser, ANONYMOUS_PRIVILEGE, ADMIN_PRIVILEGE, ANYONE_PRIVILEGE, \
+    AUTHENTICATED_PRIVILEGE
 
 
 @injector.injectable_global
@@ -97,30 +99,67 @@ class RequestSecurity:
             return AuthResult.SPLASH
         return AuthResult.ALLOW
 
-def require_permission[**P,Q](
+
+class RequirePermission:
+    _auth_man: AuthenticationManager = None
+    _rs: RequestSecurity = None
+
+    @property
+    def auth_man(self) -> AuthenticationManager:
+        if self._auth_man is None:
+            self._auth_man = injector.get(AuthenticationManager)
+        return self._auth_man
+
+    @property
+    def rs(self) -> RequestSecurity:
+        if self._rs is None:
+            self._rs = injector.get(RequestSecurity)
+        return self._rs
+
+    def __call__[**P,Q](self,
         required_permissions: str | t.Sequence[str] | None = None,
+        *,
+        authenticated_only: bool = False,
+        anonymous_only: bool = False,
+        anyone: bool = False,
         check_referrer: bool = None,
         check_https: bool = None,
         is_api: bool = False,
         allow_auth_header_access: bool = False) -> t.Callable[[t.Callable[P, Q]], t.Callable[P,Q]]:
-    """Ensure the current user is logged in and has one of the given permissions before allowing the request."""
+        """Ensure the current user is logged in and has one of the given permissions before allowing the request."""
 
-    def _decorator(func: t.Callable[P, Q]) -> t.Callable[P,Q]:
-        @functools.wraps(func)
-        @injector.inject
-        def _decorated(*args, rs: RequestSecurity = None, auth_man: AuthenticationManager = None, **kwargs):
-            if allow_auth_header_access or is_api:
-                auth_man.login_from_request_body(flask.request)
-            result = rs.check_access(
-                required_permissions,
-                check_referrer,
-                check_https
-            )
-            if result == AuthResult.ALLOW:
-                return flask.current_app.ensure_sync(func)(*args, **kwargs)
-            else:
-                return auth_man.unauthorized(result=result, is_api_call=is_api)
-        return _decorated
+        if (authenticated_only or anonymous_only or anyone):
+            if required_permissions is None:
+                required_permissions = []
+            elif isinstance(required_permissions, str):
+                required_permissions = [required_permissions]
+            if anonymous_only:
+                required_permissions.append(ANONYMOUS_PRIVILEGE)
+            if authenticated_only:
+                required_permissions.append(AUTHENTICATED_PRIVILEGE)
+            if anyone:
+                required_permissions.append(ANYONE_PRIVILEGE)
 
-    return _decorator
+        if is_api:
+            allow_auth_header_access = True
 
+        def _decorator(func: t.Callable[P, Q]) -> t.Callable[P,Q]:
+
+            @functools.wraps(func)
+            def _decorated(*args, **kwargs):
+                if allow_auth_header_access:
+                    if flask_login.current_user.is_anonymous:
+                        self.auth_man.request_loader(flask.request)
+                result = self.rs.check_access(
+                    required_permissions,
+                    check_referrer,
+                    check_https
+                )
+                if result == AuthResult.ALLOW:
+                    return flask.current_app.ensure_sync(func)(*args, **kwargs)
+                else:
+                    return self.auth_man.unauthorized_handler(result=result, is_api_call=is_api)
+            return _decorated
+        return _decorator
+
+require_permission = RequirePermission()
