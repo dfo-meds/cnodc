@@ -1,5 +1,5 @@
 # This is for my configuration and autoinject libraries
-autoinject~=1.3.3
+autoinject~=2.0.0
 zirconium~=1.2.4
 zrlog~=0.3.0
 

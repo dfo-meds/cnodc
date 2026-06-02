@@ -72,7 +72,7 @@ class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
                  unique_id: str | None,
                  display_name: str,
                  email: str = None,
-                 permissions: list[str] = None,
+                 permissions: t.Iterable[str] | None = None,
                  **extras):
         super().__init__(display_name, email, permissions, **extras)
         self._unique_id = unique_id

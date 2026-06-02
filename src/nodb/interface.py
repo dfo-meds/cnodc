@@ -373,7 +373,15 @@ class NODBInstance(t.Protocol):
 
     def delete_session(self, session_id: str): ...
 
-    def record_login(self, username: str, ip_address: str | None, instance_name: str): ...
+    def record_login(self,
+                     username: str | None,
+                     remote_addr: str | None,
+                     success: bool,
+                     from_api: bool,
+                     message: str | None = None,
+                     max_failures: int = 0,
+                     max_failure_window_seconds: int = 300,
+                     user_lock_time_seconds: int = 3600): ...
 
     def scanned_file_status(self, file_path: str, mod_time: datetime.datetime | None = None) -> ScannedFileStatus: ...
     def note_scanned_file(self, file_path: str, mod_time: datetime.datetime | None = None): ...

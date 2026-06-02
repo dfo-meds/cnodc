@@ -8,7 +8,7 @@ from medsutil.awaretime import AwareDateTime
 
 import nodb.interface as interface
 import nodb.base as s
-from nodb.interface import NODBObject
+from nodb.interface import NODBObject, NODBInstance
 
 
 class UserStatus(enum.Enum):
@@ -38,6 +38,56 @@ class NODBOrganization(s.NODBBaseObject):
         }, **kwargs)
 
 
+class NODBAccessToken(s.NODBBaseObject):
+
+    TABLE_NAME: str = "nodb_access_tokens"
+    PRIMARY_KEYS: tuple[str] = ("username", "identifier",)
+
+    username: str = s.StringColumn()
+    identifier: str = s.StringColumn()
+
+    key_hash: bytes | None = s.ByteColumn()
+    key_salt: bytes | None = s.ByteColumn()
+    expiry: AwareDateTime | None = s.ByteColumn()
+
+    old_key_hash: bytes | None = s.ByteColumn()
+    old_key_salt: bytes | None = s.ByteColumn()
+    old_expiry: AwareDateTime | None = s.ByteColumn()
+
+    is_active: str = s.StringColumn(default='Y')
+
+    def set_key(self, key: str | bytes, expiry_seconds: int = 365 * 24 * 3600, old_expiry_seconds: int = 0, salt_length: int = 16):
+        secure.validate_password(key)
+        if old_expiry_seconds > 0:
+            self.old_key_salt = self.key_salt
+            self.old_key_hash = self.key_hash
+            self.old_expiry = AwareDateTime.utcnow() + datetime.timedelta(seconds=old_expiry_seconds)
+        else:
+            self.old_key_hash = None
+            self.old_key_salt = None
+            self.old_expiry = None
+        self.key_salt = secure.generate_salt(salt_length)
+        self.key_hash = secure.hash_password(key, t.cast(bytes, self.key_salt))
+        self.expiry = AwareDateTime.utcnow() + datetime.timedelta(seconds=expiry_seconds)
+
+    def check_key(self, key: str | bytes) -> bool:
+        if self.is_active == 'Y':
+            if self.key_salt is not None and self.key_hash is not None:
+                if secure.check_password(key, self.key_salt, self.key_hash):
+                    return True
+            if self.old_key_hash is not None and self.old_key_salt is not None and self.old_expiry is not None:
+                if secure.check_expired_password(key, self.old_key_salt, self.old_key_hash, self.old_expiry, f"access_token__{self.username}__{self.identifier}"):
+                    return True
+        return False
+
+    def load_user(self, db: interface.NODBInstance, **kwargs) -> NODBUser | None:
+        return NODBUser.find_by_username(db, self.username, **kwargs)
+
+    @classmethod
+    def find_by_identifier(cls, db: interface.NODBInstance, username: str, identifier: str, **kwargs) -> NODBAccessToken | None:
+        return db.load_object(cls, filters={"username": username, "identifier": identifier}, join_str="AND", **kwargs)
+
+
 class NODBUser(s.NODBBaseObject):
 
     TABLE_NAME: str = "nodb_users"
@@ -49,12 +99,14 @@ class NODBUser(s.NODBBaseObject):
     old_phash: bytes | None = s.ByteColumn()
     old_salt: bytes | None = s.ByteColumn()
     old_expiry: AwareDateTime | None = s.DateTimeColumn()
-    status: UserStatus = s.EnumColumn(UserStatus)
+    status: UserStatus = s.EnumColumn(UserStatus, default=UserStatus.ACTIVE)
     roles: set = s.JsonSetColumn()
     display: str = s.StringColumn()
     email: str = s.StringColumn()
     language_pref: str = s.StringColumn()
-    locked_until: AwareDateTime = s.DateTimeColumn()
+    locked_until: AwareDateTime | None = s.DateTimeColumn()
+    metadata: dict = s.JsonDictColumn()
+    allow_api_access: str = s.StringColumn(default='N')
 
     def assign_role(self, role_name: str):
         """Assign a role to the user."""
@@ -77,8 +129,15 @@ class NODBUser(s.NODBBaseObject):
             self.old_salt = self.salt
             self.old_phash = self.phash
             self.old_expiry = AwareDateTime.now() + datetime.timedelta(seconds=old_expiry_seconds)
+        else:
+            self.old_salt = None
+            self.old_phash = None
+            self.old_expiry = None
         self.salt = secure.generate_salt(salt_length)
         self.phash = secure.hash_password(new_password, self.salt)
+
+    def can_login(self):
+        return (self.locked_until is None or self.locked_until < AwareDateTime.utcnow()) and self.status is UserStatus.ACTIVE
 
     def check_password(self, password: str) -> bool:
         """Check a password to see if it is the correct one."""
@@ -106,6 +165,10 @@ class NODBUser(s.NODBBaseObject):
     def find_by_username(cls, db: interface.NODBInstance, username: str, **kwargs) -> NODBUser | None:
         """Locate a user by their username."""
         return db.load_object(cls, {"username": username}, **kwargs)
+
+    @classmethod
+    def find_by_email(cls, db: interface.NODBInstance, email: str, **kwargs) -> NODBUser | None:
+        return db.load_object(cls, {"email": email}, **kwargs)
 
     def load_organizations(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBOrganization]:
         yield from _UserOrganization.load_for_parent(db, self, **kwargs)

@@ -1,7 +1,7 @@
 from gcflask.i18n_url import MultiLanguageBlueprint
 
 
-base = MultiLanguageBlueprint('base', __name__)
+base = MultiLanguageBlueprint('base', __name__, url_prefix="/medsid")
 
 @base.route('/')
 def splash():

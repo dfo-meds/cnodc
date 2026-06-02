@@ -70,7 +70,7 @@ class EmailController:
 
     def send_template(self,
                       template_name: str,
-                      template_lang: t.Literal["en", "fr"],
+                      template_lang: str,
                       to_emails: list[str] | str | None = None,
                       cc_emails: list[str] | str | None = None,
                       bcc_emails: list[str] | str | None = None,
@@ -219,6 +219,9 @@ class EmailController:
     def _standardize_email_list(self, emails: list[str] | str | None) -> list[str]:
         if emails is None:
             return []
-        if isinstance(emails, str):
-            return [emails]
-        return list(emails)
+        else:
+            return [
+                x
+                for x in ([emails] if isinstance(emails, str) else emails)
+                if not x.endswith("@")
+            ]
