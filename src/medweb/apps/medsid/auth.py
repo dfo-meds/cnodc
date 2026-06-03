@@ -30,7 +30,7 @@ class LocalMedsIDHandler(AuthenticationHandler):
     def login_page(self):
         form = LoginForm()
         if form.validate_on_submit():
-            user = self._attempt_login_from_password(form.username.data or '', form.password.data or '')
+            user = self.attempt_login_from_password(form.username.data or '', form.password.data or '')
             if user:
                 return self._auth_manager.login_user(user, self._handler_name)
             else:
@@ -99,8 +99,7 @@ class LocalMedsIDHandler(AuthenticationHandler):
             return self._build_user(db, user)
 
     def _build_user(self, db, user: NODBUser) -> AuthenticatedUser:
-        print(user.identifier)
-        return AuthenticatedUser(user.identifier, user.display, user.email, user.permissions(db))
+        return AuthenticatedUser(user.identifier, user.username, user.display, user.email, user.permissions(db))
 
 
 

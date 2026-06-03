@@ -161,6 +161,7 @@ class EditMyselfForm(GCFlaskForm):
 class ChangePasswordForm(GCFlaskForm):
     new_password = PasswordField(delayed_label="medsid.user.new_password", validators=[InputRequired(), NoControlCharacters()])
     new_password_repeat = PasswordField(delayed_label="medsid.user.new_password_repeat", validators=[InputRequired(), NoControlCharacters()])
+    submit = SubmitField()
 
 
 class EditUserForm(GCFlaskForm):

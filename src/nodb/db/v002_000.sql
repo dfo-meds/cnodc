@@ -85,11 +85,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_organization_user_pkey ON nodb_organi
 
 -- Function to record a login
 CREATE OR REPLACE FUNCTION record_login(
-    username VARCHAR(126),
-    remote_addr VARCHAR(126),
-    success CHAR(1),
-    from_api CHAR(1),
-    message TEXT,
+    username_in VARCHAR(126),
+    remote_addr_in VARCHAR(126),
+    success_in CHAR(1),
+    from_api_in CHAR(1),
+    message_in TEXT,
     max_failures INTEGER DEFAULT 0,
     max_failure_window_seconds INTEGER DEFAULT 300,
     user_lock_time_seconds INTEGER DEFAULT 3600
@@ -101,15 +101,15 @@ DECLARE
     user_id INTEGER;
     login_count INTEGER;
 BEGIN
-    IF success = 'Y' AND username IS NOT NULL THEN
-        UPDATE nodb_logins SET since_last = 'Y' WHERE "username" = username;
+    IF success_in = 'Y' AND username_in IS NOT NULL THEN
+        UPDATE nodb_logins SET since_last = 'Y' WHERE "username" = username_in;
     END IF;
-    SELECT "user_id" INTO user_id FROM nodb_users WHERE "username" = username;
-    INSERT INTO nodb_logins ("username", "success", "from_api", "message", "remote_addr", "user_id") VALUES (username, success, from_api, message, remote_addr, user_id);
-    IF user_id IS NOT NULL THEN
-        SELECT COUNT(*) INTO login_count FROM nodb_logins WHERE "username" = username AND success = 'N' AND since_last = 'N' AND db_created_date >= (CURRENT_TIMESTAMP - (INTERVAL '1 second' * max_failure_window_seconds));
+    SELECT "user_id" INTO user_id FROM nodb_users WHERE "username" = username_in;
+    INSERT INTO nodb_logins ("username", "success", "from_api", "message", "remote_addr", "user_id") VALUES (username_in, success_in, from_api_in, message_in, remote_addr_in, user_id);
+    IF user_id IS NOT NULL AND success_in = 'N' THEN
+        SELECT COUNT(*) INTO login_count FROM nodb_logins WHERE "username" = username_in AND success = 'N' AND since_last = 'N' AND db_created_date >= (CURRENT_TIMESTAMP - (INTERVAL '1 second' * max_failure_window_seconds));
         IF login_count >= max_failures THEN
-            UPDATE nodb_users SET locked_until = CURRENT_TIMESTAMP + (INTERVAL '1 second' * user_lock_time_seconds) WHERE "username" = username;
+            UPDATE nodb_users SET locked_until = CURRENT_TIMESTAMP + (INTERVAL '1 second' * user_lock_time_seconds) WHERE "username" = username_in;
             RETURN 1;
         END IF;
     END IF;
