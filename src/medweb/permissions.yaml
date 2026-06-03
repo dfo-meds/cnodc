@@ -1,0 +1,16 @@
+__authenticated__:
+  en: Only authenticated users
+__anonymous__:
+  en: Only anonymous users
+__admin__:
+  en: Only designated super-administrators
+__anyone__:
+  en: Both anonymous and authenticated users
+medsid.user_management.view:
+  en: Allows access to the medsID user management system with view-permissions.
+medsid.user_management.edit:
+  en: Allows access to the medsIS user management system to create and edit users, reset passwords, etc.
+pipeman.submit_files:
+  en: Allows users to submit files to pipeman. Permission to the specific workflow is also required.
+pipeman.submit_files.[WORKFLOW_NAME]:
+  en: Allows users to submit files to this specific workflow.
