@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="choices_outer">
+    <div class="choices_inner">
+
+        <div class="choices_innermost">
+        <img class="header-image" src="{{url_for('static', filename='sig-blk-en.svg')}}" />
+    <div class="choices">
+
+    <div class="choice_en" lang="en">
+        <p class="title">Canadian National<br />Oceanographic Data Centre</p>
+        <p class="subtitle">Data Management Dashboard</p>
+        <p class="continue"><a href="{{url_for('auth.login', lang='en')}}">Continue in English</a></p>
+    </div>
+    <div class="choice_fr" lang="fr">
+        <p class="title">Centre national de données océanographiques du Canada</p>
+        <p class="subtitle">Gestion des ensembles</p>
+        <p class="continue"><a href="{{url_for('auth.login', lang='fr')}}">Continuez en français</a></p>
+    </div></div></div>
+</div></div>
+{% endblock %}

@@ -39,7 +39,7 @@ class AuthenticationHandler:
         self._auth_manager = authentication_manager
         self._handler_name = handler_name
         self.supports_interactive = supports_interactive
-        self._log = zrlog.get_logger(handler_name)
+        self._log = zrlog.get_logger(f"login_handler.{handler_name}")
 
     def display_name(self):
         return self._handler_name
@@ -58,9 +58,10 @@ class AuthenticationHandler:
     def _log_login_success(self, user: AuthenticatedUser, from_api: bool = False):
         self._create_login_record(
             success=True,
-            username=user.get_id(),
+            username=user.get_username(),
             from_api=from_api,
         )
+        self._log.notice("Successful login for %s", user.get_username())
 
     def _log_login_error(self, error: AuthError, from_api: bool = False):
         if error.create_record:
@@ -71,6 +72,7 @@ class AuthenticationHandler:
                 lockable=error.is_lockable,
                 username=error.username
             )
+        self._log.error(str(error), exc_info=(error.__class__, error, error.__traceback__))
 
 
     def _create_login_record(self,
