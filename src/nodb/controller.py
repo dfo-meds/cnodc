@@ -329,6 +329,23 @@ class PostgresController:
             row = cur.fetchone()
             return row[0]
 
+    def load_user_roles(self, user_id: int) -> t.Iterable[str]:
+        with self.cursor() as cur:
+            cur.execute("SELECT role_name FROM nodb_user_role WHERE user_id = %s", (user_id,))
+            for x in cur.fetch_stream(50):
+                yield x[0]
+
+    def assign_user_role(self, user_id: int, role_name: str):
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_user_role (user_id, role_name) VALUES (%s, %s) ON CONFLICT DO NOTHING", (
+                user_id,
+                role_name
+            ))
+
+    def unassign_user_role(self, user_id: int, role_name: str):
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM nodb_user_role WHERE user_id = %s AND role_name = %s", (user_id, role_name))
+
     @wrap_nodb_exceptions
     def stream_relation_raw(self,
                         obj_cls: NODBObjectType,
@@ -789,7 +806,7 @@ class PostgresController:
         roles = list(roles)
         if roles:
             with self.cursor() as cur:
-                query = pgs.SQL("SELECT permission FROM nodb_permissions WHERE role_name IN") + pgs.SQL(',').join(pgs.Placeholder() for _ in roles)
+                query = pgs.SQL("SELECT permission FROM nodb_permissions WHERE role_name IN (") + pgs.SQL(',').join(pgs.Placeholder() for _ in roles) + pgs.SQL(")")
                 cur.execute(query, [*roles])
                 permissions.update(row[0] for row in cur.fetch_stream(20))
         return permissions
@@ -809,28 +826,20 @@ class PostgresController:
                      message: str | None = None,
                      max_failures: int = 0,
                      max_failure_window_seconds: int = 300,
-                     user_lock_time_seconds: int = 3600):
+                     user_lock_time_seconds: int = 3600) -> bool:
         """Record a user logging in."""
         with self.cursor() as cur:
-            if success and username is not None:
-                cur.execute("UPDATE nodb_logins SET since_last = 'Y' WHERE username = %s", [username])
-            cur.execute("INSERT INTO nodb_logins (username, success, from_api, message, remote_addr) VALUES (%s, %s, %s, %s, %s)", [
+            cur.execute("SELECT * FROM record_login(%s::varchar(126), %s::varchar(126), %s::char(1), %s::char(1), %s::TEXT, %s, %s, %s)", (
                 username,
-                success,
-                from_api,
+                remote_addr,
+                'Y' if success else 'N',
+                'Y' if from_api else 'N',
                 message,
-                remote_addr
-            ])
-            if username and max_failures > 0 and user_lock_time_seconds > 0 and max_failure_window_seconds > 0 and not success:
-                cur.execute("SELECT COUNT(*) FROM nodb_logins WHERE username = %s AND success = 'N' AND since_last = 'N' AND db_created_date >= %s", [
-                    username,
-                    AwareDateTime.utcnow() + datetime.timedelta(seconds=max_failure_window_seconds)
-                ])
-                if cur.fetchone()[0] > max_failures:
-                    cur.execute("UPDATE nodb_users SET locked_until = %s WHERE username = %s", [
-                        AwareDateTime.utcnow() + datetime.timedelta(seconds=user_lock_time_seconds),
-                        username
-                    ])
+                max_failures,
+                max_failure_window_seconds,
+                user_lock_time_seconds
+            ))
+            return cur.fetchone()[0] == 1
 
     @staticmethod
     def assemble_query(*args):
@@ -848,13 +857,14 @@ class PostgresController:
             limit_fields: t.Iterable[str] | None,
             filters: FilterDict | None,
             key_only: bool,
-            obj_cls: NODBObjectType
+            obj_cls: NODBObjectType | None
     ) -> set[str] | None:
         fields: set[str] = set()
         if limit_fields:
             fields.update(limit_fields)
-            fields.update(obj_cls.get_primary_keys())
-        elif key_only:
+            if obj_cls is not None:
+                fields.update(obj_cls.get_primary_keys())
+        elif key_only and obj_cls is not None:
             fields.update(obj_cls.get_primary_keys())
         return fields if fields else None
 
@@ -1022,7 +1032,7 @@ class NODBPostgresController(NODB):
     def __init__(self, **kwargs):
         super().__init__()
         self._conn: t.Optional[pgext.connection] = None
-        self._connect_args: dict[str, t.Any] = kwargs if kwargs else t.cast(dict, self.config.as_dict(("nodb",), default={}))
+        self._connect_args: dict[str, t.Any] = kwargs if kwargs else dict(self.config.as_dict(("nodb",), default={}))
         if 'options' not in self._connect_args:
             self._connect_args['options'] = "-c search_path=public"
         self._connect_args['cursor_factory'] = pge.DictCursor

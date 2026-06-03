@@ -4,6 +4,8 @@ import os
 import logging
 import sys
 
+from oic.utils.authn import multi_auth
+
 
 def _config_paths(extra_paths: t.Sequence[str] | None = None) -> t.Generator[pathlib.Path, None, None]:
     paths = [".", "~"]
@@ -99,22 +101,30 @@ def boot(
 
 def boot_system(
         app_name: str,
-        other_names: t.Sequence[str] | None = None,
+        app_components: t.Sequence[str] | None = None,
         manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
         init_hooks: t.Sequence[str | t.Callable] | None = None,
         system_cls: type | str | None = None,
+        **kwargs
 ):
 
-    boot(app_name, other_names, manual_overrides)
+    if system_cls is not None:
+        if not manual_overrides:
+            manual_overrides = {}
+        manual_overrides["gcapp.system.System"] = system_cls
 
-    from autoinject import injector
+    boot(
+        app_name=app_name,
+        app_components=app_components,
+        manual_overrides=manual_overrides,
+        **kwargs
+    )
+
+    from autoinject import injector, auto
     from gcapp.system import System
 
-    if system_cls is not None:
-        injector.override(System, system_cls)
-
     @injector.inject
-    def _boot_system(system: System = None):
+    def _boot_system(system: System = auto()):
         if init_hooks:
             for hook in init_hooks:
                 system.before_load(hook)

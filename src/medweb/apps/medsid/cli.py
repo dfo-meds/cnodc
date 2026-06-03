@@ -7,17 +7,17 @@ from medweb.apps.medsid.controller import AccessController
 
 
 @click.group()
-def user(): ...
+def access(): ...
 
 
-@user.command
+@access.command
 @click.option("--display", default="")
 @click.option("--entry-mode", default="input")
 @click.option("--password", default=None)
 @click.option("--email", default=None)
 @click.argument("username")
 @injector.inject
-def create(username: str,
+def create_user(username: str,
            email: str,
            display: str = "",
            password: str | None = None,
@@ -27,7 +27,7 @@ def create(username: str,
     ac.create_user(username, _get_password(entry_mode, password), email, display or username)
 
 
-@user.command
+@access.command
 @click.option("--display", default="")
 @click.option("--entry-mode", default="input")
 @click.option("--password", default=None)
@@ -45,17 +45,17 @@ def reset_password(username: str,
     )
 
 
-@user.command
+@access.command
 @click.argument("username")
 @injector.inject
-def unlock(username: str, ac: AccessController = auto()):
+def unlock_user(username: str, ac: AccessController = auto()):
     ac.update_user(
         username=username,
         locked_time=None
     )
 
 
-@user.command
+@access.command
 @click.argument("username")
 @injector.inject
 def enable_api_access(username: str, ac: AccessController = auto()):
@@ -65,7 +65,7 @@ def enable_api_access(username: str, ac: AccessController = auto()):
     )
 
 
-@user.command
+@access.command
 @click.argument("username")
 @injector.inject
 def enable_api_access(username: str, ac: AccessController = auto()):
@@ -75,7 +75,7 @@ def enable_api_access(username: str, ac: AccessController = auto()):
     )
 
 
-@user.command
+@access.command
 @click.argument("username")
 @injector.inject
 def enable(username: str, ac: AccessController = auto()):
@@ -85,7 +85,7 @@ def enable(username: str, ac: AccessController = auto()):
     )
 
 
-@user.command
+@access.command
 @click.argument("username")
 @injector.inject
 def disable(username: str, ac: AccessController = auto()):
@@ -95,7 +95,7 @@ def disable(username: str, ac: AccessController = auto()):
     )
 
 
-@user.command
+@access.command
 @click.argument("username")
 @click.argument("identifier")
 @click.argument("expiry_days", type=click.INT)
@@ -105,7 +105,7 @@ def create_api_key(username: str, identifier: str, expiry_days: int, ac: AccessC
     print(f"Access Key: {key}")
 
 
-@user.command
+@access.command
 @click.argument("username")
 @click.argument("identifier")
 @click.argument("expiry_days", type=click.INT)
@@ -116,7 +116,7 @@ def rotate_api_key(username: str, identifier: str, expiry_days: int, leave_old_a
     print(f"Access Key: {key}")
 
 
-@user.command
+@access.command
 @click.argument("username")
 @click.argument("identifier")
 @injector.inject
@@ -124,12 +124,43 @@ def deactivate_api_key(username: str, identifier: str, ac: AccessController = au
     ac.update_api_key(username, identifier, False)
 
 
-@user.command
+@access.command
 @click.argument("username")
 @click.argument("identifier")
 @injector.inject
 def reactivate_api_key(username: str, identifier: str, ac: AccessController = auto()):
     ac.update_api_key(username, identifier, True)
+
+
+@access.command
+@click.argument("username")
+@click.argument("role_name")
+@injector.inject
+def assign_role(username: str, role_name: str, ac: AccessController = auto()):
+    ac.assign_role(username, role_name)
+
+
+@access.command
+@click.argument("username")
+@click.argument("role_name")
+@injector.inject
+def unassign_role(username: str, role_name: str, ac: AccessController = auto()):
+    ac.unassign_role(username, role_name)
+
+@access.command
+@click.argument("role_name")
+@click.argument("permission_name")
+@injector.inject
+def grant_permission(permission_name: str, role_name: str, ac: AccessController = auto()):
+    ac.grant_permission(role_name, permission_name)
+
+
+@access.command
+@click.argument("role_name")
+@click.argument("permission_name")
+@injector.inject
+def remove_permission(permission_name: str, role_name: str, ac: AccessController = auto()):
+    ac.remove_permission(role_name, permission_name)
 
 
 def _get_password(entry_mode: str, password: str | None = None) -> str | None:

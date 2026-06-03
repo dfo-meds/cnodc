@@ -107,7 +107,7 @@
                 {% block sessionBlock %}
                 {% if current_user.is_authenticated %}
                 <div class="session_block">
-                    <p class="session_timeout">{{'gcflask.session.logout' | tr}}: {{session_timeout | format_date}}</p>
+                    <p class="session_timeout">{{'gcflask.session.logout' | tr}}: {{session_timeout}}</p>
                     <script language="javascript" type="text/javascript" nonce="{{csp_nonce('script-src')}}">
                         $(document).ready(function() {
                             start_session_timeout("#session_timeout_box", "#time_left", {{ session_timeout }}, "{{ logout_url }}", "{{ refresh_session_url }}", "{{'gcflask.session.refresh_ajax_error' | tr}}", 300);

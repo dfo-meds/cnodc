@@ -42,3 +42,4 @@ class EventManager:
                 except Exception:
                     self._log.exception(f"Error loading or firing [{cb}]")
                     self._hooks[event_name][idx] = None
+                    raise

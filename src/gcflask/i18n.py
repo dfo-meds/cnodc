@@ -5,6 +5,8 @@ import markupsafe
 from autoinject import injector
 import zirconium as zr
 
+from medsutil.exceptions import CodedError
+
 
 @injector.injectable_global
 class LanguageDetector:
@@ -235,6 +237,13 @@ class MLLink(MLString):
         new_mlstring = MLLink(self.link, self.language_map, new_tab=self.new_tab)
         new_mlstring._update_from(self, new_args, new_kwargs, new_transforms)
         return new_mlstring
+
+
+class TranslatableError(CodedError):
+
+    def __init__(self, key: str, code_number: int, *, code_space: str | None = None, is_transient: bool = False):
+        self.message_key = key
+        super().__init__(TString(key), code_number, code_space=code_space, is_transient=is_transient)
 
 
 def tr(key: str, default: str = "", *args, **kwargs) -> str:
