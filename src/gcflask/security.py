@@ -91,7 +91,7 @@ class RequestSecurity:
                      check_https: bool | None = None) -> AuthResult:
         """Check all configured requirements to access the page."""
         if perm_names and not self.require_all(perm_names):
-            self._log.warning(f"Request denied because of missing privileges")
+            self._log.warning(f"Request denied because of missing privileges: [%s]", perm_names)
             return AuthResult.DENY
         if check_referrer is not False and not self.check_referrer():
             return AuthResult.SPLASH

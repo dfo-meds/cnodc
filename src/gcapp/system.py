@@ -2,7 +2,7 @@ import threading
 import typing as t
 
 import zrlog
-from autoinject import injector, NamedContextInformant
+from autoinject import injector, NamedSituationInformant
 import zirconium as zr
 
 from gcapp.eventman import EventManager
@@ -21,22 +21,15 @@ class System:
     def __init__(self):
         self._log = zrlog.get_logger('gcflask.system')
         self._lock = threading.RLock()
-        self._nci: NamedContextInformant = NamedContextInformant("gcsystem")
-        injector.register_informant(self._nci)
         self._click_commands: list[tuple[str, str, str]] = []
-        self._nci.switch_context('preinit')
 
     def init(self, *args, **kwargs):
         """Initialize the application for the first time."""
-        self._nci.switch_context("init")
-        self._nci.destroy('preinit')
         self.events.fire("init.before", self)
-        self.plugins.init_plugins()
+        self.plugins.init_plugins(self)
         self.events.fire("init", self)
         self.events.fire("init.after", self)
         self._subclass_init()
-        self._nci.switch_context("active")
-        self._nci.destroy('init')
 
     def _subclass_init(self): ...
 

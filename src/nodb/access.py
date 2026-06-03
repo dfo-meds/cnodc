@@ -8,7 +8,6 @@ from medsutil.awaretime import AwareDateTime
 
 import nodb.interface as interface
 import nodb.base as s
-from nodb.interface import NODBObject, NODBInstance
 
 
 class UserStatus(enum.Enum):
@@ -41,9 +40,9 @@ class NODBOrganization(s.NODBBaseObject):
 class NODBAccessToken(s.NODBBaseObject):
 
     TABLE_NAME: str = "nodb_access_tokens"
-    PRIMARY_KEYS: tuple[str] = ("username", "identifier",)
+    PRIMARY_KEYS: tuple[str] = ("user_id", "identifier",)
 
-    username: str = s.StringColumn()
+    user_id: int = s.IntColumn()
     identifier: str = s.StringColumn()
 
     key_hash: bytes | None = s.ByteColumn()
@@ -81,18 +80,19 @@ class NODBAccessToken(s.NODBBaseObject):
         return False
 
     def load_user(self, db: interface.NODBInstance, **kwargs) -> NODBUser | None:
-        return NODBUser.find_by_username(db, self.username, **kwargs)
+        return NODBUser.find_by_identifier(db, self.user_id, **kwargs)
 
     @classmethod
-    def find_by_identifier(cls, db: interface.NODBInstance, username: str, identifier: str, **kwargs) -> NODBAccessToken | None:
-        return db.load_object(cls, filters={"username": username, "identifier": identifier}, join_str="AND", **kwargs)
+    def find_by_identifier(cls, db: interface.NODBInstance, user_id: int, identifier: str, **kwargs) -> NODBAccessToken | None:
+        return db.load_object(cls, filters={"user_id": user_id, "identifier": identifier}, join_str="AND", **kwargs)
 
 
 class NODBUser(s.NODBBaseObject):
 
     TABLE_NAME: str = "nodb_users"
-    PRIMARY_KEYS: tuple[str] = ("username",)
+    PRIMARY_KEYS: tuple[str] = ("identifier",)
 
+    identifier: int = s.IntColumn()
     username: str = s.StringColumn()
     phash: bytes = s.ByteColumn()
     salt: bytes = s.ByteColumn()
@@ -100,27 +100,12 @@ class NODBUser(s.NODBBaseObject):
     old_salt: bytes | None = s.ByteColumn()
     old_expiry: AwareDateTime | None = s.DateTimeColumn()
     status: UserStatus = s.EnumColumn(UserStatus, default=UserStatus.ACTIVE)
-    roles: set = s.JsonSetColumn()
     display: str = s.StringColumn()
     email: str = s.StringColumn()
     language_pref: str = s.StringColumn()
     locked_until: AwareDateTime | None = s.DateTimeColumn()
     metadata: dict = s.JsonDictColumn()
     allow_api_access: str = s.StringColumn(default='N')
-
-    def assign_role(self, role_name: str):
-        """Assign a role to the user."""
-        if role_name not in self.roles:
-            self.roles.add(role_name)
-            self.mark_modified('roles')
-            self.clear_cache('permissions')
-
-    def unassign_role(self, role_name: str):
-        """Unassign a role from the user."""
-        if role_name in self.roles:
-            self.roles.remove(role_name)
-            self._modified_values.add('roles')
-            self.clear_cache('permissions')
 
     def set_password(self, new_password: str, salt_length: int = 16, old_expiry_seconds: int = 0):
         """Set the user's password."""
@@ -159,12 +144,26 @@ class NODBUser(s.NODBBaseObject):
         return self._with_cache('permissions', self._permissions, db)
 
     def _permissions(self, db: interface.NODBInstance) -> set[str]:
-        return db.load_permissions(self.roles)
+        return db.load_permissions(self.roles(db))
+
+    def roles(self, db: interface.NODBInstance) -> set[str]:
+        return set(db.load_user_roles(self.identifier))
+
+    def assign_role(self, db: interface.NODBInstance, role_name: str):
+        db.assign_user_role(self.identifier, role_name)
+
+    def unassign_role(self, db: interface.NODBInstance, role_name: str):
+        db.unassign_user_role(self.identifier, role_name)
 
     @classmethod
     def find_by_username(cls, db: interface.NODBInstance, username: str, **kwargs) -> NODBUser | None:
         """Locate a user by their username."""
         return db.load_object(cls, {"username": username}, **kwargs)
+
+    @classmethod
+    def find_by_identifier(cls, db: interface.NODBInstance, user_id: int, **kwargs) -> NODBUser | None:
+        """Locate a user by their username."""
+        return db.load_object(cls, {"identifier": user_id}, **kwargs)
 
     @classmethod
     def find_by_email(cls, db: interface.NODBInstance, email: str, **kwargs) -> NODBUser | None:
@@ -182,7 +181,7 @@ class NODBSession(s.NODBBaseObject):
     session_id: str = s.StringColumn()
     start_time: AwareDateTime = s.DateTimeColumn()
     expiry_time: AwareDateTime = s.DateTimeColumn()
-    username: str = s.StringColumn()
+    user_id: int = s.IntColumn()
     session_data: dict = s.JsonDictColumn()
 
     def set_session_value(self, key: str, value: ct.SupportsExtendedJson):

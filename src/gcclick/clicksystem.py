@@ -13,6 +13,7 @@ class ClickApp(click.MultiCommand):
     def __init__(self, app=None):
         self._commands: dict[str, click.Command] = {}
         self._app = app
+        super().__init__()
 
     def add_command(self, name, command: click.Command):
         self._commands[name] = command
@@ -46,16 +47,12 @@ class ClickSystemMixin(System):
         """Register a click command group to add to the main CLI application."""
         self._click_groups.append((module, command_name, register_as or command_name))
 
-    def init(self, *args, cli: ClickApp, app=None, **kwargs):
-        self._click_app = cli
-        if app is not None:
-            self._click_app._app = app
-        super().init(*args, app=app, cli=cli, **kwargs)
-
-    def _subclass_init(self):
-        super()._subclass_init()
+    def init_click_app(self, click_app: ClickApp):
+        self._click_app = click_app
         self.events.fire("init.click.before")
         for module_name, module_object, registry_name in self._click_groups:
             self._click_app.add_command(registry_name, dynamic_object(f"{module_name}.{registry_name}"))
+        self._click_app.add_command("setup", click.Command("setup", callback=self.setup))
+        self._click_app.add_command("cleanup", click.Command("cleanup", callback=self.cleanup))
         self.events.fire("init.click")
         self.events.fire("init.click.after")

@@ -21,8 +21,8 @@ class LocalMedsIDHandler(AuthenticationHandler):
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, **kwargs):
-        super().__init__('medsid', True, **kwargs)
+    def __init__(self, handler_name: str, **kwargs):
+        super().__init__(handler_name, True, **kwargs)
         self._max_failures = self.config.get('medsid', 'max_login_failures', default=0)
         self._max_failure_window_seconds = self.config.get('medsid', 'max_login_failure_window_seconds', default=5 * 60)
         self._user_lockout_time_seconds = self.config.get('medsid', 'user_lockout_time_seconds', default=3600)
@@ -54,9 +54,9 @@ class LocalMedsIDHandler(AuthenticationHandler):
             )
             db.commit()
 
-    def load_user(self, user_id: str):
+    def load_user(self, user_id: int):
         with self.nodb as db:
-            user = NODBUser.find_by_username(db, user_id)
+            user = NODBUser.find_by_identifier(db, user_id)
             if user:
                 return self._build_user(db, user)
             return None
@@ -99,7 +99,8 @@ class LocalMedsIDHandler(AuthenticationHandler):
             return self._build_user(db, user)
 
     def _build_user(self, db, user: NODBUser) -> AuthenticatedUser:
-        return AuthenticatedUser(user.username, user.display, user.email, user.permissions(db))
+        print(user.identifier)
+        return AuthenticatedUser(user.identifier, user.display, user.email, user.permissions(db))
 
 
 

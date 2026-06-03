@@ -87,7 +87,14 @@ class BooleanField(wtf.BooleanField):
         super().__init__(**kwargs)
 
 
-class PasswordField(wtf.StringField):
+class SelectField(wtf.SelectField):
+
+    def __init__(self, **kwargs):
+        _delayed_string_item(kwargs, _field="label")
+        super().__init__(**kwargs)
+
+
+class PasswordField(wtf.PasswordField):
 
     def __init__(self, **kwargs):
         _delayed_string_item(kwargs, _field="label")

@@ -70,7 +70,7 @@ class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
     """Represents an authenticated user."""
 
     def __init__(self,
-                 unique_id: str | None,
+                 unique_id: int,
                  display_name: str,
                  email: str = None,
                  permissions: t.Iterable[str] | None = None,
@@ -79,7 +79,7 @@ class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
         self._unique_id = unique_id
         self._permissions.add(AUTHENTICATED_PRIVILEGE)
 
-    def get_id(self):
+    def get_id(self) -> int:
         return self._unique_id
 
 
@@ -90,3 +90,9 @@ class AnonymousUser(fl.AnonymousUserMixin, BaseUserMixin):
         super().__init__(
             permissions=[ANONYMOUS_PRIVILEGE]
         )
+
+def current_user() -> AuthenticatedUser | AnonymousUser:
+    import flask, flask_login
+    if flask.has_request_context():
+        return flask_login.current_user
+    return AnonymousUser()

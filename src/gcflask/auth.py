@@ -215,7 +215,7 @@ class AuthenticationManager:
         self._login_managers: dict[str, AuthenticationHandler] = {}
         others = self.config.as_dict(("gcflask", "authentication", "handlers"), default={})
         for hname in others:
-            self._login_managers[hname] = dynamic_object(others[hname])(authentication_manager=self)
+            self._login_managers[hname] = dynamic_object(others[hname])(hname, authentication_manager=self)
         self._login_required_redirect: str = self.config.as_str(("gcflask", "authentication", "login_required"), default="auth.login")
         self._login_redirect: str = self.config.as_str(("gcflask", "authentication", "login_success"), default="base.home")
         self._logout_redirect: str = self.config.as_str(("gcflask", "authentication", "logout_success"), default="base.home")
@@ -293,7 +293,7 @@ class AuthenticationManager:
         if lang is None or lang not in self.tm.supported_languages():
             lang = ""
         if next_url is not None:
-            return flask.redirect(flask.url_for(next_url, lang=lang))
+            return flask.redirect(next_url)
         return flask.redirect(flask.url_for(self._login_redirect, lang=lang))
 
     def endpoint_logout(self):
@@ -311,7 +311,8 @@ class AuthenticationManager:
     def user_loader(self, user_id) -> t.Optional[AuthenticatedUser]:
         auth_handler: str | None = flask.session.get('auth_handler')
         if auth_handler and auth_handler in self._login_managers:
-            return self._login_managers[auth_handler].load_user(user_id)
+            result = self._login_managers[auth_handler].load_user(user_id)
+            return result
         return None
 
     def logout_success(self):
