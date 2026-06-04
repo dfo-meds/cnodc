@@ -218,7 +218,7 @@ class ApplicationState:
         self.batch_load_after_close = None
         self.refresh_display(DisplayChange.BATCH | DisplayChange.OP_ONGOING)
 
-    def update_user_info(self, username: str, access_list: dict[str, dict[str, str]]) -> bool:
+    def update_user_info(self, username: str | None, access_list: dict[str, dict[str, str]]) -> bool:
         if self.username != username or self.user_access != access_list:
             self.username = username
             self.user_access = access_list

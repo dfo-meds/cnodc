@@ -160,7 +160,7 @@ def set_language(lang_code: str):
     CURRENT_LANGUAGE.set(lang_code)
 
 
-def supported_langauges() -> dict:
+def supported_languages() -> dict:
     return {
         'en': 'English',
         'fr': 'Français'

@@ -9,30 +9,30 @@ import traceback
 
 import zrlog
 import medsutil.ocproc2 as ocproc2
-from desktop import VERSION
-from desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
+from pipeman_desktop import VERSION
+from pipeman_desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
     SimpleRecordInfo, CloseBatchResult
-from desktop.client.local_db import LocalDatabase
-from desktop.gui.action_pane import ActionPane
-from desktop.gui.button_pane import ButtonPane
-from desktop.gui.choice_dialog import ask_choice
-import desktop.translations as i18n
+from pipeman_desktop.client.local_db import LocalDatabase
+from pipeman_desktop.gui.action_pane import ActionPane
+from pipeman_desktop.gui.button_pane import ButtonPane
+from pipeman_desktop.gui.choice_dialog import ask_choice
+import pipeman_desktop.translations as i18n
 import threading
 import uuid
 import typing as t
 
-from desktop.gui.error_pane import ErrorPane
-from desktop.gui.graph_pane import GraphPane
-from desktop.gui.history_pane import HistoryPane
-from desktop.gui.loading_wheel import LoadingWheel
-from desktop.gui.login_pane import LoginPane
-from desktop.gui.menu_manager import MenuManager
-from desktop.gui.messenger import CrossThreadMessenger
-from desktop.gui.parameter_pane import ParameterPane
-from desktop.gui.record_list_pane import RecordListPane
-from desktop.gui.station_pane import StationPane
-from desktop.gui.map_pane import MapPane
-from desktop.util import TranslatableException
+from pipeman_desktop.gui.error_pane import ErrorPane
+from pipeman_desktop.gui.graph_pane import GraphPane
+from pipeman_desktop.gui.history_pane import HistoryPane
+from pipeman_desktop.gui.loading_wheel import LoadingWheel
+from pipeman_desktop.gui.login_pane import LoginPane
+from pipeman_desktop.gui.menu_manager import MenuManager
+from pipeman_desktop.gui.messenger import CrossThreadMessenger
+from pipeman_desktop.gui.parameter_pane import ParameterPane
+from pipeman_desktop.gui.record_list_pane import RecordListPane
+from pipeman_desktop.gui.station_pane import StationPane
+from pipeman_desktop.gui.map_pane import MapPane
+from pipeman_desktop.util import TranslatableException
 from medsutil.ocproc2.operations import QCOperator, QCSetWorkingQuality, QCAddHistory
 from medsutil.dynamic import dynamic_object
 from autoinject import injector
@@ -85,12 +85,12 @@ class CNODCQCAppDispatcher(threading.Thread):
 
     def submit_job(self,
                    job_callable: str,
-                   on_success: callable,
-                   on_error: callable = None,
+                   on_success: t.Callable,
+                   on_error: t.Callable = None,
                    job_args: list = None,
                    job_kwargs: dict = None):
 
-        obj = dynamic_object(job_callable)
+        _ = dynamic_object(job_callable)
         job_id = str(uuid.uuid4())
         self.work_queue.put_nowait((job_id, job_callable, job_args, job_kwargs))
         self._job_map[job_id] = (on_success, on_error)
@@ -284,7 +284,7 @@ class CNODCQCApp:
                 message=f"{ex.__class__.__name__}: {str(ex)}"
             )
 
-    def save_changes(self, after_save: callable = None):
+    def save_changes(self, after_save: t.Callable = None):
         if self.app_state.is_batch_action_available('apply_working'):
             if self.app_state.has_unsaved_changes:
                 self.app_state.set_save_flag(True)
@@ -325,7 +325,7 @@ class CNODCQCApp:
         self.show_user_exception(ex)
         self.app_state.set_save_flag(False, self.app_state.has_unsaved_changes)
 
-    def _after_save(self, res: bool, after_save: callable = None):
+    def _after_save(self, res: bool, after_save: t.Callable = None):
         if not res:
             self.show_user_info(
                 i18n.get_text('save_partial_fail_title'),
@@ -376,7 +376,7 @@ class CNODCQCApp:
                     message=f"CHANGE QC FLAG [{target_path}] to [{flag}]",
                     source_name="manual_qc",
                     source_version=VERSION,
-                    source_instance=self.app_state.username,
+                    source_instance=t.cast(str, self.app_state.username),
                     message_type=ocproc2.MessageType.INFO.value
                 )
             ]
@@ -436,7 +436,7 @@ class CNODCQCApp:
     def close_current_batch(self,
                             op: QCBatchCloseOperation,
                             load_next: bool = False,
-                            after_close: callable = None) -> CloseBatchResult:
+                            after_close: t.Callable = None) -> CloseBatchResult:
         if self.app_state.batch_state == BatchOpenState.OPEN:
             if self.app_state.has_unsaved_changes:
                 result = tkmb.askyesno(
@@ -456,10 +456,10 @@ class CNODCQCApp:
             after_close()
         return CloseBatchResult.ALREADY_CLOSED
 
-    def _close_qc_batch_success(self, res, after_close: callable = None):
+    def _close_qc_batch_success(self, res, after_close: t.Callable = None):
         self.app_state.complete_batch_close()
         if self.app_state.batch_load_after_close:
-            self.open_qc_batch(self.app_state.batch_service_name)
+            self.open_qc_batch(t.cast(str, self.app_state.batch_service_name))
         else:
             self.app_state.clear_batch()
         if after_close is not None:
@@ -490,7 +490,7 @@ class CNODCQCApp:
 
     def on_startup(self):
         self.dispatcher.start()
-        sel = ask_choice(self.root, options=i18n.supported_langauges(), title=i18n.get_text('language_select_dialog_title'))
+        sel = ask_choice(self.root, options=i18n.supported_languages(), title=i18n.get_text('language_select_dialog_title'))
         if sel is None:
             self.on_close()
         else:
