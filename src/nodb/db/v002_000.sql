@@ -17,8 +17,9 @@ ALTER TABLE nodb_sessions ADD COLUMN user_id INTEGER DEFAULT NULL;
 
 -- Access key tokens
 CREATE TABLE IF NOT EXISTS nodb_access_tokens (
-    user_id         VARCHAR(126)        NOT NULL,
-    identifier      INTEGER             NOT NULL,
+    user_id         INTEGER                         NOT NULL,
+    identifier      VARCHAR(126)                    NOT NULL,
+    remote_addr     VARCHAR(126)                    DEFAULT NULL,
 
     key_hash        BYTEA                           DEFAULT NULL,
     key_salt        BYTEA                           DEFAULT NULL,
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS nodb_access_tokens (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_access_tokens_user_identifier ON nodb_access_tokens(user_id, identifier);
+
 
 -- Fix login table
 DROP INDEX IF EXISTS ix_nodb_logins_login_time;

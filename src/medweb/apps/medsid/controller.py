@@ -30,39 +30,6 @@ class AccessController:
         with self.nodb as db:
             return NODBUser.find_by_username(db, username)
 
-    def _verify_username_not_in_use(self, db, username: str, exclude_user_id: int | None = None):
-        user = NODBUser.find_by_username(db, username, key_only=True)
-        if user and (exclude_user_id is None or exclude_user_id != user.identifier):
-            raise AccessManagementError("medsid.access.error.username_exists", 1000)
-
-    def _verify_email_not_in_use(self, db, email: str, exclude_user_id: int | None = None):
-        user = NODBUser.find_by_email(db, email, key_only=True)
-        if user and (exclude_user_id is None or exclude_user_id != user.identifier):
-            raise AccessManagementError("medsid.access.error.email_exists", 1001)
-
-    def _require_user(self, db: NODBInstance, username: str | EllipsisType = ..., user_id: int | None = None) -> NODBUser:
-            user = None
-            if user_id is not None:
-                user = NODBUser.find_by_identifier(db, user_id, lock_type=LockType.FOR_NO_KEY_UPDATE)
-            elif username is not ...:
-                user = NODBUser.find_by_username(db, t.cast(str, username), lock_type=LockType.FOR_NO_KEY_UPDATE)
-            if not user:
-                raise AccessManagementError("User does not exist", 1100)
-            return user
-
-    def _set_password(self, user: NODBUser, password: str | None, by_user: bool = False):
-        if password is None:
-            password = secure.generate_secure_random_password()
-        else:
-            secure.validate_password(password)
-        user.set_password(t.cast(str, password))
-        if (not by_user) and user.email:
-            self.smtp.send_template(
-                template_name="password_update" if not user.is_new else "new_account",
-                template_lang=user.language_pref or "en",
-                to_emails=[user.email],
-            )
-
     def create_user(self,
                     username: str,
                     password: str | None = None,
@@ -129,6 +96,41 @@ class AccessController:
             db.update_object(user)
             db.commit()
 
+    def create_temporary_access_token(self, username: str, password: str, lifetime_seconds: int = 3600) -> str:
+        with self.nodb as db:
+            user = self._require_user(db, username)
+            if not user.check_password(password):
+                raise AccessManagementError("Invalid password", 1500)
+            if user.allow_api_access == 'N':
+                raise AccessManagementError("User does not have API access", 1501)
+            name = secure.generate_random_token_name()
+            max_iterations = 10
+            while NODBAccessToken.find_by_identifier(db, user.identifier, name) is not None and max_iterations > 0:
+                name = secure.generate_random_token_name()
+            if max_iterations <= 0:
+                raise AccessManagementError("Could not generate unique token", 1502)
+            return self._create_api_key(db, user.identifier, name, lifetime_seconds)
+
+    def remove_temporary_access_token(self, access_token: str):
+        user_id, key_identifier = self._verify_access_token(access_token)
+        with self.nodb as db:
+            access_key = self._require_access_token(db, user_id, key_identifier)
+            db.delete_object(access_key)
+            db.commit()
+
+    def renew_temporary_access_token(self, access_token: str, lifetime_seconds: int = 3600) -> str:
+        user_id, key_identifier = self._verify_access_token(access_token)
+        with self.nodb as db:
+            access_key = self._require_access_token(db, user_id, key_identifier)
+            header = self._update_key(
+                access_key=access_key,
+                expiry_seconds=lifetime_seconds,
+                old_expiry_seconds=0
+            )
+            db.update_object(access_key)
+            db.commit()
+            return header
+
     def create_api_key(self, username: str, key_identifier: str, expiry_days: int) -> str:
         with self.nodb as db:
             user = self._require_user(db, username)
@@ -137,45 +139,97 @@ class AccessController:
             access_key = NODBAccessToken.find_by_identifier(db, user.identifier, key_identifier)
             if access_key:
                 raise AccessManagementError("Access key already exists", 1202)
-            access_key = NODBAccessToken(
-                username=username,
-                identifier=key_identifier,
-                is_active='Y'
-            )
-            header = self._update_key(access_key, username, key_identifier, expiry_days)
-            db.insert_object(access_key)
-            db.commit()
-            return header
+            return self._create_api_key(db, user.identifier, key_identifier, expiry_days)
 
-    def update_api_key(self, username: str, key_identifier: str, is_active: bool) -> str:
+    def update_api_key(self, username: str, key_identifier: str, is_active: bool):
         with self.nodb as db:
             user = self._require_user(db, username)
-            access_key = NODBAccessToken.find_by_identifier(db, user.identifier, key_identifier)
-            if not access_key:
-                raise AccessManagementError("Access key already exists", 1400)
+            access_key = self._require_access_token(db, user.identifier, key_identifier)
             access_key.is_active = 'Y' if is_active is True else 'N'
             db.update_object(access_key)
             db.commit()
 
-    def _update_key(self, access_key: NODBAccessToken, username: str, key_identifier: str, expiry_days: int, old_expiry_days: int = 0) -> str:
-            api_key = secure.generate_secure_key()
-            access_key.set_key(api_key, expiry_days * 3600 * 24, old_expiry_days * 3600 * 24)
-            return ".".join((
-                "api",
-                quote(username),
-                quote(key_identifier),
-                base64.b64encode(api_key).decode('ascii')
-            ))
-
-    def rotate_api_key(self, username: str, key_identifier: str, expiry_days: int, leave_old_active_days: int = 0) -> str:
+    def rotate_api_key(self, user_id: int, key_identifier: str, expiry_days: int, leave_old_active_days: int = 0) -> str:
         with self.nodb as db:
-            access_key = NODBAccessToken.find_by_identifier(db, username, key_identifier)
-            if not access_key:
-                raise AccessManagementError("Access key already exists", 1300)
-            header = self._update_key(access_key, username, key_identifier, expiry_days, leave_old_active_days)
+            access_key = self._require_access_token(db, user_id, key_identifier)
+            header = self._update_key(
+                access_key=access_key,
+                expiry_seconds=expiry_days * 60 * 60 * 24,
+                old_expiry_seconds=leave_old_active_days * 60 * 60 * 24
+            )
             db.update_object(access_key)
             db.commit()
             return header
+
+    def _require_access_token(self, db, user_id: int, key_identifier: str) -> NODBAccessToken:
+        access_key = NODBAccessToken.find_by_identifier(db, user_id, key_identifier)
+        if not access_key:
+            raise AccessManagementError("Access key does not exist", 1300)
+        return access_key
+
+    def _verify_username_not_in_use(self, db, username: str, exclude_user_id: int | None = None):
+        user = NODBUser.find_by_username(db, username, key_only=True)
+        if user and (exclude_user_id is None or exclude_user_id != user.identifier):
+            raise AccessManagementError("medsid.access.error.username_exists", 1000)
+
+    def _verify_email_not_in_use(self, db, email: str, exclude_user_id: int | None = None):
+        user = NODBUser.find_by_email(db, email, key_only=True)
+        if user and (exclude_user_id is None or exclude_user_id != user.identifier):
+            raise AccessManagementError("medsid.access.error.email_exists", 1001)
+
+    def _verify_access_token(self, access_token: str) -> tuple[int, str]:
+        token_pieces = access_token.split(".")
+        if len(token_pieces) != 4:
+            raise AccessManagementError("Invalid access token", 1600)
+        if token_pieces[0] != "api":
+            raise AccessManagementError("Invalid access token, bad type", 1601)
+        if not token_pieces[1].isdigit():
+            raise AccessManagementError("Invalid access token, bad user id", 1602)
+        return int(token_pieces[0]), token_pieces[1]
+
+    def _require_user(self, db: NODBInstance, username: str | EllipsisType = ..., user_id: int | None = None) -> NODBUser:
+            user = None
+            if user_id is not None:
+                user = NODBUser.find_by_identifier(db, user_id, lock_type=LockType.FOR_NO_KEY_UPDATE)
+            elif username is not ...:
+                user = NODBUser.find_by_username(db, t.cast(str, username), lock_type=LockType.FOR_NO_KEY_UPDATE)
+            if not user:
+                raise AccessManagementError("User does not exist", 1100)
+            return user
+
+    def _set_password(self, user: NODBUser, password: str | None, by_user: bool = False):
+        if password is None:
+            password = secure.generate_secure_random_password()
+        else:
+            secure.validate_password(password)
+        user.set_password(t.cast(str, password))
+        if (not by_user) and user.email:
+            self.smtp.send_template(
+                template_name="password_update" if not user.is_new else "new_account",
+                template_lang=user.language_pref or "en",
+                to_emails=[user.email],
+            )
+
+    def _create_api_key(self, db, user_id: int, key_identifier: str, expiry_seconds: int) -> str:
+            access_key = NODBAccessToken(
+                user_id=user_id,
+                identifier=key_identifier,
+                is_active='Y'
+            )
+            header = self._update_key(access_key, expiry_seconds)
+            db.insert_object(access_key)
+            db.commit()
+            return header
+
+    def _update_key(self, access_key: NODBAccessToken, expiry_seconds: int, old_expiry_seconds: int = 0) -> str:
+            api_key = secure.generate_secure_key()
+            access_key.set_key(api_key, expiry_seconds, old_expiry_seconds)
+            return ".".join((
+                "api",
+                str(access_key.user_id),
+                quote(access_key.identifier),
+                base64.b64encode(api_key).decode('ascii')
+            ))
 
     def assign_role(self, username: str, role_name: str):
         with self.nodb as db:

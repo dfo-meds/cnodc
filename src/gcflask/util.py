@@ -1,7 +1,7 @@
 import flask
-import typing as t
 
 from gcflask.i18n import BaseDString, TString
+from medsutil.exceptions import CodedError
 
 
 def flasht(st: str | BaseDString, msg_type: str):
@@ -16,3 +16,21 @@ def caps_to_snake(txt: str, separator: str = "_") -> str:
             new_s += separator
         new_s += x.lower()
     return new_s
+
+
+class APIError(CodedError): CODE_SPACE = "API-ERROR"
+
+
+class FlaskRequestJsonData:
+
+    def __init__(self):
+        self._data = flask.request.json
+
+    def get(self, key: str, default=...):
+        try:
+            return self._data[key]
+        except KeyError as ex:
+            if default is ...:
+                raise APIError(f"Missing key [{key}]", 1000) from ex
+            else:
+                return default
