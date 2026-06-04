@@ -1,4 +1,4 @@
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 import typing as t
 import tkinter as tk
 

@@ -5,11 +5,11 @@ import typing as t
 import enum
 
 from medsutil.ocproc2.operations import QCOperator
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 
 
 if t.TYPE_CHECKING:
-    from desktop.main_app import CNODCQCApp
+    from pipeman_desktop.main_app import CNODCQCApp
     import medsutil.ocproc2 as ocproc2
 
 
@@ -87,7 +87,7 @@ class SimpleRecordInfo:
 
 class ApplicationState:
 
-    def __init__(self, display_callable: callable):
+    def __init__(self, display_callable: t.Callable):
         self._display_cb = display_callable
         self.batch_state: t.Optional[BatchOpenState] = None
         self.batch_service_name: t.Optional[str] = None

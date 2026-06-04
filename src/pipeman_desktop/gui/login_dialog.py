@@ -2,8 +2,8 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import typing as t
-import desktop.translations as i18n
-from desktop.gui.bordered_entry import BorderedEntry
+import pipeman_desktop.translations as i18n
+from pipeman_desktop.gui.bordered_entry import BorderedEntry
 
 
 def ask_login(*args, **kwargs):

@@ -1,11 +1,11 @@
 from __future__ import annotations
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, QCBatchCloseOperation
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, QCBatchCloseOperation
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 import tkinter.simpledialog as tksd
-from desktop.gui.bordered_entry import BorderedEntry
+from pipeman_desktop.gui.bordered_entry import BorderedEntry
 
 
 class PasswordDialog(tksd.Dialog):
@@ -73,7 +73,7 @@ class LoginPane(BasePane):
         self.app.menus.disable_command('file/logout')
         self.app.menus.disable_command('file/change_password')
         self.app.dispatcher.submit_job(
-            'cnodc.desktop.client.api_client.logout',
+            'pipeman_desktop.client.api_client.logout',
             on_success=self.on_logout,
             on_error=self.on_logout_fail
         )
@@ -119,12 +119,12 @@ class LoginPane(BasePane):
         self.app.menus.enable_command('file/logout')
 
     def do_login(self):
-        from desktop.gui.login_dialog import ask_login
+        from pipeman_desktop.gui.login_dialog import ask_login
         unpw = ask_login(self.app.root)
         if unpw is not None:
             self.app.menus.disable_command('file/login')
             self.app.dispatcher.submit_job(
-                'cnodc.desktop.client.api_client.login',
+                'pipeman_desktop.client.api_client.login',
                 job_kwargs={
                     'username': unpw[0],
                     'password': unpw[1]
@@ -149,7 +149,7 @@ class LoginPane(BasePane):
     def auto_refresh_session(self):
         if self._username is not None:
             self.app.dispatcher.submit_job(
-                'cnodc.desktop.client.api_client.refresh',
+                'pipeman_desktop.client.api_client.refresh',
                 on_success=self.after_refresh,
                 on_error=self.after_refresh
             )

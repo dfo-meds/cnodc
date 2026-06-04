@@ -30,6 +30,10 @@ class BaseUserMixin:
     def is_admin(self) -> bool:
         return ADMIN_PRIVILEGE in self._permissions
 
+    @property
+    def permissions(self) -> set[str]:
+        return self._permissions
+
     def require_all(self, permission_names: t.Sequence[str]):
         """Check if the user has the given permission."""
         if (not permission_names) or self.is_admin:

@@ -1,19 +1,15 @@
-from __future__ import annotations
-
 import datetime
 
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
-from desktop.gui.scrollable import ScrollableTreeview
-import desktop.translations as i18n
+from pipeman_desktop.client.local_db import LocalDatabase
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
+from pipeman_desktop.gui.scrollable import ScrollableTreeview
+import pipeman_desktop.translations as i18n
 import tkinter.simpledialog as tksd
 import tkinter as tk
 import typing as t
 import tkinter.ttk as ttk
 from autoinject import injector
 
-
-if t.TYPE_CHECKING:
-    import desktop.client.local_db.LocalDatabase
 
 
 class StationCreationDialog(tksd.Dialog):
@@ -121,7 +117,7 @@ class StationCreationDialog(tksd.Dialog):
 
 class StationPane(BasePane):
 
-    local_db: desktop.client.local_db.LocalDatabase = None
+    local_db: LocalDatabase = None
 
     @injector.construct
     def __init__(self, *args, **kwargs):

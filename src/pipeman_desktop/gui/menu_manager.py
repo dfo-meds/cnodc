@@ -1,5 +1,5 @@
 import tkinter as tk
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 
 
 class MenuManager:

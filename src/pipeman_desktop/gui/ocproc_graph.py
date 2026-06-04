@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import tkinter.ttk as ttk
 import typing as t
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 import matplotlib.axes as mpla
 import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.style as mpls
 import medsutil.ocproc_math as oom
-from desktop.gui.base_pane import SimpleRecordInfo
-from medsutil.geodesy import uhaversine
+from pipeman_desktop.gui.base_pane import SimpleRecordInfo
+from medsutil.geodesy import haversine
 
 if t.TYPE_CHECKING:
-    from desktop.main_app import CNODCQCApp
+    from pipeman_desktop.main_app import CNODCQCApp
     import medsutil.ocproc2 as ocproc2
 
 
@@ -155,7 +155,7 @@ class OCProc2Graph(ttk.Frame):
             return None, 9
         # TODO: qc calculation
         qc = 0
-        return uhaversine(
+        return haversine(
             (r2.latitude, r2.longitude),
             (r1.latitude, r1.longitude)
         ), qc

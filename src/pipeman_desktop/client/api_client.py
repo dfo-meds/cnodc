@@ -5,10 +5,10 @@ import typing as t
 import zrlog
 from autoinject import injector
 
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
 from pipeman_desktop.client.local_db import LocalDatabase, CursorWrapper
-from pipeman_desktop.client.test_client import TestClient
 from pipeman_desktop.gui.messenger import CrossThreadMessenger
 from pipeman_desktop.util import TranslatableException
 import zirconium as zr
@@ -23,7 +23,10 @@ class RemoteAPIError(TranslatableException):
         super().__init__('remote_api_error', message=message, code=code or '')
 
 
-class _WebAPIClient:
+
+
+@injector.injectable
+class WebAPIClient:
 
     config: zr.ApplicationConfig = None
     messenger: CrossThreadMessenger = None
@@ -108,71 +111,66 @@ class CNODCServerAPI:
 
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
+    web_client: WebAPIClient = None
 
     @injector.construct
-    def __init__(self, test_mode: bool = True):
-        self._expiry = None
-        self._access_list = None
-        self._check_time = 300  # Renew when five minutes left on session
-        self._test_mode = False
+    def __init__(self):
+        self._expiry: AwareDateTime | None = None
+        self._access_list: list[str] | None = None
+        self._check_time: int = 300  # Renew when five minutes left on session
         self._current_queue_item = None
-        self._username = None
-        self._client = TestClient() if test_mode else _WebAPIClient()
+        self._username: str | None = None
+        self._display_name: str | None = None
         self._log = zrlog.get_logger('cnodc.desktop.api')
 
-    def login(self, username: str, password: str) -> tuple[str, dict[str, dict[str, str]]]:
-        response = self._client.make_json_request(
-            endpoint='login',
+    def login(self, username: str, password: str) -> bool:
+        response = self.web_client.make_json_request(
+            endpoint='api/create-access-token',
             method='POST',
             username=username,
             password=password
         )
-        self._client.set_token(response['token'])
-        self._expiry = datetime.datetime.fromisoformat(response['expiry'])
+        self.web_client.set_token(response['token'])
+        self._expiry = AwareDateTime.fromisoformat(response['expiry'])
         self._access_list = response['access']
         self._username = response['username']
+        self._display_name = response['display']
         self._log.info(f'User {self._username} logged in')
-        return self._username, self._compile_access_list()
-
-    def _compile_access_list(self) -> dict[str, dict[str, str]]:
-        results = {}
-        for x in self._access_list:
-            for y in self._access_list[x]:
-                results[f"{x}:{y}"] = {} if 'name' not in self._access_list[x][y] else self._access_list[x][y]['name']
-        return results
+        return True
 
     def logout(self) -> bool:
-        if self._client.is_logged_in():
-            self._client.make_json_request(
-                endpoint=self._api_endpoint('other:logout'),
+        if self.web_client.is_logged_in():
+            self.web_client.make_json_request(
+                endpoint='api/remove-access-token',
                 method='POST'
             )
             self._log.info(f'User logged out')
             self._username = None
-            self._client.set_token(None)
+            self._display_name = None
+            self.web_client.set_token(None)
             self._access_list = None
             self._expiry = None
         return True
 
     def refresh(self) -> int:
-        if self._client.is_logged_in():
+        if self.web_client.is_logged_in():
             now = datetime.datetime.now(tz=datetime.timezone.utc)
             time_left = int((self._expiry - now).total_seconds())
             if time_left < 0:
-                self._client.set_token(None)
+                self.web_client.set_token(None)
                 self._expiry = None
                 self._access_list = None
                 self._log.info('User session expired')
                 return -1
             elif time_left < self._check_time:
                 self._log.debug('Renewing session')
-                response = self._client.make_json_request(
-                    endpoint=self._api_endpoint('other:renew'),
+                response = self.web_client.make_json_request(
+                    endpoint='api/renew-access-token',
                     method='POST'
                 )
-                self._client.set_token(response['token'])
-                self._expiry = datetime.datetime.fromisoformat(response['expiry'])
-                now = datetime.datetime.now(tz=datetime.timezone.utc)
+                self.web_client.set_token(response['token'])
+                self._expiry = AwareDateTime.fromisoformat(response['expiry'])
+                now = AwareDateTime.now()
                 return int((self._expiry - now).total_seconds()) - self._check_time
             else:
                 return time_left - self._check_time
@@ -181,7 +179,7 @@ class CNODCServerAPI:
 
     def _check_access(self, access_key_name: str):
         if self._access_list is None or access_key_name not in self._access_list:
-            raise RemoteAPIError('access denied')
+            raise RemoteAPIError('access_denied')
 
     def change_password(self, password: str) -> bool:
         self._client.make_json_request(
@@ -388,8 +386,9 @@ class CNODCServerAPI:
 
 
 @injector.inject
-def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str, dict[str, dict[str, str]]]:
-    return client.login(username, password)
+def login(username: str, password: str, client: CNODCServerAPI = None):
+    client.login(username, password)
+    return client._username, client._access_list
 
 
 @injector.inject

@@ -1,10 +1,10 @@
 import functools
 
-from desktop.client.local_db import LocalDatabase
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
+from pipeman_desktop.client.local_db import LocalDatabase
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
 import typing as t
-import desktop.translations as i18n
-from desktop.gui.scrollable import ScrollableTreeview
+import pipeman_desktop.translations as i18n
+from pipeman_desktop.gui.scrollable import ScrollableTreeview
 from medsutil.ocproc2.operations import QCOperator
 import tkinter as tk
 import tkinter.ttk as ttk

@@ -1,8 +1,8 @@
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
-from desktop.gui.scrollable import ScrollableTreeview
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
+from pipeman_desktop.gui.scrollable import ScrollableTreeview
 import typing as t
 import tkinter.ttk as ttk
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 
 
 class ErrorPane(BasePane):

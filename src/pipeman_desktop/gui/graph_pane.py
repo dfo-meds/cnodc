@@ -1,19 +1,19 @@
 import functools
 from matplotlib.lines import Line2D
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchOpenState, SimpleRecordInfo
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchOpenState, SimpleRecordInfo
 import typing as t
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 from autoinject import injector
-from desktop.client.local_db import LocalDatabase
+from pipeman_desktop.client.local_db import LocalDatabase
 import matplotlib.axes as mpla
 import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.backend_bases as mplbb
 import tkinter as tk
-import desktop.translations as i18n
-from desktop.gui.ocproc_graph import OCProc2Graph
-from medsutil.geodesy import uhaversine
+import pipeman_desktop.translations as i18n
+from pipeman_desktop.gui.ocproc_graph import OCProc2Graph
+from medsutil.geodesy import haversine
 from medsutil.units import UnitConverter
 import medsutil.ocproc_math as oom
 
@@ -218,7 +218,7 @@ class _GraphPane(BasePane):
                 qc = 3
             elif batch_info_a.latitude_qc == 2 or batch_info_b.latitude_qc == 2 or batch_info_a.longitude_qc == 2 or batch_info_b.longitude_qc == 2:
                 qc = 2
-            distance = uhaversine((batch_info_b.latitude, batch_info_b.longitude), (batch_info_a.latitude, batch_info_a.longitude)).nominal_value
+            distance = haversine((batch_info_b.latitude, batch_info_b.longitude), (batch_info_a.latitude, batch_info_a.longitude)).nominal_value
             unit_map[key] = "m s-1"
             return abs(distance / (batch_info_b.timestamp - batch_info_a.timestamp).total_seconds()), qc
         else:
