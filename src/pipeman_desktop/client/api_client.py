@@ -181,14 +181,6 @@ class CNODCServerAPI:
         if self._access_list is None or access_key_name not in self._access_list:
             raise RemoteAPIError('access_denied')
 
-    def change_password(self, password: str) -> bool:
-        self._client.make_json_request(
-            endpoint=self._api_endpoint('other:change_password'),
-            method="POST",
-            password=password
-        )
-        return True
-
     def reload_stations(self) -> bool:
         self._check_access('queue:station-failure')
         with self.local_db.cursor() as cur:

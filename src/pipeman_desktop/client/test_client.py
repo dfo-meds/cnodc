@@ -22,8 +22,6 @@ class TestClient:
             return self._renew()
 
 
-        elif endpoint == 'change-password':
-            return self._change_password(**kwargs)
         elif endpoint == 'stations/new' and method == 'POST':
             return self._create_station(**kwargs)
         elif endpoint.startswith('next/') and method == 'POST':
@@ -43,11 +41,6 @@ class TestClient:
         elif endpoint.startswith('descalate/') and method == 'POST':
             return self._descalate_item(**kwargs)
         raise Exception('invalid test request')
-
-    def _change_password(self, password):
-        if len(password) < 15:
-            raise Exception('Password too short')
-        return {'success': True}
 
     def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
         if endpoint.startswith('download/') and method == 'GET':
