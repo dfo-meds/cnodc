@@ -7,10 +7,10 @@ from autoinject import injector
 
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
-from desktop.client.local_db import LocalDatabase, CursorWrapper
-from desktop.client.test_client import TestClient
-from desktop.gui.messenger import CrossThreadMessenger
-from desktop.util import TranslatableException
+from pipeman_desktop.client.local_db import LocalDatabase, CursorWrapper
+from pipeman_desktop.client.test_client import TestClient
+from pipeman_desktop.gui.messenger import CrossThreadMessenger
+from pipeman_desktop.util import TranslatableException
 import zirconium as zr
 import requests
 import medsutil.ocproc2 as ocproc2
@@ -31,15 +31,15 @@ class _WebAPIClient:
     @injector.construct
     def __init__(self):
         self._token = None
-        self._app_url = self.config.as_str(('cnodc_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
-        self._log = zrlog.get_logger('cnodc.desktop.web_client')
+        self._app_url = self.config.as_str(('medweb_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
+        self._log = zrlog.get_logger('pipeman.desktop.web_client')
 
     def _make_raw_request(self, endpoint: str, method: str, **kwargs: str) -> requests.Response:
         full_url = f"{self._app_url}/{endpoint}" if not endpoint.startswith('http') else endpoint
         self._log.debug(f"{method} {full_url}")
         headers = {}
         if self._token is not None:
-            headers['Authorization'] = f'bearer {self._token}'
+            headers['Authorization'] = f'Bearer {self._token}'
         if kwargs:
             response = requests.request(method, full_url, json=coerce.as_json_safe(kwargs), headers=headers)
         else:
@@ -66,8 +66,7 @@ class _WebAPIClient:
             actions = []
             if action_content != b'':
                 actions = json.loads(action_content.decode('utf-8'))
-
-            yield record_id, record_hash, codec.decode_messages([record_content]), actions
+            yield record_id, record_hash, next(codec.decode_messages([record_content])), actions
 
     def make_json_dict_list_request(self, *args, **kwargs) -> t.Iterable[dict]:
         response = self._make_raw_request(*args, **kwargs)
