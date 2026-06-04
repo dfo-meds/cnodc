@@ -10,6 +10,7 @@ from medsutil.email import EmailController
 from nodb.access import NODBUser, UserStatus, NODBAccessToken
 from nodb.interface import NODB, LockType, NODBInstance
 from medsutil import secure
+import zirconium as zr
 from urllib.parse import quote
 
 
@@ -21,6 +22,7 @@ class AccessManagementError(TranslatableError): CODE_SPACE = "ACCESS-MANAGEMENT"
 class AccessController:
     nodb: NODB
     smtp: EmailController
+    config: zr.ApplicationConfig
 
     def load_user_by_id(self, user_id: int) -> NODBUser | None:
         with self.nodb as db:
@@ -96,7 +98,7 @@ class AccessController:
             db.update_object(user)
             db.commit()
 
-    def create_temporary_access_token(self, username: str, password: str, lifetime_seconds: int = 3600) -> str:
+    def create_temporary_access_token(self, username: str, password: str, lifetime_seconds: int = None) -> tuple[str, AwareDateTime]:
         with self.nodb as db:
             user = self._require_user(db, username)
             if not user.check_password(password):
@@ -118,7 +120,7 @@ class AccessController:
             db.delete_object(access_key)
             db.commit()
 
-    def renew_temporary_access_token(self, access_token: str, lifetime_seconds: int = 3600) -> str:
+    def renew_temporary_access_token(self, access_token: str, lifetime_seconds: int = None) -> tuple[str, AwareDateTime]:
         user_id, key_identifier = self._verify_access_token(access_token)
         with self.nodb as db:
             access_key = self._require_access_token(db, user_id, key_identifier)
@@ -139,7 +141,7 @@ class AccessController:
             access_key = NODBAccessToken.find_by_identifier(db, user.identifier, key_identifier)
             if access_key:
                 raise AccessManagementError("Access key already exists", 1202)
-            return self._create_api_key(db, user.identifier, key_identifier, expiry_days)
+            return self._create_api_key(db, user.identifier, key_identifier, expiry_days)[0]
 
     def update_api_key(self, username: str, key_identifier: str, is_active: bool):
         with self.nodb as db:
@@ -159,7 +161,7 @@ class AccessController:
             )
             db.update_object(access_key)
             db.commit()
-            return header
+            return header[0]
 
     def _require_access_token(self, db, user_id: int, key_identifier: str) -> NODBAccessToken:
         access_key = NODBAccessToken.find_by_identifier(db, user_id, key_identifier)
@@ -210,26 +212,30 @@ class AccessController:
                 to_emails=[user.email],
             )
 
-    def _create_api_key(self, db, user_id: int, key_identifier: str, expiry_seconds: int) -> str:
-            access_key = NODBAccessToken(
-                user_id=user_id,
-                identifier=key_identifier,
-                is_active='Y'
-            )
-            header = self._update_key(access_key, expiry_seconds)
-            db.insert_object(access_key)
-            db.commit()
-            return header
+    def _create_api_key(self, db, user_id: int, key_identifier: str, expiry_seconds: int | None = None) -> tuple[str, AwareDateTime]:
+        access_key = NODBAccessToken(
+            user_id=user_id,
+            identifier=key_identifier,
+            is_active='Y'
+        )
+        header = self._update_key(access_key, expiry_seconds)
+        db.insert_object(access_key)
+        db.commit()
+        return header
 
-    def _update_key(self, access_key: NODBAccessToken, expiry_seconds: int, old_expiry_seconds: int = 0) -> str:
-            api_key = secure.generate_secure_key()
-            access_key.set_key(api_key, expiry_seconds, old_expiry_seconds)
-            return ".".join((
-                "api",
-                str(access_key.user_id),
-                quote(access_key.identifier),
-                base64.b64encode(api_key).decode('ascii')
-            ))
+    def _update_key(self, access_key: NODBAccessToken, expiry_seconds: int | None = None, old_expiry_seconds: int | None = None) -> tuple[str, AwareDateTime]:
+        if expiry_seconds is None:
+            expiry_seconds = self.config.as_int(("medsid", "default_access_key_expiry_seconds"), default=3600)
+        if old_expiry_seconds is None:
+            old_expiry_seconds = self.config.as_int(("medsid", "default_old_access_key_expiry_seconds"), default=0)
+        api_key = secure.generate_secure_key()
+        access_key.set_key(api_key, t.cast(int, expiry_seconds), t.cast(int, old_expiry_seconds))
+        return ".".join((
+            "api",
+            str(access_key.user_id),
+            quote(access_key.identifier),
+            base64.b64encode(api_key).decode('ascii')
+        )), t.cast(AwareDateTime, access_key.expiry)
 
     def assign_role(self, username: str, role_name: str):
         with self.nodb as db:

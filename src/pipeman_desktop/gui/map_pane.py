@@ -1,12 +1,12 @@
 import functools
 import pathlib
 
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchOpenState
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchOpenState
 import tkintermapview as tkmv
 import typing as t
 import tkinter.ttk as ttk
 from autoinject import injector
-from desktop.client.local_db import LocalDatabase
+from pipeman_desktop.client.local_db import LocalDatabase
 import PIL.Image as Image
 import PIL.ImageTk as ImageTk
 

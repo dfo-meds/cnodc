@@ -12,7 +12,10 @@ class LoadingWheel(ttk.Label):
         self._images = []
         self._max_height = 20
         self._halt = False
-        self._blank = ImageTk.PhotoImage(Image.new('RGBA', (self._max_height, self._max_height)))
+        self._blank = ImageTk.PhotoImage(
+            Image.new('RGBA', (self._max_height, self._max_height)),
+            master=root
+        )
         with Image.open(self._image_path) as image:
             for i in range(0, image.n_frames):
                 try:

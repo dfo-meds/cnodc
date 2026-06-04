@@ -1,17 +1,17 @@
 import datetime
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
-from desktop.gui.choice_dialog import ask_choice
-from desktop.gui.scrollable import ScrollableTreeview
-import desktop.translations as i18n
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
+from pipeman_desktop.gui.choice_dialog import ask_choice
+from pipeman_desktop.gui.scrollable import ScrollableTreeview
+import pipeman_desktop.translations as i18n
 import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 
-from desktop import VERSION
+from pipeman_desktop import VERSION
 import medsutil.ocproc2 as ocproc2
-from desktop.gui.date_time_dialog import ask_date, ask_datetime
+from pipeman_desktop.gui.date_time_dialog import ask_date, ask_datetime
 from autoinject import injector
 
 

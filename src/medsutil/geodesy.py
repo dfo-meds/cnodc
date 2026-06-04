@@ -8,8 +8,9 @@ from uncertainties import UFloat
 import medsutil.amath as amath
 import medsutil.adecimal as adecimal
 import shapely
+import typing as t
 
-YXPoint = tuple[amath.AnyNumber, amath.AnyNumber]
+YXPoint = tuple[t.Any, t.Any]
 
 _EARTH_RADIUS = adecimal.AccurateDecimal(6371000, 10000)
 

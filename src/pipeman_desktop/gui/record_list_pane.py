@@ -1,10 +1,10 @@
-from desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, \
+from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, \
     SimpleRecordInfo
-from desktop.client.local_db import LocalDatabase
+from pipeman_desktop.client.local_db import LocalDatabase
 from autoinject import injector
 import typing as t
-from desktop.gui.scrollable import ScrollableTreeview
-import desktop.translations as i18n
+from pipeman_desktop.gui.scrollable import ScrollableTreeview
+import pipeman_desktop.translations as i18n
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 

@@ -14,14 +14,16 @@ class TestClient:
         self._token = None
 
     def make_json_request(self, endpoint: str, method: str, **kwargs: str) -> dict:
-        if endpoint == 'login' and method == 'POST':
+        if endpoint == 'api/create-access-token' and method == 'POST':
             return self._login(**kwargs)
-        elif endpoint == 'logout' and method == 'POST':
+        elif endpoint == 'api/remove-access-token' and method == 'POST':
             return self._logout()
+        elif endpoint == 'api/renew-access-token' and method == 'POST':
+            return self._renew()
+
+
         elif endpoint == 'change-password':
             return self._change_password(**kwargs)
-        elif endpoint == 'renew' and method == 'POST':
-            return self._renew()
         elif endpoint == 'stations/new' and method == 'POST':
             return self._create_station(**kwargs)
         elif endpoint.startswith('next/') and method == 'POST':
@@ -74,36 +76,9 @@ class TestClient:
         return {
             'token': 'abc',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
-            'access': {
-                'other': {
-                    'change_password': 'change-password',
-                    'renew': 'renew',
-                    'logout': 'logout',
-                    'access': 'access',
-                    'create_station': 'stations/new',
-                    'list_stations': 'stations',
-                },
-                'service_queues': {
-                    q: {
-                        'url': f'next/{q}',
-                        'name': {
-                            'en': q,
-                            'fr': q
-                        }
-                    }
-                    for q in queues
-                },
-                'workflows': {
-                    'test': {
-                        'url': 'upload/test',
-                        'name': {
-                            'en': 'Test Workflow',
-                            'fr': 'Workflow test'
-                        }
-                    }
-                }
-            },
-            'username': username
+            'access': [],
+            'username': username,
+            'display': username,
         }
 
     def _renew(self):

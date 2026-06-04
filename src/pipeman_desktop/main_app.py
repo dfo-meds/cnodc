@@ -56,7 +56,7 @@ class CNODCQCAppDispatcher(threading.Thread):
         while not self.work_queue.empty():
             self.work_queue.get_nowait()
         while not self.result_queue.empty():
-            self.result_queue.empty()
+            self.result_queue.get_nowait()
 
     def run(self):
         while not self.halt.is_set():
@@ -130,7 +130,12 @@ class CNODCQCApp:
     messenger: CrossThreadMessenger = None
 
     @injector.construct
-    def __init__(self):
+    def __init__(self, test_mode: bool = True):
+        if test_mode:
+            from pipeman_desktop.client.api_client import WebAPIClient
+            from pipeman_desktop.client.test_client import TestClient
+            injector.override(WebAPIClient, TestClient)
+        self._is_closing: bool = False
         self.log = zrlog.get_logger('cnodc.desktop')
         self.app_state = ApplicationState(self.refresh_display)
         self._current_screen_size = None
@@ -202,7 +207,6 @@ class CNODCQCApp:
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
         self._panes.append(StationPane(self))
-        self._is_closing: bool = False
         self._pane_broadcast('on_init')
 
     def check_dispatcher(self):
@@ -351,7 +355,7 @@ class CNODCQCApp:
 
     def _on_close(self):
         self.dispatcher.submit_job(
-            'cnodc.desktop.client.api_client.logout',
+            'pipeman_desktop.client.api_client.logout',
             on_success=self._actual_close,
             on_error=self._actual_close
         )

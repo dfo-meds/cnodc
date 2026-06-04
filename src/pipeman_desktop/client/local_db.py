@@ -62,11 +62,11 @@ class CursorWrapper:
 
     def insert(self, table_name: str, values: dict) -> int:
         keys = list(values.keys())
-        values = [self._clean_for_insert(values[k]) for k in keys]
+        actual_values = [self._clean_for_insert(values[k]) for k in keys]
         value_placeholders = ','.join('?' for _ in keys)
         q = f'INSERT INTO {table_name}({",".join(keys)}) VALUES ({value_placeholders})'
-        self.execute(q, values)
-        return self._cursor.lastrowid
+        self.execute(q, actual_values)
+        return t.cast(int, self._cursor.lastrowid)
 
     def update(self, table_name: str, values: dict, where: dict):
         v_keys = list(values.keys())
@@ -74,8 +74,8 @@ class CursorWrapper:
         set_clause = ', '.join(f'{key} = ?' for key in v_keys)
         where_clause = ' AND '.join(f'{key} = ?' for key in w_keys)
         q = f'UPDATE {table_name} SET {set_clause} WHERE {where_clause}'
-        values = [itertools.chain((values[v] for v in v_keys), (where[w] for w in w_keys))]
-        self.execute(q, values)
+        actual_values = [itertools.chain((values[v] for v in v_keys), (where[w] for w in w_keys))]
+        self.execute(q, actual_values)
 
     def delete(self, table_name: str, values: dict):
         keys = list(values.keys())

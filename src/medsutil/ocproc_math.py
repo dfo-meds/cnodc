@@ -16,7 +16,7 @@ import medsutil.geodesy as geodesy
 import medsutil.amath as amath
 import medsutil.awaretime as awaretime
 
-ValQualUnits = tuple[t.Optional[amath.AnyNumber], int, t.Optional[str]]
+ValQualUnits = tuple[t.Any, int, t.Optional[str]]
 
 ITS90_START = awaretime.utc_awaretime(1990, 1, 1, 0, 0, 0)
 IPTS68_START = awaretime.utc_awaretime(1968, 1, 1, 0, 0, 0)

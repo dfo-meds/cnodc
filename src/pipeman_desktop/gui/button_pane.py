@@ -1,15 +1,15 @@
 import functools
 import tkinter as tk
-from desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange
+from pipeman_desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange
 import tkinter.ttk as ttk
 import typing as t
-from desktop.gui.choice_dialog import ask_choice
+from pipeman_desktop.gui.choice_dialog import ask_choice
 import PIL.Image as Image
 import PIL.ImageTk as ImageTk
 import pathlib
 import numpy as np
 
-from desktop.gui.tooltip import Tooltip
+from pipeman_desktop.gui.tooltip import Tooltip
 
 
 class ButtonPane(BasePane):
@@ -18,20 +18,11 @@ class ButtonPane(BasePane):
         super().__init__(*args, **kwargs)
         self._buttons: dict[str, ttk.Button] = {}
         self._button_frame: t.Optional[ttk.Frame] = None
-        base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
-        self._images = {
-            'load_new': self._build_button_image(base_path / 'load.png'),
-            'save': self._build_button_image(base_path / 'save.png'),
-            'release': self._build_button_image(base_path / 'release.png'),
-            'report': self._build_button_image(base_path / 'report.png'),
-            'submit': self._build_button_image(base_path / 'submit.png'),
-            'load_next': self._build_button_image(base_path / 'submit_next.png'),
-            'escalate': self._build_button_image(base_path / 'calate.png'),
-            'descalate': self._build_button_image(base_path / 'calate.png', True),
-        }
+        self._base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
+        self._images = {}
         self.tts = []
 
-    def _build_button_image(self, path: pathlib.Path, rotate: bool = False, size: int = 30):
+    def _build_button_image(self, path: pathlib.Path, master, rotate: bool = False, size: int = 30):
         image = Image.open(str(path)).convert('RGBA').resize((size, size))
         if rotate:
             image = image.rotate(180)
@@ -41,16 +32,26 @@ class ButtonPane(BasePane):
         raw_values = []
         raw_values_disabled = []
         for x in range(0, len(alpha2)):
-            raw_values.extend([0, 0, 0, min(alpha2[x] * 2, 255)])
+            raw_values.extend([0, 0, 0, min(int(alpha2[x]) * 2, 255)])
             raw_values_disabled.extend([0, 0, 0, min(int(alpha2[x] / 2), 255)])
         image = np.array(raw_values, dtype='u1')
         image = np.resize(image, (size, size, 4))
         image_dis = np.array(raw_values_disabled, dtype='u1')
         image_dis = np.resize(image_dis, (size, size, 4))
-        return ImageTk.PhotoImage(Image.fromarray(image)), ImageTk.PhotoImage(Image.fromarray(image_dis))
+        return ImageTk.PhotoImage(Image.fromarray(image), master=master), ImageTk.PhotoImage(Image.fromarray(image_dis), master=master)
 
     def on_init(self):
         button_frame = ttk.Frame(self.app.top_bar)
+        self._images = {
+            'load_new': self._build_button_image(self._base_path / 'load.png', self.app.top_bar.master),
+            'save': self._build_button_image(self._base_path / 'save.png', self.app.top_bar.master),
+            'release': self._build_button_image(self._base_path / 'release.png', self.app.top_bar.master),
+            'report': self._build_button_image(self._base_path / 'report.png', self.app.top_bar.master),
+            'submit': self._build_button_image(self._base_path / 'submit.png', self.app.top_bar.master),
+            'load_next': self._build_button_image(self._base_path / 'submit_next.png', self.app.top_bar.master),
+            'escalate': self._build_button_image(self._base_path / 'calate.png', self.app.top_bar.master),
+            'descalate': self._build_button_image(self._base_path / 'calate.png', self.app.top_bar.master, True),
+        }
         button_frame.grid(row=0, column=0)
         # TODO: translate button text
         self._buttons['load_new'] = ttk.Button(

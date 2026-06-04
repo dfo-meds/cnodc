@@ -1,6 +1,5 @@
-import datetime
-
 import flask
+import flask_login
 import zrlog
 
 from autoinject import injector, auto
@@ -12,7 +11,6 @@ from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import require_permission, api_error_handling, web_error_handling
 from gcflask.user import current_user
 from gcflask.util import flasht, FlaskRequestJsonData
-from medsutil.awaretime import AwareDateTime
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
 
 user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
@@ -25,8 +23,6 @@ def me(ac: AccessController = auto()):
     c_user = ac.load_user_by_id(current_user().get_id())
     return flask.render_template("myself.html", user=c_user, title=c_user.display)
 
-# TODO: should be in configuration
-TOKEN_LIFETIME_SECONDS = 3600
 
 @user.route('/api/create-access-token', methods='POST')
 @require_permission(is_api=True, anonymous_only=True)
@@ -34,14 +30,18 @@ TOKEN_LIFETIME_SECONDS = 3600
 @injector.inject
 def create_access_token(ac: AccessController = auto()):
     data = FlaskRequestJsonData()
-    expiry = AwareDateTime.utcnow() + datetime.timedelta(seconds=TOKEN_LIFETIME_SECONDS)
+    token, expiry = ac.create_temporary_access_token(
+        data.get("username"),
+        data.get("password")
+    )
+    c_user = current_user()
     return flask.jsonify({
-        'token': ac.create_temporary_access_token(
-            data.get("username"),
-            data.get("password"),
-            TOKEN_LIFETIME_SECONDS
-        ),
-        'expiry': expiry.isoformat()
+        'success': True,
+        'token': token,
+        'expiry': expiry.isoformat(),
+        'access': list(c_user.permissions),
+        'username': c_user.get_username(),
+        'display': c_user.display_name
     })
 
 
@@ -51,12 +51,12 @@ def create_access_token(ac: AccessController = auto()):
 @injector.inject
 def renew_access_token(ac: AccessController = auto()):
     data = FlaskRequestJsonData()
-    expiry = AwareDateTime.utcnow() + datetime.timedelta(seconds=TOKEN_LIFETIME_SECONDS)
+    token, expiry = ac.renew_temporary_access_token(
+        data.get("token")
+    )
     return flask.jsonify({
-        'token': ac.renew_temporary_access_token(
-            data.get("token"),
-            TOKEN_LIFETIME_SECONDS
-        ),
+        'success': True,
+        'token': token,
         'expiry': expiry.isoformat()
     })
 

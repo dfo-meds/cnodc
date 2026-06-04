@@ -5,7 +5,7 @@ import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import tkinter.messagebox as tkmb
 import typing as t
-import desktop.translations as i18n
+import pipeman_desktop.translations as i18n
 import tkcalendar as tkc
 import datetime
 
