@@ -45,6 +45,8 @@ class NODBAccessToken(s.NODBBaseObject):
     user_id: int = s.IntColumn()
     identifier: str = s.StringColumn()
 
+    remote_addr: str | None = s.StringColumn()
+
     key_hash: bytes | None = s.ByteColumn()
     key_salt: bytes | None = s.ByteColumn()
     expiry: AwareDateTime | None = s.ByteColumn()

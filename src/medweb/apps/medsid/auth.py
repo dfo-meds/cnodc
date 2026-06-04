@@ -95,7 +95,7 @@ class LocalMedsIDHandler(AuthenticationHandler):
             if not user.can_login():
                 raise AuthError("Invalid user, not active", 8103, username=username)
             if not access_token.check_key(api_key_bytes):
-                raise AuthError("Invalid access key", 8102, is_lockable=True, username=username)
+                raise AuthError("Invalid access key", 8104, is_lockable=True, username=username)
             return self._build_user(db, user)
 
     def _build_user(self, db, user: NODBUser) -> AuthenticatedUser:

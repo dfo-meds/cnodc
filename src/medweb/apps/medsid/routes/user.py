@@ -1,3 +1,5 @@
+import datetime
+
 import flask
 import zrlog
 
@@ -7,12 +9,14 @@ from gcflask.forms import GCFlaskForm, StringField, SubmitField, PasswordField, 
     NoControlCharacters, BooleanField
 from gcflask.i18n import TString
 from gcflask.i18n_url import MultiLanguageBlueprint
-from gcflask.security import require_permission
+from gcflask.security import require_permission, api_error_handling, web_error_handling
 from gcflask.user import current_user
-from gcflask.util import flasht
+from gcflask.util import flasht, FlaskRequestJsonData
+from medsutil.awaretime import AwareDateTime
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
 
 user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
+
 
 @user.route('/me')
 @require_permission(authenticated_only=True)
@@ -21,9 +25,57 @@ def me(ac: AccessController = auto()):
     c_user = ac.load_user_by_id(current_user().get_id())
     return flask.render_template("myself.html", user=c_user, title=c_user.display)
 
+# TODO: should be in configuration
+TOKEN_LIFETIME_SECONDS = 3600
+
+@user.route('/api/create-access-token', methods='POST')
+@require_permission(is_api=True, anonymous_only=True)
+@api_error_handling
+@injector.inject
+def create_access_token(ac: AccessController = auto()):
+    data = FlaskRequestJsonData()
+    expiry = AwareDateTime.utcnow() + datetime.timedelta(seconds=TOKEN_LIFETIME_SECONDS)
+    return flask.jsonify({
+        'token': ac.create_temporary_access_token(
+            data.get("username"),
+            data.get("password"),
+            TOKEN_LIFETIME_SECONDS
+        ),
+        'expiry': expiry.isoformat()
+    })
+
+
+@user.route('/api/renew-access-token', methods='POST')
+@require_permission(is_api=True, anonymous_only=True)
+@api_error_handling
+@injector.inject
+def renew_access_token(ac: AccessController = auto()):
+    data = FlaskRequestJsonData()
+    expiry = AwareDateTime.utcnow() + datetime.timedelta(seconds=TOKEN_LIFETIME_SECONDS)
+    return flask.jsonify({
+        'token': ac.renew_temporary_access_token(
+            data.get("token"),
+            TOKEN_LIFETIME_SECONDS
+        ),
+        'expiry': expiry.isoformat()
+    })
+
+
+@user.route('/api/remove-access-token', methods='POST')
+@require_permission(is_api=True, anonymous_only=True)
+@api_error_handling
+@injector.inject
+def remove_access_token(ac: AccessController = auto()):
+    data = FlaskRequestJsonData()
+    ac.remove_temporary_access_token(data.get("token"))
+    return flask.jsonify({
+        'success': True,
+    })
+
 
 @user.route('/me/edit', methods=['GET', 'POST'])
 @require_permission(authenticated_only=True)
+@web_error_handling
 @injector.inject
 def edit(ac: AccessController = auto()):
     c_user = ac.load_user_by_id(current_user().get_id())
@@ -52,6 +104,7 @@ def edit(ac: AccessController = auto()):
 
 @user.route('/me/change-password', methods=['GET', 'POST'])
 @require_permission(authenticated_only=True)
+@web_error_handling
 @injector.inject
 def change_password(ac: AccessController = auto()):
     form = ChangePasswordForm()
@@ -72,6 +125,8 @@ def change_password(ac: AccessController = auto()):
 
 @user.route('/users/<username>')
 @require_permission("medsid.user_management.view")
+@web_error_handling
+@injector.inject
 def view_user(username: str, ac: AccessController = auto()):
     c_user = ac.load_user_by_name(username)
     if c_user is None:
@@ -81,6 +136,7 @@ def view_user(username: str, ac: AccessController = auto()):
 
 @user.route('/users/create', methods=['GET', 'POST'])
 @require_permission("medsid.user_management.edit")
+@web_error_handling
 @injector.inject
 def create_user(ac: AccessController = auto()):
     form = EditUserForm()
@@ -105,6 +161,7 @@ def create_user(ac: AccessController = auto()):
 
 @user.route('/users/<username>/edit', methods=['GET', 'POST'])
 @require_permission("medsid.user_management.edit")
+@web_error_handling
 def edit_user(username: str, ac: AccessController = auto()):
     c_user = ac.load_user_by_name(username)
     form = EditUserForm(
@@ -137,12 +194,14 @@ def edit_user(username: str, ac: AccessController = auto()):
 
 @user.route('/api/users')
 @require_permission("medsid.user_management.view", is_api=True)
+@api_error_handling
 def api_list_users():
     return flask.abort(404)
 
 
 @user.route('/users')
 @require_permission("medsid.user_management.view")
+@web_error_handling
 def list_users():
     return flask.abort(404)
 

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from gcflask.auth import AuthResult, AuthenticationManager
 from gcflask.user import AuthenticatedUser, ANONYMOUS_PRIVILEGE, ADMIN_PRIVILEGE, ANYONE_PRIVILEGE, \
     AUTHENTICATED_PRIVILEGE
+from medsutil.exceptions import CodedError
 
 
 @injector.injectable_global
@@ -147,8 +148,7 @@ class RequirePermission:
 
             @functools.wraps(func)
             def _decorated(*args, **kwargs):
-                if allow_auth_header_access:
-                    if flask_login.current_user.is_anonymous:
+                if allow_auth_header_access and flask_login.current_user.is_anonymous:
                         self.auth_man.request_loader(flask.request)
                 result = self.rs.check_access(
                     required_permissions,
@@ -163,3 +163,33 @@ class RequirePermission:
         return _decorator
 
 require_permission = RequirePermission()
+
+# TODO: need to be able to enable/disable more detailed errors depending on the environment
+
+def api_error_handling(func: t.Callable) -> t.Callable:
+
+    @functools.wraps(func)
+    def _inner(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as ex:
+            code = ''
+            if isinstance(ex, CodedError):
+                code = ex.internal_code
+            return flask.jsonify({
+                "error": str(ex),
+                "code": code,
+            }), 500
+    return _inner
+
+
+def web_error_handling(func: t.Callable) -> t.Callable:
+
+    @functools.wraps(func)
+    def _inner(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as ex:
+            # TODO: better error messages
+            return flask.abort(500)
+    return _inner

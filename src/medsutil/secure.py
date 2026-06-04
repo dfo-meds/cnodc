@@ -68,6 +68,8 @@ def validate_secret_key(key: str | bytes | None) -> typing.TypeGuard[str]:
 def generate_csp_nonce() -> str:
     return secrets.token_urlsafe(32)
 
+def generate_random_token_name(length: int = 8) -> str:
+    return secrets.token_urlsafe(length)
 
 from autoinject import injector
 import zirconium as zr
