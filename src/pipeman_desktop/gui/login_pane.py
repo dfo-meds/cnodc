@@ -53,7 +53,6 @@ class LoginPane(BasePane):
 
     def on_init(self):
         self.app.menus.add_command('file/login', 'menu_login', self.do_login)
-        self.app.menus.add_command('file/change_password', 'menu_change_password', self.change_password, True)
         self.app.menus.add_command('file/logout', 'menu_logout', self.do_logout, True)
         self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief=tk.SOLID, borderwidth=2, width=15, anchor=tk.E)
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
@@ -71,7 +70,6 @@ class LoginPane(BasePane):
 
     def _real_logout(self):
         self.app.menus.disable_command('file/logout')
-        self.app.menus.disable_command('file/change_password')
         self.app.dispatcher.submit_job(
             'pipeman_desktop.client.api_client.logout',
             on_success=self.on_logout,
@@ -90,33 +88,6 @@ class LoginPane(BasePane):
     def on_logout_fail(self, ex: Exception):
         self.app.show_user_exception(ex)
         self.update_user_state()
-
-    def change_password(self):
-        pwd = PasswordDialog(self.app.root)
-        if pwd.result:
-            self.app.menus.disable_command('file/change_password')
-            self.app.menus.disable_command('file/logout')
-            self.app.dispatcher.submit_job(
-                'cnodc.desktop.client.api_client.change_password',
-                job_kwargs={
-                    'password': pwd.result,
-                },
-                on_success=self._on_password_change,
-                on_error=self._on_password_change_fail
-            )
-
-    def _on_password_change(self, res):
-        self.app.show_user_info(
-            i18n.get_text('password_change_success_title'),
-            i18n.get_text('password_change_success_message')
-        )
-        self.app.menus.enable_command('file/change_password')
-        self.app.menus.enable_command('file/logout')
-
-    def _on_password_change_fail(self, ex):
-        self.app.show_user_exception(ex)
-        self.app.menus.enable_command('file/change_password')
-        self.app.menus.enable_command('file/logout')
 
     def do_login(self):
         from pipeman_desktop.gui.login_dialog import ask_login
@@ -177,11 +148,9 @@ class LoginPane(BasePane):
         if self._username is None:
             self.app.menus.enable_command('file/login')
             self.app.menus.disable_command('file/logout')
-            self.app.menus.disable_command('file/change_password')
         else:
             self.app.menus.disable_command('file/login')
             self.app.menus.enable_command('file/logout')
-            self.app.menus.enable_command('file/change_password')
         self.on_language_change(i18n.current_language())
         self.app.update_user_info(self._username or None, self._access_list or {})
 
