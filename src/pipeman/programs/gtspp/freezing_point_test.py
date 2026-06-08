@@ -27,7 +27,7 @@ class GTSPPFreezingPointTest(BaseTestSuite):
             self.test_all_subvalues(ctx2, self._test_freezing_point, fp=freezing_point)
 
     def _test_freezing_point(self, v: ocproc2.AbstractElement, ctx: TestContext, fp: float):
-        self.skip_if_bad(v)
+        self.should_test_value(v)
         temp = oom.get_temperature(
             temperature=v,
             units='°C',

@@ -186,48 +186,19 @@ class AbstractElement[X]:
                 h.update(str(v.value).encode('utf-8', 'replace'))
             v.metadata.update_hash(h)
 
-    @property
-    def quality(self) -> int:
-        if self.metadata.has_value('Quality'):
-            return self.metadata.best('Quality', coerce=int)
-        if self.metadata.has_value('WorkingQuality'):
-            return self.metadata.best('WorkingQuality', coerce=int)
-        if self.is_empty():
-            return 9
-        return 0
-
-    def working_quality(self) -> int:
-        """Retrieve the working quality of the value."""
-        return self.ideal().metadata.best('WorkingQuality', default=0, coerce=int)
-
     def units(self) -> t.Optional[str]:
         """Retrieve the units of the value."""
         return self.ideal().metadata.best('Units', coerce=str)
 
-    def is_good(self, allow_dubious: bool = False, allow_empty: bool = False) -> bool:
-        """Check if there is a non-erroneous (and optionally non-empty, non-dubious) value """
-        for v in self.all_values():
-            if v.value is None or v.value == '':
-                if allow_empty:
-                    return True
-                else:
-                    continue
-            wq = v.metadata.best('WorkingQuality', 0, int)
-            if wq in (0, 1, 2, 5):
-                return True
-            if wq == 3 and allow_dubious:
-                return True
-            elif wq == 9 and allow_empty:
-                return True
-        return False
-
-    def passed_qc(self) -> bool:
-        """Check if this value is good and has completed QC."""
-        for v in self.all_values():
-            wq = v.metadata.best('WorkingQuality', 0, int)
-            if wq not in (1, 2, 5):
-                return False
-        return True
+    @property
+    def quality(self) -> int:
+        if self.metadata.has_value('Quality'):
+            return self.metadata.best('Quality', coerce=int)
+        elif self.metadata.has_value('WorkingQuality'):
+            return self.metadata.best('Quality', coerce=int)
+        elif self.is_empty():
+            return 9
+        return 0
 
     def is_empty(self) -> bool:
         """Check if the value is empty."""
