@@ -158,8 +158,8 @@ def is_close(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float |
         rel_tol = float(relative_tolerance)
         abs_tol = float(absolute_tolerance)
     diff = abs(sub(nv_x, nominal_value(y)))
-    if absolute_tolerance is not None and _common.gt(diff, abs_tol):
-        return False
-    if relative_tolerance is not None and _common.gt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
-        return False
-    return True
+    if absolute_tolerance is not None and _common.lt(diff, abs_tol):
+        return True
+    if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
+        return True
+    return False

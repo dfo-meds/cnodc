@@ -138,7 +138,7 @@ class OCProc2ElementInfo(_BaseInfo):
 
     def __init__(self,
                  name: str,
-                 allow_multi: bool = True,
+                 allow_multi: bool = False,
                  min_value: t.Optional[float] = None,
                  max_value: t.Optional[float] = None,
                  data_type: t.Optional[str] = None,

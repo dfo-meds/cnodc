@@ -74,9 +74,9 @@ class GTSPPBathymetryTest(BaseTestSuite):
         self.test_all_subrecords_without_coordinates(context, self._check_for_soundings, z=z)
 
     def _check_sounding(self, v: ocproc2.Element, ctx: TestContext, z: UFloat):
-        self.skip_if_bad(v)
+        self.should_test_value(v)
         self.assert_close_to('sounding_bathymetry_mismatch', self.value_in_units(v, 'm'), z)
 
     def _check_depth(self, v: ocproc2.Element, ctx: TestContext, z: UFloat):
-        self.skip_if_bad(v)
+        self.should_test_value(v)
         self.assert_greater_than('depth_too_deep', self.value_in_units(v), z)
