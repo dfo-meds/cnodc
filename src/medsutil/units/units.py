@@ -7,11 +7,15 @@ import zrlog
 import threading
 from autoinject import injector
 
+from medsutil.math import AnyNumber
 from medsutil.units.parsing import parse_unit_string
 from medsutil.units.structures import LinearFunction, Converter, UnitExpression, UnitError
+import medsutil.math as amath
 
 if t.TYPE_CHECKING:
     from uncertainties import UFloat
+
+
 
 ADDITIONAL_UNITS = {
     'psu': '0.001',
@@ -125,13 +129,8 @@ class UnitConverter:
         except Exception as ex:
             return None
 
-    def convert(self, quantity: t.Union[float, int, UFloat, decimal.Decimal], original_units: str, output_units: str) -> t.Union[float, int, UFloat, decimal.Decimal]:
-        from uncertainties import UFloat, ufloat
-        if isinstance(quantity, UFloat):
-            nv = self._convert(decimal.Decimal(quantity.nominal_value), original_units, output_units)
-            sv = self._convert(decimal.Decimal(quantity.std_dev), original_units, output_units)
-            return ufloat(float(nv), float(sv))
-        elif isinstance(quantity, decimal.Decimal):
+    def convert[T: AnyNumber](self, quantity: T, original_units: str, output_units: str) -> T:
+        if amath.is_science_number(quantity) | isinstance(quantity, decimal.Decimal):
             return self._convert(quantity, original_units, output_units)
         elif isinstance(quantity, float):
             return float(self._convert(decimal.Decimal(quantity), original_units, output_units))

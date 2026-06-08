@@ -37,8 +37,8 @@ class GTSPPBathymetryTest(BaseTestSuite):
 
     @RecordTest()
     def check_position(self, record: ocproc2.BaseRecord, context: TestContext):
-        self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
-        self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
+        self.skip_if_bad_for_map(record.coordinates, 'Latitude', allow_dubious=True)
+        self.skip_if_bad_for_map(record.coordinates, 'Longitude', allow_dubious=True)
         station = self.load_station(context)
         if station is not None and station.get_metadata('skip_bathymetry_check', False):
             return
@@ -74,9 +74,9 @@ class GTSPPBathymetryTest(BaseTestSuite):
         self.test_all_subrecords_without_coordinates(context, self._check_for_soundings, z=z)
 
     def _check_sounding(self, v: ocproc2.Element, ctx: TestContext, z: UFloat):
-        self.precheck_value(v)
+        self.skip_if_bad(v)
         self.assert_close_to('sounding_bathymetry_mismatch', self.value_in_units(v, 'm'), z)
 
     def _check_depth(self, v: ocproc2.Element, ctx: TestContext, z: UFloat):
-        self.precheck_value(v)
+        self.skip_if_bad(v)
         self.assert_greater_than('depth_too_deep', self.value_in_units(v), z)

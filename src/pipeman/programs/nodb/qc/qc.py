@@ -1,17 +1,18 @@
 import contextlib
 import datetime
+import decimal
 import typing as t
 
 import zrlog
 
 import medsutil.ocproc2 as ocproc2
-import medsutil.amath
+import medsutil.math as amath
+from medsutil.units.structures import UnitError
 from nodb.controller import NODBPostgresController, PostgresController
 from nodb.observations import NODBWorkingRecord, NODBPlatform
 from medsutil.seawater import eos80_pressure
 from medsutil.units import UnitConverter
 from autoinject import injector
-import medsutil.amath as amath
 import medsutil.awaretime as awaretime
 
 
@@ -57,18 +58,18 @@ class TestContext:
     def __init__(self,
                  record: ocproc2.ParentRecord,
                  batch_context: dict,
-                 working_record: NODBWorkingRecord = None):
+                 working_record: NODBWorkingRecord | None = None):
         self.batch_context: dict = batch_context
         self.qc_messages: list[ocproc2.QCMessage] = []
         self.top_record: ocproc2.ParentRecord = record
-        self.current_record: ocproc2.BaseRecord = record
+        self.current_record: ocproc2.BaseRecord | None = record
         self.current_subrecord_type: t.Optional[str] = None
         self.current_path: list[str] = []
         self.current_recordset: t.Optional[ocproc2.RecordSet] = None
         self.current_value: t.Optional[ocproc2.AbstractElement] = None
         self.other_current_value: t.Optional[ocproc2.AbstractElement] = None
         self.result = ocproc2.QCResult.PASS
-        self.working_record = working_record
+        self.working_record: NODBWorkingRecord | None = working_record
         self.test_tags = set()
         self._station: t.Optional[NODBPlatform] = None
 
@@ -150,14 +151,14 @@ class TestContext:
     def element_context(self, element_name: str):
         if element_name in self.current_record.metadata:
             with self.metadata_context(element_name) as ctx:
-                yield self
+                yield ctx
         elif element_name in self.current_record.coordinates:
             with self.coordinate_context(element_name) as ctx:
-                yield self
-        else:
+                yield ctx
+        elif element_name in self.current_record.parameters:
             with self.parameter_context(element_name) as ctx:
-                yield self
-            
+                yield ctx
+
     @contextlib.contextmanager
     def parameter_context(self, parameter_name: str):
         last_value = self.current_value
@@ -328,78 +329,122 @@ class QCAssertionError(Exception):
 
 class _TestWrapper:
 
-    def __init__(self, target_property: str = '_tests'):
-        self._target = target_property
+    def __init__(self, test_type: str = 'tests'):
         self.fn = None
-        self._owner = None
-        self._name = None
+        self._test_type = test_type
 
-    def __call__(self, *args, **kwargs):
-        if self._owner is None:
-            self.fn = args[0]
-            return self
-        else:
-            return self._call_self(*args, **kwargs)
+    def set_function(self, fn):
+        self.fn = fn
 
-    def _call_self(self, *args, **kwargs):
-        return self.fn(*args, **kwargs)
+    def __call__(self, fn: t.Callable):
+        setattr(fn, 'QC_TEST_WRAPPER', self)
+        setattr(fn, 'QC_TEST_TYPE', self._test_type)
+        return fn
 
-    def execute_on_context(self, obj, ctx: TestContext):
-        pass
-
-    def __set_name__(self, owner, name):
-        if not hasattr(owner, self._target):
-            setattr(owner, self._target, [self])
-        else:
-            getattr(owner, self._target).append(self)
-        setattr(owner, name, self._call_self)
-        self._owner = owner
-        self._name = name
+    def execute_on_context(self, ctx: TestContext):
+        self.fn(ctx)
 
 
 class BatchTest(_TestWrapper):
 
     def __init__(self):
-        super().__init__('_batch_tests')
+        super().__init__('batch_tests')
 
-    def execute_batch(self, obj, batch: dict[str, TestContext]):
-        return self._call_self(obj, batch)
+    def __call__(self, fn: t.Callable[[dict[str, TestContext]], t.Any]):
+        return super().__call__(fn)
+
+    def execute_on_batch(self, batch: dict[str, TestContext]):
+        self.fn(batch)
 
 
 class RecordSetTest(_TestWrapper):
 
     def __init__(self, subrecord_type: t.Optional[str] = None):
-        super().__init__('_sr_tests')
+        super().__init__('subrecord_tests')
         self.subrecord_type = subrecord_type
 
-    def execute_on_context(self, obj, ctx: TestContext):
-        return self._call_self(obj, ctx)
+    def __call__(self, fn: t.Callable[[TestContext], None]):
+        return super().__call__(fn)
 
 
 class RecordTest(_TestWrapper):
 
-    def __init__(self, subrecord_type: t.Optional[str] = None, top_only: bool = False):
+    CHILD = 1
+    TOP = 2
+    ANY = 3
+
+    def __init__(self, subrecord_type: t.Optional[str] = None, record_mode: int = ANY):
         super().__init__()
         self.subrecord_type = subrecord_type
-        self.top_only = top_only
+        self.record_mode = record_mode if subrecord_type is None else self.CHILD
 
-    def execute_on_context(self, obj, ctx: TestContext):
-        if self.top_only and not ctx.is_top_level():
-            return
-        if self.subrecord_type is not None and not ctx.current_subrecord_type == self.subrecord_type:
-            return
-        return self._call_self(obj, ctx.current_record, ctx)
+    def __call__(self, fn: t.Callable[[ocproc2.BaseRecord, TestContext], None]):
+        return super().__call__(fn)
+
+    def execute_on_context(self, ctx: TestContext):
+        if self.record_mode == RecordTest.TOP and not ctx.is_top_level():
+            pass
+        elif self.record_mode == RecordTest.CHILD and ctx.is_top_level():
+            pass
+        elif self.subrecord_type is not None and not ctx.current_subrecord_type == self.subrecord_type:
+            pass
+        else:
+            self.fn(ctx.current_record, ctx)
 
 
 class _ValueTest(_TestWrapper):
 
-    def __init__(self, skip_empty: bool = True, skip_bad: bool = True, skip_dubious: bool = False):
+    def __init__(self,
+                 value_type: t.Literal['parameters', 'coordinates', 'metadata'],
+                 value_name: str,
+                 skip_empty: bool = True,
+                 skip_bad: bool = True,
+                 skip_dubious: bool = False,
+                 auto_iterate: bool = True):
         super().__init__()
+        self.value_type = value_type
+        self.value_name = value_name
         self.skip_empty = skip_empty
         self.skip_bad = skip_bad
         self.skip_dubious = skip_dubious
+        self.auto_iterate = auto_iterate
 
-    def execute_on_value(self, obj, value: ocproc2.SingleElement, ctx: TestContext):
+    def __call__(self, fn: t.Callable[[ocproc2.AbstractElement | ocproc2.SingleElement | ocproc2.MultiElement], None]):
+        return super().__call__(fn)
+
+    def execute_on_context(self, ctx: TestContext):
+        if ctx.current_record is None:
+            return
+        value_dict = getattr(ctx.current_record, self.value_type)
+        if self.value_name not in value_dict:
+            return
+        if self.value_type == "parameters":
+            with ctx.parameter_context(self.value_name) as ctx:
+                self.execute_on_value(value_dict[self.value_name], ctx)
+        elif self.value_type == "coordinates":
+            with ctx.parameter_context(self.value_name) as ctx:
+                self.execute_on_value(value_dict[self.value_name], ctx)
+        elif self.value_type == "metadata":
+            with ctx.parameter_context(self.value_name) as ctx:
+                self.execute_on_value(value_dict[self.value_name], ctx)
+
+    def execute_on_value(self, value: ocproc2.AbstractElement, ctx: TestContext):
+        if isinstance(value, ocproc2.MultiElement):
+            if self.auto_iterate:
+                self.execute_on_multi_value(value, ctx)
+            else:
+                self.execute_on_single_value(value, ctx)
+        elif isinstance(value, ocproc2.SingleElement):
+            self.execute_on_single_value(value, ctx)
+        else:
+            raise TypeError("unknown value type")
+
+    def execute_on_multi_value(self, value: ocproc2.MultiElement, ctx: TestContext):
+        for idx, v in enumerate(value.all_values()):
+            with ctx.multivalue_context(idx) as subctx:
+                self.execute_on_single_value(v, subctx)
+
+    def execute_on_single_value(self, value: ocproc2.AbstractElement, ctx: TestContext):
         current_qc_quality = value.metadata.best('WorkingQuality', 0)
         if self.skip_empty and (value.is_empty() or current_qc_quality == 9):
             return
@@ -407,75 +452,30 @@ class _ValueTest(_TestWrapper):
             return
         if self.skip_dubious and current_qc_quality == 3:
             return
-        self._call_self(obj, value, ctx)
+        self.fn(value, ctx)
 
 
 class CoordinateTest(_ValueTest):
 
     def __init__(self, coordinate_name: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.coordinate_name = coordinate_name
-
-    def execute_on_context(self, obj, ctx: TestContext):
-        if self.coordinate_name not in ctx.current_record.coordinates:
-            return
-        with ctx.coordinate_context(self.coordinate_name) as ctx:
-            self.execute_on_value(obj, ctx.current_record.coordinates[self.coordinate_name], ctx)
+        super().__init__("coordinates", coordinate_name, *args, **kwargs)
 
 
 class MetadataTest(_ValueTest):
 
     def __init__(self, metadata_name: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.metadata_name = metadata_name
-
-    def execute_on_context(self, obj, ctx: TestContext):
-        if self.metadata_name not in ctx.current_record.metadata:
-            return
-        with ctx.metadata_context(self.metadata_name) as ctx:
-            self.execute_on_value(obj, ctx.current_record.metadata[self.metadata_name], ctx)
+        super().__init__("metadata", metadata_name, *args, **kwargs)
 
 
 class ParameterTest(_ValueTest):
 
     def __init__(self, parameter_name: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.parameter_name = parameter_name
-
-    def execute_on_context(self, obj, ctx: TestContext):
-        if self.parameter_name not in ctx.current_record.parameters:
-            return
-        with ctx.parameter_context(self.parameter_name) as ctx:
-            self.execute_on_value(obj, ctx.current_record.parameters[self.parameter_name], ctx)
-
-
-@injector.injectable_global
-class StationSearcher:
-
-    def find_by_uuid(self, db: PostgresController, station_uuid: str) -> t.Optional[NODBPlatform]:
-        return NODBPlatform.find_by_uuid(db, station_uuid)
-
-    def search_stations(self,
-                        db: PostgresController,
-                        in_service_time=None,
-                        station_id=None,
-                        station_name=None,
-                        wmo_id=None,
-                        wigos_id=None):
-        return NODBPlatform.search(
-            db,
-            in_service_time=in_service_time,
-            station_id=station_id,
-            station_name=station_name,
-            wmo_id=wmo_id,
-            wigos_id=wigos_id
-        )
+        super().__init__("parameters", parameter_name, *args, **kwargs)
 
 
 class BaseTestSuite:
 
     converter: UnitConverter = None
-    searcher: StationSearcher = None
     nodb: NODBPostgresController = None
 
     @injector.construct
@@ -494,6 +494,21 @@ class BaseTestSuite:
         self.test_tags = [x for x in test_tags if x is not None] if test_tags else []
         self._db: t.Optional[PostgresController] = None
         self._log = zrlog.get_logger(f"qc.test.{qc_test_name}")
+        self._tests: dict[str, list[_TestWrapper]] | None = None
+
+    def tests(self) -> dict[str, list[_TestWrapper]]:
+        if self._tests is None:
+            self._tests = {}
+            for attr_name in dir(self):
+                attr = getattr(self, attr_name)
+                if callable(attr) and hasattr(attr, 'QC_TEST_WRAPPER') and hasattr(attr, 'QC_TEST_TYPE'):
+                    t_type = getattr(attr, 'QC_TEST_TYPE')
+                    if t_type not in self._tests:
+                        self._tests[t_type] = []
+                    wrapper: _TestWrapper = getattr(attr, 'QC_TEST_WRAPPER')
+                    wrapper.set_function(attr)
+                    self._tests[t_type].append(wrapper)
+        return t.cast(dict, self._tests)
 
     def set_db_instance(self, db: PostgresController):
         self._db = db
@@ -502,22 +517,22 @@ class BaseTestSuite:
         self._db = None
 
     def has_batch_tests(self) -> bool:
-        return bool(self._get_batch_tests())
+        return "batch_tests" in self.tests()
+
+    def _get_tests(self, test_type) -> list[_TestWrapper]:
+        tests = self.tests()
+        if test_type in tests:
+            return self.tests()[test_type]
+        return []
 
     def _get_batch_tests(self) -> list[BatchTest]:
-        if hasattr(self, '_batch_tests'):
-            return self._batch_tests
-        return []
+        return t.cast(list[BatchTest], self._get_tests("batch_tests"))
 
-    def _get_record_set_tests(self) -> list[RecordSetTest]:
-        if hasattr(self, '_sr_tests'):
-            return self._sr_tests
-        return []
+    def _get_recordset_tests(self) -> list[RecordSetTest]:
+        return t.cast(list[RecordSetTest], self._get_tests("recordset_tests"))
 
     def _get_qc_tests(self) -> t.Iterable[_TestWrapper]:
-        if hasattr(self, '_tests'):
-            return self._tests
-        return []
+        return self._get_tests("tests")
 
     def calculate_pressure_in_dbar(self,
                                    pressure_val: t.Optional[ocproc2.SingleElement],
@@ -534,26 +549,26 @@ class BaseTestSuite:
                 return eos80_pressure(depth_m, latitude)
         return None
 
+    def _check_skip_test(self, context: TestContext) -> bool:
+        return False
+
     def run_batch(self, contexts: dict[str, TestContext]):
         skips = [x for x in contexts if self._check_skip_test(contexts[x])]
         run_contexts = contexts if not skips else {x: contexts[x] for x in contexts if x not in skips}
         if run_contexts:
             if self.has_batch_tests():
                 for batch_test in self._get_batch_tests():
-                    batch_test.execute_batch(self, run_contexts)
+                    batch_test.execute_on_batch(run_contexts)
             for context_key in run_contexts:
                 self.run_tests(run_contexts[context_key])
                 self._handle_qc_result(run_contexts[context_key])
-
-    def _check_skip_test(self, context: TestContext) -> bool:
-        return False
 
     def run_tests(self, context: TestContext):
         last_result = context.top_record.latest_test_result(self.test_name)
         if last_result:
             return
         with context.self_context():
-            self._verify_record_and_iterate(context)
+            self._run_record_tests_and_iterate(context)
 
     def _handle_qc_result(self, context: TestContext):
         context.top_record.record_qc_test_result(
@@ -564,52 +579,52 @@ class BaseTestSuite:
             messages=context.qc_messages,
         )
 
-    def _verify_record_and_iterate(self, context: TestContext):
-        self._verify_record(context)
+    def _run_record_tests_and_iterate(self, context: TestContext):
+        self._run_record_tests(context)
         for sr, sr_ctx in self.iterate_on_subrecords(context):
-            self._verify_record_and_iterate(sr_ctx)
+            self._run_record_tests_and_iterate(sr_ctx)
 
-    def _verify_record(self, context: TestContext):
+    def _run_record_tests(self, context: TestContext):
         for test in self._get_qc_tests():
             with context.self_context():
-                test.execute_on_context(self, context)
-                self._run_record_set_tests(context)
+                test.execute_on_context(context)
+                self._run_recordset_tests(context)
 
-    def _run_record_set_tests(self, context: TestContext):
+    def _run_recordset_tests(self, context: TestContext):
         if not context.current_record.subrecords:
             return
-        tests = self._get_record_set_tests()
+        tests = self._get_recordset_tests()
         if not tests:
             return
         srts = list(set(x.subrecord_type for x in tests))
         srts.sort()
         for srt in srts:
-            if srt not in context.current_record.subrecords:
+            if srt is None or srt not in context.current_record.subrecords:
                 continue
             for rs_idx in context.current_record.subrecords[srt]:
                 for test in tests:
                     if test.subrecord_type == srt:
                         with context.subrecordset_context(srt, rs_idx) as ctx2:
-                            test.execute_on_context(self, ctx2)
+                            test.execute_on_context(ctx2)
 
     def report_for_review(self, error_code: str, qc_flag: t.Optional[int] = None, ref_value=None):
         raise QCAssertionError(error_code, qc_flag, ref_value)
 
-    def precheck_value_in_map(self, value_map: ocproc2.ElementMap, key: str, /, raise_ex: bool = True, **kwargs) -> bool:
-        return self.precheck_value(value_map.get(key), raise_ex=raise_ex, **kwargs)
+    def skip_if_bad_for_map(self, value_map: ocproc2.ElementMap, key: str, /, raise_ex: bool = True, **kwargs) -> bool:
+        return self.skip_if_bad(value_map.get(key), raise_ex=raise_ex, **kwargs)
 
-    def precheck_value(self,
-                       value: ocproc2.AbstractElement,
-                       /,
-                       raise_ex: bool = True,
-                       allow_dubious: bool = False,
-                       allow_empty: bool = False) -> bool:
+    def skip_if_bad(self,
+                    value: ocproc2.AbstractElement,
+                    /,
+                    raise_ex: bool = True,
+                    allow_dubious: bool = False,
+                    allow_empty: bool = False) -> bool:
         if value is None:
             if raise_ex:
                 raise QCSkipTest()
             return False
         if isinstance(value, ocproc2.MultiElement):
-            result = any(self.precheck_value(v) for v in value.values())
+            result = any(self.skip_if_bad(v) for v in value.values())
             if raise_ex and not result:
                 raise QCSkipTest()
             return result
@@ -643,6 +658,112 @@ class BaseTestSuite:
         if not value.is_numeric():
             self.report_for_review(error_code, qc_flag)
 
+    def assert_integer(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
+        if not value.is_integer():
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_string_like(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
+        if isinstance(value.value, (dict, list, tuple, set)):
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_list_like(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
+        if not isinstance(value.value, (list, tuple, set)):
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_in(self, value, items: t.Iterable, error_code: str, qc_flag: t.Optional[int] = 14):
+        if value not in items:
+            self.report_for_review(error_code, qc_flag, ref_value=items)
+
+    def assert_in_past(self, value: ocproc2.SingleElement, error_code: str, qc_flag: t.Optional[int] = 14):
+        if value.to_datetime() > awaretime.AwareDateTime.utcnow():
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_in_reference_range(self, value: ocproc2.SingleElement, ref: ReferenceRange, error_code: str, qc_flag: t.Optional[int] = 13):
+        self.skip_if_bad(value)
+        raw_value = self.value_in_units(value, ref.units, **ref.value_kwargs)
+        if raw_value is not None:
+            if ref.maximum is not None:
+                self.assert_less_than_or_close(raw_value, ref.maximum, error_code=error_code, qc_flag=qc_flag)
+            if ref.minimum is not None:
+                self.assert_greater_than_or_close(raw_value, ref.minimum, error_code=error_code, qc_flag=qc_flag)
+
+    def assert_compatible_units(self,
+                                v: ocproc2.AbstractElement,
+                                compatible_units: str,
+                                error_code: str,
+                                qc_flag: t.Optional[int] = 21,
+                                skip_null: bool = True):
+        if compatible_units is None:
+            return
+        un = v.metadata.best('Units', None, coerce=str)
+        if un is None or un == '':
+            if not skip_null:
+                self.report_for_review(error_code, qc_flag, ref_value=compatible_units)
+        else:
+            try:
+                if not self.converter.compatible(compatible_units, un):
+                    self.report_for_review(error_code, qc_flag, ref_value=compatible_units)
+            except UnitError:
+                self.report_for_review(error_code, qc_flag, ref_value=compatible_units)
+
+    def assert_valid_units(self, unit_str: str, error_code: str, qc_flag: t.Optional[int] = 21):
+        if not self.converter.is_valid_unit(unit_str):
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_has_coordinate(self, record: ocproc2.BaseRecord, coordinate_name: str, error_code: str, qc_flag: t.Optional[int] = 19):
+        if coordinate_name not in record.coordinates or record.coordinates[coordinate_name].is_empty():
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_between(self, min_val: amath.AnyNumber, value: amath.AnyNumber, max_val: amath.AnyNumber, error_code: str, qc_flag: t.Optional[int] = 14):
+        if not (amath.between(min_val, value, max_val) or amath.is_close(min_val, value) or amath.is_close(max_val, value)):
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_close_to(self,
+                        value: amath.AnyNumber,
+                        expected: amath.AnyNumber,
+                        error_code: str,
+                        qc_flag: t.Optional[int] = 14,
+                        rel_tol: str = "1e-09",
+                        abs_tol: str = "0.0"):
+        if not amath.is_close(value, expected, rel_tol, abs_tol):
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_less_than(self,
+                         value: amath.AnyNumber,
+                         expected: amath.AnyNumber,
+                         error_code: str,
+                         qc_flag: t.Optional[int] = 14):
+        if not amath.lt(value, expected):
+            self.report_for_review(error_code, qc_flag, expected)
+
+    def assert_less_than_or_close(self,
+                        value: amath.AnyNumber,
+                        expected: amath.AnyNumber,
+                        error_code: str,
+                        qc_flag: t.Optional[int] = 14,
+                        rel_tol: str = "1e-09",
+                        abs_tol: str = "0.0"):
+        if not (amath.lt(value, expected) or amath.is_close(value, expected, rel_tol, abs_tol)):
+            self.report_for_review(error_code, qc_flag)
+
+    def assert_greater_than(self,
+                            value: amath.AnyNumber,
+                            expected: amath.AnyNumber,
+                            error_code: str,
+                            qc_flag: t.Optional[int] = 14):
+        if not amath.gt(value, expected):
+            self.report_for_review(error_code, qc_flag, expected)
+
+    def assert_greater_than_or_close(self,
+                                     value: amath.AnyNumber,
+                                     expected: amath.AnyNumber,
+                                     error_code: str,
+                                     qc_flag: t.Optional[int] = 14,
+                                     rel_tol: str = "1e-09",
+                                     abs_tol: str = "0.0"):
+        if not (amath.gt(value, expected) or amath.is_close(value, expected, rel_tol, abs_tol)):
+            self.report_for_review(error_code, qc_flag)
+
     def test_all_references_in_record(self,
                                       context: TestContext,
                                       references: dict[str, ReferenceRange],
@@ -659,65 +780,8 @@ class BaseTestSuite:
                 )
 
     def _ref_check_with_context(self, value: ocproc2.SingleElement, context, ref, error_code, qc_flag):
-        self.precheck_value(value)
+        self.skip_if_bad(value)
         self.assert_in_reference_range(value, ref, error_code, qc_flag)
-
-    def assert_in_reference_range(self, value: ocproc2.AbstractElement, ref: ReferenceRange, error_code: str, qc_flag: t.Optional[int] = 13):
-        self.precheck_value(value)
-        raw_value = self.value_in_units(value, ref.units, **ref.value_kwargs)
-        if ref.maximum is not None:
-            self.assert_less_than(error_code, raw_value, ref.maximum, qc_flag=qc_flag)
-        if ref.minimum is not None:
-            self.assert_greater_than(error_code, raw_value, ref.minimum, qc_flag=qc_flag)
-
-    def assert_integer(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
-        if not value.is_integer():
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_in(self, value, items: t.Iterable, error_code: str, qc_flag: t.Optional[int] = 14):
-        if value not in items:
-            self.report_for_review(error_code, qc_flag, ref_value=items)
-
-    def assert_string_like(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
-        if isinstance(value.value, (dict, list, tuple, set)):
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_list_like(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14):
-        if not isinstance(value.value, (list, tuple, set)):
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_between(self, value: ocproc2.AbstractElement, error_code: str, qc_flag: t.Optional[int] = 14, min_val=None, max_val=None):
-        if not value.in_range(min_value=min_val, max_value=max_val):
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_in_past(self, value: ocproc2.SingleElement, error_code: str, qc_flag: t.Optional[int] = 14):
-        now = awaretime.utc_now()
-        dt_value = awaretime.utc_from_isoformat(value.value)
-        if dt_value > now:
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_compatible_units(self,
-                                v: ocproc2.AbstractElement,
-                                compatible_units: str,
-                                error_code: str,
-                                qc_flag: t.Optional[int] = 21,
-                                skip_null: bool = True):
-        if compatible_units is None:
-            return
-        un = v.metadata.best('Units', None)
-        if un is None or un == '':
-            if not skip_null:
-                self.report_for_review(error_code, qc_flag, ref_value=compatible_units)
-        elif not self.converter.compatible(compatible_units, un):
-            self.report_for_review(error_code, qc_flag, ref_value=compatible_units)
-
-    def assert_valid_units(self, unit_str: str, error_code: str, qc_flag: t.Optional[int] = 21):
-        if not self.converter.is_valid_unit(unit_str):
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_has_coordinate(self, record: ocproc2.BaseRecord, coordinate_name: str, error_code: str, qc_flag: t.Optional[int] = 19):
-        if coordinate_name not in record.coordinates or record.coordinates[coordinate_name].is_empty():
-            self.report_for_review(error_code, qc_flag)
 
     def recommend_discard(self, context: TestContext):
         context.top_record.metadata['CNODCOperatorAction'] = 'RECOMMEND_DISCARD'
@@ -767,36 +831,6 @@ class BaseTestSuite:
                 source_instance=self.test_runner_id
             )
 
-    def assert_close_to(self,
-                        error_code: str,
-                        v: amath.AnyNumber,
-                        expected: amath.AnyNumber,
-                        rel_tol: float = 1e-9,
-                        abs_tol: float = 0.0,
-                        qc_flag: t.Optional[int] = 14):
-        if not medsutil.amath.is_close(v, expected, rel_tol, abs_tol):
-            self.report_for_review(error_code, qc_flag)
-
-    def assert_less_than(self,
-                         error_code: str,
-                         v: amath.AnyNumber,
-                         expected: amath.AnyNumber,
-                         rel_tol: float = 1e-9,
-                         abs_tol: float = 0,
-                         qc_flag: t.Optional[int] = 14):
-        if not medsutil.amath.is_less_than(v, expected, rel_tol, abs_tol):
-            self.report_for_review(error_code, qc_flag, expected)
-
-    def assert_greater_than(self,
-                            error_code: str,
-                            v: amath.AnyNumber,
-                            expected: amath.AnyNumber,
-                            rel_tol: float = 1e-9,
-                            abs_tol: float = 0,
-                            qc_flag: t.Optional[int] = 14):
-        if not medsutil.amath.is_greater_than(v, expected, rel_tol, abs_tol):
-            self.report_for_review(error_code, qc_flag, expected)
-
     def load_station(self, context: TestContext) -> t.Optional[NODBPlatform]:
         if context._station is None:
             context._station = self._load_station(context.top_record.metadata.best('CNODCPlatform'))
@@ -813,7 +847,7 @@ class BaseTestSuite:
 
     def test_all_subvalues(self, context: TestContext, cb: callable, *args, **kwargs):
         for v, ctx in self.iterate_on_subvalues(context):
-            with ctx.self_context as ctx:
+            with ctx.self_context() as ctx:
                 cb(v, ctx, *args, **kwargs)
 
     def test_all_records_in_recordset(self, context: TestContext, cb, *args, **kwargs):
@@ -866,33 +900,30 @@ class BaseTestSuite:
         return results
 
     def value_in_units(self,
-                       value: t.Optional[ocproc2.AbstractElement],
+                       value: t.Optional[ocproc2.SingleElement],
                        expected_units: t.Optional[str] = None,
                        temp_scale: str = None,
                        allow_dubious: bool = False) -> t.Optional[amath.AnyNumber]:
         if value is None:
             return None
-        for v in value.all_values():
-            if not self.precheck_value(v, raise_ex=False, allow_dubious=allow_dubious):
-                continue
-            if v.is_numeric():
-                raw_v = v.to_ufloat()
-                raw_un = v.metadata.best('Units', None)
-                if temp_scale is not None:
-                    ref_scale = v.metadata.best('TemperatureScale', None)
-                    if ref_scale is not None and ref_scale != temp_scale:
-                        from medsutil.seawater import eos80_convert_temperature
-                        if raw_un != '°C':
-                            raw_v = self.converter.convert(raw_v, raw_un, '°C')
-                            raw_un = '°C'
-                        raw_v = eos80_convert_temperature(raw_v, ref_scale, temp_scale)
-                if expected_units is not None:
-                    if raw_un is not None and raw_un != '' and raw_un != expected_units:
-                        raw_v = self.converter.convert(raw_v, raw_un, expected_units)
-                return raw_v
-            else:
-                return v.value
-        return None
+        if self.skip_if_bad(value, raise_ex=False, allow_dubious=allow_dubious):
+            return None
+        if not value.is_numeric():
+            return None
+        raw_v: decimal.Decimal = value.to_decimal()
+        raw_un: str | None = value.metadata.best('Units', None, coerce=str)
+        if temp_scale is not None and raw_un is not None:
+            ref_scale: str | None = value.metadata.best('TemperatureScale', None, coerce=str)
+            if ref_scale is not None and ref_scale != temp_scale:
+                from medsutil.seawater import eos80_convert_temperature
+                if raw_un != '°C':
+                    raw_v = self.converter.convert(raw_v, raw_un, '°C')
+                    raw_un = '°C'
+                raw_v = eos80_convert_temperature(raw_v, t.cast(str, ref_scale), temp_scale)
+        if expected_units is not None:
+            if raw_un is not None and raw_un != '' and raw_un != expected_units:
+                raw_v = self.converter.convert(raw_v, t.cast(str, raw_un), expected_units)
+        return raw_v
 
     def copy_original_quality(self, value: ocproc2.AbstractElement):
         value.metadata['WorkingQuality'] = value.metadata.best('Quality', 1)

@@ -31,7 +31,7 @@ class GTSPPTemperatureInversionTest(BaseTestSuite):
                         if 'Temperature' not in recordset.records[i].parameters:
                             continue
                         for av in recordset.records[i].parameters['Temperature'].all_values():
-                            if self.precheck_value(av, raise_ex=False):
+                            if self.skip_if_bad(av, raise_ex=False):
                                 av.metadata['WorkingQuality'] = 13
                     self.report_for_review('temperature_inversion_detected')
                     break

@@ -1,8 +1,7 @@
 from medsutil.ocproc2 import ParentRecord
-import nodb.structures as structures
 import typing as t
-from nodb import PostgresController
-from pipeman.programs.nodb.qc import BaseTestSuite, TestContext, RecordTest
+from nodb.interface import NODB
+from pipeman.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordTest
 import medsutil.ocproc2 as ocproc2
 
 

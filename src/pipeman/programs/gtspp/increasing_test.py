@@ -22,7 +22,7 @@ class GTSPPIncreasingProfileTest(BaseTestSuite):
             self._check_pressure(record, data_map)
 
     def _check_depth(self, record: ocproc2.ChildRecord, data_map: dict):
-        self.precheck_value_in_map(record.coordinates, 'Depth')
+        self.skip_if_bad_for_map(record.coordinates, 'Depth')
         value = record.coordinates['Depth']
         if data_map['last_depth'][1] is None:
             data_map['last_depth'][1] = value.metadata.best('Units', 'm')
@@ -34,7 +34,7 @@ class GTSPPIncreasingProfileTest(BaseTestSuite):
             data_map['last_depth'][0] = current_depth
 
     def _check_pressure(self, record: ocproc2.ChildRecord, data_map: dict):
-        self.precheck_value_in_map(record.coordinates, 'Pressure')
+        self.skip_if_bad_for_map(record.coordinates, 'Pressure')
         value = record.coordinates['Pressure']
         if data_map['last_pressure'][1] is None:
             data_map['last_pressure'][1] = value.metadata.best('Units', 'Pa')

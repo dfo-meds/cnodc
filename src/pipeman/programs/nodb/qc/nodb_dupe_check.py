@@ -3,6 +3,7 @@ import itertools
 from uncertainties import UFloat
 
 import medsutil.amath
+from medsutil.math import _common
 from nodb.interface import NODB
 from pipeman.programs.nodb.qc import BaseTestSuite, BatchTest, TestContext, QCSkipTest
 import medsutil.ocproc2 as ocproc2
@@ -66,7 +67,7 @@ class NODBDuplicateCheck(BaseTestSuite):
         self.distance_window = 5000  # m
         self._probable_threshold = 0.8  # fraction
         self._improbable_threshold = 0.2  # fraction
-        one_degree_lat = uhaversine((0, 0), (90, 0)).nominal_value / 90.0
+        one_degree_lat = _common.nominal_value / 90.0
         self._lat_range = self.distance_window / one_degree_lat
 
     @BatchTest()

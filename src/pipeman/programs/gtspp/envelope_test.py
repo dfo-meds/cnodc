@@ -40,7 +40,7 @@ class GTSPPEnvelopeTest(BaseTestSuite):
 
     @RecordTest("PROFILE")
     def envelope_test(self, record: ocproc2.ChildRecord, context: TestContext):
-        self.precheck_value_in_map(record.coordinates, 'Depth')
+        self.skip_if_bad_for_map(record.coordinates, 'Depth')
         references = self._envelope_ref.find_level(
             record.coordinates['Depth'].to_float(),
             record.coordinates['Depth'].metadata.best('Units')

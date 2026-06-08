@@ -10,8 +10,8 @@ class GTSPPFreezingPointTest(BaseTestSuite):
 
     @RecordTest(subrecord_type='PROFILE')
     def freezing_point_test(self, record: ocproc2.ChildRecord, context: TestContext):
-        self.precheck_value_in_map(record.parameters, 'PracticalSalinity')
-        self.precheck_value_in_map(record.parameters, 'Temperature')
+        self.skip_if_bad_for_map(record.parameters, 'PracticalSalinity')
+        self.skip_if_bad_for_map(record.parameters, 'Temperature')
         psal = self.value_in_units(record.parameters.get('PracticalSalinity'), '0.001')
         if psal is None or psal < 26 or psal > 35:
             self.skip_test()
@@ -27,7 +27,7 @@ class GTSPPFreezingPointTest(BaseTestSuite):
             self.test_all_subvalues(ctx2, self._test_freezing_point, fp=freezing_point)
 
     def _test_freezing_point(self, v: ocproc2.AbstractElement, ctx: TestContext, fp: float):
-        self.precheck_value(v)
+        self.skip_if_bad(v)
         temp = oom.get_temperature(
             temperature=v,
             units='°C',

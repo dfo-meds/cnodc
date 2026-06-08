@@ -1,19 +1,10 @@
 import decimal
-import math
-import sys
-
-import medsutil.math.functions as fn
+import medsutil.math._constants as constants
 import medsutil.math.types as mt
 import typing as t
-from medsutil.math import functions
 
+from medsutil.math import _common
 
-def no_complex_or_nan(x):
-    if fn.is_complex(x):
-        raise mt.NotSupportedMathOperation("Complex numbers are not supported")
-    elif fn.is_nan(x):
-        raise mt.NotSupportedMathOperation("NaN found")
-    return x
 
 def units_first(*args, **kwargs):
     for x in args:
@@ -39,7 +30,6 @@ def units_power(base, exponent):
 def units_power_r(exponent, base):
     return units_power(base, exponent)
 
-
 def derivative_0(*args, **kwargs):
     return 0
 
@@ -61,11 +51,17 @@ def derivative_numerator(x, y, *args, **kwargs):
 def derivative_denominator(x, y, *args, **kwargs):
     return (-x) / (y ** 2)
 
+def no_complex_or_nan(x):
+    if _common.is_complex(x):
+        raise mt.NotSupportedMathOperation("Complex numbers are not supported")
+    elif _common.is_nan(x):
+        raise mt.NotSupportedMathOperation("NaN found")
+    return x
+
 def derivative_power_base(base, exponent):
     if base > 0 or (exponent % 1 == 0 and (base < 0 or exponent >= 1)):
         return no_complex_or_nan(
-            functions.nominal_value(exponent) * (
-                        functions.nominal_value(base) ** (functions.nominal_value(exponent) - 1)))
+            _common.nominal_value(exponent) * (_common.nominal_value(base) ** (_common.nominal_value(exponent) - 1)))
     elif base == 0 and exponent == 0:
         return 0
     else:
@@ -73,19 +69,19 @@ def derivative_power_base(base, exponent):
 
 def derivative_power_exponent(base, exponent):
     if base > 0:
-        return no_complex_or_nan(fn.ln(functions.nominal_value(base)) * (
-                    functions.nominal_value(base) ** functions.nominal_value(exponent)))
+        return no_complex_or_nan(_common.ln(_common.nominal_value(base)) * (
+                _common.nominal_value(base) ** _common.nominal_value(exponent)))
     elif base == 0 and exponent == 0:
         return 0
     else:
         raise mt.NotSupportedMathOperation("No derivative can be calculated")
 
 def derivative_modulo(value, modulo):
-    value = fn.nominal_value(value)
+    value = _common.nominal_value(value)
     if not isinstance(value, (decimal.Decimal, float)):
         value = float(value) if not isinstance(value, str) else decimal.Decimal(value)
     value_type = type(value)
-    modulo = fn.convert(modulo, value_type)
+    modulo = _common.convert(modulo, value_type)
     nd = numerical_derivative(value_type.__mod__, 1, value_type)
     return nd(value, modulo)
 
@@ -93,7 +89,7 @@ def derivative_modulo_rev(modulo, value):
     return derivative_modulo(value, modulo)
 
 def numerical_derivative[T](func: t.Callable[..., T], with_respect_to: str | int, type_: type[T]) -> t.Callable[..., T]:
-    base_step_size = fn.epsilon(type_)
+    base_step_size = constants.epsilon(type_)
     is_kwarg = isinstance(with_respect_to, str)
     def _numerical_derivative(*args, **kwargs):
         change_args: list | dict = list(args) if not is_kwarg else kwargs
