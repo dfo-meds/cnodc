@@ -18,10 +18,10 @@ class GTSPPSpeedTest(BaseTestSuite):
 
     @RecordTest(top_only=True)
     def test_inter_record_speed(self, record: ocproc2.ParentRecord, context: TestContext):
-        self.precheck_value_in_map(record.metadata, 'CNODCStation', allow_dubious=False)
-        self.precheck_value_in_map(record.coordinates, 'Time', allow_dubious=False)
-        self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=False)
-        self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=False)
+        self.skip_if_bad_for_map(record.metadata, 'CNODCStation', allow_dubious=False)
+        self.skip_if_bad_for_map(record.coordinates, 'Time', allow_dubious=False)
+        self.skip_if_bad_for_map(record.coordinates, 'Latitude', allow_dubious=False)
+        self.skip_if_bad_for_map(record.coordinates, 'Longitude', allow_dubious=False)
         xx = record.coordinates['Longitude'].to_ufloat()
         yy = record.coordinates['Latitude'].to_ufloat()
         tt = record.coordinates['Time'].to_datetime()

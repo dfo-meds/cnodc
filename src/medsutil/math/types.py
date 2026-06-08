@@ -81,4 +81,5 @@ def is_science_number(x: t.Any) -> t.TypeGuard[ScienceNumberProtocol]:
 type ExpandedLinearCombination = dict[ScienceNumberProtocol, int | float | ScienceNumberProtocol]
 type UnexpandedLinearCombination = list[tuple[int | float | ScienceNumberProtocol, LinearCombinationProtocol]]
 
-AnyNumber = _decimal.Decimal | int | float | ScienceNumberProtocol
+BasicNumber = _decimal.Decimal | int | float
+AnyNumber = BasicNumber | ScienceNumberProtocol

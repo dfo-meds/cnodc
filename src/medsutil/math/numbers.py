@@ -2,11 +2,10 @@ import decimal
 import functools
 import itertools
 import typing as t
-import medsutil.math.functions as fn
 import medsutil.math.types as mt
+import medsutil.math._functions as basics
 import medsutil.math.helpers as help
-from medsutil.math import functions
-
+import medsutil.math._common as _common
 SN = t.TypeVar("SN", bound=float | decimal.Decimal)
 
 
@@ -66,14 +65,14 @@ class LinearCombination:
                 main_factor, expr = self._linear_combo.pop()
                 if isinstance(expr.linear_combo, dict):
                     for variable, factor in expr.linear_combo.items():
-                        coeff = functions.nominal_value(main_factor) * functions.nominal_value(factor)
+                        coeff = basics.mul(_common.nominal_value(main_factor), _common.nominal_value(factor))
                         if variable not in expansion:
                             expansion[variable] = coeff
                         else:
                             expansion[variable] += coeff
                 else:
                     for factor, sub_combo in expr.linear_combo:
-                        self._linear_combo.append((functions.nominal_value(factor) * functions.nominal_value(main_factor), sub_combo))
+                        self._linear_combo.append((basics.mul(_common.nominal_value(factor), _common.nominal_value(main_factor)), sub_combo))
             self._linear_combo = expansion
         return self._linear_combo
 
@@ -96,7 +95,7 @@ class CastableNumber[SN]:
     def convert(self, x: mt.AnyNumber | None | mt.Placeholder) -> SN | None | mt.Placeholder: ...
 
     def convert(self, x: mt.AnyNumber | None | mt.Placeholder) -> SN | None | mt.Placeholder:
-        return functions.convert(x, self.num_type)
+        return _common.convert(x, self.num_type)
 
 
 class ScienceNumber[SN](CastableNumber[SN]):
@@ -114,7 +113,7 @@ class ScienceNumber[SN](CastableNumber[SN]):
         self._units = units
         self._tag = tag
         if linear_combo is None:
-            self._linear_combo = LinearCombination[ScienceNumber]({self: 1})
+            self._linear_combo = LinearCombination({self: 1})
         elif isinstance(linear_combo, (dict, list)):
             self._linear_combo = LinearCombination(linear_combo)
         else:
@@ -141,8 +140,8 @@ class ScienceNumber[SN](CastableNumber[SN]):
     @property
     def std_dev(self) -> SN | None:
         if self._std_dev is mt.Placeholder and self.linear_combo is not None:
-            self._std_dev = fn.sqrt(sum(
-                (abs(pow(factor * (var.std_dev or 0), 2)))
+            self._std_dev = basics.sqrt(_common.summation(
+                (abs(basics.pow(factor * (var.std_dev or 0), 2)))
                 for var, factor in
                 self.linear_combo.expanded().items()
             ))
@@ -204,24 +203,13 @@ class ScienceNumber[SN](CastableNumber[SN]):
 
     @as_science_number(help.derivative_modulo_rev, help.derivative_1, units_func=help.units_first)
     def _rmod(self, other: mt.AnyNumber) -> ScienceNumber[SN]:
-        return self.convert(other) % s
+        return self.convert(other) % self._nominal
 
     def __sub__(self, other: mt.AnyNumber) -> ScienceNumber[SN]:
-        try:
-            return self._sub(other.match_units(self))
-        except AttributeError:
-            return self._sub(other)
-
-    @as_science_number(help.derivative_1, help.derivative_neg1, units_func=help.units_first)
-    def _sub(self, other: mt.AnyNumber) -> ScienceNumber[SN]:
-        return self._nominal - self.convert(other)
+        return basics.sub(self, other)
 
     def __rsub__(self, other: mt.AnyNumber) -> ScienceNumber[SN]:
-        return self.match_units(other)._rsub(other)
-
-    @as_science_number(help.derivative_neg1, help.derivative_1, units_func=help.units_first)
-    def _rsub(self, other: mt.AnyNumber) -> ScienceNumber[SN]:
-        return self.convert(other) - s
+        return basics.sub(other, self)
 
     def __abs__(self) -> ScienceNumber[SN]:
         if self._nominal < 0:

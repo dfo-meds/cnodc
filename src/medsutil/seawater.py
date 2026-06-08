@@ -3,33 +3,72 @@ These wrapper functions work similar to the seawater.eos80 counterparts
 but use the amath library to preserve uncertainty across calculations if appropriate
 EOS80 paper: https://repository.oceanbestpractices.org/bitstream/handle/11329/109/059832eb.pdf?sequence=1&isAllowed=y
 """
-import medsutil.amath as amath
+import decimal
+import typing as t
+
+import medsutil.math as amath
+from medsutil.math import AnyNumber
+
+DEPTH_A = decimal.Decimal("-1.82e-15")
+DEPTH_B = decimal.Decimal( "2.279e-10")
+DEPTH_C = decimal.Decimal("-2.2512e-5")
+DEPTH_D = decimal.Decimal("9.72659")
+DEPTH_E = decimal.Decimal("2.184e-6")
+DEPTH_F = decimal.Decimal("1.092e-6")
 
 
 # From seawater.eos80.dpth
-def eos80_depth(pressure: amath.AnyNumber, latitude: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
     """Calculate depth in meters from pressure in dbars and latitude in decimal degrees."""
-    top = ((((((-1.82e-15 * pressure) + 2.279e-10) * pressure) + -2.2512e-5) * pressure) + 9.72659) * pressure
-    bottom = surface_gravity(latitude) + (0.5 * 2.184e-6 * pressure)
-    return amath.with_minimum_uncertainty(top / bottom, 0.05)
+    top = amath.calculate_polynomial(pressure, DEPTH_A, DEPTH_B, DEPTH_C, DEPTH_D, DEPTH_E, 0)
+    bottom = amath.add(surface_gravity(latitude), amath.mul(DEPTH_F, pressure))
+    # Note: 5% uncertainty in depth
+    return amath.div(top, bottom)
+
+
+PRESSURE_A = decimal.Decimal("5.92e-3")
+PRESSURE_B = decimal.Decimal("5.25e-3")
+PRESSURE_C = decimal.Decimal("8.84e-6")
+PRESSURE_D = decimal.Decimal("4.42e-6")
 
 
 # From seawater.eos80.pres
-def eos80_pressure(depth: amath.AnyNumber, latitude: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_pressure[T: AnyNumber](depth: T, latitude: T) -> T:
     """Calculate pressure in dbars from depth in meters and latitude in decimal degrees."""
     # dbars
     sin_theta = amath.sin(amath.radians(abs(latitude)))
-    c1 = 5.92e-3 + ((sin_theta ** 2) * 5.25e-3)
+    c1 = amath.add(PRESSURE_A, amath.mul(PRESSURE_B, amath.pow(sin_theta, 2)))
+    c2 = amath.sub(1, c1)
     # minimum uncertainty?
-    return ((1 - c1) - (((1 - c1) ** 2) - (8.84e-6 * depth)) ** 0.5) / 4.42e-6
+    return amath.div(
+            amath.sub(
+                c2,
+                amath.sqrt(
+                    amath.sub(
+                        amath.pow(c2, 2),
+                        amath.mul(PRESSURE_C, depth)
+                    )
+                )
+            ),
+            PRESSURE_D
+    )
 
+FP_A = decimal.Decimal("-7.53e-4")
+FP_B = decimal.Decimal("-0.0575")
+FP_C = decimal.Decimal("1.710523e-3")
+FP_D = decimal.Decimal("-2.154996e-4")
 
 # From seawater.eos80.fp
-def eos80_freezing_point_t68(salinity: amath.AnyNumber, pressure: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_freezing_point_t68[T: AnyNumber](salinity: T, pressure: T) -> T:
     """Calculate freezing point in degrees C (IPTS-68 scale) from practical salinity in psu and pressure in dbars."""
-    if 40 >= salinity >= 4:
-        fp = (-7.53e-4 * pressure) + (-0.0575 * salinity) + (1.710523e-3 * (salinity ** 1.5)) + (-2.154996e-4 * (salinity ** 2))
-        return amath.with_minimum_uncertainty(fp, 0.003)
+    if amath.between(4, salinity, 40):
+        # Note: 0.3% accuracy
+        return amath.summation((
+            amath.mul(FP_A, pressure),
+            amath.mul(FP_B, salinity),
+            amath.mul(FP_C, amath.pow(salinity, decimal.Decimal("1.5"))),
+            amath.mul(FP_D, amath.pow(salinity, 2))
+        ))
     else:
         raise ValueError("Invalid salinity")
 
@@ -39,8 +78,8 @@ def eos80_density_at_depth_t68(salinity: amath.AnyNumber, temperature_ipts68: am
     """Calculate density in kg m-3 from practical salinity in psu, IPTS-68 temperature in degrees C, and pressure in dbars."""
     surface_density = eos80_surface_density_t68(salinity, temperature_ipts68)
     k = eos80_secant_bulk_modulus(salinity, temperature_ipts68, pressure)
-    pressure = pressure / 10.0
-    return surface_density / (1 - pressure / k)
+    pressure = amath.div(pressure, 10)
+    return amath.div(surface_density, amath.sub(1, amath.div(pressure, k)))
 
 
 # From seawater.eos80.dens0
@@ -98,32 +137,39 @@ def eos80_secant_bulk_modulus(salinity: amath.AnyNumber, temperature_ipts68: ama
     return K0 + (A + B * pressure) * pressure  # Eqn 15.
 
 
-T68_CONVERSION_FACTOR = 1.00024
+T68_CONVERSION_FACTOR = decimal.Decimal("1.00024")
+T48_A = decimal.Decimal("4.4e-6")
+
 
 # From seawater.eos80.T90
 # for uncertainty, see https://www.teos-10.org/pubs/gsw/pdf/t90_from_t68.pdf
-def eos80_t90_from_t68(temp_68: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_t90_from_t68[T: AnyNumber](temp_68: T) -> T:
     """Convert IPTS-68 to ITS-90 with uncertainty."""
-    res = temp_68 / T68_CONVERSION_FACTOR
-    return amath.with_minimum_uncertainty(res, 0.00003 if -2 >= temp_68 >= 10 else 0.001)
+    res = amath.div(temp_68, T68_CONVERSION_FACTOR)
+    # uncertainity 0.00003 if -2 >= temp_68 >= 10 else 0.001
+    return res
 
 
-def eos80_t68_from_t90(temp_90: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_t68_from_t90[T](temp_90: T) -> T:
     """Convert ITS-90 to IPTS-68 with uncertainty"""
-    return temp_90 * T68_CONVERSION_FACTOR
+    return amath.mul(temp_90, T68_CONVERSION_FACTOR)
 
 
-def eos80_t68_from_t48(temp_48: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_t68_from_t48[T](temp_48: T) -> T:
     """Convert IPTS-48 to IPTS-68 """
-    return temp_48 - (4.4e-6 * temp_48 * (100 - temp_48))
+    return amath.sub(temp_48, amath.product((
+       temp_48,
+       T48_A,
+       amath.sub(100, temp_48)
+    )))
 
 
-def eos80_t90_from_t48(temp_48: amath.AnyNumber) -> amath.AnyNumber:
+def eos80_t90_from_t48[T](temp_48: T) -> T:
     """Convert IPTS-48 to IPTS-90"""
     return eos80_t90_from_t68(eos80_t68_from_t48(temp_48))
 
 
-def eos80_convert_temperature(temp: amath.AnyNumber, temp_current_ref: str, temp_target_ref: str) -> amath.AnyNumber:
+def eos80_convert_temperature[T](temp: T, temp_current_ref: str, temp_target_ref: str) -> T:
     """Convert temperature from given reference scale to specified reference scale"""
     if temp_current_ref == temp_target_ref:
         return temp
@@ -138,8 +184,16 @@ def eos80_convert_temperature(temp: amath.AnyNumber, temp_current_ref: str, temp
     raise ValueError(f'Undefined temperature conversion {temp_current_ref} to {temp_target_ref}')
 
 
+SG_A = decimal.Decimal("2.36e-5")
+SG_B = decimal.Decimal("5.2788e-3")
+SG_K = decimal.Decimal("9.780318")
+
+
 # From seawater.eos80.dpth (partially)
-def surface_gravity(latitude: amath.AnyNumber) -> amath.AnyNumber:
+def surface_gravity[T](latitude: T) -> T:
     """Calculate the surface gravity with uncertainty."""
     sin2_theta = amath.sin(amath.radians(abs(latitude))) ** 2
-    return 9.780318 * (1 + ((5.2788e-3 + (2.36e-5 * sin2_theta)) * sin2_theta))
+    return amath.mul(
+        SG_K,
+        amath.calculate_polynomial(sin2_theta, SG_A, SG_B, 1)
+    )

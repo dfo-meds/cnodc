@@ -1,11 +1,11 @@
 import enum
 import hashlib
 import uuid
-
-from nodb import LockType
-from nodb import NODBWorkingRecord
-from pipeman.processing.payload_worker import WorkflowWorker
 import typing as t
+
+from nodb.interface import LockType
+from nodb.observations import NODBWorkingRecord, NODBBatch, BatchStatus
+from pipeman.processing.payload_worker import WorkflowWorker
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.programs.nodb.qc.qc import QCTestRunner
 from medsutil.dynamic import dynamic_object
@@ -37,13 +37,16 @@ class NODBQCWorker(WorkflowWorker):
             'next_queue': "workflow_continue",
             'review_queue': 'nodb_manual_review',
         })
+        self._test_runner = None
+
+    def on_start(self):
         self._test_runner = self._build_test_runner(self.get_config('qc_tests', []))
 
     def _build_test_runner(self, qc_tests: list[dict]) -> QCTestRunner:
         tests = []
         for qc_test_def in qc_tests:
             kwargs = (qc_test_def['kwargs'] or {}) if 'kwargs' in qc_test_def else {}
-            kwargs['test_runner_id'] = self._process_uuid
+            kwargs['test_runner_id'] = self.process_full_id
             tests.append(dynamic_object(qc_test_def['class'])(**kwargs))
         return QCTestRunner(tests)
 
@@ -67,9 +70,10 @@ class NODBQCWorker(WorkflowWorker):
         payload.enqueue(self.db, queue_name)
 
     def submit_batch(self, working_uuids: list[str], batch_outcome: BatchOutcome, group_key: t.Optional[str] = None):
-        batch = nodb.NODBBatch()
-        batch.batch_uuid = str(uuid.uuid4())
-        batch.status = nodb.BatchStatus.QUEUED
+        batch = NODBBatch(
+            batch_uuid=str(uuid.uuid4()),
+            status=BatchStatus.QUEUED
+        )
         self.db.insert_object(batch)
         NODBWorkingRecord.bulk_set_batch_uuid(self.db, working_uuids, batch.batch_uuid)
         self.submit_existing_batch(batch.batch_uuid, batch_outcome, group_key)
@@ -100,6 +104,7 @@ class NODBQCWorker(WorkflowWorker):
                 self.db.delete_object(batch)
             self._current_item.mark_complete(self.db)
             self.db.commit()
+            self.prevent_default_progression()
             return QueueItemResult.HANDLED
         elif isinstance(payload, SourceFilePayload):
             source = payload.load_source_file(self.db)
@@ -116,27 +121,8 @@ class NODBQCWorker(WorkflowWorker):
     def _process_records(self, records: t.Iterable[NODBWorkingRecord], separator):
         for wr, dr, outcome, is_modified in self._test_runner.process_batch(records):
             if is_modified:
-                self._update_working_record(wr, dr)
+                wr.record = dr
             separator.add_result(wr, dr, outcome)
-
-    def _update_working_record(self,
-                               working_record: NODBWorkingRecord,
-                               data_record: ocproc2.ParentRecord):
-        if data_record.metadata.has_value('CNODCStation'):
-            working_record.station_uuid = data_record.metadata.best('CNODCStation')
-        if data_record.coordinates.has_value('Time'):
-            try:
-                working_record.obs_time = data_record.coordinates['Time'].ideal().to_datetime()
-            except (TypeError, ValueError):
-                working_record.obs_time = None
-        if data_record.coordinates.has_value('Latitude') and data_record.coordinates.has_value('Longitude'):
-            try:
-                wkt = f'POINT ({str(float(data_record.coordinates.best("Longitude")))} {str(float(data_record.coordinates.best("Latitude")))})'
-                working_record.location = wkt
-            except (ValueError, TypeError):
-                working_record.location = None
-        working_record.set_metadata('qc_tests', list(set(x.test_name for x in data_record.qc_tests)))
-        working_record.record = data_record
 
 
 class BaseResultBatcher:
@@ -159,12 +145,12 @@ class BaseResultBatcher:
         return BatchOutcome.NEXT_QUEUE
 
     def _generate_unique_group(self, record: ocproc2.ParentRecord) -> t.Optional[str]:
-        if record.metadata.has_value('CNODCStation'):
-            return record.metadata.best('CNODCStation')
-        if record.metadata.has_value('CNODCStationCandidates'):
-            return '\x1F'.join(record.metadata.best('CNODCStationCandidates'))
-        if record.metadata.has_value('CNODCStationString'):
-            return record.metadata.best('CNODCStationString')
+        if record.metadata.has_value('CNODCPlatform'):
+            return record.metadata.ideal('CNODCPlatform').to_string()
+        if record.metadata.has_value('CNODCPlatformCandidates'):
+            return '\x1F'.join(t.cast(list, record.metadata.ideal('CNODCStationCandidates').value))
+        if record.metadata.has_value('CNODCPlatformID'):
+            return record.metadata.ideal('CNODCPlatformID').to_string()
         return None
 
     def add_result(self, working: NODBWorkingRecord, record: ocproc2.ParentRecord, outcome: ocproc2.QCResult):

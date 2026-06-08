@@ -6,7 +6,9 @@ import medsutil.math.types as mt
 import medsutil.math.helpers as help
 import medsutil.math.numbers as num
 import medsutil.math._constants as mc
-import medsutil.math._basics as mb
+import medsutil.math._functions as mb
+from medsutil.math import _common
+
 
 def cos(x):
     if mt.is_science_number(x):
@@ -18,7 +20,7 @@ def cos(x):
 
 @num.as_science_number(lambda x: sin(x), units_func=lambda x: "1")
 def sn_cos(x: mt.AnyNumber) -> mt.ScienceNumberProtocol:
-    return cos(mb.nominal_value(x))
+    return cos(_common.nominal_value(x))
 
 def _cosine_taylor_series(n: int) -> t.Callable[[decimal.Decimal], decimal.Decimal]:
     # (-1^n)(x^(2n)) / ((2n)!)
@@ -39,7 +41,7 @@ def sin(x):
 
 @num.as_science_number(lambda x: -1 * cos(x), units_func=lambda x: "1")
 def sn_sin(x: mt.AnyNumber) -> mt.ScienceNumberProtocol:
-    return sin(mb.nominal_value(x))
+    return sin(_common.nominal_value(x))
 
 def _sine_taylor_series(n: int) -> t.Callable[[decimal.Decimal], decimal.Decimal]:
     # (-1^n)(x^(2n+1)) / ((2n+1)!)
@@ -55,7 +57,7 @@ def tan(x):
     return sin(x) / cos(x)
 
 def sn_tan(x):
-    return sn_sin(mb.nominal_value(x)) / sn_cos(mb.nominal_value(x))
+    return sn_sin(_common.nominal_value(x)) / sn_cos(_common.nominal_value(x))
 
 
 def asin(x):
@@ -69,7 +71,7 @@ def asin(x):
 
 @num.as_science_number(lambda x: 1 / ((1 - (x ** 2)) ** 0.5), units_func=lambda x: "radians")
 def sn_asin(x):
-    return asin(mb.nominal_value(x))
+    return asin(_common.nominal_value(x))
 
 def _asin_taylor_series(n: int):
     # (x^2n+1)
@@ -97,7 +99,7 @@ def acos(x):
 
 @num.as_science_number(lambda x: 1 / ((1 - (x ** 2)) ** 0.5), units_func=lambda x: "radians")
 def sn_acos(x):
-    return acos(mb.nominal_value(x))
+    return acos(_common.nominal_value(x))
 
 
 
@@ -106,7 +108,7 @@ def atan(x):
     if mt.is_science_number(x):
         return sn_atan(x)
     if isinstance(x, decimal.Decimal):
-        if mb.is_infinity(x):
+        if _common.is_infinity(x):
             return mc.pi(decimal.Decimal) / decimal.Decimal(2)
         if x > 1:
             return (mc.pi(decimal.Decimal) / decimal.Decimal(2)) + help.taylor_series_approximation(x, _atan_large_derivative)
@@ -118,7 +120,7 @@ def atan(x):
 
 @num.as_science_number(lambda x: 1 / ((1 + (x ** 2)) ** 0.5), units_func=lambda x: "radians")
 def sn_atan(x):
-    return atan(mb.nominal_value(x))
+    return atan(_common.nominal_value(x))
 
 def _atan_small_derivative(n: int):
     # (-1^n)(x^2n+1)/(2n+1)
@@ -163,7 +165,7 @@ def degrees(x):
 
 @num.as_science_number(lambda x: 180 / mc.pi(decimal.Decimal), units_func=lambda x: "degrees")
 def sn_degrees(x):
-    return degrees(mb.nominal_value(x))
+    return degrees(_common.nominal_value(x))
 
 
 def radians(x):
@@ -175,5 +177,5 @@ def radians(x):
 
 @num.as_science_number(lambda x: mc.pi(decimal.Decimal) / 180, units_func=lambda x: "radians")
 def sn_radians(x):
-    return radians(mb.nominal_value(x))
+    return radians(_common.nominal_value(x))
 

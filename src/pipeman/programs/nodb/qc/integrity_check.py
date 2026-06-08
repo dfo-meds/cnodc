@@ -1,5 +1,5 @@
 import medsutil.ocproc2 as ocproc2
-from pipeman.programs.nodb.qc import BaseTestSuite, TestContext, RecordTest, MetadataTest
+from pipeman.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordTest, MetadataTest
 from autoinject import injector
 import typing as t
 
@@ -19,34 +19,28 @@ class NODBIntegrityCheck(BaseTestSuite):
         self._strict = strict_mode
 
     @MetadataTest('Units')
-    def units_check(self, value: ocproc2.AbstractElement, context: TestContext):
-        for v, v_ctx in self.iterate_on_subvalues(context):
-            with v_ctx.self_context() as ctx:
-                if v.is_empty():
-                    continue
-                self.assert_valid_units(v.value, 'units_invalid_unit_string')
+    def units_check(self, value: ocproc2.SingleElement, context: TestContext):
+        if not value.is_empty():
+            self.assert_valid_units(value.to_string(), 'units_invalid_unit_string')
 
-    @RecordTest(top_only=True)
+    @RecordTest(record_mode=RecordTest.TOP)
     def latitude_check(self, record, context: TestContext):
         self.assert_has_coordinate(record, 'Latitude', 'lat_missing')
 
-    @RecordTest(top_only=True)
+    @RecordTest(record_mode=RecordTest.TOP)
     def longitude_check(self, record, context: TestContext):
         self.assert_has_coordinate(record, 'Longitude', 'lon_missing')
 
-    @RecordTest(top_only=True)
+    @RecordTest(record_mode=RecordTest.TOP)
     def time_check(self, record, context: TestContext):
         self.assert_has_coordinate(record, 'Time', 'time_missing')
 
-    @RecordTest()
-    def profile_depth_check(self, record, context: TestContext):
-        if context.current_subrecord_type is None:
-            self.skip_test()
-        if not self.ontology.recordset_exists(context.current_subrecord_type):
-            self.skip_test()
-        valid_coordinates = self.ontology.recordset_info(context.current_subrecord_type)
-        if not any(record.coordinates.has_value(x) for x in valid_coordinates.coordinates):
-            context.report_for_review('coordinate_missing')
+    @RecordTest(record_mode=RecordTest.CHILD)
+    def child_record_coordinate_check(self, record, context: TestContext):
+        rs_info = self.ontology.recordset_info(t.cast(str, context.current_subrecord_type))
+        if rs_info is not None:
+            valid_coordinates = rs_info.coordinates
+            self.assert_true(any(record.coordinates.has_value(x) for x in valid_coordinates.coordinates), "subrecord_coordinate_missing")
 
     @RecordTest()
     def ontology_check(self, record, context: TestContext):
@@ -60,8 +54,9 @@ class NODBIntegrityCheck(BaseTestSuite):
         for key in record.parameters:
             with context.parameter_context(key) as ctx:
                 self._verify_element(ctx, "parameters", key, record.parameters[key])
-        for srt in record.subrecords:
-            self._verify_record_type(context, srt)
+        if self._strict:
+            for srt in record.subrecords:
+                self._verify_record_type(context, srt)
         for srs, srs_ctx in self.iterate_on_subrecord_sets(context):
             for key in srs.metadata:
                 with srs_ctx.metadata_context(key) as ctx:
@@ -69,26 +64,29 @@ class NODBIntegrityCheck(BaseTestSuite):
                   
     def _verify_record_type(self, context: TestContext, record_type: str):
         with context.self_context():
-            if self._strict:
-                self.assert_true(self.ontology.recordset_exists(record_type), 'ontology_invalid_recordset_type')
+            self.assert_true(self.ontology.recordset_exists(record_type), 'ontology_invalid_recordset_type')
 
     def _verify_element(self, context: TestContext, element_group: str, element_name: str, element_value: ocproc2.AbstractElement):
+        # Never check the working quality, it can make infinite loops -  this is all set by the application anyways
+        if element_name == 'WorkingQuality':
+            self.skip_test()
+
         # Check if the element is a defined parameter type in the scheme
-        if not self.ontology.is_defined_parameter(element_name):
+        info = self.ontology.info(element_name)
+        if info is None:
             if self._strict:
                 self.report_for_review('ontology_undefined_element', 20)
             else:
                 self.skip_test()
 
         # Check if the element is of an allowed group
-        allowed_groups = self.ontology.group_name(element_name)
-        if allowed_groups:
-            self.assert_true(any(element_group.startswith(x) for x in allowed_groups), 'ontology_invalid_group', 20)
+        if info.group_name is not None:
+            self.assert_true(info.group_name.startswith(element_group), 'ontology_invalid_group', 20)
         elif self._strict:
             self.report_for_review('ontology_no_allowed_groups', 20)
 
         # If the element is multi-valued, check if this is allowed
-        if not self.ontology.allow_many(element_name):
+        if not info.allow_many:
             self.assert_not_multi(element_value, 'ontology_multi_not_allowed')
 
         # Check all non-empty values against the preferred unit and data type
@@ -104,15 +102,13 @@ class NODBIntegrityCheck(BaseTestSuite):
 
         # Go into the element metadata
         for key in element_value.metadata:
-            # Never check these just so we avoid an infinite loop
-            if key == 'WorkingQuality':
-                continue
             with context.element_metadata_context(key):
                 self._verify_element(context, "metadata:element", key, element_value.metadata[key])
 
     def _test_element_value(self,
                             value: ocproc2.SingleElement,
                             ctx: TestContext,
+                            *,
                             preferred_unit: t.Optional[str],
                             data_type: t.Optional[str],
                             min_value: t.Optional[float],
@@ -122,6 +118,19 @@ class NODBIntegrityCheck(BaseTestSuite):
             return
         if preferred_unit is not None:
             self.assert_compatible_units(value, preferred_unit, 'ontology_invalid_units', skip_null=(not self._strict))
+            value_in_units = self.value_in_units(value, preferred_unit)
+            if value_in_units is not None and min_value is not None:
+                self.assert_greater_than_or_close(
+                    value_in_units,
+                    min_value,
+                    error_code='ontology_lower_than_range'
+                )
+            if value_in_units is not None and max_value is not None:
+                self.assert_less_than(
+                    value_in_units,
+                    max_value,
+                    error_code='ontology_greater_than_range'
+                )
         if data_type is None:
             pass
         elif data_type in ('dateTimeStamp', 'date'):
@@ -134,10 +143,7 @@ class NODBIntegrityCheck(BaseTestSuite):
             self.assert_string_like(value, 'ontology_invalid_string', 20)
         elif data_type == 'List':
             self.assert_list_like(value, 'ontology_invalid_list', 20)
-        if value.is_numeric():
-            if min_value is not None:
-                self.assert_greater_than('ontology_lower_than_range', self.value_in_units(value, preferred_unit), min_value)
-            if max_value is not None:
-                self.assert_less_than('ontology_greater_than_range', self.value_in_units(value, preferred_unit), max_value)
+
+
         if allowed_values:
             self.assert_in(value.value, allowed_values, 'ontology_value_not_allowed')

@@ -86,9 +86,9 @@ class GTSPPSpikeGradientTest(BaseTestSuite):
             self._run_at_level_spike_tests(recordset, context)
 
     def check_has_depth_coordinate(self, record: ocproc2.BaseRecord, raise_ex: bool = True) -> bool:
-        if self.precheck_value_in_map(record.coordinates, 'Pressure', raise_ex=False):
+        if self.skip_if_bad_for_map(record.coordinates, 'Pressure', raise_ex=False):
             return True
-        return self.precheck_value_in_map(record.coordinates, 'Depth', raise_ex=raise_ex)
+        return self.skip_if_bad_for_map(record.coordinates, 'Depth', raise_ex=raise_ex)
 
     def _run_top_spike_test(self, recordset: ocproc2.RecordSet, context: TestContext):
         self.check_has_depth_coordinate(recordset.records[0])

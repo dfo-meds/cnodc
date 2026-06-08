@@ -88,8 +88,8 @@ class GTSPPParameterRangeTest(BaseTestSuite):
 
     @RecordTest()
     def test_parameter_ranges(self, record: ocproc2.BaseRecord, context: TestContext):
-        self.precheck_value_in_map(record.coordinates, 'Latitude', allow_dubious=True)
-        self.precheck_value_in_map(record.coordinates, 'Longitude', allow_dubious=True)
+        self.skip_if_bad_for_map(record.coordinates, 'Latitude', allow_dubious=True)
+        self.skip_if_bad_for_map(record.coordinates, 'Longitude', allow_dubious=True)
         references, regions = self._ref.build_parameter_references(
             record.coordinates['Latitude'].to_ufloat(),
             record.coordinates['Longitude'].to_ufloat()

@@ -335,6 +335,9 @@ class RecordMap:
     def __init__(self):
         self.record_sets: dict[str, dict[int, RecordSet]] = {}
 
+    def __iter__(self):
+        return iter(self.record_sets)
+
     def __getitem__(self, item: str) -> dict[int, RecordSet]:
         return self.record_sets[item]
 
