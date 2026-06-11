@@ -2,9 +2,9 @@ from pipeman.programs.qc.base import DeepDiveChecker, RecordSetRef, ChildRecordR
 import medsutil.ocproc2 as ocproc2
 import medsutil.math as amath
 
-class GTSPPIncreasingProfileTest(DeepDiveChecker):
+class GTSPPIncreasingChecker(DeepDiveChecker):
 
-    LIMIT_SUBRECORD_TYPES = ("PROFILE",)
+    LIMIT_SUBRECORD_TYPES = {"PROFILE"}
 
     def __init__(self, aggressive_mode: bool = False):
         super().__init__(
