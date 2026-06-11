@@ -1,12 +1,19 @@
+import abc
+import collections.abc
 import contextlib
+import dataclasses
 import datetime
 import decimal
+import enum
+import functools
 import typing as t
 
 import zrlog
 
 import medsutil.ocproc2 as ocproc2
 import medsutil.math as amath
+from medsutil.awaretime import AwareDateTime
+from medsutil.ocproc2 import QCInfo
 from medsutil.units.structures import UnitError
 from nodb.controller import NODBPostgresController, PostgresController
 from nodb.interface import NODBInstance
@@ -16,43 +23,34 @@ from medsutil.units import UnitConverter
 from autoinject import injector
 import medsutil.awaretime as awaretime
 
-
-class QCComplete(Exception):
-    pass
-
-
-class QCSkipTest(Exception):
-    pass
+if t.TYPE_CHECKING:
+    class QCMethodProtocol[R: AnyRef](t.Protocol):
+        def __call__(_, self: QualityChecker, ref: R, *args, **kwargs) -> t.Any:
+            ...
 
 
-class ReferenceRange:
+class QCException(Exception): ...
+
+class QCComplete(QCException): ...
+
+class QCSkipCheck(QCException): ...
+
+class QCSkipTest(QCException): ...
+
+class QCAssertionError(QCException):
 
     def __init__(self,
-                 minimum: t.Optional[float] = None,
-                 maximum: t.Optional[float] = None,
-                 units: t.Optional[str] = None,
-                 value_kwargs: t.Optional[dict] = None):
-        self.minimum = minimum
-        self.maximum = maximum
-        self.units = units
-        self.value_kwargs = value_kwargs or {}
+                 error_code: str,
+                 flag_number: int = None,
+                 ref_value: t.Any = None,
+                 subpath: t.Optional[str] = None):
+        self.error_code = error_code
+        self.flag_number = flag_number
+        self.ref_value = ref_value
+        self.subpath = subpath
 
-    @staticmethod
-    def from_map(map_: dict):
-        return ReferenceRange(
-            float(map_['minimum']) if 'minimum' in map_ else None,
-            float(map_['maximum']) if 'maximum' in map_ else None,
-            map_['units'] if 'units' in map_ else None,
-            map_['kwargs'] if 'kwargs' in map_ else None
-        )
 
-    @staticmethod
-    def from_map_of_maps(big_map_: dict) -> dict:
-        return {
-            k: ReferenceRange.from_map(big_map_[k])
-            for k in big_map_
-        }
-
+"""
 
 class TestContext:
 
@@ -88,10 +86,10 @@ class TestContext:
     def self_context(self) -> t.Generator[TestContext, None, None]:
         try:
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
 
     @contextlib.contextmanager
     def multivalue_context(self, subvalue_index: int) -> t.Generator[TestContext, None, None]:
@@ -100,10 +98,10 @@ class TestContext:
             self.current_path.append(f'{subvalue_index}')
             self.current_value = self.current_value.value[subvalue_index]
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -117,10 +115,10 @@ class TestContext:
             self.current_value = self.current_record.coordinates.get(coordinate_1_name)
             self.other_current_value = self.current_record.coordinates.get(coordinate_2_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -135,10 +133,10 @@ class TestContext:
             self.current_value = self.current_record.parameters.get(parameter_1_name)
             self.other_current_value = self.current_record.parameters.get(parameter_2_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -163,10 +161,10 @@ class TestContext:
             self.current_path.append(f'parameters/{parameter_name}')
             self.current_value = self.current_record.parameters.get(parameter_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -178,10 +176,10 @@ class TestContext:
             self.current_path.append(f'coordinates/{coordinate_name}')
             self.current_value = self.current_record.coordinates.get(coordinate_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -196,10 +194,10 @@ class TestContext:
             else:
                 self.current_value = self.current_record.metadata.get(metadata_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -211,10 +209,10 @@ class TestContext:
             self.current_path.append(f'metadata/{metadata_name}')
             self.current_value = self.current_recordset.metadata.get(metadata_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -226,10 +224,10 @@ class TestContext:
             self.current_path.append(f'metadata/{metadata_name}')
             self.current_value = self.current_value.metadata.get(metadata_name)
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_value = last_value
@@ -243,10 +241,10 @@ class TestContext:
             self.current_recordset = self.current_record.subrecords[subrecordset_type][subrecordset_idx]
             self.current_record = self.current_recordset.records[record_idx]
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_recordset = last_recordset
@@ -261,10 +259,10 @@ class TestContext:
             self.current_recordset = self.current_record.subrecords[subrecordset_type][subrecordset_idx]
             self.current_record = None
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_recordset = last_recordset
@@ -277,10 +275,10 @@ class TestContext:
             self.current_path.append(f'{record_idx}')
             self.current_record = self.current_recordset.records[record_idx]
             yield self
-        except QCSkipTest:
+        except QCSkipCheck:
             pass
         except QCAssertionError as ex:
-            self.report_for_review(ex.flag_number, ex.error_code, ex.ref_value)
+            self.report_for_review(ex.flag_number, ex.specific_test_name, ex.ref_value)
         finally:
             self.current_path.pop()
             self.current_record = last_current
@@ -311,14 +309,6 @@ class TestContext:
 
         if self.result == ocproc2.QCResult.PASS:
             self.result = ocproc2.QCResult.MANUAL_REVIEW
-
-
-class QCAssertionError(Exception):
-
-    def __init__(self, error_code: str, flag_number: int = None, ref_value=None):
-        self.error_code = error_code
-        self.flag_number = flag_number
-        self.ref_value = ref_value
 
 
 class _TestWrapper:
@@ -685,7 +675,7 @@ class BaseTestSuite:
                           skip_empty: bool = True) -> bool:
         result = should_test_value(ctx.current_test_id, value, skip_empty, skip_dubious, skip_erroneous)
         if raise_ex and not result:
-            raise QCSkipTest()
+            raise QCSkipCheck()
         return result
 
     def assert_true(self, v: bool, error_code: str, qc_flag: t.Optional[int] = 4, ref_value=None):
@@ -868,7 +858,7 @@ class BaseTestSuite:
         context.top_record.metadata['CNODCStatus'] = 'DUBIOUS'
 
     def skip_test(self):
-        raise QCSkipTest
+        raise QCSkipCheck
 
     def record_note(self, message: str, context: TestContext, on_top: bool = True):
         if on_top:
@@ -1041,3 +1031,834 @@ class QCTestRunner:
     def clear_db_instance(self):
         for test in self._qc_tests:
             test.clear_db_instance()
+
+"""
+
+class ReferenceRange:
+
+    def __init__(self,
+                 minimum: t.Optional[decimal.Decimal] = None,
+                 maximum: t.Optional[decimal.Decimal] = None,
+                 units: t.Optional[str] = None,
+                 kwargs: t.Optional[dict[str, str | int]] = None):
+        self.minimum = minimum
+        self.maximum = maximum
+        self.units = units or None
+        self.kwargs = kwargs or {}
+
+    @staticmethod
+    def from_map(map_: dict):
+        return ReferenceRange(
+            decimal.Decimal(map_['minimum']) if 'minimum' in map_ else None,
+            decimal.Decimal(map_['maximum']) if 'maximum' in map_ else None,
+            str(map_['units']) if 'units' in map_ else None,
+            map_['kwargs'] if 'kwargs' in map_ else None
+        )
+
+
+class ElementType(enum.IntFlag):
+    COORDINATES = enum.auto()
+    PARAMETERS = enum.auto()
+    PARENT_METADATA = enum.auto()
+    CHILD_METADATA = enum.auto()
+    ELEMENT_METADATA = enum.auto()
+
+    RECORD_METADATA = PARENT_METADATA | CHILD_METADATA
+    METADATA = PARENT_METADATA | CHILD_METADATA | ELEMENT_METADATA
+
+
+class CheckerContext:
+
+    def __init__(self,
+                 checker: QualityChecker,
+                 specific_test_name: str,
+                 references: t.Iterable[AnyRef]):
+        self.checker: QualityChecker = checker
+        self.specific_test_name = specific_test_name
+        self.references = references
+
+    def check_qc_already_complete(self,
+                                  skip_quality_assigned: bool = True,
+                                  skip_dubious: bool = False,
+                                  skip_empty: bool = False,
+                                  skip_flagged_empty: bool = True,
+                                  skip_erroneous: bool = True,
+                                  skip_bad_structure: bool = True):
+        self.checker.check_qc_already_complete_many(
+            self.specific_test_name,
+            [ref.ref_object for ref in self.references],
+            skip_erroneous=skip_erroneous,
+            skip_quality_assigned=skip_quality_assigned,
+            skip_dubious=skip_dubious,
+            skip_empty=skip_empty,
+            skip_flagged_empty=skip_flagged_empty,
+            skip_bad_structure=skip_bad_structure
+        )
+
+    def set_working_quality(self, working_quality: int):
+        for reference in self.references:
+            self.checker.set_working_quality(working_quality, reference.ref_object)
+
+
+    def recommend_for_review(self,
+                             quality_flag: int | None = None,
+                             subpath: str = "",
+                             ref_value: t.Any = None,
+                             note: str | None = None):
+        self.checker.recommend_for_review(
+            self.specific_test_name,
+            self.references,
+            quality_flag,
+            subpath,
+            ref_value,
+            note
+        )
+
+@dataclasses.dataclass
+class AnyRef:
+    path: str
+
+    @property
+    def ref_object(self):
+        raise NotImplementedError
+
+@dataclasses.dataclass
+class ElementRef(AnyRef):
+    element: ocproc2.AbstractElement
+    element_name: str
+    element_type: ElementType
+
+    @property
+    def ref_object(self):
+        return self.element
+
+@dataclasses.dataclass
+class SingleElementRef(ElementRef):
+    element: ocproc2.SingleElement
+
+@dataclasses.dataclass
+class MultiElementRef(ElementRef):
+    element: ocproc2.MultiElement
+
+@dataclasses.dataclass
+class RecordSetRef(AnyRef):
+    recordset: ocproc2.RecordSet
+    recordset_type: str
+
+    @property
+    def ref_object(self):
+        return self.recordset
+
+@dataclasses.dataclass
+class RecordRef(AnyRef):
+    record: ocproc2.BaseRecord
+
+    @property
+    def ref_object(self):
+        return self.record
+
+@dataclasses.dataclass
+class ParentRecordRef(RecordRef):
+    record: ocproc2.ParentRecord
+
+@dataclasses.dataclass
+class ChildRecordRef(RecordRef):
+    record: ocproc2.ChildRecord
+    recordset_type: str
+
+
+class QualityChecker(abc.ABC):
+
+    converter: UnitConverter = None
+
+    ALLOW_NEW_QUALITY: dict[int | None, set[int]] = {
+        None: {0, 1, 2, 3, 4, 5, 7, 9, -1},
+        0: {1, 2, 3, 4, 5, 7, 9, -1},
+        1: {2, 3, 4, 5, 7, 9, -1},
+        5: {2, 3, 4, 5, 7, 9, -1},
+        2: {3, 4, 5, 7, 9, -1},
+        3: {4, 5, 7, 9, -1},
+        4: {5, 7, 9, -1},
+        7: {-1},
+        9: {-1},
+        -1: {},
+    }
+
+    SKIP_METADATA: set[str] = {
+        "WorkingQuality",
+    }
+
+    @injector.construct
+    def __init__(self,
+                 test_name: str,
+                 test_version: str,
+                 station_invariant: bool = False,
+                 working_sort: str | None = None,
+                 test_tags: list[str] | None = None):
+        self._test_name = test_name
+        self._station_invariant = station_invariant
+        self._test_version = test_version
+        self._test_tags = test_tags
+        self._working_sort = working_sort
+        self._qc_messages: list[ocproc2.QCMessage] = []
+        self._qc_result: ocproc2.QCResult = ocproc2.QCResult.PASS
+        self._current_record: t.Optional[ParentRecordRef] = None
+        self._current_coordinates: t.Optional[dict[str, amath.AnyNumber | AwareDateTime | None]] = None
+        self._memory: dict | None = None
+        self._rmemory: dict | None = None
+
+    @property
+    def current_record(self) -> ParentRecordRef:
+        if self._current_record is None:
+            raise TypeError("current_record is not yet set")
+        return self._current_record
+
+    @property
+    def current_coordinates(self) -> dict[str, amath.AnyNumber | AwareDateTime | None]:
+        if self._current_coordinates is None:
+            self._current_coordinates = {}
+        return t.cast(dict, self._current_coordinates)
+
+    @property
+    def current_latitude(self) -> amath.AnyNumber | None:
+        return t.cast(amath.AnyNumber | None, self.current_coordinates.get("Latitude", None))
+
+    @property
+    def current_longitude(self) -> amath.AnyNumber | None:
+        return t.cast(amath.AnyNumber | None, self.current_coordinates.get("Longitude", None))
+
+    @property
+    def current_depth(self) -> amath.AnyNumber | None:
+            return t.cast(amath.AnyNumber | None, self.current_coordinates.get("Depth", None))
+
+    @property
+    def current_time(self) -> AwareDateTime | None:
+        return t.cast(AwareDateTime | None, self.current_coordinates.get("Time", None))
+
+    def set_coordinates_from_record(self, record: ocproc2.BaseRecord):
+        coordinates = self.current_coordinates
+        if "Latitude" in record.coordinates:
+            try:
+                self.require_value(record.coordinates["Latitude"])
+                if record.coordinates["Latitude"].is_numeric():
+                    coordinates["Latitude"] = record.coordinates["Latitude"].to_numeric("degrees_north")
+                else: raise QCSkipCheck()
+            except QCSkipCheck:
+                coordinates["Latitude"] = None
+        if "Longitude" in record.coordinates:
+            try:
+                self.require_value(record.coordinates["Longitude"])
+                if record.coordinates["Latitude"].is_numeric():
+                    coordinates["Longitude"] = record.coordinates["Longitude"].to_numeric("degrees_east")
+                else: raise QCSkipCheck()
+            except QCSkipCheck:
+                coordinates["Longitude"] = None
+        if "Time" in record.coordinates:
+            try:
+                self.require_value(record.coordinates["Time"])
+                if record.coordinates["Time"].is_iso_datetime():
+                    coordinates["Time"] = record.coordinates["Time"].to_datetime()
+                else: raise QCSkipCheck()
+            except QCSkipCheck:
+                coordinates["Time"] = None
+        if "Depth" in record.coordinates:
+            try:
+                self.require_value(record.coordinates["Depth"])
+                if record.coordinates["Depth"].is_numeric():
+                    coordinates["Depth"] = record.coordinates["Depth"].to_numeric("m")
+                else: raise QCSkipCheck()
+            except QCSkipCheck:
+                coordinates["Depth"] = None
+        if "Pressure" in record.coordinates and ("Depth" not in coordinates or coordinates["Depth"] is None):
+            try:
+                self.require_value(record.coordinates["Pressure"])
+                if record.coordinates["Pressure"].is_numeric():
+                    import medsutil.seawater as eos
+                    coordinates["Depth"] = eos.eos80_depth(record.coordinates["Pressure"].to_numeric("dbar"), t.cast(amath.AnyNumber, coordinates["Latitude"]))
+                else: raise QCSkipCheck()
+            except QCSkipCheck:
+                coordinates["Depth"] = None
+
+    @property
+    def record_memory(self) -> dict:
+        if self._rmemory is None:
+            self._rmemory = {}
+        return t.cast(dict, self._rmemory)
+
+    @property
+    def batch_memory(self) -> dict:
+        if self._memory is None:
+            self._memory = {}
+        return t.cast(dict, self._memory)
+
+    def setup_batch(self): ...
+
+    def setup(self): ...
+
+    def run_batch(self, records: t.Iterable[ocproc2.ParentRecord]):
+        self.setup_batch()
+        for record in records:
+            self.run_record_check(record)
+        self.teardown_batch()
+
+    def run_record_check(self, record: ocproc2.ParentRecord):
+        self._current_record = ParentRecordRef(record=record, path="")
+        self.setup()
+        self.run()
+        self.teardown()
+
+    def run(self):
+        raise NotImplementedError
+
+    def teardown(self):
+        self._current_record = None
+        self._rmemory = None
+
+    def teardown_batch(self):
+        self._memory = None
+
+    def crawl_record(self,
+                     ref: ParentRecordRef | ChildRecordRef,
+                     *,
+                     record_cb: t.Callable[[RecordRef], t.Any] | None = None,
+                     parent_record_cb: t.Callable[[ParentRecordRef], t.Any] | None = None,
+                     child_record_cb: t.Callable[[ChildRecordRef], t.Any] | None = None,
+                     element_cb: t.Callable[[ElementRef], t.Any] | None = None,
+                     multi_element_cb: t.Callable[[MultiElementRef], t.Any] | None = None,
+                     single_element_cb: t.Callable[[SingleElementRef], t.Any] | None = None,
+                     recordset_cb: t.Callable[[RecordSetRef], t.Any] | None = None,
+                     limit_element_types: ElementType | None = None,
+                     limit_subrecord_types: t.Container[str] | None = None,
+                     track_coordinates: bool = False):
+        if track_coordinates:
+            self.set_coordinates_from_record(ref.record)
+        if record_cb is not None:
+            with self.skip_blocker():
+                record_cb(ref)
+        if parent_record_cb is not None or child_record_cb is not None:
+            if isinstance(ref, ParentRecordRef):
+                if parent_record_cb is not None:
+                    with self.skip_blocker():
+                        parent_record_cb(ref)
+            else:
+                if child_record_cb is not None:
+                    with self.skip_blocker():
+                        child_record_cb(ref)
+        element_kwargs = {
+            "element_cb": element_cb,
+            "multi_element_cb": multi_element_cb,
+            "single_element_cb": single_element_cb,
+        }
+        has_element_kwargs = any(x is not None for x in element_kwargs.values())
+        if has_element_kwargs:
+            for element in self.iterate_on_record_elements(ref, limit_element_types):
+                self.crawl_element(
+                    element,
+                    limit_types=limit_element_types,
+                    **element_kwargs
+                )
+
+        recordset_kwargs = {
+            "recordset_cb": recordset_cb,
+            "record_cb": record_cb,
+            "child_record_cb": child_record_cb,
+            # note: parent_record_cb is only called on the top record, so we don't need it when we recurse
+        }
+        if has_element_kwargs or (x is not None for x in recordset_kwargs.values()):
+            for recordset in self.iterate_on_record_recordsets(ref, limit_subrecord_types):
+                self.crawl_recordset(
+                    recordset,
+                    limit_subrecord_types=limit_subrecord_types,
+                    limit_element_types=limit_element_types,
+                    track_coordinates=track_coordinates,
+                    **element_kwargs,
+                    **recordset_kwargs
+                )
+
+    def crawl_recordset(self,
+                        recordset: RecordSetRef,
+                        recordset_cb: t.Callable[[RecordSetRef], t.Any] | None = None,
+                        **kwargs):
+        if recordset_cb is not None:
+            recordset_cb(recordset)
+        for child_record in self.iterate_on_recordset_records(recordset):
+            self.crawl_record(child_record, recordset_cb=recordset_cb, **kwargs)
+
+    def crawl_element(self,
+                      element: SingleElementRef | MultiElementRef,
+                      *,
+                      element_cb: t.Callable[[ElementRef], t.Any] | None = None,
+                      multi_element_cb: t.Callable[[MultiElementRef], t.Any] | None = None,
+                      single_element_cb: t.Callable[[SingleElementRef], t.Any] | None = None,
+                      limit_types: ElementType | None = None):
+        if element_cb is not None:
+            with self.skip_blocker():
+                element_cb(element)
+        if isinstance(element, MultiElementRef):
+            if multi_element_cb is not None:
+                with self.skip_blocker():
+                    multi_element_cb(element)
+            for sub_element in self.iterate_on_element_subelements(element):
+                self.crawl_element(sub_element,
+                                   element_cb=element_cb,
+                                   multi_element_cb=multi_element_cb,
+                                   single_element_cb=single_element_cb,
+                                   limit_types=limit_types)
+        elif single_element_cb is not None:
+            with self.skip_blocker():
+                single_element_cb(element)
+        for element in self.iterate_on_element_metadata(element):
+            self.crawl_element(element,
+                               element_cb=element_cb,
+                               multi_element_cb=multi_element_cb,
+                               single_element_cb=single_element_cb,
+                               limit_types=limit_types)
+
+    def iterate_on_recordset_records(self, recordset: RecordSetRef) -> t.Iterable[ChildRecordRef]:
+        yield from self.iterate_on_recordset(recordset.recordset, recordset.recordset_type, recordset.path)
+
+    def iterate_on_record_recordsets(self, ref: RecordRef, limit_types: t.Container[str] | None = None) -> t.Iterable[RecordSetRef]:
+        for subrecord_type, subrecord_sets in ref.record.subrecords.record_sets.items():
+            if limit_types is None or subrecord_type in limit_types:
+                yield from self.iterate_on_recordset_dict(subrecord_sets, subrecord_type, ref.path.rstrip("/") + f"/subrecords/{subrecord_type}")
+
+    def iterate_on_record_single_elements(self, ref: RecordRef, limit_types: ElementType | None = None) -> t.Iterable[SingleElementRef]:
+        for e_ref in self.iterate_on_record_elements(ref, limit_types):
+            yield from self.iterate_on_single_elements(e_ref)
+
+    def iterate_on_record_elements(self, ref: RecordRef, limit_types: ElementType | None = None) -> t.Iterable[SingleElementRef | MultiElementRef]:
+        if limit_types is None or ElementType.PARAMETERS in limit_types:
+            yield from self.iterate_on_element_map(ref.record.parameters, ElementType.PARAMETERS, ref.path.rstrip("/") + "/parameters")
+        if limit_types is None or ElementType.COORDINATES in limit_types:
+            yield from self.iterate_on_element_map(ref.record.coordinates, ElementType.COORDINATES, ref.path.rstrip("/") + "/coordinates")
+        metadata_type = ElementType.PARENT_METADATA if isinstance(ref, ParentRecordRef) else ElementType.CHILD_METADATA
+        if limit_types is None or metadata_type in limit_types:
+            yield from self.iterate_on_element_map(ref.record.metadata, metadata_type, ref.path.rstrip("/") + "/metadata")
+
+    def iterate_on_single_elements(self, ref: SingleElementRef | MultiElementRef) -> t.Iterable[SingleElementRef]:
+        if isinstance(ref, SingleElementRef):
+            yield ref
+        else:
+            for sub_ref in self.iterate_on_element_subelements(ref):
+                yield from self.iterate_on_single_elements(sub_ref)
+
+    def iterate_on_element_metadata(self, ref: ElementRef, limit_types: ElementType | None = None) -> t.Iterable[ElementRef]:
+        if limit_types is None or ElementType.ELEMENT_METADATA in limit_types:
+            yield from self.iterate_on_element_map(ref.element.metadata, ElementType.ELEMENT_METADATA, ref.path.rstrip("/") + "/metadata")
+
+    def iterate_on_recordset(self, recordset: ocproc2.RecordSet, recordset_type: str, parent_path: str) -> t.Iterable[ChildRecordRef]:
+        for idx, record in enumerate(recordset.records.iterate_with_load()):
+            yield ChildRecordRef(
+                record=record,
+                recordset_type=recordset_type,
+                path=parent_path.rstrip("/") + f"/{idx}"
+            )
+
+    def iterate_on_recordset_dict(self, recordset_dict: dict[int, ocproc2.RecordSet], recordset_type: str, parent_path: str) -> t.Iterable[RecordSetRef]:
+        for idx, record_set in recordset_dict:
+            yield RecordSetRef(
+                recordset=record_set,
+                recordset_type=recordset_type,
+                path=parent_path.rstrip("/") + f"/{idx}"
+            )
+
+    def iterate_on_element_subelements(self, element: MultiElementRef) -> t.Iterable[SingleElementRef | MultiElementRef]:
+        for idx, sub_element in enumerate(element.element.values()):
+            yield self.build_element_ref(
+                element=sub_element,
+                element_type=element.element_type,
+                element_name=element.element_name,
+                path=element.path.rstrip("/") + f"/{idx}"
+            )
+
+    def iterate_on_element_map(self, element_map: ocproc2.ElementMap, element_map_name: ElementType, parent_path: str) -> t.Iterable[SingleElementRef | MultiElementRef]:
+        for name, element in element_map.items():
+            if name in self.SKIP_METADATA:
+                continue
+            yield self.build_element_ref(
+                element=element,
+                element_name=name,
+                element_type=element_map_name,
+                path="/".join((parent_path.rstrip("/"), name))
+            )
+
+    @t.overload
+    def get_record_coordinate_ref(self, ref: RecordRef, coordinate_name: str, create_when_missing: t.Literal[True] = True) -> SingleElementRef | MultiElementRef: ...
+
+    @t.overload
+    def get_record_coordinate_ref(self, ref: RecordRef, coordinate_name: str, create_when_missing: t.Literal[False] = False) -> t.Optional[SingleElementRef | MultiElementRef]: ...
+
+    @t.overload
+    def get_record_coordinate_ref(self, ref: RecordRef, coordinate_name: str) -> t.Optional[SingleElementRef | MultiElementRef]: ...
+
+    def get_record_coordinate_ref(self,
+                                  ref: RecordRef,
+                                  coordinate_name: str,
+                                  create_when_missing: bool = False) -> t.Optional[SingleElementRef | MultiElementRef]:
+        return self._get_element_map_ref(
+            element_map=ref.record.coordinates,
+            name=coordinate_name,
+            element_type=ElementType.COORDINATES,
+            parent_path=ref.path.rstrip("/") + f"/coordinates",
+            create_when_missing=create_when_missing
+        )
+
+    @t.overload
+    def get_record_parameter_ref(self, ref: RecordRef, parameter_name: str, create_when_missing: t.Literal[True]) -> SingleElementRef | MultiElementRef: ...
+
+    @t.overload
+    def get_record_parameter_ref(self, ref: RecordRef, parameter_name: str, create_when_missing: t.Literal[False]) -> t.Optional[SingleElementRef | MultiElementRef]: ...
+
+    @t.overload
+    def get_record_parameter_ref(self, ref: RecordRef, parameter_name: str) -> t.Optional[SingleElementRef | MultiElementRef]: ...
+
+    def get_record_parameter_ref(self,
+                                  ref: RecordRef,
+                                  parameter_name: str,
+                                  create_when_missing: bool = False) -> t.Optional[SingleElementRef | MultiElementRef]:
+        return self._get_element_map_ref(
+            element_map=ref.record.parameters,
+            name=parameter_name,
+            element_type=ElementType.PARAMETERS,
+            parent_path=ref.path.rstrip("/") + f"/parameters",
+            create_when_missing=create_when_missing
+        )
+
+    @t.overload
+    def get_record_metadata_ref(self, ref: RecordRef, metadata_name: str, create_when_missing: t.Literal[True]) -> SingleElementRef | MultiElementRef: ...
+
+    @t.overload
+    def get_record_metadata_ref(self, ref: RecordRef, metadata_name: str, create_when_missing: t.Literal[False]) -> t.Optional[SingleElementRef | MultiElementRef]: ...
+
+    @t.overload
+    def get_record_metadata_ref(self, ref: RecordRef, metadata_name: str) -> t.Optional[SingleElementRef | MultiElementRef]: ...
+
+    def get_record_metadata_ref(self,
+                                  ref: RecordRef,
+                                  metadata_name: str,
+                                  create_when_missing: bool = False) -> t.Optional[SingleElementRef | MultiElementRef]:
+        return self._get_element_map_ref(
+            element_map=ref.record.metadata,
+            name=metadata_name,
+            element_type=ElementType.PARENT_METADATA if isinstance(ref, ParentRecordRef) else ElementType.CHILD_METADATA,
+            parent_path=ref.path.rstrip("/") + f"/metadata",
+            create_when_missing=create_when_missing
+        )
+    
+    def get_element_metadata_ref(self,
+                                 ref: ElementRef,
+                                 metadata_name: str,
+                                 create_when_missing: bool = False) -> t.Optional[SingleElementRef | MultiElementRef]:
+        return self._get_element_map_ref(
+            element_map=ref.element.metadata,
+            name=metadata_name,
+            element_type=ElementType.ELEMENT_METADATA,
+            parent_path=ref.path.rstrip("/") + f"/metadata",
+            create_when_missing=create_when_missing
+        )
+    def _get_element_map_ref(self,
+                             element_map: ocproc2.ElementMap,
+                             name: str,
+                             element_type: ElementType,
+                             parent_path: str,
+                             create_when_missing: bool) -> t.Optional[SingleElementRef | MultiElementRef]:
+        if name not in element_map:
+            if create_when_missing:
+                element_map[name] = None
+            else:
+                return None
+        return self.build_element_ref(
+            element_map[name],
+            element_name=name,
+            element_type=element_type,
+            path=parent_path.rstrip("/") + f"/{name}"
+        )
+
+    def build_element_ref(self, element: ocproc2.AbstractElement, **kwargs) -> SingleElementRef | MultiElementRef:
+        if isinstance(element, ocproc2.SingleElement):
+            return SingleElementRef(element=element, **kwargs)
+        else:
+            return MultiElementRef(element=t.cast(ocproc2.MultiElement, element), **kwargs)
+
+    @contextlib.contextmanager
+    def skip_blocker(self):
+        try:
+            yield self
+        except QCSkipCheck:
+            ...
+
+    @contextlib.contextmanager
+    def review_all(self,
+                   specific_test_name: str,
+                   refs: t.Iterable[AnyRef],
+                   error_flag: int | None = None,
+                   pass_flag: int | None = None) -> t.Generator[CheckerContext, None, None]:
+        ctx = CheckerContext(self, self.full_test_name(specific_test_name), refs)
+        try:
+            yield ctx
+        except QCSkipCheck:
+            ...
+        except QCAssertionError as ex:
+            ctx.recommend_for_review(
+                ex.flag_number if ex.flag_number is not None else error_flag,
+                ex.subpath or "",
+                ex.ref_value
+            )
+        except BaseException:
+            raise
+        else:
+            if pass_flag is not None:
+                for ref in refs:
+                    self.set_working_quality(pass_flag, ref.ref_object)
+
+    @contextlib.contextmanager
+    def review(self,
+               specific_test_name: str,
+               ref: AnyRef,
+               error_flag: int | None = None,
+               pass_flag: int | None = None) -> t.Generator[CheckerContext, None, None]:
+        with self.review_all(specific_test_name, [ref], error_flag, pass_flag) as ctx:
+            yield ctx
+
+    def full_test_name(self, specific_test_name: str) -> str:
+        return f"{self._test_name}__{specific_test_name}"
+
+    def check_skip(self,
+                   element: ocproc2.AbstractElement | ocproc2.BaseRecord | ocproc2.RecordSet | None,
+                   skip_quality_assigned: bool = True,
+                   skip_dubious: bool = False,
+                   skip_empty: bool = False,
+                   skip_flagged_empty: bool = True,
+                   skip_erroneous: bool = True,
+                   skip_bad_structure: bool = True):
+        if element is None:
+            raise QCSkipCheck("Element is none")
+
+        existing_quality = element.metadata.best("Quality", coerce=int, default=0)
+        if skip_quality_assigned and existing_quality != 0:
+            raise QCSkipCheck("Existing quality value found")
+
+        working_quality = element.metadata.best("WorkingQuality", coerce=int, default=0)
+        if skip_flagged_empty and existing_quality == 9 or working_quality == 9:
+            raise QCSkipCheck("Element is flagged empty")
+        if skip_erroneous and existing_quality == 4 or working_quality == 4:
+            raise QCSkipCheck("Element is already erroneous")
+        if skip_dubious and existing_quality == 4 or working_quality == 3:
+            raise QCSkipCheck("Element is already dubious")
+        if skip_bad_structure and existing_quality == -1 or working_quality == -1:
+            raise QCSkipCheck("Element's structure is bad")
+
+        if skip_empty and hasattr(element, 'is_empty') and element.is_empty():
+            raise QCSkipCheck("Element is empty")
+
+    def check_qc_already_complete(self,
+                                  specific_test_name: str,
+                                  element: ocproc2.AbstractElement | ocproc2.BaseRecord | ocproc2.RecordSet,
+                                  **kwargs):
+
+        self.check_skip(element, **kwargs)
+
+        fn = self.full_test_name(specific_test_name)
+        user_info = element.qc_info.get(fn, default=None)
+        if user_info is not None:
+            if user_info.user_provided_flag:
+                self.set_working_quality(user_info.user_provided_flag, element)
+                raise QCSkipCheck("User provided flag found")
+            elif user_info.ignore_test:
+                raise QCSkipCheck("User instructed to ignore test")
+            else:
+                del element.qc_info[fn]
+
+    def check_qc_already_complete_many(self,
+                                       specific_test_name: str,
+                                       references: t.List[AnyRef],
+                                       **kwargs):
+        skip: bool | None = None
+        for ref in references:
+            try:
+                self.check_qc_already_complete(specific_test_name, ref.ref_object, **kwargs)
+                skip = False
+            except QCSkipCheck:
+                if skip is not False:
+                    skip = True
+        if skip:
+            raise QCSkipCheck("All elements already complete")
+
+    def set_working_quality(self,
+                            working_quality: int,
+                            element: ocproc2.AbstractElement | ocproc2.RecordSet | ocproc2.BaseRecord):
+        existing_quality = element.metadata.best("WorkingQuality", default=None, coerce=int)
+        if working_quality in self.ALLOW_NEW_QUALITY[existing_quality]:
+            element.metadata["WorkingQuality"] = working_quality
+
+    def recommend_for_review(self,
+                             specific_test_name: str,
+                             refs: AnyRef | t.Iterable[AnyRef],
+                             quality_flag: int | None = None,
+                             subpath: str = "",
+                             ref_value: t.Any = None,
+                             note: str | None = None):
+        if not isinstance(refs, AnyRef):
+            for e in refs:
+                self.recommend_for_review(specific_test_name, e, quality_flag, subpath, ref_value, note)
+        else:
+            full_test_name = self.full_test_name(specific_test_name)
+            if quality_flag is not None and hasattr(refs.ref_object, 'qc_info'):
+                refs.ref_object.qc_info.set(full_test_name, QCInfo(system_recommended_flag=quality_flag, ref_value=ref_value, note=note))
+            element_path = refs.path
+            if subpath:
+                element_path = f"{refs.path.rstrip("/")}/{subpath.strip("/")}"
+            self.add_qc_message(full_test_name + ('' if not note else f' - {note}'), element_path or "", ref_value)
+            self.update_qc_result(ocproc2.QCResult.MANUAL_REVIEW)
+
+    def update_qc_result(self, new_result: ocproc2.QCResult):
+        if self._qc_result is ocproc2.QCResult.PASS or new_result is ocproc2.QCResult.FAIL:
+            self._qc_result = new_result
+
+    def add_qc_message(self, msg: str, path: str | list[str], ref_value: t.Any = None):
+        self._qc_messages.append(ocproc2.QCMessage(
+            msg,
+            path,
+            ref_value
+        ))
+
+    def add_note(self, msg: str):
+        self.current_record.record.add_history_entry(
+            msg,
+            self._test_name,
+            self._test_version,
+            "",
+        )
+
+    def require_value(self,
+                      value: ocproc2.AbstractElement | None,
+                      skip_dubious: bool = True):
+        if value is None:
+            raise QCSkipCheck("Value required")
+        else:
+            self.check_skip(value,
+                            skip_quality_assigned=False,
+                            skip_empty=True,
+                            skip_flagged_empty=True,
+                            skip_erroneous=True,
+                            skip_bad_structure=True,
+                            skip_dubious=skip_dubious)
+
+
+    @staticmethod
+    def review_cb(test_name: str,
+                  skip_quality_assigned: bool = True,
+                  skip_dubious: bool = False,
+                  skip_empty: bool = False,
+                  skip_flagged_empty: bool = True,
+                  skip_erroneous: bool = True,
+                  skip_bad_structure: bool = True,
+                  error_flag: int | None = None,
+                  pass_flag: int | None = None) -> t.Callable[[QCMethodProtocol], QCMethodProtocol]:
+        def _outer(cb: QCMethodProtocol) -> QCMethodProtocol:
+            @functools.wraps(cb)
+            def _inner(self: QualityChecker, ref: AnyRef, *args, **kwargs) -> t.Any:
+                with self.review(test_name, ref, error_flag=error_flag, pass_flag=pass_flag) as ctx:
+                    ctx.check_qc_already_complete(skip_empty=skip_empty,
+                                                  skip_erroneous=skip_erroneous,
+                                                  skip_dubious=skip_dubious,
+                                                  skip_flagged_empty=skip_flagged_empty,
+                                                  skip_quality_assigned=skip_quality_assigned,
+                                                  skip_bad_structure=skip_bad_structure)
+                    return cb(self, ref, *args, **kwargs)
+
+            return _inner
+
+        return _outer
+
+    def raise_qc_error(self,
+                       msg: str,
+                       flag: int | None = None,
+                       subpath: t.Optional[str] = None,
+                       ref_value: t.Any = None):
+        raise QCAssertionError(
+            error_code=msg,
+            flag_number=flag,
+            subpath=subpath,
+            ref_value=ref_value
+        )
+
+    def assert_true(self, a: t.Any, msg: str | None = None, **kwargs) -> bool:
+        if not a:
+            self.raise_qc_error(msg or "value is not true", **kwargs)
+        return True
+
+    def assert_false(self, a: t.Any, msg: str | None = None, **kwargs) -> bool:
+        if a:
+            self.raise_qc_error(msg or "value is not true", **kwargs)
+        return True
+
+    def assert_is_none(self, a: t.Any, msg:str | None = None, **kwargs) -> t.TypeGuard[None]:
+        if a is not None:
+            self.raise_qc_error(msg or "value is not none", **kwargs)
+        return True
+
+    def assert_is_not_none[T](self, a: T | None, msg: str | None = None, **kwargs) -> t.TypeGuard[T]:
+        if a is None:
+            self.raise_qc_error(msg or "value is none", **kwargs)
+        return True
+
+    def assert_in_reference_range(self, element: ocproc2.SingleElement, ref_range: ReferenceRange, msg: str | None = None, **kwargs):
+        ...
+
+    def assert_in(self, element: t.Any, collection: collections.abc.Container, msg: str | None = None, **kwargs) -> bool:
+        if element not in collection:
+            self.raise_qc_error(msg or "element is not in the collection", **kwargs)
+        return True
+
+    def assert_is_instance(self, v: t.Any, types: tuple[type, ...] | type, msg: str | None = None, **kwargs) -> bool:
+        if not isinstance(v, types):
+            self.raise_qc_error(msg or "element is not a valid type", **kwargs)
+        return True
+
+    def assert_is_not_instance(self, v: t.Any, types: tuple[type, ...] | type, msg: str | None = None, **kwargs):
+        if isinstance(v, types):
+            self.raise_qc_error(msg or "element is not a valid type", **kwargs)
+        return True
+
+    def assert_greater_or_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if not (amath.gt(a, b) or amath.is_close(a, b)):
+            self.raise_qc_error(msg or "element is not greater than or close", **kwargs)
+
+    def assert_less_or_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if not (amath.lt(a, b) or amath.is_close(a, b)):
+            self.raise_qc_error(msg or "element is not less than or close", **kwargs)
+
+    def assert_not_equal(self, a: t.Any, b: t.Any, msg: str | None = None, **kwargs):
+        if a == b:
+            self.raise_qc_error(msg or "not_equal", **kwargs)
+
+
+class DeepDiveChecker(QualityChecker):
+
+    LIMIT_SUBRECORD_TYPES: t.Container[str] | None = None
+    LIMIT_ELEMENT_TYPES: ElementType | None = None
+
+    element_check: t.Callable[[ElementRef], t.Any] | None = None
+    parent_record_check: t.Callable[[ParentRecordRef], t.Any] | None = None
+    multi_element_check: t.Callable[[MultiElementRef], t.Any] | None = None
+    single_element_check: t.Callable[[SingleElementRef], t.Any] | None = None
+    child_record_check: t.Callable[[ChildRecordRef], t.Any] | None = None
+    record_check: t.Callable[[RecordRef], t.Any] | None = None
+    recordset_check: t.Callable[[RecordSetRef], t.Any] | None = None
+
+    def run(self):
+        self.crawl_record(
+            self.current_record,
+            element_cb=self.element_check,
+            single_element_cb=self.single_element_check,
+            multi_element_cb=self.multi_element_check,
+            parent_record_cb=self.parent_record_check,
+            child_record_cb=self.child_record_check,
+            record_cb=self.record_check,
+            recordset_cb=self.recordset_check,
+            limit_element_types=self.LIMIT_ELEMENT_TYPES,
+            limit_subrecord_types=self.LIMIT_SUBRECORD_TYPES
+        )
+
+review = QualityChecker.review_cb

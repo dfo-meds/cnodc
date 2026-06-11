@@ -3,7 +3,8 @@ import hashlib
 import typing as t
 import datetime
 
-from medsutil.ocproc2.elements import ElementMap, AbstractElement, SingleElement, AnyElementExport, MetadataDict
+from medsutil.ocproc2.elements import ElementMap, AbstractElement, SingleElement, AnyElementExport, MetadataDict, \
+    QCInfoMap, ExportQCInfo, QCInfo
 from medsutil.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
 from medsutil.lazy_load import LazyLoadList
 import medsutil.awaretime as awaretime
@@ -18,13 +19,20 @@ if t.TYPE_CHECKING:
 
 class BaseRecord:
 
-    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords')
+    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', '_qc_info')
 
     def __init__(self):
         self._metadata: t.Optional[ElementMap] = None
         self._parameters: t.Optional[ElementMap] = None
         self._coordinates: t.Optional[ElementMap] = None
         self._subrecords: t.Optional[RecordMap] = None
+        self._qc_info: t.Optional[QCInfoMap] = None
+
+    @property
+    def qc_info(self) -> QCInfoMap:
+        if self._qc_info is None:
+            self._qc_info = QCInfoMap()
+        return t.cast(QCInfoMap, self._qc_info)
 
     @property
     def metadata(self) -> ElementMap:
@@ -102,7 +110,7 @@ class BaseRecord:
     def to_mapping(self) -> BaseExport:
         map_: BaseExport = {}
         md = self._metadata.to_mapping() if self._metadata is not None else None
-        if md:
+        if self._metadata is not None:
             map_['_metadata'] = md
         pm = self._parameters.to_mapping() if self._parameters is not None else None
         if pm:
@@ -113,17 +121,37 @@ class BaseRecord:
         sm = self._subrecords.to_mapping() if self._subrecords is not None else None
         if sm:
             map_['_subrecords'] = sm
+        qc = self._qc_info.to_mapping() if self._qc_info is not None else None
+        if qc:
+            map_['_qc_info'] = qc
         return map_
 
     def from_mapping(self, map_: BaseExport):
-        if '_metadata' in map_:
-            self.metadata.from_mapping(map_['_metadata'])
-        if '_parameters' in map_:
-            self.parameters.from_mapping(map_['_parameters'])
-        if '_coordinates' in map_:
-            self.coordinates.from_mapping(map_['_coordinates'])
-        if '_subrecords' in map_:
-            self.subrecords.from_mapping(map_['_subrecords'])
+        try:
+            md = map_['_metadata']
+            if md:
+                self.metadata.from_mapping(md)
+        except KeyError: ...
+        try:
+            pm = map_['_parameters']
+            if pm:
+                self.parameters.from_mapping(pm)
+        except KeyError: ...
+        try:
+            cd = map_['_coordinates']
+            if cd:
+                self.coordinates.from_mapping(cd)
+        except KeyError: ...
+        try:
+            sr = map_['_subrecords']
+            if sr:
+                self.subrecords.from_mapping(sr)
+        except KeyError: ...
+        try:
+            qc = map_['_qc_info']
+            if qc:
+                self.qc_info.from_mapping(qc)
+        except KeyError: ...
 
     def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable[BaseRecord]:
         if self._subrecords is not None:
@@ -152,7 +180,7 @@ class ChildRecord(BaseRecord):
 
 class ParentRecord(BaseRecord):
 
-    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', 'history', 'qc_tests')
+    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', 'history', 'qc_tests', '_qc_info')
 
     def __init__(self):
         super().__init__()
@@ -275,11 +303,24 @@ class ParentRecord(BaseRecord):
 
 class RecordSet:
 
-    __slots__ = ('_metadata', 'records')
+    __slots__ = ('_metadata', '_records', '_qc_info')
 
     def __init__(self):
-        self._metadata = None
-        self.records: LazyLoadList[ChildRecord] = LazyLoadList(ChildRecord.build_from_mapping)
+        self._metadata: ElementMap | None = None
+        self._qc_info: QCInfoMap | None = None
+        self._records: LazyLoadList[ChildRecord] | None = None
+
+    @property
+    def records(self) -> LazyLoadList[ChildRecord]:
+        if self._records is None:
+            self._records = LazyLoadList(ChildRecord.build_from_mapping)
+        return t.cast(LazyLoadList[ChildRecord], self._records)
+
+    @property
+    def qc_info(self) -> QCInfoMap | None:
+        if self._qc_info is None:
+            self._qc_info = QCInfoMap()
+        return t.cast(QCInfoMap, self._qc_info)
 
     @property
     def metadata(self):
@@ -294,21 +335,28 @@ class RecordSet:
             r.update_hash(h)
 
     def to_mapping(self) -> RecordSetExport:
-        if self.metadata:
-            return {
-                '_records': self.records.to_mapping(),
-                '_metadata': self.metadata.to_mapping()
-            }
-        else:
-            return {
-                '_records': self.records.to_mapping()
-            }
+        base: RecordSetExport = {
+            '_records': self.records.to_mapping(),
+        }
+        if self._metadata is not None:
+            base['_metadata'] = self._metadata.to_mapping()
+        if self._qc_info is not None:
+            base['_qc_info'] = self._qc_info.to_mapping()
+        return base
 
     def from_mapping(self, map_: RecordSetExport):
         try:
             self.records.from_mapping(map_['_records'])
-            if '_metadata' in map_:
-                self.metadata.from_mapping(map_['_metadata'])
+            try:
+                md = map_['_metadata']
+                if md:
+                    self.metadata.from_mapping(md)
+            except KeyError as ex: ...
+            try:
+                qc = map_['_qc_info']
+                if qc:
+                    self.qc_info.from_mapping(qc)
+            except KeyError as ex: ...
         except TypeError:
             # probably a list from the older OCPROC2 spec
             self.records.from_mapping(map_)
@@ -423,12 +471,16 @@ class RecordMap:
             self.record_sets[record_set_type][record_set_index] = RecordSet()
         self.record_sets[record_set_type][record_set_index].records.append(record)
 
+    def keys(self):
+        return self.record_sets.keys()
+
 
 class BaseExport(t.TypedDict):
     _metadata: t.NotRequired[dict[str, AnyElementExport]]
     _coordinates: t.NotRequired[dict[str, AnyElementExport]]
     _parameters: t.NotRequired[dict[str, AnyElementExport]]
     _subrecords: t.NotRequired[dict[str, dict[str, RecordSetExport]]]
+    _qc_info: t.NotRequired[dict[str, ExportQCInfo]]
 
 
 class ParentExport(BaseExport):
@@ -439,3 +491,4 @@ class ParentExport(BaseExport):
 class RecordSetExport(t.TypedDict):
     _records: list[BaseExport]
     _metadata: t.NotRequired[MetadataDict]
+    _qc_info: t.NotRequired[dict[str, ExportQCInfo]]

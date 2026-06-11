@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from medsutil import ocproc2
 from medsutil.ocproc2 import SingleElement
 from pipeman.programs.nodb.qc.integrity_check import NODBIntegrityCheck
-from pipeman.programs.nodb.qc.qc import QCAssertionError, TestContext, QCSkipTest
+from pipeman.programs.nodb.qc.qc import QCAssertionError, TestContext, QCSkipCheck
 from tests.helpers.base_test_case import BaseTestCase
 
 TEST_ELEMENTS = [
@@ -122,13 +122,13 @@ class TestIntegrityCheck(BaseTestCase):
         with self.assertRaises(QCAssertionError) as h:
             yield h
         if error_code is not None:
-            self.assertEqual(error_code, h.exception.error_code)
+            self.assertEqual(error_code, h.exception.specific_test_name)
         if flag_number is not None:
             self.assertEqual(flag_number, h.exception.flag_number)
 
     @contextmanager
     def assertSkipsQC(self):
-        with self.assertRaises(QCSkipTest) as h:
+        with self.assertRaises(QCSkipCheck) as h:
             yield h
 
     def test_units_check(self):
