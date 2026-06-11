@@ -1,4 +1,4 @@
-from pipeman.programs.nodb.qc.qc import BaseTestSuite, TestContext, RecordTest
+from pipeman.programs.qc import BaseTestSuite, TestContext, RecordTest
 import medsutil.ocproc2 as ocproc2
 import medsutil.ocproc_math as oom
 

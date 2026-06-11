@@ -3,9 +3,7 @@ import itertools
 from uncertainties import UFloat
 
 import medsutil.amath
-from medsutil.math import _common
-from nodb.interface import NODB
-from pipeman.programs.nodb.qc import BaseTestSuite, BatchTest, TestContext, QCSkipTest
+from pipeman.programs.qc import BaseTestSuite, BatchTest, TestContext, QCSkipTest
 import medsutil.ocproc2 as ocproc2
 import enum
 import typing as t

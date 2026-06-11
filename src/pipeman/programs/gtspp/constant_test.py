@@ -1,4 +1,4 @@
-from pipeman.programs.nodb.qc.qc import BaseTestSuite
+from pipeman.programs.qc import BaseTestSuite
 
 
 class GTSPPConstantTest(BaseTestSuite):
