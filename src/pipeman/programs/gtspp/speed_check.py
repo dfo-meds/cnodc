@@ -1,11 +1,11 @@
 import decimal
 import typing as t
 import medsutil.math as amath
-from medsutil import geodesy, ocproc2
+from medsutil import geodesy
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import AbstractElement
 from nodb.observations import NODBPlatform
-from pipeman.programs.nodb.qc.qc import DeepDiveChecker, ParentRecordRef
+from pipeman.programs.qc import DeepDiveChecker, ParentRecordRef
 from autoinject import injector
 from nodb.interface import NODB
 

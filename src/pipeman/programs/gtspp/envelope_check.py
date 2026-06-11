@@ -1,5 +1,5 @@
 import pathlib
-from pipeman.programs.nodb.qc.reference_ranges import ReferenceRangeChecker
+from pipeman.programs.qc.reference_ranges import ReferenceRangeChecker
 
 
 class GTSPPEnvelopeTest(ReferenceRangeChecker):

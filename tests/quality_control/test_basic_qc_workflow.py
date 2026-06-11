@@ -1,5 +1,5 @@
 from medsutil.ocproc2 import QCResult
-from pipeman.programs.nodb.qc.qc import BaseTestSuite, MetadataTest, TestContext
+from pipeman.programs.qc import BaseTestSuite, MetadataTest, TestContext
 from medsutil import ocproc2
 from tests.helpers.base_test_case import BaseTestCase
 

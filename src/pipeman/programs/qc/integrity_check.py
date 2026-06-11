@@ -1,7 +1,7 @@
 from autoinject import injector
 
 import medsutil.ocproc2 as ocproc2
-from pipeman.programs.nodb.qc.qc import DeepDiveChecker, SingleElementRef, review, RecordSetRef, ChildRecordRef, \
+from pipeman.programs.qc.qc import DeepDiveChecker, SingleElementRef, review, RecordSetRef, ChildRecordRef, \
     ElementRef, ElementType, MultiElementRef
 
 

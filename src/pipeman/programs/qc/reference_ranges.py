@@ -10,7 +10,7 @@ import zrlog
 from medsutil import math as amath, geodesy
 from medsutil.exceptions import CodedError
 from medsutil.units import UnitConverter
-from pipeman.programs.nodb.qc.qc import ReferenceRange, QualityChecker, ElementType, RecordRef, SingleElementRef, review
+from pipeman.programs.qc.qc import ReferenceRange, QualityChecker, ElementType, RecordRef, SingleElementRef, review
 
 
 @dataclass

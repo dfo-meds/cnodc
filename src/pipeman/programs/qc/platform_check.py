@@ -3,7 +3,7 @@ import typing as t
 from autoinject import injector
 from nodb.interface import NODB, NODBInstance
 from nodb.observations import NODBPlatform
-from pipeman.programs.nodb.qc.qc import DeepDiveChecker, ParentRecordRef, review, ElementRef, SingleElementRef
+from pipeman.programs.qc.qc import DeepDiveChecker, ParentRecordRef, review, ElementRef, SingleElementRef
 import medsutil.ocproc2 as ocproc2
 
 

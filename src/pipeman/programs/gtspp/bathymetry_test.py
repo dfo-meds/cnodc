@@ -1,7 +1,7 @@
 from uncertainties import UFloat, ufloat
 
 from medsutil.bathymetry import BathymetryModel
-from pipeman.programs.nodb.qc.qc import BaseTestSuite, RecordTest, TestContext
+from pipeman.programs.qc import BaseTestSuite, RecordTest, TestContext
 import medsutil.ocproc2 as ocproc2
 from medsutil.dynamic import dynamic_object
 

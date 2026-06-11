@@ -1,4 +1,4 @@
-from pipeman.programs.nodb.qc.qc import ElementRef, review, DeepDiveChecker, ParentRecordRef
+from pipeman.programs.qc import ElementRef, review, DeepDiveChecker, ParentRecordRef
 
 
 class GTSPPCoordinateCheck(DeepDiveChecker):

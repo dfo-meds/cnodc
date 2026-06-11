@@ -2,8 +2,8 @@ from contextlib import contextmanager
 
 from medsutil import ocproc2
 from medsutil.ocproc2 import SingleElement
-from pipeman.programs.nodb.qc.integrity_check import NODBIntegrityCheck
-from pipeman.programs.nodb.qc.qc import QCAssertionError, TestContext, QCSkipCheck
+from pipeman.programs.qc.integrity_check import NODBIntegrityCheck
+from pipeman.programs.qc import QCAssertionError, TestContext, QCSkipCheck
 from tests.helpers.base_test_case import BaseTestCase
 
 TEST_ELEMENTS = [
