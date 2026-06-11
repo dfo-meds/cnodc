@@ -26,6 +26,7 @@ class QCResult(enum.Enum):
     MANUAL_REVIEW = 'R'
     FAIL = 'F'
     SKIP = 'S'
+    ERROR = 'E'
 
 
 class HistoryEntry:

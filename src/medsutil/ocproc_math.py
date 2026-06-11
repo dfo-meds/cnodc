@@ -10,22 +10,69 @@
 """
 import medsutil.ocproc2 as ocproc2
 import typing as t
-import medsutil.seawater as seawater_sub
+import medsutil.seawater as seawater
+from medsutil.awaretime import AwareDateTime
+from medsutil.seawater import TemperatureScale
 from medsutil.units.units import convert
 import medsutil.geodesy as geodesy
-import medsutil.amath as amath
-import medsutil.awaretime as awaretime
+import medsutil.math as amath
 
 ValQualUnits = tuple[t.Any, int, t.Optional[str]]
 
-ITS90_START = awaretime.utc_awaretime(1990, 1, 1, 0, 0, 0)
-IPTS68_START = awaretime.utc_awaretime(1968, 1, 1, 0, 0, 0)
 
-try:
-    import gsw
-except ModuleNotFoundError:
-    gsw = None
 
+def get_temperature(temperature: ocproc2.SingleElement | None,
+                    obs_date: ocproc2.SingleElement | AwareDateTime | None = None,
+                    units: str = "degrees_C",
+                    temperature_scale: TemperatureScale = TemperatureScale.TS_1990) -> amath.AnyNumber | None:
+    """Extract the temperature from a temperature element in a given unit and temperature scale.
+        The units of the temperature element are assumed to match if they are not set.
+        The temperature scale of the temperature element is inferred from the observation date, if
+        present, otherwise it is assumed to be ITS-90."""
+    if temperature is None or temperature.is_empty():
+        return None
+
+    temp_val = temperature.to_numeric(units)
+    temp_units = temperature.metadata.best("Units", '', coerce=str)
+    temp_scale_str = temperature.metadata.best('TemperatureScale', None, coerce=str)
+
+    if isinstance(obs_date, ocproc2.AbstractElement):
+        obs_date_val = obs_date.to_datetime() if obs_date.is_iso_datetime() else None
+    else:
+        obs_date_val = obs_date
+    measured_temperature_scale = seawater.temperature_scale_in_use_on(obs_date_val, temp_scale_str)
+    return seawater.eos80_convert_temperature(
+        temperature=temp_val,
+        input_scale=measured_temperature_scale,
+        input_units=temp_units,
+        output_units=units,
+        output_scale=temperature_scale
+    )
+
+
+def get_freezing_point_from_psal(practical_salinity: ocproc2.SingleElement | None = None,
+                                 pressure_dbar: amath.AnyNumber | None = None,
+                                 latitude_dd: amath.AnyNumber | None = None,
+                                 units: str = "degrees_C",
+                                 temperature_scale: TemperatureScale = TemperatureScale.TS_1990) -> amath.AnyNumber | None:
+    """Calculate the freezing point of seawater from individual elements corresponding to the necessary information.
+        The result is in the given units and temperature scale.
+    """
+    if pressure_dbar is None or latitude_dd is None or practical_salinity is None:
+        return None
+    else:
+        if practical_salinity.is_empty() or not practical_salinity.is_numeric():
+            return None
+        psal = practical_salinity.to_numeric("0.001")
+        if not amath.between(26, psal, 35):
+            return None
+        return seawater.eos80_convert_temperature(
+            temperature=seawater.eos80_freezing_point_t68(psal, pressure_dbar),
+            input_units="degrees_C",
+            input_scale=TemperatureScale.TS_1968,
+            output_units=units,
+            output_scale=temperature_scale
+        )
 
 def calc_speed_record(record1: ocproc2.BaseRecord, record2: ocproc2.BaseRecord, units: str = "m s-1") -> ValQualUnits:
     """Calculate the speed between two records."""
@@ -104,85 +151,6 @@ def calc_distance(latitude1: ocproc2.SingleElement | None,
         units
     )
 
-
-def get_temperature(temperature: t.Optional[ocproc2.SingleElement],
-                    units: str,
-                    obs_date: t.Optional[ocproc2.SingleElement] = None,
-                    temperature_scale: str = "ITS-90"):
-    """Extract the temperature from a temperature element in a given unit and temperature scale.
-        The units of the temperature element are assumed to match if they are not set.
-        The temperature scale of the temperature element is inferred from the observation date, if
-        present, otherwise it is assumed to be ITS-90."""
-    if temperature is None or temperature.is_empty():
-        return None
-    temp_val = temperature.to_ufloat(units)
-    c_temp_scale = temperature.metadata.best('TemperatureScale', None, coerce=str)
-    if c_temp_scale is None:
-        if obs_date is not None and not obs_date.is_empty():
-            obs_date_val = obs_date.to_datetime()
-            if obs_date_val < IPTS68_START:
-                c_temp_scale = 'IPTS-48'
-            elif obs_date_val < ITS90_START:
-                c_temp_scale = 'IPTS-68'
-            else:
-                c_temp_scale = 'ITS-90'
-        else:
-            c_temp_scale = 'ITS-90'
-    return convert_temperature_scale(temp_val, c_temp_scale, temperature_scale)
-
-
-def calc_freezing_point_record(level_record: ocproc2.BaseRecord,
-                               position_record: t.Optional[ocproc2.BaseRecord] = None,
-                               units: t.Optional[str] = None,
-                               temperature_scale: t.Optional[str] = None) -> ValQualUnits:
-    """Calculate the freezing point of seawater from a level record (containing one of Depth or Pressure
-        and one of PracticalSalinity or AbsoluteSalinity) and a position record (containing Latitude and Longitude).
-        See calc_freezing_point for details.
-    """
-    return calc_freezing_point(
-        pressure=level_record.coordinates.ideal('Pressure'),
-        depth=level_record.coordinates.ideal('Depth'),
-        practical_salinity=level_record.parameters.ideal('PracticalSalinity'),
-        absolute_salinity=level_record.parameters.ideal('AbsoluteSalinity'),
-        latitude=position_record.coordinates.ideal('Latitude') if position_record else None,
-        longitude=position_record.coordinates.ideal('Longitude') if position_record else None,
-        units=units,
-        temperature_scale=temperature_scale
-    )
-
-
-def calc_freezing_point(pressure: t.Optional[ocproc2.SingleElement] = None,
-                        depth: t.Optional[ocproc2.SingleElement] = None,
-                        latitude: t.Optional[ocproc2.SingleElement] = None,
-                        longitude: t.Optional[ocproc2.SingleElement] = None,
-                        practical_salinity: t.Optional[ocproc2.SingleElement] = None,
-                        absolute_salinity: t.Optional[ocproc2.SingleElement] = None,
-                        units: t.Optional[str] = None,
-                        temperature_scale: t.Optional[str] = None) -> ValQualUnits:
-    """Calculate the freezing point of seawater from individual elements corresponding to the necessary information.
-        The result is in the given units and temperature scale and the return value includes the actual value,
-        the QC flag, and the units. See freezing_point for the process.
-    """
-    p_val, p_qual, _ = calc_pressure(pressure, depth, latitude)
-    if p_val is not None:
-        return (
-            freezing_point(
-                pressure=p_val,
-                latitude=latitude.to_ufloat() if latitude is not None and not latitude.is_empty() else None,
-                longitude=longitude.to_ufloat() if longitude is not None and not longitude.is_empty() else None,
-                absolute_salinity=absolute_salinity.to_ufloat(
-                    'g kg-1') if absolute_salinity is not None and not absolute_salinity.is_empty() else None,
-                practical_salinity=practical_salinity.to_ufloat(
-                    '0.001') if practical_salinity is not None and not practical_salinity.is_empty() else None,
-                units=units,
-                temperature_scale=temperature_scale
-            ),
-            _compress_quality_scores(p_qual,
-                                     absolute_salinity.working_quality() if absolute_salinity is not None else None,
-                                     practical_salinity.working_quality() if practical_salinity is not None else None),
-            units or '°C'
-        )
-    return None, 9, None
 
 
 def calc_pressure_record(level_record: ocproc2.BaseRecord,
@@ -315,93 +283,6 @@ def density_at_depth(pressure: amath.AnyNumber,
         if actual_temp is not None:
             density = seawater_sub.eos80_density_at_depth_t68(practical_salinity, actual_temp, pressure)
     return convert(density, calc_units, units)
-
-
-def freezing_point(pressure: amath.AnyNumber,
-                   absolute_salinity: t.Optional[amath.AnyNumber] = None,
-                   practical_salinity: t.Optional[amath.AnyNumber] = None,
-                   latitude: t.Optional[amath.AnyNumber] = None,
-                   longitude: t.Optional[amath.AnyNumber] = None,
-                   units: t.Optional[str] = None,
-                   temperature_scale: t.Optional[str] = None) -> t.Optional[amath.AnyNumber]:
-    """Calculate freezing point from actual numbers.
-
-        Delegates to gsw.t_freezing() if available and assumes saturation_fraction=1 (this gives lower results in
-        testing, but we should look if we can use the actual saturation if available).
-
-        Otherwise, delegates to seawater.fp() or our own implementation of it.
-    """
-    if pressure is None:
-        return None
-    if absolute_salinity is None and practical_salinity is None:
-        return None
-    calc_units = '°C'
-    calc_temp_scale = 'ITS-90'
-    absolute_salinity, practical_salinity = _fix_salinities(absolute_salinity, practical_salinity, latitude, longitude,
-                                                            pressure)
-    if gsw is not None and absolute_salinity is not None:
-        # TODO: saturation_fraction from DO if available?
-        # TODO: confirm if we have absolute or sea pressures (i.e. are we subtracting 10.1325 dbar?)
-        # TODO: calculate uncertainty associated with this value
-        fp = gsw.t_freezing(amath.to_float(absolute_salinity), amath.to_float(pressure), 1)
-    elif practical_salinity is not None:
-        fp = seawater_sub.eos80_freezing_point_t68(practical_salinity, pressure)
-        calc_temp_scale = 'IPTS-68'
-    else:
-        fp = None
-    return convert_temperature_scale(convert(fp, calc_units, units), calc_temp_scale, temperature_scale)
-
-
-def _fix_salinities(SA, SP, lat, lon, p) -> tuple[t.Optional[amath.AnyNumber], t.Optional[amath.AnyNumber]]:
-    """Calculate SA or SP from the other if possible given the available values.
-
-        Note that SA to SP is only useful when gsw is not installed (as otherwise the SA will be used
-        in the calculations), so to provide a proper SP number we can't rely on gsw being installed.
-
-        Likewise SP to SA is only useful when gsw is installed (as otherwise SP will be used with the
-        seawater toolkit), so we don't need to calculate SA if gsw is not installed.
-    """
-    if SA is None and gsw is not None and lat is not None and lon is not None and p is not None:
-        # TODO: calculate uncertainty associated with this value
-        return gsw.SA_from_SP(amath.to_float(SP), amath.to_float(p), amath.to_float(lon), amath.to_float(lat)), SP
-    elif SP is None and gsw is None:
-        # TODO: convert SA to SP without gsw?
-        # could use pure python gsw (can just be a dependency then), but is out-dated
-        # or can copy pure python gsw function SP_from_SA into our sub library?
-        return SA, SP
-    else:
-        return SA, SP
-
-
-def convert_temperature_scale(value: amath.AnyNumber | None, current_scale: t.Optional[str] = None, new_scale: t.Optional[str] = None) -> amath.AnyNumber | None:
-    """Convert a value from one temperature scale to another."""
-    if value is None:
-        return None
-    if current_scale is None or new_scale is None or current_scale == new_scale:
-        return value
-    if current_scale == 'IPTS-68' and new_scale == 'ITS-90':
-        return _convert_t68_to_t90(value)
-    if current_scale == 'IPS-90' and new_scale == 'IPTS-68':
-        return _convert_t90_to_t68(value)
-    if current_scale == 'IPTS-48' and new_scale == 'IPTS-68':
-        return seawater_sub.eos80_t68_from_t48(value)
-    if current_scale == 'IPTS-48' and new_scale == 'ITS-90':
-        return _convert_t68_to_t90(seawater_sub.eos80_t68_from_t48(value))
-    return None
-
-
-def _convert_t68_to_t90(v):
-    """Convert T68 temperatures to T90."""
-    if gsw is not None:
-        # TODO: calculate uncertainty associated with this value
-        return gsw.t90_from_t68(amath.to_float(v))
-    else:
-        return seawater_sub.eos80_t90_from_t68(v)
-
-
-def _convert_t90_to_t68(v):
-    """Convert T90 temperatures to T68."""
-    return seawater_sub.eos80_t68_from_t90(v)
 
 
 def depth_from_pressure(pressure: amath.AnyNumber,

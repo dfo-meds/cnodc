@@ -5,7 +5,7 @@ from medsutil import geodesy
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import AbstractElement
 from nodb.observations import NODBPlatform
-from pipeman.programs.qc import DeepDiveChecker, ParentRecordRef
+from pipeman.programs.qc.base import DeepDiveChecker, ParentRecordRef
 from autoinject import injector
 from nodb.interface import NODB
 
@@ -30,8 +30,8 @@ class GTSPPSpeedTest(DeepDiveChecker):
             self.get_record_coordinate_ref(ref, "Latitude", True),
             self.get_record_coordinate_ref(ref, "Longitude", True),
             self.get_record_coordinate_ref(ref, "Time", True),
-        ], error_flag=3, pass_flag=1) as ctx:
-            ctx.check_qc_already_complete(skip_dubious=True, skip_empty=True)
+        ], fail_flag=3, pass_flag=1) as ctx:
+            ctx.check_review_already_complete(skip_dubious=True, skip_empty=True)
 
             record = ref.record
 
@@ -46,17 +46,17 @@ class GTSPPSpeedTest(DeepDiveChecker):
             yy = record.coordinates['Latitude'].to_numeric("degrees_north")
             tt = record.coordinates['Time'].to_datetime()
             info = (amath.radians(xx), amath.radians(yy), tt)
-            sid = record.metadata['CNODCPlatform'].to_string()
+            pid = record.metadata['CNODCPlatform'].to_string()
 
             top_speed = ...
 
             try:
-                for position in self._get_previous_positions(sid):
+                for position in self._get_previous_positions(pid):
                     if top_speed is ...:
-                        top_speed = self._get_top_speed(sid)
+                        top_speed = self._get_top_speed(pid)
                     self._run_speed_test(info, position, top_speed)
             finally:
-                self._add_previous_position(sid, info)
+                self._add_previous_position(pid, info)
 
     def _run_speed_test(self,
                         xyt2: tuple[amath.AnyNumber, amath.AnyNumber, AwareDateTime],
@@ -77,6 +77,7 @@ class GTSPPSpeedTest(DeepDiveChecker):
             self.batch_memory["positions"][sid].append(info)
 
     def _get_previous_positions(self, sid: str) -> list[tuple[amath.AnyNumber, amath.AnyNumber, AwareDateTime]]:
+        # TODO: should we stream records from the database?
         positions: dict[str, t.Any]
         if "positions" in self.batch_memory and sid in self.batch_memory["positions"]:
             return self.batch_memory["positions"][sid]

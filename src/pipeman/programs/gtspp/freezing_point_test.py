@@ -1,39 +1,66 @@
-from pipeman.programs.qc import BaseTestSuite, TestContext, RecordTest
+import typing as t
+
+from medsutil import seawater
+from medsutil.seawater import TemperatureScale
+from pipeman.programs.qc.base import DeepDiveChecker, RecordRef, AnyRef, ElementRef, review, QCSkipReview, \
+    SingleElementRef
+
 import medsutil.ocproc2 as ocproc2
-import medsutil.ocproc_math as oom
+import medsutil.ocproc_math as omath
+import medsutil.math as amath
 
 
-class GTSPPFreezingPointTest(BaseTestSuite):
+class GTSPPFreezingPointTest(DeepDiveChecker):
+
+    TRACK_COORDINATES = True
 
     def __init__(self, **kwargs):
-        super().__init__('gtspp_freezing', '1_0', test_tags=['GTSPP_2.6'], **kwargs)
+        super().__init__('gtspp_freezing', '1.0', test_tags=['GTSPP_2.6'])
 
-    @RecordTest(subrecord_type='PROFILE')
-    def freezing_point_test(self, record: ocproc2.ChildRecord, context: TestContext):
-        self.skip_if_bad_for_map(record.parameters, 'PracticalSalinity')
-        self.skip_if_bad_for_map(record.parameters, 'Temperature')
-        psal = self.value_in_units(record.parameters.get('PracticalSalinity'), '0.001')
-        if psal is None or psal < 26 or psal > 35:
-            self.skip_test()
-        freezing_point, _, _ = oom.calc_freezing_point_record(
-            level_record=record,
-            position_record=context.top_record,
-            units='°C',
-            temperature_scale='ITS-90'
+    def record_check(self, ref: RecordRef):
+        freezing_points = [x for x in self.get_freezing_points(ref)]
+        # need at least one salinity to check against
+        if not freezing_points:
+            return
+        temp_ref = self.get_record_parameter_ref(ref, "Temperature")
+        if temp_ref is not None:
+            for temp_sref in self.iterate_on_single_elements(temp_ref):
+                self.freezing_point_test(
+                    temp_sref,
+                    freezing_points
+                )
+
+    def get_freezing_points(self, ref: RecordRef) -> t.Iterable[amath.AnyNumber]:
+        # in degrees_C
+        sal_ref = self.get_record_parameter_ref(ref, "PracticalSalinity")
+        lat = self.current_latitude
+        pressure = self.current_pressure
+        for sal_sref in self.extract_good_values(sal_ref):
+            fp = omath.get_freezing_point_from_psal(
+                sal_sref.element,
+                pressure_dbar=pressure,
+                latitude_dd=lat,
+                units="degrees_C",
+                temperature_scale=TemperatureScale.TS_1990
+            )
+            if fp is not None:
+                yield fp
+
+    @review("above_freezing", fail_flag=3, skip_dubious=True, pass_flag=1)
+    def freezing_point_test(self, ref: SingleElementRef, freezing_points: list[amath.AnyNumber]):
+        temp = omath.get_temperature(
+            temperature=ref.element,
+            temperature_scale=TemperatureScale.TS_1990,
+            units="degrees_C",
+            obs_date=self.current_time
         )
-        if freezing_point is None:
-            self.skip_test()
-        with context.parameter_context('Temperature') as ctx2:
-            self.test_all_subvalues(ctx2, self._test_freezing_point, fp=freezing_point)
+        for fp in freezing_points:
+            if amath.
+        self.assert_greater_or_close(temp,)
 
     def _test_freezing_point(self, v: ocproc2.AbstractElement, ctx: TestContext, fp: float):
         self.should_test_value(v)
-        temp = oom.get_temperature(
-            temperature=v,
-            units='°C',
-            temperature_scale='ITS-90',
-            obs_date=ctx.top_record.coordinates.get('Time')
-        )
+
         if temp > 0:
             return
         self.assert_greater_than('fp_temp_too_low', temp, fp, qc_flag=13)
