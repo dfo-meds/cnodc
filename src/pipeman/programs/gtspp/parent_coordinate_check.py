@@ -1,4 +1,4 @@
-from pipeman.programs.qc import ElementRef, review, DeepDiveChecker, ParentRecordRef
+from pipeman.programs.qc.base import ElementRef, review, DeepDiveChecker, ParentRecordRef
 
 
 class GTSPPCoordinateCheck(DeepDiveChecker):
@@ -15,6 +15,6 @@ class GTSPPCoordinateCheck(DeepDiveChecker):
         self.require_element_check(self.get_record_coordinate_ref(ref, "Longitude", True))
         self.require_element_check(self.get_record_coordinate_ref(ref, "Time", True))
 
-    @review("element_required", error_flag=9)
+    @review("element_required", fail_flag=9, pass_flag=1)
     def require_element_check(self, ref: ElementRef):
         self.assert_false(ref.element.is_empty(), msg="element_required")

@@ -10,7 +10,7 @@ import zrlog
 from medsutil import math as amath, geodesy
 from medsutil.exceptions import CodedError
 from medsutil.units import UnitConverter
-from pipeman.programs.qc.qc import ReferenceRange, QualityChecker, ElementType, RecordRef, SingleElementRef, review
+from pipeman.programs.qc.base import ReferenceRange, QualityChecker, ElementType, RecordRef, SingleElementRef, review
 
 
 @dataclass
@@ -171,7 +171,7 @@ class ReferenceRangeChecker(QualityChecker):
                 if p_ref.element_name in ref_ranges:
                     self.parameter_range_check_for_element(p_ref, ref_ranges[p_ref.element_name])
 
-    @review("in_reference_range", error_flag=4, pass_flag=1)
+    @review("in_reference_range", fail_flag=4, pass_flag=1)
     def parameter_range_check_for_element(self, ref: SingleElementRef, reference_range: ReferenceRange):
         self.assert_in_reference_range(ref.element, reference_range, msg="outside_reference_range")
 

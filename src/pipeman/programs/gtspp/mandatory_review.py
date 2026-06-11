@@ -1,6 +1,6 @@
 from nodb.interface import NODB
 from nodb.observations import NODBPlatform
-from pipeman.programs.qc import DeepDiveChecker, ParentRecordRef, review
+from pipeman.programs.qc.base import DeepDiveChecker, ParentRecordRef, review
 from autoinject import injector
 
 
@@ -19,4 +19,4 @@ class GTSPPMandatoryManualReviewTest(DeepDiveChecker):
             self.require_value(platform)
             nodb_platform = NODBPlatform.find_by_uuid(db, platform.to_string())
             if nodb_platform is not None and nodb_platform.metadata.get("require_review", False):
-                self.raise_qc_error("manual_review_required")
+                self.report_qc_error("manual_review_required")

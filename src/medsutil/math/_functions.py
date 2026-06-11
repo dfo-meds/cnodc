@@ -163,3 +163,39 @@ def is_close(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float |
     if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
         return True
     return False
+
+def is_close_or_lt(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float | int = "1e-09", absolute_tolerance: str | float | int = "0.0") -> bool:
+    nv_x = nominal_value(x)
+    nv_y = nominal_value(y)
+    if _common.lt(nv_x, nv_y):
+        return True
+    if isinstance(nv_x, decimal.Decimal):
+        rel_tol = decimal.Decimal(relative_tolerance)
+        abs_tol = decimal.Decimal(absolute_tolerance)
+    else:
+        rel_tol = float(relative_tolerance)
+        abs_tol = float(absolute_tolerance)
+    diff = abs(sub(nv_x, nominal_value(y)))
+    if absolute_tolerance is not None and _common.lt(diff, abs_tol):
+        return True
+    if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
+        return True
+    return False
+
+def is_close_or_gt(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float | int = "1e-09", absolute_tolerance: str | float | int = "0.0") -> bool:
+    nv_x = nominal_value(x)
+    nv_y = nominal_value(y)
+    if _common.gt(nv_x, nv_y):
+        return True
+    if isinstance(nv_x, decimal.Decimal):
+        rel_tol = decimal.Decimal(relative_tolerance)
+        abs_tol = decimal.Decimal(absolute_tolerance)
+    else:
+        rel_tol = float(relative_tolerance)
+        abs_tol = float(absolute_tolerance)
+    diff = abs(sub(nv_x, nominal_value(y)))
+    if absolute_tolerance is not None and _common.lt(diff, abs_tol):
+        return True
+    if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
+        return True
+    return False

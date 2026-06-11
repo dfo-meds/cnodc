@@ -85,6 +85,17 @@ CREATE TABLE IF NOT EXISTS nodb_organization_user (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_organization_user_pkey ON nodb_organization_user(user_id, organization_id);
 
+
+CREATE TABLE IF NOT EXISTS nodb_temporary_qc_results(
+    batch_process_id    VARCHAR(1024)   NOT NULL,
+    batch_identifier    VARCHAR(1024)   NOT NULL,
+    outcome             INTEGER         NOT NULL,
+    working_uuid        UUID            NOT NULL,
+    db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodb_temp_qc_results_lookup ON nodb_temporary_qc_results(batch_process_id, batch_identifier, outcome);
+
 -- Function to record a login
 CREATE OR REPLACE FUNCTION record_login(
     username_in VARCHAR(126),

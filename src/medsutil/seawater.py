@@ -4,10 +4,13 @@ but use the amath library to preserve uncertainty across calculations if appropr
 EOS80 paper: https://repository.oceanbestpractices.org/bitstream/handle/11329/109/059832eb.pdf?sequence=1&isAllowed=y
 """
 import decimal
+import enum
 import typing as t
 
 import medsutil.math as amath
+from medsutil.awaretime import AwareDateTime
 from medsutil.math import AnyNumber
+from medsutil.units.units import convert
 
 DEPTH_A = decimal.Decimal("-1.82e-15")
 DEPTH_B = decimal.Decimal( "2.279e-10")
@@ -16,6 +19,24 @@ DEPTH_D = decimal.Decimal("9.72659")
 DEPTH_E = decimal.Decimal("2.184e-6")
 DEPTH_F = decimal.Decimal("1.092e-6")
 
+ITS90_START = AwareDateTime(1990, 1, 1, 0, 0, 0, tzinfo="Etc/UTC")
+IPTS68_START = AwareDateTime(1968, 1, 1, 0, 0, 0, tzinfo="Etc/UTC")
+
+
+class TemperatureScale(enum.Enum):
+    TS_1990 = 'ITS-90'
+    TS_1968 = 'IPTS-68'
+    TS_1948 = 'IPTS-48'
+
+def temperature_scale_in_use_on(obs_date: AwareDateTime | None, ts_scale_str: str | None = None):
+    if ts_scale_str is not None:
+        return TemperatureScale(ts_scale_str)
+    if obs_date is not None:
+        if obs_date < IPTS68_START:
+            return TemperatureScale.TS_1948
+        elif obs_date < ITS90_START:
+            return TemperatureScale.TS_1968
+    return TemperatureScale.TS_1990
 
 # From seawater.eos80.dpth
 def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
@@ -169,19 +190,43 @@ def eos80_t90_from_t48[T](temp_48: T) -> T:
     return eos80_t90_from_t68(eos80_t68_from_t48(temp_48))
 
 
-def eos80_convert_temperature[T](temp: T, temp_current_ref: str, temp_target_ref: str) -> T:
+def eos80_convert_temperature[T](temperature: T,
+                                 input_scale: TemperatureScale,
+                                 output_scale: TemperatureScale,
+                                 input_units: str = "degrees_C",
+                                 output_units: str = "degrees_C") -> T:
     """Convert temperature from given reference scale to specified reference scale"""
-    if temp_current_ref == temp_target_ref:
+
+    # Fast convert for when temp refs are the same
+    if input_scale is output_scale:
+        return convert(temperature, input_units, output_units)
+
+    # Temperatures must be in degrees C for the process to work
+    if input_units not in ("degrees_C", "degree_C", "°"):
+        temperature = convert(temperature, input_units, "degrees_C")
+
+    # Adjust the scale as necessary
+    temperature = eos80_convert_temperature_scale(temperature, input_scale, output_scale)
+
+    # Adjust to output units if necessary - note we're always in degrees_C after conversion
+    if output_units not in ("degrees_C", "degree_C", "°"):
+        temperature = convert(temperature, "degrees_C", output_units)
+
+    return temperature
+
+
+def eos80_convert_temperature_scale[T](temp: T, input_scale: TemperatureScale, output_scale: TemperatureScale) -> T:
+    if input_scale is output_scale:
         return temp
-    elif temp_target_ref == 'ITS-90':
-        if temp_current_ref == 'IPTS-68':
+    elif output_scale is TemperatureScale.TS_1990:
+        if input_scale is TemperatureScale.TS_1968:
             return eos80_t90_from_t68(temp)
-        elif temp_current_ref == 'IPTS-48':
+        elif input_scale is TemperatureScale.TS_1948:
             return eos80_t90_from_t48(temp)
-    elif temp_target_ref == 'IPTS-68':
-        if temp_current_ref == 'ITS-90':
+    elif output_scale is TemperatureScale.TS_1968:
+        if input_scale == TemperatureScale.TS_1990:
             return eos80_t68_from_t90(temp)
-    raise ValueError(f'Undefined temperature conversion {temp_current_ref} to {temp_target_ref}')
+    raise ValueError(f'Undefined temperature conversion {input_scale} to {output_scale}')
 
 
 SG_A = decimal.Decimal("2.36e-5")

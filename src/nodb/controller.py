@@ -841,6 +841,65 @@ class PostgresController:
             ))
             return cur.fetchone()[0] == 1
 
+    def has_temp_qc_outcome(self, process_id: str, working_uuid: str) -> bool:
+        with self.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM nodb_temporary_qc_results WHERE process_id = %s AND working_uuid = %s", (
+                process_id,
+                working_uuid
+            ))
+            return cur.fetchone()[0] > 0
+
+    def stream_temp_qc_outcomes(self, process_id: str) -> t.Iterable[tuple[str, int]]:
+        with self.cursor() as cur:
+            cur.execute("SELECT DISTINCT batch_identifier, outcome FROM nodb_temporary_qc_results WHERE batch_process_id = %s", (
+                process_id,
+            ))
+            for result in cur.fetch_stream(25):
+                yield result[0], result[1]
+
+    def reassign_temp_qc_outcomes(self,
+                                  process_id: str,
+                                  batch_key: str,
+                                  outcome: int,
+                                  new_batch_uuid: str,
+                                  current_batch_uuid: str | None):
+        with self.cursor() as cur:
+            query = "UPDATE nodb_working_records SET qc_batch_id = %s WHERE working_uuid IN (SELECT working_uuid FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND batch_identifier = %s AND outcome = %s)"
+            if current_batch_uuid is None:
+                query += " AND qc_batch_id IS NONE"
+                cur.execute(query, (
+                    new_batch_uuid,
+                    process_id,
+                    batch_key,
+                    outcome,
+                ))
+            else:
+                query += " AND qc_batch_id = %s"
+                cur.execute(query, (
+                    new_batch_uuid,
+                    process_id,
+                    batch_key,
+                    outcome,
+                    current_batch_uuid,
+                ))
+
+    def cleanup_temp_qc_outcomes(self, process_id: str):
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM nodb_temporary_qc_results WHERE batch_process_id = %s", (process_id,))
+
+    def create_temp_qc_outcome(self,
+                               process_id: str,
+                               working_uuid: str,
+                               batch_key: str,
+                               outcome: int):
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_temporary_qc_results (batch_process_id, batch_identifier, outcome, working_uuid VALUES (%s, %s, %s, %s)", (
+                process_id,
+                batch_key,
+                outcome,
+                working_uuid
+            ))
+
     @staticmethod
     def assemble_query(*args):
         def _chain(a) -> t.Iterable[pgs.Composable]:

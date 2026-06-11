@@ -1,4 +1,4 @@
-from pipeman.programs.qc import BaseTestSuite
+from pipeman.programs.qc.base import BaseTestSuite
 
 
 class GTSPPConstantTest(BaseTestSuite):

@@ -1,6 +1,8 @@
 import functools
 import typing as t
 
+from medsutil.awaretime import AwareDateTime
+
 CacheParameterType = t.Hashable | t.Iterable[t.Hashable]
 
 
@@ -66,3 +68,29 @@ class CachedObjectMixin:
                 del self._cache[key]
             if key in self._cache_with_parameters:
                 del self._cache[key]
+
+
+class LeastRecentCache:
+
+    def __init__(self, max_size: int = 200):
+        self._values: dict[t.Hashable, t.Any] = {}
+        self._value_set_times: dict[t.Hashable, AwareDateTime] = {}
+        self._max_size = max_size
+
+    def with_cache[T](self, cache_key: t.Hashable, cb: t.Callable[..., T], *args, _prune_cache: bool = True, **kwargs) -> T:
+        if cache_key not in self._values:
+            self._values[cache_key] = result = cb(*args, **kwargs)
+            self._value_set_times[cache_key] = AwareDateTime.now()
+            if _prune_cache:
+                self.prune_cache()
+            return result
+        else:
+            return self._values[cache_key]
+
+    def prune_cache(self):
+        if len(self._values) > self._max_size:
+            keys = [(k, v) for k, v in self._values.items()]
+            keys.sort(key=lambda x: x[1], reverse=True)
+            for k, _ in keys[self._max_size:]:
+                del self._values[k]
+                del self._value_set_times[k]
