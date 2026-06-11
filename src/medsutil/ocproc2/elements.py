@@ -54,24 +54,79 @@ def duck_type_catch[**P](cb: t.Callable[P, None]) ->t.Callable[P, bool]:
 type AnyElementExport = ExportMultipleWithMetadata | ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage | list[AnyElementExport] | ocut.SupportedStorage
 type MetadataDict = dict[str, AnyElementExport]
 
+
+class ExportQCInfo(t.TypedDict):
+    sys_flag: int | None
+    user_flag: int | None
+    ignore_test: bool
+    note: str | None
+    ref_value: t.Any
+
 class ExportWithMetadata(t.TypedDict):
     _value: ocut.SupportedStorage
-    _metadata: MetadataDict
-
+    _metadata: t.NotRequired[MetadataDict]
+    _qc_info: t.NotRequired[dict[str, ExportQCInfo]]
 
 class ExportComplexValue(t.TypedDict):
     _value: ocut.SupportedStorage
 
-
 class ExportMultipleWithMetadata(t.TypedDict):
     _values: list[AnyElementExport]
-    _metadata: MetadataDict
+    _metadata: t.NotRequired[MetadataDict]
+    _qc_info: t.NotRequired[dict[str, ExportQCInfo]]
+
+
+class QCInfo:
+
+    def __init__(self,
+                 system_recommended_flag: int | None = None,
+                 user_provided_flag: int | None = None,
+                 ignore_test: bool = False,
+                 ref_value: t.Any = None,
+                 note: str | None = None):
+        self.system_recommended_flag = system_recommended_flag
+        self.user_provided_flag = user_provided_flag
+        self.ignore_test: bool = ignore_test
+        self.ref_value: t.Any = ref_value
+        self.note: str | None = note
+
+    def to_mapping(self) -> ExportQCInfo:
+        return {
+            'sys_flag': self.system_recommended_flag,
+            'user_flag': self.user_provided_flag,
+            'ignore_test': self.ignore_test,
+            'ref_value': self.ref_value,
+            'note': self.note
+        }
+
+    @classmethod
+    def build_from_mapping(cls, map_: dict) -> QCInfo:
+        return QCInfo(
+            system_recommended_flag=map_.get('sys_flag', None),
+            user_provided_flag=map_.get("user_flag", None),
+            ignore_test=map_.get("ignore_test", False),
+            ref_value=map_.get('ref_value', None),
+            note=map_.get('note', None)
+        )
+
+
+class QCInfoMap(LazyLoadDict[QCInfo]):
+
+    def __init__(self):
+        super().__init__(QCInfo.build_from_mapping)
+
+    def to_mapping(self) -> dict[str, ExportQCInfo]:
+        return {
+            k: v.to_mapping()
+            for k, v in self.items()
+        }
 
 
 class AbstractElement[X]:
     """Base class for Value and MultiValue."""
 
     _metadata: ElementMap | None = None
+    _qc_info: QCInfoMap | None = None
 
     def __repr__(self) -> str:  # pragma: no coverage
         s = f'{self.__class__.__name__}({str(self)})'
@@ -80,6 +135,12 @@ class AbstractElement[X]:
             s += ';'.join(f"{x}={repr(self.metadata[x])}" for x in self.metadata)
             s += ")"
         return s
+
+    @property
+    def qc_info(self) -> QCInfoMap:
+        if self._qc_info is None:
+            self._qc_info = QCInfoMap()
+        return t.cast(QCInfoMap, self._qc_info)
 
     @property
     def value(self) -> X:
@@ -105,6 +166,12 @@ class AbstractElement[X]:
             return coerce(v)
         return v
 
+    def is_string_like(self):
+        return not self.is_list_like()
+
+    def is_list_like(self):
+        return isinstance(self.ideal().value, list)
+
     @duck_type_catch
     def is_numeric(self):
         """Check if the value is a number."""
@@ -115,11 +182,13 @@ class AbstractElement[X]:
     def is_integer(self):
         """Check if the value is an integer."""
         self.to_int()
+        return True
 
     @duck_type_catch
     def is_iso_datetime(self):
         """Check if the value is an ISO 8601 date-time."""
         self.to_datetime()
+        return True
 
     def _coerce_to_numeric[T](self,
                                                              coerce: t.Callable[[str | int | float | None], T] | type[T],
@@ -138,6 +207,10 @@ class AbstractElement[X]:
             if diff > 1e-9:
                 raise ValueError("Loss of value encountered")
         return convert(true_v, bv.units(), units)
+
+    def to_numeric(self, units: t.Optional[str] = None) -> float:
+        """ This will be the type that tests use. """
+        return self.to_float(units)
 
     def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
         """Convert this value to a decimal number"""
@@ -233,6 +306,12 @@ class AbstractElement[X]:
                     element.metadata.from_mapping(md)
             except KeyError:
                 pass
+            try:
+                qc = map_['_qc_info']
+                if qc:
+                    element.qc_info.from_mapping(qc)
+            except KeyError:
+                pass
             return element
         elif isinstance(map_, t.Iterable) and not isinstance(map_, str):
             return MultiElement(
@@ -246,7 +325,7 @@ class AbstractElement[X]:
 class SingleElement(AbstractElement):
     """Represents a single value with a single set of metadata."""
 
-    __slots__ = ('_metadata', '_value')
+    __slots__ = ('_metadata', '_value', '_qc_info')
 
     def __init__(self, value: ocut.SupportedValue = None, _skip_normalization: bool = False, **kwargs):
         self._value: ocut.SupportedStorage = value if _skip_normalization else normalize_data_value(value)
@@ -301,18 +380,11 @@ class SingleElement(AbstractElement):
         return h.digest()
 
     def to_mapping(self) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
-        md = self.metadata.to_mapping() if self._metadata else None
-        if md:
-            return {
-                '_value': self._value,
-                '_metadata': md
-            }
-        elif type(self._value).__name__ in ('dict', 'list'):
-            return {
-                '_value': self._value,
-            }
-        else:
-            return self._value
+        return {
+            '_value': self._value,
+            '_metadata': self._metadata.to_mapping() if self._metadata is not None else {},
+            '_qc_info': self._qc_info.to_mapping() if self._qc_info is not None else {},
+        }
 
     @staticmethod
     def build(v: t.Any, metadata: DefaultValueDict = None):
@@ -325,7 +397,7 @@ class SingleElement(AbstractElement):
 class MultiElement(AbstractElement[list[AbstractElement]]):
     """Represents a set of multiple values."""
 
-    __slots__ = ('_value', '_metadata')
+    __slots__ = ('_value', '_metadata', '_qc_info')
 
     def __init__(self, values: t.Iterable[AbstractElement | ocut.SupportedValue] = None, _skip_normalization: bool = False, **kwargs):
         self._value: list[AbstractElement] = [
@@ -414,15 +486,17 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
     def append(self, value: AbstractElement):
         self._value.append(value)
 
-    def to_mapping(self) -> ExportMultipleWithMetadata | list[AnyElementExport]:
-        md = self.metadata
+    def to_mapping(self) -> ExportMultipleWithMetadata:
+        export: ExportMultipleWithMetadata = {
+            '_values': [v.to_mapping() for v in self._value],
+        }
+        md = self._metadata.to_mapping() if self._metadata is not None else None
         if md:
-            export: ExportMultipleWithMetadata = {
-                '_values': [v.to_mapping() for v in self._value],
-                '_metadata': md.to_mapping()
-            }
-            return export
-        return [v.to_mapping() for v in self._value]
+            export['_metadata'] = t.cast(dict, md)
+        qc = self._qc_info.to_mapping() if self._qc_info is not None else None
+        if qc:
+            export['_qc_info'] = t.cast(dict[str, ExportQCInfo], t.cast(dict[str, object], qc))
+        return export
 
 
 class ElementMap(LazyLoadDict[AbstractElement]):
@@ -561,12 +635,6 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         if kwargs:
             for key in kwargs:
                 self.set_element(key, kwargs[key])
-
-    def to_mapping(self) -> MetadataDict:
-        return super().to_mapping()
-
-    def from_mapping(self, map_: MetadataDict):
-        super().from_mapping(map_)
 
     @staticmethod
     def ensure_element(value: SupportedValueOrElement, metadata: t.Optional[DefaultValueDict] = None, **kwargs: SupportedValueOrElement) -> AbstractElement:

@@ -3,56 +3,49 @@
     Note that we re-implement some functions here to properly account for uncertainty in the
     measurement value using the uncertainties library.
 """
-from uncertainties import UFloat
 
-import medsutil.amath as amath
-import medsutil.adecimal as adecimal
 import shapely
 import typing as t
+import medsutil.math as amath
 
-YXPoint = tuple[t.Any, t.Any]
+YXPoint = tuple[amath.AnyNumber, amath.AnyNumber]
 
-_EARTH_RADIUS = adecimal.AccurateDecimal(6371000, 10000)
+_EARTH_RADIUS = 6371000  # error: 10000, in m
 
 
-def haversine(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
+def haversine_degrees(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
     """Calculate the distance between two points using the haversine function, maintaining
         the uncertainty associated with the coordinates.
     """
+    return haversine(
+        (amath.radians(yx1[0]), amath.radians(yx1[1])),
+        (amath.radians(yx2[0]), amath.radians(yx2[1]))
+    )
 
-    lat1 = amath.radians(yx1[0])
-    lon1 = amath.radians(yx1[1])
-    lat2 = amath.radians(yx2[0])
-    lon2 = amath.radians(yx2[1])
-    d_lat = lat2 - lat1
-    d_lon = lon2 - lon1
-    a = (amath.sin(d_lat * 0.5) ** 2) + (amath.cos(lat1) * amath.cos(lat2) * (amath.sin(d_lon * 0.5) ** 2))
-    c = 2 * amath.atan2(amath.sqrt(a), amath.sqrt(1 - a))
-    return c * _EARTH_RADIUS
+def haversine(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
+    d_lat = amath.sub(yx2[0], yx1[0])
+    d_lon = amath.sub(yx2[1], yx1[1])
+    a1 = amath.pow(amath.sin(amath.mul(d_lat, 0.5)), 2)
+    a2 = amath.product((
+        amath.cos(yx1[0]),
+        amath.cos(yx2[0]),
+        amath.pow(amath.sin(amath.mul(d_lon, 0.5)), 2)
+    ))
+    a = amath.add(a1, a2)
+    c = amath.mul(2, amath.atan2(amath.sqrt(a), amath.sqrt(amath.sub(1, a))))
+    return amath.mul(c, _EARTH_RADIUS)
 
-
-def coordinates_to_geometry(latitude: amath.AnyNumber, longitude: amath.AnyNumber) -> shapely.Geometry:
-    """Convert a point to a sensible geometry that depends on the uncertainty."""
-    lat_no_d = (not isinstance(latitude, (adecimal.AccurateDecimal, UFloat))) or latitude.std_dev == 0
-    lon_no_d = (not isinstance(longitude, (adecimal.AccurateDecimal, UFloat))) or longitude.std_dev == 0
-    if lat_no_d and lon_no_d:
-        return shapely.Point(longitude, latitude)
-    elif lat_no_d:
-        return shapely.LineString([
-            shapely.Point(longitude - longitude.std_dev, latitude),
-            shapely.Point(longitude + longitude.std_dev, latitude)
-        ])
-    elif lon_no_d:
-        return shapely.LineString([
-            shapely.Point(longitude, latitude - latitude.std_dev),
-            shapely.Point(longitude, latitude + latitude.std_dev)
-        ])
-    else:
-        return shapely.Polygon([
-            shapely.Point(longitude - longitude.std_dev, latitude - latitude.std_dev),
-            shapely.Point(longitude + longitude.std_dev, latitude - latitude.std_dev),
-            shapely.Point(longitude + longitude.std_dev, latitude + latitude.std_dev),
-            shapely.Point(longitude - longitude.std_dev, latitude + latitude.std_dev),
-            shapely.Point(longitude - longitude.std_dev, latitude - latitude.std_dev),
-        ])
-
+def buffer_coordinates(latitude: amath.AnyNumber, longitude: amath.AnyNumber):
+    # TODO: calculate from error where its bigger than this?
+    lat_buffer = 1e-9
+    lon_buffer = 1e-9
+    lat_max = amath.add(latitude, lat_buffer)
+    lat_min = amath.sub(latitude, lat_buffer)
+    lon_max = amath.add(longitude, lon_buffer)
+    lon_min = amath.sub(longitude, lon_buffer)
+    return shapely.Polygon([[
+        (lon_min, lat_min),
+        (lon_min, lat_max),
+        (lon_max, lat_max),
+        (lon_max, lat_min),
+    ]])

@@ -9,7 +9,7 @@ import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.style as mpls
 import medsutil.ocproc_math as oom
 from pipeman_desktop.gui.base_pane import SimpleRecordInfo
-from medsutil.geodesy import haversine
+from medsutil.geodesy import haversine_degrees
 
 if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import CNODCQCApp
@@ -155,7 +155,7 @@ class OCProc2Graph(ttk.Frame):
             return None, 9
         # TODO: qc calculation
         qc = 0
-        return haversine(
+        return haversine_degrees(
             (r2.latitude, r2.longitude),
             (r1.latitude, r1.longitude)
         ), qc

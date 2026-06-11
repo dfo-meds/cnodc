@@ -85,7 +85,7 @@
       the test, and more.
 """
 from .util import normalize_ocproc_path
-from .elements import MultiElement, AbstractElement, SingleElement, ElementMap
+from .elements import MultiElement, AbstractElement, SingleElement, ElementMap, QCInfo
 from .history import HistoryEntry, QCResult, QCMessage, MessageType, QCTestRunInfo
 from .structures import BaseRecord, ParentRecord, ChildRecord, RecordSet, RecordMap, ElementMap
 from .operations import QCOperator, QCSetValue, QCAddHistory, QCSetWorkingQuality
