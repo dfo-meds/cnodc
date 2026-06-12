@@ -1,4 +1,5 @@
-from pipeman.programs.qc.base import DeepDiveChecker, ElementRef, RecordRef, RecordSetRef
+from pipeman.programs.qc.base import DeepDiveChecker
+from medsutil.ocproc2.refs import ElementRef, RecordSetRef, RecordRef
 
 
 class NODBPreTest(DeepDiveChecker):

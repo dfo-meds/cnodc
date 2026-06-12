@@ -9,8 +9,10 @@ import zrlog
 
 from medsutil import math as amath, geodesy
 from medsutil.exceptions import CodedError
+from medsutil.ocproc2.util import Quality
 from medsutil.units import UnitConverter
-from pipeman.programs.qc.base import ReferenceRange, QualityChecker, ElementType, RecordRef, SingleElementRef, review
+from pipeman.programs.qc.base import QualityController, review, DeepDiveChecker
+from medsutil.ocproc2.refs import ElementType, SingleElementRef, RecordRef
 
 
 @dataclass
@@ -148,7 +150,10 @@ class ParameterReferences:
         return None
 
 
-class ReferenceRangeChecker(QualityChecker):
+class ReferenceRangeChecker(DeepDiveChecker):
+
+    LIMIT_ELEMENT_TYPES = ElementType.PARAMETERS
+    TRACK_COORDINATES = True
 
     def __init__(self, config_file: str | pathlib.Path, **kwargs):
         super().__init__(**kwargs)
@@ -157,21 +162,14 @@ class ReferenceRangeChecker(QualityChecker):
             self.converter
         )
 
-    def run(self):
-        self.crawl_record(self.current_record,
-            record_cb=self.parameter_range_check_for_record,
-            limit_element_types=ElementType.PARAMETERS,
-            track_coordinates=True,
-        )
-
-    def parameter_range_check_for_record(self, ref: RecordRef):
+    def record_check(self, ref: RecordRef):
         regions, ref_ranges = self._get_parameter_ranges(self.current_latitude, self.current_longitude, self.current_depth)
         if ref_ranges:
-            for p_ref in self.iterate_on_record_single_elements(ref, ElementType.PARAMETERS):
+            for p_ref in ref.single_element_refs(ElementType.PARAMETERS):
                 if p_ref.element_name in ref_ranges:
                     self.parameter_range_check_for_element(p_ref, ref_ranges[p_ref.element_name])
 
-    @review("in_reference_range", fail_flag=4, pass_flag=1)
+    @review("in_reference_range", fail_flag=Quality.ERRONEOUS, pass_flag=Quality.GOOD)
     def parameter_range_check_for_element(self, ref: SingleElementRef, reference_range: ReferenceRange):
         self.assert_in_reference_range(ref.element, reference_range, msg="outside_reference_range")
 
@@ -189,3 +187,25 @@ class ReferenceRangeChecker(QualityChecker):
         if key not in ranges:
             ranges[key] = self._ref.build_parameter_references(lat, lon, depth)
         return ranges[key]
+
+
+class ReferenceRange:
+
+    def __init__(self,
+                 minimum: t.Optional[decimal.Decimal] = None,
+                 maximum: t.Optional[decimal.Decimal] = None,
+                 units: t.Optional[str] = None,
+                 kwargs: t.Optional[dict[str, str | int]] = None):
+        self.minimum = minimum
+        self.maximum = maximum
+        self.units = units or None
+        self.kwargs = kwargs or {}
+
+    @staticmethod
+    def from_map(map_: dict):
+        return ReferenceRange(
+            decimal.Decimal(map_['minimum']) if 'minimum' in map_ else None,
+            decimal.Decimal(map_['maximum']) if 'maximum' in map_ else None,
+            str(map_['units']) if 'units' in map_ else None,
+            map_['kwargs'] if 'kwargs' in map_ else None
+        )

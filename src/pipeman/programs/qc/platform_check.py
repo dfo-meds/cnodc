@@ -3,9 +3,11 @@ import typing as t
 from autoinject import injector
 
 from medsutil.cached import LeastRecentCache
+from medsutil.ocproc2.util import Quality
 from nodb.interface import NODB, NODBInstance
 from nodb.observations import NODBPlatform
-from pipeman.programs.qc.base import DeepDiveChecker, ParentRecordRef, review, ElementRef, SingleElementRef
+from pipeman.programs.qc.base import DeepDiveChecker, review
+from medsutil.ocproc2.refs import ElementRef, SingleElementRef, ParentRecordRef
 import medsutil.ocproc2 as ocproc2
 
 
@@ -24,9 +26,9 @@ class NODBPlatformCheck(DeepDiveChecker):
         self._lru_cache = LeastRecentCache()
 
     def parent_record_check(self, ref: ParentRecordRef):
-        self.platform_check(self.get_record_metadata_ref(ref, "CNODCPlatform", create_when_missing=True))
+        self.platform_check(ref.setdefault_metadata_ref("CNODCPlatform"))
 
-    @review("valid_platform", fail_flag=9)
+    @review("valid_platform", fail_flag=Quality.MISSING)
     def platform_check(self, ref: ElementRef):
         if self.assert_is_instance(ref, SingleElementRef, msg="multivalued_not_allowed"):
             self._platform_check(t.cast(ocproc2.SingleElement, ref.element))

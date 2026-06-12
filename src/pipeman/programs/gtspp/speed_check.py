@@ -4,8 +4,10 @@ import medsutil.math as amath
 from medsutil import geodesy
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import AbstractElement
+from medsutil.ocproc2.util import RequiredQuality, Quality
 from nodb.observations import NODBPlatform
-from pipeman.programs.qc.base import DeepDiveChecker, ParentRecordRef
+from pipeman.programs.qc.base import DeepDiveChecker
+from medsutil.ocproc2.refs import ParentRecordRef
 from autoinject import injector
 from nodb.interface import NODB
 
@@ -27,19 +29,19 @@ class GTSPPSpeedTest(DeepDiveChecker):
 
     def parent_record_check(self, ref: ParentRecordRef):
         with self.review_all("valid_speed", [
-            self.get_record_coordinate_ref(ref, "Latitude", True),
-            self.get_record_coordinate_ref(ref, "Longitude", True),
-            self.get_record_coordinate_ref(ref, "Time", True),
-        ], fail_flag=3, pass_flag=1) as ctx:
-            ctx.check_review_already_complete(skip_dubious=True, skip_empty=True)
+            ref.setdefault_coordinate_ref("Latitude"),
+            ref.setdefault_coordinate_ref("Longitude"),
+            ref.setdefault_coordinate_ref("Time"),
+        ], fail_flag=Quality.DUBIOUS, pass_flag=Quality.GOOD) as ctx:
+            ctx.check_review_already_complete(RequiredQuality.QC_INCOMPLETE)
 
             record = ref.record
 
-            # ensure we have all these values
-            self.require_value(record.metadata["CNODCPlatform"])
-            self.require_value(record.metadata["Latitude"])
-            self.require_value(record.metadata["Longitude"])
-            self.require_value(record.metadata["Time"])
+            # ensure we have these present
+            self.require_quality(record.metadata["CNODCPlatform"])
+            self.require_quality(record.coordinates["Longitude"], RequiredQuality.GOOD_VALUE_WITH_UNITS)
+            self.require_quality(record.coordinates["Latitude"], RequiredQuality.GOOD_VALUE_WITH_UNITS)
+            self.require_quality(record.coordinates["Time"], RequiredQuality.GOOD_VALUE)
 
             # make our nice little record tuples
             xx = record.coordinates['Longitude'].to_numeric("degrees_east")
@@ -66,7 +68,7 @@ class GTSPPSpeedTest(DeepDiveChecker):
             return
         distance = geodesy.haversine((xyt2[1], xyt2[0]), (xyt1[1], xyt1[0]))
         time = (xyt2[2] - xyt1[2]).total_seconds()
-        self.assert_less_or_close(amath.div(distance, time), top_speed, flag=3)
+        self.assert_less_or_close(amath.div(distance, time), top_speed)
 
     def _add_previous_position(self, sid: str, info: tuple[amath.AnyNumber, amath.AnyNumber, AwareDateTime]):
         if "positions" not in self.batch_memory:
