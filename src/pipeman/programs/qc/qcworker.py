@@ -8,7 +8,7 @@ from nodb.interface import LockType, NODBInstance
 from nodb.observations import NODBWorkingRecord, NODBBatch, BatchStatus
 from pipeman.processing.payload_worker import WorkflowWorker
 from pipeman.processing.queue_worker import QueueItemResult
-from pipeman.programs.qc.base import QCTestRunner, ResultBatcher
+from pipeman.programs.qc.runner import QCTestRunner, ResultBatcher
 from medsutil.dynamic import dynamic_object
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import WorkflowPayload, SourceFilePayload, BatchPayload

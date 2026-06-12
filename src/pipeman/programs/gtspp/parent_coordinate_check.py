@@ -1,4 +1,5 @@
-from pipeman.programs.qc.base import ElementRef, review, DeepDiveChecker, ParentRecordRef
+from pipeman.programs.qc.base import review, DeepDiveChecker
+from medsutil.ocproc2.refs import ElementRef, ParentRecordRef
 
 
 class GTSPPCoordinateCheck(DeepDiveChecker):
@@ -11,9 +12,9 @@ class GTSPPCoordinateCheck(DeepDiveChecker):
         )
 
     def parent_record_check(self, ref: ParentRecordRef):
-        self.require_element_check(self.get_record_coordinate_ref(ref, "Latitude", True))
-        self.require_element_check(self.get_record_coordinate_ref(ref, "Longitude", True))
-        self.require_element_check(self.get_record_coordinate_ref(ref, "Time", True))
+        self.require_element_check(ref.setdefault_coordinate_ref("Latitude"))
+        self.require_element_check(ref.setdefault_coordinate_ref("Longitude"))
+        self.require_element_check(ref.setdefault_coordinate_ref("Time"))
 
     @review("element_required", fail_flag=9, pass_flag=1)
     def require_element_check(self, ref: ElementRef):
