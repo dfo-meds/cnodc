@@ -12,6 +12,7 @@ import medsutil.ocproc2 as ocproc2
 import typing as t
 import medsutil.seawater as seawater
 from medsutil.awaretime import AwareDateTime
+from medsutil.ocproc2.util import check_quality, RequiredQuality
 from medsutil.seawater import TemperatureScale
 from medsutil.units.units import convert
 import medsutil.geodesy as geodesy
@@ -20,6 +21,42 @@ import medsutil.math as amath
 ValQualUnits = tuple[t.Any, int, t.Optional[str]]
 
 
+def extract_parameter_value(parameter_name: str,
+                            element: ocproc2.SingleElement,
+                            units: str | None,
+                            required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+                            obs_date: AwareDateTime | None = None) -> amath.AnyNumber | None:
+    if units is not None:
+        required_quality = required_quality | RequiredQuality.HAS_UNITS
+    check_quality(element, required_quality)
+    if parameter_name == "Temperature":
+        return get_temperature(element, obs_date=obs_date, units=units or "degrees_C")
+    else:
+        return element.to_numeric(units)
+
+
+def get_density(temperature: ocproc2.SingleElement | None,
+                practical_salinity: t.Optional[ocproc2.SingleElement] = None,
+                pressure: amath.AnyNumber | None = None,
+                depth: amath.AnyNumber | None = None,
+                latitude: amath.AnyNumber | None = None,
+                obs_date: AwareDateTime | None = None,
+                units: t.Optional[str] = "kg m-3") -> amath.AnyNumber | None:
+    """Calculate the density of seawater from the relevant OCPROC2 elements. See density_at_depth() for more details."""
+    if pressure is None:
+        if depth is not None and latitude is not None:
+            pressure = seawater.eos80_pressure(depth, latitude)
+    t68 = get_temperature(temperature, obs_date=obs_date, temperature_scale=TemperatureScale.TS_1968)
+    if pressure is not None and t68 is not None and not practical_salinity.is_empty():
+        rho = seawater.eos80_density_at_depth_t68(
+            salinity=practical_salinity.to_numeric("0.001"),
+            temperature_ipts68=t68,
+            pressure=pressure,
+        )
+        if units != "kg m-3":
+            return convert(rho, "kg m-3", units)
+        return rho
+    return None
 
 def get_temperature(temperature: ocproc2.SingleElement | None,
                     obs_date: ocproc2.SingleElement | AwareDateTime | None = None,
@@ -73,6 +110,26 @@ def get_freezing_point_from_psal(practical_salinity: ocproc2.SingleElement | Non
             output_units=units,
             output_scale=temperature_scale
         )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def calc_speed_record(record1: ocproc2.BaseRecord, record2: ocproc2.BaseRecord, units: str = "m s-1") -> ValQualUnits:
     """Calculate the speed between two records."""
@@ -188,58 +245,6 @@ def calc_pressure(pressure: t.Optional[ocproc2.SingleElement] = None,
         )
     return None, 9, None
 
-
-def calc_density_record(level_record: ocproc2.BaseRecord,
-                        position_record: t.Optional[ocproc2.BaseRecord] = None,
-                        units: t.Optional[str] = None) -> ValQualUnits:
-    """Calculate the density of sea water from a level record (containing Temperature, Pressure or Depth, and
-        AbsoluteSalinity or PracticalSalinity) and a position record (containing Latitude and Longitude). See
-        calc_density() for more details."""
-    return calc_density(
-        temperature=level_record.parameters.ideal('Temperature'),
-        pressure=level_record.coordinates.ideal('Pressure'),
-        depth=level_record.coordinates.ideal('Depth'),
-        absolute_salinity=level_record.parameters.ideal('AbsoluteSalinity'),
-        practical_salinity=level_record.parameters.ideal('PracticalSalinity'),
-        latitude=position_record.coordinates.ideal('Latitude') if position_record else None,
-        longitude=position_record.coordinates.ideal('Longitude') if position_record else None,
-        units=units
-    )
-
-
-def calc_density(temperature: ocproc2.SingleElement | None,
-                 pressure: t.Optional[ocproc2.SingleElement] = None,
-                 depth: t.Optional[ocproc2.SingleElement] = None,
-                 absolute_salinity: t.Optional[ocproc2.SingleElement] = None,
-                 practical_salinity: t.Optional[ocproc2.SingleElement] = None,
-                 latitude: t.Optional[ocproc2.SingleElement] = None,
-                 longitude: t.Optional[ocproc2.SingleElement] = None,
-                 units: t.Optional[str] = None) -> ValQualUnits:
-    """Calculate the density of seawater from the relevant OCPROC2 elements. See density_at_depth() for more details."""
-    p, p_q, _ = calc_pressure(pressure, depth, latitude, 'dbar')
-    t90 = get_temperature(temperature, '°C', temperature_scale='ITS-90')
-    if p is not None and t90 is not None:
-        return (
-            density_at_depth(
-                pressure=p,
-                temperature=t90,
-                practical_salinity=practical_salinity.to_ufloat(
-                    '0.001') if practical_salinity is not None and not practical_salinity.is_empty() else None,
-                absolute_salinity=absolute_salinity.to_ufloat(
-                    'g kg-1') if absolute_salinity is not None and not absolute_salinity.is_empty() else None,
-                latitude=latitude.to_ufloat() if latitude is not None and not latitude.is_empty() else None,
-                longitude=longitude.to_ufloat() if longitude is not None and not longitude.is_empty() else None,
-                units=units
-            ),
-            _compress_quality_scores(
-                p_q,
-                temperature.working_quality(),
-                absolute_salinity.working_quality() if absolute_salinity is not None else None,
-                practical_salinity.working_quality() if practical_salinity is not None else None
-            ),
-            units or 'kg m-3'
-        )
-    return None, 9, None
 
 
 def _compress_quality_scores(*qc_scores) -> int:

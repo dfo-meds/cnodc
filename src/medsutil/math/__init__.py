@@ -1,6 +1,8 @@
 from medsutil.math.types import (
     AnyNumber,
-    is_science_number
+    is_science_number,
+    BasicNumber,
+    NumberString,
 )
 # Nice easy alias for any number - this covers floats, ints, decimals, and ScientificNumbers
 Number = AnyNumber
@@ -10,14 +12,11 @@ from medsutil.math._common import (
     is_complex,
     is_infinity,
     is_nan,
-    gt,
-    lt,
     collapse,
     summation,
     product,
     convert,
-    match_convert,
-    between
+    match_convert
 )
 from medsutil.math._constants import (
     tau,
@@ -40,6 +39,11 @@ from medsutil.math._functions import (
     div,
     calculate_polynomial,
     is_close,
+    gt,
+    lt,
+    between,
+    lte,
+    gte,
 )
 from medsutil.math._trig import (
     cos,

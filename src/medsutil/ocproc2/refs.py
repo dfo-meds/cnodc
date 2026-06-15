@@ -54,6 +54,16 @@ class ElementRef(AnyRef):
     def ref_object(self) -> ocproc2.AbstractElement:
         return self.element
 
+    def keyed_sensor_rank_refs(self) -> dict[int, SingleElementRef]:
+        nxt = 0
+        ranked = {}
+        for sref in self.single_element_refs():
+            key = sref.element.metadata.best("SensorRank", coerce=int, default=nxt)
+            if key >= nxt:
+                nxt = key + 1
+            ranked[key] = sref
+        return ranked
+
     def single_element_refs(self) -> t.Iterable[SingleElementRef]:
         raise NotImplementedError
 

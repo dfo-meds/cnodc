@@ -178,9 +178,12 @@ def high_quality_datetime(v: ocproc2.AbstractElement | None) -> AwareDateTime | 
     return None
 
 
-def high_quality_numeric(v: ocproc2.AbstractElement | None, units: str = None) -> amath.AnyNumber | None:
-    quality = RequiredQuality.GOOD_VALUE_WITH_UNITS if units else RequiredQuality.GOOD_VALUE
-    if v is not None and is_of_quality(v, quality) and v.is_numeric():
+def high_quality_numeric(v: ocproc2.AbstractElement | None,
+                         units: str = None,
+                         required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> amath.AnyNumber | None:
+    if units is not None:
+        required_quality = required_quality | RequiredQuality.HAS_UNITS
+    if v is not None and is_of_quality(v, required_quality) and v.is_numeric():
         return v.to_numeric(units)
     return None
 

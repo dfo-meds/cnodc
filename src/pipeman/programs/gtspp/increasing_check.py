@@ -6,13 +6,12 @@ import medsutil.math as amath
 
 class GTSPPIncreasingChecker(ProfileChecker):
 
-    def __init__(self, aggressive_mode: bool = False):
+    def __init__(self):
         super().__init__(
             test_name='gtspp_increasing',
             test_version='1.0',
             test_tags=['GTSPP_2.3']
         )
-        self._aggressive_mode = aggressive_mode
 
     def level_check(self, ref: ChildRecordRef):
         depth = ref.coordinate_ref("Depth")
@@ -23,29 +22,24 @@ class GTSPPIncreasingChecker(ProfileChecker):
             self._increasing_check(pressure)
 
     def _increasing_check(self, ref: ElementRef):
-        last_value: amath.AnyNumber | None = None
-        units: str | None = None
-        if ref.element_name in self.profile_memory:
-            last_value, units = self.profile_memory[ref.element_name]
-
-        current_values: list[amath.AnyNumber] = []
-
         for single_element in ref.single_element_refs():
+            sensor_rank = single_element.element.metadata.best("SensorRank", coerce=int, default=0)
+            last_value: amath.AnyNumber | None = None
+            units: str | None = None
+            if sensor_rank in self.profile_memory:
+                if ref.element_name in self.profile_memory[sensor_rank]:
+                    last_value, units = self.profile_memory[sensor_rank][ref.element_name]
+            else:
+                self.profile_memory[sensor_rank] = {}
             with self.review("is_deeper", single_element, fail_flag=Quality.ERRONEOUS, pass_flag=Quality.GOOD) as ctx:
                 self.require_quality(single_element.element, RequiredQuality.GOOD_OR_DUBIOUS_VALUE | RequiredQuality.HAS_UNITS)
 
                 if units is None:
                     units = single_element.element.metadata.best("Units", coerce=str)
                 level_value = single_element.element.to_numeric(units)
-                current_values.append(level_value)
+                self.profile_memory[sensor_rank][ref.element_name] = (level_value, units)
 
                 ctx.check_review_already_complete()
 
                 if last_value is not None:
                     self.assert_greater_or_close(level_value, last_value, msg="not_deeper")
-
-        if current_values:
-            current_best_value = max(current_values) if self._aggressive_mode else min(current_values)
-            if last_value is None or current_best_value > last_value:
-                self.profile_memory[ref.element_name] = (current_best_value, units)
-

@@ -11,7 +11,7 @@ from medsutil import math as amath, geodesy
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2.util import Quality
 from medsutil.units import UnitConverter
-from pipeman.programs.qc.base import QualityController, review, DeepDiveChecker
+from pipeman.programs.qc.base import review, DeepDiveChecker
 from medsutil.ocproc2.refs import ElementType, SingleElementRef, RecordRef
 
 
@@ -140,9 +140,9 @@ class ParameterReferences:
         ParameterReference]) -> ReferenceRange | None:
         for p_ref in ranges:
             if depth is not None:
-                if p_ref.min_depth is not None and amath.lt(p_ref.min_depth, depth) and not amath.is_close(p_ref.min_depth, depth):
+                if p_ref.min_depth is not None and amath.lt(p_ref.min_depth, depth):
                     continue
-                if p_ref.max_depth is not None and amath.gt(p_ref.max_depth, depth) and not amath.is_close(p_ref.max_depth, depth):
+                if p_ref.max_depth is not None and amath.gte(p_ref.max_depth, depth):
                     continue
             elif p_ref.min_depth is not None or p_ref.max_depth is not None:
                 continue
