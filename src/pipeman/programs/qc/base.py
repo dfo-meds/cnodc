@@ -11,10 +11,12 @@ import medsutil.math as amath
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
+from medsutil.math import _functions
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
 from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, ObjectWithMetadata, \
     Quality
+from medsutil.ocproc_math import extract_parameter_value
 from medsutil.units import UnitConverter
 from autoinject import injector
 
@@ -88,7 +90,7 @@ class QualityController(abc.ABC):
         self._test_name = test_name
         self._station_invariant = station_invariant
         self._test_version = test_version
-        self._test_tags = test_tags
+        self._test_tags = set(x for x in test_tags if x is not None) if test_tags else set()
         self._working_sort = working_sort
         self._qc_messages: list[ocproc2.QCMessage] = []
         self._qc_result: ocproc2.QCResult = ocproc2.QCResult.PASS
@@ -158,6 +160,14 @@ class QualityController(abc.ABC):
 
     def setup(self): ...
 
+    def extract_parameter_value(self,
+                                parameter_name: str,
+                                ref: SingleElementRef,
+                                units: str | None = None,
+                                required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+                                obs_date: AwareDateTime | None = None) -> amath.AnyNumber | None:
+        return extract_parameter_value(parameter_name, ref.element, units, required_quality, obs_date if obs_date is not None else self.current_time)
+
     def run_record_check(self, record: ocproc2.ParentRecord) -> ocproc2.QCTestRunInfo:
         self._current_record = ParentRecordRef(record=record, path="", parent=None)
         self.setup()
@@ -182,7 +192,7 @@ class QualityController(abc.ABC):
         test_run_info = ocproc2.QCTestRunInfo(
             test_name=self._test_name,
             test_version=self._test_version,
-            test_tags=self._test_tags,
+            test_tags=list(self._test_tags),
             test_date=AwareDateTime.utcnow(),
             result=self._qc_result,
             messages=self._qc_messages,
@@ -422,7 +432,7 @@ class QualityController(abc.ABC):
             self.assert_between(number, t.cast(amath.AnyNumber, ref_range.minimum), t.cast(amath.AnyNumber, ref_range.maximum), msg=msg or "outside_ref_range", **kwargs)
 
     def assert_between(self, a: amath.AnyNumber, min_value: amath.AnyNumber, max_value: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not amath.between(min_value, a, max_value):
+        if not _functions.between(min_value, a, max_value):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = f"{min_value} TO {max_value}"
             self.report_qc_error(msg or "not_between", **kwargs)
@@ -453,13 +463,31 @@ class QualityController(abc.ABC):
         return True
 
     def assert_greater_or_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not (amath.gt(a, b) or amath.is_close(a, b)):
+        if not amath.gte(a, b):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_greater_or_close", **kwargs)
 
     def assert_less_or_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not (amath.lt(a, b) or amath.is_close(a, b)):
+        if not amath.lte(a, b):
+            if not kwargs.get("ref_value", None):
+                kwargs["ref_value"] = str(b)
+            self.report_qc_error(msg or "not_less_or_close", **kwargs)
+
+    def assert_greater(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if not amath.gt(a, b):
+            if not kwargs.get("ref_value", None):
+                kwargs["ref_value"] = str(b)
+            self.report_qc_error(msg or "not_greater_or_close", **kwargs)
+
+    def assert_less(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if not amath.lt(a, b):
+            if not kwargs.get("ref_value", None):
+                kwargs["ref_value"] = str(b)
+            self.report_qc_error(msg or "not_less_or_close", **kwargs)
+
+    def assert_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if not amath.is_close(a, b):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_less_or_close", **kwargs)
@@ -583,7 +611,6 @@ class ProfileChecker(DeepDiveChecker):
     def recordset_check(self, ref: RecordSetRef):
         if ref.recordset_type != "PROFILE":
             return
-        self._profile_memory = None
         profile = [ record_ref for record_ref in ref.record_refs() ]
         self.profile_check(profile)
         self._profile_memory = None
@@ -591,8 +618,7 @@ class ProfileChecker(DeepDiveChecker):
     def profile_check(self, profile: list[ChildRecordRef]):
         for ref in profile:
             self._update_coordinates(ref)
-            with self.skip_review_blocker():
-                self.level_check(ref)
+            self.level_check(ref)
 
     def level_check(self, ref: ChildRecordRef):
         ...

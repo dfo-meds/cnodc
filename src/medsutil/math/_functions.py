@@ -2,8 +2,8 @@ import decimal
 import math as _math
 import typing as t
 
-from medsutil.math import types as mt, _common
-from medsutil.math._common import nominal_value, match_convert, ln as _ln, sn_max
+from medsutil.math import types as mt, _common, nominal_value, collapse
+from medsutil.math._common import nominal_value, match_convert, ln as _ln, convert
 import medsutil.math.helpers as help
 import medsutil.math.numbers as num
 from medsutil.math.types import AnyNumber
@@ -149,53 +149,115 @@ def calculate_polynomial[T: AnyNumber](value: T, *coefficients: mt.AnyNumber) ->
     return t.cast(T, total)
 
 
-def is_close(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float | int = "1e-09", absolute_tolerance: str | float | int = "0.0") -> bool:
-    nv_x = nominal_value(x)
-    if isinstance(nv_x, decimal.Decimal):
-        rel_tol = decimal.Decimal(relative_tolerance)
-        abs_tol = decimal.Decimal(absolute_tolerance)
-    else:
-        rel_tol = float(relative_tolerance)
-        abs_tol = float(absolute_tolerance)
-    diff = abs(sub(nv_x, nominal_value(y)))
-    if absolute_tolerance is not None and _common.lt(diff, abs_tol):
-        return True
-    if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
-        return True
-    return False
+def is_close(x: mt.AnyNumber,
+             y: mt.AnyNumber,
+             /, *,
+             relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+             absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    return _is_close(*match_convert(x, y, relative_tolerance, absolute_tolerance))
 
-def is_close_or_lt(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float | int = "1e-09", absolute_tolerance: str | float | int = "0.0") -> bool:
-    nv_x = nominal_value(x)
-    nv_y = nominal_value(y)
-    if _common.lt(nv_x, nv_y):
-        return True
-    if isinstance(nv_x, decimal.Decimal):
-        rel_tol = decimal.Decimal(relative_tolerance)
-        abs_tol = decimal.Decimal(absolute_tolerance)
-    else:
-        rel_tol = float(relative_tolerance)
-        abs_tol = float(absolute_tolerance)
-    diff = abs(sub(nv_x, nominal_value(y)))
-    if absolute_tolerance is not None and _common.lt(diff, abs_tol):
-        return True
-    if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
-        return True
-    return False
 
-def is_close_or_gt(x: mt.AnyNumber, y: mt.AnyNumber, relative_tolerance: str | float | int = "1e-09", absolute_tolerance: str | float | int = "0.0") -> bool:
-    nv_x = nominal_value(x)
-    nv_y = nominal_value(y)
-    if _common.gt(nv_x, nv_y):
-        return True
-    if isinstance(nv_x, decimal.Decimal):
-        rel_tol = decimal.Decimal(relative_tolerance)
-        abs_tol = decimal.Decimal(absolute_tolerance)
+def gt(x: mt.AnyNumber,
+       y: mt.AnyNumber,
+       /, *,
+       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+    return _gt(nv_x, nv_y) and not _is_close(nv_x, nv_y, rt, at)
+
+
+def gte(x: mt.AnyNumber,
+       y: mt.AnyNumber,
+       /, *,
+       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+    return _gt(nv_x, nv_y) or _is_close(nv_x, nv_y, rt, at)
+
+
+def lt(x: mt.AnyNumber, y: mt.AnyNumber,
+       /, *,
+       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+    return _lt(nv_x, nv_y) and not _is_close(nv_x, nv_y, rt, at)
+
+
+def lte(x: mt.AnyNumber, y: mt.AnyNumber,
+       /, *,
+       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+    return _lt(nv_x, nv_y) or _is_close(nv_x, nv_y, rt, at)
+
+
+def _gt(x, y) -> bool:
+    return x > y
+
+
+def _lt(x, y) -> bool:
+    return x < y
+
+def _is_close(x,
+              y,
+              relative_tolerance: mt.BasicNumber | type[mt.Placeholder] = mt.Placeholder,
+              absolute_tolerance: mt.BasicNumber | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    if isinstance(x, decimal.Decimal):
+        if relative_tolerance is None: relative_tolerance = decimal.Decimal("1e-9")
+        if absolute_tolerance is None: absolute_tolerance = decimal.Decimal("1e-15")
     else:
-        rel_tol = float(relative_tolerance)
-        abs_tol = float(absolute_tolerance)
-    diff = abs(sub(nv_x, nominal_value(y)))
-    if absolute_tolerance is not None and _common.lt(diff, abs_tol):
+        if relative_tolerance is None: relative_tolerance = 1e-9
+        if absolute_tolerance is None: absolute_tolerance = 1e-15
+    abs_diff = abs(x - y)
+    if abs_diff < absolute_tolerance:
         return True
-    if relative_tolerance is not None and _common.lt(div(diff, sn_max(abs(x), abs(y))), rel_tol):
-        return True
-    return False
+    try:
+        rel_diff = (abs_diff / (0.5 * (x + y)))
+        return rel_diff < relative_tolerance
+    except ZeroDivisionError:
+        return False
+
+
+def between(min_: mt.AnyNumber,
+            x: mt.AnyNumber,
+            max_: mt.AnyNumber,
+            /, *,
+            include_lower_bound: bool = True,
+            include_upper_bound: bool = True,
+            relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+            absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_min, nv_x, nv_max, rt, at = match_convert(min_, x, max_, relative_tolerance, absolute_tolerance)
+    if include_lower_bound:
+        if _lt(nv_x, nv_min) and not _is_close(nv_x, nv_min, rt, at):
+            return False
+    elif _lt(nv_x, nv_min) or _is_close(nv_x, nv_min, rt, at):
+        return False
+    if include_upper_bound:
+        if _gt(nv_x, nv_max) and not _is_close(nv_x, nv_max, rt, at):
+            return False
+    elif _gt(nv_x, nv_max) or _is_close(nv_x, nv_max, rt, at):
+        return False
+    return True
+
+
+ANY_NUM_OR_ITER = mt.AnyNumber | t.Iterable[mt.AnyNumber]
+
+
+def sn_max(arg1: ANY_NUM_OR_ITER, /, *args: ANY_NUM_OR_ITER) -> mt.AnyNumber:
+    max_: mt.AnyNumber | None = None
+    for a in collapse((arg1, args)):
+        if max_ is None or gt(a, max_):
+            max_ = a
+    if max_ is None:
+        raise TypeError("Expected at least 1 argument, got 0")
+    return max_
+
+
+def sn_min(arg1: ANY_NUM_OR_ITER, /, *args: ANY_NUM_OR_ITER) -> mt.AnyNumber:
+    min_: mt.AnyNumber | None = None
+    for a in collapse((arg1, args)):
+        if min_ is None or lt(a, min_):
+            min_ = a
+    if min_ is None:
+        raise TypeError("Expected at least 1 argument, got 0")
+    return min_

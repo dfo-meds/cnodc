@@ -12,6 +12,9 @@ class Placeholder:
         return cls
 
 
+class NumberString(str): ...
+
+
 @t.runtime_checkable
 class ScienceNumberProtocol[T](t.Protocol):
     @property
@@ -78,8 +81,10 @@ def is_science_number(x: t.Any) -> t.TypeGuard[ScienceNumberProtocol]:
     return hasattr(x, 'units') and hasattr(x, 'nominal_value') and hasattr(x, 'std_dev')
 
 
-type ExpandedLinearCombination = dict[ScienceNumberProtocol, int | float | ScienceNumberProtocol]
-type UnexpandedLinearCombination = list[tuple[int | float | ScienceNumberProtocol, LinearCombinationProtocol]]
-
 BasicNumber = _decimal.Decimal | int | float
-AnyNumber = BasicNumber | ScienceNumberProtocol
+AnyNumber = BasicNumber | ScienceNumberProtocol | NumberString
+
+type ExpandedLinearCombination = dict[ScienceNumberProtocol, AnyNumber]
+type UnexpandedLinearCombination = list[tuple[AnyNumber, LinearCombinationProtocol]]
+
+

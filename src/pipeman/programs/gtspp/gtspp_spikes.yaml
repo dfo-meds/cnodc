@@ -1,0 +1,17 @@
+Temperature:
+  spike: 2
+  gradient: 10
+  top_vdown: -10
+  top_vup: 10
+  bottom_vdown: -10
+  bottom_vup: 10
+  units: degrees_C
+  # Note: TemperatureScale hard-coded as ITS-90
+PracticalSalinity:
+  spike: "0.3"  # Let program handle conversion to float or decimal depending on its preference
+  gradient: 5
+  top_vdown: -5
+  top_vup: 5
+  bottom_vdown: -5
+  bottom_vup: 5
+  units: "0.001"  # psu

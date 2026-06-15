@@ -94,4 +94,6 @@ class NODBIntegrityChecker(DeepDiveChecker):
         info = self.ontology.info(ref.element_name)
         if info is not None:
             self.assert_true(info.allow_many, msg="multivalued_not_allowed")
+        for x in ref.element.values():
+            self.assert_is_instance(x, ocproc2.AbstractElement, msg="multivalue_must_contain_values")
 

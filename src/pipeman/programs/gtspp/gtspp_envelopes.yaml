@@ -44,7 +44,7 @@ GLOBAL:
       maximum: 4
       units: degrees_C
       min_depth: 5500
-  Salinity:
+  PracticalSalinity:
     - minimum: 0
       maximum: 41
       units: "0.001"

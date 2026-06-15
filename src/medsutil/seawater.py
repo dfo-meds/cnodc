@@ -9,15 +9,9 @@ import typing as t
 
 import medsutil.math as amath
 from medsutil.awaretime import AwareDateTime
-from medsutil.math import AnyNumber
+from medsutil.math import AnyNumber, _functions
 from medsutil.units.units import convert
 
-DEPTH_A = decimal.Decimal("-1.82e-15")
-DEPTH_B = decimal.Decimal( "2.279e-10")
-DEPTH_C = decimal.Decimal("-2.2512e-5")
-DEPTH_D = decimal.Decimal("9.72659")
-DEPTH_E = decimal.Decimal("2.184e-6")
-DEPTH_F = decimal.Decimal("1.092e-6")
 
 ITS90_START = AwareDateTime(1990, 1, 1, 0, 0, 0, tzinfo="Etc/UTC")
 IPTS68_START = AwareDateTime(1968, 1, 1, 0, 0, 0, tzinfo="Etc/UTC")
@@ -38,6 +32,13 @@ def temperature_scale_in_use_on(obs_date: AwareDateTime | None, ts_scale_str: st
             return TemperatureScale.TS_1968
     return TemperatureScale.TS_1990
 
+DEPTH_A = amath.NumberString("-1.82e-15")
+DEPTH_B = amath.NumberString("2.279e-10")
+DEPTH_C = amath.NumberString("-2.2512e-5")
+DEPTH_D = amath.NumberString("9.72659")
+DEPTH_E = amath.NumberString("2.184e-6")
+DEPTH_F = amath.NumberString("1.092e-6")
+
 # From seawater.eos80.dpth
 def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
     """Calculate depth in meters from pressure in dbars and latitude in decimal degrees."""
@@ -47,11 +48,10 @@ def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
     return amath.div(top, bottom)
 
 
-PRESSURE_A = decimal.Decimal("5.92e-3")
-PRESSURE_B = decimal.Decimal("5.25e-3")
-PRESSURE_C = decimal.Decimal("8.84e-6")
-PRESSURE_D = decimal.Decimal("4.42e-6")
-
+PRESSURE_A = amath.NumberString("5.92e-3")
+PRESSURE_B = amath.NumberString("5.25e-3")
+PRESSURE_C = amath.NumberString("8.84e-6")
+PRESSURE_D = amath.NumberString("4.42e-6")
 
 # From seawater.eos80.pres
 def eos80_pressure[T: AnyNumber](depth: T, latitude: T) -> T:
@@ -74,15 +74,15 @@ def eos80_pressure[T: AnyNumber](depth: T, latitude: T) -> T:
             PRESSURE_D
     )
 
-FP_A = decimal.Decimal("-7.53e-4")
-FP_B = decimal.Decimal("-0.0575")
-FP_C = decimal.Decimal("1.710523e-3")
-FP_D = decimal.Decimal("-2.154996e-4")
+FP_A = amath.NumberString("-7.53e-4")
+FP_B = amath.NumberString("-0.0575")
+FP_C = amath.NumberString("1.710523e-3")
+FP_D = amath.NumberString("-2.154996e-4")
 
 # From seawater.eos80.fp
 def eos80_freezing_point_t68[T: AnyNumber](salinity: T, pressure: T) -> T:
     """Calculate freezing point in degrees C (IPTS-68 scale) from practical salinity in psu and pressure in dbars."""
-    if amath.between(4, salinity, 40):
+    if _functions.between(4, salinity, 40):
         # Note: 0.3% accuracy
         return amath.summation((
             amath.mul(FP_A, pressure),
@@ -158,8 +158,8 @@ def eos80_secant_bulk_modulus(salinity: amath.AnyNumber, temperature_ipts68: ama
     return K0 + (A + B * pressure) * pressure  # Eqn 15.
 
 
-T68_CONVERSION_FACTOR = decimal.Decimal("1.00024")
-T48_A = decimal.Decimal("4.4e-6")
+T68_CONVERSION_FACTOR = amath.NumberString("1.00024")
+T48_A = amath.NumberString("4.4e-6")
 
 
 # From seawater.eos80.T90
@@ -229,9 +229,9 @@ def eos80_convert_temperature_scale[T](temp: T, input_scale: TemperatureScale, o
     raise ValueError(f'Undefined temperature conversion {input_scale} to {output_scale}')
 
 
-SG_A = decimal.Decimal("2.36e-5")
-SG_B = decimal.Decimal("5.2788e-3")
-SG_K = decimal.Decimal("9.780318")
+SG_A = amath.NumberString("2.36e-5")
+SG_B = amath.NumberString("5.2788e-3")
+SG_K = amath.NumberString("9.780318")
 
 
 # From seawater.eos80.dpth (partially)
