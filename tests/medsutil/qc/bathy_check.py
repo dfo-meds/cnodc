@@ -3,7 +3,7 @@ import typing as t
 from uncertainties import UFloat, ufloat
 from medsutil.bathymetry import BathymetryModel
 import medsutil.ocproc2 as ocproc2
-from pipeman.programs.gtspp.old.bathymetry_test import GTSPPBathymetryTest
+from pipeman.programs.gtspp.old.bathymetry import GTSPPBathymetryTest
 
 
 class MockBathymetryModel(BathymetryModel):

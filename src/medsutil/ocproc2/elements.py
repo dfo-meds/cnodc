@@ -273,6 +273,12 @@ class AbstractElement[X]:
             return 9
         return 0
 
+    @property
+    def sensor_rank(self) -> int | None:
+        if self.metadata.has_value("SensorRank"):
+            return self.metadata.best('SensorRank', coerce=int)
+        return None
+
     def is_empty(self) -> bool:
         """Check if the value is empty."""
         for v in self.all_values():
@@ -436,19 +442,32 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
             return False
 
     def ideal(self) -> SingleElement | None:
-        best_value, best_wq = None, 9
-        for v in self.all_values():
+        best_value: None | SingleElement = None
+        best_wq: int | None = None
+        best_sr: int | None = None
+        for idx, v in enumerate(self.all_values()):
             wq = v.quality
-            if wq == 1 or wq == 5:
-                return v
-            if (    best_value is None
-                    or (wq == 2 and best_wq not in (2, ))
-                    or (wq == 3 and best_wq not in (2, 3))
-                    or (wq == 4 and best_wq not in (2, 3, 4))
-                    or (wq == 0 and best_wq not in (0, 2, 3))
-                    or (wq == 9 and best_wq not in (0, 2, 3, 4))):
-                best_value = v
-                best_wq = wq
+            sr = v.sensor_rank
+            if sr is None:
+                sr = -1 * idx
+            replace = False
+
+            if best_wq is None:
+                replace = True
+            elif wq in ALLOWED_QUALITY_MAP[best_wq] and best_wq != 5:
+                replace = True
+            elif wq == best_wq:
+                if best_sr is None:
+                    replace = True
+                elif best_sr > -1 and sr > -1:
+                    replace = sr < best_sr
+                elif best_sr < 0 and sr < 0:
+                    replace = sr > best_sr
+                elif sr > -1 > best_sr:
+                    replace = True
+            if replace:
+                best_value, best_wq, best_sr = v, wq, sr
+
         return best_value
 
     def is_multivalue(self) -> bool:
@@ -644,3 +663,17 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         if kwargs:
             v.metadata.update(kwargs)
         return v
+
+
+ALLOWED_QUALITY_MAP: dict[int | None, set[int]] = {
+    None: {0, 1, 2, 3, 4, 5, 7, 9, -1},
+    0: {1, 2, 3, 4, 5, 7, 9, -1},
+    1: {2, 3, 4, 5, 7, 9, -1},
+    5: {2, 3, 4, 5, 7, 9, -1},
+    2: {3, 4, 5, 7, 9, -1},
+    3: {4, 5, 7, 9, -1},
+    4: {5, 7, 9, -1},
+    7: {-1},
+    9: {-1},
+    -1: set(),
+}

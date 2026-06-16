@@ -240,6 +240,17 @@ def between(min_: mt.AnyNumber,
     return True
 
 
+def probable_range(x: mt.AnyNumber, **kwargs) -> tuple[mt.BasicNumber, mt.BasicNumber]:
+    if mt.is_science_number(x):
+        return x.probable_range(**kwargs)
+    elif isinstance(x, mt.NumberString):
+        x2 = decimal.Decimal(x)
+        return x2, x2
+    else:
+        x2 = t.cast(decimal.Decimal | float | int, x)
+        return x2, x2
+
+
 ANY_NUM_OR_ITER = mt.AnyNumber | t.Iterable[mt.AnyNumber]
 
 

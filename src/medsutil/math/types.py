@@ -32,6 +32,9 @@ class ScienceNumberProtocol[T](t.Protocol):
     @property
     def num_type(self) -> type[float | _decimal.Decimal]: ...
 
+    def probable_range(self, **kwargs) -> tuple[float | _decimal.Decimal, float | _decimal.Decimal]:
+        ...
+
     def __abs__(self) -> ScienceNumberProtocol[T]: ...
 
     def __neg__(self) -> ScienceNumberProtocol[T]: ...
@@ -82,7 +85,7 @@ def is_science_number(x: t.Any) -> t.TypeGuard[ScienceNumberProtocol]:
 
 
 BasicNumber = _decimal.Decimal | int | float
-AnyNumber = BasicNumber | ScienceNumberProtocol | NumberString
+AnyNumber = _decimal.Decimal | int | float | ScienceNumberProtocol | NumberString
 
 type ExpandedLinearCombination = dict[ScienceNumberProtocol, AnyNumber]
 type UnexpandedLinearCombination = list[tuple[AnyNumber, LinearCombinationProtocol]]

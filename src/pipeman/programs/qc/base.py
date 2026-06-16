@@ -20,7 +20,7 @@ from medsutil.ocproc_math import extract_parameter_value
 from medsutil.units import UnitConverter
 from autoinject import injector
 
-from pipeman.programs.qc.reference_ranges import ReferenceRange
+from pipeman.programs.qc.references import ReferenceRange
 
 if t.TYPE_CHECKING:
     class QCMethodProtocol[R: AnyRef](t.Protocol):
@@ -86,7 +86,7 @@ class QualityController(abc.ABC):
                  test_version: str,
                  station_invariant: bool = False,
                  working_sort: str | tuple[str, bool] | None = None,
-                 test_tags: list[str] | None = None):
+                 test_tags: list[str | None] | None = None):
         self._test_name = test_name
         self._station_invariant = station_invariant
         self._test_version = test_version
@@ -159,14 +159,6 @@ class QualityController(abc.ABC):
         self.current_coordinates.update_from_record(record)
 
     def setup(self): ...
-
-    def extract_parameter_value(self,
-                                parameter_name: str,
-                                ref: SingleElementRef,
-                                units: str | None = None,
-                                required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
-                                obs_date: AwareDateTime | None = None) -> amath.AnyNumber | None:
-        return extract_parameter_value(parameter_name, ref.element, units, required_quality, obs_date if obs_date is not None else self.current_time)
 
     def run_record_check(self, record: ocproc2.ParentRecord) -> ocproc2.QCTestRunInfo:
         self._current_record = ParentRecordRef(record=record, path="", parent=None)
@@ -348,17 +340,6 @@ class QualityController(abc.ABC):
             "",
         )
 
-    def extract_good_values(self,
-                            element: SingleElementRef | MultiElementRef | None,
-                            required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> t.Iterable[SingleElementRef]:
-        if element is not None:
-            for element_sref in element.single_element_refs():
-                try:
-                    self.require_quality(element_sref.element, required_quality=required_quality)
-                    yield element_sref
-                except QCSkipReview:
-                    ...
-
     def require_quality(self,
                         value: ocproc2.AbstractElement | None,
                         required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> t.TypeGuard[ocproc2.AbstractElement]:
@@ -391,6 +372,69 @@ class QualityController(abc.ABC):
             subpath=subpath,
             ref_value=ref_value
         )
+
+    def extract_all_keyed_parameters(self, *records: RecordRef, include_parameters: t.Container[str] | None = None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
+        param_names = set()
+        for record in records:
+            if include_parameters is not None:
+                param_names.update(
+                    k
+                    for k in record.record.parameters.keys()
+                    if k in include_parameters
+                )
+            else:
+                param_names.update(record.record.parameters.keys())
+        for param_name in param_names:
+            yield from self.extract_keyed_parameters(
+                *(
+                    record.record.parameters.get(param_name, None)
+                    for record in records
+                )
+            )
+
+    def extract_keyed_parameters(self,
+                                 *elements: SingleElementRef | MultiElementRef | None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
+        keyed_elements = []
+        keys = set()
+        for element in elements:
+            keyed = element.keyed_sensor_rank_refs() if element is not None else {}
+            keyed_elements.append(keyed)
+            keys.update(keyed.keys())
+        for key in keys:
+            yield tuple(
+                by_key[key] if key in by_key else None
+                for by_key in keyed_elements
+            )
+
+
+    def extract_good_values(self,
+                            element: SingleElementRef | MultiElementRef | None,
+                            required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> t.Iterable[SingleElementRef]:
+        if element is not None:
+            for element_sref in element.single_element_refs():
+                try:
+                    self.require_quality(element_sref.element, required_quality=required_quality)
+                    yield element_sref
+                except QCSkipReview:
+                    ...
+
+    def extract_parameter_values(self, *elements: SingleElementRef, units: str | None = None, required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> tuple[amath.AnyNumber | None, ...]:
+        for element in elements:
+            if units is None:
+                units = element.element.metadata.best("Units", coerce=str, default=None)
+            if units is not None:
+                break
+        return tuple(
+            self.extract_parameter_value(element, units, required_quality, self.current_time)
+            for element in elements
+        )
+
+    def extract_parameter_value(self,
+                                ref: SingleElementRef,
+                                units: str | None = None,
+                                required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+                                obs_date: AwareDateTime | None = None) -> amath.AnyNumber | None:
+        return extract_parameter_value(ref.element_name, ref.element, units, required_quality, obs_date if obs_date is not None else self.current_time)
 
     def assert_true(self, a: t.Any, msg: str | None = None, **kwargs) -> bool:
         if not a:
@@ -490,7 +534,13 @@ class QualityController(abc.ABC):
         if not amath.is_close(a, b):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
-            self.report_qc_error(msg or "not_less_or_close", **kwargs)
+            self.report_qc_error(msg or "not_close", **kwargs)
+
+    def assert_not_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if amath.is_close(a, b):
+            if not kwargs.get("ref_value", None):
+                kwargs["ref_value"] = str(b)
+            self.report_qc_error(msg or "too_close", **kwargs)
 
     def assert_not_equal(self, a: t.Any, b: t.Any, msg: str | None = None, **kwargs):
         if a == b:
@@ -612,13 +662,17 @@ class ProfileChecker(DeepDiveChecker):
         if ref.recordset_type != "PROFILE":
             return
         profile = [ record_ref for record_ref in ref.record_refs() ]
-        self.profile_check(profile)
-        self._profile_memory = None
+        try:
+            with self.skip_review_blocker():
+                self.profile_check(profile, ref)
+        finally:
+            self._profile_memory = None
 
-    def profile_check(self, profile: list[ChildRecordRef]):
+    def profile_check(self, profile: list[ChildRecordRef], recordset_ref: RecordSetRef):
         for ref in profile:
             self._update_coordinates(ref)
-            self.level_check(ref)
+            with self.skip_review_blocker():
+                self.level_check(ref)
 
     def level_check(self, ref: ChildRecordRef):
         ...

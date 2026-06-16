@@ -1,5 +1,5 @@
 from medsutil.ocproc2 import ChildRecord
-from medsutil.ocproc2.refs import ChildRecordRef
+from medsutil.ocproc2.refs import ChildRecordRef, RecordSetRef
 from medsutil.ocproc2.util import RequiredQuality
 from pipeman.programs.qc.base import ProfileChecker
 import medsutil.ocproc2 as ocproc2
@@ -15,11 +15,11 @@ class GTSPPDensityInversionTest(ProfileChecker):
             test_tags=['GTSPP_2.10']
         )
 
-    def profile_check(self, profile: list[ChildRecordRef]):
+    def profile_check(self, profile: list[ChildRecordRef], recordset_ref: RecordSetRef):
         if len(profile) < 2:
             return
         self.profile_memory['last'] = {}
-        super().profile_check(profile)
+        super().profile_check(profile, recordset_ref)
 
     def level_check(self, record: ChildRecordRef):
         temp_ref = record.parameter_ref("Temperature")

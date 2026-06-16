@@ -10,6 +10,7 @@ import nodb.interface as interface
 from medsutil.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 from medsutil.awaretime import AwareDateTime
 from medsutil.sanitize import coerce
+from nodb.interface import NODBInstance
 
 
 class SourceFileStatus(enum.Enum):
@@ -294,6 +295,31 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
                         continue
                     else:
                         yield p
+
+    @classmethod
+    def stream_recent_working_records(cls,
+                                      db: interface.NODBInstance,
+                                      platform_uuid: str,
+                                      after_time: AwareDateTime,
+                                      before_time: AwareDateTime,
+                                      **kwargs) -> t.Iterable[NODBWorkingRecord]:
+        yield from db.stream_objects(NODBWorkingRecord, filters={
+            "platform_uuid": platform_uuid,
+            "obs_time": ((before_time, after_time), "BETWEEN"),
+        }, **kwargs)
+
+    @classmethod
+    def stream_recent_observations(cls,
+                                   db: NODBInstance,
+                                   platform_uuid: str,
+                                   after_time: AwareDateTime,
+                                   before_time: AwareDateTime,
+                                   **kwargs) -> t.Iterable[NODBObservationData]:
+        for obs in db.stream_objects(NODBObservation, filters={
+            "platform_uuid": platform_uuid,
+            "obs_time": ((before_time, after_time), "BETWEEN"),
+        }, **kwargs):
+            yield obs.find_observation_data(db)
 
     @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, platform_uuid: str, **kwargs) -> t.Optional[NODBPlatform]:
