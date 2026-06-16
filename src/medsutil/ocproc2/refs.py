@@ -55,14 +55,18 @@ class ElementRef(AnyRef):
         return self.element
 
     def keyed_sensor_rank_refs(self) -> dict[int, SingleElementRef]:
-        nxt = 0
         ranked = {}
-        for sref in self.single_element_refs():
-            key = sref.element.metadata.best("SensorRank", coerce=int, default=nxt)
-            if key >= nxt:
-                nxt = key + 1
-            ranked[key] = sref
+        for index, sref in self.single_element_refs():
+            sref.sensor_rank = sref.element.metadata.best("SensorRank", coerce=int, default=-1 * index)
+            ranked[sref.sensor_rank] = sref
         return ranked
+
+    def keyed_parameter(self, sensor_rank: int) -> SingleElementRef | None:
+        for index, sref in self.single_element_refs():
+            sref.sensor_rank = sref.element.metadata.best("SensorRank", coerce=int, default=-1 * index)
+            if sref.sensor_rank == sensor_rank:
+                return sref
+        return None
 
     def single_element_refs(self) -> t.Iterable[SingleElementRef]:
         raise NotImplementedError
@@ -110,6 +114,10 @@ class ElementRef(AnyRef):
 @dataclasses.dataclass
 class SingleElementRef(ElementRef):
     element: ocproc2.SingleElement
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sensor_rank = None
 
     def single_element_refs(self) -> t.Iterable[SingleElementRef]:
         yield self

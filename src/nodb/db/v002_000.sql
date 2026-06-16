@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS nodb_temporary_qc_results(
     working_uuid        UUID            NOT NULL,
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE nodb_working ADD COLUMN deduped_flag INTEGER DEFAULT NULL;
+
 
 CREATE INDEX IF NOT EXISTS idx_nodb_temp_qc_results_lookup ON nodb_temporary_qc_results(batch_process_id, batch_identifier, outcome);
 

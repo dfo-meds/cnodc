@@ -3,6 +3,7 @@ import typing as t
 
 from medsutil import ocproc2 as ocproc2, math as amath
 from medsutil.awaretime import AwareDateTime
+from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP
 
 
 def normalize_ocproc_path(path: t.Union[None, str, t.Iterable[str]]) -> str:
@@ -27,21 +28,6 @@ if t.TYPE_CHECKING:
 
 
 class QualityError(Exception): ...
-
-
-
-ALLOWED_QUALITY_MAP: dict[int | None, set[int]] = {
-    None: {0, 1, 2, 3, 4, 5, 7, 9, -1},
-    0: {1, 2, 3, 4, 5, 7, 9, -1},
-    1: {2, 3, 4, 5, 7, 9, -1},
-    5: {2, 3, 4, 5, 7, 9, -1},
-    2: {3, 4, 5, 7, 9, -1},
-    3: {4, 5, 7, 9, -1},
-    4: {5, 7, 9, -1},
-    7: {-1},
-    9: {-1},
-    -1: set(),
-}
 
 
 class Quality(enum.IntEnum):
@@ -71,11 +57,18 @@ class RequiredQuality(enum.IntFlag):
     HAS_UNITS = enum.auto()
     HAS_VALUE = enum.auto()
     NOT_FINAL = enum.auto()
+    IS_NUMERIC = enum.auto()
+    IS_DATETIME = enum.auto()
+    IS_INTEGER = enum.auto()
 
     GOOD_OR_DUBIOUS_VALUE = NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE
 
     GOOD_VALUE = NOT_DUBIOUS | NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE
     GOOD_VALUE_WITH_UNITS = NOT_DUBIOUS | NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE | HAS_UNITS
+
+    GOOD_NUMERIC = GOOD_VALUE | IS_NUMERIC
+    GOOD_DATETIME = GOOD_VALUE | IS_DATETIME
+    GOOD_INTEGER = GOOD_VALUE | IS_INTEGER
 
     QC_INCOMPLETE = NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | NOT_FINAL
 
@@ -173,31 +166,33 @@ def high_quality_depth_pressure(pressure_element: ocproc2.AbstractElement | None
 
 
 def high_quality_datetime(v: ocproc2.AbstractElement | None) -> AwareDateTime | None:
-    if v is not None and is_of_quality(v, RequiredQuality.GOOD_VALUE) and v.is_iso_datetime():
+    if v is not None and is_of_quality(v, RequiredQuality.GOOD_DATETIME):
         return v.to_datetime()
     return None
 
 
 def high_quality_numeric(v: ocproc2.AbstractElement | None,
                          units: str = None,
-                         required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> amath.AnyNumber | None:
+                         required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC) -> amath.AnyNumber | None:
     if units is not None:
         required_quality = required_quality | RequiredQuality.HAS_UNITS
-    if v is not None and is_of_quality(v, required_quality) and v.is_numeric():
+    if v is not None and is_of_quality(v, required_quality):
         return v.to_numeric(units)
     return None
 
 
-def high_quality_int(v: ocproc2.AbstractElement | None, units: str = None) -> int | None:
-    quality = RequiredQuality.GOOD_VALUE_WITH_UNITS if units else RequiredQuality.GOOD_VALUE
-    if v is not None and is_of_quality(v, quality) and v.is_integer():
+def high_quality_int(v: ocproc2.AbstractElement | None, units: str = None, required_quality: RequiredQuality = RequiredQuality.GOOD_INTEGER) -> int | None:
+    if units is not None:
+        required_quality = required_quality | RequiredQuality.HAS_UNITS
+    if v is not None and is_of_quality(v, required_quality):
         return v.to_int(units)
     return None
 
 
-def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None) -> float | None:
-    quality = RequiredQuality.GOOD_VALUE_WITH_UNITS if units else RequiredQuality.GOOD_VALUE
-    if v is not None and is_of_quality(v, quality) and v.is_numeric():
+def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC) -> float | None:
+    if units is not None:
+        required_quality = required_quality | RequiredQuality.HAS_UNITS
+    if v is not None and is_of_quality(v, required_quality):
         return v.to_float(units)
     return None
 
@@ -229,8 +224,12 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
     if RequiredQuality.GOOD_STRUCTURE in required_quality and working_quality == Quality.BAD_STRUCTURE:
         raise QualityError("element_has_bad_structure")
 
-    if RequiredQuality.HAS_VALUE in required_quality and hasattr(obj, 'is_empty') and obj.is_empty():
-        raise QualityError("element_is_empty")
-
-    if RequiredQuality.HAS_UNITS and not obj.metadata.has_value("Units"):
-        raise QualityError("element_missing_units")
+    if isinstance(obj, ocproc2.AbstractElement):
+        if RequiredQuality.HAS_VALUE in required_quality and obj.is_empty():
+            raise QualityError("element_is_empty")
+        if RequiredQuality.HAS_UNITS and not obj.metadata.has_value("Units"):
+            raise QualityError("element_missing_units")
+        if RequiredQuality.IS_NUMERIC in required_quality and not obj.is_numeric():
+            raise QualityError("element_not_numeric")
+        if RequiredQuality.IS_DATETIME in required_quality and not obj.is_iso_datetime():
+            raise QualityError("element_not_datetime")

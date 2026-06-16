@@ -17,9 +17,14 @@ from medsutil.exceptions import CodedError
 
 POSTGRES_ALLOWED_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
-type SupportsPostgres = None | bool | float | int | decimal.Decimal | str | collections.abc.Buffer | datetime.date | datetime.time | datetime.timedelta | uuid.UUID
+type SupportsPostgres = None | bool | float | int | decimal.Decimal | str | collections.abc.Buffer | datetime.date | datetime.time | datetime.timedelta | uuid.UUID | tuple
 type DatabaseIdentifier = str
-type FilterDict = dict[str, SupportsPostgres | tuple[str, SupportsPostgres] | tuple[str, SupportsPostgres | bool]]
+type FilterDict = dict[
+    str,
+    SupportsPostgres
+    | tuple[SupportsPostgres | str]
+    | tuple[SupportsPostgres | str | bool]
+]
 type JoinString = t.Literal["AND", "OR"]
 
 if t.TYPE_CHECKING:

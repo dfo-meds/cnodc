@@ -1,6 +1,5 @@
 import abc
-import typing as t
-from medsutil.amath import AnyNumber
+from medsutil.math import AnyNumber
 
 
 class BathymetryModel(abc.ABC):
@@ -9,6 +8,6 @@ class BathymetryModel(abc.ABC):
         self.ref_name = ref_name
 
     @abc.abstractmethod
-    def water_depth(self, x: AnyNumber, y: AnyNumber) -> t.Optional[AnyNumber]:
+    def water_depth(self, x: AnyNumber, y: AnyNumber) -> AnyNumber | None:
         raise NotImplementedError
 

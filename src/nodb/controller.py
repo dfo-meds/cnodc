@@ -1008,13 +1008,19 @@ class PostgresController:
                     val = filters[key][0]
                     if op == 'IN':
                         yield pgs.Identifier(key)
-                        yield pgs.Identifier('IN')
+                        yield pgs.SQL('IN')
                         yield pgs.Composed((
                             pgs.Identifier('('),
                             pgs.SQL(',').join(pgs.Literal(v) for v in val),
                             pgs.Identifier(')'),
                             suffix
                         ))
+                    elif op == "BETWEEN":
+                        yield pgs.Identifier(key)
+                        yield pgs.SQL("BETWEEN")
+                        yield pgs.Literal(val[0])
+                        yield pgs.SQL("AND")
+                        yield pgs.Literal(val[1])
                     else:
                         yield pgs.Composed((
                             pgs.Identifier(key),

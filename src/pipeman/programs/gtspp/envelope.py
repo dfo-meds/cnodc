@@ -1,5 +1,5 @@
 import pathlib
-from pipeman.programs.qc.reference_ranges import ReferenceRangeChecker
+from pipeman.programs.qc.references import ReferenceRangeChecker
 
 
 class GTSPPEnvelopeTest(ReferenceRangeChecker):

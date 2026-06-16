@@ -44,6 +44,7 @@ from medsutil.math._functions import (
     between,
     lte,
     gte,
+    probable_range,
 )
 from medsutil.math._trig import (
     cos,
