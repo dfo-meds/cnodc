@@ -2,9 +2,6 @@ import decimal
 import math as _math
 import typing as t
 
-from Demos.SystemParametersInfo import new_x
-from fontTools.ttLib.tables.otTables import DeltaSetIndexMap
-
 from medsutil.math import types as mt
 
 

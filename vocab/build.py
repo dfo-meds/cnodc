@@ -55,6 +55,8 @@ def map_data_type(dtype: str):
         return 'cnodc:List'
     elif dtype == 'text':
         return 'xsd:string'
+    elif dtype == "duration":
+        return "cnodc:Duration"
     elif dtype == 'element':
         return 'cnodc:Element'
     elif dtype in ('decimal', 'integer', 'date'):

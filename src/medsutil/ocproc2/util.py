@@ -3,7 +3,11 @@ import typing as t
 
 from medsutil import ocproc2 as ocproc2, math as amath
 from medsutil.awaretime import AwareDateTime
+
 from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP
+
+if t.TYPE_CHECKING:
+    from medsutil.iso_duration import ISODuration
 
 
 def normalize_ocproc_path(path: t.Union[None, str, t.Iterable[str]]) -> str:
@@ -60,6 +64,7 @@ class RequiredQuality(enum.IntFlag):
     IS_NUMERIC = enum.auto()
     IS_DATETIME = enum.auto()
     IS_INTEGER = enum.auto()
+    IS_DURATION = enum.auto()
 
     GOOD_OR_DUBIOUS_VALUE = NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE
 
@@ -69,6 +74,7 @@ class RequiredQuality(enum.IntFlag):
     GOOD_NUMERIC = GOOD_VALUE | IS_NUMERIC
     GOOD_DATETIME = GOOD_VALUE | IS_DATETIME
     GOOD_INTEGER = GOOD_VALUE | IS_INTEGER
+    GOOD_DURATION = GOOD_VALUE | IS_DURATION
 
     QC_INCOMPLETE = NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | NOT_FINAL
 
@@ -81,7 +87,7 @@ class CoordinateTracker:
         self._depth: amath.AnyNumber | None = None
         self._pressure: amath.AnyNumber | None = None
         self._time: AwareDateTime | None = None
-        self._time_offset: float | None = None
+        self._time_offset: ISODuration | None = None
         self._central_frequency: amath.AnyNumber | None = None
         self._obs_number: int | None = None
         self._wave_sensor: int | None = None
@@ -117,7 +123,7 @@ class CoordinateTracker:
     @property
     def time(self) -> AwareDateTime | None:
         if self._time_offset is not None and self._time is not None:
-            return self._time + datetime.timedelta(seconds=self._time_offset)
+            return self._time_offset.add_to(self._time)
         return self._time
 
     def update_from_record(self, record: ocproc2.BaseRecord):
@@ -140,7 +146,7 @@ class CoordinateTracker:
         if "Time" in record.coordinates:
             self._time = high_quality_datetime(record.coordinates["Time"])
         if "TimeOffset" in record.coordinates:
-            self._time_offset = high_quality_float(record.coordinates["TimeOffset"], "s")
+            self._time_offset = high_quality_duration(record.coordinates["TimeOffset"])
 
 
 def high_quality_depth_pressure(pressure_element: ocproc2.AbstractElement | None = None,
@@ -168,6 +174,11 @@ def high_quality_depth_pressure(pressure_element: ocproc2.AbstractElement | None
 def high_quality_datetime(v: ocproc2.AbstractElement | None) -> AwareDateTime | None:
     if v is not None and is_of_quality(v, RequiredQuality.GOOD_DATETIME):
         return v.to_datetime()
+    return None
+
+def high_quality_duration(v: ocproc2.AbstractElement | None) -> ISODuration | None:
+    if v is not None and is_of_quality(v, RequiredQuality.GOOD_DURATION):
+        return v.to_duration()
     return None
 
 
@@ -233,3 +244,5 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
             raise QualityError("element_not_numeric")
         if RequiredQuality.IS_DATETIME in required_quality and not obj.is_iso_datetime():
             raise QualityError("element_not_datetime")
+        if RequiredQuality.IS_DURATION in required_quality and not obj.is_duration():
+            raise QualityError("element_not_duration")

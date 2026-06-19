@@ -12,7 +12,8 @@ from pipeman.programs.dmd.metadata import Encoding, Axis, NetCDFDataType, Covera
     Thesaurus, KeywordType, Keyword, DistributionChannel, DatasetMetadata, SpatialRepresentation, DistanceUnit, \
     AngularUnit, EssentialOceanVariable, ERDDAPDatasetType, GCCollectionType, GCAudience, GCPlace, \
     GCSubject, TopicCategory, MaintenanceFrequency, StatusCode, GCPublisher, Locale, _Contact, TelephoneNumber, \
-    SpatialResolution, TemporalResolution
+    SpatialResolution
+from medsutil.iso_duration import ISODuration
 from medsutil import json
 from tests.helpers.base_test_case import BaseTestCase
 
@@ -787,7 +788,7 @@ class TestMetadata(BaseTestCase):
 
     def test_set_time_res(self):
         md = DatasetMetadata()
-        md.temporal_resolution = TemporalResolution(seconds=3.5)
+        md.temporal_resolution = ISODuration(seconds=3.5)
         self.assertEqual(md.temporal_resolution.seconds, 3)
         self.assertIsNone(md.temporal_resolution.years)
 
@@ -813,7 +814,7 @@ class TestMetadata(BaseTestCase):
         for test_val in good_tests:
             result = good_tests[test_val]
             with self.subTest(input_val=test_val):
-                md.time_resolution = TemporalResolution.from_iso_format(test_val)
+                md.time_resolution = ISODuration.from_iso_format(test_val)
                 self.assertIsNotNone(md.time_resolution)
                 for key in ('years', 'months', 'days', 'hours', 'minutes', 'seconds'):
                     if key in result:
@@ -823,7 +824,7 @@ class TestMetadata(BaseTestCase):
         for test_val in bad_tests:
             with self.subTest(input_val=test_val):
                 with self.assertRaises(ValueError):
-                    md.time_resolution = TemporalResolution.from_iso_format(test_val)
+                    md.time_resolution = ISODuration.from_iso_format(test_val)
 
     def test_add_eov(self):
         md = DatasetMetadata()

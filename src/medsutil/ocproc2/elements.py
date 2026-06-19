@@ -16,6 +16,7 @@ import medsutil.ocproc2.util as ocut
 UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
 
 if t.TYPE_CHECKING:
+    from medsutil.iso_duration import ISODuration
     from uncertainties import ufloat, UFloat
     import medsutil.types as ct
     type SupportedValueOrElement = ocut.SupportedValue | AbstractElement
@@ -190,6 +191,11 @@ class AbstractElement[X]:
         self.to_datetime()
         return True
 
+    @duck_type_catch
+    def is_duration(self):
+        self.to_duration()
+        return True
+
     def _coerce_to_numeric[T](self,
                                                              coerce: t.Callable[[str | int | float | None], T] | type[T],
                                                              units: str | None = None,
@@ -235,6 +241,11 @@ class AbstractElement[X]:
     def to_int(self, units: t.Optional[str] = None, no_loss: bool = True) -> int:
         """Convert this value to an integer."""
         return self._coerce_to_numeric(int, units, no_loss)
+
+    def to_duration(self) -> ISODuration:
+        """Convert this value to a ISO 8601 duration."""
+        from medsutil.iso_duration import ISODuration
+        return ISODuration.from_iso_format(self.ideal().to_string())
 
     def to_datetime(self) -> AwareDateTime:
         """Convert this value to a datetime."""

@@ -48,6 +48,8 @@ class NODBIntegrityChecker(DeepDiveChecker):
                     self.assert_true(element.is_string_like(), msg='invalid_string')
                 case 'list':
                     self.assert_true(element.is_list_like(), msg='invalid_list')
+                case 'duration':
+                    self.assert_true(element.is_duration(), msg='invalid_duration')
                 case _:
                     self.report_qc_error("invalid_data_type")
 

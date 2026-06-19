@@ -9,8 +9,9 @@ import enum
 
 from autoinject import injector
 
-from medsutil import json
+import medsutil.json as json
 from medsutil.first import first_i18n
+from medsutil.iso_duration import ISODuration
 from medsutil.sanitize import unnumpy
 import medsutil.awaretime as awaretime
 import medsutil.datadict as dd
@@ -1271,76 +1272,6 @@ class SpatialResolution(EntityRef):
     angular_units: AngularUnit = dd.p_enum(AngularUnit)
 
 
-class TemporalResolution(EntityRef):
-
-    years: int = dd.p_int()
-    months: int = dd.p_int()
-    days: int = dd.p_int()
-    hours: int = dd.p_int()
-    minutes: int = dd.p_int()
-    seconds: int = dd.p_int()
-
-    @classmethod
-    def from_iso_format(cls, iso_duration: str) -> t.Self:
-        tcr = iso_duration.replace("-", "").replace(":", "").upper()
-        if tcr[0] != 'P':
-            raise ValueError('ISO formats begin with a P')
-        else:
-            parts = [0, 0, 0, 0, 0, 0]
-            weeks = 0
-            buffer = ''
-            in_time = False
-            used_alt_format = False
-            for i in range(1, len(tcr)):
-                if tcr[i].isdigit():
-                    buffer += tcr[i]
-                elif tcr[i] == 'T':
-                    in_time = True
-                    if buffer:
-                        if len(buffer) != 8:
-                            raise ValueError(f'Invalid alternate duration date length')
-                        parts[0] = int(buffer[0:4])
-                        parts[1] = int(buffer[4:6])
-                        parts[2] = int(buffer[6:8])
-                        buffer = ''
-                        used_alt_format = True
-                elif tcr[i] == 'Y':
-                    parts[0] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'M':
-                    parts[4 if in_time else 1] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'D':
-                    parts[2] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'H':
-                    parts[3] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'S':
-                    parts[5] = int(buffer)
-                    buffer = ''
-                elif tcr[i] == 'W':
-                    weeks = int(buffer)
-                    buffer = ''
-                else:
-                    raise ValueError(f'Invalid character found at position [{i}] in [{tcr}]')
-            if buffer and used_alt_format:
-                if len(buffer) in (2, 4, 6):
-                    parts[3] = int(buffer[0:2])
-                else:
-                    raise ValueError(f'Invalid alternate duration time length [{buffer}]')
-                if len(buffer) in (4, 6):
-                    parts[4] = int(buffer[2:4])
-                if len(buffer) == 6:
-                    parts[5] = int(buffer[4:6])
-            if weeks > 0:
-                if any(x > 0 for x in parts):
-                    raise ValueError('Cannot specify weeks and other time parts')
-                return cls(days=weeks*7)
-            else:
-                return cls(years=parts[0] or None, months=parts[1] or None, days=parts[2] or None, hours=parts[3] or None, minutes=parts[4] or None, seconds=int(parts[5]) or None)
-
-
 class _Manufactured(EntityRef, _IdentifierMixin):
     manufacturer: t.Optional[_Contact] = dd.p_ddo(_Contact)
     model_number: str = dd.p_str()
@@ -1392,7 +1323,7 @@ class CNODCStorageLocation(EntityRef):
 
     @classmethod
     def build_from_storage_object(cls, obj: FilePath, notes: str | None = None):
-        from medsutil.storage import FilePath, StorageTier
+        from medsutil.storage import StorageTier
         from medsutil.storage.azure_blob import AzureBlobHandle
         from medsutil.storage.azure_files import AzureFileHandle
         kwargs: dict[str, t.Any] = {
@@ -1446,7 +1377,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     instruments: list[Instrument] = dd.p_object_list(Instrument)
 
     spatial_resolution: t.Optional[SpatialResolution] = dd.p_ddo(SpatialResolution)
-    temporal_resolution: t.Optional[TemporalResolution] = dd.p_ddo(TemporalResolution)
+    temporal_resolution: t.Optional[ISODuration] = dd.p_ddo(ISODuration)
     metadata_owner: t.Optional[_Contact] = dd.p_ddo(_Contact)
     publisher: t.Optional[_Contact] = dd.p_ddo(_Contact)
     parent_metadata: t.Optional[Citation] = dd.p_ddo(Citation)
@@ -1681,7 +1612,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             self.alt_metadata.append(cit)
         if 'time_coverage_resolution' in attrs and attrs['time_coverage_resolution']:
             try:
-                self.temporal_resolution = TemporalResolution.from_iso_format(attrs.pop('time_coverage_resolution', ''))
+                self.temporal_resolution = ISODuration.from_iso_format(attrs.pop('time_coverage_resolution', ''))
             except ValueError:
                 self._log.exception("Invalid value for time_coverage_resolution")
         if 'geospatial_bounds_crs' in attrs and attrs['geospatial_bounds_crs']:
