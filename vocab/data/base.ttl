@@ -83,6 +83,10 @@ cnodc:Element rdf:type skos:Concept ;
     skos:prefLabel "Element"@en ;
     skos:documentation "Another element" .
 
+cnodc:Duration rdf:type skos:Concept ;
+    skos:prefLabel "Duration (ISO)"@en ;
+    skos:documentation "Duration in ISO-8601 format" .
+
 cnodc:ioosCategory rdf:type rdf:Property ;
     rdfs:domain skos:Concept ;
     rdfs:range ioos:ioosCategories .

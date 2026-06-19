@@ -1,3 +1,4 @@
+from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
 from medsutil.byteseq import ByteSequenceReader
 import medsutil.types as ct
@@ -12,6 +13,14 @@ class GtsSubDecoder:
     def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool) -> DecodeResult:
         raise NotImplementedError  # pragma: no coverage (default)
 
+    def supports_multiple_records(self) -> bool:
+        raise NotImplementedError
+
+    def encode_from_records(self, record: t.Iterable[ParentRecord], **kwargs) -> t.Iterable[bytes | bytearray]:
+        raise NotImplementedError
+
+    def encode_from_record(self, record: ParentRecord, **kwargs) -> t.Iterable[bytes | bytearray]:
+        raise NotImplementedError
 
 class GtsCodec(BaseCodec):
 
