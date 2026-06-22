@@ -6,13 +6,13 @@ SECRET_KEY='12345'
 version = 1
 
 [logging.root]
-level = "ERROR"
+level = "INFO"
 handlers = ["console"]
 
 [logging.handlers.console]
 class = "logging.StreamHandler"
 formatter = "brief"
-level = "ERROR"
+level = "INFO"
 stream = "ext://sys.stdout"
 
 [logging.formatters.brief]

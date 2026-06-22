@@ -86,9 +86,9 @@ class ElementRef(AnyRef):
     @staticmethod
     def build(element: ocproc2.AbstractElement, **kwargs) -> SingleElementRef | MultiElementRef:
         if not element.is_multivalue():
-            return SingleElementRef(element=t.cast(ocproc2.SingleElement, element), **kwargs)
+            return SingleElementRef(element=element, **kwargs)
         else:
-            return MultiElementRef(element=t.cast(ocproc2.MultiElement, element), **kwargs)
+            return MultiElementRef(element=element, **kwargs)
 
     @staticmethod
     def build_ref_from_element_map(element_map: ocproc2.ElementMap,

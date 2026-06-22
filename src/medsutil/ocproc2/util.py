@@ -208,6 +208,31 @@ def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, req
     return None
 
 
+def set_working_quality(element: ObjectWithMetadata, working_quality: int):
+    quality = element.metadata.best("Quality", coerce=int, default=None)
+    existing_quality = element.metadata.best("WorkingQuality", coerce=int, default=None)
+    if existing_quality is None:
+        element.metadata["WorkingQuality"] = quality
+        existing_quality = quality
+    if Quality.new_quality_allowed(working_quality, existing_quality):
+        element.metadata["WorkingQuality"] = working_quality
+
+
+def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: RequiredQuality) -> bool:
+    any_passed: bool = False
+    exs = []
+    for obj in objs:
+        try:
+            check_quality(obj, required_quality)
+            any_passed = True
+        except QualityError as ex:
+            exs.append(ex)
+    if any_passed:
+        return True
+    if exs:
+        raise ExceptionGroup("quality errors", exs)
+    return False
+
 def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality) -> bool:
     try:
         check_quality(obj, required_quality)
@@ -238,7 +263,7 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
     if isinstance(obj, ocproc2.AbstractElement):
         if RequiredQuality.HAS_VALUE in required_quality and obj.is_empty():
             raise QualityError("element_is_empty")
-        if RequiredQuality.HAS_UNITS and not obj.metadata.has_value("Units"):
+        if RequiredQuality.HAS_UNITS in required_quality and not obj.metadata.has_value("Units"):
             raise QualityError("element_missing_units")
         if RequiredQuality.IS_NUMERIC in required_quality and not obj.is_numeric():
             raise QualityError("element_not_numeric")

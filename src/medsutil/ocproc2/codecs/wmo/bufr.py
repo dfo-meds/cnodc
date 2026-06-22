@@ -9,6 +9,7 @@ import pathlib
 from autoinject import injector
 import zrlog
 import pybufrkit.descriptors
+from pybufrkit.bufr import SectionParameter
 from pybufrkit.descriptors import SequenceDescriptor, ElementDescriptor, DelayedReplicationDescriptor
 from pybufrkit.encoder import Encoder
 from pybufrkit.tables import TableGroupCacheManager, TableGroupKey, BufrTableGroup
@@ -16,15 +17,17 @@ from pybufrkit.renderer import NestedTextRenderer, NestedJsonRenderer
 from pybufrkit.decoder import Decoder
 from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
     ValueDataNode, NoValueDataNode
+from wtforms.validators import none_of
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import ParentRecord, BaseRecord
+from medsutil.ocproc2 import ParentRecord, BaseRecord, RecordSet, AbstractElement
 from medsutil.ocproc2.codecs.gts import GtsSubDecoder
 from medsutil.ocproc2.codecs.base import DecodeResult
 from medsutil.byteseq import ByteSequenceReader
 import medsutil.ocproc2 as ocproc2
 import medsutil.awaretime as awaretime
 from medsutil.units import UnitConverter
+from medsutil.units.units import convert
 from pipeman.exceptions import CNODCError
 
 
@@ -49,9 +52,17 @@ class BufrCDSTables:
             return self._bufr_map[key]
         return None
 
+    def lookup_encode(self, descriptor_id: int | str) -> dict | list | None:
+        key = str(int(descriptor_id))
+        if key in self._bufr_map and 'encode' in self._bufr_map[key]:
+            return self._bufr_map[key]['encode']
+        return None
+
     def standardize_units(self, unit: str):
         if unit in ('Numeric', 'CCITT IA5', 'CODE TABLE'):
             return None
+        if unit == 'degree true':
+            unit = 'deg'
         return self.converter.standardize(unit)
 
     def standardize_instruction(self, instruction: str | dict) -> dict | None:
@@ -86,7 +97,7 @@ class BufrCDSTables:
             return None
         else:
             base: dict[str, t.Any] = {
-                "instruction": "apply_to_target",
+                "instruction": "apply_to_target" if "name" in instruction else "noop"
             }
             base.update(instruction)
             base["raw"] = base["instruction"] in ("instruction_map", "noop", "set_scale_factor", "error", "mapped")
@@ -96,7 +107,71 @@ class BufrCDSTables:
             if 'instruction_map' in base and base['instruction_map']:
                 for x in base['instruction_map']:
                     base['instruction_map'][x] = self.standardize_instruction(base['instruction_map'][x])
+            if 'encode' in base and base['encode']:
+                base['encode'] = self.standardize_encode_instruction(base['encode'])
             return base
+
+
+    def standardize_encode_instruction(self, instruction: str | list | dict):
+        if isinstance(instruction, list):
+            return [self.standardize_encode_instruction(x) for x in instruction]
+        else:
+            if isinstance(instruction, str):
+                descriptor, instruction = instruction.split(":", maxsplit=1)
+
+                if instruction == "NULL":
+                    return {'descriptor': int(descriptor), 'instruction': 'null'}
+                if instruction == "record" or instruction == "recordset":
+                    return {'descriptor': int(descriptor), 'instruction': 'sequence', 'pass': instruction, 'optional': False}
+                if instruction == "record[optional]" or instruction == "recordset[optional]":
+                    return {'descriptor': int(descriptor), 'instruction': 'sequence', 'pass': instruction[:-10], 'optional': True}
+                if any(instruction.startswith(x) for x in ("metadata/", "parameters/", "coordinates/", "recordset/")):
+                    if "[" not in instruction:
+                        return {'descriptor': int(descriptor), 'instruction': 'extract_ocproc2', 'source': instruction}
+                    else:
+                        instruction, filter = instruction.split("[", maxsplit=1)
+                        return {'descriptor': int(descriptor), 'instruction': 'extract_ocproc2', 'source': instruction, "filters": self.standardize_filters(filter[:-1])}
+                if instruction.startswith("common/"):
+                    if "[" not in instruction:
+                        return {'descriptor': int(descriptor), 'instruction': 'extract_common_ocproc2', 'source': instruction}
+                    else:
+                        instruction, filter = instruction.split("[", maxsplit=1)
+                        return {'descriptor': int(descriptor), 'instruction': 'extract_common_ocproc2', 'source': instruction, "filters": self.standardize_filters(filter[:-1])}
+                if instruction.startswith("common["):
+                    element_filter_end = instruction.find("]")
+                    element_filter = instruction[7:element_filter_end].split("|")
+                    instruction = f"common{instruction[element_filter_end+1:]}"
+                    if "[" not in instruction:
+                        return {'descriptor': int(descriptor), 'instruction': 'extract_common_ocproc2', 'source': instruction, "elements": element_filter}
+                    else:
+                        instruction, filter = instruction.split("[", maxsplit=1)
+                        return {'descriptor': int(descriptor), 'instruction': 'extract_common_ocproc2', 'source': instruction, "filters": self.standardize_filters(filter[:-1]), "elements": element_filter}
+                if instruction.startswith("recordset_size"):
+                    return {'descriptor': int(descriptor), 'instruction': 'recordset_size'}
+                if instruction.endswith("[ifany]"):
+                    return {'descriptor': int(descriptor), 'instruction': 'static', 'value': instruction[:-7], 'optional': True}
+                else:
+                    return {'descriptor': int(descriptor), 'instruction': 'static', 'value': instruction, 'optional': False}
+            else:
+                if 'group' in instruction:
+                    instruction['group'] = self.standardize_encode_instruction(instruction['group'])
+                    instruction['instruction'] = 'group'
+                elif 'instruction' not in instruction:
+                    instruction['instruction'] = 'extract_ocproc2'
+                return instruction
+
+    def standardize_filters(self, filters: str) -> dict:
+        new_filters = {}
+        for x in filters.split(";"):
+            if "=" in x:
+                k, v = x.split("=", maxsplit=1)
+                new_filters[k] = v
+            else:
+                new_filters[x] = True
+        return new_filters
+
+
+
 
 
 class Bufr4Decoder(GtsSubDecoder):
@@ -188,6 +263,7 @@ class _Bufr4DecoderContext:
         new.top = self.top
         new.var_metadata = {x: self.var_metadata[x] for x in self.var_metadata}
         new.record_metadata = {x: self.record_metadata[x] for x in self.record_metadata}
+        new.recordset_metadata = {x: self.recordset_metadata[x] for x in self.recordset_metadata}
         return new
 
     def start_iteration(self, node_list):
@@ -224,28 +300,26 @@ class _Bufr4DecoderContext:
             self.target = None
 
     def set_recordset_property(self, property_name: str, value: ocproc2.AbstractElement):
-        if value.value is None or self.target_subset is None:
-            return
         if self.target_subset is not None:
-            self.target_subset.metadata[property_name] = value
+            self.target_subset.metadata[property_name] = value if value.value is not None else None
         else:
-            self.recordset_metadata[property_name] = value
+            self.recordset_metadata[property_name] = value if value.value is not None else None
 
     def set_record_property(self, property_full_name: str, value: ocproc2.AbstractElement | None):
         if value is None or value.value is None or self.target is None:
             return
         if self.var_metadata:
             pieces = property_full_name.split('/')
-            for x in self.var_metadata:
-                if self.var_metadata[x][1] is None or pieces[-1] in self.var_metadata[x][1]:
-                    value.metadata[x] = self.var_metadata[x][0]
+            for a, x in self.var_metadata.items():
+                if x[2] is None or pieces[-1] in x[2]:
+                    value.metadata[x[0]] = x[1]
         self.target.set(property_full_name, value)
 
-    def add_future_parameter_metadata(self, property_name, value, limit_to_parameters: t.Optional[list[str]] = None):
+    def add_future_parameter_metadata(self, applied_from: int, property_name, value, limit_to_parameters: t.Optional[list[str]] = None):
         if value.value is not None:
-            self.var_metadata[property_name] = (value, limit_to_parameters or None)
-        elif property_name in self.var_metadata:
-            del self.var_metadata[property_name]
+            self.var_metadata[applied_from] = (property_name, value, limit_to_parameters or None)
+        elif applied_from in self.var_metadata:
+            del self.var_metadata[applied_from]
 
     def add_future_subrecord_data(self, property_name, value, limit_to_subrecord_types: t.Optional[list[str]] = None):
         if value.value is not None:
@@ -266,11 +340,11 @@ class _Bufr4Encoder:
         self._records = records
         self._override_template = override_template
         self._default_template = default_template
-        self._default_originating_centre = 34
+        self._default_originating_centre = 0
         self._default_originating_subcentre = 0
         self._always_override_centre = True
         self._default_master_table = 0
-        self._default_master_table_version = 33
+        self._default_master_table_version = 42
         self._default_local_table_version = 0
         self._table_group: BufrTableGroup | None = None
         self._context = {}
@@ -419,28 +493,11 @@ class _Bufr4Encoder:
         ])
         return message.serialized_bytes
 
-    def _show_rendered_list(self, x: list, prefix=''):
-        for element in x:
-            if isinstance(element, dict):
-                title = element['name'] if 'name' in element else element['id']
-                if 'value' in element:
-                    if not isinstance(element['value'], list):
-                        print(f"{prefix}{title}: {element["value"]}")
-                    else:
-                        print(f"{prefix}{title}:")
-                        self._show_rendered_list(element['value'], prefix=prefix + '  ')
-                elif 'members' in element:
-                    print(f"{prefix}{title}:")
-                    self._show_rendered_list(element['members'], prefix=prefix + '  ')
-            elif isinstance(element, list):
-                self._show_rendered_list(element, prefix + '  ')
-            else:
-                print(f"{prefix}{element}")
-
     def _build_section_four_subset(self, record: ParentRecord, descriptors: list[int]) -> list:
         subset = []
         for descriptor in descriptors:
-            subset.extend(self._build_from_descriptor(record, self.table_group.lookup(descriptor)))
+            encoded = self._build_from_descriptor(self.table_group.lookup(descriptor), record=record)
+            subset.extend(encoded.assemble())
         return subset
 
     @property
@@ -450,122 +507,389 @@ class _Bufr4Encoder:
         else:
             return self._table_group
 
-    def _build_from_descriptor(self, record: ParentRecord, descriptor) -> list:
-        with self.subcontext() as ctx:
-            if "descriptors" not in ctx:
-                ctx["descriptors"] = []
-            ctx["descriptors"].append(descriptor)
-            if isinstance(descriptor, DelayedReplicationDescriptor):
-                return self._build_from_delayed_replication_descriptor(record, descriptor)
-            elif isinstance(descriptor, SequenceDescriptor):
-                return self._build_from_sequence_descriptor(record, descriptor)
-            elif isinstance(descriptor, ElementDescriptor):
-                return self._build_from_element_descriptor(record, descriptor)
+    def _build_from_descriptor(self, descriptor, **kwargs) -> EncodeElement:
+        if isinstance(descriptor, SequenceDescriptor):
+            yielder = None
+            method_name = f"_build_from_{descriptor.id}"
+            if hasattr(self, method_name):
+                yielder = getattr(self, method_name)(**kwargs)
             else:
-                raise TypeError(f"Element type not handled: {type(descriptor)}")
+                instruction = self._cds_tables.lookup_encode(descriptor.id)
+                if instruction is not None:
+                    yielder = self._build_from_instruction(instruction, **kwargs)
 
-    def _build_from_sequence_descriptor(self, record: ParentRecord, descriptor: SequenceDescriptor) -> list:
-        sequence = []
-        for idx, element_descriptor in enumerate(descriptor.members):
-            self._context["current_descriptor_index"] = idx
-            sequence.extend(self._build_from_descriptor(record, element_descriptor))
-        return sequence
+            if yielder is not None:
+                elements = [x for x in self._filter_results(descriptor, yielder)]
+                return EncodeElement(descriptor.id, elements)
 
-    def _build_from_delayed_replication_descriptor(self, record: ParentRecord, descriptor: DelayedReplicationDescriptor) -> list:
-        # TODO
-        return [0]
+        raise ValueError(f"Invalid descriptor: {type(descriptor)} ")
 
-    def _build_from_element_descriptor(self, record: BaseRecord, descriptor: ElementDescriptor) -> list:
-        value = None
-        bufr_instructions = self._cds_tables.lookup(descriptor.id)
-        if bufr_instructions is not None:
-            return self._process_for_descriptor(descriptor, self._extract_value_for_bufr(bufr_instructions, record))
-        return [None]
-
-    def _process_for_descriptor(self, descriptor: ElementDescriptor, element: t.Any) -> list:
-        if element is None:
-            value = None
-        elif isinstance(element, ocproc2.AbstractElement) and element.is_empty():
-            value = None
-        elif descriptor.unit == "CCITT IA5":
-            if isinstance(element, ocproc2.AbstractElement):
-                value = element.to_string()
+    def _filter_results(self, descriptor: SequenceDescriptor, results: t.Iterable[EncodeElement]) -> t.Iterable[EncodeElement]:
+        for x in descriptor.members:
+            if x.id >= 100000 and x.id < 200000:
+                repeats = x.id % 100
+                if repeats == 0:
+                    result_next = next(results)
+                    if result_next.descriptor in (31000, 31001, 31002):
+                        repeats = result_next.value
+                        yield result_next
+                    else:
+                        raise TypeError("expecting repeat flag")
+                for i in range(0, repeats):
+                    yield from self._filter_results(x, results)
             else:
-                value = str(element)
-        elif descriptor.unit == "Numeric":
-            if isinstance(element, ocproc2.AbstractElement):
-                value = element.to_float()
+                result_next = next(results)
+                while x.id != result_next.descriptor:
+                    result_next = next(results)
+                yield result_next
+
+
+    def _build_from_instruction(self, instruction: dict | list, **kwargs) -> t.Iterable[EncodeElement]:
+        if isinstance(instruction, list):
+            for idx, i in enumerate(instruction):
+                if isinstance(i, dict) and i["instruction"] == "extract_common_ocproc2":
+                    yield self._build_from_common(idx, instruction, **kwargs)
+                else:
+                    yield from self._build_from_instruction(i, **kwargs)
+        elif instruction["instruction"] == "extract_ocproc2":
+            if instruction["source"].startswith("recordset/"):
+                _, metadata = instruction["source"].split("/", 1)
+                yield EncodeElement(instruction["descriptor"], self._build_from_ocproc2(
+                    kwargs["recordset"].metadata.ideal(metadata),
+                    instruction["descriptor"],
+                    filters=instruction["filters"] if "filters" in instruction else None,
+                    value_map=instruction["data_map"] if "data_map" in instruction else None
+                ))
             else:
-                value = float(element)
-        elif descriptor.unit == "CODE TABLE":
-            if isinstance(element, ocproc2.AbstractElement):
-                value = element.to_int()
+                yield EncodeElement(instruction["descriptor"], self._build_from_ocproc2(
+                    kwargs["record"].find_child(instruction["source"]),
+                    instruction["descriptor"],
+                    filters=instruction["filters"] if "filters" in instruction else None,
+                    value_map=instruction["data_map"] if "data_map" in instruction else None
+                ))
+        elif instruction["instruction"] == "null":
+            yield EncodeElement(instruction["descriptor"], None)
+        elif instruction["instruction"] == "static":
+            yield EncodeElement(
+                instruction["descriptor"],
+                self._build_from_raw_value(instruction["value"], instruction["descriptor"]),
+                optional=instruction["optional"]
+            )
+        elif instruction["instruction"] == "sequence":
+            if instruction["optional"]:
+                yield from self._build_optional_block(
+                    self._handle_sequence_instruction,
+                    instruction=instruction,
+                    **kwargs
+                )
             else:
-                value = int(element)
+                yield self._handle_sequence_instruction(instruction, **kwargs)
+        elif instruction["instruction"] == "group":
+            if "recordset_type" in instruction:
+                kwargs["recordset"] = self._find_first_recordset(
+                    record=kwargs["record"],
+                    recordset_type=instruction["recordset_type"],
+                    output_elements=instruction["requires"] if "requires" in instruction else []
+                )
+                if "is_optional" in instruction and instruction["is_optional"]:
+                    if kwargs["recordset"] is None:
+                        yield EncodeElement(31000, 0)
+                        return
+                    else:
+                        yield EncodeElement(31000, 1)
+            if "repeats" in instruction:
+                yield from self._build_from_repeat_instruction(instruction, **kwargs)
+            else:
+                yield from self._build_from_instruction(instruction['group'], **kwargs)
         else:
-            if isinstance(element, ocproc2.AbstractElement):
-                value = element.to_float(descriptor.unit)
-            else:
-                value = float(element)
-        return [value]
+            print(instruction)
+            exit(1)
 
-    def _extract_value_for_bufr(self, orders: dict, record: BaseRecord) -> t.Any:
-        match orders["instruction"]:
-            case "apply_to_target":
-                return self._extract_value_from_record(orders, record)
-            case "apply_to_parameters":
-                return self._extract_forward_value_from_record(orders, record)
-            case _:
-                print(orders)
-                return None
+    def _build_from_repeat_instruction(self, instruction, record: BaseRecord, recordset: RecordSet | None) -> t.Iterable[EncodeElement]:
+        if recordset is None:
+            if "size_descriptor" in instruction and instruction["size_descriptor"]:
+                yield EncodeElement(instruction["size_descriptor"], 0, optional=True)
+        else:
+            record_count = 0
+            records = []
+            max_records = instruction["repeats"]
+            for r in recordset.records:
+                subrecord = [x for x in self._build_from_instruction(instruction['group'], record=r)]
+                if all(x is None or x.optional for x in subrecord):
+                    continue
+                else:
+                    record_count += 1
+                    records.extend(subrecord)
+                if max_records != "*" and int(max_records) == record_count:
+                    break
+            if "size_descriptor" in instruction and instruction["size_descriptor"]:
+                yield EncodeElement(instruction["size_descriptor"], record_count, optional=True)
+            yield from records
 
-    def _extract_forward_value_from_record(self, orders: dict, record: BaseRecord) -> t.Any:
-        return self._search_for_forward_value_from_record(
-            self._context["descriptors"][-2],
-            record,
-            orders["name"],
-            orders.get("limit", None)
+    def _build_from_common(self, current_idx: int, instruction: list[dict], **kwargs):
+        common_instruction = instruction[current_idx]
+        _, source_name = common_instruction["source"].rsplit("/", maxsplit=1)
+        filters = common_instruction["filters"] if "filters" in common_instruction else None
+        common_elements = [x for x in self._extract_common_elements(instruction[current_idx+1:], elements=common_instruction["elements"] if "elements" in common_instruction else None, **kwargs)]
+        common_value = self._extract_common_metadata_element(
+            common_elements,
+            attribute_name=source_name,
+            filters=filters,
+            units=self._cds_tables.standardize_units(self.table_group.lookup(common_instruction["descriptor"]).unit)
         )
+        if common_value is not None:
+            if source_name == "SensorDepth" and "SensorDepthReference" in filters and filters["SensorDepthReference"] in ("water", "local_ground"):
+                common_value = -1 * float(common_value)
+        return EncodeElement(common_instruction["descriptor"], common_value)
 
-    def _search_for_forward_value_from_record(self,
-                                              parent_descriptor,
-                                              record: BaseRecord,
-                                              element_name: str,
-                                              limit_elements: list[str] | None = None,
-                                              ) -> t.Any:
-        ...
+    def _extract_common_elements(self,
+                                 instruction: list[dict],
+                                 record: BaseRecord = None,
+                                 recordset: RecordSet = None,
+                                 elements: list[str] | None = None,
+                                 filters: dict[str, t.Any] | None = None,
+                                 **kwargs) -> t.Iterable[ocproc2.SingleElement | None]:
+        for x in instruction:
+            if x["instruction"] == "extract_ocproc2":
+                if record is not None:
+                    if filters is None or any(y in x["source"] for y in elements):
+                        yield self._find_ocproc2(t.cast(AbstractElement | None, record.find_child(x["source"])), filters=x['filters'] if 'filters' in x else None)
+            elif x["instruction"] in ("extract_common_ocproc2", "recordset_size", "static"):
+                continue
+            elif x["instruction"] == "sequence":
+                yield from self._extract_common_elements(
+                    t.cast(list[dict], self._cds_tables.lookup_encode(x["descriptor"])),
+                    record=record,
+                    recordset=recordset if x["pass"] == "recordset" else None,
+                    elements=elements,
+                    filters=filters
+                )
+            elif x["instruction"] == "group":
+                if "repeats" in x:
+                    if recordset:
+                        for r in recordset.records:
+                            yield from self._extract_common_elements(x["group"], record=r, elements=elements, filters=filters)
+                else:
+                    yield from self._extract_common_elements(
+                        x["group"],
+                        record=record,
+                        recordset=recordset,
+                        elements=elements,
+                        filters=filters
+                    )
+            else:
+                print(x)
+                exit(2)
 
-    def _extract_value_from_record(self, orders: dict, record: BaseRecord) -> t.Any:
-        value = record.find_child(orders["name"])
-        if value is not None:
-            extractor: str | None = orders.get("data_extractor", None)
-            if extractor is not None:
-                return getattr(self, extractor)(orders, value)
+    def _handle_sequence_instruction(self, instruction, **kwargs) -> EncodeElement:
+        if instruction["pass"] == "recordset":
+            return self._build_from_descriptor(
+                self.table_group.lookup(instruction["descriptor"]),
+                record=kwargs["record"],
+                recordset=kwargs["recordset"],
+            )
+        else:
+            return self._build_from_descriptor(
+                self.table_group.lookup(instruction["descriptor"]),
+                record=kwargs["record"],
+            )
+
+    def _build_optional_block(self, callback: t.Callable[..., EncodeElement], **kwargs) -> t.Iterable[EncodeElement]:
+        optional_content = callback(**kwargs)
+        if all(x is None or x.optional for x in optional_content.value):
+            yield EncodeElement(31000, 0)
+        else:
+            yield EncodeElement(31000, 1)
+            yield optional_content
+
+    def _build_from_ocproc2(self, element: ocproc2.AbstractElement | None, descriptor_id: int, filters: dict | None = None, value_map: dict | None = None):
+        actual_element = self._find_ocproc2(element, filters, value_map)
+        if actual_element is not None:
+            return self._build_from_single_ocproc2(actual_element, descriptor_id)
+        return None
+
+    def _find_ocproc2(self, element: ocproc2.AbstractElement | None, filters: dict | None = None, value_map: dict | None = None) -> ocproc2.SingleElement | None:
+        if element is None or element.is_empty():
+            return None
+        value = None
+        if filters is not None:
+            for x in ("year", "month", "day", "hour", "minute", "second"):
+                if x in filters and filters[x]:
+                    v = element.ideal().to_datetime()
+                    value = ocproc2.SingleElement(getattr(v, x))
+                    break
+            else:
+                for e in element.all_values():
+                    if all(e.metadata.has_value(x) and e.metadata.best(x) == filters[x] for x in filters):
+                        value = e
+                        break
+        else:
+            value = element.ideal()
+        if value is not None and value_map is not None and value.value in value_map:
+            value = ocproc2.SingleElement(value_map[value.value])
         return value
 
-    def _extract_year(self, orders: dict, element: ocproc2.AbstractElement):
-        if element.is_empty(): return None
-        return element.to_datetime().astimezone("Etc/UTC").year
+    def _build_from_raw_value(self,
+                              value: t.Any,
+                              descriptor_id: int,
+                              value_units: str | None = None) -> t.Any:
+        if value is None or value == "":
+            return None
+        descriptor = self.table_group.lookup(descriptor_id)
+        if descriptor.unit == "CCITT IA5":
+            return str(value)
+        elif descriptor.unit == "CODE TABLE":
+            return int(value)
+        elif descriptor.unit == "Numeric" or value_units is None:
+            return float(value)
+        else:
+            units = descriptor.unit
+            if units == "degree true":
+                units = "degrees"
+            return convert(float(value), value_units, units)
 
-    def _extract_month(self, orders: dict, element: ocproc2.AbstractElement):
-        if element.is_empty(): return None
-        return element.to_datetime().astimezone("Etc/UTC").month
+    def _build_from_single_ocproc2(self,
+                                   value: ocproc2.SingleElement,
+                                   descriptor_id: int) -> t.Any:
+        if value.is_empty():
+            return None
+        else:
+            descriptor = self.table_group.lookup(descriptor_id)
+            if descriptor.unit.upper() == "CCITT IA5":
+                return value.to_string()
+            elif descriptor.unit.upper() == "CODE TABLE":
+                return value.to_int()
+            elif descriptor.unit.upper() == "NUMERIC":
+                return value.to_float()
+            else:
+                units = descriptor.unit
+                if units.lower() == "degree true":
+                    units = "degrees"
+                return value.to_float(self._cds_tables.standardize_units(units))
 
-    def _extract_day(self, orders: dict, element: ocproc2.AbstractElement):
-        if element.is_empty(): return None
-        return element.to_datetime().astimezone("Etc/UTC").day
+    def _find_first_recordset(self, record, recordset_type: str, output_elements: list[str]) -> RecordSet | None:
+        found_rs = None
+        matches = 0
+        for recordset_id, recordset in record.subrecords.record_sets[recordset_type].items():
+            found_elements = set()
+            for record in recordset.records:
+                found_elements.update(record.parameters.keys())
+                found_elements.update(record.coordinates.keys())
+            matches_for_rs = sum(1 if x in found_elements else 0 for x in output_elements)
+            if matches_for_rs > matches:
+                found_rs = recordset
+                matches = matches_for_rs
+        return found_rs
 
-    def _extract_hour(self, orders: dict, element: ocproc2.AbstractElement):
-        if element.is_empty(): return None
-        return element.to_datetime().astimezone("Etc/UTC").hour
+    def _extract_common_observation_period(self, *elements, descriptor_id):
+        return self._convert_duration(self._extract_common_metadata_element(elements, "ObservationPeriod"), descriptor_id)
 
-    def _extract_minute(self, orders: dict, element: ocproc2.AbstractElement):
-        if element.is_empty(): return None
-        return element.to_datetime().astimezone("Etc/UTC").minute
+    def _extract_time_offset(self, time_offset: ocproc2.SingleElement | None, descriptor_id):
+        if time_offset is None or time_offset.is_empty():
+            return None
+        return self._convert_duration(time_offset.to_string(), descriptor_id)
 
-    def _extract_second(self, orders: dict, element: ocproc2.AbstractElement):
-        if element.is_empty(): return None
-        return element.to_datetime().astimezone("Etc/UTC").second
+    def _convert_duration(self, obs_time: str, descriptor_id: int):
+        if obs_time is None:
+            return None
+        from medsutil.iso_duration import ISODuration
+        iso_duration = ISODuration.from_iso_format(obs_time)
+        if iso_duration.years == 0 and iso_duration.months == 0 and iso_duration.days == 0:
+            return self._convert_time_period(iso_duration.time_part_total_seconds(), "s", descriptor_id)
+        elif iso_duration.hours == 0 and iso_duration.minutes == 0 and iso_duration.seconds == 0:
+            if iso_duration.years == 0 and iso_duration.months == 0:
+                return self._convert_time_period(iso_duration.days, "d", descriptor_id)
+            elif iso_duration.months == 0 and iso_duration.days == 0:
+                return self._convert_time_period(iso_duration.years, "a", descriptor_id)
+            elif iso_duration.days == 0 and iso_duration.years == 0:
+                return self._convert_time_period(iso_duration.months, "mon", descriptor_id)
+            else:
+                print("we can't combine these easily in BUFR")
+                return None
+        else:
+            print("we can't combine these easily in BUFR")
+            return None
+
+    def _convert_time_period(self, duration: int, from_units: str, descriptor_id: int):
+        to_units = self.table_group.lookup(descriptor_id).units
+        if to_units == "s":
+            if from_units == "s": return duration
+            elif from_units == "min": return duration * 60
+            elif from_units == "h": return duration * 60 * 60
+            else: print("can't easily convert days or more to seconds")
+        elif to_units == "min":
+            if from_units == "min": return duration
+            elif from_units == "h": return duration * 60
+            elif from_units == "s": return int(duration / 60)
+            else:
+                print("can't easily convert days or more to minutes")
+        elif to_units == "h":
+            if from_units == "min": return int(duration / 60)
+            elif from_units == "h": return duration
+            elif from_units == "s": return int(duration / 3600)
+            else:
+                print("can't easily convert days or more to hours")
+        elif to_units == "d":
+            if from_units == "d": return duration
+            else: print("can't easily convert anything to days")
+        elif to_units == "mon":
+            if from_units == "mon": return duration
+            elif from_units == "a": return duration * 12
+            else: print("can't easily convert days or less to months")
+        elif to_units == "a":
+            if from_units == "a": return duration
+            else: print("can't easily convert anything to years")
+        else:
+            print("unrecognized units")
+        return None
+
+    def _extract_common_metadata_element(self,
+                                         elements: t.Iterable[ocproc2.SingleElement | None],
+                                         attribute_name: str,
+                                         filters: dict[str, str] | None = None,
+                                         units: str | None = None) -> t.Any:
+        found_code = None
+        for element in elements:
+            found_element = None
+            if element is None or not attribute_name in element.metadata:
+                ...
+            elif not filters:
+                found_element = element.metadata.ideal(attribute_name)
+            else:
+                for selement in element.metadata[attribute_name].all_values():
+                    if all(x in selement.metadata and selement.metadata.best(x, coerce=str, default=None) == filters[x] for x in filters):
+                        found_element = selement
+                        break
+            if found_element is None:
+                continue
+            if units is not None:
+                current_code = found_element.to_decimal(units)
+            else:
+                current_code = found_element.value
+            if found_code is None:
+                found_code = current_code
+            elif current_code != found_code:
+                found_code = None
+                break
+        return found_code
+
+class EncodeElement:
+
+    def __init__(self, descriptor_id: int, value: t.Any, optional: bool = False):
+        self.descriptor = descriptor_id
+        self.value = value
+        self.optional = optional
+
+    def assemble(self) -> t.Iterable[t.Any]:
+        if isinstance(self.value, list):
+            for x in self.value:
+                if isinstance(x, EncodeElement):
+                    yield from x.assemble()
+                else:
+                    yield x
+        else:
+            yield self.value
+
 
 
 
@@ -641,9 +965,9 @@ class _Bufr4Decoder:
             'BUFROriginCentre': self.message.originating_centre.value,
             'BUFROriginSubcentre': self.message.originating_subcentre.value,
             'BUFRDataCategory': self.message.data_category.value,
-            'BUFRMasterTableVersion': self.message.master_table_version,
-            'BUFRLocalTableVersion': self.message.local_table_version,
-            'BUFRMasterTable': self.message.master_table_number,
+            'BUFRMasterTableVersion': self.message.master_table_version.value,
+            'BUFRLocalTableVersion': self.message.local_table_version.value,
+            'BUFRMasterTable': self.message.master_table_number.value,
             'BUFRIsObservation': 1 if self.message.is_observation.value else 0,
             'BUFRMessageTime': awaretime.utc_awaretime(
                 year=self.message.year.value,
@@ -852,8 +1176,6 @@ class _Bufr4Decoder:
         elif 'value_map' in instruction:
             if value in instruction['value_map']:
                 value = instruction['value_map'][value]
-            elif value is not None:
-                self.warn(f"Instruction provides a value_map but [{value}] is not in it", ctx)
         elif 'data_processor' in instruction:
             value = getattr(self, instruction['data_processor'])(value, node, ctx)
         if 'raw' in instruction and instruction['raw']:
@@ -871,13 +1193,14 @@ class _Bufr4Decoder:
                 else:
                     value.metadata[key] = instruction['metadata'][key]
         if node is not None:
-            units = self._get_node_units(node)
-            if units:
-                value.metadata['Units'] = units
-            scale = self._get_node_scale(node)
-            if scale:
-                value.metadata['Uncertainty'] = scale
-                value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'rounded'
+            units: str | None = self._get_node_units(node)
+            if units != "CCITT IA5" and units != "Code table":
+                if units and 'Units' not in value.metadata:
+                    value.metadata['Units'] = self.bufr_tables.standardize_units(units)
+                scale = self._get_node_scale(node)
+                if scale and 'Uncertainty' not in value.metadata:
+                    value.metadata['Uncertainty'] = scale
+                    value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'limited'
         return value
 
     def _get_node_units(self, node: ValueDataNode):
@@ -885,6 +1208,9 @@ class _Bufr4Decoder:
             return self.bufr_tables.standardize_units(node.descriptor.unit)
 
     def _get_node_scale(self, node: ValueDataNode):
+        if hasattr(node.descriptor, 'unit'):
+            if node.descriptor.unit in ('CCITT IA5', 'Code table'):
+                return None
         if hasattr(node.descriptor, 'scale'):
             return math.pow(10, (-1 * node.descriptor.scale)) / 2
 
@@ -899,7 +1225,7 @@ class _Bufr4Decoder:
             case "apply_to_target":
                 ctx.set_record_property(instruction['name'], value)
             case "apply_to_parameters":
-                ctx.add_future_parameter_metadata(instruction['name'], value, instruction['filter'] if 'filter' in instruction else None)
+                ctx.add_future_parameter_metadata(node.descriptor.id if node else -1, instruction['name'], value, instruction['filter'] if 'filter' in instruction else None)
             case "apply_to_subrecords":
                 ctx.add_future_subrecord_data(instruction['name'], value, instruction['filter'] if 'filter' in instruction else None)
             case "set_scale_factor":
@@ -1110,12 +1436,12 @@ class _Bufr4Decoder:
             self._apply_instruction({
                 "name": "coordinates/TimeOffset",
                 "instruction": "apply_to_target",
-            }, ocproc2.SingleElement(val), ctx)
+            }, ocproc2.SingleElement(val), ctx, node)
         else:
             self._apply_instruction({
                 "name": "metadata/ObservationPeriod",
                 "instruction": "apply_to_parameters"
-            }, ocproc2.SingleElement(val), ctx)
+            }, ocproc2.SingleElement(val), ctx, node)
 
     def _negate_value(self, value, node, ctx):
         value = self.raw_data.decoded_values_all_subsets[ctx.subset][node.index]
@@ -1144,7 +1470,7 @@ class _Bufr4Decoder:
             self._apply_instruction({
                 'name': 'metadata/WIGOSID',
                 'instruction': 'apply_to_target'
-            }, None, ctx)
+            }, None, ctx, node)
             ctx.skip = 3
         elif any(v is None for v in node_vals):
             self._parse_node(node, ctx, _skip_custom_check=True)
@@ -1152,5 +1478,5 @@ class _Bufr4Decoder:
             self._apply_instruction({
                 'name': 'metadata/WIGOSID',
                 'instruction': 'apply_to_target'
-            }, '-'.join(str(x) for x in node_vals), ctx)
+            }, '-'.join(str(x) for x in node_vals), ctx, node)
             ctx.skip = 3

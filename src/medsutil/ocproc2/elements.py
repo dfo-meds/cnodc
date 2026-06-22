@@ -279,7 +279,7 @@ class AbstractElement[X]:
         if self.metadata.has_value('Quality'):
             return self.metadata.best('Quality', coerce=int)
         elif self.metadata.has_value('WorkingQuality'):
-            return self.metadata.best('Quality', coerce=int)
+            return self.metadata.best('WorkingQuality', coerce=int)
         elif self.is_empty():
             return 9
         return 0
@@ -397,10 +397,13 @@ class SingleElement(AbstractElement):
         return h.digest()
 
     def to_mapping(self) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
+        if self._metadata is None:
+            if not isinstance(self._value, dict):
+                return self._value
+            return {'_value': self._value}
         return {
             '_value': self._value,
-            '_metadata': self._metadata.to_mapping() if self._metadata is not None else {},
-            '_qc_info': self._qc_info.to_mapping() if self._qc_info is not None else {},
+            '_metadata': self._metadata.to_mapping()
         }
 
     @staticmethod
@@ -517,16 +520,15 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
         self._value.append(value)
 
     def to_mapping(self) -> ExportMultipleWithMetadata:
-        export: ExportMultipleWithMetadata = {
-            '_values': [v.to_mapping() for v in self._value],
-        }
-        md = self._metadata.to_mapping() if self._metadata is not None else None
-        if md:
-            export['_metadata'] = t.cast(dict, md)
-        qc = self._qc_info.to_mapping() if self._qc_info is not None else None
-        if qc:
-            export['_qc_info'] = t.cast(dict[str, ExportQCInfo], t.cast(dict[str, object], qc))
-        return export
+        if self._metadata is None:
+            return {
+                '_values': [v.to_mapping() for v in self._value],
+            }
+        else:
+            return {
+                '_values': [v.to_mapping() for v in self._value],
+                '_metadata': self._metadata.to_mapping()
+            }
 
 
 class ElementMap(LazyLoadDict[AbstractElement]):

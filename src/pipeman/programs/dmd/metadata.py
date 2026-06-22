@@ -11,7 +11,6 @@ from autoinject import injector
 
 import medsutil.json as json
 from medsutil.first import first_i18n
-from medsutil.iso_duration import ISODuration
 from medsutil.sanitize import unnumpy
 import medsutil.awaretime as awaretime
 import medsutil.datadict as dd
@@ -1377,6 +1376,8 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     instruments: list[Instrument] = dd.p_object_list(Instrument)
 
     spatial_resolution: t.Optional[SpatialResolution] = dd.p_ddo(SpatialResolution)
+
+    from medsutil.iso_duration import ISODuration
     temporal_resolution: t.Optional[ISODuration] = dd.p_ddo(ISODuration)
     metadata_owner: t.Optional[_Contact] = dd.p_ddo(_Contact)
     publisher: t.Optional[_Contact] = dd.p_ddo(_Contact)
@@ -1612,6 +1613,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             self.alt_metadata.append(cit)
         if 'time_coverage_resolution' in attrs and attrs['time_coverage_resolution']:
             try:
+                from medsutil.iso_duration import ISODuration
                 self.temporal_resolution = ISODuration.from_iso_format(attrs.pop('time_coverage_resolution', ''))
             except ValueError:
                 self._log.exception("Invalid value for time_coverage_resolution")
