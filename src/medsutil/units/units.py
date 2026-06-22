@@ -22,6 +22,10 @@ ADDITIONAL_UNITS = {
     'mhos': 'S',
     '0/00': '0.001',
     'deg': 'arc_degree',
+    'degree': 'arc_degree',
+    'degrees': 'arc_degree',
+    'degree_true': 'arc_degree',
+    'degrees_true': 'arc_degree',
 }
 
 # normally we just let it pick the first one it finds, but I don't like some of them

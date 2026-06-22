@@ -121,9 +121,6 @@ class BaseRecord:
         sm = self._subrecords.to_mapping() if self._subrecords is not None else None
         if sm:
             map_['_subrecords'] = sm
-        qc = self._qc_info.to_mapping() if self._qc_info is not None else None
-        if qc:
-            map_['_qc_info'] = qc
         return map_
 
     def from_mapping(self, map_: BaseExport):

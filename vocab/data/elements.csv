@@ -16,8 +16,9 @@ AnemometerType,Anemometer Type,,The specific type of the anemometer,,Metadata (E
 Area,Area,,The area the mission took place in,,Metadata (Mission),text,,,,,,,,N,N,
 BackscatterWavelength,Backscatter Wavelength,,Wavelength of the backscattering sensor,,Metadata (Element),integer,nm,,,,0,,,N,N,
 BatteryDescription,Battery Description,,A description of the batteries on the mission,,Metadata (Platform),text,,,,,,,,N,N,
-BatteryType,Battery Type,,The type of batteries used,,Metadata (Platform),text,,,,,,,lithium_ion;other;unknown,N,N,
+BatteryType,Battery Type, ,The type of batteries used,,Metadata (Platform),text,,,,,,,lithium_ion;other;unknown,N,N,
 BatteryVoltage,Battery Voltage,,The voltage of the batteries on board the platform,,Metadata (Record),decimal,V,,,,,,,N,N,
+BUFRPlatformType,BUFR Platform Type,,,,Metadata (Record),text,,,,,,,profiler;xbt;ship;moored;drifting;asv;wave;coastal;glider,,,
 BUFRDataCategory,BUFR Data Category,,,,Metadata (Record),integer,,,,,,,,Y,N,
 BUFRDescriptors,BUFR Descriptors,,A list of BUFR descriptors attached to this message,,Metadata (Record),list,,,,,,,,Y,N,
 BUFRInferredMessageType,BUFR Inferred Message Type,,,,Metadata (Record),list,,,,,,,,Y,N,
@@ -112,7 +113,7 @@ GTSHeader,GTS Header,,The header sent with this message on the GTS,,Metadata (Pa
 HorizontalVisibility,Horizontal Visibility,Visibilité horizontale,,,Parameters,decimal,m,,,Meteorology,0,,,N,Y,
 HydrostaticPressure,,,,,,,,,,,,,,,,
 IceThickness,Ice Thickness,Épaisseur de glace,,,Parameters,decimal,m,,,IceDistribution,0,,,N,Y,seaIce
-IMONumber,IMO Number,,The IMO number of a platform,,Metadata (Platform),text,,,,Identifier,,,,N,N,
+IMONumber,IMO Number,,The IMO number of a platform,,Metadata (Platform),integer,,,,Identifier,,,,N,N,
 InstrumentManufacturingDate,Instrument Manufacturing Date,,,,Metadata,date,,,,,,,,,,
 Language,Language,,The language the element took place in,,Metadata (Element),text,,,,,,,,N,N,
 LastKnownPositionTime,Time of Last Known Position,,,,Metadata (Record),datetime,,,,Time,,,,N,N,
@@ -223,7 +224,7 @@ SpectralWaveDirDensityByFrequency,Spectral Wave Direction Density By Frequency,,
 SpectralWaveFourier1,Spectral Wave Fourier 1,,,,Parameters,decimal,,,,SurfaceWaves,,,,N,Y,seaState
 SpectralWaveFourier2,Spectral Wave Fourier 2,,,,Parameters,decimal,,,,SurfaceWaves,,,,N,Y,seaState
 SpectralWaveMaximumDensity,Spectral Wave Maximuim Density By Frequency,,,,Parameters,decimal,m2 s,,,SurfaceWaves,,,,N,Y,seaState
-SpectralWaveMaximumDensityWaveBand,Spectral Wave Maximum Wave Band,,,,Parameters,decimal,,,,SurfaceWaves,,,,N,Y,seaState
+SpectralWaveMaximumDensityBand,Spectral Wave Maximum Wave Band,,,,Parameters,decimal,,,,SurfaceWaves,,,,N,Y,seaState
 SpectralWavePeakPeriod,Spectral Wave Peak Period,,,,Parameters,decimal,s,,,SurfaceWaves,0,,,N,Y,seaState
 StartDate,Mission Start Date,,The start date of the mission,,Metadata (Mission),datetime,,,,Time,,,,N,N,
 StartLatitude,Mission Start Longitude,,The start latitude of the mission,,Metadata (Mission),decimal,degree_north,,,Location,-90,90,,N,N,
@@ -244,7 +245,7 @@ TransmitterID,Transmitter ID,,,,Metadata (Record),text,,,,Identifier,,,,N,N,
 Turbidity,Turbidity,Turbidité,Turbidity as mesasured in Nephelometric Turbidity Units (NTUs),,Parameters,decimal,1,sea_water_turbidity,turbidity__turbidite,,0,,,N,Y,
 Unadjusted,Unadjusted Value,Valeur non ajustée,The 'raw' value recorded before it was adjusted,,Metadata (Element),element,,,,,,,,Y,Y,
 Uncertainty,Uncertainty,,"Uncertainty of the measurement, in the same units",,Metadata (Element),decimal,,,,Statistics,0,,,N,Y,
-UncertaintyType,UncertaintyType,,"How the uncertainty was determined (uniform being from the resolution of the instrument, normal from a known or calculated standard deviation)",,Metadata (Element),text,,,,,,,rounded;truncated;standard_dev;unknown,N,N,
+UncertaintyType,UncertaintyType,,"How the uncertainty was determined (uniform being from the resolution of the instrument, normal from a known or calculated standard deviation)",,Metadata (Element),text,,,,,,,rounded;truncated;standard_dev;unknown;limited,N,N,
 Units,Units,,Units relevant to a value,,Metadata (Element),text,,,,,,,,N,N,
 VariableName,Variable Name,,The name of a variable in an equation,,Metadata (Element),text,,,,,,,,N,N,
 VolcanicAshDryAirFraction,,,,,Parameter,decimal,0.001,,,,,,,,,
@@ -268,7 +269,7 @@ WindDirection,Wind Direction (From),Direction du vent (de),Direction the wind is
 WindGustMaxDirection,Wind Gust Max Direction (From),Direction des rafales de vent (de),Direction the maximum speed wind gusts are coming from,,Parameters,decimal,degree,wind_gust_from_direction,,Wind,0,360,,N,Y,
 WindGustMaxSpeed,Wind Gust Max Speed,Vitesse maximale des rafales de vent,Speed of the maximum wind gusts,,Parameters,decimal,m s-1,wind_speed_of_gust,,Wind,0,,,N,Y,
 WindSpeed,Wind Speed,Vitesse du vent,Average wind speed,,Parameters,decimal,m s-1,wind_speed,wind_speed__vitesse_vents,Wind,0,,,N,Y,
-WMOAgencyCode,WMO Agency Code,,"Responsible Agency, as the WMO would identify it",,Metadata (Platform),text,,,,,,,,N,N,
+WMOAgencyCode,WMO Agency Code,,"Responsible Agency, as the WMO would identify it",,Metadata (Platform),integer,,,,,,,,N,N,
 WMOAirPressureCharacteristic,WMO Air Pressure Characteristic,,WMO code table for BUFR 10063,,Parameters,integer,,,,Meteorology,0,15,,N,Y,
 WMOAnemometerType,,,,,,,,,,,,,,,,
 WMOAveragingPeriod,,,WMO code table for ASCII 2604,,Metadata (Element),integer,,,,,,,0;1;2;3;9,,,

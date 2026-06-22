@@ -14,15 +14,16 @@ from medsutil.exceptions import CodedError
 from medsutil.math import _functions
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
-from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, ObjectWithMetadata, \
-    Quality
+from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, Quality, \
+    set_working_quality, check_any_of_quality
 from medsutil.ocproc_math import extract_parameter_value
 from medsutil.units import UnitConverter
 from autoinject import injector
 
-from pipeman.programs.qc.references import ReferenceRange
 
 if t.TYPE_CHECKING:
+    from pipeman.programs.qc.references import ReferenceRange
+    from medsutil.ocproc2.util import ObjectWithMetadata
     class QCMethodProtocol[R: AnyRef](t.Protocol):
         def __call__(_, self: QualityController, ref: R, *args, **kwargs) -> t.Any:
             ...
@@ -264,16 +265,10 @@ class QualityController(abc.ABC):
                                       references: t.List[AnyRef] | AnyRef | ObjectWithMetadata,
                                       required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE):
         if isinstance(references, list):
-            any_passed: bool = False
-            any_skipped: bool = False
-            for ref in references:
-                try:
-                    self.check_review_already_complete(ref.ref_object)
-                    any_passed = True
-                except QCSkipReview:
-                    any_skipped = True
-            if any_skipped and not any_passed:
-                self.skip_review("all_completed")
+            try:
+                check_any_of_quality([r.ref_object for r in references], required_quality)
+            except ExceptionGroup as ex:
+                self.skip_review(str(ex))
         elif isinstance(references, AnyRef):
             self.check_quality(references.ref_object, required_quality=required_quality)
         else:
@@ -306,9 +301,7 @@ class QualityController(abc.ABC):
     def set_working_quality(self,
                             working_quality: int,
                             element: ocproc2.AbstractElement | ocproc2.RecordSet | ocproc2.BaseRecord):
-        existing_quality = element.metadata.best("WorkingQuality", default=None, coerce=int)
-        if Quality.new_quality_allowed(working_quality, existing_quality):
-            element.metadata["WorkingQuality"] = working_quality
+        set_working_quality(element, working_quality)
 
     def skip_remaining_tests(self, reason: str):
         raise QCSkipTest(reason)

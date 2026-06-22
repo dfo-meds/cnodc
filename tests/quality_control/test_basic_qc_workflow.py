@@ -1,41 +1,85 @@
 from medsutil.ocproc2 import QCResult
-from pipeman.programs.qc import BaseTestSuite, MetadataTest, TestContext
 from medsutil import ocproc2
+from medsutil.ocproc2.refs import ParentRecordRef
+from medsutil.ocproc2.util import RequiredQuality
+from pipeman.programs.qc.base import DeepDiveChecker
 from tests.helpers.base_test_case import BaseTestCase
 
 
-class BoringTest(BaseTestSuite):
+class BoringParentRecordCheck(DeepDiveChecker):
 
-    @MetadataTest("test_boring_1", "Units")
-    def check_boring_1(self, value: ocproc2.SingleElement, context):
-        self.assert_true(value.to_string() == "m", "oh_no", 4)
+    def __init__(self):
+        super().__init__(test_name="boring_parent", test_version="1.0")
+
+    def parent_record_check(self, ref: ParentRecordRef):
+        metadata = ref.setdefault_metadata_ref("Boring")
+        with self.review("check", metadata, fail_flag=4, pass_flag=1) as ctx:
+            ctx.check_review_already_complete(required_quality=RequiredQuality.NOT_ERRONEOUS)
+            self.assert_true(metadata.element.value == 5)
 
 
-class TestBoringTest(BaseTestCase):
+class TestBoringParentRecordCheck(BaseTestCase):
 
-    def test_check_boring_1_with_workflow(self):
+    def test_check_boring_fail_empty(self):
+        pr = ocproc2.ParentRecord()
+        checker = BoringParentRecordCheck()
+        qc_result = checker.run_record_check(pr)
+        self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
+        self.assertIn("Boring", pr.metadata)
+        self.assertIsNone(pr.metadata["Boring"].value)
+        self.assertNotIn("Quality", pr.metadata["Boring"].metadata)
+        self.assertEqual(pr.metadata["Boring"].metadata["WorkingQuality"].value, 4)
 
-        # Simulate an original record
-        record = ocproc2.ParentRecord()
-        record.parameters['LunchLocationX'] = ocproc2.SingleElement("2015-01-02T03:04:05", Units="degrees")
+    def test_check_boring_fail_invalid(self):
+        pr = ocproc2.ParentRecord()
+        pr.metadata["Boring"] = 3
+        checker = BoringParentRecordCheck()
+        qc_result = checker.run_record_check(pr)
+        self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
+        self.assertIn("Boring", pr.metadata)
+        self.assertNotIn("Quality", pr.metadata["Boring"].metadata)
+        self.assertEqual(pr.metadata["Boring"].metadata["WorkingQuality"].value, 4)
 
-        # Simulate running a QC test on it
-        ctx = TestContext(record, {}, None)
-        bt = BoringTest("boring", "1.0")
-        bt.run_tests(ctx)
-        self.assertEqual(ctx.result, QCResult.MANUAL_REVIEW)
-        units_meta = record.parameters['LunchLocationX'].metadata['Units'].metadata
-        self.assertIn('SystemRecommendedQuality', units_meta)
-        self.assertIn('SystemIdentifier', units_meta)
-        self.assertEqual(4, units_meta.best('SystemRecommendedQuality', coerce=int, default=None))
-        self.assertEqual('test_boring_1', units_meta.best('SystemIdentifier', coerce=str, default=None))
+    def test_check_boring_pass(self):
+        pr = ocproc2.ParentRecord()
+        pr.metadata["Boring"] = 5
+        checker = BoringParentRecordCheck()
+        qc_result = checker.run_record_check(pr)
+        self.assertIs(qc_result.result, QCResult.PASS)
+        self.assertIn("Boring", pr.metadata)
+        self.assertNotIn("Quality", pr.metadata["Boring"].metadata)
+        self.assertEqual(pr.metadata["Boring"].metadata["WorkingQuality"].value, 1)
 
-        # Simulate the user's actions
-        units_meta['UserProvidedQuality'] = 4
-        del units_meta['SystemRecommendedQuality']
-        bt.run_tests(ctx)
-        self.assertIn('WorkingQuality', units_meta)
-        self.assertEqual(4, units_meta.best('WorkingQuality', coerce=int, default=None))
-        self.assertNotIn('UserProvidedQuality', units_meta)
-        self.assertNotIn('SystemIdentifier', units_meta)
-        self.assertNotIn('SystemRecommendedQuality', units_meta)
+    def test_check_boring_skip_already_erroneous(self):
+        pr = ocproc2.ParentRecord()
+        pr.metadata["Boring"] = ocproc2.SingleElement(None, Quality=4)
+        checker = BoringParentRecordCheck()
+        qc_result = checker.run_record_check(pr)
+        self.assertIs(qc_result.result, QCResult.SKIP)
+        self.assertIn("Boring", pr.metadata)
+        self.assertNotIn("WorkingQuality", pr.metadata["Boring"].metadata)
+        self.assertEqual(pr.metadata["Boring"].metadata["Quality"].value, 4)
+
+    def test_check_boring_pass_while_dubious(self):
+        pr = ocproc2.ParentRecord()
+        pr.metadata["Boring"] = ocproc2.SingleElement(5, Quality=3)
+        checker = BoringParentRecordCheck()
+        qc_result = checker.run_record_check(pr)
+        self.assertIs(qc_result.result, QCResult.PASS)
+        self.assertIn("Boring", pr.metadata)
+        self.assertIn("WorkingQuality", pr.metadata["Boring"].metadata)
+        self.assertEqual(pr.metadata["Boring"].metadata["WorkingQuality"].value, 3)
+        self.assertEqual(pr.metadata["Boring"].metadata["Quality"].value, 3)
+
+    def test_check_boring_fail_while_dubious(self):
+        pr = ocproc2.ParentRecord()
+        pr.metadata["Boring"] = ocproc2.SingleElement(4, Quality=3)
+        checker = BoringParentRecordCheck()
+        qc_result = checker.run_record_check(pr)
+        self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
+        self.assertIn("Boring", pr.metadata)
+        self.assertIn("WorkingQuality", pr.metadata["Boring"].metadata)
+        self.assertEqual(pr.metadata["Boring"].metadata["WorkingQuality"].value, 4)
+        self.assertEqual(pr.metadata["Boring"].metadata["Quality"].value, 3)
+
+
