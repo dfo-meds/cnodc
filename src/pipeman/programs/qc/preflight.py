@@ -2,7 +2,7 @@ from pipeman.programs.qc.base import DeepDiveChecker
 from medsutil.ocproc2.refs import ElementRef, RecordSetRef, RecordRef
 
 
-class NODBPreTest(DeepDiveChecker):
+class NODBPreFlight(DeepDiveChecker):
 
     def __init__(self, **kwargs):
         super().__init__('nodb_pretest', '1_0', **kwargs)

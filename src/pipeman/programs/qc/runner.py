@@ -46,7 +46,7 @@ class QCTestRunner:
                 if record is not None:
                     qc_results = []
                     for test in tests:
-                        result = test.run_record_check(record)
+                        result = test.run_record_check(record, self._db)
                         qc_results.append(result.result)
                     working_record.record = record
                     batch_key, outcome = batcher.assign_batch(working_record, record, qc_results)
@@ -72,8 +72,8 @@ class QCTestRunner:
         station_invariant = True
         for test_cls, test_args, test_kwargs in self._test_definitions:
             test = test_cls(*(test_args or []), **(test_kwargs or {}))
-            if test.working_sort:
-                if sort_order != test.working_sort:
+            if test.working_sort is not None:
+                if sort_order is not None and sort_order != test.working_sort:
                     raise QCTestRunnerError(f"Incompatible sort orders [{test.working_sort}] and [{sort_order}]")
                 sort_order = test.working_sort
                 if not test.station_invariant:

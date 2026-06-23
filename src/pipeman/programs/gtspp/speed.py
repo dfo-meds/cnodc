@@ -7,28 +7,31 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.util import RequiredQuality, Quality
 from nodb.observations import NODBPlatform
-from pipeman.programs.qc.base import DeepDiveChecker
+from pipeman.programs.qc.base import DeepDiveChecker, GenericPlatformCheck
 from medsutil.ocproc2.refs import ParentRecordRef
 from autoinject import injector
 from nodb.interface import NODB
 
 @injector.construct
-class GTSPPSpeedTest(DeepDiveChecker):
-
-    nodb: NODB
+class GTSPPSpeedTest(GenericPlatformCheck):
 
     DEFAULT_TOP_SPEED = 40
 
-    def __init__(self, past_time_days: int | float = 5):
+    def __init__(self,
+                 past_time_days: int | float = 5,
+                 searcher_cls=None):
         super().__init__(
             'gtspp_speed',
             '1.0',
+            searcher_cls=searcher_cls,
             test_tags=['GTSPP_1.5'],
-            working_sort='obs_time_asc',
+            working_sort=[('obs_time', 'asc')],
         )
         self._past_time_days = past_time_days
 
     def parent_record_check(self, ref: ParentRecordRef):
+        if "CNODCPlatform" not in ref.record.metadata:
+            self.skip_review("no_platform")
         self.require_quality(ref.record.metadata["CNOCDPlatform"])
         pid = ref.record.metadata['CNODCPlatform'].to_string()
         lat_ref = ref.setdefault_coordinate_ref("Latitude")
@@ -99,21 +102,20 @@ class GTSPPSpeedTest(DeepDiveChecker):
         if ref_time is not None:
             start_time = ref_time - datetime.timedelta(days=self._past_time_days)
             end_time = ref_time - datetime.timedelta(seconds=1)
-            with self.nodb as db:
-                for working_record in NODBPlatform.stream_recent_working_records(db, pid, start_time, end_time):
-                    rec = working_record.record
-                    if rec is None:
-                        continue
-                    if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
-                        continue
-                    yield ParentRecordRef("", None, rec)
-                for observation in NODBPlatform.stream_recent_observations(db, pid, start_time, end_time):
-                    rec = observation.record
-                    if rec is None:
-                        continue
-                    if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
-                        continue
-                    yield ParentRecordRef("", None, rec)
+            for working_record in self.searcher.recent_working_records(pid, start_time, end_time):
+                rec = working_record.record
+                if rec is None:
+                    continue
+                if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
+                    continue
+                yield ParentRecordRef(rec)
+            for observation in self.searcher.recent_observations(pid, start_time, end_time):
+                rec = observation.record
+                if rec is None:
+                    continue
+                if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
+                    continue
+                yield ParentRecordRef(rec)
 
     def _get_top_speed(self, platform_uuid: str) -> amath.AnyNumber | None:
         if "top_speeds" not in self.batch_memory:
@@ -125,14 +127,13 @@ class GTSPPSpeedTest(DeepDiveChecker):
         return top_speeds[platform_uuid]
 
     def _real_get_top_speed(self, platform_uuid: str) -> amath.AnyNumber | None:
-        with self.nodb as db:
-            platform = NODBPlatform.find_by_uuid(db, platform_uuid)
-            if platform:
-                if platform.metadata.get("skip_speed_check", False):
-                    return None
-                return self._parse_top_speed(platform.metadata.get("top_speed", self.DEFAULT_TOP_SPEED))
-            else:
-                return self._parse_top_speed(self.DEFAULT_TOP_SPEED)
+        platform = self.searcher.find_by_uuid(platform_uuid)
+        if platform:
+            if platform.metadata.get("skip_speed_check", False):
+                return None
+            return self._parse_top_speed(platform.metadata.get("top_speed", self.DEFAULT_TOP_SPEED))
+        else:
+            return self._parse_top_speed(self.DEFAULT_TOP_SPEED)
 
     def _parse_top_speed(self, top_speed: t.Any) -> amath.AnyNumber | None:
         if isinstance(top_speed, (int, float)):

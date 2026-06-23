@@ -136,9 +136,9 @@ class AbstractElement[X]:
 
     def __repr__(self) -> str:  # pragma: no coverage
         s = f'{self.__class__.__name__}({str(self)})'
-        if self.metadata:
+        if self._metadata:
             s += "("
-            s += ';'.join(f"{x}={repr(self.metadata[x])}" for x in self.metadata)
+            s += ';'.join(f"{x}={repr(self._metadata[x])}" for x in self._metadata)
             s += ")"
         return s
 
@@ -403,7 +403,7 @@ class SingleElement(AbstractElement):
 
     def to_mapping(self) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
         if self._metadata is None:
-            if not isinstance(self._value, dict):
+            if not isinstance(self._value, (list, dict)):
                 return self._value
             return {'_value': self._value}
         return {

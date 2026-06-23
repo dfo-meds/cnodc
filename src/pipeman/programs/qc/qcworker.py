@@ -1,18 +1,12 @@
-import enum
-import hashlib
-import uuid
 import typing as t
 
 from medsutil.exceptions import CodedError
-from nodb.interface import LockType, NODBInstance
-from nodb.observations import NODBWorkingRecord, NODBBatch, BatchStatus
+from nodb.interface import NODBInstance
 from pipeman.processing.payload_worker import WorkflowWorker
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.programs.qc.runner import QCTestRunner, ResultBatcher
 from medsutil.dynamic import dynamic_object
-from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import WorkflowPayload, SourceFilePayload, BatchPayload
-import medsutil.ocproc2 as ocproc2
 
 
 class NODBQCWorker(WorkflowWorker):
@@ -20,11 +14,11 @@ class NODBQCWorker(WorkflowWorker):
     def __init__(self, **kwargs):
         super().__init__(
             process_name="qc_worker",
-            process_version="1_0",
+            process_version="1.0",
             **kwargs
         )
         self.set_defaults({
-            'qc_tests': {},
+            'qc_tests': [],
             'next_queue': "workflow_continue",
             'review_queue': 'nodb_manual_review',
             'error_queue': 'nodb_qc_errors',

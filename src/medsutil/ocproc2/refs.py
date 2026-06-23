@@ -19,10 +19,12 @@ class ElementType(enum.IntFlag):
     METADATA = PARENT_METADATA | CHILD_METADATA | ELEMENT_METADATA | RECORDSET_METADATA
 
 
-@dataclasses.dataclass
+
 class AnyRef:
-    path: str
-    parent: AnyRef | None
+
+    def __init__(self, path: str, parent: AnyRef | None = None):
+        self.path: str = path
+        self.parent: AnyRef | None = parent
 
     def __str__(self):
         return self.path
@@ -44,11 +46,18 @@ class AnyRef:
                 parent=self
             )
 
-@dataclasses.dataclass
 class ElementRef(AnyRef):
-    element: ocproc2.AbstractElement
-    element_name: str
-    element_type: ElementType
+
+    def __init__(self,
+                 path: str,
+                 element: ocproc2.AbstractElement,
+                 element_name: str,
+                 element_type: ElementType,
+                 parent: AnyRef = None):
+        super().__init__(path, parent)
+        self.element: ocproc2.AbstractElement = element
+        self.element_name: str = element_name
+        self.element_type: ElementType = element_type
 
     @property
     def ref_object(self) -> ocproc2.AbstractElement:
@@ -111,7 +120,7 @@ class ElementRef(AnyRef):
         )
 
 
-@dataclasses.dataclass
+
 class SingleElementRef(ElementRef):
     element: ocproc2.SingleElement
 
@@ -126,7 +135,6 @@ class SingleElementRef(ElementRef):
         yield self
 
 
-@dataclasses.dataclass
 class MultiElementRef(ElementRef):
     element: ocproc2.MultiElement
 
@@ -148,10 +156,12 @@ class MultiElementRef(ElementRef):
             )
 
 
-@dataclasses.dataclass
 class RecordSetRef(AnyRef):
-    recordset: ocproc2.RecordSet
-    recordset_type: str
+
+    def __init__(self, path: str, recordset: ocproc2.RecordSet, recordset_type: str, parent: AnyRef | None = None):
+        super().__init__(path, parent)
+        self.recordset: ocproc2.RecordSet = recordset
+        self.recordset_type: str = recordset_type
 
     def metadata_refs(self) -> t.Iterable[SingleElementRef | MultiElementRef]:
         yield from self._child_element_refs(self.recordset.metadata, ElementType.RECORDSET_METADATA, f"{self.path.rstrip("/")}/metadata")
@@ -163,7 +173,7 @@ class RecordSetRef(AnyRef):
         return t.cast(SingleElementRef | MultiElementRef, self.metadata_ref(name, True))
 
     def record_refs(self) -> t.Iterable[ChildRecordRef]:
-        for idx, record in self.recordset.records.iterate_with_load():
+        for idx, record in enumerate(self.recordset.records.iterate_with_load()):
             yield ChildRecordRef(
                 record=record,
                 recordset_type=self.recordset_type,
@@ -176,19 +186,21 @@ class RecordSetRef(AnyRef):
         return self.recordset
 
 
-@dataclasses.dataclass
 class RecordRef(AnyRef):
-    record: ocproc2.BaseRecord
     RECORD_METADATA_TYPE = ElementType.CHILD_METADATA
+
+    def __init__(self, path: str, record: ocproc2.BaseRecord, parent: AnyRef | None = None):
+        super().__init__(path, parent)
+        self.record: ocproc2.BaseRecord = record
 
     def profiles(self) -> t.Iterable[RecordSetRef]:
         yield from self.recordset_refs("PROFILE")
 
     def recordset_refs(self, limit_types: t.Container[str] | None = None) -> t.Iterable[RecordSetRef]:
-        for recordset_type, recordset_dict in self.record.subrecords.record_sets:
+        for recordset_type, recordset_dict in self.record.subrecords.record_sets.items():
             if limit_types is None or recordset_type in limit_types:
                 base_path = f"{self.path.rstrip("/")}/{recordset_type}"
-                for idx, recordset in recordset_dict:
+                for idx, recordset in recordset_dict.items():
                     yield RecordSetRef(
                         recordset=recordset,
                         recordset_type=recordset_type,
@@ -244,16 +256,21 @@ class RecordRef(AnyRef):
         return self.record
 
 
-@dataclasses.dataclass
 class ParentRecordRef(RecordRef):
     record: ocproc2.ParentRecord
     RECORD_METADATA_TYPE = ElementType.PARENT_METADATA
 
+    def __init__(self, record: ocproc2.ParentRecord):
+        super().__init__("", record, None)
 
-@dataclasses.dataclass
+
 class ChildRecordRef(RecordRef):
     record: ocproc2.ChildRecord
-    recordset_type: str
+    RECORD_METADATA_TYPE = ElementType.CHILD_METADATA
+
+    def __init__(self, path: str, record: ocproc2.ChildRecord, recordset_type: str, parent: AnyRef = None):
+        super().__init__(path, record, parent)
+        self.recordset_type: str = recordset_type
 
 
 class RecordCrawler:

@@ -162,7 +162,7 @@ class OCProc2ElementInfo(_BaseInfo):
         self.allow_many = allow_multi
         self.min_value = min_value
         self.max_value = max_value
-        self.allowed_values = allowed_values or set()
+        self.allowed_values = allowed_values or None
         self.ioos_category = ioos_category or None
         self.essential_ocean_vars = essential_ocean_variables or set()
         super().__init__(name)
@@ -183,6 +183,8 @@ class OCProc2ElementInfo(_BaseInfo):
         self.group_name = str(_BaseInfo.build_one_from_literal(group))
 
     def update_allowed_values(self, avs: LiteralValue):
+        if self.allowed_values is None:
+            self.allowed_values = set()
         self.allowed_values.update(_BaseInfo.build_all_from_literal(avs))
 
     def set_allow_multi(self, allow_multi: LiteralValue):
