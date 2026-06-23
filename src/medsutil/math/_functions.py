@@ -152,42 +152,44 @@ def calculate_polynomial[T: AnyNumber](value: T, *coefficients: mt.AnyNumber) ->
 def is_close(x: mt.AnyNumber,
              y: mt.AnyNumber,
              /, *,
-             relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
-             absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
-    return _is_close(*match_convert(x, y, relative_tolerance, absolute_tolerance))
+             rel_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+             abs_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    return _is_close(*match_convert(x, y, rel_tol, abs_tol))
 
 
 def gt(x: mt.AnyNumber,
        y: mt.AnyNumber,
        /, *,
-       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
-       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
-    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+       rel_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+       abs_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, rel_tol, abs_tol)
     return _gt(nv_x, nv_y) and not _is_close(nv_x, nv_y, rt, at)
 
 
 def gte(x: mt.AnyNumber,
-       y: mt.AnyNumber,
-       /, *,
-       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
-       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
-    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+        y: mt.AnyNumber,
+        /, *,
+        rel_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+        abs_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, rel_tol, abs_tol)
     return _gt(nv_x, nv_y) or _is_close(nv_x, nv_y, rt, at)
 
 
-def lt(x: mt.AnyNumber, y: mt.AnyNumber,
+def lt(x: mt.AnyNumber,
+       y: mt.AnyNumber,
        /, *,
-       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
-       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
-    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+       rel_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+       abs_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, rel_tol, abs_tol)
     return _lt(nv_x, nv_y) and not _is_close(nv_x, nv_y, rt, at)
 
 
-def lte(x: mt.AnyNumber, y: mt.AnyNumber,
-       /, *,
-       relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
-       absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
-    nv_x, nv_y, rt, at = match_convert(x, y, relative_tolerance, absolute_tolerance)
+def lte(x: mt.AnyNumber,
+        y: mt.AnyNumber,
+        /, *,
+        rel_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+        abs_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_x, nv_y, rt, at = match_convert(x, y, rel_tol, abs_tol)
     return _lt(nv_x, nv_y) or _is_close(nv_x, nv_y, rt, at)
 
 
@@ -200,22 +202,17 @@ def _lt(x, y) -> bool:
 
 def _is_close(x,
               y,
-              relative_tolerance: mt.BasicNumber | type[mt.Placeholder] = mt.Placeholder,
-              absolute_tolerance: mt.BasicNumber | type[mt.Placeholder] = mt.Placeholder) -> bool:
+              rel_tol: mt.BasicNumber | type[mt.Placeholder] = mt.Placeholder,
+              abs_tol: mt.BasicNumber | type[mt.Placeholder] = mt.Placeholder) -> bool:
     if isinstance(x, decimal.Decimal):
-        if relative_tolerance is None: relative_tolerance = decimal.Decimal("1e-9")
-        if absolute_tolerance is None: absolute_tolerance = decimal.Decimal("1e-15")
+        if rel_tol is mt.Placeholder: rel_tol = decimal.Decimal("1e-9")
+        if abs_tol is mt.Placeholder: abs_tol = decimal.Decimal("1e-15")
     else:
-        if relative_tolerance is None: relative_tolerance = 1e-9
-        if absolute_tolerance is None: absolute_tolerance = 1e-15
+        if rel_tol is mt.Placeholder: rel_tol = 1e-9
+        if abs_tol is mt.Placeholder: abs_tol = 1e-15
     abs_diff = abs(x - y)
-    if abs_diff < absolute_tolerance:
-        return True
-    try:
-        rel_diff = (abs_diff / (0.5 * (x + y)))
-        return rel_diff < relative_tolerance
-    except ZeroDivisionError:
-        return False
+    actual_rel_tol = max(abs(x), abs(y)) * rel_tol
+    return abs_diff <= max(actual_rel_tol, t.cast(mt.BasicNumber, abs_tol))
 
 
 def between(min_: mt.AnyNumber,
@@ -224,9 +221,9 @@ def between(min_: mt.AnyNumber,
             /, *,
             include_lower_bound: bool = True,
             include_upper_bound: bool = True,
-            relative_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
-            absolute_tolerance: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
-    nv_min, nv_x, nv_max, rt, at = match_convert(min_, x, max_, relative_tolerance, absolute_tolerance)
+            rel_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder,
+            abs_tol: mt.BasicNumber | mt.NumberString | type[mt.Placeholder] = mt.Placeholder) -> bool:
+    nv_min, nv_x, nv_max, rt, at = match_convert(min_, x, max_, rel_tol, abs_tol)
     if include_lower_bound:
         if _lt(nv_x, nv_min) and not _is_close(nv_x, nv_min, rt, at):
             return False

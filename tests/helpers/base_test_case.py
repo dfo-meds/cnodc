@@ -95,6 +95,31 @@ def classproperty[RetType](fn: typing.Callable[..., RetType]) -> ClassProperty[R
     return ClassProperty[RetType](fn)
 
 
+def sub_tests(passes: list | None = None,
+              fails: list | None = None):
+    def _outer(cb):
+        def _inner(s: ut.TestCase):
+            if passes is not None:
+                for pass_args in passes:
+                    with s.subTest(msg=pass_args, expected_outcome=True):
+                        if isinstance(pass_args, (list, tuple)):
+                            cb(s, *pass_args)
+                        else:
+                            cb(s, pass_args)
+            if fails is not None:
+                for fail_args in fails:
+                    with s.subTest(msg=fail_args, expected_outcome=False):
+                        try:
+                            if isinstance(fail_args, (list, tuple)):
+                                cb(s, *fail_args)
+                            else:
+                                cb(s, fail_args)
+                            raise AssertionError("unittest passed unexpectedly")
+                        except AssertionError: ...
+        return _inner
+    return _outer
+
+
 class BaseTestCase(ut.TestCase):
 
     def __init__(self, *args, **kwargs):

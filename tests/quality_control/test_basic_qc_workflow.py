@@ -8,13 +8,14 @@ from tests.helpers.base_test_case import BaseTestCase
 
 class BoringParentRecordCheck(DeepDiveChecker):
 
-    def __init__(self):
+    def __init__(self, rq: RequiredQuality):
         super().__init__(test_name="boring_parent", test_version="1.0")
+        self._rq = rq
 
     def parent_record_check(self, ref: ParentRecordRef):
         metadata = ref.setdefault_metadata_ref("Boring")
         with self.review("check", metadata, fail_flag=4, pass_flag=1) as ctx:
-            ctx.check_review_already_complete(required_quality=RequiredQuality.NOT_ERRONEOUS)
+            ctx.check_review_already_complete(required_quality=self._rq)
             self.assert_true(metadata.element.value == 5)
 
 
@@ -22,7 +23,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
 
     def test_check_boring_fail_empty(self):
         pr = ocproc2.ParentRecord()
-        checker = BoringParentRecordCheck()
+        checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
         qc_result = checker.run_record_check(pr)
         self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
         self.assertIn("Boring", pr.metadata)
@@ -33,7 +34,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
     def test_check_boring_fail_invalid(self):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = 3
-        checker = BoringParentRecordCheck()
+        checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
         qc_result = checker.run_record_check(pr)
         self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
         self.assertIn("Boring", pr.metadata)
@@ -43,7 +44,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
     def test_check_boring_pass(self):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = 5
-        checker = BoringParentRecordCheck()
+        checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
         qc_result = checker.run_record_check(pr)
         self.assertIs(qc_result.result, QCResult.PASS)
         self.assertIn("Boring", pr.metadata)
@@ -53,7 +54,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
     def test_check_boring_skip_already_erroneous(self):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = ocproc2.SingleElement(None, Quality=4)
-        checker = BoringParentRecordCheck()
+        checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
         qc_result = checker.run_record_check(pr)
         self.assertIs(qc_result.result, QCResult.SKIP)
         self.assertIn("Boring", pr.metadata)
@@ -63,7 +64,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
     def test_check_boring_pass_while_dubious(self):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = ocproc2.SingleElement(5, Quality=3)
-        checker = BoringParentRecordCheck()
+        checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
         qc_result = checker.run_record_check(pr)
         self.assertIs(qc_result.result, QCResult.PASS)
         self.assertIn("Boring", pr.metadata)
@@ -74,7 +75,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
     def test_check_boring_fail_while_dubious(self):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = ocproc2.SingleElement(4, Quality=3)
-        checker = BoringParentRecordCheck()
+        checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
         qc_result = checker.run_record_check(pr)
         self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
         self.assertIn("Boring", pr.metadata)

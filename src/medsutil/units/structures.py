@@ -47,7 +47,9 @@ class UnitExpression:
 
 
 class Literal(UnitExpression):
-    pass
+
+    def __str__(self):
+        return str(repr(self))
 
 
 class Number(Literal):
@@ -214,26 +216,30 @@ class Product(UnitExpression):
                     constant *= x.as_decimal()
             # should be exponents or simple units
             elif isinstance(x, SimpleUnit):
-                raw_products[x.name] = Integer("1")
+                if x.name not in raw_products:
+                    raw_products[x.name] = 0
+                raw_products[x.name] += 1
             elif isinstance(x, Exponent) and isinstance(x.base, SimpleUnit):
-                raw_products[x.base.name] = x.exponent
+                if x.base.name not in raw_products:
+                    raw_products[x.base.name] = 0
+                raw_products[x.base.name] += x.exponent.as_decimal()
             else:  # pragma: no cover (this just handles fallback)
                 others.append(x)
         expr = None
         for k in others:  # pragma: no cover (this just handles fallback)
             expr = k if expr is None else Product(k, expr)
         for k in reversed(sorted(raw_products.keys())):
-            if raw_products[k].as_decimal() <= 0:
-                right = SimpleUnit(k) if raw_products[k].as_decimal() == 1 else Exponent(SimpleUnit(k), raw_products[k])
+            if raw_products[k] < 0:
+                right = Exponent(SimpleUnit(k), Integer(str(raw_products[k])))
                 expr = right if expr is None else Product(right, expr)
         for k in reversed(sorted(raw_products.keys())):
-            if raw_products[k].as_decimal() > 0:
-                right = SimpleUnit(k) if raw_products[k].as_decimal() == 1 else Exponent(SimpleUnit(k), raw_products[k])
+            if raw_products[k] > 0:
+                right = SimpleUnit(k) if raw_products[k] == 1 else Exponent(SimpleUnit(k), Integer(str(raw_products[k])))
                 expr = right if expr is None else Product(right, expr)
         if constant is not None:
             expr = Real(str(constant)) if expr is None else Product(Real(str(constant)), expr)
         if expr is None:
-            raise ValueError('Invalid expression')
+            return Integer("1")
         return expr
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:

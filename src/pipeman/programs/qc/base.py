@@ -499,41 +499,83 @@ class QualityController(abc.ABC):
             self.report_qc_error(msg or "is_type", **kwargs)
         return True
 
-    def assert_greater_or_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not amath.gte(a, b):
+    def assert_greater_or_close(self,
+                                a: amath.AnyNumber,
+                                b: amath.AnyNumber,
+                                msg: str | None = None,
+                                rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                                abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                                **kwargs):
+        if not amath.gte(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_greater_or_close", **kwargs)
 
-    def assert_less_or_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not amath.lte(a, b):
+    def assert_less_or_close(self,
+                             a: amath.AnyNumber,
+                             b: amath.AnyNumber,
+                             msg: str | None = None,
+                             rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                             abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                             **kwargs):
+        if not amath.lte(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_less_or_close", **kwargs)
 
-    def assert_greater(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not amath.gt(a, b):
+    def assert_greater(self,
+                       a: amath.AnyNumber,
+                       b: amath.AnyNumber,
+                       msg: str | None = None,
+                       rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                       abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                       **kwargs):
+        if not amath.gt(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_greater_or_close", **kwargs)
 
-    def assert_less(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not amath.lt(a, b):
+    def assert_less(self,
+                    a: amath.AnyNumber,
+                    b: amath.AnyNumber,
+                    msg: str | None = None,
+                    rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                    abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                    **kwargs):
+        if not amath.lt(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_less_or_close", **kwargs)
 
-    def assert_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if not amath.is_close(a, b):
+    def assert_close(self,
+                     a: amath.AnyNumber,
+                     b: amath.AnyNumber,
+                     msg: str | None = None,
+                     rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                     abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                     **kwargs):
+        if not amath.is_close(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_close", **kwargs)
 
-    def assert_not_close(self, a: amath.AnyNumber, b: amath.AnyNumber, msg: str | None = None, **kwargs):
-        if amath.is_close(a, b):
+    def assert_not_close(self,
+                         a: amath.AnyNumber,
+                         b: amath.AnyNumber,
+                         msg: str | None = None,
+                         rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                         abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                         **kwargs):
+        if amath.is_close(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "too_close", **kwargs)
+
+    def assert_equal(self, a: t.Any, b: t.Any, msg: str | None = None, **kwargs):
+        if a != b:
+            if not kwargs.get("ref_value", None):
+                kwargs["ref_value"] = str(b)
+            self.report_qc_error(msg or "equal", **kwargs)
 
     def assert_not_equal(self, a: t.Any, b: t.Any, msg: str | None = None, **kwargs):
         if a == b:

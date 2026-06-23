@@ -61,8 +61,6 @@ class BufrCDSTables:
     def standardize_units(self, unit: str):
         if unit in ('Numeric', 'CCITT IA5', 'CODE TABLE'):
             return None
-        if unit == 'degree true':
-            unit = 'deg'
         return self.converter.standardize(unit)
 
     def standardize_instruction(self, instruction: str | dict) -> dict | None:
@@ -1114,7 +1112,7 @@ class _Bufr4Decoder:
                 map_to = mapping['subrecord_type']
                 coord_name = (x,)
         if map_to is None and n_repeats > 1 and any(x in descriptors for x in (4021, 4022, 4023, 4024, 4025, 4026)):
-            map_to = "TSERIES"
+            map_to = "TIME_SERIES"
             coord_name = (4021, 4022, 4023, 4024, 4025, 4026)
         if map_to is not None and coord_name is not None:
             self._iterate_into_children(node, ctx, map_to, coord_name)
@@ -1430,7 +1428,7 @@ class _Bufr4Decoder:
 
     def _parse_time_period_node(self, node, ctx: _Bufr4DecoderContext):
         val = self._get_timedelta_value(node, ctx)
-        if ctx.child_record_type == "TSERIES" and "Time" not in ctx.target.coordinates and "TimeOffset" not in ctx.target.coordinates:
+        if ctx.child_record_type == "TIME_SERIES" and "Time" not in ctx.target.coordinates and "TimeOffset" not in ctx.target.coordinates:
             if "TimeOffset" in ctx.target.coordinates and val != ctx.target.coordinates["TimeOffset"].value:
                 ctx.start_new_record()
             self._apply_instruction({

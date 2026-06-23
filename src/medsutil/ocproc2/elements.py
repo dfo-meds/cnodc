@@ -5,6 +5,8 @@ import hashlib
 import typing as t
 import datetime
 
+import zrlog
+
 from medsutil.awaretime import AwareDateTime
 from medsutil.lazy_load import LazyLoadDict
 from medsutil.units.units import convert
@@ -47,7 +49,8 @@ def duck_type_catch[**P](cb: t.Callable[P, None]) ->t.Callable[P, bool]:
         try:
             cb(*args, **kwargs)
             return True
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, IndexError) as ex:
+            zrlog.get_logger("ocproc2.ducktype").trace("duck type failed: %s", ex, exc_info=(ex.__class__, ex, ex.__traceback__))
             return False
     return _inner
 
@@ -76,6 +79,8 @@ class ExportMultipleWithMetadata(t.TypedDict):
     _metadata: t.NotRequired[MetadataDict]
     _qc_info: t.NotRequired[dict[str, ExportQCInfo]]
 
+def _to_int(x) -> int:
+    return int(float(x))
 
 class QCInfo:
 
@@ -197,9 +202,9 @@ class AbstractElement[X]:
         return True
 
     def _coerce_to_numeric[T](self,
-                                                             coerce: t.Callable[[str | int | float | None], T] | type[T],
-                                                             units: str | None = None,
-                                                             no_loss: bool = False) -> T:
+                              coerce: t.Callable[[str | int | float | None], T] | type[T],
+                              units: str | None = None,
+                              no_loss: bool = False) -> T:
         bv: AbstractElement = self.ideal()
         v = bv.value
         if v is None:
@@ -240,7 +245,7 @@ class AbstractElement[X]:
 
     def to_int(self, units: t.Optional[str] = None, no_loss: bool = True) -> int:
         """Convert this value to an integer."""
-        return self._coerce_to_numeric(int, units, no_loss)
+        return self._coerce_to_numeric(_to_int, units, no_loss)
 
     def to_duration(self) -> ISODuration:
         """Convert this value to a ISO 8601 duration."""

@@ -1,6 +1,7 @@
 import pathlib
 import threading
 import typing as t
+import urllib.parse
 
 from autoinject import injector
 
@@ -67,9 +68,9 @@ class _BaseInfo:
     def build_all_from_multilingual(literal: LiteralValue) -> t.Iterable[tuple[str, str]]:
         if isinstance(literal, set):
             for lit in literal:
-                yield (lit.language or 'und'), lit.value
+                yield (lit.language or 'und'), _BaseInfo.unquote(lit.value)
         else:
-            yield literal.language or 'und', literal.value
+            yield literal.language or 'und', _BaseInfo.unquote(literal.value)
 
     @staticmethod
     def build_one_from_ref(ref_value: ReferenceValue) -> str:
@@ -89,17 +90,23 @@ class _BaseInfo:
     @staticmethod
     def build_one_from_literal(ref_value: LiteralValue) -> t.Union[str, int, float]:
         if isinstance(ref_value, set):
-            return list(ref_value)[0].value # pragma: no coverage (this is unused usually unless there's a major issue)
+            return _BaseInfo.unquote(list(ref_value)[0].value) # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
-            return ref_value.value
+            return _BaseInfo.unquote(ref_value.value)
 
     @staticmethod
     def build_all_from_literal(ref_value: LiteralValue) -> t.Iterable[str | int | float]:
         if isinstance(ref_value, set):
             for x in ref_value:
-                yield x.value
+                yield _BaseInfo.unquote(x.value)
         else:
-            yield ref_value.value
+            yield _BaseInfo.unquote(ref_value.value)
+
+    @staticmethod
+    def unquote(x):
+        if isinstance(x, str):
+            return urllib.parse.unquote(x)
+        return x
 
     @t.overload
     @staticmethod
@@ -121,14 +128,16 @@ class OCProc2ChildRecordTypeInfo(_BaseInfo):
 
     __slots__ = ('name', '_label', '_documentation', 'coordinates')
 
-    def __init__(self,
-                 name: str,
-                 relevant_coordinates: t.Optional[list[str]] = None):
-        self.coordinates = set(relevant_coordinates) if relevant_coordinates is not None else set()
+    def __init__(self, name: str):
+        self.coordinates: list[set[str]] = []
         super().__init__(name)
 
-    def update_coordinates(self, coordinates: ReferenceValue):
-        self.coordinates.update(_BaseInfo.build_all_from_ref(coordinates))
+    def update_coordinates(self, coords: LiteralValue):
+        for x in self.build_all_from_literal(coords):
+            if isinstance(x, str):
+                self.coordinates.append(set(x.split("|")))
+            else:
+                raise TypeError("Invalid type for coords")
 
 
 class OCProc2ElementInfo(_BaseInfo):

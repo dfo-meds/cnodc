@@ -12,15 +12,20 @@ from medsutil.units.parsing import parse_unit_string
 from medsutil.units.structures import LinearFunction, Converter, UnitExpression, UnitError
 import medsutil.math as amath
 
-if t.TYPE_CHECKING:
-    from uncertainties import UFloat
 
-
+STANDARDIZE_FIXES = {
+    "degree true": "arc_degree",
+    "C": "°C",
+    "0/00": "1e-3",
+    "/s": "1/s",
+    "/m": "1/m",
+}
 
 ADDITIONAL_UNITS = {
     'psu': '0.001',
     'mhos': 'S',
     '0/00': '0.001',
+    'arc_degrees': 'arc_degree',
     'deg': 'arc_degree',
     'degree': 'arc_degree',
     'degrees': 'arc_degree',
@@ -96,7 +101,10 @@ class UnitConverter:
                 self._nested_tracker.add(unit_str)
                 if unit_str not in self._cache:
                     try:
-                        expr = parse_unit_string(unit_str).standardize()
+                        expr = parse_unit_string(unit_str)
+                        if expr is None:
+                            raise UnitError(f"Invalid unit string: [{unit_str}]", 2001)
+                        expr = expr.standardize()
                         self._cache[unit_str] = [*expr.get_unit_info(self), expr]
                     except Exception as ex:
                         self._cache[unit_str] = ex
@@ -114,6 +122,8 @@ class UnitConverter:
         return factor
 
     def _check_compatibility(self, dims_a: dict[str, int], dims_b: dict[str, int]) -> bool:
+        dims_a = {x: dims_a[x] for x in dims_a if dims_a[x] != 0}
+        dims_b = {x: dims_b[x] for x in dims_b if dims_b[x] != 0}
         if not len(dims_a) == len(dims_b):
             return False
         for x in dims_a.keys():
@@ -127,6 +137,8 @@ class UnitConverter:
         return self.standardize(unit_str) is not None
 
     def standardize(self, unit_name):
+        if unit_name in STANDARDIZE_FIXES:
+            unit_name = STANDARDIZE_FIXES[unit_name]
         self._load_tables()
         try:
             _, _, expr = self._conversion_info(unit_name)
@@ -160,10 +172,13 @@ class UnitConverter:
 
     def compatible(self, units_a: str, units_b: str) -> bool:
         self._load_tables()
-        return self._check_compatibility(
-            self._get_dimensions(units_a),
-            self._get_dimensions(units_b)
-        )
+        try:
+            return self._check_compatibility(
+                self._get_dimensions(units_a),
+                self._get_dimensions(units_b)
+            )
+        except Exception:
+            return False
 
     def _load_units_table(self, file_name: str):
         file = self._table_dir / file_name
