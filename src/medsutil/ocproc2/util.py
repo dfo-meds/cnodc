@@ -54,17 +54,17 @@ class Quality(enum.IntEnum):
 
 
 class RequiredQuality(enum.IntFlag):
-    NOT_DUBIOUS = enum.auto()
-    NOT_MISSING = enum.auto()
-    NOT_ERRONEOUS = enum.auto()
-    GOOD_STRUCTURE = enum.auto()
-    HAS_UNITS = enum.auto()
-    HAS_VALUE = enum.auto()
-    NOT_FINAL = enum.auto()
-    IS_NUMERIC = enum.auto()
-    IS_DATETIME = enum.auto()
-    IS_INTEGER = enum.auto()
-    IS_DURATION = enum.auto()
+    NOT_DUBIOUS = enum.auto() # 1
+    NOT_MISSING = enum.auto() # 2
+    NOT_ERRONEOUS = enum.auto() # 4
+    GOOD_STRUCTURE = enum.auto() # 8
+    HAS_UNITS = enum.auto() # 16
+    HAS_VALUE = enum.auto() # 32
+    NOT_FINAL = enum.auto() # 64
+    IS_NUMERIC = enum.auto() # 128
+    IS_DATETIME = enum.auto() # 256
+    IS_INTEGER = enum.auto() # 512
+    IS_DURATION = enum.auto() # 1024
 
     GOOD_OR_DUBIOUS_VALUE = NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE
 
@@ -265,6 +265,8 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
             raise QualityError("element_is_empty")
         if RequiredQuality.HAS_UNITS in required_quality and not obj.metadata.has_value("Units"):
             raise QualityError("element_missing_units")
+        if RequiredQuality.IS_INTEGER in required_quality and not obj.is_integer():
+            raise QualityError("element_not_integer")
         if RequiredQuality.IS_NUMERIC in required_quality and not obj.is_numeric():
             raise QualityError("element_not_numeric")
         if RequiredQuality.IS_DATETIME in required_quality and not obj.is_iso_datetime():

@@ -21,6 +21,8 @@ def map_group(group_human_name: str):
         return 'metadata:parent'
     elif group_human_name == 'Metadata (Product)':
         return 'metadata:product'
+    elif group_human_name == 'Metadata (Recordset)':
+        return 'metadata:recordset'
     return group_human_name.lower()
 
 def map_vocab(vocab_name: str):
@@ -162,7 +164,7 @@ rstypes:recordSetTypes rdf:type skos:ConceptScheme .
 
 rstypes:requireCoordinate rdf:type rdf:Property ;
   rdfs:domain rstypes:recordSetTypes ;
-  rdfs:range cnodc:elements .
+  rdfs:range skos:Literal .
 
 """)
     for row in read_lines_csv(DIR / 'data' / 'rs_types.csv', 'Short Name'):
@@ -174,10 +176,10 @@ rstypes:requireCoordinate rdf:type rdf:Property ;
             output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
         if row[2]:
             output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
-        # if present, at least one of these coordinates is required for it to make sense.
+        # if present, at least one from each group of coordinates is required for it to make sense.
         if row[3]:
-            for coordinate_name in row[3].split(';'):
-                output.write(f'  rstypes:requireCoordinate cnodc:{sanitize(coordinate_name)} ;\n')
+            for coordinate_name in row[3].split('+'):
+                output.write(f'  rstypes:requireCoordinate "{sanitize(coordinate_name)}" ;\n')
         # scheme
         output.write(f'  skos:inScheme rstypes:recordSetTypes .\n')
 

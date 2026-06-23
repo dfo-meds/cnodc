@@ -1,244 +1,1030 @@
-from contextlib import contextmanager
+import itertools
+import sys
 
 from medsutil import ocproc2
-from medsutil.ocproc2 import SingleElement
+from medsutil.ocproc2 import SingleElement, MultiElement
+from medsutil.ocproc2.refs import ElementType
 from pipeman.programs.qc.integrity import NODBIntegrityChecker
-from pipeman.programs.qc.base import QCAssertionError
-from tests.helpers.base_test_case import BaseTestCase
+from tests.helpers.base_test_case import sub_tests
+from tests.helpers.qc_check_base import QCCheckerTestCase
 
-TEST_ELEMENTS = [
 
-    ("PracticalSalinity", "parameters", 12, "0.001"),
-    ("Latitude", "coordinates", 11, "degrees_north"),
-    ("XBTHeight", ("metadata:record:parent", "metadata:record:child", "metadata:element"), 10, "m"),
-    ("CNODCDuplicateDate", "metadata:record:parent", "2009-08-07", None),
-    ("BatteryDescription", "metadata:record:parent", "six batteries", None),
-    ("Abstract", "metadata:record:parent", "five golden rings", None),
-    ("CreationTime", "metadata:record:parent", "2004-03-02:01:00:00+00:00", None),
-    ("BatteryVoltage", ("metadata:record:parent", "metadata:record:child"), 12, "V"),
-    ("AnemometerType", "metadata:element", "cup", None),
+##
+## LAST UPDATED FROM elements.csv ON 2026-06-23
+##
+
+VALID_UNIT_GROUPS = [
+    # Dimensionless
+    ("1", "0.1", "0.01", "0.001", "psu", "%", "1e-3", "1e-6", "1e-9", "ppt", "ppm", "ppb"),
+
+    # Mass per mass
+    ("g kg-1", "kg kg-1", "kg/kg", "g/kg"),
+
+    # Direction
+    ("degree", "arc_degree", "degrees", "arc_degrees"),
+    # Coordinates
+    ("degree_east", "degrees_east"),
+    ("degree_north", "degrees_north"),
+
+    # Frequency (per mass)
+    ("Hz", "s-1", "1/s"),
+
+    # Insolation (energy per area)
+    ("J m-2", "kJ m-2"),
+
+    # Temperature
+    ("K", "degree_C", "degrees_C", "°C", "°F", "degree_F", "degrees_F"),
+
+    # mass per volume
+    ("kg L-1", "kg m-3", "mg L-1", "mg m-3", "g cm-3"),
+
+    # mass per area
+    ("kg m-2",),
+
+    # length
+    ("m", "cm", "nm"),
+
+    # length per time
+    ("m s-1", "kts", "m/s"),
+
+    # per length
+    ("m-1", "1/m"),
+
+    # area per frequency
+    ("m2 Hz-1", "m2 s", "m2/Hz"),
+
+    # area per frequency per radian
+    ("m2 s rad-1", "m2 Hz-1 rad-1"),
+
+    # amount per volume
+    ("mmol m-3", "umol m-3", "mmol L-1", "umol L-1", "mmol/L", "umol/L"),
+
+    # pressure
+    ("Pa", "dbar", "hPa", "kPa"),
+
+    # time
+    ("s", "min", "h"),
+
+    # conductivity
+    ("S m-1", "S/m"),
+
+    # amount per mass
+    ("umol kg-1", "mmol kg-1", "umol g-1", "mmol g-1", "umol/kg", "mmol/kg", "umol/g", "mmol/g"),
+
+    # voltage
+    ("V", "mV", "kV"),
+
+    # wattage per area
+    ("W m-2",)
 
 ]
 
-VALID_UNITS = [
-    "m",
-    "bar",
-    "dbar",
-    "Pa",
-    "km",
-    "mm",
-    "degree_north",
-    "degree_east",
+GARBAGE_UNITS = [
+    "foobar",
+    "#!$%!@#!",
 ]
 
-INVALID_UNITS = [
-    "garbage",
-    "@!#$%"
+COMPATIBLE_UNITS = []
+for sublist in VALID_UNIT_GROUPS:
+    COMPATIBLE_UNITS.extend(itertools.product(sublist, repeat=2))
+
+INCOMPATIBLE_UNITS = []
+for idx_a, sublist_a in enumerate(VALID_UNIT_GROUPS):
+    INCOMPATIBLE_UNITS.extend(itertools.product(GARBAGE_UNITS, sublist_a))
+    INCOMPATIBLE_UNITS.extend(itertools.product(sublist_a, GARBAGE_UNITS))
+    for idx_b, sublist_b in enumerate(VALID_UNIT_GROUPS):
+        if idx_a == idx_b:
+            continue
+        if idx_a in (0, 1) and idx_b in (0, 1):  # dimensionless and mass/mass are technically compatible
+            continue
+        if idx_a in (2, 3, 4) and idx_b in (2, 3, 4): # degrees and degrees_N and degrees_E are technically compatible
+            continue
+        INCOMPATIBLE_UNITS.extend(itertools.product(sublist_a, sublist_b))
+
+GOOD_DATA_TYPES = {
+    'datetimestamp': [
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+    ],
+    'date': [
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+    ],
+    'integer': [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+    ],
+    "decimal": [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9",
+    ],
+    "string": [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9",
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+        "foobar", "model", "major", "GENERAL",
+        "",
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+    ],
+    "list": [
+        [0, 1, 2],
+        ["0", 1, "2.2"],
+    ],
+    "duration": [
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+    ],
+}
+
+BAD_DATA_TYPES = {
+    'datetimestamp': [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9", "", "foobar",
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+        ["1", "2", "3"],
+    ],
+    'date': [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9", "", "foobar",
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+        ["1", "2", "3"],
+    ],
+    'integer': [
+        "", "-1.2", "1.0004", "foobar",
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+        ["1", "2", "3"],
+    ],
+    "decimal": [
+        "", "P1H", "P3.12H",
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+        ["1", "2", "3"],
+    ],
+    "string": [
+        ["1", "2", "3"],
+    ],
+    "list": [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9",
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+        "foobar", "model", "major", "GENERAL",
+        "",
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+    ],
+    "duration": [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9",
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+        "foobar", "model", "major", "GENERAL",
+        "",
+        ["1", "2", "3"],
+    ],
+    None: [
+        0, 1, "0", "1", "-5", -5, 1e9, "1e9",
+        "0.0", "1.0", "1.5", 1.5, 1.0, "1e-9", "1.23e-9",
+        '2015-01-02',
+        '2015-01-02T03',
+        '2015-02-03T03:04',
+        '2015-02-03T03:04:05',
+        '2015-01-02T03+00:00',
+        '2015-02-03T03:04+00:00',
+        '2015-02-03T03:04:05+00:00',
+        "foobar", "model", "major", "GENERAL",
+        "",
+        ["1", "2", "3"],
+        "PT3H", "PT3M", "PT3S",
+        "P3D", "P3W", "PT-1H", "PT-10M",
+    ]
+}
+
+GOOD_DATA_TYPES_EXPANDED = []
+for dtype, good_options in GOOD_DATA_TYPES.items():
+    GOOD_DATA_TYPES_EXPANDED.extend(
+        (dtype, option)
+        for option in good_options
+    )
+
+
+BAD_DATA_TYPES_EXPANDED = []
+for dtype, bad_options in BAD_DATA_TYPES.items():
+    BAD_DATA_TYPES_EXPANDED.extend(
+        (dtype, option)
+        for option in bad_options
+    )
+
+
+VALID_RANGE_CHECKS: list[tuple[int | float | str, str | None, int | float | None, int | float | None, str | None]] = [
+    (0, "m", 0, None, "m"),
+    (0 + sys.float_info.epsilon, "m", 0, None, "m"),
+    (0 - sys.float_info.epsilon, "m", 0, None, "m"),
+    (5, "m", 0, None, "m"),
+    (25, "m", 0, None, "m"),
+    (50112, "m", 0, None, "m"),
+    (5e99, "m", 0, None, "m"),
+    (4.2, "m", 0, None, "m"),
+    (3.14159, "m", 0, None, "m"),
+    (0, "m", 0, 5, "m"),
+    (1, "m", 0, 5, "m"),
+    (2, "m", 0, 5, "m"),
+    (3, "m", 0, 5, "m"),
+    (4, "m", 0, 5, "m"),
+    (5, "m", 0, 5, "m"),
+    (5 + sys.float_info.epsilon, "m", 0, 5, "m"),
+    (5 - sys.float_info.epsilon, "m", 0, 5, "m"),
+    (5 + 4e-9, "m", 0, 5, "m"),
+    (400, "cm", 0, 5, "m"),   
+    (0, None, 0, 5, None),
+    (1, None, 0, 5, None),
+    (2, None, 0, 5, None),
+    (3, None, 0, 5, None),
+    (4, None, 0, 5, None),
+    (5, None, 0, 5, None),
 ]
 
-GOOD_SRT_COORDINATE_TESTS = [
-    ("TSERIES", "Time", "2015-01-02T00:00:00+00:00"),
-    ("TSERIES", "TimeOffset", 92),
-    ("PROFILE", "Depth", 50),
-    ("PROFILE", "Pressure", 9172),
-    ("WAVE_SENSORS", "WaveSensor", 1),
-    ("SPEC_WAVE", "CentralFrequency", 52),
-    ("TSERIES", "Time", "2015-01-02T00:00:00+00:00", "Depth", 50, "Latitude", 64, "Longitude", 42),
-    ("PROFILE", "Time", "2015-01-02T00:00:00+00:00", "Depth", 50, "Latitude", 64, "Longitude", 42),
-]
-BAD_SRT_COORDINATE_TESTS = [
-    ("TSERIES",),
-    ("PROFILE",),
-    ("WAVE_SENSORS",),
-    ("SPEC_WAVE",),
-    ("TSERIES", "Depth", 50),
-    ("PROFILE", "Time", "2015-01-02T00:00:00+00:00"),
-    ("WAVE_SENSORS", "Depth", 50),
-    ("SPEC_WAVE", "Depth", 50),
+INVALID_RANGE_CHECKS: list[tuple[int | float | str, str | None, int | float | None, int | float | None, str | None]] = [
+    (5.0 + 6e-9, "m", 0, 5, "m"),
+    (0 - 1e-14, "m", 0, 5, "m"),
 ]
 
-GOOD_VALUES = [
-    (278, "K", "degree_C", 4.85, None, None, None),
-    (278, "K", "degree_C", None, 4.85, None, None),
-    (278, "K", "degree_C", 4.5, 5, None, None),
-    (278, "K", "degree_C", None, None, None, None),
-    (278, "K", "K", None, None, "integer", None),
-    (278, "K", "K", None, None, "decimal", None),
-    (278, "K", "K", None, None, "string", None),
-    (278.15, "K", "K", None, None, "decimal", None),
-    (278.15, "K", "K", None, None, "string", None),
-    ("2015-01-02", None, None, None, None, "date", None),
-    ("2015-01-02", None, None, None, None, "dateTimeStamp", None),
-    ("2015-01-02T00:00:00+00:00", None, None, None, None, "date", None),
-    ("2015-01-02T00:00:00+00:00", None, None, None, None, "dateTimeStamp", None),
-    ("2015-01-02T00:00:00+00:00", None, None, None, None, "string", None),
-    ("2015-01-02T00:00:00+00:00", None, None, None, None, "string", None),
-    ([4, 5], None, None, None, None, "List", None),
-    (5, None, None, None, None, "integer", ("0", "1", "2", "3", "4", "5", "9")),
-    (5, None, None, None, None, "integer", (0, 1, 2, 3, 4, 5, 9)),
-    ("5", None, None, None, None, "integer", ("0", "1", "2", "3", "4", "5", "9")),
-    ("5", None, None, None, None, "integer", (0, 1, 2, 3, 4, 5, 9)),
+GOOD_ALLOWED_CHECKS = [
+    (5, (0,1,2,3,4,5), "integer"),
+    (0, (0,1,2,3,4,5), "integer"),
+    (1, (0,1,2,3,4,5), "integer"),
+    (2, (0,1,2,3,4,5), "integer"),
+    (3, (0,1,2,3,4,5), "integer"),
+    (4, (0,1,2,3,4,5), "integer"),
+    ("5", (0,1,2,3,4,5), "integer"),
+    ("0", (0,1,2,3,4,5), "integer"),
+    ("1", (0,1,2,3,4,5), "integer"),
+    ("2", (0,1,2,3,4,5), "integer"),
+    ("3", (0,1,2,3,4,5), "integer"),
+    ("4", (0,1,2,3,4,5), "integer"),
+    ("foo", ("foo", "bar"), "string"),
+    ("bar", ("foo", "bar"), "string"),
 ]
 
-BAD_VALUES = [
-    ("integrity_invalid_units", 21, 278, "Pa", "degree_C", None, None, None, None),
-    ("integrity_lower_than_range", 14, 278, "K", "degree_C", 5, None, None, None),
-    ("integrity_greater_than_range", 14, 278, "K", "degree_C", None, 4, None, None),
-    ("integrity_invalid_integer", 20, 278.15, "K", "K", None, None, "integer", None),
-    ("integrity_invalid_integer", 20, "2015-01-02", None, None, None, None, "integer", None),
-    ("integrity_invalid_integer", 20, "2015-01-02T00:00:00+00:00", None, None, None, None, "integer", None),
-    ("integrity_invalid_integer", 20, [4, 5], None, None, None, None, "integer", None),
-    ("integrity_invalid_decimal", 20, "2015-01-02", None, None, None, None, "decimal", None),
-    ("integrity_invalid_decimal", 20, "2015-01-02T00:00:00+00:00", None, None, None, None, "decimal", None),
-    ("integrity_invalid_decimal", 20, [4, 5], None, None, None, None, "decimal", None),
-    ("integrity_invalid_datetime", 20, [4, 5], None, None, None, None, "date", None),
-    ("integrity_invalid_datetime", 20, 278, "K", "K", None, None, "dateTimeStamp", None),
-    ("integrity_invalid_datetime", 20, 278.15, "K", "K", None, None, "dateTimeStamp", None),
-    ("integrity_invalid_datetime", 20, 278, "K", "K", None, None, "date", None),
-    ("integrity_invalid_datetime", 20, 278.15, "K", "K", None, None, "date", None),
-    ("integrity_invalid_datetime", 20, [4, 5], None, None, None, None, "dateTimeStamp", None),
-    ("integrity_invalid_list", 20, 278, "K", "K", None, None, "List", None),
-    ("integrity_invalid_list", 20, 278.15, "K", "K", None, None, "List", None),
-    ("integrity_invalid_list", 20, "2015-01-02", None, None, None, None, "List", None),
-    ("integrity_invalid_list", 20, "2015-01-02T00:00:00+00:00", None, None, None, None, "List", None),
-    ("integrity_invalid_string", 20, [4, 5], None, None, None, None, "string", None),
-    ("integrity_value_not_allowed", 14, 12, None, None, None, None, "integer", ("0", "1", "2", "3", "4", "5", "9")),
-    ("integrity_value_not_allowed", 14, -5, None, None, None, None, "integer", (0, 1, 2, 3, 4, 5, 9)),
-    ("integrity_value_not_allowed", 14, "foobar", None, None, None, None, "integer", ("0", "1", "2", "3", "4", "5", "9")),
-    ("integrity_value_not_allowed", 14, "-5", None, None, None, None, "integer", (0, 1, 2, 3, 4, 5, 9)),
+BAD_ALLOWED_CHECKS = [
+    (6, (1,2,3,4,5), "integer"),
+    ("6", (1,2,3,4,5), "integer"),
+    (0, (1,2,3,4,5), "integer"),
+    ("0", (1,2,3,4,5), "integer"),
+    ("0", ("foo", "bar"), "string"),
+    ("zazz", ("foo", "bar"), "string"),
+    ("fo", ("foo", "bar"), "string"),
+    ("ar", ("foo", "bar"), "string"),
+    ("f", ("foo", "bar"), "string"),
+    (5.1, (1.1, 2.2, 5.1), "decimal"),
+    ("2015-01-02", ("2015-01-02", "2015-02-03",), "date"),
+    ("2015-01-02", ("2015-01-02", "2015-02-03",), "datetime"),
+    ("PT3H", ("PT3H", "PT3S"), "duration"),
+    ([5], ([5], [6]), "list"),
 ]
 
-class TestIntegrityCheck(BaseTestCase):
 
-    @contextmanager
-    def assertPassesQC(self):
-        try:
-            yield {}
-        except QCAssertionError as ex:
-            raise self.failureException(f"Test unexpectedly failed") from ex
+GOOD_RS_TYPES = ["TIME_SERIES", "PROFILE", "SPECTRAL_WAVE", "WAVE_SENSORS", "TRAJECTORY"]
+BAD_RS_TYPES = ["PIZZA", "MODERN_MAJOR_GENERAL", "TWELVE_MONKIES", "HELLO_WORLD", "FOOBAR", "", None, 0, 5.1,]
 
-    @contextmanager
-    def assertFailsQC(self, error_code: str | None = None, flag_number: int | None = None):
-        with self.assertRaises(QCAssertionError) as h:
-            yield h
-        if error_code is not None:
-            self.assertEqual(error_code, h.exception.specific_test_name)
-        if flag_number is not None:
-            self.assertEqual(flag_number, h.exception.flag_number)
+RS_GOOD_COORDINATES = [
+    ("TIME_SERIES", {
+        "Time": "2015-01-02T00:00:00"
+    }),
+    ("TIME_SERIES", {
+        "TimeOffset": SingleElement("5", Units="seconds")
+    }),
+    ("PROFILE", {
+        "Depth": SingleElement("5", Units="m")
+    }),
+    ("PROFILE", {
+        "Pressure": SingleElement("5", Units="Pa")
+    }),
+    ("WAVE_SENSORS", {
+        "WaveSensor": 1
+    }),
+    ("SPECTRAL_WAVE", {
+        "CentralFrequency": SingleElement("5", Units="Hz")
+    }),
+    ("TRAJECTORY", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+        "Time": SingleElement("2015-01-02T00:00:00"),
+    }),
+    ("TRAJECTORY", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+        "TimeOffset": SingleElement("5", Units="seconds"),
+    }),
+]
 
-    @contextmanager
-    def assertSkipsQC(self):
-        #with self.assertRaises(QCSkipCheck) as h:
-            #yield h
-        pass
+RS_BAD_COORDINATES = [
+    ("TIME_SERIES", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+    }),
+    ("TIME_SERIES", {
+        "CentralFrequency": SingleElement("5", Units="Hz")
+    }),
+    ("TIME_SERIES", {
+        "WaveSensor": 1
+    }),
+    ("TIME_SERIES", {
+        "Pressure": SingleElement("5", Units="Pa")
+    }),
+    ("TIME_SERIES", {
+        "Depth": SingleElement("5", Units="m")
+    }),
+    ("PROFILE", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+    }),
+    ("PROFILE", {
+        "CentralFrequency": SingleElement("5", Units="Hz")
+    }),
+    ("PROFILE", {
+        "WaveSensor": 1
+    }),
+    ("PROFILE", {
+        "TimeOffset": SingleElement("5", Units="seconds"),
+    }),
+    ("PROFILE", {
+        "Time": SingleElement("2015-01-02T00:00:00"),
+    }),
+    ("WAVE_SENSORS", {
+        "Time": SingleElement("2015-01-02T00:00:00"),
+    }),
+    ("WAVE_SENSORS", {
+        "TimeOffset": SingleElement("5", Units="seconds"),
+    }),
+    ("WAVE_SENSORS", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+    }),
+    ("WAVE_SENSORS", {
+        "Depth": SingleElement("5", Units="m")
+    }),
+    ("WAVE_SENSORS", {
+        "Pressure": SingleElement("5", Units="Pa")
+    }),
+    ("WAVE_SENSORS", {
+        "CentralFrequency": SingleElement("5", Units="Hz")
+    }),
+    ("SPECTRAL_WAVE", {
+        "Time": SingleElement("2015-01-02T00:00:00"),
+    }),
+    ("SPECTRAL_WAVE", {
+        "TimeOffset": SingleElement("5", Units="seconds"),
+    }),
+    ("SPECTRAL_WAVE", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+    }),
+    ("SPECTRAL_WAVE", {
+        "Depth": SingleElement("5", Units="m")
+    }),
+    ("SPECTRAL_WAVE", {
+        "Pressure": SingleElement("5", Units="Pa")
+    }),
+    ("SPECTRAL_WAVE", {
+        "WaveSensor": 1
+    }),
+    ("TRAJECTORY", {
+        "WaveSensor": 1
+    }),
+    ("TRAJECTORY", {
+        "Pressure": SingleElement("5", Units="Pa")
+    }),
+    ("TRAJECTORY", {
+        "Depth": SingleElement("5", Units="m")
+    }),
+    ("TRAJECTORY", {
+        "Time": SingleElement("2015-01-02T00:00:00"),
+    }),
+    ("TRAJECTORY", {
+        "TimeOffset": SingleElement("5", Units="seconds"),
+    }),
+    ("TRAJECTORY", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+        "Longitude": SingleElement("5", Units="degrees_east"),
+    }),
+    ("TRAJECTORY", {
+        "Longitude": SingleElement("5", Units="degrees_east"),
+    }),
+    ("TRAJECTORY", {
+        "Latitude": SingleElement("5", Units="degrees_north"),
+    }),
+]
+ET = ElementType
+ELEMENT_INFO: dict[ElementType, list[str]] = {
+    ET.COORDINATES: [
+        "Time",
+        "Longitude",
+        "Latitude",
+        "CentralFrequency",
+        "Depth",
+        "Pressure",
+        "TimeOffset",
+        "ObservationNumber",
+        "WaveSensor",
+    ],
+    ET.PARAMETERS: [
+        x.strip() for x in """AerosolDryAirFraction
+            CarbonDioxideDryAirFraction
+            CarbonMonoxideDryAirFraction
+            CloudAerosolDryAirFraction
+            CloudDryAirFraction
+            DustDryAirFraction
+            FormaldehydeDryAirFraction
+            MethaneDryAirFraction
+            NitrogenDioxideDryAirFraction
+            NitrousOxideDryAirFraction
+            OzoneDryAirFraction
+            ParticulateMatterDryAirFraction
+            ParticulateMatterMaximumSize
+            SmokeDryAirFraction
+            SulphurDioxideDryAirFraction
+            VolcanicAshDryAirFraction
+            VolcanicSulphurDioxideDryAirFraction
+            WaterDryAirFraction
+            PracticalSalinity
+            FluorescenceFraction
+            LightTransmission
+            RelativeHumidity
+            SpectralWaveDensityRatio
+            ChlorophyllAFluorescence
+            PH
+            Turbidity
+            ColoredDissolvedOrganicMatter
+            CurrentDirection
+            WaveDirection
+            WaveDominantDirection
+            WaveDominantSpread
+            WaveMeanDirection
+            WavePrincipalDirection
+            WaveSpread
+            WindDirection
+            WindGustMaxDirection
+            AbsoluteSalinity
+            DissolvedOxygenFrequency
+            DiffuseSolarRadiation
+            DirectSolarRadiation
+            GlobalSolarRadiation
+            LongwaveRadiation
+            NetRadiation
+            ShortwaveRadiation
+            AirSkinTemperature
+            AirTemperature
+            DewPointTemperature
+            Temperature
+            WetBulbTemperature
+            Fluorescence
+            TotalPrecipitation
+            Density
+            PotentialDensity
+            HorizontalVisibility
+            IceThickness
+            SeaDepth
+            WaveHeight
+            WaveMaximumHeight
+            WaveSignificantHeight
+            CurrentSpeed
+            CurrentSpeedEast
+            CurrentSpeedNorth
+            SoundVelocity
+            WindGustMaxSpeed
+            WindSpeed
+            ParticleBackscatter
+            SpectralWaveDensity
+            SpectralWaveDensityByFrequency
+            SpectralWaveMaximumDensity
+            SpectralWaveDirDensityByFrequency
+            Fluoride
+            ParticulateCarbon
+            ChlorophyllA
+            ChlorophyllB
+            ChlorophyllC
+            Pheophytin
+            TotalNitrogenMolar
+            TotalPhosphorousMolar
+            AirPressure
+            AirPressureAtSeaLevel
+            AirPressureChange
+            CarbonDioxidePartialPressure
+            SpectralWavePeakPeriod
+            WaveAveragePeriod
+            WavePeriod
+            Conductivity
+            SpecificConductance
+            SpectralWaveBandWidth
+            DissolvedOxygen
+            Nitrate
+            AlkalinityMolar
+            AmmoniaMolar
+            CarbonateAlkalinityMolar
+            NitrateMolar
+            NitriteMolar
+            PhosphateMolar
+            SilicateMolar
+            DissolvedOxygenMolar
+            FluorescencePotential
+            LongwaveRadiationInstant
+            ShortwaveRadiationInstant
+            FourierA1
+            FourierA2
+            FourierB1
+            FourierB2
+            FourierK
+            SpectralWaveFourier1
+            SpectralWaveFourier2
+            SpectralWaveMaximumDensityBand
+            SpectralWaveBandCount
+            WMOAirPressureCharacteristic
+            WMOSeaIceConcentration
+            WMOSeaState""".split("\n")
+    ],
+    ET.PARENT_METADATA: [
+        x.strip() for x in """MissionID
+            EndDate
+            StartDate
+            EndLongitude
+            StartLongitude
+            EndLatitude
+            StartLatitude
+            PlatformMissionNumber
+            Abstract
+            Area
+            CNODCCruiseID
+            CNODCDeploymentMissionID
+            CNODCDeploymentPlatformID
+            CruiseName
+            DeploymentCruiseID
+            LeadInstitution
+            MissionInformationLink
+            Network
+            Notes
+            Observatory
+            OperatingInstitution
+            PlatformFinalStatus
+            PrincipalInvestigator
+            Program
+            Project
+            ReferenceStations
+            Summary
+            Title
+            CNODCDuplicateDate
+            CNODCWorkingDuplicateDate
+            CNODCEmbargoUntil
+            CNODCPlatformCandidates
+            CNODCDuplicateID
+            CNODCID
+            CNODCLevel
+            CNODCMission
+            CNODCOperatorAction
+            CNODCPlatform
+            CNODCProgram
+            CNODCSource
+            CNODCStatus
+            CNODCWorkingDuplicateID
+            GTSHeader
+            BUFRMessageTime
+            BUFRDataCategory
+            BUFRIsObservation
+            BUFROriginCentre
+            BUFROriginSubcentre
+            BUFRSubsetIndex
+            BUFRDescriptors
+            BUFRInferredMessageType
+            BUFRPlatformType
+            PlatformServiceEnd
+            PlatformServiceStart
+            PlatformMaximumDepth
+            IMONumber
+            WMOAgencyCode
+            BatteryDescription
+            BatteryType
+            DocumentationVersion
+            FieldReferences
+            FirmwareType
+            FirmwareVersion
+            PlatformCategory
+            PlatformCNODCType
+            PlatformCustomization
+            PlatformDetails
+            PlatformID
+            PlatformMake
+            PlatformModel
+            PlatformName
+            PlatformOwner
+            PlatformSerial
+            ShipC
+            WIGOSID
+            WMOID
+            CreationTime
+            DataUpdateInterval
+            DOI""".split("\n")
+    ],
+    ET.CHILD_METADATA: [
+        x.strip() for x in """InstrumentManufacturingDate
+            XBTHeight
+            SatelliteIdentifier
+            WMOCommunicationSystem
+            WMODrogueStatus
+            WMODrogueType
+            WMOPlatformType
+            WMOQualityLocation
+            WMOQualityLocationClass
+            WMOQualitySatellite
+            WMOStationType
+            WMOXBTType
+            AlternativeSolutionLatitude
+            AlternativeSolutionLongitude
+            BuoyEngineeringStatus
+            DrogueCableLength
+            HydrostaticPressure
+            PlatformLastKnownDirection
+            PlatformLastKnownSpeed
+            ThermistorCableLength
+            WMOBuoyType
+            WMODataBuoyType
+            WMOQualityAirTemperature
+            WMOQualityHousekeeping
+            WMOQualityPressure
+            WMOQualityWaterTemperature
+            WMOSurfaceType
+            WMOLandStationID
+            LastKnownPositionTime
+            SubmergenceTime
+            PlatformDirection
+            PlatformPitch
+            PlatformRoll
+            PlatformTrueHeading
+            DrogueDepth
+            PlatformHeight
+            PlatformSpeed
+            BatteryVoltage
+            GliderPhaseCode
+            GliderPhaseNumber
+            ProfileNumber
+            SegmentNumber
+            ShipLineNumber
+            ShipObservationNumber
+            ShipTransectNumber
+            WMOSurfaceStationType
+            ProfileID
+            SamplingScheme
+            SoftwareID
+            TransmitterID""".split("\n")
+    ],
+    ET.ELEMENT_METADATA: [
+        x.strip() for x in """WMOCurrentMeasurementDuration
+            WMOCurrentMeasurementMethod
+            WMODepthMethod
+            WMODissolvedOxygenSensorType
+            WMOPlatformMotionRemovalMethod
+            WMOSalinityDepthMeasurementMethod
+            WMOSpectralWaveMethod
+            WMOTemperatureSalinityMeasurementMethod
+            WMOTemperatureSalinityQualifier
+            WMOWetBulbMeasurementMethod
+            WMOWindInstrumentType
+            WMOProfileInstrumentType
+            WMOProfileRecorderType
+            WMOAnemometerType
+            WMOHSPCorrected
+            WMOWindSource
+            SensorManufactureDate
+            CalibrationDate
+            DerivationDate
+            SensorFrequency
+            SensorTemperature
+            SensorDepth
+            SamplingFrequency
+            CalibrationCoefficient
+            DerivationCoefficient
+            SensorAccuracy
+            SensorResolution
+            Uncertainty
+            ObservationPeriod
+            Unadjusted
+            BackscatterWavelength
+            ObservationPeriodMaximum
+            ObservationPeriodMinimum
+            Quality
+            SensorRank
+            WMOAveragingPeriod
+            WorkingQuality
+            AggregationMethod
+            AnemometerType
+            CalibrationComment
+            CalibrationEquation
+            CurrentSensorType
+            DerivationComment
+            DerivationEquation
+            GliderPhaseCodeSource
+            Language
+            NavigationSatelliteType
+            SensorDepthReference
+            SensorLocation
+            SensorMake
+            SensorModel
+            SensorOrientation
+            SensorSerial
+            SensorType
+            SpectralWaveDataType
+            TemperatureScale
+            UncertaintyType
+            Units
+            VariableName""".split("\n")
+    ],
+    ET.RECORDSET_METADATA: ["ProfileDirection", "DigitizationMethod"],
 
-    def test_units_check(self):
+}
+
+ALL_ELEMENT_NAMES = set()
+for et, elements in ELEMENT_INFO.items():
+    ALL_ELEMENT_NAMES.update(elements)
+
+NO_MULTIVALUE = [
+    x.strip() for x in """CentralFrequency
+ObservationNumber
+WaveSensor
+WMOCurrentMeasurementDuration
+WMOCurrentMeasurementMethod
+WMODepthMethod
+WMODissolvedOxygenSensorType
+WMOPlatformMotionRemovalMethod
+WMOSalinityDepthMeasurementMethod
+WMOSpectralWaveMethod
+WMOTemperatureSalinityMeasurementMethod
+WMOTemperatureSalinityQualifier
+WMOWetBulbMeasurementMethod
+WMOWindInstrumentType
+WMOProfileInstrumentType
+WMOProfileRecorderType
+SensorManufactureDate
+SensorFrequency
+SensorAccuracy
+SensorResolution
+ObservationPeriod
+BackscatterWavelength
+ObservationPeriodMaximum
+ObservationPeriodMinimum
+Quality
+SensorRank
+WorkingQuality
+AggregationMethod
+AnemometerType
+CalibrationEquation
+CurrentSensorType
+DerivationComment
+DerivationEquation
+GliderPhaseCodeSource
+Language
+NavigationSatelliteType
+SensorDepthReference
+SensorLocation
+SensorMake
+SensorModel
+SensorOrientation
+SensorSerial
+SensorType
+TemperatureScale
+UncertaintyType
+Units
+WMOAnemometerType
+WMOHSPCorrected
+WMOWindSource
+SamplingFrequency
+WMOAveragingPeriod
+SpectralWaveDataType
+EndDate
+StartDate
+EndLongitude
+StartLongitude
+EndLatitude
+StartLatitude
+PlatformMissionNumber
+CNODCCruiseID
+CNODCDeploymentMissionID
+CNODCDeploymentPlatformID
+DeploymentCruiseID
+PlatformFinalStatus
+MissionID
+CNODCDuplicateDate
+CNODCWorkingDuplicateDate
+CNODCEmbargoUntil
+CNODCPlatformCandidates
+CNODCDuplicateID
+CNODCID
+CNODCLevel
+CNODCMission
+CNODCOperatorAction
+CNODCPlatform
+CNODCProgram
+CNODCSource
+CNODCStatus
+CNODCWorkingDuplicateID
+GTSHeader
+BUFRMessageTime
+BUFRDataCategory
+BUFRIsObservation
+BUFROriginCentre
+BUFROriginSubcentre
+BUFRSubsetIndex
+BUFRDescriptors
+BUFRInferredMessageType
+BUFRPlatformType
+PlatformServiceEnd
+PlatformServiceStart
+PlatformMaximumDepth
+IMONumber
+PlatformCategory
+PlatformCNODCType
+PlatformID
+PlatformMake
+PlatformModel
+PlatformName
+PlatformOwner
+PlatformSerial
+ShipC
+WIGOSID
+WMOID
+CreationTime
+DataUpdateInterval
+DOI
+XBTHeight
+WMOPlatformType
+WMOQualityLocation
+WMOQualityLocationClass
+WMOQualitySatellite
+WMOStationType
+WMOXBTType
+GliderPhaseNumber
+ProfileNumber
+SegmentNumber
+ShipLineNumber
+ShipObservationNumber
+ShipTransectNumber
+ProfileID
+SamplingScheme
+BuoyEngineeringStatus
+WMOBuoyType
+WMODataBuoyType
+WMOQualityAirTemperature
+WMOQualityHousekeeping
+WMOQualityPressure
+WMOQualityWaterTemperature
+WMOLandStationID
+WMOSurfaceStationType
+DigitizationMethod
+ProfileDirection""".split("\n")
+]
+
+INVALID_PAIRS = {
+    ET.PARAMETERS: [ET.COORDINATES, ET.PARENT_METADATA, ET.RECORDSET_METADATA, ET.ELEMENT_METADATA, ET.CHILD_METADATA],
+    ET.COORDINATES: [ET.PARAMETERS, ET.PARENT_METADATA, ET.RECORDSET_METADATA, ET.ELEMENT_METADATA, ET.CHILD_METADATA],
+    ET.ELEMENT_METADATA: [ET.PARAMETERS, ET.COORDINATES, ET.PARENT_METADATA, ET.RECORDSET_METADATA, ET.CHILD_METADATA],
+    ET.PARENT_METADATA: [ET.PARAMETERS, ET.COORDINATES, ET.RECORDSET_METADATA, ET.ELEMENT_METADATA],
+    ET.CHILD_METADATA: [ET.PARAMETERS, ET.COORDINATES, ET.RECORDSET_METADATA, ET.ELEMENT_METADATA, ET.PARENT_METADATA],
+}
+
+VALID_ELEMENTS = []
+for etype, e_list in ELEMENT_INFO.items():
+    VALID_ELEMENTS.extend(
+        (etype, x)
+        for x in e_list
+    )
+# child element data is also valid for parent metadata
+VALID_ELEMENTS.extend((ET.PARENT_METADATA, x) for x in ELEMENT_INFO[ET.CHILD_METADATA])
+
+GARBAGE_ELEMENT_NAMES = [
+    "foobar",
+    "_not_an_element",
+    "",
+    "temperature",
+    "TEMPERATURE",
+]
+INVALID_ELEMENTS = []
+for etype, invalid_list_type in INVALID_PAIRS.items():
+    INVALID_ELEMENTS.extend((etype, x) for x in GARBAGE_ELEMENT_NAMES)
+    for invalid_type in invalid_list_type:
+        INVALID_ELEMENTS.extend((etype, x) for x in ELEMENT_INFO[invalid_type])
+
+VALID_MULTIVALUE_ELEMENTS = [
+    (x, MultiElement((SingleElement(1), SingleElement(2))))
+    for x in ALL_ELEMENT_NAMES if x not in NO_MULTIVALUE
+]
+
+INVALID_MULTIVALUE_ELEMENTS = [
+    (x, MultiElement((SingleElement(1), SingleElement(2))))
+    for x in NO_MULTIVALUE
+]
+INVALID_MULTIVALUE_ELEMENTS.extend(((x, MultiElement([SingleElement(1)])) for x in ALL_ELEMENT_NAMES))
+INVALID_MULTIVALUE_ELEMENTS.extend(((x, MultiElement([5, 6], _skip_normalization=True)) for x in ALL_ELEMENT_NAMES))
+
+
+class TestIntegrityCheck(QCCheckerTestCase):
+
+    def test_missing_units_fail(self):
         x = NODBIntegrityChecker()
-        for unit in VALID_UNITS:
-            with self.subTest(good_unit=unit):
-                with self.assertPassesQC():
-                    #x.units_check(SingleElement(unit), None)
-                    pass
-        for unit in INVALID_UNITS:
-            with self.subTest(bad_unit=unit):
-                with self.assertFailsQC("integrity_invalid_units", 21):
-                    pass
-                    # x.units_check(SingleElement("helloworld"), None)
+        element = SingleElement(1)
+        with self.assertFailsQC():
+            x.element_compatible_units_check(element, preferred_units="m")
 
-    def test_child_record_coordinate_check(self):
-        def _build_record_and_context(test_tuple: tuple):
-            r = ocproc2.ParentRecord()
-            child_record = ocproc2.ChildRecord()
-            for k in range(1, len(test_tuple), 2):
-                child_record.coordinates[test_tuple[k]] = test_tuple[k + 1]
-            r.subrecords.append_to_record_set(test_tuple[0], 0, child_record)
-            #ctx = TestContext(r, {}, None)
-           #ctx.current_record = child_record
-            #ctx.current_subrecord_type = test_tuple[0]
-            #return child_record, ctx
+    @sub_tests(COMPATIBLE_UNITS, INCOMPATIBLE_UNITS)
+    def test_compatible_units(self, unit_a, unit_b):
         x = NODBIntegrityChecker()
-        for good_test in GOOD_SRT_COORDINATE_TESTS:
-            with self.subTest(good_test=good_test):
-                #self.assertIsNone(x.child_record_coordinate_check(*_build_record_and_context(good_test)))
-                pass
-        for bad_test in BAD_SRT_COORDINATE_TESTS:
-            with self.subTest(bad_test=bad_test):
-                with self.assertFailsQC("integrity_missing_subrecord_coordinate"):
-                    #x.child_record_coordinate_check(*_build_record_and_context(bad_test))
-                    pass
+        ref = SingleElement(1, Units=unit_a)
+        with self.assertPassesQC():
+            x.element_compatible_units_check(ref, preferred_units=unit_b)
 
-    def test_working_quality_skipped(self):
+    @sub_tests(GOOD_DATA_TYPES_EXPANDED, BAD_DATA_TYPES_EXPANDED)
+    def test_data_type_check(self, data_type, option):
         x = NODBIntegrityChecker()
-        #with self.assertSkipsQC():
-            #x._verify_element("metadata", "WorkingQuality", ocproc2.SingleElement(2), None)
-    #
-    # def test_strict_flags_invalid_element(self):
-    #     x = NODBIntegrityCheck(strict_mode=True)
-    #     with self.assertFailsQC("integrity_undefined_element", 20):
-    #         x._verify_element("metadata", "_Never_Going_To_Be_An_Element_Name", ocproc2.SingleElement(5), None)
-    #
-    # def test_relaxed_skips_invalid_element(self):
-    #     x = NODBIntegrityCheck(strict_mode=False)
-    #     with self.assertSkipsQC():
-    #         x._verify_element("metadata", "_Never_Going_To_Be_An_Element_Name", ocproc2.SingleElement(5), None)
-    #
-    # def test_group_names(self):
-    #     x = NODBIntegrityCheck()
-    #     r = ocproc2.ParentRecord()
-    #     ctx = TestContext(r, {}, None)
-    #     ctx.current_record = r
-    #     for element_name, ideal_type, value, units in TEST_ELEMENTS:
-    #         for possible_type in ("coordinates", "parameters", "metadata:record:parent", "metadata:record:child", "metadata:element"):
-    #             with self.subTest(element_name=element_name, ideal_type=ideal_type, test_type=possible_type):
-    #                 ctx.current_value = ocproc2.SingleElement(value, Units=units)
-    #                 if ideal_type == possible_type or (isinstance(ideal_type, tuple) and possible_type in ideal_type):
-    #                     with self.assertPassesQC():
-    #                         x._verify_element(
-    #                             possible_type,
-    #                             element_name,
-    #                             ctx.current_value,
-    #                             ctx
-    #                         )
-    #                 else:
-    #                     with self.assertFailsQC("integrity_invalid_group", 20):
-    #                         x._verify_element(possible_type, element_name, ctx.current_value, ctx)
-    #
-    # def test_do_not_allow_multiple_elements(self):
-    #     x = NODBIntegrityCheck(strict_mode=False)
-    #     with self.assertFailsQC():
-    #         r = ocproc2.ParentRecord()
-    #         r.parameters["Temperature"] = ocproc2.SingleElement(5.2, TemperatureScale=ocproc2.MultiElement(
-    #             ("ITS-90", "IPTS-68")))
-    #         x._verify_element("metadata:element", "TemperatureScale", r.parameters["Temperature"].metadata["TemperatureScale"], None)
-    #
-    # def test_good_values(self):
-    #     x = NODBIntegrityCheck(strict_mode=False)
-    #     for value, value_units, preferred_unit, min_value, max_value, data_type, allowed_values in GOOD_VALUES:
-    #         with self.subTest(value=(value, value_units), min=(min_value, preferred_unit), max=(max_value, preferred_unit)):
-    #             with self.assertPassesQC():
-    #                 x._test_element_value(
-    #                     ocproc2.SingleElement(value, Units=value_units),
-    #                     None,
-    #                     preferred_unit=preferred_unit,
-    #                     min_value=min_value,
-    #                     max_value=max_value,
-    #                     data_type=data_type,
-    #                     allowed_values=allowed_values
-    #                 )
-    #
-    # def test_bad_values(self):
-    #     x = NODBIntegrityCheck(strict_mode=False)
-    #     for error_code, flag_number, value, actual_unit, preferred_unit, min_value, max_value, data_type, allowed_values in BAD_VALUES:
-    #         with self.subTest(error_code=error_code, value=(value, actual_unit), min=(min_value, preferred_unit), max=(max_value, preferred_unit), data_type=data_type, allowed_values=allowed_values):
-    #             with self.assertFailsQC(error_code, flag_number):
-    #                 x._test_element_value(
-    #                     ocproc2.SingleElement(value, Units=actual_unit),
-    #                     None,
-    #                     preferred_unit=preferred_unit,
-    #                     min_value=min_value,
-    #                     max_value=max_value,
-    #                     data_type=data_type,
-    #                     allowed_values=allowed_values
-    #                 )
-    #
+        element = SingleElement(option)
+        with self.assertPassesQC():
+            x.element_data_type_check(element, data_type)
 
+    @sub_tests(VALID_RANGE_CHECKS, INVALID_RANGE_CHECKS)
+    def test_valid_range_check(self, value, value_units, min_value, max_value, units):
+        x = NODBIntegrityChecker()
+        element = SingleElement(value, Units=value_units)
+        with self.assertPassesQC():
+            x.element_valid_range_check(element, min_value, max_value, None, units, 'decimal')
+
+    @sub_tests(GOOD_ALLOWED_CHECKS, BAD_ALLOWED_CHECKS)
+    def test_valid_range_allowed_values_check(self, value, allowed_values, dtype):
+        x = NODBIntegrityChecker()
+        with self.assertPassesQC():
+            element = SingleElement(value)
+            x.element_valid_range_check(element, None, None, allowed_values, None, dtype)
+
+    @sub_tests(GOOD_RS_TYPES, BAD_RS_TYPES)
+    def test_recordset_types(self, rs_type: str):
+        x = NODBIntegrityChecker()
+        with self.assertPassesQC():
+            x.recordset_valid_type_check(rs_type)
+
+    @sub_tests(RS_GOOD_COORDINATES, RS_BAD_COORDINATES)
+    def test_recordset_coordinates(self, rs_type, coordinates):
+        x = NODBIntegrityChecker()
+        r = ocproc2.BaseRecord()
+        r.coordinates.update(coordinates)
+        with self.assertPassesQC():
+            x.record_valid_coordinates_for_rs_type_check(r, rs_type)
+
+    @sub_tests(VALID_ELEMENTS, INVALID_ELEMENTS)
+    def test_element_name_and_group(self, element_type: ElementType, element_name: str):
+        x = NODBIntegrityChecker()
+        with self.assertPassesQC():
+            x.element_exists_and_proper_group_check(element_name, element_type)
+
+    @sub_tests(VALID_MULTIVALUE_ELEMENTS, INVALID_MULTIVALUE_ELEMENTS)
+    def test_multivalue(self, element_name: str, element: MultiElement):
+        x = NODBIntegrityChecker()
+        with self.assertPassesQC():
+            x.multi_element_verify_allowed_and_present(element, element_name)

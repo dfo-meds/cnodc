@@ -10,6 +10,8 @@ from medsutil.units.units import UnitError
 class TestUnitParsing(ut.TestCase):
 
     SIMPLE_TESTS = [
+        ("kg kg-1", uns.Integer("1")),
+        ("g kg-1", uns.Real("1e-3")),
         ("10e-9", uns.Real("10e-9")),
         ("m", uns.SimpleUnit("m")),
         ("m2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),

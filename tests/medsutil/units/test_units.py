@@ -24,6 +24,8 @@ class TestConversions(BaseTestCase):
         'mg/m3': 'mg m-3',
         'mg m-3': 'mg m-3',
         'K-1 J m': 'J m K-1',
+        'kg kg-1': '1',
+        'g kg-1': 'kg kg-1',
         '1': '1',
         'K': 'K',
         '°C': 'degrees_Celsius',

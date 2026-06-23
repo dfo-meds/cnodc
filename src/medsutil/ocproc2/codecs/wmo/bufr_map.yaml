@@ -449,7 +449,7 @@
 
 22080:
   name: "coordinates/CentralFrequency"
-  subrecord_type: "SPEC_WAVE"
+  subrecord_type: "SPECTRAL_WAVE"
 22082: "parameters/SpectralWaveMaximumDensity"
 22084: "parameters/SpectralWaveMaximumDensityBand"
 22086: "parameters/WaveMeanDirection"
@@ -561,7 +561,7 @@
       - "8021:NULL"
       - repeats: 2
         size_descriptor: None
-        recordset_type: TSERIES
+        recordset_type: TIME_SERIES
         group:
           - "4025:coordinates/TimeOffset"
           - "11043:parameters/WindGustMaxDirection"
