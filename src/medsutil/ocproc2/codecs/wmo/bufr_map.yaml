@@ -39,7 +39,7 @@
   remove_metadata:
     - Units
     - Uncertainty
-1115: "metadata/CruiseID"       # not preesnt anymore?
+1115: "metadata/MissionID"       # not preesnt anymore?
 1125:
   name: "metadata/WIGOSID"
   data_processor: "_parse_wigos_id"
@@ -425,13 +425,13 @@
 22065: "coordinates/Pressure"
 22066: "parameters/Conductivity"
 22067:
-  name: "ProfileInstrumentType"
+  name: "WMOProfileInstrumentType"
   instruction: apply_to_parameters
   filter:
     - Temperature
     - PracticalSalinity
 22068:
-  name: ProfileRecorderType
+  name: WMOProfileRecorderType
   instruction: apply_to_recordset
   recordset_filter:
     - PROFILE
@@ -747,7 +747,7 @@
     - "302021:record[optional]"
     - "302052:record[optional]"
     - "302059:record[optional]"
-    - "22067:parameters/Temperature/metadata/ProfileInstrumentType"
+    - "22067:parameters/Temperature/metadata/WMOProfileInstrumentType"
     - "2171:parameters/Temperature/metadata/SensorSerial"
     - "302090:record"
     - "306033:record"
@@ -762,8 +762,8 @@
         - PracticalSalinity
       group:
         - "2038:common/WMOTemperatureSalinityMeasurementMethod"
-        - "22067:common/ProfileInstrumentType"
-        - "2038:recordset/ProfileRecorderType"
+        - "22067:common/WMOProfileInstrumentType"
+        - "2038:recordset/WMOProfileRecorderType"
         - "2171:common/SensorSerial"
         - "2033:common/WMOSalinityDepthMeasurementMethod"
         - descriptor: 2032

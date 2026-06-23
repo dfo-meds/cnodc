@@ -70,7 +70,7 @@ class NODBIntegrityChecker(DeepDiveChecker):
                 self.assert_greater_or_close(value, min_value, msg="value_too_small")
             if max_value is not None:
                 self.assert_less_or_close(value, max_value, msg="value_too_large")
-        if allowed_values is not None:
+        if allowed_values:
             if data_type == "string":
                 self.assert_in(element.to_string(), [str(x) for x in allowed_values], msg="value_not_allowed")
             elif data_type == "integer":

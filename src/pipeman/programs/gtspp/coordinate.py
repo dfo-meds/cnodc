@@ -1,3 +1,4 @@
+import medsutil.ocproc2 as ocproc2
 from pipeman.programs.qc.base import review, DeepDiveChecker
 from medsutil.ocproc2.refs import ElementRef, ParentRecordRef
 
@@ -18,4 +19,7 @@ class GTSPPCoordinateCheck(DeepDiveChecker):
 
     @review("element_required", fail_flag=9, pass_flag=1)
     def require_element_check(self, ref: ElementRef):
-        self.assert_false(ref.element.is_empty(), msg="element_required")
+        self.element_require_value(ref.element)
+
+    def element_require_value(self, element: ocproc2.AbstractElement):
+        self.assert_false(element.is_empty(), msg="element_required")

@@ -230,7 +230,10 @@ def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: Requi
     if any_passed:
         return True
     if exs:
-        raise ExceptionGroup("quality errors", exs)
+        if len(exs) == 1:
+            raise exs[0]
+        else:
+            raise ExceptionGroup("quality errors", exs)
     return False
 
 def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality) -> bool:

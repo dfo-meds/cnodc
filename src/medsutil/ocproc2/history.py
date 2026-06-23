@@ -101,6 +101,12 @@ class QCMessage:
         self.record_path = normalize_ocproc_path(record_path)
         self.ref_value = ref_value
 
+    def __str__(self):
+        return f"{self.record_path}: {self.code}"
+
+    def __repr__(self):
+        return f"<QC:{self.record_path}:{self.code}:[{self.ref_value}]>"
+
     def update_hash(self, h):
         """Update a hash with the unique values of this message."""
         h.update(self.code.encode('utf-8', 'replace'))
@@ -148,6 +154,12 @@ class QCTestRunInfo:
         self.messages = messages or []
         self.notes = notes
         self.is_stale = is_stale
+
+    def __str__(self):
+        return f"{self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}"
+
+    def __repr__(self):
+        return f"<QCTest {self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}>"
 
     class Export(t.TypedDict, total=False):
         _name: t.Required[str]

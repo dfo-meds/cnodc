@@ -304,7 +304,7 @@ class PostgresController:
                         **fields
                     )
                 except TypeError as ex:
-                    raise CodedError(f"Data class [{obj_cls.__name__}]cannot handle fields from database, found [{','.join(fields.keys())}]") from ex
+                    raise CodedError(f"Data class [{obj_cls.__name__}] cannot handle fields from database, found [{','.join(fields.keys())}]") from ex
         return None
 
     @wrap_nodb_exceptions
@@ -843,7 +843,7 @@ class PostgresController:
 
     def has_temp_qc_outcome(self, process_id: str, working_uuid: str) -> bool:
         with self.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM nodb_temporary_qc_results WHERE process_id = %s AND working_uuid = %s", (
+            cur.execute("SELECT COUNT(*) FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND working_uuid = %s", (
                 process_id,
                 working_uuid
             ))
@@ -864,9 +864,9 @@ class PostgresController:
                                   new_batch_uuid: str,
                                   current_batch_uuid: str | None):
         with self.cursor() as cur:
-            query = "UPDATE nodb_working_records SET qc_batch_id = %s WHERE working_uuid IN (SELECT working_uuid FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND batch_identifier = %s AND outcome = %s)"
+            query = "UPDATE nodb_working SET qc_batch_id = %s WHERE working_uuid IN (SELECT working_uuid FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND batch_identifier = %s AND outcome = %s)"
             if current_batch_uuid is None:
-                query += " AND qc_batch_id IS NONE"
+                query += " AND qc_batch_id IS NULL"
                 cur.execute(query, (
                     new_batch_uuid,
                     process_id,
@@ -893,7 +893,7 @@ class PostgresController:
                                batch_key: str,
                                outcome: int):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_temporary_qc_results (batch_process_id, batch_identifier, outcome, working_uuid VALUES (%s, %s, %s, %s)", (
+            cur.execute("INSERT INTO nodb_temporary_qc_results (batch_process_id, batch_identifier, outcome, working_uuid) VALUES (%s, %s, %s, %s)", (
                 process_id,
                 batch_key,
                 outcome,
@@ -1033,7 +1033,9 @@ class PostgresController:
 
     @staticmethod
     def build_order_by_clause(order_by: t.Optional[t.Sequence[t.Union[str,tuple[str, bool]]]] = None) -> t.Iterable[pgs.Composable]:
-        if order_by:
+        if isinstance(order_by, str):
+            order_by = [order_by]
+        if order_by is not None:
             yield pgs.SQL('ORDER BY')
             for order_info in order_by:
                 if isinstance(order_info, tuple):

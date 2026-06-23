@@ -342,6 +342,9 @@ class NODBBatch(s.MetadataMixin, s.NODBBaseObject):
     batch_uuid: str = s.UUIDColumn()
     status: BatchStatus = s.EnumColumn(BatchStatus)
 
+    db_created_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
+    db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
+
     def stream_working_records(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBWorkingRecord]:
         yield from db.stream_objects(
             obj_cls=NODBWorkingRecord,
@@ -610,16 +613,22 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         ('source_file_uuid', 'received_date', 'message_idx', 'record_idx'),
     )
 
-    working_uuid: str = s.UUIDColumn()
-    record_uuid: t.Optional[str] = s.UUIDColumn()
-    received_date: datetime.date = s.DateColumn()
-    source_file_uuid: str = s.UUIDColumn()
-    message_idx: int = s.IntColumn()
-    record_idx: int = s.IntColumn()
-    qc_batch_id: str = s.UUIDColumn()
-    platform_uuid: str = s.UUIDColumn()
-    obs_time: AwareDateTime = s.DateTimeColumn()
-    location: str = s.WKTColumn()
+    working_uuid: str | None = s.UUIDColumn()
+    record_uuid: str | None = s.UUIDColumn()
+    received_date: datetime.date | None = s.DateColumn()
+    source_file_uuid: str | None = s.UUIDColumn()
+    message_idx: int | None = s.IntColumn()
+    record_idx: int | None = s.IntColumn()
+    qc_batch_id: str | None = s.UUIDColumn()
+    platform_uuid: str | None = s.UUIDColumn()
+    obs_time: AwareDateTime | None = s.DateTimeColumn()
+    location: str | None = s.WKTColumn()
+
+    deduped_flag: int | None = s.IntColumn()
+
+    db_created_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
+    db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
+
 
     @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, obs_uuid: str, **kwargs) -> t.Optional[NODBWorkingRecord]:

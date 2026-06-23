@@ -958,8 +958,8 @@ class _Bufr4Decoder:
         descriptors = list(x for x in self.message.unexpanded_descriptors.value)
         common_metadata = {
             'GTSHeader': self.header,
-            'BUFRDescriptors': descriptors,
-            'BUFRInferredMessageType': self._identify_bufr_message_type(descriptors),
+            'BUFRDescriptors': ocproc2.SingleElement(descriptors),
+            'BUFRInferredMessageType': ocproc2.SingleElement(self._identify_bufr_message_type(descriptors)),
             'BUFROriginCentre': self.message.originating_centre.value,
             'BUFROriginSubcentre': self.message.originating_subcentre.value,
             'BUFRDataCategory': self.message.data_category.value,
@@ -998,26 +998,25 @@ class _Bufr4Decoder:
         return [x.id for x in y]
 
     def _identify_bufr_message_type(self, descriptors: list[int]):
+        message_types = set()
         for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
             if x in descriptors:
-                return [x]
-        this_message = self._expand_bufr_descriptors(descriptors, self.pybufr_tables)
-        for version in range(39, 5, -1):
-            results = []
-            pbt = TableGroupCacheManager.get_table_group_by_key(
-                TableGroupKey(self.message.table_group_key.tables_root_dir, ('0', '0_0', str(version)), None, None)
-            )
-            for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
-                unpacked = pbt.lookup(x)
-                if isinstance(unpacked, pybufrkit.descriptors.UndefinedSequenceDescriptor):
-                    continue
-                compare_to = self._expand_bufr_descriptors([x], pbt)
-                d = self._descriptor_distance(compare_to, this_message)
-                if d > -1:
-                    results.append(x)
-            if results:
-                return results
-        return []
+                message_types.add(x)
+        if not message_types:
+            this_message = self._expand_bufr_descriptors(descriptors, self.pybufr_tables)
+            for version in range(39, 5, -1):
+                pbt = TableGroupCacheManager.get_table_group_by_key(
+                    TableGroupKey(self.message.table_group_key.tables_root_dir, ('0', '0_0', str(version)), None, None)
+                )
+                for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
+                    unpacked = pbt.lookup(x)
+                    if isinstance(unpacked, pybufrkit.descriptors.UndefinedSequenceDescriptor):
+                        continue
+                    compare_to = self._expand_bufr_descriptors([x], pbt)
+                    d = self._descriptor_distance(compare_to, this_message)
+                    if d > -1:
+                        message_types.add(x)
+        return list(message_types)
 
     def _descriptor_distance(self, received: list[int], check_against: list[int]):
         if received[0] not in check_against:

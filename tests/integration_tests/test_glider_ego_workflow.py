@@ -129,6 +129,7 @@ class TestGliderDecode(BaseWorkflowTestCase):
                 cls.data_file_path('glider_ego/SEA032_20250606_R.nc'),
                 input_dir
             )
+
     def test_download_ran(self):
         self.assertEventDidOccur("file_downloader", "before_queue_item")
         self.assertEventDidOccur("file_downloader", "after_queue_item")

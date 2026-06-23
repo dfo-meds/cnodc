@@ -5,7 +5,6 @@ import functools
 import typing as t
 
 import zrlog
-from pip_audit._dependency_source import requirement
 
 import medsutil.math as amath
 from medsutil import ocproc2 as ocproc2
@@ -20,6 +19,8 @@ from medsutil.ocproc_math import extract_parameter_value
 from medsutil.units import UnitConverter
 from autoinject import injector
 
+from nodb.interface import NODBInstance
+from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData
 
 if t.TYPE_CHECKING:
     from pipeman.programs.qc.references import ReferenceRange
@@ -103,6 +104,7 @@ class QualityController(abc.ABC):
         self._memory: dict | None = None
         self._rmemory: dict | None = None
         self._log = zrlog.get_logger(f"pipeman.qc_checker.{test_name}")
+        self._db = None
 
     @property
     def working_sort(self) -> str | tuple[str, bool] | None:
@@ -161,8 +163,16 @@ class QualityController(abc.ABC):
 
     def setup(self): ...
 
-    def run_record_check(self, record: ocproc2.ParentRecord) -> ocproc2.QCTestRunInfo:
-        self._current_record = ParentRecordRef(record=record, path="", parent=None)
+    @property
+    def db(self) -> NODBInstance:
+        if self._db is None:
+            raise ValueError("Invalid time to call this")
+        else:
+            return self._db
+
+    def run_record_check(self, record: ocproc2.ParentRecord, db: NODBInstance) -> ocproc2.QCTestRunInfo:
+        self._current_record = ParentRecordRef(record=record)
+        self._db = db
         self.setup()
         try:
             self.run()
@@ -234,7 +244,7 @@ class QualityController(abc.ABC):
             self._log.info("review %s skipped: %s on [%s]", review_name, ex, refs)
             self._reviews_skipped += 1
         except QCAssertionError as ex:
-            self._log.info("review %s failed: %s on [%s]", review_name, ex, refs)
+            self._log.info("review [%s] failed: [%s][ref: %s] on [%s]", review_name, ex.error_code, ex.ref_value, refs)
             self._reviews_failed += 1
             ctx.recommend_for_review(
                 ex.flag_number if ex.flag_number is not None else fail_flag,
@@ -255,7 +265,9 @@ class QualityController(abc.ABC):
         with self.review_all(review_name, [ref], fail_flag, pass_flag, qc_result) as ctx:
             yield ctx
 
-    def check_quality(self, element: ObjectWithMetadata | None, required_quality: RequiredQuality):
+    def check_quality(self,
+                      element: ObjectWithMetadata | None,
+                      required_quality: RequiredQuality):
         try:
             check_quality(element, required_quality)
         except QualityError as ex:
@@ -264,15 +276,15 @@ class QualityController(abc.ABC):
     def check_review_already_complete(self,
                                       references: t.List[AnyRef] | AnyRef | ObjectWithMetadata,
                                       required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE):
-        if isinstance(references, list):
-            try:
+        try:
+            if isinstance(references, list):
                 check_any_of_quality([r.ref_object for r in references], required_quality)
-            except ExceptionGroup as ex:
-                self.skip_review(str(ex))
-        elif isinstance(references, AnyRef):
-            self.check_quality(references.ref_object, required_quality=required_quality)
-        else:
-            self.check_quality(references, required_quality=required_quality)
+            elif isinstance(references, AnyRef):
+                check_quality(references.ref_object, required_quality)
+            else:
+                check_quality(references, required_quality)
+        except (QualityError, ExceptionGroup) as ex:
+            self.skip_review(str(ex))
 
     def recommend_for_review(self,
                              specific_test_name: str,
@@ -468,14 +480,28 @@ class QualityController(abc.ABC):
         else:
             self.assert_between(number, t.cast(amath.AnyNumber, ref_range.minimum), t.cast(amath.AnyNumber, ref_range.maximum), msg=msg or "outside_ref_range", **kwargs)
 
-    def assert_between(self, a: amath.AnyNumber, min_value: amath.AnyNumber, max_value: amath.AnyNumber, msg: str | None = None, **kwargs):
+    def assert_between(self,
+                       a: amath.AnyNumber,
+                       min_value: amath.AnyNumber,
+                       max_value: amath.AnyNumber,
+                       msg: str | None = None,
+                       add_ref: bool = True,
+                       **kwargs):
         if not _functions.between(min_value, a, max_value):
-            if not kwargs.get("ref_value", None):
+            if add_ref and not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = f"{min_value} TO {max_value}"
             self.report_qc_error(msg or "not_between", **kwargs)
 
-    def assert_in(self, element: t.Any, collection: collections.abc.Container, msg: str | None = None, **kwargs) -> bool:
+    def assert_in(self,
+                  element: t.Any,
+                  collection: collections.abc.Container,
+                  msg: str | None = None,
+                  add_ref: bool = False,
+                  **kwargs) -> bool:
         if element not in collection:
+            if add_ref and isinstance(collection, t.Iterable):
+                if not kwargs.get("ref_value", None):
+                    kwargs["ref_value"] = collection
             self.report_qc_error(msg or "not_in", **kwargs)
         return True
 
@@ -589,6 +615,7 @@ class DeepDiveChecker(QualityController):
     LIMIT_SUBRECORD_TYPES: t.Container[str] | None = None
     LIMIT_ELEMENT_TYPES: ElementType | None = None
     TRACK_COORDINATES: bool = False
+    SKIP_ELEMENTS: t.Container[str] | None = ["WorkingQuality"]
 
     element_check: t.Callable[[ElementRef], t.Any] | None = None
     parent_record_check: t.Callable[[ParentRecordRef], t.Any] | None = None
@@ -600,9 +627,9 @@ class DeepDiveChecker(QualityController):
 
     def run(self):
         crawler = RecordCrawler(
-            element_cb=self._wrap_callback(self.element_check),
-            single_element_cb=self._wrap_callback(self.single_element_check),
-            multi_element_cb=self._wrap_callback(self.multi_element_check),
+            element_cb=self._wrap_element_callback(self.element_check),
+            single_element_cb=self._wrap_element_callback(self.single_element_check),
+            multi_element_cb=self._wrap_element_callback(self.multi_element_check),
             parent_record_cb=self._wrap_callback(self.parent_record_check),
             child_record_cb=self._wrap_callback(self.child_record_check),
             record_cb=self._wrap_record_callback(self.record_check),
@@ -612,6 +639,23 @@ class DeepDiveChecker(QualityController):
         )
         crawler.crawl_record(self.current_record)
 
+    def _wrap_element_callback(self, cb):
+        skip = self.SKIP_ELEMENTS
+        if cb is None:
+            return None
+        elif skip is not None:
+            @functools.wraps(cb)
+            def _inner(ref: ElementRef, *args, **kwargs):
+                # Never validate these
+                if ref.element_name in skip:
+                    return None
+                with self.skip_review_blocker():
+                    return cb(ref, *args, **kwargs)
+            return _inner
+        else:
+            return self._wrap_callback(cb)
+
+
     def _wrap_record_callback(self, cb):
         if not self.TRACK_COORDINATES:
             return self._wrap_callback(cb)
@@ -619,7 +663,8 @@ class DeepDiveChecker(QualityController):
             @functools.wraps(cb)
             def _inner(ref, *args, **kwargs):
                 self._update_coordinates(ref)
-                return cb(ref, *args, **kwargs)
+                with self.skip_review_blocker():
+                    return cb(ref, *args, **kwargs)
             return _inner
         else:
             return self._update_coordinates
@@ -711,3 +756,68 @@ class ProfileChecker(DeepDiveChecker):
 
     def level_check(self, ref: ChildRecordRef):
         ...
+
+
+class GenericPlatformCheck(DeepDiveChecker):
+
+    def __init__(self, *args, searcher_cls=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._searcher = None
+        self._searcher_cls = searcher_cls or RealPlatformSearcher
+
+    @property
+    def searcher(self) -> PlatformSearcher:
+        if self._searcher is None:
+            self._searcher = self._searcher_cls(self.db)
+        return t.cast(PlatformSearcher, self._searcher)
+
+
+class PlatformSearcher(t.Protocol):
+
+    def __init__(self, db: NODBInstance): ...
+
+    def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
+        ...
+
+    def search(self,
+               platform_id: str | None = None,
+               platform_name: str | None = None,
+               wigos_id: str | None = None,
+               wmo_id: str | None = None,
+               in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
+        ...
+
+    def recent_working_records(self,
+                               platform_id: str,
+                               start_time: AwareDateTime,
+                               end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
+        ...
+
+    def recent_observations(self,
+                            platform_id: str,
+                            start_time: AwareDateTime,
+                            end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
+        ...
+
+class RealPlatformSearcher:
+
+    def __init__(self, db: NODBInstance):
+        self._db = db
+
+    def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
+        return NODBPlatform.find_by_uuid(self._db, platform_uuid)
+
+    def search(self, **kwargs) -> t.Iterable[NODBPlatform]:
+        yield from NODBPlatform.search(self._db, **kwargs)
+
+    def recent_working_records(self,
+                               platform_id: str,
+                               start_time: AwareDateTime,
+                               end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
+        yield from NODBPlatform.stream_recent_working_records(self._db, platform_id, start_time, end_time)
+
+    def recent_observations(self,
+                            platform_id: str,
+                            start_time: AwareDateTime,
+                            end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
+        yield from NODBPlatform.stream_recent_observations(self._db, platform_id, start_time, end_time)
