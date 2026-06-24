@@ -509,9 +509,9 @@ class QualityController(abc.ABC):
         if not isinstance(v, types):
             if not kwargs.get("ref_value", None):
                 if isinstance(types, tuple):
-                    kwargs['ref_value'] = kwargs.get('ref_value', ";".join(str(x.__name__ for x in types)))
+                    kwargs['ref_value'] = ";".join(str(x.__name__ for x in types))
                 else:
-                    kwargs['ref_value'] = kwargs.get('ref_value', ";".join(str(types.__name__)))
+                    kwargs['ref_value'] = str(types.__name__)
             self.report_qc_error(msg or "is_not_type", **kwargs)
         return True
 
@@ -536,6 +536,10 @@ class QualityController(abc.ABC):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_greater_or_close", **kwargs)
+
+    def assert_not_nan(self, a: amath.AnyNumber, msg: str | None = None, **kwargs):
+        if amath.is_nan(a):
+            self.report_qc_error(msg or 'is_nan', **kwargs)
 
     def assert_less_or_close(self,
                              a: amath.AnyNumber,
@@ -768,7 +772,7 @@ class GenericPlatformCheck(DeepDiveChecker):
     @property
     def searcher(self) -> PlatformSearcher:
         if self._searcher is None:
-            self._searcher = self._searcher_cls(self.db)
+            self._searcher = self._searcher_cls(self._db)
         return t.cast(PlatformSearcher, self._searcher)
 
 
@@ -780,6 +784,7 @@ class PlatformSearcher(t.Protocol):
         ...
 
     def search(self,
+               *,
                platform_id: str | None = None,
                platform_name: str | None = None,
                wigos_id: str | None = None,

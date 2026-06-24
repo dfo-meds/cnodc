@@ -4,6 +4,7 @@ import typing as t
 import medsutil.math as amath
 from medsutil import geodesy
 from medsutil.awaretime import AwareDateTime
+from medsutil.geodesy import YXPoint
 from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.util import RequiredQuality, Quality
 from nodb.observations import NODBPlatform
@@ -13,88 +14,120 @@ from autoinject import injector
 from nodb.interface import NODB
 
 @injector.construct
-class GTSPPSpeedTest(GenericPlatformCheck):
+class GTSPPSpeedCheck(GenericPlatformCheck):
 
-    DEFAULT_TOP_SPEED = 40
+    # CCG "Specialty Vessel" has a maximum speed of 32 knots
+    # this is the fastest CCG ship other than hovercraft and S&R lifeboats
+    # it is also commonly used for scientific missions
+    # see https://www.canada.ca/en/canadian-coast-guard/services/fleet/fleet-database.html
+    # therefore it's a reasonable choice for a "default" top speed
+    # where the top speed is known, it can be overridden on a platform-by-platform basis
+    # Equivalents: 32 knots / 59.3 km h-1 / 16.5 m s-1 / 36.9 mi h-1
+    DEFAULT_TOP_SPEED = 16.5  # m s-1 (actually 16.462222 but rounded up)
 
     def __init__(self,
                  past_time_days: int | float = 5,
+                 international_dateline_check_threshold_degrees: int | float | None = 350,
                  searcher_cls=None):
         super().__init__(
-            'gtspp_speed',
-            '1.0',
+            test_name='gtspp_speed',
+            test_version='1.0',
             searcher_cls=searcher_cls,
             test_tags=['GTSPP_1.5'],
             working_sort=[('obs_time', 'asc')],
         )
+        self._rewrite_threshold = international_dateline_check_threshold_degrees
         self._past_time_days = past_time_days
+        if self._rewrite_threshold is not None and not self._rewrite_threshold >= 181:
+            raise ValueError("Invalid rewrite threshold, must be at least 181 degrees or the math causes issues")
 
     def parent_record_check(self, ref: ParentRecordRef):
         if "CNODCPlatform" not in ref.record.metadata:
             self.skip_review("no_platform")
-        self.require_quality(ref.record.metadata["CNOCDPlatform"])
+        self.require_quality(ref.record.metadata["CNODCPlatform"])
         pid = ref.record.metadata['CNODCPlatform'].to_string()
         lat_ref = ref.setdefault_coordinate_ref("Latitude")
         lon_ref = ref.setdefault_coordinate_ref("Longitude")
         time_ref = ref.setdefault_coordinate_ref("Time")
         ref_time = None
         for x in time_ref.single_element_refs():
-            if x.element.is_empty() or not x.element.is_iso_datetime():
-                continue
-            else:
+            if x.element.is_iso_datetime():
                 check_time = x.element.to_datetime()
                 if check_time < ref_time:
                     ref_time = check_time
-        top_speed = ...
+        top_speed = self._get_top_speed(pid)
+        if top_speed is None:
+            self.skip_review("no_top_speed")
         for previous_position in self._get_previous_positions(pid, ref_time):
             previous_lats = previous_position.parameter_ref("Latitude")
             previous_lons = previous_position.parameter_ref("Longitude")
             previous_times = previous_position.parameter_ref("Time")
             if previous_lats is None or previous_lons is None or previous_times is None:
                 continue
-            for lat, lon in self.extract_keyed_parameters(lat_ref, lon_ref):
-                if lat is None or lon is None:
+            for lat, lon, time in self.extract_keyed_parameters(lat_ref, lon_ref, time_ref):
+                if lat is None or lon is None or time is None:
                     continue
                 previous_lat = previous_lats.keyed_parameter(lat.sensor_rank)
                 previous_lon = previous_lons.keyed_parameter(lon.sensor_rank)
-                if previous_lat is None or previous_lon is None:
+                previous_time = previous_times.keyed_parameter(time.sensor_rank)
+                if previous_lat is None or previous_lon is None or previous_time is None:
                     continue
-                for time, in self.extract_keyed_parameters(time_ref):
-                    if time is None:
-                        continue
-                    previous_time = previous_times.keyed_parameter(time.sensor_rank)
-                    if previous_time is None:
-                        continue
-                    with self.review_all("valid_speed", [lat, lon, time], fail_flag=3, pass_flag=1) as ctx:
-                        ctx.check_review_already_complete(RequiredQuality.GOOD_VALUE)
-                        self.require_quality(lat.element, RequiredQuality.HAS_UNITS)
-                        self.require_quality(lon.element, RequiredQuality.HAS_UNITS)
-                        self.require_quality(previous_time.element)
-                        self.require_quality(previous_lat.element, RequiredQuality.GOOD_VALUE_WITH_UNITS)
-                        self.require_quality(previous_lon.element, RequiredQuality.GOOD_VALUE_WITH_UNITS)
+                with self.review_all("valid_speed", [lat, lon, time], fail_flag=3, pass_flag=1) as ctx:
+                    ctx.check_review_already_complete(RequiredQuality.GOOD_VALUE)
+                    self.require_quality(lat.element, RequiredQuality.HAS_UNITS)
+                    self.require_quality(lon.element, RequiredQuality.HAS_UNITS)
+                    self.require_quality(previous_time.element)
+                    self.require_quality(previous_lat.element, RequiredQuality.GOOD_VALUE_WITH_UNITS)
+                    self.require_quality(previous_lon.element, RequiredQuality.GOOD_VALUE_WITH_UNITS)
 
-                        if top_speed is ...:
-                            top_speed = self._get_top_speed(pid)
-
-                        self._run_speed_test((
-                            lon.element.to_numeric("degrees_east"),
-                            lat.element.to_numeric("degrees_north"),
-                            time.element.to_datetime()
-                        ), (
-                            previous_lon.element.to_numeric("degrees_east"),
-                            previous_lat.element.to_numeric("degrees_north"),
-                            previous_time.element.to_datetime()
-                        ), top_speed)
+                    self._run_speed_test((
+                        lon.element.to_numeric("degrees_east"),
+                        lat.element.to_numeric("degrees_north"),
+                        time.element.to_datetime()
+                    ), (
+                        previous_lon.element.to_numeric("degrees_east"),
+                        previous_lat.element.to_numeric("degrees_north"),
+                        previous_time.element.to_datetime()
+                    ), t.cast(amath.AnyNumber, top_speed))
 
     def _run_speed_test(self,
                         xyt2: tuple[amath.AnyNumber, amath.AnyNumber, AwareDateTime],
                         xyt1: tuple[amath.AnyNumber, amath.AnyNumber, AwareDateTime],
-                        top_speed: amath.AnyNumber | None):
-        if top_speed is None:
-            return
-        distance = geodesy.haversine((xyt2[1], xyt2[0]), (xyt1[1], xyt1[0]))
-        time = (xyt2[2] - xyt1[2]).total_seconds()
-        self.assert_less_or_close(amath.div(distance, time), top_speed)
+                        top_speed: amath.AnyNumber):
+        # When crossing the international date line, we can
+        # get some situations like (-179, y1) -> (179, y2)
+        # This is not actually an error
+        # We therefore define a threshold (default 350 degrees)
+        # If the ship has traveled more than the threshold in terms
+        # of longitude (dx), then we look at the alternative path instead
+        # This is done by rewriting the coordinates to (0, y1) -> (dx, y2)
+        # Experimental testing with the geographicalpy library indicates that
+        # the WGS84 ellipsoid is insensitive to the actual longitudes used
+        # as long as dx is the same, that is, given:
+        #   da = distance( (a, y1), (a + dx, y2) )
+        #   db = distance( (b, y1), (b + dx, y2) )
+        # for constant y1, y2, dx, then da = db regardless of the values
+        # chosen for a, b >= -180 and a+dx, b+dx < 180
+        # so we can choose any x coordinate such that a + dx < 180
+        # and obtain the same distance
+        # the default threshold is 350 degrees which suggests the points are
+        # within a 10 degree band around the international date line if they're
+        # standardized to -180, 180 (which they should be).
+        dx = abs(amath.sub(xyt2[0], xyt1[0]))
+        if self._rewrite_threshold is not None and amath.gt(dx, self._rewrite_threshold):
+            distance = geodesy.geodesic_distance(
+                YXPoint(xyt2[1], 0),
+                YXPoint(xyt1[1], amath.sub(360, dx))
+            )
+        else:
+            distance = geodesy.geodesic_distance(
+                YXPoint(xyt2[1], xyt2[0]),
+                YXPoint(xyt1[1], xyt1[0])
+            )
+        time = abs((xyt2[2] - xyt1[2]).total_seconds())
+        avg_speed = amath.div(distance, time)
+        self.assert_not_nan(avg_speed, msg="invalid_coordinates")
+        self.assert_less_or_close(avg_speed, top_speed, msg="too_fast")
 
     def _get_previous_positions(self,
                                 pid: str,
@@ -137,13 +170,14 @@ class GTSPPSpeedTest(GenericPlatformCheck):
 
     def _parse_top_speed(self, top_speed: t.Any) -> amath.AnyNumber | None:
         if isinstance(top_speed, (int, float)):
-            return decimal.Decimal(top_speed)
+            return top_speed
         elif isinstance(top_speed, str):
             if " " in top_speed:
-                speed, units = top_speed.split(" ", 1)
+                speed, units = top_speed.split(" ", maxsplit=1)
             else:
                 speed = top_speed
                 units = "m s-1"
+            print(speed, units)
             return self.converter.convert(decimal.Decimal(speed.strip()), units.strip(), "m s-1")
         elif isinstance(top_speed, dict):
             try:
@@ -153,6 +187,8 @@ class GTSPPSpeedTest(GenericPlatformCheck):
                 return None
             except KeyError:
                 return None
+        elif top_speed is None:
+            return self.DEFAULT_TOP_SPEED
         else:
             return None
 

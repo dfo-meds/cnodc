@@ -12,7 +12,7 @@ from pipeman.processing.progressor import WorkflowProgressWorker
 from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
 from pipeman.programs.gtspp.bathymetry import GTSPPBathymetryTest
 from pipeman.programs.gtspp.coordinate import GTSPPCoordinateCheck
-from pipeman.programs.gtspp.speed import GTSPPSpeedTest
+from pipeman.programs.gtspp.speed import GTSPPSpeedCheck
 from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
 from pipeman.programs.qc.integrity import NODBIntegrityChecker
 from pipeman.programs.qc.platform import NODBPlatformCheck
@@ -93,7 +93,7 @@ class TestGTSPPForValid315004(BaseWorkflowTestCase):
         workflow.add_worker(NODBQCWorker, {
             'qc_tests': [
                 dynamic_name(GTSPPCoordinateCheck), # 1.2, 1.3
-                dynamic_name(GTSPPSpeedTest), # 1.5
+                dynamic_name(GTSPPSpeedCheck), # 1.5
 
                 # need to get the bathymetry files for testing
                 #dynamic_name(GTSPPBathymetryTest), # 1.4, 1.6, 2.11

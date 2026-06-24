@@ -13,7 +13,7 @@ import matplotlib.backend_bases as mplbb
 import tkinter as tk
 import pipeman_desktop.translations as i18n
 from pipeman_desktop.gui.ocproc_graph import OCProc2Graph
-from medsutil.geodesy import haversine_degrees
+from medsutil.geodesy import great_circle_distance
 from medsutil.units import UnitConverter
 import medsutil.ocproc_math as oom
 
@@ -218,7 +218,7 @@ class _GraphPane(BasePane):
                 qc = 3
             elif batch_info_a.latitude_qc == 2 or batch_info_b.latitude_qc == 2 or batch_info_a.longitude_qc == 2 or batch_info_b.longitude_qc == 2:
                 qc = 2
-            distance = haversine_degrees((batch_info_b.latitude, batch_info_b.longitude), (batch_info_a.latitude, batch_info_a.longitude)).nominal_value
+            distance = distance((batch_info_b.latitude, batch_info_b.longitude), (batch_info_a.latitude, batch_info_a.longitude)).nominal_value
             unit_map[key] = "m s-1"
             return abs(distance / (batch_info_b.timestamp - batch_info_a.timestamp).total_seconds()), qc
         else:
