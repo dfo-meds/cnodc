@@ -63,15 +63,15 @@ class ElementRef(AnyRef):
     def ref_object(self) -> ocproc2.AbstractElement:
         return self.element
 
-    def keyed_sensor_rank_refs(self) -> dict[int, SingleElementRef]:
+    def values_keyed_for_sensor_rank(self) -> dict[int, SingleElementRef]:
         ranked = {}
-        for index, sref in self.single_element_refs():
+        for index, sref in enumerate(self.single_element_refs()):
             sref.sensor_rank = sref.element.metadata.best("SensorRank", coerce=int, default=-1 * index)
             ranked[sref.sensor_rank] = sref
         return ranked
 
-    def keyed_parameter(self, sensor_rank: int) -> SingleElementRef | None:
-        for index, sref in self.single_element_refs():
+    def value_for_sensor_rank(self, sensor_rank: int) -> SingleElementRef | None:
+        for index, sref in enumerate(self.single_element_refs()):
             sref.sensor_rank = sref.element.metadata.best("SensorRank", coerce=int, default=-1 * index)
             if sref.sensor_rank == sensor_rank:
                 return sref

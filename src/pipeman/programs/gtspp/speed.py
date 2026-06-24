@@ -53,23 +53,23 @@ class GTSPPSpeedCheck(GenericPlatformCheck):
         for x in time_ref.single_element_refs():
             if x.element.is_iso_datetime():
                 check_time = x.element.to_datetime()
-                if check_time < ref_time:
+                if ref_time is None or check_time < ref_time:
                     ref_time = check_time
         top_speed = self._get_top_speed(pid)
         if top_speed is None:
             self.skip_review("no_top_speed")
         for previous_position in self._get_previous_positions(pid, ref_time):
-            previous_lats = previous_position.parameter_ref("Latitude")
-            previous_lons = previous_position.parameter_ref("Longitude")
-            previous_times = previous_position.parameter_ref("Time")
+            previous_lats = previous_position.coordinate_ref("Latitude")
+            previous_lons = previous_position.coordinate_ref("Longitude")
+            previous_times = previous_position.coordinate_ref("Time")
             if previous_lats is None or previous_lons is None or previous_times is None:
                 continue
             for lat, lon, time in self.extract_keyed_parameters(lat_ref, lon_ref, time_ref):
                 if lat is None or lon is None or time is None:
                     continue
-                previous_lat = previous_lats.keyed_parameter(lat.sensor_rank)
-                previous_lon = previous_lons.keyed_parameter(lon.sensor_rank)
-                previous_time = previous_times.keyed_parameter(time.sensor_rank)
+                previous_lat = previous_lats.value_for_sensor_rank(lat.sensor_rank)
+                previous_lon = previous_lons.value_for_sensor_rank(lon.sensor_rank)
+                previous_time = previous_times.value_for_sensor_rank(time.sensor_rank)
                 if previous_lat is None or previous_lon is None or previous_time is None:
                     continue
                 with self.review_all("valid_speed", [lat, lon, time], fail_flag=3, pass_flag=1) as ctx:
@@ -89,6 +89,27 @@ class GTSPPSpeedCheck(GenericPlatformCheck):
                         previous_lat.element.to_numeric("degrees_north"),
                         previous_time.element.to_datetime()
                     ), t.cast(amath.AnyNumber, top_speed))
+
+    def _get_previous_positions(self,
+                                pid: str,
+                                ref_time: AwareDateTime | None) -> t.Iterable[ParentRecordRef]:
+        if ref_time is not None:
+            start_time = ref_time - datetime.timedelta(days=self._past_time_days)
+            end_time = ref_time - datetime.timedelta(seconds=1)
+            for working_record in self.searcher.recent_working_records(pid, start_time, end_time):
+                rec = working_record.record
+                if rec is None:
+                    continue
+                if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
+                    continue
+                yield ParentRecordRef(rec)
+            for observation in self.searcher.recent_observations(pid, start_time, end_time):
+                rec = observation.record
+                if rec is None:
+                    continue
+                if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
+                    continue
+                yield ParentRecordRef(rec)
 
     def _run_speed_test(self,
                         xyt2: tuple[amath.AnyNumber, amath.AnyNumber, AwareDateTime],
@@ -115,40 +136,19 @@ class GTSPPSpeedCheck(GenericPlatformCheck):
         # standardized to -180, 180 (which they should be).
         dx = abs(amath.sub(xyt2[0], xyt1[0]))
         if self._rewrite_threshold is not None and amath.gt(dx, self._rewrite_threshold):
-            distance = geodesy.geodesic_distance(
-                YXPoint(xyt2[1], 0),
-                YXPoint(xyt1[1], amath.sub(360, dx))
-            )
+            checked = (YXPoint(xyt2[1], 0), YXPoint(xyt1[1], amath.sub(360, dx)))
+            distance = geodesy.geodesic_distance(*checked)
         else:
-            distance = geodesy.geodesic_distance(
-                YXPoint(xyt2[1], xyt2[0]),
-                YXPoint(xyt1[1], xyt1[0])
-            )
+            checked = (YXPoint(xyt2[1], xyt2[0]), YXPoint(xyt1[1], xyt1[0]))
+            distance = geodesy.geodesic_distance(*checked)
         time = abs((xyt2[2] - xyt1[2]).total_seconds())
         avg_speed = amath.div(distance, time)
+        self._log.info(
+            "speed: %s; expected: %s; distance: %s; time: %s; yx_new (%s), yx_old (%s)",
+            avg_speed, top_speed, distance, time, *checked
+        )
         self.assert_not_nan(avg_speed, msg="invalid_coordinates")
         self.assert_less_or_close(avg_speed, top_speed, msg="too_fast")
-
-    def _get_previous_positions(self,
-                                pid: str,
-                                ref_time: AwareDateTime | None) -> t.Iterable[ParentRecordRef]:
-        if ref_time is not None:
-            start_time = ref_time - datetime.timedelta(days=self._past_time_days)
-            end_time = ref_time - datetime.timedelta(seconds=1)
-            for working_record in self.searcher.recent_working_records(pid, start_time, end_time):
-                rec = working_record.record
-                if rec is None:
-                    continue
-                if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
-                    continue
-                yield ParentRecordRef(rec)
-            for observation in self.searcher.recent_observations(pid, start_time, end_time):
-                rec = observation.record
-                if rec is None:
-                    continue
-                if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
-                    continue
-                yield ParentRecordRef(rec)
 
     def _get_top_speed(self, platform_uuid: str) -> amath.AnyNumber | None:
         if "top_speeds" not in self.batch_memory:
@@ -162,33 +162,15 @@ class GTSPPSpeedCheck(GenericPlatformCheck):
     def _real_get_top_speed(self, platform_uuid: str) -> amath.AnyNumber | None:
         platform = self.searcher.find_by_uuid(platform_uuid)
         if platform:
-            if platform.metadata.get("skip_speed_check", False):
-                return None
-            return self._parse_top_speed(platform.metadata.get("top_speed", self.DEFAULT_TOP_SPEED))
-        else:
-            return self._parse_top_speed(self.DEFAULT_TOP_SPEED)
+            if platform.skip_speed_check:
+                return None  # this indicates we should skip the check
+            top_speed = platform.top_speed
+            if top_speed is not None:
+                if isinstance(top_speed, tuple):
+                    return self.converter.convert(top_speed[0], top_speed[1], "m s-1")
+                else:
+                    return top_speed
+        return self.DEFAULT_TOP_SPEED
 
-    def _parse_top_speed(self, top_speed: t.Any) -> amath.AnyNumber | None:
-        if isinstance(top_speed, (int, float)):
-            return top_speed
-        elif isinstance(top_speed, str):
-            if " " in top_speed:
-                speed, units = top_speed.split(" ", maxsplit=1)
-            else:
-                speed = top_speed
-                units = "m s-1"
-            print(speed, units)
-            return self.converter.convert(decimal.Decimal(speed.strip()), units.strip(), "m s-1")
-        elif isinstance(top_speed, dict):
-            try:
-                element = AbstractElement.build_from_mapping(top_speed)
-                if element.is_numeric():
-                    return element.to_numeric("m s-1")
-                return None
-            except KeyError:
-                return None
-        elif top_speed is None:
-            return self.DEFAULT_TOP_SPEED
-        else:
-            return None
+
 
