@@ -7,6 +7,7 @@ import medsutil.ocproc2 as ocproc2
 import nodb.base as s
 import medsutil.types as ct
 import nodb.interface as interface
+from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 from medsutil.awaretime import AwareDateTime
 from medsutil.sanitize import coerce
@@ -263,6 +264,33 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
     map_to_uuid: str = s.UUIDColumn()
     status: PlatformStatus = s.EnumColumn(PlatformStatus)
     embargo_data_days: int = s.IntColumn()
+
+    @property
+    def skip_speed_check(self) -> bool:
+        return bool(self.metadata.get('skip_speed_check', False))
+
+    @property
+    def top_speed(self) -> float | int | tuple[float | int, str] | None:
+        top_speed = self.metadata.get('top_speed', None)
+        if isinstance(top_speed, (int, float)):
+            return top_speed
+        elif isinstance(top_speed, str):
+            if " " in top_speed:
+                speed, units = top_speed.split(" ", maxsplit=1)
+            else:
+                speed = top_speed
+                units = "m s-1"
+            return float(speed.strip()), units.strip()
+        elif isinstance(top_speed, dict):
+            try:
+                element = AbstractElement.build_from_mapping(top_speed)
+                if element.is_numeric():
+                    if element.metadata.has_value("Units"):
+                        return element.to_float(), element.metadata.best("Units", coerce=str)
+                    else:
+                        return element.to_float()
+            except KeyError: ...
+        return None
 
     @classmethod
     def search(cls,

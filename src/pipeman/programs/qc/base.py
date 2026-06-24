@@ -267,11 +267,12 @@ class QualityController(abc.ABC):
 
     def check_quality(self,
                       element: ObjectWithMetadata | None,
-                      required_quality: RequiredQuality):
+                      required_quality: RequiredQuality,
+                      msg: str | None = None):
         try:
             check_quality(element, required_quality)
         except QualityError as ex:
-            self.skip_review(str(ex))
+            self.skip_review(msg or str(ex))
 
     def check_review_already_complete(self,
                                       references: t.List[AnyRef] | AnyRef | ObjectWithMetadata,
@@ -347,8 +348,9 @@ class QualityController(abc.ABC):
 
     def require_quality(self,
                         value: ocproc2.AbstractElement | None,
-                        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> t.TypeGuard[ocproc2.AbstractElement]:
-        self.check_quality(value, required_quality)
+                        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+                        msg: str | None = None) -> t.TypeGuard[ocproc2.AbstractElement]:
+        self.check_quality(value, required_quality, msg)
         return True
 
     @staticmethod
@@ -402,7 +404,7 @@ class QualityController(abc.ABC):
         keyed_elements = []
         keys = set()
         for element in elements:
-            keyed = element.keyed_sensor_rank_refs() if element is not None else {}
+            keyed = element.values_keyed_for_sensor_rank() if element is not None else {}
             keyed_elements.append(keyed)
             keys.update(keyed.keys())
         for key in keys:

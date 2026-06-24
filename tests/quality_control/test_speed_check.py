@@ -65,7 +65,6 @@ class TestGTSPPSpeedCheck(QCCheckerTestCase):
     ])
     def test_get_speed(self, platform_uuid, expected_speed_mps):
         top_speed = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)._real_get_top_speed(platform_uuid)
-        print(expected_speed_mps, top_speed)
         threshold = 0.00001
         if expected_speed_mps is None:
             self.assertIsNone(top_speed)
@@ -76,3 +75,23 @@ class TestGTSPPSpeedCheck(QCCheckerTestCase):
                 threshold = decimal.Decimal(threshold)
             diff = abs(expected_speed_mps - top_speed)
             self.assertLess(diff, threshold)
+
+    def test_good_speed_check_record(self):
+        pr = ParentRecord()
+        pr.metadata["CNODCPlatform"] = SingleElement("assigned_platform", Quality=1)
+        pr.coordinates["Longitude"] = SingleElement("5.58", Units="degree_east")
+        pr.coordinates["Latitude"] = SingleElement("5.48", Units="degree_north")
+        pr.coordinates["Time"] = SingleElement("2015-01-02T03:43:05", tzinfo="Etc/UTC")
+        checker = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)
+        qcinfo = checker.run_record_check(pr, None)
+        self.assertIs(qcinfo.result, QCResult.PASS)
+
+    def test_bad_speed_check_record(self):
+        pr = ParentRecord()
+        pr.metadata["CNODCPlatform"] = SingleElement("assigned_platform", Quality=1)
+        pr.coordinates["Longitude"] = SingleElement("55.58", Units="degree_east")
+        pr.coordinates["Latitude"] = SingleElement("55.48", Units="degree_north")
+        pr.coordinates["Time"] = SingleElement("2015-01-02T03:28:05", tzinfo="Etc/UTC")
+        checker = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)
+        qcinfo = checker.run_record_check(pr, None)
+        self.assertIs(qcinfo.result, QCResult.MANUAL_REVIEW)

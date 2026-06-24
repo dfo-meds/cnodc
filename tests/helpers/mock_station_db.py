@@ -1,6 +1,8 @@
+import datetime
 import typing as t
 
 from medsutil.awaretime import AwareDateTime
+from medsutil.ocproc2 import ParentRecord, SingleElement
 from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData
 
 
@@ -26,14 +28,43 @@ class TestStationDatabase:
             'top_speed_none': NODBPlatform(platform_uuid='top_speed_dict', metadata={'top_speed': None}),
             'top_speed_missing': NODBPlatform(platform_uuid='top_speed_dict', metadata={}),
             'top_speed_skip': NODBPlatform(platform_uuid='top_speed_dict', metadata={'top_speed': 20, 'skip_speed_check': True}),
-
         }
         self._working_records: dict[str, list[NODBWorkingRecord]] = {
-
+            'assigned_platform': [x for x in self._good_speed_check_working_records("assigned_platform")]
         }
         self._observations: dict[str, list[NODBObservationData]] = {
-
+            'assigned_platform': [x for x in self._good_speed_check_observations("assigned_platform")]
         }
+
+    def _good_speed_check_working_records(self, pid: str) -> t.Iterable[NODBWorkingRecord]:
+        for idx, record in enumerate(self._good_speed_check_records(pid, ilat=5.375, ilon=5.475, it=AwareDateTime(2015, 1, 2, 3, 14, 5, tzinfo="Etc/UTC"))):
+            obs_data = NODBWorkingRecord(working_uuid=f"wr_{idx}", received_date="2015-01-05")
+            obs_data.record = record
+            yield obs_data
+
+    def _good_speed_check_observations(self, pid: str) -> t.Iterable[NODBObservationData]:
+        for idx, record in enumerate(self._good_speed_check_records(pid, ilat=5.3, ilon=5.4, it=AwareDateTime(2015, 1, 2, 3, 4, 5, tzinfo="Etc/UTC"))):
+            obs_data = NODBObservationData(obs_uuid=f"obs_{idx}", received_date="2015-01-05")
+            obs_data.record = record
+            yield obs_data
+
+    def _good_speed_check_records(self,
+                                  pid: str,
+                                  dlat: float = 0.015,
+                                  dlon: float = 0.015,
+                                  dt: float = 120.0,
+                                  ilat: float = 5.3,
+                                  ilon: float = 5.4,
+                                  it: AwareDateTime = AwareDateTime(2015, 1, 2, 3, 4, 5, tzinfo="Etc/UTC"),
+                                  records=5) -> t.Iterable[ParentRecord]:
+        for x in range(0, records):
+            record = ParentRecord()
+            record.metadata["CNODCPlatform"] = SingleElement(pid, Quality=1)
+            record.coordinates["ObservationNumber"] = x + 1
+            record.coordinates["Latitude"] = SingleElement(ilat + (dlat * x), Units="degree_north")
+            record.coordinates["Longitude"] = SingleElement(ilon + (dlon * x), Units="degree_east")
+            record.coordinates["Time"] = (it + datetime.timedelta(seconds=(dt * x))).isoformat()
+            yield record
 
     def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
         if platform_uuid in self._platforms:
@@ -67,10 +98,30 @@ class TestStationDatabase:
                                platform_id: str,
                                start_time: AwareDateTime,
                                end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
-        ...
+        if platform_id in self._working_records:
+            for wr in self._working_records[platform_id]:
+                record = wr.record
+                if not record.coordinates.has_value("Time"):
+                    continue
+                record_time = record.coordinates.ideal("Time").to_datetime()
+                if record_time > end_time:
+                    continue
+                if record_time < start_time:
+                    continue
+                yield wr
 
     def recent_observations(self,
                             platform_id: str,
                             start_time: AwareDateTime,
                             end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
-        ...
+        if platform_id in self._observations:
+            for wr in self._observations[platform_id]:
+                record = wr.record
+                if not record.coordinates.has_value("Time"):
+                    continue
+                record_time = record.coordinates.ideal("Time").to_datetime()
+                if record_time > end_time:
+                    continue
+                if record_time < start_time:
+                    continue
+                yield wr

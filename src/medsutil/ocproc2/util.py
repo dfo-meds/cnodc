@@ -34,6 +34,12 @@ if t.TYPE_CHECKING:
 class QualityError(Exception): ...
 
 
+class QualityErrorGroup(ExceptionGroup):
+
+    def __str__(self):
+        return f"Quality Errors: {";".join(str(x) for x in self.exceptions)}"
+
+
 class Quality(enum.IntEnum):
 
     BAD_STRUCTURE = -1
@@ -233,7 +239,7 @@ def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: Requi
         if len(exs) == 1:
             raise exs[0]
         else:
-            raise ExceptionGroup("quality errors", exs)
+            raise QualityErrorGroup("Multiple errors", exs)
     return False
 
 def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality) -> bool:
