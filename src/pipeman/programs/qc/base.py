@@ -88,7 +88,8 @@ class QualityController(abc.ABC):
                  test_version: str,
                  station_invariant: bool = False,
                  working_sort: str | tuple[str, bool] | None = None,
-                 test_tags: list[str | None] | None = None):
+                 test_tags: list[str | None] | None = None,
+                 searcher_cls: type | None = None):
         self._test_name = test_name
         self._station_invariant = station_invariant
         self._test_version = test_version
@@ -105,7 +106,14 @@ class QualityController(abc.ABC):
         self._rmemory: dict | None = None
         self._log = zrlog.get_logger(f"pipeman.qc_checker.{test_name}")
         self._db = None
+        self._searcher = None
+        self._searcher_cls = searcher_cls or RealPlatformSearcher
 
+    @property
+    def searcher(self) -> PlatformSearcher:
+        if self._searcher is None:
+            self._searcher = self._searcher_cls(self._db)
+        return t.cast(PlatformSearcher, self._searcher)
     @property
     def working_sort(self) -> str | tuple[str, bool] | None:
         return self._working_sort
@@ -392,15 +400,15 @@ class QualityController(abc.ABC):
             else:
                 param_names.update(record.record.parameters.keys())
         for param_name in param_names:
-            yield from self.extract_keyed_parameters(
+            yield from self.group_by_sensor_rank(
                 *(
                     record.record.parameters.get(param_name, None)
                     for record in records
                 )
             )
 
-    def extract_keyed_parameters(self,
-                                 *elements: SingleElementRef | MultiElementRef | None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
+    def group_by_sensor_rank(self,
+                             *elements: SingleElementRef | MultiElementRef | None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
         keyed_elements = []
         keys = set()
         for element in elements:
@@ -762,20 +770,6 @@ class ProfileChecker(DeepDiveChecker):
 
     def level_check(self, ref: ChildRecordRef):
         ...
-
-
-class GenericPlatformCheck(DeepDiveChecker):
-
-    def __init__(self, *args, searcher_cls=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._searcher = None
-        self._searcher_cls = searcher_cls or RealPlatformSearcher
-
-    @property
-    def searcher(self) -> PlatformSearcher:
-        if self._searcher is None:
-            self._searcher = self._searcher_cls(self._db)
-        return t.cast(PlatformSearcher, self._searcher)
 
 
 class PlatformSearcher(t.Protocol):

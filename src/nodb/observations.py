@@ -270,6 +270,10 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
         return bool(self.metadata.get('skip_speed_check', False))
 
     @property
+    def skip_on_land_check(self) -> bool:
+        return bool(self.metadata.get("skip_on_land_check", False))
+
+    @property
     def top_speed(self) -> float | int | tuple[float | int, str] | None:
         top_speed = self.metadata.get('top_speed', None)
         if isinstance(top_speed, (int, float)):
