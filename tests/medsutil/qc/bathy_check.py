@@ -3,7 +3,7 @@ import typing as t
 from uncertainties import UFloat, ufloat
 from medsutil.bathymetry import BathymetryModel
 import medsutil.ocproc2 as ocproc2
-from pipeman.programs.gtspp.bathymetry import GTSPPBathymetryTest
+from pipeman.programs.gtspp.bathymetry import GTSPPBathymetryCheck
 
 
 class MockBathymetryModel(BathymetryModel):
@@ -32,7 +32,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = z
         bathy_model = MockBathymetryModel({(x, y): z})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -47,7 +47,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = z
         bathy_model = MockBathymetryModel({(x, y): z})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
@@ -63,7 +63,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = -45
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -77,7 +77,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = -55
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -91,7 +91,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = -65
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
@@ -106,7 +106,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = -35
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
@@ -121,7 +121,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = -55
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -135,7 +135,7 @@ class TestBathymetryCheck(ut.TestCase):
         dr.coordinates['Longitude'] = x
         dr.parameters['SeaDepth'] = -45
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -151,7 +151,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -50
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -167,7 +167,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -60
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)
@@ -185,7 +185,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -55
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -201,7 +201,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -45
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -217,7 +217,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -25
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): -50})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -233,7 +233,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = 2
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): ufloat(-5, 10)})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -249,7 +249,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -2
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): ufloat(5, 10)})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.PASS)
@@ -265,7 +265,7 @@ class TestBathymetryCheck(ut.TestCase):
         sr.coordinates['Depth'] = -2
         dr.subrecords.append_to_record_set('PROFILE', 0, sr)
         bathy_model = MockBathymetryModel({(x, y): ufloat(15, 10)})
-        suite = GTSPPBathymetryTest(bathy_model)
+        suite = GTSPPBathymetryCheck(bathy_model)
         outcome, is_updated = suite.run_tests(dr)
         self.assertTrue(is_updated)
         self.assertEqual(outcome, ocproc2.QCResult.MANUAL_REVIEW)

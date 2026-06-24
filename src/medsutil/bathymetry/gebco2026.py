@@ -15,20 +15,17 @@ import tifffile.zarr as tzarr
 import medsutil.math as amath
 
 
-class GEBCO2023BathymetryModel(BathymetryModel):
+class GEBCO2026BathymetryModel(BathymetryModel):
 
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self,
-                 tiff_dir: str | pathlib.Path,
-                 uncertainty: float | int | str = 150,
-                 use_only_depths: bool = True):
+    def __init__(self):
         super().__init__("gebco2023")
-        self._gebco_dir = pathlib.Path(tiff_dir) if not isinstance(tiff_dir, pathlib.Path) else tiff_dir
+        self._gebco_dir = self.config.as_str("bathymetry", "gebco2026", "directory")
+        self._gebco_error = self.config.as_float("bathymetry", "gebco2026", "error")
+        self._use_only_depths = self.config.as_bool("bathymetry", "gebco2026", "use_only_depths")
         self._ref_cache: dict[str, tzarr.ZarrTiffStore | tzarr.ZarrFileSequenceStore] = {}
-        self._gebco_error = float(uncertainty)
-        self._use_only_depths = use_only_depths
 
     def close(self):
         for x in self._ref_cache:
@@ -36,29 +33,8 @@ class GEBCO2023BathymetryModel(BathymetryModel):
         self._ref_cache = {}
 
     def water_depth(self, x: amath.AnyNumber, y: amath.AnyNumber) -> amath.AnyNumber | None:
-        min_x, max_x = amath.probable_range(x)
-        min_y, max_y = amath.probable_range(y)
-        x_cell_min, y_cell_max = self._identify_cell(min_x, min_y)
-        x_cell_max, y_cell_min = self._identify_cell(max_x, max_y)
-        depths = []
-        altitudes = []
-        for xc in range(x_cell_min, x_cell_max + 1):
-            for yc in range(y_cell_min, y_cell_max + 1):
-                depth = self._get_depth(xc, yc)
-                if depth > 0:
-                    altitudes.append(depth)
-                else:
-                    depths.append(depth)
-        # TODO: It's worth noting GEBCO depths vs soundings are +/- 150 m accuracy
-        # TODO: We should flag this somehow?
-        # Note: we use only depths when any of the possible cells are depths
-        # because its far more likely the buoy is properly positioned than not
-        # this behaviour can be disabled.
-        if self._use_only_depths and depths:
-            return statistics.mean(depths)
-        elif altitudes or depths:
-            return statistics.mean(itertools.chain(depths, altitudes))
-        return None
+        x_cell, y_cell = self._identify_cell(float(x), float(y))
+        return self._get_depth(x_cell, y_cell)
 
     def _get_depth(self, x_cell: int, y_cell: int) -> float:
         if y_cell < 0:

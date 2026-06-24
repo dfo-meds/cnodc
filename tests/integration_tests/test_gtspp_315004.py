@@ -10,7 +10,7 @@ from medsutil.ocproc2.codecs import GtsCodec
 from medsutil.ocproc2 import QCTestRunInfo, QCResult
 from pipeman.processing.progressor import WorkflowProgressWorker
 from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
-from pipeman.programs.gtspp.bathymetry import GTSPPBathymetryTest
+from pipeman.programs.gtspp.bathymetry import GTSPPBathymetryCheck
 from pipeman.programs.gtspp.coordinate import GTSPPCoordinateCheck
 from pipeman.programs.gtspp.speed import GTSPPSpeedCheck
 from pipeman.programs.nodb.loader import NODBDecodeLoadWorker

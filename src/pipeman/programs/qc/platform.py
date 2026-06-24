@@ -5,12 +5,12 @@ from autoinject import injector
 from medsutil.cached import LeastRecentCache
 from nodb.observations import NODBPlatform
 from medsutil.ocproc2.util import RequiredQuality
-from pipeman.programs.qc.base import GenericPlatformCheck
+from pipeman.programs.qc.base import DeepDiveChecker
 from medsutil.ocproc2.refs import ParentRecordRef
 import medsutil.ocproc2 as ocproc2
 
 
-class NODBPlatformCheck(GenericPlatformCheck):
+class NODBPlatformCheck(DeepDiveChecker):
 
     @injector.construct
     def __init__(self, searcher_cls=None):

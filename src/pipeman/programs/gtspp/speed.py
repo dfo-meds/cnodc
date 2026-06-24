@@ -8,13 +8,13 @@ from medsutil.geodesy import YXPoint
 from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.util import RequiredQuality, Quality
 from nodb.observations import NODBPlatform
-from pipeman.programs.qc.base import DeepDiveChecker, GenericPlatformCheck
+from pipeman.programs.qc.base import DeepDiveChecker
 from medsutil.ocproc2.refs import ParentRecordRef
 from autoinject import injector
 from nodb.interface import NODB
 
 @injector.construct
-class GTSPPSpeedCheck(GenericPlatformCheck):
+class GTSPPSpeedCheck(DeepDiveChecker):
 
     # CCG "Specialty Vessel" has a maximum speed of 32 knots
     # this is the fastest CCG ship other than hovercraft and S&R lifeboats
@@ -64,7 +64,7 @@ class GTSPPSpeedCheck(GenericPlatformCheck):
             previous_times = previous_position.coordinate_ref("Time")
             if previous_lats is None or previous_lons is None or previous_times is None:
                 continue
-            for lat, lon, time in self.extract_keyed_parameters(lat_ref, lon_ref, time_ref):
+            for lat, lon, time in self.group_by_sensor_rank(lat_ref, lon_ref, time_ref):
                 if lat is None or lon is None or time is None:
                     continue
                 previous_lat = previous_lats.value_for_sensor_rank(lat.sensor_rank)
