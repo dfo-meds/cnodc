@@ -42,19 +42,18 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
         if self.run_bottom_test or self.run_sounding_test or self.run_on_land_test:
             self.add_note(f"Bathymetry checked against: {self._bathymetry_model.ref_name}")
 
-    def check_should_skip(self) -> bool:
-        if 'should_skip' not in self.record_memory:
-            self.record_memory['should_skip'] = False
+    def check_should_skip_on_land(self) -> bool:
+        if 'should_skip_on_land' not in self.record_memory:
+            self.record_memory['should_skip_on_land'] = False
             pid = self.current_record.record.metadata.best("CNODCPlatform", coerce=str, default=None)
             if pid is not None:
                 platform = self.searcher.find_by_uuid(pid)
-                if platform is not None:
-                    if platform.skip_on_land_check:
-                        self.record_memory['should_skip'] = True
-        return self.record_memory['should_skip']
+                if platform is not None and platform.skip_on_land_check:
+                    self.record_memory['should_skip_on_land'] = True
+        return self.record_memory['should_skip_on_land']
 
     def record_check(self, ref: RecordRef):
-        if self.run_on_land_test and not self.check_should_skip():
+        if self.run_on_land_test and not self.check_should_skip_on_land():
             lats = ref.coordinate_ref("Latitude")
             lons = ref.coordinate_ref("Longitude")
             if lats is not None and lons is not None:
