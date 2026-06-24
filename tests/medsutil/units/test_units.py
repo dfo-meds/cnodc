@@ -9,7 +9,12 @@ from tests.helpers.base_test_case import BaseTestCase
 
 class TestConversions(BaseTestCase):
 
-    VALID_UNITS = {
+    COMMON_SI_EQUIVALENTS = {
+        "inch": (0.0254, "m"),
+        "mi": (1609.344, "m"),
+    }
+
+    PREFERRED_UNITS = {
         'hPa': 'hPa',
         'dbar': 'dbar',
         'bar': 'bar',
@@ -28,19 +33,19 @@ class TestConversions(BaseTestCase):
         'g kg-1': 'kg kg-1',
         '1': '1',
         'K': 'K',
-        '°C': 'degrees_Celsius',
-        'degree_Celsius': 'degrees_Celsius',
-        'degree_C': 'degrees_Celsius',
-        'ppb': 'ppb',
+        '°C': 'degree_C',
+        'degree_Celsius': 'degree_C',
+        'degree_C': 'degree_C',
+        'ppb': '1e-9',
         'umol l-1': 'umol L-1',
         'micromol/kg': 'umol kg-1',
         'micromol/l': 'umol L-1',
         'mhos/m': 'S m-1',
         's-1': 's-1',
         'Hz': 'Hz',
-        'degree': 'arc_degree',
-        'degree_east': 'degrees_east',
-        'degree_north': 'degrees_north',
+        'degree': 'degree',
+        'degree_east': 'degree_east',
+        'degree_north': 'degree_north',
     }
 
     @classmethod
@@ -52,8 +57,10 @@ class TestConversions(BaseTestCase):
         super().assertAlmostEqual(first, second, *args, **kwargs)
 
     def test_speed(self):
-        self.assertAlmostEqual(self._converter.convert(100, "m s-1", "km h-1"), decimal.Decimal('360'))
-        self.assertAlmostEqual(self._converter.convert(decimal.Decimal(1852), "m h-1", "knot"), decimal.Decimal('1'))
+        self.assertAlmostEqual(self._converter.convert(100.0, "m s-1", "km h-1"), 360)
+        self.assertAlmostEqual(self._converter.convert(20.0, "m s-1", "mi hr-1"), 44.7387258)
+        self.assertAlmostEqual(self._converter.convert(1852.0, "m h-1", "knots"), 1)
+        self.assertAlmostEqual(self._converter.convert(20.0, "mi hr-1", "m s-1"), 8.9408)
 
     def test_m2(self):
         self.assertAlmostEqual(self._converter.convert(1, "km2", "m2"), decimal.Decimal('1000000'))
@@ -91,9 +98,17 @@ class TestConversions(BaseTestCase):
         self.assertRaises(CodedError, self._converter.convert, 1, 'm s-2', '°C')
         self.assertRaises(CodedError, self._converter.convert, 1, 'm s-2', 'm s')
 
+    def test_si_equivalents(self):
+        for non_si_unit in self.COMMON_SI_EQUIVALENTS:
+            with self.subTest(unit=non_si_unit):
+                expected_value, expected_si_units = self.COMMON_SI_EQUIVALENTS[non_si_unit]
+                func, dims = self._converter.raw_unit_info(non_si_unit)
+                self.assertAlmostEqual(decimal.Decimal(expected_value), func.convert(1))
+                self.assertEqual(expected_si_units, self._converter.get_equivalent_base_units(non_si_unit))
+
     def test_valid_unit(self):
 
-        for unit in TestConversions.VALID_UNITS:
+        for unit in TestConversions.PREFERRED_UNITS:
             with self.subTest(unit=unit):
                 self.assertTrue(self._converter.is_valid_unit(unit))
 
@@ -106,14 +121,16 @@ class TestConversions(BaseTestCase):
                 self.assertFalse(self._converter.is_valid_unit(unit))
 
     def test_standardize_units(self):
-        self.assertEqual(self._converter.standardize('psu'), '0.001')
-        for x in TestConversions.VALID_UNITS:
+        self.assertEqual(self._converter.standardize('psu'), '1e-3')
+        for x in TestConversions.PREFERRED_UNITS:
             with self.subTest(unit=x):
-                self.assertEqual(TestConversions.VALID_UNITS[x], self._converter.standardize(x))
-        self.assertIsNone(self._converter.standardize('foobarmonkeyhat'))
+                self.assertEqual(TestConversions.PREFERRED_UNITS[x], self._converter.standardize(x))
+        with self.assertRaises(UnitError):
+            self._converter.standardize('foobarmonkeyhat')
 
     def test_compatible_units(self):
         self.assertTrue(self._converter.compatible('m s', 's m'))
+        self.assertTrue(self._converter.compatible('mi hr-1', 'm s-1'))
         self.assertTrue(self._converter.compatible('Pa', 'bar'))
         self.assertTrue(self._converter.compatible('N', 'kg m s-2'))
         self.assertTrue(self._converter.compatible('°C m-1', 'K m-1'))

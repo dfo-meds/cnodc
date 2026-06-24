@@ -30,6 +30,9 @@ def build_cli():
     import pipeman_cli.dbman as dbman
     commands['db'] = t.cast(click.Group, dbman.db)
 
+    import pipeman_cli.report as report
+    commands['report'] = t.cast(click.Group, report.main)
+
     from medsutil.multiclick import CommandLineInterface
     return CommandLineInterface(None, commands)
 

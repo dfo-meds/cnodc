@@ -195,7 +195,7 @@ def calc_distance(latitude1: ocproc2.SingleElement | None,
             or longitude1.is_empty()):
         return None, 9, None
     return (
-        convert(geodesy.haversine_degrees(
+        convert(geodesy.great_circle_distance(
             (latitude1.to_ufloat(), longitude1.to_ufloat()),
             (latitude2.to_ufloat(), longitude2.to_ufloat())
         ), "m", units),

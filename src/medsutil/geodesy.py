@@ -3,26 +3,64 @@
     Note that we re-implement some functions here to properly account for uncertainty in the
     measurement value using the uncertainties library.
 """
-
+from typing import NamedTuple
+from geographiclib.geodesic import Geodesic
 import shapely
 import typing as t
 import medsutil.math as amath
 
-YXPoint = tuple[amath.AnyNumber, amath.AnyNumber]
+
+class YXPoint(NamedTuple):
+    y: amath.AnyNumber
+    x: amath.AnyNumber
+
+class Ellipsoid:
+
+    def __init__(self, major: float | int, minor: float | int):
+        self.major: float | int = major
+        self.minor: float | int = minor
+        self._geodesic: Geodesic | None = None
+
+    @property
+    def geodesic(self) -> Geodesic:
+        if self._geodesic is None:
+            self._geodesic = Geodesic(self.major, (self.major - self.minor) / self.major)
+        return t.cast(Geodesic, self._geodesic)
+
+    def measure(self, yx1: YXPoint, yx2: YXPoint) -> float:
+        result = self.geodesic.Inverse(
+            float(yx1[0]),
+            float(yx1[1]),
+            float(yx2[0]),
+            float(yx2[1]),
+        )
+        return result['s12']
+
+
 
 _EARTH_RADIUS = 6371000  # error: 10000, in m
 
+_ELLIPSOIDS = {
+    # from https://en.wikipedia.org/wiki/World_Geodetic_System
+    "WGS84": Ellipsoid(6378137, 6356752.3142245)
+}
 
-def haversine_degrees(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
+def geodesic_distance(yx1: YXPoint, yx2: YXPoint, ellipsoid="WGS84") -> float:
+    # TODO: we should add some error calculations if we ever get to them
+    # the calculation itself is -very- accurate, but the input values may not be
+    return _ELLIPSOIDS[ellipsoid].measure(yx1, yx2)
+
+def great_circle_distance(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
     """Calculate the distance between two points using the haversine function, maintaining
         the uncertainty associated with the coordinates.
     """
-    return haversine(
-        (amath.radians(yx1[0]), amath.radians(yx1[1])),
-        (amath.radians(yx2[0]), amath.radians(yx2[1]))
+    return haversine_radians(
+        YXPoint(amath.radians(yx1[0]), amath.radians(yx1[1])),
+        YXPoint(amath.radians(yx2[0]), amath.radians(yx2[1]))
     )
 
-def haversine(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
+def haversine_radians(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
+    # thanks to Wikipedia for this
     d_lat = amath.sub(yx2[0], yx1[0])
     d_lon = amath.sub(yx2[1], yx1[1])
     a1 = amath.pow(amath.sin(amath.mul(d_lat, 0.5)), 2)

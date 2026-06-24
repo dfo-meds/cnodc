@@ -1,4 +1,5 @@
 import medsutil.ocproc2 as ocproc2
+from medsutil.ocproc2.util import Quality
 from pipeman.programs.qc.base import review, DeepDiveChecker
 from medsutil.ocproc2.refs import ElementRef, ParentRecordRef
 
@@ -7,8 +8,8 @@ class GTSPPCoordinateCheck(DeepDiveChecker):
 
     def __init__(self):
         super().__init__(
-            'gtspp_coordinates',
-            '1.0',
+            test_name='gtspp_coordinates',
+            test_version='1.0',
             test_tags=['GTSPP_1.2', 'GTSPP_1.3']
         )
 
@@ -17,7 +18,7 @@ class GTSPPCoordinateCheck(DeepDiveChecker):
         self.require_element_check(ref.setdefault_coordinate_ref("Longitude"))
         self.require_element_check(ref.setdefault_coordinate_ref("Time"))
 
-    @review("element_required", fail_flag=9, pass_flag=1)
+    @review("element_required", fail_flag=Quality.MISSING, pass_flag=Quality.GOOD)
     def require_element_check(self, ref: ElementRef):
         self.element_require_value(ref.element)
 

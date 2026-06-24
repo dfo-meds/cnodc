@@ -16,7 +16,7 @@ UNICODE_EXPONENTS = {
     '⁻': '-'
 }
 
-UDUNITS_MULTIPLICATION = ('*', '.', '·')
+UDUNITS_MULTIPLICATION = ('*', '·')
 UDUNITS_DIVISION = ('PER', 'per', '/')
 UDUNITS_BOTH_OPS = (*UDUNITS_DIVISION, *UDUNITS_MULTIPLICATION)
 UDUNITS_EXPONENTIATION = ('^', '**')
@@ -29,7 +29,16 @@ UDUNITS_LOG = {
 }
 
 def parse_unit_string(units: str) -> UnitExpression:
-    return _parse_unit_string_with_shift(units)
+    return _parse_unit_string_with_shift(_clean_decimal_points(units))
+
+def _clean_decimal_points(units: str) -> str:
+    if "." in units:
+        return "".join(
+            f"{x}{("." if x[-1].isdigit() else "·")}"
+            for x in units.split(".")
+        )[:-1]
+    else:
+        return units
 
 
 def _parse_unit_string_with_shift(units: str):
