@@ -7,8 +7,12 @@ FROM python:3.14.3-slim-trixie
 # RUN adduser --system --no-create-home --group servicerunner
 
 # Get the required libraries to compile psycopg
-RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y --update
+
+RUN apt-get update -y
+RUN apt-get install libpq-dev build-essential dos2unix dumb-init -y
+RUN apt-get install --reinstall ca-certificates -y
 RUN apt-get dist-clean
+RUN update-ca-certificates
 
 WORKDIR /python-service
 
