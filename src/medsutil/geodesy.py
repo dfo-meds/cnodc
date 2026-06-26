@@ -8,6 +8,8 @@ from geographiclib.geodesic import Geodesic
 import shapely
 import typing as t
 import medsutil.math as amath
+from medsutil.math.helpers import numerical_derivative
+from medsutil.math.numbers import with_error_propagation
 
 
 class YXPoint(NamedTuple):
@@ -20,6 +22,16 @@ class Ellipsoid:
         self.major: float | int = major
         self.minor: float | int = minor
         self._geodesic: Geodesic | None = None
+        self._sn_geodesic_inverse: t.Callable[..., amath.AnyNumber] | None = None
+
+    @property
+    def sn_measure(self) -> t.Callable[..., amath.AnyNumber]:
+        if self._sn_geodesic_inverse is None:
+            @with_error_propagation(..., ..., ..., ..., units_func=lambda: "m")
+            def func(y1, x1, y2, x2, /):
+                return self._measure(y1, x1, y2, x2)
+            self._sn_geodesic_inverse = func
+        return t.cast(t.Callable, self._sn_geodesic_inverse)
 
     @property
     def geodesic(self) -> Geodesic:
@@ -27,14 +39,21 @@ class Ellipsoid:
             self._geodesic = Geodesic(self.major, (self.major - self.minor) / self.major)
         return t.cast(Geodesic, self._geodesic)
 
-    def measure(self, yx1: YXPoint, yx2: YXPoint) -> float:
-        result = self.geodesic.Inverse(
-            float(yx1[0]),
-            float(yx1[1]),
-            float(yx2[0]),
-            float(yx2[1]),
-        )
-        return result['s12']
+    def measure(self, yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
+        y1, x1 = yx1
+        y2, x2 = yx2
+        if any(amath.is_science_number(n) for n in (y1, x1, y2, x2)):
+            return self.sn_measure(y1, x1, y2, x2, fn=self._measure)
+        else:
+            return self._measure(y1, x1, y2, x2)
+
+    def _measure(self, y1: amath.BasicNumber, x1: amath.BasicNumber, y2: amath.BasicNumber, x2: amath.BasicNumber) -> float:
+        return self.geodesic.Inverse(
+            float(y1),
+            float(x1),
+            float(y2),
+            float(x2),
+        )["s12"]
 
 
 
@@ -45,9 +64,7 @@ _ELLIPSOIDS = {
     "WGS84": Ellipsoid(6378137, 6356752.3142245)
 }
 
-def geodesic_distance(yx1: YXPoint, yx2: YXPoint, ellipsoid="WGS84") -> float:
-    # TODO: we should add some error calculations if we ever get to them
-    # the calculation itself is -very- accurate, but the input values may not be
+def geodesic_distance(yx1: YXPoint, yx2: YXPoint, ellipsoid="WGS84") -> amath.AnyNumber:
     return _ELLIPSOIDS[ellipsoid].measure(yx1, yx2)
 
 def great_circle_distance(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
@@ -63,11 +80,11 @@ def haversine_radians(yx1: YXPoint, yx2: YXPoint) -> amath.AnyNumber:
     # thanks to Wikipedia for this
     d_lat = amath.sub(yx2[0], yx1[0])
     d_lon = amath.sub(yx2[1], yx1[1])
-    a1 = amath.pow(amath.sin(amath.mul(d_lat, 0.5)), 2)
+    a1 = amath.pow_(amath.sin(amath.mul(d_lat, 0.5)), 2)
     a2 = amath.product((
         amath.cos(yx1[0]),
         amath.cos(yx2[0]),
-        amath.pow(amath.sin(amath.mul(d_lon, 0.5)), 2)
+        amath.pow_(amath.sin(amath.mul(d_lon, 0.5)), 2)
     ))
     a = amath.add(a1, a2)
     c = amath.mul(2, amath.atan2(amath.sqrt(a), amath.sqrt(amath.sub(1, a))))

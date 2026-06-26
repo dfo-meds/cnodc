@@ -1,0 +1,147 @@
+From NIST GUM
+
+When a measurement is repeated many times, we obtain a proper (mean, standard deviation) pair to work with. We concern
+ourselves below with single samples that cannt be averaged.
+
+When an instrument gives a precision like +/- 0.003, there are some options
+- this may be a standard deviation, in which case it can be used directly
+- this may be a multiple of a standard deviation (e.g. 2sigma, 3sigma)
+- this may be a "guaranteed" distribution that is normally distributed
+- if unsure, treating it as uniform probability distribution from [x - dx, x + dx] is the most reasonable
+
+A "rounded" value gives +/- half the smallest increment as a uniform probability distribution, for example 0.234 is
+actually [0.2335, 0.2345].
+
+A "chopped" value should be treated as a uniform probability distribution from the given value up to adding one of the
+smallest increment - for example, 0.234 chopped is actually [0.234, 0.235]. Note that the EXPECTED value of a chopped
+value is actually adding half the smallest increment (in this case 0.2345).
+
+Where rounding or chopping was used, assuming either is 50% likely gives us a non-uniform distribution (referred to here
+as a 1-2-1 distribution) like so (dx is half the smallest increment provided):
+- [x-dx, x) -> 0.25
+- [x, x+dx] -> 0.5
+- (x+dx, x+2dx] -> 0.25
+
+
+NIST provides the following guidelines to convert non-standard deviations to standard deviations (s)
+- For multiple standard deviations, divide by the multiple (e.g. s = 2sigma/2)
+- For the uniform (aka rectangular) probability distributions with bounds [a,b], use x=(a+b)/2   d=(b-a)/2   s=d/sqrt(3)
+- For triangular distributions, use x=(a+b)/2,  d=(b-a)/2  s=d/sqrt(6)
+- For the 1-2-1 probability distributions, take [a,b] as the 50% probability window and use x=(a+b)/2  d=(b-a)/2  s=1.48d
+- Note if a 1-4-1 probability distribution is used, take [a,b] as the 67% probability window and use x=(a+b)/2  d=(b-a)/2  s=d
+- If the data is believed to be normally distributed and "guaranteed" to be within [a,b],  use x=(a+b)/2  d=(b-a)/2  s=d/3
+  this assumes that b-a = 3sigma (i.e. we have a 99.73% confidence interval)
+
+We therefore recognize that uncertainty should be provided in one of the following ways that dictates its treatment.
+In all cases dx is the value provided for uncertainty. The tuple represents (x, s), i.e. the recommended value to be
+used in math and the standard deviation. The combination of tehse is called X.
+
+uniform: (x, dx/sqrt(3))
+[appropriate for rounding, instrumentation when not otherwise known, dx is half the smallest increment]
+[actual probability distribution assumed is uniform from [x-dx, x+dx]
+
+standard: (x, dx)
+[appropriate for when the standard deviation is known, dx is the standard deviation]
+[actual probability distribution assumed is normal u=x, s=dx
+
+chopped: (x + dx, dx/sqrt(3))
+[appropriate for truncation, dx is half the smallest increment]
+[actual probability distribution assumed is uniform from [x, x+2dx]
+
+chopped_or_rounded: (x + dx/2, 0.74dx)
+[appropriate for when rounded or truncated, but which is unknown, dx is half the smallest increment]
+[actual probability distribution assumed is 1-2-1 for [x-dx,x]  [x, x+dx]  [x+dx, x+2dx]]
+[see attached graph for how this is a better fit]
+
+If multiple uncertainties are provided (e.g. a standard one from the instrumentation and a chopped one from truncation),
+the one with the largest sigma should be used.
+
+
+
+In double-precision floating numbers like Python's, it's basically like any given
+float is actually a relative error of 2e-53 (if rounding) or 2e-52 (if truncating).
+This translates to approximately a relative error of approximately 0.111022302 ppq
+(for rounding) and twice that for truncating.
+
+The exact details can be taken from Python's sys.float_info (notably the error is
+2^-(sys.float_info.mant_dig - sys.float_info.rounds)).
+
+That is to say, any floating point X can be assumed to be uniformly distributed
+according to (x, 1.11022302462515016e-16 x) if rounded (the default in Python).
+
+Compared to the other uncertainty, it should be trivial as this resolves to a
+sigma of approximately x (6.4e-17) - that is, the first sixteen decimal places
+should be accurate. However, floating-point error can be propagated like other
+uniform errors and so it is a reasonable default for a floating point number's
+uncertainty.
+
+Amusingly, the floating-point error of computers also adds uncertainty to the
+uncertainty itself. However, this should be relatively minor in comparison to
+the actual uncertainty. It can be mitigated using the appropriate math library
+functions to reduce floating point errors like fsum.
+
+For other math libraries, like decimal, a different approach may be needed in
+calculating (x, s). Left as an exercise to the reader.
+
+
+
+
+Propagation of uncertainty is then done in the standard scientific method manner, assuming X = (x, sx), Y = (y, sy)
+and a, b are known constants (i.e. A = (a, 0), B = (b, 0)) and c is the covariance between x and y.
+
+See https://en.wikipedia.org/wiki/Propagation_of_uncertainty for a nice table
+
+Also note the LinearCombinations section which is essentially the approach we will use.
+
+
+
+NIST recommends comparing two individual measurements in the form (x1, s1) and (x2, s2) in the following manner. If the
+measurements are actually samples for n>1, then more appropriate statistical tests should be used.
+
+This is called "metrological compatibility"
+
+1. s_c (combined uncertainty) = sqrt(s1 ** 2, s2 ** 2)
+2. calculate C = |x2 - x1| / s_c (this is analogous to a z-score)
+3. one NIST recommendation is C < 2 indicates good ; C > 3 indicates bad ; C 2-3 indicates caution!
+
+
+
+
+As a general approach, we will therefore represent a number as (x, s) depending on how
+we measured it. We will apply error propagation techniques as the number passes through
+any operations. And we can then define two numbers as being "close" if they are metrologically
+compatible according to NIST using the above procedure.
+
+Where multiple measurements are available, we may want to use the:
+
+- worst case [compare against all of them, fail if any fail]
+- best case  [compare against all of them, pass if any pass]
+- average case [compute a proper (x_bar, std_dev) from the measurements and use a proper statistical test]
+
+Where we want to compare >= or <=, we actually want "close or greater/less" or
+"strictly less/greater".
+
+Where we want to compare > or <, care needs to be taken when the value is close
+- a strict approach says that the value must be greater/less and NOT close
+- but generally you will want to consider if >= or <= is actually more appropriate
+
+
+
+A brief search suggests most places round the measurements. Computers seem to often
+use round-to-nearest-even for stability. Also ASTM E29 standard.
+
+Under these circumstances, the only difference is how exactly half units are treated.
+Consider these rounded values:
+
+- 2.4 represents a uniformly distributed value from [2.35, 2.45]
+- 2.5 represents a uniformly distributed value from (2.45, 2.55)
+- 2.6 represents a uniformly distributed value from [2.55, 2.65]
+- 2.7 represents a uniformly distributed value from (2.65, 2.75)
+etc
+
+This doesn't change the error accuracy, since 0.5 is exactly one point and the
+probability is basically 0 in the real numbers.
+
+
+
+

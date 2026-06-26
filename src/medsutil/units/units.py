@@ -7,7 +7,7 @@ import zrlog
 import threading
 from autoinject import injector
 
-from medsutil.math import AnyNumber
+from medsutil.math import AnyNumber, ScienceNumber, is_science_number
 from medsutil.units.parsing import parse_unit_string
 from medsutil.units.structures import LinearFunction, Converter, UnitExpression, UnitError
 import medsutil.math as amath
@@ -183,14 +183,7 @@ class UnitConverter:
         return expr.udunit_str(self)
 
     def convert[T: AnyNumber](self, quantity: T, original_units: str, output_units: str) -> T:
-        if amath.is_science_number(quantity) | isinstance(quantity, decimal.Decimal):
-            return self._convert(quantity, original_units, output_units)
-        elif isinstance(quantity, float):
-            return float(self._convert(decimal.Decimal(quantity), original_units, output_units))
-        elif isinstance(quantity, int):
-            return int(self._convert(decimal.Decimal(quantity), original_units, output_units))
-        else:
-            raise TypeError('Invalid type for conversion')
+        return self._convert(quantity, original_units, output_units)
 
     def _convert(self, quantity: decimal.Decimal, original_units: str, output_units: str) -> decimal.Decimal:
         self._load_tables()
@@ -198,7 +191,11 @@ class UnitConverter:
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
         if not self._check_compatibility(dims_original, dims_output):
             raise UnitError(f"Incompatible dimensions [{self._format_dims(dims_original)}] vs [{self._format_dims(dims_output)}]", 2001)
-        return factor_output.invert().convert(factor_original.convert(quantity))
+
+        result = factor_output.invert().convert(factor_original.convert(quantity))
+        if is_science_number(result):
+            result.set_units(output_units)
+        return result
 
     def _format_dims(self, dims: dict[str, int]) -> str:
         s = []
