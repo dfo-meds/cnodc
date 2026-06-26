@@ -1,24 +1,28 @@
-import json
-import logging
+import math
 import sys
 import pathlib
-import traceback
-from pprint import pprint
 
 sys.path.append(str(pathlib.Path(__file__).parent.absolute().resolve() / 'src'))
 
+from geographiclib.geodesic import Geodesic
+from medsutil.math.helpers import numerical_derivative
 
-from medsutil.ocproc2 import SingleElement
+wgs = Geodesic.WGS84
 
-se = SingleElement([1,2,3])
-print(se.is_list_like())
-print(se.is_string_like())
+def distance(y1, x1, y2, x2, /):
+    return wgs.Inverse(y1, x1, y2, x2)["s12"]
 
-se = SingleElement(5)
-print(se.is_list_like())
-print(se.is_string_like())
+d_y1 = numerical_derivative(distance, 0, float)
+d_y2 = numerical_derivative(distance, 2, float)
+d_x1 = numerical_derivative(distance, 1, float)
+d_x2 = numerical_derivative(distance, 3, float)
 
+def distance_and_derivatives(y1, x1, y2, x2, dy1, dx1, dy2, dx2, /):
+    print(distance(y1, x1, y2, x2))
+    print(d_y1(y1, x1, y2, x2) * dy1)
+    print(d_y2(y1, x1, y2, x2) * dy2)
+    print(d_x1(y1, x1, y2, x2) * dx1)
+    print(d_x2(y1, x1, y2, x2) * dx2)
 
-se = SingleElement("foobar")
-print(se.is_list_like())
-print(se.is_string_like())
+cp = 0.00001
+distance_and_derivatives(0, 0, 5, 5, cp, cp, cp, cp)

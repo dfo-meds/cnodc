@@ -1,7 +1,7 @@
-from __future__ import annotations
 import decimal
 import typing as t
 from pipeman.exceptions import CNODCError
+import medsutil.math as amath
 
 if t.TYPE_CHECKING:
     from medsutil.units import UnitConverter  # pragma: no cover
@@ -300,42 +300,45 @@ class Exponent(UnitExpression):
 
 class LinearFunction(Converter):
 
-    def __init__(self, factor: decimal.Decimal, shift: decimal.Decimal = decimal.Decimal("0")):
-        self._scale = factor
-        self._shift = shift
+    def __init__(self, factor: amath.NonScienceNumber, shift: amath.NonScienceNumber = 0):
+        self._scale: amath.NonScienceNumber = factor
+        self._shift: amath.NonScienceNumber = shift
 
     def __repr__(self):
-        if self._shift > 0:
-            return f'{self._scale}x+{self._shift}'
-        elif self._shift < 0:
-            return f'{self._scale}x{self._shift}'
-        else:
+        if amath.is_zero(self._shift):
             return f'{self._scale}x'
+        elif amath.gt(self._shift, 0):
+            return f'{self._scale}x+{self._shift}'
+        else:
+            return f'{self._scale}x{self._shift}'
 
-    def convert(self, input_val):
-        return (input_val * self._scale) + self._shift
+    def convert(self, input_val: amath.AnyNumber) -> amath.AnyNumber:
+        return amath.add(amath.mul(input_val, self._scale), self._shift)
 
-    def scale(self, factor: decimal.Decimal):
+    def scale(self, factor: amath.NonScienceNumber) -> LinearFunction:
         if factor == 1:
             return self
-        return LinearFunction(self._scale * factor)
+        return LinearFunction(amath.mul(self._scale, factor))
 
-    def power(self, factor: decimal.Decimal):
+    def power(self, factor: amath.NonScienceNumber) -> LinearFunction:
         if factor == 1:
             return self
-        return LinearFunction(self._scale ** factor)
+        return LinearFunction(amath.pow_(self._scale, factor))
 
-    def shift(self, factor: decimal.Decimal):
+    def shift(self, factor: amath.NonScienceNumber) -> LinearFunction:
         if factor == 0:
             return self
-        return LinearFunction(self._scale, self._shift + factor)
+        return LinearFunction(self._scale, amath.add(self._shift, factor))
 
     def invert(self):
-        return LinearFunction(decimal.Decimal("1") / self._scale, (decimal.Decimal(-1) * self._shift) / self._scale)
+        return LinearFunction(
+            amath.div(1, self._scale),
+            amath.div(amath.neg(self._shift), self._scale)
+        )
 
     def product(self, other_converter):
         if isinstance(other_converter, LinearFunction):
-            return LinearFunction(self._scale * other_converter._scale)
+            return LinearFunction(amath.mul(self._scale, other_converter._scale))
         raise UnitError("Cannot take products of other things yet", 3002)
 
 

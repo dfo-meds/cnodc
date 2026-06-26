@@ -18,7 +18,7 @@ def cos(x):
     else:
         return _math.cos(x)
 
-@num.as_science_number(lambda x: sin(x), units_func=lambda x: "1")
+@num.with_error_propagation(lambda x: sin(x), units_func=lambda x: "1")
 def sn_cos(x: mt.AnyNumber) -> mt.ScienceNumberProtocol:
     return cos(_common.nominal_value(x))
 
@@ -39,7 +39,7 @@ def sin(x):
     else:
         return _math.sin(x)
 
-@num.as_science_number(lambda x: -1 * cos(x), units_func=lambda x: "1")
+@num.with_error_propagation(lambda x: -1 * cos(x), units_func=lambda x: "1")
 def sn_sin(x: mt.AnyNumber) -> mt.ScienceNumberProtocol:
     return sin(_common.nominal_value(x))
 
@@ -69,7 +69,7 @@ def asin(x):
         return help.taylor_series_approximation(x, _asin_taylor_series)
     return _math.asin(x)
 
-@num.as_science_number(lambda x: 1 / ((1 - (x ** 2)) ** 0.5), units_func=lambda x: "radians")
+@num.with_error_propagation(lambda x: 1 / ((1 - (x ** 2)) ** 0.5), units_func=lambda x: "radians")
 def sn_asin(x):
     return asin(_common.nominal_value(x))
 
@@ -97,7 +97,7 @@ def acos(x):
         return (mc.pi(decimal.Decimal) / decimal.Decimal(2)) - help.taylor_series_approximation(x, _asin_taylor_series)
     return _math.acos(x)
 
-@num.as_science_number(lambda x: 1 / ((1 - (x ** 2)) ** 0.5), units_func=lambda x: "radians")
+@num.with_error_propagation(lambda x: 1 / ((1 - (x ** 2)) ** 0.5), units_func=lambda x: "radians")
 def sn_acos(x):
     return acos(_common.nominal_value(x))
 
@@ -118,7 +118,7 @@ def atan(x):
             return help.taylor_series_approximation(x, _atan_small_derivative)
     return _math.atan(x)
 
-@num.as_science_number(lambda x: 1 / ((1 + (x ** 2)) ** 0.5), units_func=lambda x: "radians")
+@num.with_error_propagation(lambda x: 1 / ((1 + (x ** 2)) ** 0.5), units_func=lambda x: "radians")
 def sn_atan(x):
     return atan(_common.nominal_value(x))
 
@@ -163,7 +163,7 @@ def degrees(x):
         return (decimal.Decimal(180) / mc.pi(decimal.Decimal)) * x
     return _math.degrees(x)
 
-@num.as_science_number(lambda x: 180 / mc.pi(decimal.Decimal), units_func=lambda x: "degrees")
+@num.with_error_propagation(lambda x: 180 / mc.pi(decimal.Decimal), units_func=lambda x: "degrees")
 def sn_degrees(x):
     return degrees(_common.nominal_value(x))
 
@@ -175,7 +175,7 @@ def radians(x):
         return (mc.pi(decimal.Decimal) / decimal.Decimal(180)) * x
     return _math.radians(x)
 
-@num.as_science_number(lambda x: mc.pi(decimal.Decimal) / 180, units_func=lambda x: "radians")
+@num.with_error_propagation(lambda x: mc.pi(decimal.Decimal) / 180, units_func=lambda x: "radians")
 def sn_radians(x):
     return radians(_common.nominal_value(x))
 

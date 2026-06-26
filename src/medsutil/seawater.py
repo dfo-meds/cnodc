@@ -45,7 +45,9 @@ def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
     top = amath.calculate_polynomial(pressure, DEPTH_A, DEPTH_B, DEPTH_C, DEPTH_D, DEPTH_E, 0)
     bottom = amath.add(surface_gravity(latitude), amath.mul(DEPTH_F, pressure))
     # Note: 5% uncertainty in depth
-    return amath.div(top, bottom)
+    depth = amath.div(top, bottom)
+    if amath.is_science_number(depth):
+        depth.set_min_error_if_worse(0.05, is_relative=True)
 
 
 PRESSURE_A = amath.NumberString("5.92e-3")
@@ -58,7 +60,7 @@ def eos80_pressure[T: AnyNumber](depth: T, latitude: T) -> T:
     """Calculate pressure in dbars from depth in meters and latitude in decimal degrees."""
     # dbars
     sin_theta = amath.sin(amath.radians(abs(latitude)))
-    c1 = amath.add(PRESSURE_A, amath.mul(PRESSURE_B, amath.pow(sin_theta, 2)))
+    c1 = amath.add(PRESSURE_A, amath.mul(PRESSURE_B, amath.pow_(sin_theta, 2)))
     c2 = amath.sub(1, c1)
     # minimum uncertainty?
     return amath.div(
@@ -66,7 +68,7 @@ def eos80_pressure[T: AnyNumber](depth: T, latitude: T) -> T:
                 c2,
                 amath.sqrt(
                     amath.sub(
-                        amath.pow(c2, 2),
+                        amath.pow_(c2, 2),
                         amath.mul(PRESSURE_C, depth)
                     )
                 )
@@ -84,11 +86,11 @@ def eos80_freezing_point_t68[T: AnyNumber](salinity: T, pressure: T) -> T:
     """Calculate freezing point in degrees C (IPTS-68 scale) from practical salinity in psu and pressure in dbars."""
     if _functions.between(4, salinity, 40):
         # Note: 0.3% accuracy
-        return amath.summation((
+        return amath.sum_((
             amath.mul(FP_A, pressure),
             amath.mul(FP_B, salinity),
-            amath.mul(FP_C, amath.pow(salinity, decimal.Decimal("1.5"))),
-            amath.mul(FP_D, amath.pow(salinity, 2))
+            amath.mul(FP_C, amath.pow_(salinity, decimal.Decimal("1.5"))),
+            amath.mul(FP_D, amath.pow_(salinity, 2))
         ))
     else:
         raise ValueError("Invalid salinity")
