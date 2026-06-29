@@ -116,16 +116,6 @@ def collapse(iterable: t.Iterable, collapse_types: tuple[type, ...] | None = Non
             yield x
 
 
-
-
-
-
-
-
-def product(x: t.Iterable[mt.AnyNumber], /):
-    return _math.prod(x)
-
-
 def nominal_value(x: mt.AnyNumber | mt.NumberString, to_float: bool = True) -> mt.BasicNumber:
     if mt.is_science_number(x):
         x = x.nominal_value

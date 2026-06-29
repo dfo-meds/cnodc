@@ -41,6 +41,7 @@ from medsutil.math._functions import (
     mul,
     div,
     neg,
+    modulo,
 
     gt,
     lt,
