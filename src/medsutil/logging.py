@@ -9,7 +9,7 @@ import zrlog
 from autoinject import injector
 
 import medsutil.json as json
-from medsutil.email import EmailController
+from medsutil.sendmail import EmailController
 
 
 class EmailHandler(logging.Handler):
