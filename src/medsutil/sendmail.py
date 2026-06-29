@@ -172,8 +172,8 @@ class EmailController:
                 to_addrs.extend(self._standardize_email_list(cc_emails))
             if bcc_emails:
                 to_addrs.extend(self._standardize_email_list(bcc_emails))
-            import email
-            msg = email.message.EmailMessage()
+            from email.message import EmailMessage
+            msg = EmailMessage()
             msg['Subject'] = subject
             msg['To'] = self._standardize_email_list(to_emails)
             if cc_emails:
