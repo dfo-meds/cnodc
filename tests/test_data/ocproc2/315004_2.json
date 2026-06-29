@@ -1,0 +1,611 @@
+{
+  "_metadata": {
+    "ProfileID": "1",
+    "PlatformID": "12",
+    "IMONumber": "123",
+    "WMOID": "12345",
+    "PlatformName": "ShippyMcShip",
+    "ShipLineNumber": "1234",
+    "ShipTransectNumber": 2,
+    "WMOAgencyCode": 3,
+    "PlatformSpeed": {
+      "_value": 1.2345,
+      "_metadata": {
+        "Units": "m s-1"
+      }
+    },
+    "PlatformDirection": {
+      "_value": 234.5678,
+      "_metadata": {
+        "Units": "arc_degree"
+      }
+    },
+    "WMOXBTType": 1,
+    "XBTHeight": {
+      "_value": 2,
+      "_metadata": {
+        "Units": "m"
+      }
+    },
+    "InstrumentManufacturingDate": "2013-01-02T03:04:05+00:00",
+    "SoftwareID": "madeup"
+  },
+  "_parameters": {
+    "WindSpeed": {
+      "_value": 3.456,
+      "_metadata": {
+        "Units": "kts",
+        "SensorDepth": {
+          "_value": -5,
+          "_metadata": {
+            "Units": "cm",
+            "SensorDepthReference": "local_ground"
+          }
+        }
+      }
+    },
+    "WindDirection": {
+      "_value": 123.4567,
+      "_metadata": {
+        "Units": "arc_degree",
+        "SensorDepth": {
+          "_value": -5,
+          "_metadata": {
+            "Units": "cm",
+            "SensorDepthReference": "local_ground"
+          }
+        }
+      }
+    },
+    "AirTemperature": {
+      "_value": 4.5432,
+      "_metadata": {
+        "Units": "degrees_C",
+        "SensorDepth": {
+          "_value": -5,
+          "_metadata": {
+            "Units": "m",
+            "SensorDepthReference": "water"
+          }
+        }
+      }
+    },
+    "DewPointTemperature": {
+      "_value": 301.2345,
+      "_metadata": {
+        "Units": "K",
+        "SensorDepth": {
+          "_value": -5,
+          "_metadata": {
+            "Units": "m",
+            "SensorDepthReference": "water"
+          }
+        }
+      }
+    },
+    "WaveDirection": {
+      "_value": 12.3456,
+      "_metadata": {
+        "Units": "arc_degree"
+      }
+    },
+    "WavePeriod": {
+      "_value": 9.123,
+      "_metadata": {
+        "Units": "s"
+      }
+    },
+    "WaveHeight": {
+      "_value": 10.1234,
+      "_metadata": {
+        "Units": "cm"
+      }
+    },
+    "CurrentDirection": {
+      "_value": 192.22141241,
+      "_metadata": {
+        "Units": "arc_degree",
+        "WMOCurrentMeasurementDuration": 6,
+        "WMOCurrentMeasurementMethod": 6
+      }
+    },
+    "CurrentSpeed": {
+      "_value": 5.4321,
+      "_metadata": {
+        "Units": "m s-1",
+        "WMOCurrentMeasurementDuration": 6,
+        "WMOCurrentMeasurementMethod": 6
+      }
+    },
+    "SeaDepth": {
+      "_value": 1234.567,
+      "_metadata": {
+        "Units": "m",
+        "Quality": 4
+      }
+    },
+    "Temperature": {
+      "_value": 1.5122,
+      "_metadata": {
+        "Units": "degrees_C",
+        "TemperatureScale": "ITS-90",
+        "WMOTemperatureSalinityMeasurementMethod": 7,
+        "SensorDepth": {
+          "_value": 5,
+          "_metadata": {
+            "Units": "cm"
+          }
+        },
+        "SensorSerial": "12345-123"
+      }
+    }
+  },
+  "_coordinates": {
+    "Time": "2026-06-19T13:40:05+00:00",
+    "Latitude": {
+      "_value": 45.123412315,
+      "_metadata": {
+        "Units": "degrees_north"
+      }
+    },
+    "Longitude": {
+      "_value": 91.312151241,
+      "_metadata": {
+        "Units": "degrees_east"
+      }
+    }
+  },
+  "_subrecords": {
+    "PROFILE": {
+      "0": {
+        "_records": [
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 305.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 25,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 304.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 50,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 304.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 75,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 303.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 100,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 303.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 125,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 302.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 150,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 302.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 175,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 301.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 200,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 301.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 225,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 300.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 250,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 300.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 275,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 299.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 300,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 299.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 325,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 298.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 350,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 298.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 375,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 297.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 400,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 297.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 425,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 296.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 450,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 296.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 475,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 295.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "SensorSerial": "2345-1234",
+                  "Quality": 1
+                }
+              }
+            },
+            "_coordinates": {
+              "Depth": {
+                "_value": 500,
+                "_metadata": {
+                  "Units": "m",
+                  "Quality": 1
+                }
+              }
+            }
+          }
+        ],
+        "_metadata": {
+          "DigitizationMethod": "selected_depths",
+          "WMOProfileInstrumentType": 32,
+          "WMOProfileRecorderType": 5
+        }
+      }
+    }
+  }
+}
