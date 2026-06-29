@@ -1,4 +1,9 @@
-CREATE EXTENSION IF NOT EXISTS postgis;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+        CREATE EXTENSION IF NOT EXISTS postgis;
+    END IF;
+END$$;
 
 -- Function that automatically sets the modified date on update
 CREATE OR REPLACE FUNCTION update_modified_date()
