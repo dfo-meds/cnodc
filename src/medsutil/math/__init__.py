@@ -15,7 +15,6 @@ from medsutil.math._common import (
     is_infinity,
     is_nan,
     collapse,
-    product,
     convert,
     match_convert
 )

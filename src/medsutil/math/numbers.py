@@ -95,6 +95,8 @@ class ScienceNumber:
         self._tag: str | None = tag
         if linear_combo is None:
             self._linear_combo = LinearCombination({self: 1})
+            if self._sigma is mt.Placeholder:
+                self._sigma = 0
         elif isinstance(linear_combo, (dict, list)):
             self._linear_combo = LinearCombination(linear_combo)
         else:
@@ -141,7 +143,7 @@ class ScienceNumber:
     @property
     def std_dev(self) -> mt.NonScienceNumber:
         if self._sigma is mt.Placeholder and self.linear_combo is not None:
-            self._sigma = basics.sqrt(_common.sum_(
+            self._sigma = basics.sqrt(basics.sum_(
                 abs(basics.pow_(basics.mul(factor, (var.std_dev or 0)), 2))
                 for var, factor in
                 self.linear_combo.expanded().items()

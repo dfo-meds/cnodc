@@ -107,10 +107,9 @@ def is_nan(x: mt.AnyNumber) -> bool:
         return _math.isnan(float(x))
 
 
-def collapse(iterable: t.Iterable, collapse_types: tuple[type, ...] | None = None) -> t.Iterable:
-    ct: tuple[type, ...] = (list, tuple, set) if collapse_types is None else collapse_types
+def collapse(iterable: t.Iterable) -> t.Iterable:
     for x in iterable:
-        if isinstance(x, ct):
+        if isinstance(x, t.Iterable) and not isinstance(x, str):
             yield from collapse(x)
         else:
             yield x
