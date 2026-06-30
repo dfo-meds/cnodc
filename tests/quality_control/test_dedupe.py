@@ -67,6 +67,21 @@ class TestDedupe(BaseTestCase):
             CompareResult.IDENTICAL,
         ),
         (
+            SingleElement(5.0, Units="degree_C", Uncertainty=SingleElement(0.05, UncertaintyType="uniform")),
+            SingleElement(5, Units="degree_C", Uncertainty=SingleElement(0.5, UncertaintyType="uniform")),
+            CompareResult.A_BETTER,
+        ),
+        (
+            SingleElement(4.5, Units="degree_C", Uncertainty=SingleElement(0.05, UncertaintyType="uniform")),
+            SingleElement(5, Units="degree_C", Uncertainty=SingleElement(0.5, UncertaintyType="uniform")),
+            CompareResult.A_BETTER,
+        ),
+        (
+            SingleElement(5.5, Units="degree_C", Uncertainty=SingleElement(0.05, UncertaintyType="uniform")),
+            SingleElement(5, Units="degree_C", Uncertainty=SingleElement(0.5, UncertaintyType="uniform")),
+            CompareResult.A_BETTER,
+        ),
+        (
             SingleElement(5, Units="degree_C", Uncertainty=SingleElement(0.5, UncertaintyType="uniform")),
             SingleElement(5.0, Units="degree_C", Uncertainty=SingleElement(0.05, UncertaintyType="uniform")),
             CompareResult.B_BETTER,
