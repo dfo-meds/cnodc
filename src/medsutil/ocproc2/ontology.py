@@ -22,6 +22,7 @@ CNODC_MAX = f'{CNODC_PREFIX}maxValue'
 CNODC_ALLOW = f'{CNODC_PREFIX}allowedValue'
 CNODC_COORDINATE = f'{RS_PREFIX}requireCoordinate'
 CNODC_IOOS_CATEGORY = f'{CNODC_PREFIX}ioosCategory'
+CNODC_IGNORE_IN_DUPES = f'{CNODC_PREFIX}ignoreInDuplicateCheck '
 CNODC_EOV = f'{CNODC_PREFIX}essentialOceanVariable'
 SKOS_LABEL = f'http://www.w3.org/2004/02/skos/core#prefLabel'
 SKOS_DOCUMENTATION = f'http://www.w3.org/2004/02/skos/core#documentation'
@@ -143,7 +144,8 @@ class OCProc2ChildRecordTypeInfo(_BaseInfo):
 class OCProc2ElementInfo(_BaseInfo):
 
     __slots__ = ('ioos_category', 'essential_ocean_vars', 'name', '_label', '_documentation', 'allow_many',
-                 'group_name', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values')
+                 'group_name', 'preferred_unit', 'data_type', 'min_value', 'max_value', 'allowed_values',
+                 'ignore_for_dedupe')
 
     def __init__(self,
                  name: str,
@@ -155,13 +157,15 @@ class OCProc2ElementInfo(_BaseInfo):
                  groups: t.Optional[str] = None,
                  allowed_values: t.Optional[set[t.Union[int, str, float]]] = None,
                  ioos_category: t.Optional[str] = None,
-                 essential_ocean_variables: t.Optional[set[str]] = None):
+                 essential_ocean_variables: t.Optional[set[str]] = None,
+                 ignore_for_dedupe: bool = False):
         self.group_name: t.Optional[str] = groups
         self.preferred_unit = preferred_unit
         self.data_type = data_type
         self.allow_many = allow_multi
         self.min_value = min_value
         self.max_value = max_value
+        self.ignore_for_dedupe = ignore_for_dedupe
         self.allowed_values = allowed_values or None
         self.ioos_category = ioos_category or None
         self.essential_ocean_vars = essential_ocean_variables or set()
@@ -172,6 +176,9 @@ class OCProc2ElementInfo(_BaseInfo):
 
     def update_essential_ocean_vars(self, ocean_var: ReferenceValue):
         self.essential_ocean_vars.update(_BaseInfo.build_all_from_ref(ocean_var))
+
+    def set_ignore_for_dedupe(self, ignore_for_dedupe: LiteralValue):
+        self.ignore_for_dedupe = _BaseInfo.build_one_from_literal(ignore_for_dedupe) == 'True'
 
     def set_preferred_unit(self, unit: LiteralValue):
         self.preferred_unit = _BaseInfo.build_one_from_literal(unit)
@@ -265,6 +272,8 @@ class OCProc2Ontology:
                                 self._parameters[e_name].update_essential_ocean_vars(graph_dict[key][CNODC_EOV])
                             if CNODC_IOOS_CATEGORY in graph_dict[key]:
                                 self._parameters[e_name].set_ioos_category(graph_dict[key][CNODC_IOOS_CATEGORY])
+                            if CNODC_IGNORE_IN_DUPES in graph_dict[key]:
+                                self._parameters[e_name].set_ignore_for_dedupe(graph_dict[key][CNODC_IGNORE_IN_DUPES])
                         elif str(graph_dict[key][SKOS_IN_SCHEME]) == CNODC_RECORDSET_TYPES:
                             e_name = key[key.rfind('#')+1:]
                             self._recordset_types[e_name] = OCProc2ChildRecordTypeInfo(key)

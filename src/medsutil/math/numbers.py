@@ -110,7 +110,7 @@ class ScienceNumber:
 
     def is_compatible(self,
                       x: mt.AnyNumber,
-                      c: mt.NonScienceNumber = 3) -> bool:
+                      c: mt.NonScienceNumber = 2) -> bool:
         if mt.is_science_number(x):
             return basics.test_compatibility(
                 x.nominal_value,
@@ -153,6 +153,13 @@ class ScienceNumber:
             return t.cast(mt.NonScienceNumber, basics.max_(sd, self._min_sigma))
         else:
             return sd
+
+    def range(self, sigma: mt.BasicNumber = 2) -> tuple[mt.BasicNumber, mt.BasicNumber]:
+        sigma_diff = basics.mul(sigma, self.std_dev)
+        return (
+            basics.sub(self.nominal_value, sigma_diff),
+            basics.add(self.nominal_value, sigma_diff)
+        )
 
     def copy_sign(self, other: mt.AnyNumber) -> ScienceNumber:
         return t.cast(ScienceNumber, basics.copy_sign(self, other))

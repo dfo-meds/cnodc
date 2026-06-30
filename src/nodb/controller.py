@@ -999,7 +999,7 @@ class PostgresController:
                     yield pgs.SQL('IS NULL')
                 elif isinstance(filters[key], tuple):
                     # (value, operation[, allow_null])
-                    suffix = pgs.SQL("")
+                    suffix = None
                     if len(filters[key]) > 2 and filters[key][2]:
                         yield pgs.SQL('(')
                         yield pgs.Composed((pgs.Identifier(key), pgs.SQL('IS NULL OR')))
@@ -1008,26 +1008,26 @@ class PostgresController:
                     val = filters[key][0]
                     if op == 'IN':
                         yield pgs.Identifier(key)
-                        yield pgs.SQL('IN')
-                        yield pgs.Composed((
-                            pgs.Identifier('('),
-                            pgs.SQL(',').join(pgs.Literal(v) for v in val),
-                            pgs.Identifier(')'),
-                            suffix
-                        ))
+                        yield pgs.SQL('IN (')
+                        yield pgs.SQL(',').join(pgs.Literal(v) for v in val)
+                        yield pgs.SQL(')')
                     elif op == "BETWEEN":
                         yield pgs.Identifier(key)
                         yield pgs.SQL("BETWEEN")
                         yield pgs.Literal(val[0])
                         yield pgs.SQL("AND")
                         yield pgs.Literal(val[1])
+                    elif op == "IN_ENVELOPE":
+                        yield pgs.Identifier(key)
+                        yield pgs.SQL("&& ST_MakeEnvelope(")
+                        yield pgs.SQL(",").join(pgs.Literal(v) for v in val)
+                        yield pgs.SQL(", 4326)")
                     else:
-                        yield pgs.Composed((
-                            pgs.Identifier(key),
-                            pgs.SQL(op),
-                            pgs.Literal(val),
-                            suffix
-                        ))
+                        yield pgs.Identifier(key)
+                        yield pgs.SQL(op)
+                        yield pgs.Literal(val)
+                    if suffix is not None:
+                        yield suffix
                 else:
                     yield pgs.Identifier(key) + pgs.SQL('=') + pgs.Literal(filters[key])
 

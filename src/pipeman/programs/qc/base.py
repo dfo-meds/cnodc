@@ -1,6 +1,7 @@
 import abc
 import collections.abc
 import contextlib
+import datetime
 import functools
 import typing as t
 
@@ -9,6 +10,7 @@ import zrlog
 import medsutil.math as amath
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
+from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
 from medsutil.math import _functions
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
@@ -20,7 +22,7 @@ from medsutil.units import UnitConverter
 from autoinject import injector
 
 from nodb.interface import NODBInstance
-from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData
+from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBSourceFile
 
 if t.TYPE_CHECKING:
     from pipeman.programs.qc.references import ReferenceRange
@@ -38,6 +40,8 @@ class QCComplete(QCException): ...
 class QCSkipReview(QCException): ...
 
 class QCSkipTest(QCException): ...
+
+class QCPassTest(QCException): ...
 
 class QCAssertionError(QCException):
 
@@ -108,12 +112,16 @@ class QualityController(abc.ABC):
         self._db = None
         self._searcher = None
         self._searcher_cls = searcher_cls or RealPlatformSearcher
+        self._set_qc_flag: int = 0
+        self._source_file_uuid: str | None = None
+        self._source_file_date: datetime.date | None = None
 
     @property
     def searcher(self) -> PlatformSearcher:
         if self._searcher is None:
             self._searcher = self._searcher_cls(self._db)
         return t.cast(PlatformSearcher, self._searcher)
+
     @property
     def working_sort(self) -> str | tuple[str, bool] | None:
         return self._working_sort
@@ -169,7 +177,27 @@ class QualityController(abc.ABC):
     def set_coordinates_from_record(self, record: ocproc2.BaseRecord):
         self.current_coordinates.update_from_record(record)
 
+    def set_qc_flag(self, flag: int):
+        self._set_qc_flag = self._set_qc_flag | flag
+
     def setup(self): ...
+
+    def get_current_platform(self, require_good: bool = True) -> NODBPlatform | None:
+        platform_id = self.get_current_platform_id(require_good)
+        if platform_id is not None:
+            return self.searcher.find_by_uuid(platform_id)
+        return None
+
+    def get_current_platform_id(self, require_good: bool = True) -> str | None:
+        current = self.current_record.record
+        if require_good:
+            self.require_quality(current.metadata.get("CNODCPlatform"))
+        if current.metadata.has_value('CNODCPlatform'):
+            platform = current.metadata['CNODCPlatform']
+            if platform.is_empty() or platform.quality in (4, 9):
+                return None
+            return platform.to_string()
+        return None
 
     @property
     def db(self) -> NODBInstance:
@@ -178,7 +206,15 @@ class QualityController(abc.ABC):
         else:
             return self._db
 
-    def run_record_check(self, record: ocproc2.ParentRecord, db: NODBInstance) -> ocproc2.QCTestRunInfo:
+    def run_record_check(self,
+                         record: ocproc2.ParentRecord,
+                         db: NODBInstance,
+                         qc_flags: int = 0,
+                         source_file_uuid: str | None = None,
+                         source_file_date: datetime.date | None = None) -> tuple[ocproc2.QCTestRunInfo, int]:
+        self._source_file_uuid = source_file_uuid
+        self._source_file_date = source_file_date
+        self._set_qc_flag = qc_flags
         self._current_record = ParentRecordRef(record=record)
         self._db = db
         self.setup()
@@ -190,6 +226,8 @@ class QualityController(abc.ABC):
             self.update_qc_result(ocproc2.QCResult.SKIP)
             self.add_note(f"test_skipped: {str(ex)}")
             self._log.debug("test skipped", exc_info=True)
+        except QCPassTest as ex:
+            self.update_qc_result(ocproc2.QCResult.PASS)
         except CodedError as ex:
             if ex.is_transient:
                 raise ex
@@ -209,9 +247,10 @@ class QualityController(abc.ABC):
             messages=self._qc_messages,
             notes=f"passed={self._reviews_passed};failed={self._reviews_failed};skipped={self._reviews_skipped}",
         )
+
         record.qc_tests.append(test_run_info)
         self.teardown()
-        return test_run_info
+        return test_run_info, self._set_qc_flag
 
     def run(self):
         raise NotImplementedError
@@ -324,11 +363,14 @@ class QualityController(abc.ABC):
                             element: ocproc2.AbstractElement | ocproc2.RecordSet | ocproc2.BaseRecord):
         set_working_quality(element, working_quality)
 
-    def skip_remaining_tests(self, reason: str):
+    def skip_entire_test(self, reason: str):
         raise QCSkipTest(reason)
 
     def skip_review(self, reason: str):
         raise QCSkipReview(reason)
+
+    def qc_pass(self):
+        raise QCPassTest()
 
     def update_qc_result(self, new_result: ocproc2.QCResult):
         if new_result in self.ALLOW_NEW_QC_RESULT[self._qc_result]:
@@ -423,10 +465,10 @@ class QualityController(abc.ABC):
 
 
     def extract_good_values(self,
-                            element: SingleElementRef | MultiElementRef | None,
+                            element_ref: SingleElementRef | MultiElementRef | None,
                             required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> t.Iterable[SingleElementRef]:
-        if element is not None:
-            for element_sref in element.single_element_refs():
+        if element_ref is not None:
+            for element_sref in element_ref.single_element_refs():
                 try:
                     self.require_quality(element_sref.element, required_quality=required_quality)
                     yield element_sref
@@ -539,8 +581,8 @@ class QualityController(abc.ABC):
                                 a: amath.AnyNumber,
                                 b: amath.AnyNumber,
                                 msg: str | None = None,
-                                rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
-                                abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                                rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+                                abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
                                 **kwargs):
         if not amath.gte(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
@@ -555,8 +597,8 @@ class QualityController(abc.ABC):
                              a: amath.AnyNumber,
                              b: amath.AnyNumber,
                              msg: str | None = None,
-                             rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
-                             abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                             rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+                             abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
                              **kwargs):
         if not amath.lte(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
@@ -567,8 +609,8 @@ class QualityController(abc.ABC):
                        a: amath.AnyNumber,
                        b: amath.AnyNumber,
                        msg: str | None = None,
-                       rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
-                       abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                       rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+                       abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
                        **kwargs):
         if not amath.gt(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
@@ -579,8 +621,8 @@ class QualityController(abc.ABC):
                     a: amath.AnyNumber,
                     b: amath.AnyNumber,
                     msg: str | None = None,
-                    rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
-                    abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                    rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+                    abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
                     **kwargs):
         if not amath.lt(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
@@ -591,8 +633,8 @@ class QualityController(abc.ABC):
                      a: amath.AnyNumber,
                      b: amath.AnyNumber,
                      msg: str | None = None,
-                     rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
-                     abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                     rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+                     abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
                      **kwargs):
         if not amath.is_close(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
@@ -603,8 +645,8 @@ class QualityController(abc.ABC):
                          a: amath.AnyNumber,
                          b: amath.AnyNumber,
                          msg: str | None = None,
-                         rel_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
-                         abs_tol: amath.BasicNumber | amath.NumberString | type[amath.Placeholder] = amath.Placeholder,
+                         rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+                         abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
                          **kwargs):
         if amath.is_close(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
@@ -788,6 +830,26 @@ class PlatformSearcher(t.Protocol):
                in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
         ...
 
+    def geosearch_working_records(self,
+                                  platform_uuid: str,
+                                  start_time: AwareDateTime,
+                                  end_time: AwareDateTime,
+                                  min_latitude: amath.BasicNumber,
+                                  max_latitude: amath.BasicNumber,
+                                  min_longitude: amath.BasicNumber,
+                                  max_longitude: amath.BasicNumber) -> t.Iterable[NODBWorkingRecord]:
+        ...
+
+    def geosearch_observations(self,
+                               platform_uuid: str,
+                               start_time: AwareDateTime,
+                               end_time: AwareDateTime,
+                               min_latitude: amath.BasicNumber,
+                               max_latitude: amath.BasicNumber,
+                               min_longitude: amath.BasicNumber,
+                               max_longitude: amath.BasicNumber) -> t.Iterable[NODBObservationData]:
+        ...
+
     def recent_working_records(self,
                                platform_id: str,
                                start_time: AwareDateTime,
@@ -800,10 +862,21 @@ class PlatformSearcher(t.Protocol):
                             end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
         ...
 
-class RealPlatformSearcher:
+    def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
+        ...
+
+    def is_source_file_replacement(self,
+                                   old_uuid: str | None,
+                                   old_date: datetime.date | str | None,
+                                   new_uuid: str | None,
+                                   new_date: datetime.date | str | None) -> bool:
+        ...
+
+class RealPlatformSearcher(CachedObjectMixin):
 
     def __init__(self, db: NODBInstance):
         self._db = db
+        super().__init__()
 
     def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
         return NODBPlatform.find_by_uuid(self._db, platform_uuid)
@@ -811,14 +884,74 @@ class RealPlatformSearcher:
     def search(self, **kwargs) -> t.Iterable[NODBPlatform]:
         yield from NODBPlatform.search(self._db, **kwargs)
 
+    def geosearch_working_records(self, **kwargs) -> t.Iterable[NODBWorkingRecord]:
+        yield from NODBWorkingRecord.search(self._db, **kwargs)
+
+    def geosearch_observations(self, **kwargs) -> t.Iterable[NODBObservationData]:
+        for obs in NODBObservation.search(self._db, **kwargs, key_only=True):
+            obs_data = obs.find_observation_data(self._db)
+            if obs_data is not None:
+                yield obs_data
+
+    def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
+        if NODBObservationData.find_by_uuid(self._db, obs_uuid, obs_date, key_only=True) is not None:
+            return True
+        if NODBWorkingRecord.find_by_uuid(self._db, obs_uuid, key_only=True) is not None:
+            return True
+        return False
+
     def recent_working_records(self,
                                platform_id: str,
                                start_time: AwareDateTime,
                                end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
-        yield from NODBPlatform.stream_recent_working_records(self._db, platform_id, start_time, end_time)
+        yield from NODBWorkingRecord.search(
+            self._db,
+            platform_uuid=platform_id,
+            start_time=start_time,
+            end_time=end_time
+        )
 
     def recent_observations(self,
                             platform_id: str,
                             start_time: AwareDateTime,
                             end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
-        yield from NODBPlatform.stream_recent_observations(self._db, platform_id, start_time, end_time)
+        for obs in NODBObservation.search(
+            self._db,
+            platform_uuid=platform_id,
+            start_time=start_time,
+            end_time=end_time,
+            key_only=True
+        ):
+            obs_data = obs.find_observation_data(self._db)
+            if obs_data is not None:
+                yield obs_data
+
+    def is_source_file_replacement(self,
+                                   old_uuid: str | None,
+                                   old_date: datetime.date | str | None,
+                                   new_uuid: str | None,
+                                   new_date: datetime.date | str | None) -> bool:
+
+        if old_uuid is None or old_date is None or new_uuid is None or new_date is None:
+            return False
+        return self._with_cache(
+            'is_replacement',
+            self._is_source_file_replacement,
+            old_uuid, old_date, new_uuid, new_date,
+            cache_parameters=[old_uuid, old_date, new_uuid, new_date]
+        )
+
+    def _is_source_file_replacement(self,
+                                   old_uuid: str,
+                                   old_date: datetime.date | str,
+                                   new_uuid: str,
+                                   new_date: datetime.date | str) -> bool:
+        file = NODBSourceFile.find_by_uuid(self._db, new_uuid, new_date)
+        if file is None:
+            return False
+        replacement = file.replaces_file(self._db)
+        while replacement is not None:
+            if replacement.replaces_file_uuid == old_uuid and replacement.replaces_file_date == old_date:
+                return True
+            replacement = replacement.replaces_file(self._db)
+        return False

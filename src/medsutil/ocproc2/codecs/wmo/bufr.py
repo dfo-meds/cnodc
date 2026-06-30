@@ -1197,7 +1197,7 @@ class _Bufr4Decoder:
                 scale = self._get_node_scale(node)
                 if scale and 'Uncertainty' not in value.metadata:
                     value.metadata['Uncertainty'] = scale
-                    value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'limited'
+                    value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'rounded'
         return value
 
     def _get_node_units(self, node: ValueDataNode):
@@ -1378,7 +1378,16 @@ class _Bufr4Decoder:
                 date_str += "T"
                 date_str += ":".join(str(x).zfill(2) for x in node_values[3:])
                 date_str += "+00:00"
-            return date_str
+            e = ocproc2.SingleElement(date_str)
+            if dt_len == 3:
+                e.metadata['DatePrecision'] = 'day'
+            elif dt_len == 4:
+                e.metadata['DatePrecision'] = 'hour'
+            elif dt_len == 5:
+                e.metadata['DatePrecision'] = 'minute'
+            elif dt_len == 6:
+                e.metadata['DatePrecision'] = 'second'
+            return e
         else:
             return None
 

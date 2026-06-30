@@ -144,6 +144,9 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
     source_uuid: str = s.UUIDColumn()
     received_date: datetime.date = s.DateColumn()
 
+    replaces_file_uuid: str | None = s.UUIDColumn()
+    replaces_file_date: datetime.date | None = s.DateColumn()
+
     source_path: str = s.StringColumn()
     file_name: str = s.StringColumn()
     source_name: str = s.StringColumn()
@@ -175,6 +178,14 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
             'rpt': AwareDateTime.now()
         })
         self._modified_values.add('history')
+
+    def replaces_file(self, db: interface.NODBInstance, **kwargs) -> NODBSourceFile | None:
+        if self.replaces_file_uuid is None or self.replaces_file_date is None:
+            return None
+        return db.load_object(self.__class__, filters={
+            'source_uuid': self.replaces_file_uuid,
+            'received_date': self.replaces_file_date,
+        }, **kwargs)
 
     def stream_observation_data(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBObservationData]:
         """Find all observations associated with this source file."""
@@ -274,6 +285,21 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
         return bool(self.metadata.get("skip_on_land_check", False))
 
     @property
+    def dedupe_time_window(self) -> int | float | None:
+        x: str | int | float | None = self.metadata.get("dedupe_time_window", None)
+        if x is None:
+            return None
+        else:
+            return float(x)
+
+    @property
+    def dedupe_distance_window(self) -> int | float | None:
+        x: str | int | float | None = self.metadata.get("dedupe_distance_window", None)
+        if x is None:
+            return None
+        return float(x)
+
+    @property
     def top_speed(self) -> float | int | tuple[float | int, str] | None:
         top_speed = self.metadata.get('top_speed', None)
         if isinstance(top_speed, (int, float)):
@@ -327,31 +353,6 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
                         continue
                     else:
                         yield p
-
-    @classmethod
-    def stream_recent_working_records(cls,
-                                      db: interface.NODBInstance,
-                                      platform_uuid: str,
-                                      after_time: AwareDateTime,
-                                      before_time: AwareDateTime,
-                                      **kwargs) -> t.Iterable[NODBWorkingRecord]:
-        yield from db.stream_objects(NODBWorkingRecord, filters={
-            "platform_uuid": platform_uuid,
-            "obs_time": ((before_time, after_time), "BETWEEN"),
-        }, **kwargs)
-
-    @classmethod
-    def stream_recent_observations(cls,
-                                   db: NODBInstance,
-                                   platform_uuid: str,
-                                   after_time: AwareDateTime,
-                                   before_time: AwareDateTime,
-                                   **kwargs) -> t.Iterable[NODBObservationData]:
-        for obs in db.stream_objects(NODBObservation, filters={
-            "platform_uuid": platform_uuid,
-            "obs_time": ((before_time, after_time), "BETWEEN"),
-        }, **kwargs):
-            yield obs.find_observation_data(db)
 
     @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, platform_uuid: str, **kwargs) -> t.Optional[NODBPlatform]:
@@ -435,6 +436,33 @@ class NODBObservation(s.NODBBaseObject):
     profile_parameters: set[str] = s.JsonSetColumn()
     processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel)
     embargo_date: t.Optional[AwareDateTime] = s.DateTimeColumn()
+
+    @classmethod
+    def search(cls,
+               db: interface.NODBInstance,
+               platform_uuid: str | None = None,
+               start_time: AwareDateTime | None = None,
+               end_time: AwareDateTime | None = None,
+               min_latitude: float | None = None,
+               max_latitude: float | None = None,
+               min_longitude: float | None = None,
+               max_longitude: float | None = None,
+               **kwargs) -> t.Iterable[NODBObservation]:
+        filters = {}
+        if min_latitude is not None or min_longitude is not None or max_latitude is not None or max_longitude is not None:
+            filters['location'] = ((
+                min_longitude if min_longitude is not None else -180,
+                min_latitude if min_latitude is not None else -90,
+                max_longitude if max_longitude is not None else 180,
+                max_latitude if max_latitude is not None else 90,
+            ), 'IN_ENVELOPE', False)
+        if platform_uuid is not None:
+            filters['platform_uuid'] = platform_uuid
+        if start_time is not None:
+            filters['obs_time'] = (start_time, '>=', False)
+        if end_time is not None:
+            filters['obs_time'] = (end_time, '<=', False)
+        yield from db.stream_objects(cls, filters=filters, **kwargs)
 
     @classmethod
     def prepare_insert(cls, db: interface.NODBInstance, name: str) -> interface.PreparedStatementProtocol:
@@ -656,7 +684,7 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     obs_time: AwareDateTime | None = s.DateTimeColumn()
     location: str | None = s.WKTColumn()
 
-    deduped_flag: int | None = s.IntColumn()
+    qc_flags: int = s.IntColumn(default=0)
 
     db_created_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
@@ -668,6 +696,36 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         return db.load_object(cls, {
             "working_uuid": obs_uuid,
         }, **kwargs)
+
+    @classmethod
+    def search(cls,
+               db: interface.NODBInstance,
+               platform_uuid: str | None = None,
+               start_time: AwareDateTime | None = None,
+               end_time: AwareDateTime | None = None,
+               min_latitude: float | None = None,
+               max_latitude: float | None = None,
+               min_longitude: float | None = None,
+               max_longitude: float | None = None,
+               qc_flag: int | None = None,
+               **kwargs) -> t.Iterable[NODBWorkingRecord]:
+        filters = {}
+        if min_latitude is not None or min_longitude is not None or max_latitude is not None or max_longitude is not None:
+            filters['location'] = ((
+                min_longitude if min_longitude is not None else -180,
+                min_latitude if min_latitude is not None else -90,
+                max_longitude if max_longitude is not None else 180,
+                max_latitude if max_latitude is not None else 90,
+            ), 'IN_ENVELOPE', False)
+        if platform_uuid is not None:
+            filters['platform_uuid'] = platform_uuid
+        if start_time is not None:
+            filters['obs_time'] = (start_time, '>=', False)
+        if end_time is not None:
+            filters['obs_time'] = (end_time, '<=', False)
+        if qc_flag is not None:
+            filters['qc_flags'] = (qc_flag, '&', False)
+        yield from db.stream_objects(cls, filters=filters, **kwargs)
 
     @classmethod
     def find_by_source_info(cls,

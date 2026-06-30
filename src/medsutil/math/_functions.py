@@ -26,7 +26,8 @@ def test_compatibility(x: mt.NonScienceNumber,
                        sy: mt.NonScienceNumber,
                        c: mt.NonScienceNumber = 3) -> bool:
     n_x, n_sx, n_y, n_sy = match_convert(x, sx, y, sy)
-    return abs(n_x - n_y) / sqrt((n_x ** 2) + (n_y ** 2)) < c
+    z_score = abs(n_x - n_y) / sqrt((n_sx ** 2) + (n_sy ** 2))
+    return z_score < c
 
 def add_in_quadrature(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.AnyNumber:
     # sqrt(x**2 + y**2)

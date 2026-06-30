@@ -51,15 +51,6 @@ class NumberString(str):
         from medsutil.math import pow_
         return pow_(self, other)
 
-    def __float__(self) -> float:
-        return float(self)
-
-    def __int__(self) -> int:
-        return int(self)
-
-    def __index__(self) -> int:
-        return int(self)
-
     def __trunc__(self) -> int:
         return int(self)
 

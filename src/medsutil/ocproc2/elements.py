@@ -6,9 +6,11 @@ import typing as t
 import datetime
 
 import zrlog
+from wtforms.validators import none_of
 
-from medsutil.awaretime import AwareDateTime
+from medsutil.awaretime import AwareDateTime, ScienceDateTime
 from medsutil.lazy_load import LazyLoadDict
+from medsutil.math import ScienceNumber, NumberString, sqrt
 from medsutil.units.units import convert
 import medsutil.awaretime as awaretime
 
@@ -218,6 +220,71 @@ class AbstractElement[X]:
             if diff > 1e-9:
                 raise ValueError("Loss of value encountered")
         return convert(true_v, bv.units(), units)
+
+    def to_scidate(self) -> ScienceDateTime:
+        dt = AwareDateTime.fromisoformat(self.ideal().to_string())
+        diff, uncertainty = self._extract_date_precision()
+        if diff is not None:
+            dt = dt + diff
+        return ScienceDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, tzinfo=dt.tzinfo, uncertainty=uncertainty)
+
+    def _extract_date_precision(self) -> tuple[datetime.timedelta | None, datetime.timedelta | None]:
+        v = self.metadata.best("DatePrecision", default=None, coerce=str)
+        if v is None:
+            return None, None
+        elif v == "day":
+            return datetime.timedelta(hours=12), datetime.timedelta(hours=12)
+        elif v == "hour":
+            return datetime.timedelta(minutes=30), datetime.timedelta(minutes=30)
+        elif v == "minute":
+            return datetime.timedelta(seconds=30), datetime.timedelta(seconds=30)
+        elif v == "second":
+            return datetime.timedelta(milliseconds=500), datetime.timedelta(milliseconds=500)
+        else:
+            return None, None
+
+    def to_scinum(self) -> ScienceNumber:
+        bv = self.ideal()
+        if bv.value is None or isinstance(bv.value, (list, dict, bool)):
+            raise ValueError("Invalid value")
+        else:
+            adjust, std_dev = bv._std_dev()
+            actual = bv.to_float() + adjust
+            kwargs: dict[str, t.Any] = {
+                'units': bv.units(),
+                'min_std_dev':  1.11022302462515016e-16 * actual  # natural error of floats
+            }
+            if std_dev is not None:
+                kwargs['std_dev'] = std_dev
+            return ScienceNumber(
+                actual,
+                **kwargs
+            )
+
+    def _std_dev(self) -> tuple[float, float | None]:
+        adjustment = 0
+        worst = None
+        if self.metadata.has_value('Uncertainty'):
+            for x in self.metadata['Uncertainty'].all_values():
+                if not x.is_numeric():
+                    continue
+                uval = x.to_float()
+                utype = x.metadata.best("UncertaintyType", default="", coerce=str)
+                if utype == "uniform":
+                    sigma = uval / sqrt(3)
+                elif utype == "chopped":
+                    sigma = uval / sqrt(3)
+                    adjustment = uval
+                elif utype == "standard":
+                    sigma = uval
+                elif utype == "chopped_or_rounded":
+                    sigma = 0.74 * uval
+                    adjustment = uval / 2
+                else:
+                    continue
+                if worst is None or sigma > worst:
+                    worst = sigma
+        return adjustment, worst
 
     def to_numeric(self, units: t.Optional[str] = None) -> float:
         """ This will be the type that tests use. """

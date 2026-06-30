@@ -3,7 +3,7 @@ import typing as t
 
 from medsutil import ocproc2 as ocproc2
 from medsutil.exceptions import CodedError
-from nodb.interface import NODBInstance
+from nodb.interface import NODBInstance, LockType
 from nodb.observations import NODBSourceFile, NODBBatch, BatchStatus, NODBWorkingRecord
 from pipeman.programs.qc.base import QualityController
 
@@ -45,13 +45,21 @@ class QCTestRunner:
                 record = working_record.record
                 if record is not None:
                     qc_results = []
+                    qc_flags = working_record.qc_flags
                     for test in tests:
-                        result = test.run_record_check(record, self._db)
+                        result, qc_flags = test.run_record_check(
+                            record,
+                            self._db,
+                            qc_flags,
+                            working_record.source_file_uuid,
+                            working_record.received_date
+                        )
                         qc_results.append(result.result)
                     working_record.record = record
+                    working_record.qc_flags = qc_flags
                     batch_key, outcome = batcher.assign_batch(working_record, record, qc_results)
                     self._db.update_object(working_record)
-                    self._db.create_temp_qc_outcome(self._process_id, working_record.working_uuid, batch_key, outcome)
+                    self._db.create_temp_qc_outcome(self._process_id, t.cast(str, working_record.working_uuid), batch_key, outcome)
                     self._db.commit()
 
     def _flush_results(self, current_batch_uuid: str | None = None):

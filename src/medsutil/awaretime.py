@@ -26,7 +26,8 @@ class AwareDateTime(datetime.datetime):
                 second: t.SupportsIndex = 0,
                 microsecond: t.SupportsIndex = 0,
                 tzinfo: ct.TimeZoneInfo | None = None,
-                fold: int = 0):
+                fold: int = 0,
+                uncertainty=None):
         tzinfo: t.Optional[datetime.tzinfo] = cls._build_time_zone(tzinfo)
         if tzinfo is None:
             dt = datetime.datetime(year, month, day, hour, minute, second, microsecond, fold=fold).astimezone()
@@ -163,3 +164,15 @@ def from_isoformat(s: str, default_tz: t.Optional[ct.TimeZoneInfo] = None) -> Aw
 def from_timestamp(n: float) -> AwareDateTime:
     """ Convert the given UNIX timestamp into a datetime, assuming the timezone """
     return AwareDateTime.utcfromtimestamp(n)
+
+
+class ScienceDateTime(AwareDateTime):
+    def __init__(self, *args, uncertainty: datetime.timedelta | None = None, **kwargs):
+        super().__init__()
+        self.uncertainty = uncertainty
+
+    def range(self) -> tuple[t.Self, t.Self]:
+        if self.uncertainty is not None:
+            return self - self.uncertainty, self + self.uncertainty
+        else:
+            return self, self

@@ -43,4 +43,4 @@ def float_error() -> float:
 
 FLOAT_ERROR = float_error()
 DEFAULT_REL_TOL = mt.NumberString("1e-9")
-DEFAULT_ABS_TOL = mt.NumberString("0.0")
+DEFAULT_ABS_TOL = mt.NumberString("0")

@@ -24,6 +24,8 @@ from medsutil.math._constants import (
     e,
     pi,
     epsilon,
+    DEFAULT_REL_TOL,
+    DEFAULT_ABS_TOL
 )
 from medsutil.math._functions import (
     sqrt,
