@@ -180,6 +180,12 @@ class AbstractElement[X]:
     def is_list_like(self):
         return isinstance(self.ideal().value, list)
 
+    def is_science_number(self):
+        return self.is_numeric() and (
+            self.metadata.has_value('Units')
+            or self.metadata.has_value('Uncertainty')
+        )
+
     @duck_type_catch
     def is_numeric(self):
         """Check if the value is a number."""
@@ -222,14 +228,34 @@ class AbstractElement[X]:
         return convert(true_v, bv.units(), units)
 
     def to_scidate(self) -> ScienceDateTime:
-        dt = AwareDateTime.fromisoformat(self.ideal().to_string())
-        diff, uncertainty = self._extract_date_precision()
+        ideal = self.ideal()
+        dt = AwareDateTime.fromisoformat(ideal.to_string())
+        diff, uncertainty = ideal._extract_date_precision()
         if diff is not None:
             dt = dt + diff
         return ScienceDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, tzinfo=dt.tzinfo, uncertainty=uncertainty)
 
     def _extract_date_precision(self) -> tuple[datetime.timedelta | None, datetime.timedelta | None]:
         v = self.metadata.best("DatePrecision", default=None, coerce=str)
+        if v is None:
+            # We can attempt to calculate it from the string we have since its in ISO format
+            value = self.to_string()
+            if 'T' not in value:
+                v = "day"
+            else:
+                _, time_piece = value.split('T', maxsplit=1)
+                # remove the time zone if present
+                if '+' in time_piece:
+                    time_piece, _ = time_piece.split('+', maxsplit=1)
+                elif '-' in time_piece:
+                    time_piece, _ = time_piece.split('-', maxsplit=1)
+                if len(time_piece) == 2:
+                    v = 'hour'
+                elif len(time_piece) in (4, 5):
+                    v = 'minute'
+                # if millisecond precision, we assume second accuracy for now
+                elif len(time_piece) == 6 or len(time_piece) >= 8:
+                    v = 'second'
         if v is None:
             return None, None
         elif v == "day":

@@ -19,7 +19,8 @@ from medsutil.storage import StorageController, FilePath
 from pipeman.exceptions import CNODCError
 from medsutil.halts import HaltFlag, ungzip_with_halt
 from medsutil.awaretime import AwareDateTime
-from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_dict
+from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_dict, p_list
+from pipeman.programs.nodb.record_manager import CreationResultType
 
 if t.TYPE_CHECKING:
     from pipeman.processing.workflow import WorkflowController
@@ -331,17 +332,16 @@ class WorkingRecordPayload(WorkflowPayload):
     """A payload referencing a specific observation in the database."""
 
     working_uuid = p_str()
-    received_date = p_date()
 
     def __str__(self):  # pragma: no coverage (debugging only)
-        return f'<WorkingRecordPayload:{self.working_uuid}:{self.received_date}:{self.workflow_name}:{self.current_step}>'
+        return f'<WorkingRecordPayload:{self.working_uuid}:{self.workflow_name}:{self.current_step}>'
 
     def load_working_record(self, db: interface.NODBInstance, **kwargs) -> NODBWorkingRecord:
         return self._with_cache('working_record', self._load_working_record, db=db, **kwargs)
 
     def _load_working_record(self, db: interface.NODBInstance, **kwargs) -> NODBWorkingRecord:
         """Find the related observation in the database"""
-        record = NODBWorkingRecord.find_by_uuid(db, working_uuid=self.working_uuid, received_date=self.received_date, **kwargs)
+        record = NODBWorkingRecord.find_by_uuid(db, working_uuid=self.working_uuid, **kwargs)
         if record is None:
             raise CNODCError('No such observation', 'PAYLOAD', 1010, is_transient=False)
         return record
@@ -351,9 +351,17 @@ class WorkingRecordPayload(WorkflowPayload):
         """Build a payload from an observation or observation data object."""
         return ObservationPayload(
             working_uuid=record.working_uuid,
-            received_date=record.received_date,
             **kwargs
         )
+
+
+class NewObservationsPayload(WorkflowPayload):
+    obs_info: list[tuple[str, datetime.date, str]] = p_list()
+
+    def stream_observations(self, db, **kwargs) -> t.Iterable[tuple[NODBObservation, CreationResultType]]:
+        for obs_uuid, received_date, result_type in self.obs_info:
+            yield NODBObservation.find_by_uuid(db, obs_uuid=obs_uuid, received_date=received_date, **kwargs), CreationResultType(result_type)
+
 
 class ObservationPayload(WorkflowPayload):
     """A payload referencing a specific observation in the database."""

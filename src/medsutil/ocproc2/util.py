@@ -3,8 +3,12 @@ import typing as t
 
 from medsutil import ocproc2 as ocproc2, math as amath
 from medsutil.awaretime import AwareDateTime
+from medsutil.math import ScienceNumber
+from medsutil.ocproc2 import ChildRecord, RecordSet
 
-from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP
+from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP, SingleElement
+from medsutil.ocproc2.refs import RecordRef, ChildRecordRef, RecordSetRef
+from medsutil.units.structures import UnitError
 
 if t.TYPE_CHECKING:
     from medsutil.iso_duration import ISODuration
@@ -282,3 +286,161 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
             raise QualityError("element_not_datetime")
         if RequiredQuality.IS_DURATION in required_quality and not obj.is_duration():
             raise QualityError("element_not_duration")
+
+def pair_lists[T](*lsts: list[T], comparator: t.Callable[[T, T], float | None]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
+    used: tuple[set[int], ...] = tuple(
+        set() for _ in lsts
+    )
+    for i in range(0, len(lsts)):
+        for idx, item in enumerate(lsts[i]):
+            if idx in used[i]:
+                continue
+            best: list[tuple[T | None, float | None]] = []
+            for j in range(0, i):
+                best.append((None, None))
+            best.append((item, None))
+            for j in range(i + 1, len(lsts)):
+                best_idx: int | None = None
+                best_score: float | None = None
+                for k in range(0, len(lsts[j])):
+                    if k in used[j]:
+                        continue
+                    score = comparator(item, lsts[j][k])
+                    if score is not None and (best_score is None or best_score < score):
+                        best_score = score
+                        best_idx = k
+                if best_idx is None:
+                    best.append((None, None))
+                else:
+                    best.append((lsts[j][best_idx], best_score))
+                    used[j].append(best_idx)
+            yield tuple(best)
+
+
+def dates_overlap(min_a: AwareDateTime,
+                  max_a: AwareDateTime,
+                  min_b: AwareDateTime,
+                  max_b: AwareDateTime) -> bool:
+    if min_a > max_b or min_b > max_a:
+        return False
+    if max_a < min_b or max_b < min_a:
+        return False
+    return True
+
+
+def pair_up_single_elements(*element_lists: list[SingleElement]) -> t.Iterable[tuple[tuple[SingleElement | None, float | None], ...]]:
+    yield from pair_lists(*element_lists, comparator=compare_elements)
+
+def compare_elements(a: SingleElement, b: SingleElement) -> float | None:
+    if a.is_empty():
+        if b.is_empty():
+            return 1
+        else:
+            return None
+    elif b.is_empty():
+        return None
+    elif a.is_iso_datetime():
+        if b.is_iso_datetime():
+            return 1 if dates_overlap(*a.to_scidate().range(), *b.to_scidate().range()) else 0
+        else:
+            return None
+    elif b.is_iso_datetime():
+        return None
+    elif a.is_science_number() or b.is_science_number():
+        if a.is_numeric() and b.is_numeric():
+            return compare_parameters(a.to_scinum(), b.to_scinum())
+        else:
+            return None
+    elif a.is_integer():
+        if b.is_integer():
+            return a.to_int() == b.to_int()
+        elif b.is_numeric():
+            return compare_numeric(a.to_numeric(), b.to_numeric())
+        else:
+            return None
+    elif a.is_numeric():
+        if b.is_numeric():
+            return compare_numeric(a.to_numeric(), b.to_numeric())
+        else:
+            return None
+    elif a.is_string_like():
+        if b.is_string_like():
+            return 1 if a.to_string() == b.to_string() else 0
+        else:
+            return None
+    else:
+        return None
+
+def compare_parameters(a: ScienceNumber, b: ScienceNumber) -> float | None:
+    try:
+        if a.units is not None and b.units is not None and a.units != b.units:
+            b = b.convert(a.units)
+        if amath.is_close(a.nominal_value, b.nominal_value):
+            return 1
+        elif a.is_compatible(b, 1):
+            return 0.75
+        elif a.is_compatible(b, 2):
+            return 0.5
+        elif a.is_compatible(b, 3):
+            return 0.1
+        else:
+            return None
+    except UnitError:
+        return None
+
+
+def compare_numeric(a: float, b: float) -> int:
+    if amath.is_close(a, b):
+        return 1
+    return 0
+
+def pair_up_records[T: RecordRef | ChildRecord](*record_lists: list[T]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
+    yield from pair_lists(*record_lists, comparator=compare_child_records)
+
+
+def compare_child_records(a: ChildRecord | ChildRecordRef, b: ChildRecord | ChildRecordRef) -> float | None:
+    a_rec = a if isinstance(a, ChildRecord) else a.record
+    b_rec = b if isinstance(b, ChildRecord) else b.record
+
+    agreements = None
+    total = 0
+    for k in set(*a_rec.coordinates.keys(), *b_rec.coordinates.keys()):
+        total += 1
+        a_coord = a.coordinates.ideal(k)
+        b_coord = b.coordinates.ideal(k)
+        if a_coord is None or b_coord is None:
+            continue
+        if agreements is None:
+            agreements = 0
+        agreements += compare_elements(a_coord, b_coord)
+    return agreements
+
+
+def pair_up_recordsets[T: RecordSetRef | RecordSet](*recordset_lists: list[T]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
+    yield from pair_lists(*recordset_lists, comparator=compare_recordsets)
+
+
+def compare_recordsets(a: RecordSet | RecordSetRef, b: RecordSet | RecordSetRef) -> float | None:
+    rs_a = a if isinstance(a, RecordSet) else a.recordset
+    rs_b = b if isinstance(b, RecordSet) else b.recordset
+    a_coordinates = set()
+    b_coordinates = set()
+    a_parameters = set()
+    b_parameters = set()
+
+    for record in rs_a.records.iterate_with_load():
+        a_coordinates.update(record.coordinates.keys())
+        a_parameters.update(record.parameters.keys())
+    for record in rs_b.records.iterate_with_load():
+        b_coordinates.update(record.coordinates.keys())
+        b_parameters.update(record.parameters.keys())
+    coordinate_matches = a_coordinates.intersection(b_coordinates)
+    parameter_matches = a_parameters.intersection(b_parameters)
+    if len(coordinate_matches) == 0 or len(parameter_matches) == 0:
+        return None
+    len_a = len(rs_a.records)
+    len_b = len(rs_b.records)
+    max_l = max(len_a, len_b)
+    length_factor = (max_l - abs(len_a - len_b)) / max_l
+    element_factor = (len(coordinate_matches) + len(parameter_matches)) / len(set(*a_coordinates, *b_coordinates, *a_parameters, *b_parameters))
+    return (length_factor + element_factor) / 2.0

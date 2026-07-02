@@ -110,7 +110,7 @@ class FileScanTask(ScheduledTask):
                             'source': self.process_full_id,
                             'scan-batch': batch_id,
                             'scan-target': scan_target.path(),
-                            'scanned-time': awaretime.utc_now().isoformat()
+                            'scanned-time': awaretime.utc_now().isoformat(),
                         })
                         payload.set_worker_config('file_downloader', self.get_config('downloader_config', {}))
                         payload.enqueue(db, self._queue_name)
@@ -172,13 +172,6 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
             self.db.mark_scanned_item_failed(self.current_payload.file_path, self.current_payload.modified_time or None)
             self.db.commit()
         super().after_failure(item, ex)
-
-    def get_workflow(self, workflow_name: str):
-        self._log.debug('Looking for workflow [%s]', workflow_name)
-        workflow = NODBUploadWorkflow.find_by_name(self.db, workflow_name)
-        if workflow is None:
-            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
-        return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
 
     def handle_queued_file(self,
                            workflow_name: str,

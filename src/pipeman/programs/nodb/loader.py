@@ -8,7 +8,7 @@ import typing as t
 from pipeman.processing.payload_worker import WorkflowWorker
 from medsutil.storage import StorageController, FilePath
 from pipeman.exceptions import CNODCError
-from nodb.observations import SourceFileStatus, NODBSourceFile
+from nodb.observations import SourceFileStatus, NODBSourceFile, ProcessingLevel
 from medsutil.dynamic import dynamic_object
 
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload
@@ -31,6 +31,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             'queue_name': None,
             'next_queue': 'workflow_continue',
             'failure_queue': 'decode_failure',
+            'processing_level': 'UNKNOWN',
             'error_directory': None,
             'default_metadata': {},
             'decoder_class': None,
@@ -164,8 +165,9 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 source_file.received_date = (payload.last_modified_date or AwareDateTime.utcnow()).date()
                 source_file.status = SourceFileStatus.NEW
                 source_file.file_name = payload.filename
-                source_file.source_name = payload.get_metadata('source_name', '')
-                source_file.program_name = payload.get_metadata('program_name', '')
+                source_file.source_name = payload.get_metadata('source-name', '')
+                source_file.processing_level = payload.get_metadata('processing-level', 'UNKNOWN')
+                source_file.program_name = payload.get_metadata('program-name', '')
                 self.db.insert_object(source_file)
                 self.db.commit()
             return source_file

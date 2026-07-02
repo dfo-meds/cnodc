@@ -207,6 +207,13 @@ class RecordRef(AnyRef):
                         path=f"{base_path}/{idx}",
                         parent=self
                     )
+    def recordset_ref(self, recordset_type: str, idx: int) -> t.Iterable[RecordSetRef]:
+        yield RecordSetRef(
+            recordset=self.record.subrecords[recordset_type][idx],
+            recordset_type=recordset_type,
+            path=f"{self.path.rstrip("/")}/{recordset_type}/{idx}",
+            parent=self
+        )
 
     def record_refs(self, limit_types: t.Container[str] | None = None) -> t.Iterable[ChildRecordRef]:
         for rs_ref in self.recordset_refs(limit_types):

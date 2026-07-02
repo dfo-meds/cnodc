@@ -28,7 +28,8 @@ import typing as t
 import pathlib
 import datetime
 
-from pipeman.processing.payloads import WorkflowPayload, FilePayload
+from pipeman.processing.payloads import WorkflowPayload, FilePayload, ObservationPayload, WorkingRecordPayload, \
+    BatchPayload
 import medsutil.awaretime as awaretime
 if t.TYPE_CHECKING:
     import nodb.interface as interface
@@ -80,6 +81,15 @@ class WorkflowController:
         self._validate_file_upload(local_path, metadata, filename)
         # Upload the file to various locations and queue the working file
         self._upload_and_queue_file(local_path, metadata, success_hook, db, unique_queue_id, filename, correlation_id)
+
+    def handle_incoming_batch(self,
+                              batch_uuid: str,
+                              metadata: dict[str, str],
+                              db: interface.NODBInstance,
+                              unique_queue_id: t.Optional[str] = None,
+                              correlation_id: t.Optional[str] = None):
+        self._log.debug(f"Processing working record [%s]", batch_uuid)
+        self._queue_batch(batch_uuid, metadata, db, unique_queue_id, correlation_id)
 
     def _extend_metadata(self, metadata: dict[str, str]):
         """Extend the input metadata with the default metadata"""
@@ -153,6 +163,26 @@ class WorkflowController:
                     raise
                 else:
                     raise CNODCError(f"Exception while processing incoming file: {ex_pretty(ex)}", "WORKFLOW", 1000) from ex
+
+    def _queue_batch(self,
+                     batch_uuid: str,
+                     metadata: dict[str, str],
+                     db,
+                     unique_queue_id,
+                     correlation_id):
+        if self.has_more_steps(None):
+            payload = BatchPayload(
+                batch_uuid=batch_uuid,
+                current_step=None,
+                current_step_done=False,
+                metadata=metadata,
+                workflow_name=self.name,
+                correlation_id=correlation_id or str(uuid.uuid4()),
+                deduplicate_key=unique_queue_id or batch_uuid,
+            )
+            self.queue_step(payload, db)
+        else:
+            self._log.info("No more steps for workflow")
 
     def _queue_working_file(self,
                             working_file: FilePath,

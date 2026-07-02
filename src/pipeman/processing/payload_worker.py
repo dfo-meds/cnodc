@@ -7,12 +7,14 @@ import pathlib
 
 from nodb.observations import NODBBatch, NODBSourceFile
 from nodb.queue import NODBQueueItem
+from nodb.workflow import NODBUploadWorkflow
 from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
 import typing as t
 
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
-    ObservationPayload, Payload
+    ObservationPayload, Payload, WorkingRecordPayload, NewObservationsPayload
+from pipeman.processing.workflow import WorkflowController
 
 
 class PayloadWorker[T: Payload](QueueWorker):
@@ -80,6 +82,13 @@ class PayloadWorker[T: Payload](QueueWorker):
             return self.current_payload.download(target_dir=self.temp_dir(), halt_flag=self._halt_flag)
         else:
             raise CNODCError('Invalid payload type for downloading', 'PAYLOAD', 1001)
+
+    def get_workflow(self, workflow_name: str):
+        self._log.debug('Looking for workflow [%s]', workflow_name)
+        workflow = NODBUploadWorkflow.find_by_name(self.db, workflow_name)
+        if workflow is None:
+            raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
+        return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
 
 
 
@@ -154,6 +163,21 @@ class WorkflowWorker[T: WorkflowPayload](PayloadWorker[WorkflowPayload]):
         self.add_payload_metadata(payload)
         return payload
 
+    def observation_payload_from_uuid(self, obs_uuid: str, date: datetime.date | str) -> ObservationPayload:
+        obs_payload = ObservationPayload(obs_uuid=obs_uuid, recieved_date=date)
+        self.add_payload_metadata(obs_payload)
+        return obs_payload
+
+    def new_observations_payload_from_uuids(self, obs_uuids: t.Iterable[tuple[str, datetime.date, str]]) -> NewObservationsPayload:
+        obs_group_payload = NewObservationsPayload(obs_uuids=list(x for x in obs_uuids))
+        self.add_payload_metadata(obs_group_payload)
+        return obs_group_payload
+
+    def working_record_payload_from_uuid(self, obs_uuid: str) -> WorkingRecordPayload:
+        wr_payload = WorkingRecordPayload(working_uuid=obs_uuid)
+        self.add_payload_metadata(wr_payload)
+        return wr_payload
+
 
 class BatchWorkflowWorker(WorkflowWorker[BatchPayload]):
     """Implementation of PayloadWorker that limits payloads to Batch types."""
@@ -172,6 +196,15 @@ class SourceWorkflowWorker(WorkflowWorker[SourceFilePayload]):
         super().__init__(*args, **kwargs, require_type=SourceFilePayload)
 
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
+        raise NotImplementedError  # pragma: no coverage
+
+class ObservationGroupWorkflowWorker(WorkflowWorker[NewObservationsPayload]):
+    """Implementation of PayloadWorker that limits payloads to SourceFile types."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, require_type=NewObservationsPayload)
+
+    def process_payload(self, payload: NewObservationsPayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError  # pragma: no coverage
 
 

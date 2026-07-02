@@ -87,6 +87,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_organization_user_pkey ON nodb_organi
 
 ALTER TABLE nodb_source_files ADD COLUMN replaces_file_uuid UUID DEFAULT NULL;
 ALTER TABLE nodb_source_files ADD COLUMN replaces_file_date UUID DEFAULT NULL;
+ALTER TABLE nodb_source_files ADD COLUMN processing_level processing_level NOT NULL DEFAULT 'UNKNOWN';
 CONSTRAINT fk_source_file_replacement FOREIGN KEY (replaces_file_uuid, replaces_file_date) REFERENCES nodb_source_files(source_uuid, received_date);
 
 CREATE TABLE IF NOT EXISTS nodb_temporary_qc_results(
@@ -96,8 +97,9 @@ CREATE TABLE IF NOT EXISTS nodb_temporary_qc_results(
     working_uuid        UUID            NOT NULL,
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE nodb_working ADD COLUMN qc_flags INTEGER DEFAULT NULL;
 
+ALTER TABLE nodb_working ADD COLUMN qc_flags INTEGER DEFAULT NULL;
+ALTER TABLE nodb_working ADD COLUMN processing_level processing_level NOT NULL DEFAULT 'UNKNOWN';
 
 CREATE INDEX IF NOT EXISTS idx_nodb_temp_qc_results_lookup ON nodb_temporary_qc_results(batch_process_id, batch_identifier, outcome);
 

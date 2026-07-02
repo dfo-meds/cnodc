@@ -8,9 +8,10 @@ from autoinject import injector
 import medsutil.math as amath
 from medsutil.awaretime import ScienceDateTime, AwareDateTime
 from medsutil.ocproc2 import SingleElement, ElementMap, AbstractElement, MultiElement, OCProc2Ontology, BaseRecord, \
-    RecordMap, RecordSet, ParentRecord
+    RecordMap, RecordSet, ParentRecord, ChildRecord
 from medsutil.ocproc2.refs import SingleElementRef
-from medsutil.ocproc2.util import RequiredQuality
+from medsutil.ocproc2.util import RequiredQuality, pair_up_records, dates_overlap, pair_up_recordsets, \
+    pair_up_single_elements
 from medsutil.units.structures import UnitError
 from pipeman.programs.qc.base import QualityController
 
@@ -357,7 +358,7 @@ class NODBDuplicateCheck(QualityController):
     def compare_datetimes(self, a: SingleElement, b: SingleElement) -> CompareResult:
         range_a = a.to_scidate().range()
         range_b = b.to_scidate().range()
-        if not self.dates_overlap(
+        if not dates_overlap(
             *range_a,
             *range_b
         ):
@@ -372,66 +373,32 @@ class NODBDuplicateCheck(QualityController):
             else:
                 return CompareResult.IDENTICAL
 
-    def compare_single_element(self, a: SingleElement, b: SingleElement) -> t.Iterable[CompareResult]:
-        # united and uncertainty values need special checks
-        if a.metadata.has_value('Units') or b.metadata.has_value('Units') or a.metadata.has_value('Uncertainty') or b.metadata.has_value('Uncertainty'):
+    def compare_single_element(self, a: SingleElement | None, b: SingleElement | None) -> t.Iterable[CompareResult]:
+        if a is None or a.is_empty():
+            if b is None or b.is_empty():
+                yield CompareResult.IDENTICAL
+            else:
+                yield CompareResult.B_BETTER
+        elif b is None or b.is_empty():
+            yield CompareResult.A_BETTER
+        elif a.is_empty() or b.is_science_number():
             yield self.compare_parameter(a, b)
         elif a.is_iso_datetime() and b.is_iso_datetime():
             yield self.compare_datetimes(a, b)
         else:
             yield self.compare_value(a, b)
-        yield from self.compare_element_map(a.metadata, b.metadata)
+        if a is not None and b is not None:
+            yield from self.compare_element_map(a.metadata, b.metadata)
 
-    def compare_records(self, a: list[BaseRecord], b: list[BaseRecord]):
+    def compare_records(self, a: list[ChildRecord], b: list[ChildRecord]):
         if len(a) == 0 and len(b) == 0:
             yield CompareResult.IDENTICAL
         else:
             for rec_a, rec_b in self.pair_up_records(a, b):
                 yield from self.compare_record(rec_a, rec_b)
 
-    def pair_up_records(self, a: list[BaseRecord], b: list[BaseRecord]) -> t.Iterable[tuple[BaseRecord | None, BaseRecord | None]]:
-        used = set()
-        for rec_a in a:
-            for idx, rec_b in enumerate(b):
-                if idx in used:
-                    continue
-                if self.record_coordinates_match(rec_a, rec_b):
-                    used.add(idx)
-                    yield rec_a, rec_b
-                    break
-            else:
-                yield rec_a, None
-        for idx, rec_b in enumerate(b):
-            if idx not in used:
-                yield None, rec_b
-
-    def dates_overlap(self,
-                      min_a: AwareDateTime,
-                      max_a: AwareDateTime,
-                      min_b: AwareDateTime,
-                      max_b: AwareDateTime) -> bool:
-        if min_a > max_b or min_b > max_a:
-            return False
-        if max_a < min_b or max_b < min_a:
-            return False
-        return True
-
-    def record_coordinates_match(self, a: BaseRecord, b: BaseRecord) -> bool:
-        for k in set(*a.coordinates.keys(), *b.coordinates.keys()):
-            if k not in a.coordinates or k not in b.coordinates:
-                return False
-            if a.coordinates[k].is_iso_datetime() and b.coordinates[k].is_iso_datetime():
-                if not self.dates_overlap(
-                    *a.coordinates[k].to_scidate().range(),
-                    *b.coordinates[k].to_scidate().range()
-                ):
-                    return False
-            elif a.coordinates[k].is_numeric() and b.coordinates[k].is_numeric():
-                if not a.coordinates[k].to_scinum().is_compatible(b.coordinates[k].to_scinum()):
-                    return False
-            else:
-                return False
-        return True
+    def pair_up_records(self, a: list[ChildRecord], b: list[ChildRecord]) -> t.Iterable[tuple[ChildRecord | None, ...]]:
+        yield from pair_up_records(a, b)
 
     def compare_recordset(self, a: RecordSet | None, b: RecordSet | None) -> t.Iterable[CompareResult]:
         if a is None:
@@ -445,17 +412,11 @@ class NODBDuplicateCheck(QualityController):
             yield from self.compare_records(list(a.records.iterate_with_load()), list(b.records.iterate_with_load()))
             yield from self.compare_element_map(a.metadata, b.metadata)
 
-    def compare_recordsets(self, *options: tuple[RecordSet | None, RecordSet | None]) -> t.Iterable[CompareResult]:
-        for rs_a, rs_b in options:
-            yield from self.compare_recordset(rs_a, rs_b)
-
     def compare_multi_recordsets(self, a: dict[int, RecordSet], b: dict[int, RecordSet]) -> t.Iterable[CompareResult]:
         rs_a_list = [*a.values()]
         rs_b_list = [*b.values()]
-        yield from self.best_result(*(
-            [x for x in self.compare_recordsets(*option)]
-            for option in self.unique_options(rs_a_list, rs_b_list)
-        ))
+        for rs_a, rs_b in pair_up_recordsets(rs_a_list, rs_b_list):
+            yield from self.compare_recordset(rs_a, rs_b)
 
     def best_result(self, *options: list[CompareResult]) -> t.Iterable[CompareResult]:
         best_option, best_stat = None, None
@@ -494,24 +455,11 @@ class NODBDuplicateCheck(QualityController):
         return results
 
     def compare_multi_element(self, a: AbstractElement, b: AbstractElement) -> t.Iterable[CompareResult]:
-        if isinstance(a, SingleElement) and isinstance(b, MultiElement):
-            yield from self.best_result(*(
-                [z for z in self.compare_element(a, x)]
-                for x in b.values()
-            ))
-        elif isinstance(a, MultiElement) and isinstance(b, SingleElement):
-            yield from self.best_result(*(
-                [z for z in self.compare_element(x, b)]
-                for x in a.values()
-            ))
-        elif isinstance(a, MultiElement) and isinstance(b, MultiElement):
-            yield from self.best_result(*(
-                [x for x in self.generate_multi_element_option(*option)]
-                for option in
-                self.unique_options(a.values(), b.values())
-            ))
-        else:
-            raise TypeError("this shouldn't happen")
+        for sub_a, sub_b in pair_up_single_elements(
+            [x for x in a.all_values()],
+            [x for x in b.all_values()]
+        ):
+            yield from self.compare_single_element(sub_a, sub_b)
 
     def unique_pair_indexes(self, options: list[int]) -> t.Iterable[list[int]]:
         if len(options) == 1:

@@ -115,11 +115,6 @@ class _RecordMixin(s.NODBBaseObject):
 
 
 def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
-    if hasattr(obj, 'processing_level'):
-        obj.processing_level = ProcessingLevel.UNKNOWN
-        level = data_record.metadata.best('CNODCLevel', coerce=str, default=None)
-        if level is not None and hasattr(ProcessingLevel, level):
-            obj.processing_level = getattr(ProcessingLevel, level)
     if hasattr(obj, 'obs_time') and data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
         obj.obs_time = data_record.coordinates['Time'].to_datetime()
     if hasattr(obj, 'location') and data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
@@ -154,6 +149,8 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
 
     original_uuid: str = s.StringColumn()
     original_idx: int = s.IntColumn()
+
+    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel, default=ProcessingLevel.UNKNOWN)
 
     status: SourceFileStatus = s.EnumColumn(SourceFileStatus)
 
@@ -482,8 +479,8 @@ class NODBObservation(s.NODBBaseObject):
             'embargo_date': 'TIMESTAMPTZ',
         }, name=name)
 
-    def find_observation_data(self, db: interface.NODBInstance) -> NODBObservationData | None:
-        return NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date)
+    def find_observation_data(self, db: interface.NODBInstance, **kwargs) -> NODBObservationData | None:
+        return NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date, **kwargs)
 
     def update_from_record(self, record: ocproc2.ParentRecord):
         update_common_from_data_record(self, record)
@@ -506,7 +503,7 @@ class NODBObservation(s.NODBBaseObject):
             self.observation_type = ObservationType.PROFILE
 
     @classmethod
-    def find_by_uuid(cls, db: interface.NODBInstance, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs):
+    def find_by_uuid(cls, db: interface.NODBInstance, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Self | None:
         """Find an observation by UUID and received date."""
         return db.load_object(cls, {
             "obs_uuid": obs_uuid,
@@ -683,6 +680,7 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     platform_uuid: str | None = s.UUIDColumn()
     obs_time: AwareDateTime | None = s.DateTimeColumn()
     location: str | None = s.WKTColumn()
+    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel, default=ProcessingLevel.UNKNOWN)
 
     qc_flags: int = s.IntColumn(default=0)
 
@@ -734,9 +732,11 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
                             source_received_date: ct.AcceptAsDateTime,
                             message_idx: int,
                             record_idx: int,
+                            processing_level: ProcessingLevel,
                             **kwargs) -> t.Optional[NODBWorkingRecord]:
         """Find a working record by its source information"""
         return db.load_object(cls, {
+                "processing_level": processing_level.value,
                 "received_date": s.parse_received_date(source_received_date),
                 "source_file_uuid": source_file_uuid,
                 "message_idx": message_idx,

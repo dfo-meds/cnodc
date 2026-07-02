@@ -1,4 +1,5 @@
 import datetime
+import enum
 import functools
 import logging
 import uuid
@@ -9,10 +10,31 @@ from autoinject import injector
 
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
-from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, NODBMission
+from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, \
+    NODBMission, ProcessingLevel
 from nodb.interface import NODBInstance, LockType
 from medsutil.ocproc2 import OCProc2Ontology
 from medsutil.units import UnitConverter
+
+
+class CreationResultType(enum.Enum):
+    NEW = 'N'
+    UPDATE = 'U'
+    DUPLICATE = 'D'
+    COPY_EXISTS = 'C'
+    MERGE = 'M'
+
+
+class NODBCreationResult:
+    def __init__(self,
+                 obs_uuid: str,
+                 received_date: datetime.date,
+                 dupe_action: CreationResultType,
+                 other_items: list[str] | None = None):
+        self.obs_uuid = obs_uuid
+        self.received_date = received_date
+        self.action = dupe_action
+        self.others = other_items
 
 
 class NODBRecordManager:
@@ -42,34 +64,25 @@ class NODBRecordManager:
                                                 record: ocproc2.ParentRecord,
                                                 message_idx: int,
                                                 record_idx: int,
-                                                source_file: NODBSourceFile):
+                                                source_file: NODBSourceFile) -> NODBCreationResult:
         return self.create_completed_entry(
             record=record,
             message_idx=message_idx,
             record_idx=record_idx,
             source_file_uuid=source_file.source_uuid,
-            received_date=source_file.received_date
+            received_date=source_file.received_date,
+            processing_level=source_file.processing_level
         )
-    def create_completed_entry_from_working_record(self, working: NODBWorkingRecord):
+
+    def create_completed_entry_from_working_record(self, working: NODBWorkingRecord) -> NODBCreationResult:
         return self.create_completed_entry(
             record=working.record,
             message_idx=working.message_idx,
             record_idx=working.record_idx,
             source_file_uuid=working.source_file_uuid,
-            received_date=working.received_date
-        )
-
-    def create_working_entry_from_source_file(self,
-                                              record: ocproc2.ParentRecord,
-                                              message_idx: int,
-                                              record_idx: int,
-                                              source_file: NODBSourceFile):
-        return self.create_working_entry(
-            record=record,
-            message_idx=message_idx,
-            record_idx=record_idx,
-            source_file_uuid=source_file.source_uuid,
-            received_date=source_file.received_date
+            received_date=working.received_date,
+            original_uuid=working.working_uuid,
+            processing_level=working.processing_level
         )
 
     def _check_completed_entry(self,
@@ -77,31 +90,47 @@ class NODBRecordManager:
                                received_date: datetime.date,
                                message_idx: int,
                                record_idx: int,
-                               cnodc_level: str):
+                               processing_level: ProcessingLevel) -> tuple[str, str] | None:
         key = f"{source_file_uuid}__{received_date.isoformat()}"
         if 'completed_entries_by_file' not in self._memory:
             self._memory['completed_entries_by_file'] = {}
         if key not in self._memory['completed_entries_by_file']:
             self._memory['completed_entries_by_file'][key] = self._load_all_completed(source_file_uuid, received_date)
-        return self._memory['completed_entries_by_file'][key][(message_idx, record_idx, cnodc_level)]
+        return self._memory['completed_entries_by_file'][key][(message_idx, record_idx, processing_level.value)]
 
-    def _load_all_completed(self, source_file_uuid: str, received_date: datetime.date) -> dict[tuple[int, int, str], bool]:
-        result: dict[tuple[int, int, str], bool] = defaultdict(lambda: False)
-        for row in NODBObservationData.find_all_by_source_file_raw(self._db, source_file_uuid, received_date, limit_fields=["message_idx", "record_idx", "processing_level"]):
-            result[(int(row["message_idx"]), int(row["record_idx"]), row["processing_level"])] = True
+    def _load_all_completed(self,
+                            source_file_uuid: str,
+                            received_date: datetime.date) -> dict[tuple[int, int, str], tuple[str, str] | None]:
+        result: dict[tuple[int, int, str], tuple[str, str] | None] = defaultdict(lambda: None)
+        for row in NODBObservationData.find_all_by_source_file_raw(self._db, source_file_uuid, received_date, limit_fields=["obs_uuid", "received_date", "message_idx", "record_idx", "processing_level"]):
+            result[(int(row["message_idx"]), int(row["record_idx"]), row["processing_level"])] = row["obs_uuid"], row["received_date"]
         return result
 
-    def create_completed_entry(self, record: ocproc2.ParentRecord, source_file_uuid: str, received_date: datetime.date, message_idx: int, record_idx: int, original_uuid: str = None):
-        if self._check_completed_entry(source_file_uuid, received_date, message_idx, record_idx, record.metadata.best('CNODCLevel', coerce=str, default='UNKNOWN')):
-            return False
+    def create_completed_entry(self,
+                               record: ocproc2.ParentRecord,
+                               source_file_uuid: str,
+                               received_date: datetime.date,
+                               message_idx: int,
+                               record_idx: int,
+                               processing_level: ProcessingLevel,
+                               original_uuid: str = None,) -> NODBCreationResult:
+        check_result = self._check_completed_entry(
+                source_file_uuid,
+                received_date,
+                message_idx,
+                record_idx,
+                processing_level
+        )
+        if check_result is not None:
+            return NODBCreationResult(check_result[0], datetime.date.fromisoformat(check_result[1]), CreationResultType.COPY_EXISTS)
         self._identify_platform(record)
         self._prune_platform_metadata(record)
         self._identify_mission(record)
         self._prune_mission_metadata(record)
-        obs, obs_data = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, original_uuid)
+        obs, obs_data, result_type, options = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, processing_level, original_uuid)
         self._prep_obs.execute(obs)
         self._prep_obs_data.execute(obs_data)
-        return True
+        return NODBCreationResult(obs.obs_uuid, obs.received_date, result_type, options)
 
     def _identify_platform(self, record: ocproc2.ParentRecord):
         if record.metadata.has_value('CNODCPlatform'):
@@ -244,54 +273,52 @@ class NODBRecordManager:
             self._db.update_object(obj)
             self._memory[lookup_key_name][obj_uuid] = obj
 
-    def create_working_entry(self, record: ocproc2.ParentRecord, source_file_uuid: str, received_date: datetime.date, message_idx: int, record_idx: int):
-        check = NODBWorkingRecord.find_by_source_info(
-            self._db, source_file_uuid, received_date, message_idx, record_idx, key_only=True
-        )
-        if check is not None:
-            return False
-        working_record = self.build_nodb_working_entry(record, source_file_uuid, received_date, message_idx, record_idx)
-        self._db.insert_object(working_record)
-        return True
-
-    def build_nodb_working_entry(self,
-                                 record: ocproc2.ParentRecord,
-                                 source_file_uuid: str,
-                                 received_date: datetime.date,
-                                 message_idx: int,
-                                 record_idx: int) -> NODBWorkingRecord:
-        working_record = NODBWorkingRecord()
-        working_record.working_uuid = str(uuid.uuid4())
-        working_record.received_date = received_date
-        working_record.message_idx = message_idx
-        working_record.record_idx = record_idx
-        working_record.source_file_uuid = source_file_uuid
-        working_record.record = record
-        return working_record
-
     def build_nodb_entry(self,
                          record: ocproc2.ParentRecord,
                          source_file_uuid: str,
                          received_date: datetime.date,
                          message_idx: int,
                          record_idx: int,
-                         original_uuid: str = None) -> tuple[NODBObservation, NODBObservationData]:
+                         processing_level: ProcessingLevel,
+                         original_uuid: str = None) -> tuple[NODBObservation, NODBObservationData, CreationResultType, list[str] | None]:
         self.finalize(record, True)
         obs_data = NODBObservationData()
         obs_data.obs_uuid = original_uuid or str(uuid.uuid4())
         obs_data.received_date = received_date
         record.metadata['CNODCID'] = f"{obs_data.received_date.strftime('%Y%m%d')}/{obs_data.obs_uuid}"
+        result_type, options = self.check_for_duplicate_action(record, obs_data)
         obs_data.message_idx = message_idx
         obs_data.record_idx = record_idx
         obs_data.source_file_uuid = source_file_uuid
+        obs_data.processing_level = processing_level
         obs_data.record = record
 
         obs = NODBObservation()
         obs.obs_uuid = obs_data.obs_uuid
         obs.received_date = obs_data.received_date
+        obs.processing_level = processing_level
         obs.update_from_record(record)
 
-        return obs, obs_data
+        return obs, obs_data, result_type, options
+
+
+    def check_for_duplicate_action(self, record: ocproc2.ParentRecord, obs_data: NODBObservationData) -> tuple[CreationResultType, list[str] | None]:
+        if record.metadata.has_value("CNODCDuplicateOf"):
+            obs_data.duplicate_uuid, obs_data.duplicate_received_date = record.metadata["CNODCDuplicateOf"].to_string().split('/', maxsplit=1)
+            return CreationResultType.DUPLICATE, None
+        elif record.metadata.has_value('CNODCDuplicates'):
+            return CreationResultType.UPDATE, [
+                v.to_string()
+                for v in record.metadata['CNODCDuplicates'].all_values()
+            ]
+        elif record.metadata.has_value('CNODCMergeWith'):
+            return CreationResultType.MERGE, [
+                v.to_string()
+                for v in record.metadata['CNODCMergeWith'].all_values()
+            ]
+        else:
+            return CreationResultType.NEW, None
+
 
     def finalize(self, record: ocproc2.BaseRecord, is_top_level: bool = True):
         if is_top_level:
@@ -313,3 +340,50 @@ class NODBRecordManager:
         if isinstance(value, ocproc2.MultiElement):
             for v in value.values():
                 self._finalize_value(v)
+
+    def create_working_entry_from_source_file(self,
+                                              record: ocproc2.ParentRecord,
+                                              message_idx: int,
+                                              record_idx: int,
+                                              source_file: NODBSourceFile) -> str | None:
+        return self.create_working_entry(
+            record=record,
+            message_idx=message_idx,
+            record_idx=record_idx,
+            source_file_uuid=source_file.source_uuid,
+            received_date=source_file.received_date,
+            processing_level=source_file.processing_level
+        )
+
+    def create_working_entry(self,
+                             record: ocproc2.ParentRecord,
+                             source_file_uuid: str,
+                             received_date: datetime.date,
+                             message_idx: int,
+                             record_idx: int,
+                             processing_level: ProcessingLevel) -> str | None:
+        check = NODBWorkingRecord.find_by_source_info(
+            self._db, source_file_uuid, received_date, message_idx, record_idx, processing_level, key_only=True
+        )
+        if check is not None:
+            return None
+        working_record = self.build_nodb_working_entry(record, source_file_uuid, received_date, message_idx, record_idx, processing_level)
+        self._db.insert_object(working_record)
+        return working_record.working_uuid
+
+    def build_nodb_working_entry(self,
+                                 record: ocproc2.ParentRecord,
+                                 source_file_uuid: str,
+                                 received_date: datetime.date,
+                                 message_idx: int,
+                                 record_idx: int,
+                                 processing_level: ProcessingLevel) -> NODBWorkingRecord:
+        working_record = NODBWorkingRecord()
+        working_record.processing_level = processing_level
+        working_record.working_uuid = str(uuid.uuid4())
+        working_record.received_date = received_date
+        working_record.message_idx = message_idx
+        working_record.record_idx = record_idx
+        working_record.source_file_uuid = source_file_uuid
+        working_record.record = record
+        return working_record
