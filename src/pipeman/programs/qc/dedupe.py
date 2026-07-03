@@ -25,12 +25,12 @@ class CompareResult(enum.Enum):
 
 class ParentCompareResult(enum.Enum):
 
-    MARK_DUPLICATE = 'D'
-    MARK_DUPLICATE_UNLESS_REPLACEMENT = 'D2'
-    MARK_OTHER_DUPLICATE = 'O'
-    MERGE = 'M'
+    IDENTICAL = 'D'
+    B_BETTER = 'D2'
+    A_BETTER = 'O'
+    COMPATIBLE = 'M'
 
-    REVIEW = 'R'
+    INCOMPATIBLE = 'R'
 
     NO_MATCH = 'N'
 
@@ -38,8 +38,7 @@ class ParentCompareResult(enum.Enum):
 class DeduplicateAction(enum.Enum):
     MARK_DUPLICATE = 'mark_duplicate'
     MARK_OTHER_DUPLICATE = 'mark_other_duplicate'
-    AUTOMERGE = 'automerge'
-    MANUAL_MERGE = 'manual_merge'
+    AUTOMERGE = 'merge'
     REVIEW = 'review'
 
 
@@ -56,9 +55,11 @@ class NODBDuplicateCheck(QualityController):
         super().__init__(test_name='nodb_dupe_check', test_version='1.0')
 
     def run(self):
-        dupe_id_ref = t.cast(SingleElementRef, self.current_record.setdefault_metadata_ref("CNODCDuplicateID"))
-        relations = t.cast(SingleElementRef, self.current_record.parameter_ref("CNODCRelatedRecords"))
-        if self._set_qc_flag & 1 or not any(
+        dupe_id_ref = self.current_record.metadata_ref("CNODCDedupeResult")
+        relations = t.cast(SingleElementRef, self.current_record.metadata_ref("CNODCRelatedRecords"))
+        if self._set_qc_flag & 1:
+            self.qc_pass()
+        if any(
             x is None
             or x.element.is_empty()
             or x.element.metadata.best('Quality', coerce=int, default=0) not in (1, 9)
@@ -77,51 +78,61 @@ class NODBDuplicateCheck(QualityController):
                 for (obs_uuid, obs_date), result in diff_level_results[level].items():
                     se = SingleElement(f"{obs_date.isoformat()}/{obs_uuid}")
                     se.metadata['RelationshipType'] = 'related'
-                    if result in (ParentCompareResult.MARK_DUPLICATE, ParentCompareResult.MARK_OTHER_DUPLICATE, ParentCompareResult.MERGE):
+                    if result in (ParentCompareResult.IDENTICAL, ParentCompareResult.A_BETTER, ParentCompareResult.COMPATIBLE):
                         se.metadata['Quality'] = 1
                     else:
                         se.metadata['WorkingQuality'] = 0
                     elements.append(se)
-            self.current_record.record.metadata['CNODCRelatedRecords'] = MultiElement(elements)
-
+            if len(elements) > 1:
+                self.current_record.record.metadata['CNODCRelatedRecords'] = MultiElement(elements)
+            elif len(elements) == 1:
+                self.current_record.record.metadata['CNODCRelatedRecords'] = elements[0]
 
         # no duplicates found, mark test as good.
         self.set_qc_flag(1)  # indicates dedupe has been done
         if len(dedupe_results) == 0:
             self.set_duplicate_list(None)
-            dupe_id_ref.element.value = None
-            dupe_id_ref.element.metadata["Quality"] = 9
+            self.current_record.record.metadata["CNODCDedupeResult"] = None
+            self.current_record.record.metadata["CNODCDedupeResult"].metadata["Quality"] = 9
             self.qc_pass()
         elif len(dedupe_results) > 1:
+            if "CNODCDedupeResult" in self.current_record.record.metadata:
+                del self.current_record.record.metadata["CNODCDedupeResult"]
             self.set_duplicate_list(dedupe_results)
-            self.clear_duplicate(dupe_id_ref)
         else:
             (source_uuid, obs_uuid, obs_date), dedupe_result = next(iter(dedupe_results.items()))
-            action = self.get_dedupe_action(dedupe_result, obs_date, source_uuid)
-            self.set_duplicate(dupe_id_ref, obs_uuid, obs_date, action)
+            self.set_duplicate_list(None)
+            self.current_record.record.metadata["CNODCDedupeResult"] = f"{obs_date.isoformat()}/{obs_uuid}"
+            self.current_record.record.metadata["CNODCDedupeResult"].metadata["CNODCDedupeResultType"] = dedupe_result.value
+            if dedupe_result is DeduplicateAction.REVIEW:
+                self.current_record.record.metadata["CNODCDedupeResult"].metadata["WorkingQuality"] = 1
+                self.report_qc_error("duplicate_for_review")
+            else:
+                self.current_record.record.metadata["CNODCDedupeResult"].metadata["Quality"] = 1
+                self.qc_pass()
 
     def get_dedupe_action(self,
                           dedupe_result: ParentCompareResult,
                           obs_date: datetime.date,
                           source_uuid: str | None) -> DeduplicateAction:
         match dedupe_result:
-            case ParentCompareResult.MARK_DUPLICATE:
+            case ParentCompareResult.IDENTICAL:
                 return DeduplicateAction.MARK_DUPLICATE
-            case ParentCompareResult.MARK_OTHER_DUPLICATE:
+            case ParentCompareResult.A_BETTER:
                 return DeduplicateAction.MARK_OTHER_DUPLICATE
-            case ParentCompareResult.MARK_DUPLICATE_UNLESS_REPLACEMENT:
+            case ParentCompareResult.B_BETTER:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
                     return DeduplicateAction.MARK_OTHER_DUPLICATE
                 else:
                     return DeduplicateAction.MARK_DUPLICATE
-            case ParentCompareResult.MERGE:
+            case ParentCompareResult.COMPATIBLE:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
                     return DeduplicateAction.MARK_OTHER_DUPLICATE
                 elif self.does_source_file_replace_current(source_uuid, obs_date):
                     return DeduplicateAction.MARK_DUPLICATE
                 else:
                     return DeduplicateAction.AUTOMERGE
-            case ParentCompareResult.REVIEW:
+            case ParentCompareResult.INCOMPATIBLE:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
                     return DeduplicateAction.MARK_OTHER_DUPLICATE
                 elif self.does_source_file_replace_current(source_uuid, obs_date):
@@ -143,24 +154,6 @@ class NODBDuplicateCheck(QualityController):
                 return False
         return True
 
-    def clear_duplicate(self, dupe_id_ref: SingleElementRef):
-        dupe_id_ref.element.value = None
-        if 'CNODCDuplicateType' in dupe_id_ref.element.metadata:
-            del dupe_id_ref.element.metadata['CNODCDuplicateType']
-        self.recommend_for_review('dedupe', dupe_id_ref)
-        self.report_qc_error("multiple_for_review")
-
-    def set_duplicate(self, dupe_id_ref: SingleElementRef, obs_uuid: str, obs_date: datetime.date, action: DeduplicateAction):
-        self.set_duplicate_list(None)
-        dupe_id_ref.element.value = f"{obs_date.isoformat()}/{obs_uuid}"
-        dupe_id_ref.element.metadata["CNODCDuplicateType"] = action.value
-        if action is DeduplicateAction.REVIEW or action is DeduplicateAction.MANUAL_MERGE:
-            self.recommend_for_review("dedupe", dupe_id_ref, 1)
-            self.report_qc_error("duplicate_for_review")
-        else:
-            dupe_id_ref.element.metadata["Quality"] = 1
-            self.qc_pass()
-
     def set_duplicate_list(self, duplicates: dict | None):
         if duplicates is not None:
             elements = []
@@ -173,9 +166,9 @@ class NODBDuplicateCheck(QualityController):
         elif 'CNODCDuplicateCandidates' in self.current_record.record.metadata:
             del self.current_record.record.metadata['CNODCDuplicateCandidates']
 
-    def search_for_duplicates(self) -> tuple[dict[tuple[str | None, str, datetime.date], ParentCompareResult], dict[str, dict[tuple[str | None, str, datetime.date], ParentCompareResult]]]:
+    def search_for_duplicates(self) -> tuple[dict[tuple[str | None, str, datetime.date], DeduplicateAction], dict[str, dict[tuple[str | None, str, datetime.date], ParentCompareResult]]]:
         diff_level_matches: dict[str, dict[tuple[str | None, str, datetime.date], ParentCompareResult]] = {}
-        potential_matches: dict[tuple[str | None, str, datetime.date], ParentCompareResult] = {}
+        potential_matches: dict[tuple[str | None, str, datetime.date], DeduplicateAction] = {}
         self_level = self.current_record.record.metadata.best("CNODCLevel", coerce=str, default="UNKNOWN")
         def _process_record(source_uuid: str | None, record_uuid: str, record_date: datetime.date, record: ParentRecord | None):
             if record is None: return
@@ -183,7 +176,8 @@ class NODBDuplicateCheck(QualityController):
             if match_result is ParentCompareResult.NO_MATCH: return
             record_level = record.metadata.best("CNODCLevel", coerce=str, default="UNKNOWN")
             if record_level == self_level:
-                potential_matches[(source_uuid, record_uuid, record_date)] = match_result
+                action = self.get_dedupe_action(match_result, record_date, source_uuid)
+                potential_matches[(source_uuid, record_uuid, record_date)] = action
             else:
                 if record_level not in diff_level_matches:
                     diff_level_matches[record_level] = {}
@@ -206,27 +200,43 @@ class NODBDuplicateCheck(QualityController):
                 obs_data.record
             )
         return (
-            self.reduce_matches(potential_matches),
+            self.reduce_matches_action(potential_matches),
             {
                 k: self.reduce_matches(diff_level_matches[k])
                 for k in diff_level_matches.keys()
             }
         )
 
-    def reduce_matches(self, potential_matches: dict[tuple[str | None, str, datetime.date], ParentCompareResult]) -> dict[tuple[str | None, str, datetime.date], ParentCompareResult]:
+    def reduce_matches_action(self, potential_matches: dict[tuple[str | None, str, datetime.date], DeduplicateAction]) -> dict[tuple[str | None, str, datetime.date], DeduplicateAction]:
         ordered_results = [
-            (ParentCompareResult.MARK_DUPLICATE,),
-            (ParentCompareResult.MARK_DUPLICATE_UNLESS_REPLACEMENT,),
-            (ParentCompareResult.MARK_OTHER_DUPLICATE,),
-            (ParentCompareResult.MERGE,),
-            (ParentCompareResult.REVIEW,),
+            DeduplicateAction.MARK_DUPLICATE,
+            DeduplicateAction.MARK_OTHER_DUPLICATE,
+            DeduplicateAction.AUTOMERGE,
+            DeduplicateAction.REVIEW,
         ]
-        for allow_values in ordered_results:
-            if any(x in allow_values for x in potential_matches.values()):
+        for allow_value in ordered_results:
+            if allow_value in potential_matches.values():
                 return {
                     k: v
                     for k, v in potential_matches.items()
-                    if v in allow_values
+                    if v is allow_value
+                }
+        return potential_matches
+
+    def reduce_matches(self, potential_matches: dict[tuple[str | None, str, datetime.date], ParentCompareResult]) -> dict[tuple[str | None, str, datetime.date], ParentCompareResult]:
+        ordered_results = [
+            ParentCompareResult.IDENTICAL,
+            ParentCompareResult.B_BETTER,
+            ParentCompareResult.A_BETTER,
+            ParentCompareResult.COMPATIBLE,
+            ParentCompareResult.INCOMPATIBLE,
+        ]
+        for allow_value in ordered_results:
+            if allow_value in potential_matches.values():
+                return {
+                    k: v
+                    for k, v in potential_matches.items()
+                    if v is allow_value
                 }
         return potential_matches
 
@@ -242,15 +252,15 @@ class NODBDuplicateCheck(QualityController):
         )
         match result_tuple:
             case (i, 0, 0, 0):
-                return ParentCompareResult.MARK_DUPLICATE
+                return ParentCompareResult.IDENTICAL
             case (i, a, 0, 0):
-                return ParentCompareResult.MARK_OTHER_DUPLICATE
-            case (i, 0, a, 0):
-                return ParentCompareResult.MARK_DUPLICATE_UNLESS_REPLACEMENT
+                return ParentCompareResult.A_BETTER
+            case (i, 0, b, 0):
+                return ParentCompareResult.B_BETTER
             case (i, a, b, 0):
-                return ParentCompareResult.MERGE
+                return ParentCompareResult.COMPATIBLE
             case _:
-                return ParentCompareResult.REVIEW
+                return ParentCompareResult.INCOMPATIBLE
 
 
     def current_coordinates_with_accuracy(self) -> tuple[amath.ScienceNumber, amath.ScienceNumber, ScienceDateTime]:
@@ -398,7 +408,8 @@ class NODBDuplicateCheck(QualityController):
                 yield from self.compare_record(rec_a, rec_b)
 
     def pair_up_records(self, a: list[ChildRecord], b: list[ChildRecord]) -> t.Iterable[tuple[ChildRecord | None, ...]]:
-        yield from pair_up_records(a, b)
+        for paired_results in pair_up_records(a, b):
+            yield tuple(*(x for x, _ in paired_results))
 
     def compare_recordset(self, a: RecordSet | None, b: RecordSet | None) -> t.Iterable[CompareResult]:
         if a is None:
@@ -416,7 +427,7 @@ class NODBDuplicateCheck(QualityController):
         rs_a_list = [*a.values()]
         rs_b_list = [*b.values()]
         for rs_a, rs_b in pair_up_recordsets(rs_a_list, rs_b_list):
-            yield from self.compare_recordset(rs_a, rs_b)
+            yield from self.compare_recordset(rs_a[0], rs_b[0])
 
     def best_result(self, *options: list[CompareResult]) -> t.Iterable[CompareResult]:
         best_option, best_stat = None, None
@@ -459,7 +470,7 @@ class NODBDuplicateCheck(QualityController):
             [x for x in a.all_values()],
             [x for x in b.all_values()]
         ):
-            yield from self.compare_single_element(sub_a, sub_b)
+            yield from self.compare_single_element(sub_a[0], sub_b[0])
 
     def unique_pair_indexes(self, options: list[int]) -> t.Iterable[list[int]]:
         if len(options) == 1:

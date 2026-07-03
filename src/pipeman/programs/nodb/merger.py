@@ -93,6 +93,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
             'review_queue': 'nodb_merge_review',
             'finish_queue': 'nodb_merge_finish',
             'merge_directory': None,
+            'review_all': False,
         })
 
     def merge_directory(self) -> FilePath:
@@ -105,7 +106,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
             merge_dir.mkdir(0o664, parents=True)
 
             obs_datas_to_merge = [x for x in self.load_observation_data(item)]
-            merger = ObservationDataMerger(obs_datas_to_merge)
+            merger = ObservationDataMerger(obs_datas_to_merge, bool(self.get_config('review_all', False)))
             new_record, should_review = merger.merge()
             new_record.metadata['CNODCDuplicates'] = MultiElement(
                 SingleElement(f"{x.received_date.isoformat()}/{x.obs_uuid}")
@@ -178,8 +179,8 @@ class NODBDuplicateMergeWorker(QueueWorker):
 
 class ObservationDataMerger:
 
-    def __init__(self, items: list[NODBObservationData]):
-        self._is_reviewable: bool = False
+    def __init__(self, items: list[NODBObservationData], review_all: bool = False):
+        self._is_reviewable: bool = review_all
         self._items: list[NODBObservationData] = items
 
     def merge(self) -> tuple[ParentRecord, bool]:

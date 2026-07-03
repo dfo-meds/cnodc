@@ -303,21 +303,25 @@ class NODBRecordManager:
 
 
     def check_for_duplicate_action(self, record: ocproc2.ParentRecord, obs_data: NODBObservationData) -> tuple[CreationResultType, list[str] | None]:
-        if record.metadata.has_value("CNODCDuplicateOf"):
-            obs_data.duplicate_uuid, obs_data.duplicate_received_date = record.metadata["CNODCDuplicateOf"].to_string().split('/', maxsplit=1)
+        if not record.metadata.has_value("CNODCDedupeResult"):
+            return CreationResultType.NEW, None
+        md = record.metadata["CNODCDedupeResult"]
+        mode = record.metadata.best("CNODCDedupeResultType", coerce=str, default=None)
+        if mode == "mark_duplicate":
+            obs_data.duplicate_uuid, obs_data.duplicate_received_date = md.ideal().to_string().split('/', maxsplit=1)
             return CreationResultType.DUPLICATE, None
-        elif record.metadata.has_value('CNODCDuplicates'):
+        elif mode == "mark_other_duplicate":
             return CreationResultType.UPDATE, [
                 v.to_string()
-                for v in record.metadata['CNODCDuplicates'].all_values()
+                for v in md.all_values()
             ]
-        elif record.metadata.has_value('CNODCMergeWith'):
+        elif mode == "merge":
             return CreationResultType.MERGE, [
                 v.to_string()
-                for v in record.metadata['CNODCMergeWith'].all_values()
+                for v in md.all_values()
             ]
         else:
-            return CreationResultType.NEW, None
+            raise ValueError(f"Invalid duplicate mode: [{mode}]")
 
 
     def finalize(self, record: ocproc2.BaseRecord, is_top_level: bool = True):
