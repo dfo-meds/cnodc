@@ -4,7 +4,7 @@ import typing as t
 import datetime
 import enum
 
-from medsutil.ocproc2 import normalize_ocproc_path
+from medsutil.ocproc2.util import normalize_ocproc_path
 
 if t.TYPE_CHECKING:
     from medsutil.ocproc2.util import SupportedStorage

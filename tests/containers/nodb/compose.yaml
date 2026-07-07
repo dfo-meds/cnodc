@@ -1,10 +1,10 @@
 name: nodb
 services:
   db:
-    image: postgis/postgis:15-3.4
+    image: postgis/postgis:18-3.6
     volumes:
     - "./config:/docker-entrypoint-initdb.d/"
-    - "pgdata:/var/lib/postgresql/data"
+    - "pgdata:/var/lib/postgresql"
     environment:
       POSTGRES_USER: example
       POSTGRES_PASSWORD: example

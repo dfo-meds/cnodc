@@ -4,14 +4,14 @@ import typing as t
 from medsutil import ocproc2 as ocproc2, math as amath
 from medsutil.awaretime import AwareDateTime
 from medsutil.math import ScienceNumber
-from medsutil.ocproc2 import ChildRecord, RecordSet
 
-from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP, SingleElement
 from medsutil.ocproc2.refs import RecordRef, ChildRecordRef, RecordSetRef
 from medsutil.units.structures import UnitError
 
 if t.TYPE_CHECKING:
     from medsutil.iso_duration import ISODuration
+    from medsutil.ocproc2.structures import ChildRecord, RecordSet
+    from medsutil.ocproc2.elements import SingleElement
 
 
 def normalize_ocproc_path(path: t.Union[None, str, t.Iterable[str]]) -> str:
@@ -60,6 +60,7 @@ class Quality(enum.IntEnum):
 
     @staticmethod
     def new_quality_allowed(new_quality: int, old_quality: int | None):
+        from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP
         return new_quality in ALLOWED_QUALITY_MAP[old_quality]
 
 
@@ -399,6 +400,7 @@ def pair_up_records[T: RecordRef | ChildRecord](*record_lists: list[T]) -> t.Ite
 
 
 def compare_child_records(a: ChildRecord | ChildRecordRef, b: ChildRecord | ChildRecordRef) -> float | None:
+    from medsutil.ocproc2.structures import ChildRecord
     a_rec = a if isinstance(a, ChildRecord) else a.record
     b_rec = b if isinstance(b, ChildRecord) else b.record
 
@@ -421,6 +423,7 @@ def pair_up_recordsets[T: RecordSetRef | RecordSet](*recordset_lists: list[T]) -
 
 
 def compare_recordsets(a: RecordSet | RecordSetRef, b: RecordSet | RecordSetRef) -> float | None:
+    from medsutil.ocproc2.structures import RecordSet
     rs_a = a if isinstance(a, RecordSet) else a.recordset
     rs_b = b if isinstance(b, RecordSet) else b.recordset
     a_coordinates = set()

@@ -23,7 +23,7 @@ class GTSPPDensityInversionTest(ProfileChecker):
 
     def level_check(self, record: ChildRecordRef):
         temp_ref = record.parameter_ref("Temperature")
-        salinity_ref = record.parameter_ref("Salinity")
+        salinity_ref = record.parameter_ref("PracticalSalinity")
         if temp_ref is None or salinity_ref is None:
             return
         for temp_sref in temp_ref.single_element_refs():

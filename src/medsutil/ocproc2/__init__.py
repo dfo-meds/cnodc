@@ -84,9 +84,9 @@
       This includes the outcome itself, notes, the time of the test, information about
       the test, and more.
 """
-from .util import normalize_ocproc_path
 from .elements import MultiElement, AbstractElement, SingleElement, ElementMap, QCInfo
 from .history import HistoryEntry, QCResult, QCMessage, MessageType, QCTestRunInfo
 from .structures import BaseRecord, ParentRecord, ChildRecord, RecordSet, RecordMap, ElementMap
 from .operations import QCOperator, QCSetValue, QCAddHistory, QCSetWorkingQuality
 from .ontology import OCProc2Ontology, OCProc2ElementInfo, OCProc2ChildRecordTypeInfo
+from .util import normalize_ocproc_path
