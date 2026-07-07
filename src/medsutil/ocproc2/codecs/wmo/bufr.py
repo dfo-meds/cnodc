@@ -210,7 +210,7 @@ class Bufr4Decoder(GtsSubDecoder):
         yield (4).to_bytes(1, 'big')
         yield content
 
-    def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool) -> DecodeResult:
+    def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool, received_date: AwareDateTime | None = None) -> DecodeResult:
         content = bytearray()
         try:
             reader.consume(4)
