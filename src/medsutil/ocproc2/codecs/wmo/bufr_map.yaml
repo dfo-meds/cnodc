@@ -93,7 +93,6 @@
   instruction: apply_to_parameters
   filter:
     - PracticalSalinity
-    - Depth
 2034: "metadata/WMODrogueType"
 2036: "metadata/WMOBuoyType"
 2038:
@@ -431,10 +430,11 @@
     - Temperature
     - PracticalSalinity
 22068:
-  name: WMOProfileRecorderType
-  instruction: apply_to_recordset
-  recordset_filter:
-    - PROFILE
+  name: "WMOProfileRecorderType"
+  instruction: apply_to_parameters
+  filter:
+    - Temperature
+    - PracticalSalinity
 22069: "parameters/SpectralWaveDensity"
 22070: "parameters/WaveSignificantHeight"
 22071: "parameters/SpectralWavePeakPeriod"
@@ -875,7 +875,7 @@
         - "26021:metadata/InstrumentManufacturingDate[year]"
         - "26022:metadata/InstrumentManufacturingDate[month]"
         - "26023:metadata/InstrumentManufacturingDate[day]"
-        - "22068:recordset/WMOProfileRecorderType"
+        - "22068:common/WMOProfileRecorderType"
         - "25061:metadata/SoftwareID"
         - "8041:NULL"
         - "8080:NULL"
@@ -945,7 +945,7 @@
       group:
         - "2038:common/WMOTemperatureSalinityMeasurementMethod"
         - "22067:common/WMOProfileInstrumentType"
-        - "2038:recordset/WMOProfileRecorderType"
+        - "2038:common/WMOProfileRecorderType"
         - "2171:common/SensorSerial"
         - "2033:common/WMOSalinityDepthMeasurementMethod"
         - descriptor: 2032

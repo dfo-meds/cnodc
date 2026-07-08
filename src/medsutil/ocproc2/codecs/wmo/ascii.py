@@ -232,8 +232,12 @@ class AsciiDecoder(GtsSubDecoder):
         return self.parse_scinum(f"{dn}/", 3, "degrees", **kwargs)
 
     @with_exception_note("Error while parsing current speed")
-    def parse_current_speed(self, cn: str, **kwargs) -> SingleElement | None:
+    def parse_current_speed(self, cn: str, units: str = "cm s-1", **kwargs) -> SingleElement | None:
         return self.parse_scinum(cn, 3, "cm s-1", **kwargs)
+
+    @with_exception_note("Error while parsing current speed")
+    def parse_current_speed_vc(self, vc: str, **kwargs) -> SingleElement | None:
+        return self.parse_scinum(vc, 1, "knots", **kwargs)
 
     @with_exception_note("Error while parsing anemometer height")
     def parse_anemometer_height(self, ah: str, **kwargs) -> SingleElement | None:
@@ -786,7 +790,7 @@ class BathyJJVV(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "iu d d f f")
             wmo_wind_source = ascii_message[o][0]
             units = self.parse_wind_type_1853(ascii_message[o][0])
-            record.parameters["WindDirection"] = self.parse_wind_direction(ascii_message[o][1:3])
+            record.parameters["WindDirection"] = self.parse_wind_direction(ascii_message[o][1:3], WMOWindInstrumentType=wmo_wind_source)
             if current.endswith("99") and next.startswith("00"):
                 self.require_length(ascii_message[o+1], 5, "0 0 f f f")
                 record.parameters["WindSpeed"] = self.parse_wind_speed_ext(ascii_message[o+1][2:5], units, WMOWindInstrumentType=wmo_wind_source)
@@ -811,7 +815,7 @@ class BathyJJVV(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "4 sn T T T")
             record.parameters["AirTemperature"] = self.parse_temperature(ascii_message[o][1:])
             o += 1
-        return 0
+        return o
 
     @with_exception_note("Error while parsing section 2")
     def _decode_section_2(self, record: ParentRecord, ascii_message: list[str], o: int) -> int:
@@ -827,8 +831,8 @@ class BathyJJVV(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "IX IX IX XR XR")
             # TODO: review these, one is on the element and teh other on the platform
 
-            rs.metadata["WMOProfileInstrumentType"] = self.parse_xbt_instrument(ascii_message[o][0:3])
-            rs.metadata["WMOProfileRecorderType"] = self.parse_xbt_recorder(ascii_message[o][3:5])
+            wmo_itype = self.parse_xbt_instrument(ascii_message[o][0:3])
+            wmo_rtype = self.parse_xbt_recorder(ascii_message[o][3:5])
             o += 1
 
             hundreds = "00"
@@ -842,7 +846,7 @@ class BathyJJVV(AsciiDecoder):
                     self.require_length(ascii_message[o], 5, "zn zn Tn Tn Tn")
                     subrecord = ChildRecord()
                     subrecord.coordinates["Depth"] = last_depth = self.parse_depth(f"{hundreds}{ascii_message[o][0:2]}")
-                    subrecord.parameters["Temperature"] = self.parse_temperature_5_offset(ascii_message[o][2:5])
+                    subrecord.parameters["Temperature"] = self.parse_temperature_5_offset(ascii_message[o][2:5], WMOProfileInstrumentType=wmo_itype, WMOProfileRecorderType=wmo_rtype)
                     rs.records.append(subrecord)
                     o += 1
 
@@ -871,7 +875,7 @@ class BathyJJVV(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "k5 Dc Dc Vc Vc")
             cur_method = self.parse_current_method(ascii_message[o][0])
             record.parameters["CurrentDirection"] = self.parse_current_direction(ascii_message[o][1:3], WMOCurrentMeasurementMethod=cur_method)
-            record.parameters["CurrentSpeed"] = self.parse_current_speed(ascii_message[o][3:5], WMOCurrentMeasurementMethod=cur_method)
+            record.parameters["CurrentSpeed"] = self.parse_current_speed_vc(ascii_message[o][3:5], WMOCurrentMeasurementMethod=cur_method)
             o += 1
 
         # D...D or 99999
@@ -950,7 +954,7 @@ class TesacKKYY(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "4 sn T T T")
             record.parameters["AirTemperature"] = self.parse_temperature(ascii_message[o][1:])
             o += 1
-        return 0
+        return o
 
     @with_exception_note("Error while parsing section 2")
     def _decode_section_2(self, record: ParentRecord, ascii_message: list[str], o: int) -> int:
@@ -965,8 +969,8 @@ class TesacKKYY(AsciiDecoder):
 
             # IX IX IX XR XR
             self.require_length(ascii_message[o], 5, "IX IX IX XR XR")
-            rs.metadata["WMOProfileInstrumentType"] = self.parse_xbt_instrument(ascii_message[o][0:3])
-            rs.metadata["WMOProfileRecorderType"] = self.parse_xbt_recorder(ascii_message[o][3:5])
+            wmo_itype = self.parse_xbt_instrument(ascii_message[o][0:3])
+            wmo_rtype = self.parse_xbt_recorder(ascii_message[o][3:5])
             o += 1
 
             last_depth = None
@@ -984,12 +988,12 @@ class TesacKKYY(AsciiDecoder):
                     if subrecord is None:
                         raise AsciiDecodeError("Invalid location for temperature in profile, expecting depth first", 4001)
                     self.require_length(ascii_message[o], 5, "3 Tn Tn Tn Tn")
-                    subrecord.parameters["Temperature"] = self.parse_temperature_5_offset(ascii_message[o][1:])
+                    subrecord.parameters["Temperature"] = self.parse_temperature_5_offset(ascii_message[o][1:], WMOProfileInstrumentType=wmo_itype, WMOProfileRecorderType=wmo_rtype)
                 elif self.next_message_startswith(ascii_message, o, "4"):
                     if subrecord is None:
                         raise AsciiDecodeError("Invalid location for salinity in profile, expecting depth first", 4002)
                     self.require_length(ascii_message[o], 5, "4 Sn Sn Sn Sn")
-                    subrecord.parameters["PracticalSalinity"] = self.parse_psu(ascii_message[o][1:])
+                    subrecord.parameters["PracticalSalinity"] = self.parse_psu(ascii_message[o][1:], WMOProfileInstrumentType=wmo_itype, WMOProfileRecorderType=wmo_rtype)
                 else:
                     raise AsciiDecodeError("Invalid element for t/s profile, found: [{ascii_message[o]}] expecting 2 zn, 3 Tn, 4 Sn, 00000, or 66...", 4000)
 
@@ -1024,6 +1028,7 @@ class TesacKKYY(AsciiDecoder):
                     )
                     subrecord.parameters["CurrentSpeed"] = self.parse_current_speed(
                         ascii_message[o + 1][2:],
+                        units="knots",
                         WMOPlatformMotionRemovalMethod=pmr_method,
                         WMOCurrentMeasurementDuration=cm_duration
                     )
