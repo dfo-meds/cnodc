@@ -16,6 +16,7 @@ import zrlog
 from autoinject import injector
 from medsutil.awaretime import AwareDateTime
 from medsutil.halts import DummyHaltFlag
+from medsutil.ocproc2 import ElementMap
 from nodb.interface import NODB
 from tests.helpers.mock_containers import TestContainer, NODBContainer, DMDContainer, DMDInstallContainer
 from tests.helpers.mock_runner import WorkerTestController
@@ -295,6 +296,21 @@ class BaseTestCase(ut.TestCase):
                 with mock.patch('requests.request', side_effect=cls.web.mock_request) as x:
                     yield x
 
+    def assert_element_equals(self, em: ElementMap, name: str, value, **kwargs):
+        if value is not None:
+            self.assertIn(name, em, msg=f"{name} is not present")
+        else:
+            self.assertNotIn(name, em, msg=f"{name} is unexpectedly present")
+        if isinstance(value, float):
+            self.assertAlmostEqual(em.best(name, default=None), value, msg=f"{name} does not match expected value")
+        else:
+            self.assertEqual(em.best(name, default=None), value, msg=f"{name} does not match expected value")
+        for kwarg in kwargs:
+            value = kwargs[kwarg]
+            if isinstance(value, tuple):
+                self.assert_element_equals(em[name].metadata, kwarg, value[0], **value[1])
+            else:
+                self.assert_element_equals(em[name].metadata, kwarg, value)
     @contextmanager
     def assertRaisesCoded(self, error_code: str = None, is_transient: bool = None, msg=None):
         try:

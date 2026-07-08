@@ -1,5 +1,6 @@
 import traceback
 import pathlib
+import typing as t
 
 from medsutil import ROOT_DIR
 SOURCES_DIR_STR = str(ROOT_DIR)
@@ -85,3 +86,15 @@ def format_stack_trace(ex: BaseException,
 
 def color_text(text: str, color: int, style: int = 0) -> str:
     return f"\033[{style};{color}m{text}\033[0m"
+
+
+def with_exception_note(note: str) -> t.Callable:
+    def _outer(cb: t.Callable) -> t.Callable:
+        def _inner(*args, **kwargs):
+            try:
+                return cb(*args, **kwargs)
+            except Exception as ex:
+                ex.add_note(note)
+                raise
+        return _inner
+    return _outer

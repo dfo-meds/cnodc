@@ -225,7 +225,7 @@ class AbstractElement[X]:
             diff = abs(float(v) - true_v)
             if diff > 1e-9:
                 raise ValueError("Loss of value encountered")
-        return convert(true_v, bv.units(), units)
+        return coerce(convert(true_v, bv.units(), units))
 
     def to_scidate(self) -> ScienceDateTime:
         ideal = self.ideal()

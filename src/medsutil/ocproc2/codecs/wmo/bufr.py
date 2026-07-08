@@ -2,6 +2,7 @@ import contextlib
 import typing as t
 import math
 from copy import deepcopy
+from unittest import case
 
 import yaml
 import pathlib
@@ -59,7 +60,11 @@ class BufrCDSTables:
         return None
 
     def standardize_units(self, unit: str):
-        if unit in ('Numeric', 'CCITT IA5', 'CODE TABLE'):
+        if unit.upper() in ('NUMERIC', 'CCITT IA5', 'CODE TABLE'):
+            return None
+        if unit == "degree true" or unit == "degrees true":
+            unit = "degrees"
+        if unit == "mon":
             return None
         return self.converter.standardize(unit)
 
@@ -506,21 +511,25 @@ class _Bufr4Encoder:
             return self._table_group
 
     def _build_from_descriptor(self, descriptor, **kwargs) -> EncodeElement:
-        if isinstance(descriptor, SequenceDescriptor):
-            yielder = None
-            method_name = f"_build_from_{descriptor.id}"
-            if hasattr(self, method_name):
-                yielder = getattr(self, method_name)(**kwargs)
-            else:
-                instruction = self._cds_tables.lookup_encode(descriptor.id)
-                if instruction is not None:
-                    yielder = self._build_from_instruction(instruction, **kwargs)
+        try:
+            if isinstance(descriptor, SequenceDescriptor):
+                yielder = None
+                method_name = f"_build_from_{descriptor.id}"
+                if hasattr(self, method_name):
+                    yielder = getattr(self, method_name)(**kwargs)
+                else:
+                    instruction = self._cds_tables.lookup_encode(descriptor.id)
+                    if instruction is not None:
+                        yielder = self._build_from_instruction(instruction, **kwargs)
 
-            if yielder is not None:
-                elements = [x for x in self._filter_results(descriptor, yielder)]
-                return EncodeElement(descriptor.id, elements)
+                if yielder is not None:
+                    elements = [x for x in self._filter_results(descriptor, yielder)]
+                    return EncodeElement(descriptor.id, elements)
 
-        raise ValueError(f"Invalid descriptor: {type(descriptor)} ")
+            raise ValueError("Invalid descriptor")
+        except Exception as ex:
+            ex.add_note(f"Error while building descriptor [{descriptor}]")
+            raise
 
     def _filter_results(self, descriptor: SequenceDescriptor, results: t.Iterable[EncodeElement]) -> t.Iterable[EncodeElement]:
         for x in descriptor.members:
@@ -549,59 +558,70 @@ class _Bufr4Encoder:
                     yield self._build_from_common(idx, instruction, **kwargs)
                 else:
                     yield from self._build_from_instruction(i, **kwargs)
-        elif instruction["instruction"] == "extract_ocproc2":
-            if instruction["source"].startswith("recordset/"):
-                _, metadata = instruction["source"].split("/", 1)
-                yield EncodeElement(instruction["descriptor"], self._build_from_ocproc2(
-                    kwargs["recordset"].metadata.ideal(metadata),
-                    instruction["descriptor"],
-                    filters=instruction["filters"] if "filters" in instruction else None,
-                    value_map=instruction["data_map"] if "data_map" in instruction else None
-                ))
-            else:
-                yield EncodeElement(instruction["descriptor"], self._build_from_ocproc2(
-                    kwargs["record"].find_child(instruction["source"]),
-                    instruction["descriptor"],
-                    filters=instruction["filters"] if "filters" in instruction else None,
-                    value_map=instruction["data_map"] if "data_map" in instruction else None
-                ))
-        elif instruction["instruction"] == "null":
-            yield EncodeElement(instruction["descriptor"], None)
-        elif instruction["instruction"] == "static":
-            yield EncodeElement(
-                instruction["descriptor"],
-                self._build_from_raw_value(instruction["value"], instruction["descriptor"]),
-                optional=instruction["optional"]
-            )
-        elif instruction["instruction"] == "sequence":
-            if instruction["optional"]:
-                yield from self._build_optional_block(
-                    self._handle_sequence_instruction,
-                    instruction=instruction,
-                    **kwargs
-                )
-            else:
-                yield self._handle_sequence_instruction(instruction, **kwargs)
-        elif instruction["instruction"] == "group":
-            if "recordset_type" in instruction:
-                kwargs["recordset"] = self._find_first_recordset(
-                    record=kwargs["record"],
-                    recordset_type=instruction["recordset_type"],
-                    output_elements=instruction["requires"] if "requires" in instruction else []
-                )
-                if "is_optional" in instruction and instruction["is_optional"]:
-                    if kwargs["recordset"] is None:
-                        yield EncodeElement(31000, 0)
-                        return
-                    else:
-                        yield EncodeElement(31000, 1)
-            if "repeats" in instruction:
-                yield from self._build_from_repeat_instruction(instruction, **kwargs)
-            else:
-                yield from self._build_from_instruction(instruction['group'], **kwargs)
         else:
-            print(instruction)
-            exit(1)
+            try:
+                if "custom_encoder_function" in instruction:
+                    yield from getattr(self, instruction["custom_encoder_function"])(instruction, **kwargs)
+                elif instruction["instruction"] == "extract_ocproc2":
+                    if instruction["source"].startswith("recordset/"):
+                        _, metadata = instruction["source"].split("/", 1)
+                        yield EncodeElement(instruction["descriptor"], self._build_from_ocproc2(
+                            kwargs["recordset"].metadata.ideal(metadata),
+                            instruction["descriptor"],
+                            filters=instruction["filters"] if "filters" in instruction else None,
+                            value_map=instruction["data_map"] if "data_map" in instruction else None
+                        ))
+                    else:
+                        yield EncodeElement(instruction["descriptor"], self._build_from_ocproc2(
+                            kwargs["record"].find_child(instruction["source"]),
+                            instruction["descriptor"],
+                            filters=instruction["filters"] if "filters" in instruction else None,
+                            value_map=instruction["data_map"] if "data_map" in instruction else None
+                        ))
+                elif instruction["instruction"] == "null":
+                    yield EncodeElement(instruction["descriptor"], None)
+                elif instruction["instruction"] == "static":
+                    yield EncodeElement(
+                        instruction["descriptor"],
+                        self._build_from_raw_value(instruction["value"], instruction["descriptor"]),
+                        optional=instruction["optional"]
+                    )
+                elif instruction["instruction"] == "sequence":
+                    if instruction["optional"]:
+                        yield from self._build_optional_block(
+                            self._handle_sequence_instruction,
+                            instruction=instruction,
+                            **kwargs
+                        )
+                    else:
+                        yield self._handle_sequence_instruction(instruction, **kwargs)
+                elif instruction["instruction"] == "group":
+                    if "recordset_type" in instruction:
+                        kwargs["recordset"] = self._find_first_recordset(
+                            record=kwargs["record"],
+                            recordset_type=instruction["recordset_type"],
+                            output_elements=instruction["requires"] if "requires" in instruction else [],
+                            exclude_with_elements=instruction["missing"] if "missing" in instruction else None
+                        )
+                        if "is_optional" in instruction and instruction["is_optional"]:
+                            if kwargs["recordset"] is None:
+                                yield EncodeElement(31000, 0)
+                                return
+                            else:
+                                yield EncodeElement(31000, 1)
+                    if "repeats" in instruction:
+                        yield from self._build_from_repeat_instruction(instruction, **kwargs)
+                    else:
+                        yield from self._build_from_instruction(instruction['group'], **kwargs)
+                else:
+                    print(instruction)
+                    exit(1)
+            except Exception as e:
+                if 'descriptor' in instruction:
+                    e.add_note(f"Error while handling instruction: {instruction['descriptor']} [{instruction['instruction']}]")
+                else:
+                    e.add_note(f"Error while handling instruction: [{instruction['instruction']}]")
+                raise
 
     def _build_from_repeat_instruction(self, instruction, record: BaseRecord, recordset: RecordSet | None) -> t.Iterable[EncodeElement]:
         if recordset is None:
@@ -639,6 +659,17 @@ class _Bufr4Encoder:
             if source_name == "SensorDepth" and "SensorDepthReference" in filters and filters["SensorDepthReference"] in ("water", "local_ground"):
                 common_value = -1 * float(common_value)
         return EncodeElement(common_instruction["descriptor"], common_value)
+
+    def _build_last_known_position_date(self, instruction: dict, record: BaseRecord, **kwargs) -> t.Iterable[EncodeElement]:
+        lkpt = record.metadata.get("LastKnownPositionTime")
+        yield EncodeElement(4001, self._build_from_ocproc2(lkpt, 4001, filters={"year": True}))
+        yield EncodeElement(4001, self._build_from_ocproc2(lkpt, 4002, filters={"month": True}))
+        yield EncodeElement(4001, self._build_from_ocproc2(lkpt, 4003, filters={"day": True}))
+
+    def _build_last_known_position_time(self, instruction: dict, record: BaseRecord, **kwargs) -> t.Iterable[EncodeElement]:
+        lkpt = record.metadata.get("LastKnownPositionTime")
+        yield EncodeElement(4001, self._build_from_ocproc2(lkpt, 4004, filters={"hour": True}))
+        yield EncodeElement(4001, self._build_from_ocproc2(lkpt, 4005, filters={"minute": True}))
 
     def _extract_common_elements(self,
                                  instruction: list[dict],
@@ -711,11 +742,17 @@ class _Bufr4Encoder:
             return None
         value = None
         if filters is not None:
-            for x in ("year", "month", "day", "hour", "minute", "second"):
+            for x in ("year", "month", "day", "hour", "minute", "second", "wigos1", "wigos2", "wigos3", "wigos4"):
                 if x in filters and filters[x]:
-                    v = element.ideal().to_datetime()
-                    value = ocproc2.SingleElement(getattr(v, x))
-                    break
+                    if x in ("year", "month", "day", "hour", "minute", "second"):
+                        v = element.ideal().to_datetime()
+                        value = ocproc2.SingleElement(getattr(v, x))
+                        break
+                    else:
+                        v = element.ideal().to_string()
+                        pieces = v.split("-", maxsplit=3)
+                        value = ocproc2.SingleElement(pieces[int(x[5])])
+                        break
             else:
                 for e in element.all_values():
                     if all(e.metadata.has_value(x) and e.metadata.best(x) == filters[x] for x in filters):
@@ -734,38 +771,56 @@ class _Bufr4Encoder:
         if value is None or value == "":
             return None
         descriptor = self.table_group.lookup(descriptor_id)
-        if descriptor.unit == "CCITT IA5":
-            return str(value)
-        elif descriptor.unit == "CODE TABLE":
-            return int(value)
-        elif descriptor.unit == "Numeric" or value_units is None:
-            return float(value)
+        match self._descriptor_data_type(descriptor):
+            case 1:
+                return str(value)
+            case 2:
+                return int(value)
+            case 3:
+                return self._handle_rounding(float(value), descriptor)
+            case 0:
+                return self._handle_rounding(
+                    convert(float(value), value_units, descriptor.unit),
+                    descriptor
+                )
+            case _:
+                raise ValueError("Invalid data type")
+
+    def _handle_rounding(self, f: float, d: ElementDescriptor) -> float:
+        return round(f, d.scale)
+
+
+    def _descriptor_data_type(self, descriptor) -> int:
+        if not descriptor.unit:
+            return 3
+        if descriptor.unit.upper() in ("CCITT IA5",):
+            return 1
+        elif descriptor.unit.upper() in ("CODE TABLE", "CODE",):
+            return 2
+        elif descriptor.unit.upper() in ("NUMERIC",):
+            return 3
         else:
-            units = descriptor.unit
-            if units == "degree true":
-                units = "degrees"
-            return convert(float(value), value_units, units)
+            return 0
 
     def _build_from_single_ocproc2(self,
                                    value: ocproc2.SingleElement,
                                    descriptor_id: int) -> t.Any:
         if value.is_empty():
             return None
-        else:
-            descriptor = self.table_group.lookup(descriptor_id)
-            if descriptor.unit.upper() == "CCITT IA5":
+        descriptor = self.table_group.lookup(descriptor_id)
+        match self._descriptor_data_type(descriptor):
+            case 1:
                 return value.to_string()
-            elif descriptor.unit.upper() == "CODE TABLE":
+            case 2:
                 return value.to_int()
-            elif descriptor.unit.upper() == "NUMERIC":
-                return value.to_float()
-            else:
-                units = descriptor.unit
-                if units.lower() == "degree true":
-                    units = "degrees"
-                return value.to_float(self._cds_tables.standardize_units(units))
+            case 3:
+                return self._handle_rounding(value.to_float(), descriptor)
+            case 0:
+                return self._handle_rounding(value.to_float(self._cds_tables.standardize_units(descriptor.unit)), descriptor)
+            case _:
+                raise ValueError("Invalid data type")
 
-    def _find_first_recordset(self, record, recordset_type: str, output_elements: list[str]) -> RecordSet | None:
+    def _find_first_recordset(self, record, recordset_type: str, output_elements: list[str], exclude_with_elements: list[str] | None = None) -> RecordSet | None:
         found_rs = None
         matches = 0
         for recordset_id, recordset in record.subrecords.record_sets[recordset_type].items():
@@ -773,6 +828,8 @@ class _Bufr4Encoder:
             for record in recordset.records:
                 found_elements.update(record.parameters.keys())
                 found_elements.update(record.coordinates.keys())
+            if exclude_with_elements and any(x in found_elements for x in exclude_with_elements):
+                continue
             matches_for_rs = sum(1 if x in found_elements else 0 for x in output_elements)
             if matches_for_rs > matches:
                 found_rs = recordset
@@ -861,7 +918,7 @@ class _Bufr4Encoder:
             if found_element is None:
                 continue
             if units is not None:
-                current_code = found_element.to_decimal(units)
+                current_code = found_element.to_float(units)
             else:
                 current_code = found_element.value
             if found_code is None:
@@ -1191,13 +1248,13 @@ class _Bufr4Decoder:
                     value.metadata[key] = instruction['metadata'][key]
         if node is not None:
             units: str | None = self._get_node_units(node)
-            if units != "CCITT IA5" and units != "Code table":
+            if units and units != "CCITT IA5" and units.upper() != "CODE TABLE":
                 if units and 'Units' not in value.metadata:
                     value.metadata['Units'] = self.bufr_tables.standardize_units(units)
                 scale = self._get_node_scale(node)
                 if scale and 'Uncertainty' not in value.metadata:
                     value.metadata['Uncertainty'] = scale
-                    value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'rounded'
+                    value.metadata['Uncertainty'].metadata['UncertaintyType'] = 'uniform'
         return value
 
     def _get_node_units(self, node: ValueDataNode):
@@ -1206,7 +1263,7 @@ class _Bufr4Decoder:
 
     def _get_node_scale(self, node: ValueDataNode):
         if hasattr(node.descriptor, 'unit'):
-            if node.descriptor.unit in ('CCITT IA5', 'Code table'):
+            if node.descriptor.unit.upper() in ('CCITT IA5', 'CODE TABLE'):
                 return None
         if hasattr(node.descriptor, 'scale'):
             return math.pow(10, (-1 * node.descriptor.scale)) / 2

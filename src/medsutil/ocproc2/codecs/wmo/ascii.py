@@ -1,7 +1,7 @@
 import typing as t
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.exceptions import CodedError
+from medsutil.exceptions import CodedError, with_exception_note
 from medsutil.ocproc2 import ParentRecord, SingleElement, ChildRecord, RecordSet
 from medsutil.ocproc2.codecs.gts import GtsSubDecoder
 from medsutil.ocproc2.codecs.base import DecodeResult
@@ -9,18 +9,6 @@ from medsutil.byteseq import ByteSequenceReader
 
 
 class AsciiDecodeError(CodedError): CODE_SPACE = "WMO-ASCII"
-
-
-def with_exception_note(note: str) -> t.Callable:
-    def _outer(cb: t.Callable) -> t.Callable:
-        def _inner(*args, **kwargs):
-            try:
-                return cb(*args, **kwargs)
-            except Exception as ex:
-                ex.add_note(note)
-                raise
-        return _inner
-    return _outer
 
 
 class AsciiDecoder(GtsSubDecoder):

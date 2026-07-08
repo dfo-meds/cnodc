@@ -9,22 +9,6 @@ from tests.helpers.base_test_case import BaseTestCase
 
 class TestFM18XII(BaseTestCase):
 
-
-    def assert_element_equals(self, em: ElementMap, name: str, value, **kwargs):
-        if value is not None:
-            self.assertIn(name, em, msg=f"{name} is not present")
-        else:
-            self.assertNotIn(name, em, msg=f"{name} is unexpectedly present")
-        self.assertEqual(em.best(name, default=None), value, msg=f"{name} does not match expected value")
-        for kwarg in kwargs:
-            value = kwargs[kwarg]
-            if isinstance(value, tuple):
-                self.assert_element_equals(em[name].metadata, kwarg, value[0], **value[1])
-            else:
-                self.assert_element_equals(em[name].metadata, kwarg, value)
-
-
-
     def test_decode(self):
         decoder = GtsCodec()
         with open(self.data_file_path("ascii/fm18_xii.txt"), "rb") as h:
