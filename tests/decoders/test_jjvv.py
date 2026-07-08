@@ -49,6 +49,8 @@ class TestFM63XI(BaseTestCase):
         self.assert_element_equals(record.parameters, "SeaDepth", "200", Units="m", Uncertainty=(0.5, {"UncertaintyType": "uniform"}))
         self.assert_element_equals(record.parameters, "CurrentDirection", "340", Units="degrees", Uncertainty=(5, {"UncertaintyType": "uniform"}))
         self.assert_element_equals(record.parameters, "CurrentSpeed", "1.2", Units="knots", Uncertainty=(0.05, {"UncertaintyType": "uniform"}))
+        self.assert_element_equals(record.metadata, "PlatformID", "SHIP")
+        self.assert_element_equals(record.metadata, "WMOID", None)
 
 
 

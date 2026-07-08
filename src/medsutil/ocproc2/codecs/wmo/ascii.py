@@ -86,9 +86,13 @@ class AsciiDecoder(GtsSubDecoder):
             return SingleElement(num, Uncertainty=SingleElement((10 ** (-1 * precision)) / 2, UncertaintyType="uniform"), Units=units, **kwargs)
 
     @with_exception_note("Error while parsing A1 bw nb nb nb")
-    def parse_wmo_id(self, a1_bw_nbnbnb: str) -> str:
+    def parse_wmo_id(self, a1_bw_nbnbnb: str) -> str | None:
+        if all(x == "/" for x in a1_bw_nbnbnb):
+            return None
         if not a1_bw_nbnbnb.isdigit():
             raise AsciiDecodeError(f"Invalid WMO code, received [{a1_bw_nbnbnb}]")
+        if len(a1_bw_nbnbnb) == 5:
+            return f"{a1_bw_nbnbnb[0:2]}00{a1_bw_nbnbnb[2:]}"
         return a1_bw_nbnbnb
 
     def parse_message_time(self, yymmj: str, gggg_: str, received_date: AwareDateTime) -> SingleElement:
@@ -879,18 +883,20 @@ class BathyJJVV(AsciiDecoder):
             o += 1
 
         # D...D or 99999
+        expect_next = False
         if self.next_message_startswith(ascii_message, o, "99999"):
-            # A1 bw nb nb nb
-            self.require_length(ascii_message[o+1], 5, "A1 bw nb nb nb")
-            record.parameters["WMOID"] = self.parse_wmo_id(ascii_message[o+1])
-            o += 2
-        else:
-            record.parameters["PlatformID"] = self.parse_platform_id(ascii_message[o])
             o += 1
-            if o < len(ascii_message) - 1 and ascii_message[o] != "/////":
-                self.require_length(ascii_message[o], 5, "A1 bw nb nb nb")
-                record.parameters["WMOID"] = self.parse_wmo_id(ascii_message[o])
-                o += 1
+            expect_next = True
+        else:
+            record.metadata["PlatformID"] = self.parse_platform_id(ascii_message[o])
+            o += 1
+
+        # A1 bw nb nb nb
+        if expect_next or (o < len(ascii_message) - 1 and ascii_message[o] != "/////"):
+            self.require_length(ascii_message[o], 5, "A1 bw nb nb nb")
+            record.metadata["WMOID"] = self.parse_wmo_id(ascii_message[o])
+            o += 1
+
         return o
 
 
@@ -901,6 +907,7 @@ class TesacKKYY(AsciiDecoder):
         o = self._decode_section_1(record, ascii_message, received_date)
         o = self._decode_section_2(record, ascii_message, o)
         o = self._decode_section_3(record, ascii_message, o)
+        o = self._decode_section_4(record, ascii_message, o)
         self.validate_at_end(ascii_message[o:])
 
     @with_exception_note("Error while parsing section 1")
@@ -930,7 +937,7 @@ class TesacKKYY(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "iu d d f f")
             wmo_wind_source = ascii_message[o][0]
             units = self.parse_wind_type_1853(ascii_message[o][0])
-            record.parameters["WindDirection"] = self.parse_wind_direction(ascii_message[o][1:3])
+            record.parameters["WindDirection"] = self.parse_wind_direction(ascii_message[o][1:3], WMOWindInstrumentType=wmo_wind_source)
             if current.endswith("99") and next.startswith("00"):
                 record.parameters["WindSpeed"] = self.parse_wind_speed_ext(ascii_message[o+1][2:5], units, WMOWindInstrumentType=wmo_wind_source)
                 o += 1
@@ -984,16 +991,19 @@ class TesacKKYY(AsciiDecoder):
                         rs.records.append(subrecord)
                     subrecord = ChildRecord()
                     subrecord.coordinates["Depth"] = last_depth = self.parse_depth(ascii_message[o][1:])
+                    o += 1
                 elif self.next_message_startswith(ascii_message, o, "3"):
                     if subrecord is None:
                         raise AsciiDecodeError("Invalid location for temperature in profile, expecting depth first", 4001)
                     self.require_length(ascii_message[o], 5, "3 Tn Tn Tn Tn")
                     subrecord.parameters["Temperature"] = self.parse_temperature_5_offset(ascii_message[o][1:], WMOProfileInstrumentType=wmo_itype, WMOProfileRecorderType=wmo_rtype)
+                    o += 1
                 elif self.next_message_startswith(ascii_message, o, "4"):
                     if subrecord is None:
                         raise AsciiDecodeError("Invalid location for salinity in profile, expecting depth first", 4002)
                     self.require_length(ascii_message[o], 5, "4 Sn Sn Sn Sn")
-                    subrecord.parameters["PracticalSalinity"] = self.parse_psu(ascii_message[o][1:], WMOProfileInstrumentType=wmo_itype, WMOProfileRecorderType=wmo_rtype)
+                    subrecord.parameters["PracticalSalinity"] = self.parse_psu(ascii_message[o][1:], WMOProfileInstrumentType=wmo_itype, WMOProfileRecorderType=wmo_rtype, WMOSalinityDepthMeasurementMethod=sd_method)
+                    o += 1
                 else:
                     raise AsciiDecodeError("Invalid element for t/s profile, found: [{ascii_message[o]}] expecting 2 zn, 3 Tn, 4 Sn, 00000, or 66...", 4000)
 
@@ -1013,9 +1023,11 @@ class TesacKKYY(AsciiDecoder):
             self.require_length(ascii_message[o], 5, "6 6 k6 k4 k3")
             pmr_method = self.parse_pmr_method(ascii_message[o][2])
             cm_duration = self.parse_cm_duration(ascii_message[o][4], ascii_message[o][3])
+            o += 1
 
             # 2 zn zn zn zn and a following dn dn cn cn cn
             while self.next_message_startswith(ascii_message, o, "2"):
+
                 self.require_length(ascii_message[o], 5, "2 zn zn zn zn")
                 subrecord = ChildRecord()
                 subrecord.coordinates["Depth"] = self.parse_depth(ascii_message[o][1:])
@@ -1052,18 +1064,20 @@ class TesacKKYY(AsciiDecoder):
             o += 1
 
         # D...D or 99999
+        expect_next = False
         if self.next_message_startswith(ascii_message, o, "99999"):
-            # A1 bw nb nb nb
-            self.require_length(ascii_message[o+1], 5, "A1 bw nb nb nb")
-            record.parameters["WMOID"] = self.parse_wmo_id(ascii_message[o+1])
-            o += 2
-        else:
-            record.parameters["PlatformID"] = self.parse_platform_id(ascii_message[o])
             o += 1
-            if o < len(ascii_message) - 1 and ascii_message[o] != "/////":
-                self.require_length(ascii_message[o], 5, "A1 bw nb nb nb")
-                record.parameters["WMOID"] = self.parse_wmo_id(ascii_message[o])
-                o += 1
+            expect_next = True
+        else:
+            record.metadata["PlatformID"] = self.parse_platform_id(ascii_message[o])
+            o += 1
+
+        # A1 bw nb nb nb
+        if expect_next or (o < len(ascii_message) - 1 and ascii_message[o] != "/////"):
+            self.require_length(ascii_message[o], 5, "A1 bw nb nb nb")
+            record.metadata["WMOID"] = self.parse_wmo_id(ascii_message[o])
+            o += 1
+
         return o
 
 

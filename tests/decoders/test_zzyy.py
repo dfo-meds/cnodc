@@ -19,7 +19,7 @@ class TestFM18XII(BaseTestCase):
         self.assertIsInstance(record, ParentRecord)
         self.assert_element_equals(record.metadata, "GTSHeader", "SSVX06 LFVW 092258")
         self.assert_element_equals(record.metadata, "WMOAsciiCodeForm", "ZZYY")
-        self.assert_element_equals(record.metadata, "WMOID", "12345")
+        self.assert_element_equals(record.metadata, "WMOID", "1200345")
         self.assert_element_equals(record.coordinates, "Time", "2025-02-01T12:23:00+00:00", DatePrecision="minute", Quality="2")
         self.assert_element_equals(record.coordinates, "Latitude", "-12.345", Units="degrees_north", Uncertainty=(0.0005, {"UncertaintyType": "uniform"}), Quality="1")
         self.assert_element_equals(record.coordinates, "Longitude", "-23.456", Units="degrees_east", Uncertainty=(0.0005, {"UncertaintyType": "uniform"}), Quality="1")
