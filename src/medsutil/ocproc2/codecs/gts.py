@@ -109,6 +109,7 @@ class GtsCodec(BaseCodec):
         # White space may be on either side
         len_s = len(s)
         if len_s not in (18, 22):
+            print('no')
             return False
         if s[6] != ' ':
             return False

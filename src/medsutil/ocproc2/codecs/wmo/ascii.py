@@ -74,11 +74,19 @@ class AsciiDecoder(GtsSubDecoder):
             k -= 1
         num = num.replace('/', '0')
         num = f"{num[0:whole_places]}.{num[whole_places:]}".lstrip("0")
+        if num[0] == "-":
+            part = num[1:].lstrip("0")
+            if part[0] == ".":
+                num = f"-0{part}"
+            else:
+                num = f"-{part}"
+        if num[-1] == ".":
+            num = num[:-1]
         try:
             _ = float(num)
         except ValueError as ex:
             raise AsciiDecodeError(f"Invalid number, received [{num}]", 1200) from ex
-        for kwarg in kwargs:
+        for kwarg in list(kwargs.keys()):
             if kwargs[kwarg] is None:
                 kwargs.pop(kwarg)
         if factor is not None:
@@ -397,7 +405,7 @@ class AsciiDecoder(GtsSubDecoder):
             if not (x == "" or all(y == "/" or y == "=" for y in x)):
                 c += 1
         if c > 0:
-            raise AsciiDecodeError(f"Additional content at end of message [blocks: {c}]", 1900)
+            raise AsciiDecodeError(f"Additional content at end of message [blocks: {c}]: {' '.join(remaining_message)}", 1900)
 
     def parse_current_method(self, code: str) -> str | int | None:
         return self.parse_code(code, missing=7, code_map={
@@ -444,8 +452,7 @@ class BuoyZZYY(AsciiDecoder):
         # Y Y M M J and G G g g iw
         self.require_length(ascii_message[2], 5, "G G g g iw")
         record.coordinates["Time"] = self.parse_message_time(ascii_message[1], ascii_message[2], received_date)
-        wind_units = self.parse_wind_type(ascii_message[2][4])
-        record.metadata["WMOWindSource"] = ascii_message[2][4]
+        wind_source = ascii_message[2][4]
 
         # Qc La La La La La and Lo Lo Lo Lo Lo Lo
         record.coordinates["Latitude"], record.coordinates["Longitude"] = self.parse_dd_coordinates(ascii_message[3], ascii_message[4])
@@ -465,10 +472,10 @@ class BuoyZZYY(AsciiDecoder):
                 record.coordinates["Time"].metadata["Quality"] = q_time
             record.metadata["WMOQualityLocationClass"] = self.parse_quality_location_class(six_group[3])
 
-        return o, wind_units
+        return o, wind_source
 
     @with_exception_note("Error while parsing section 1")
-    def _decode_section_1(self, record: ParentRecord, ascii_message: list[str], wind_units: str, o: int) -> int:
+    def _decode_section_1(self, record: ParentRecord, ascii_message: list[str], wind_source: str, o: int) -> int:
         # 1 1 1 Qd Qx
         if self.next_message_startswith(ascii_message, o, "111"):
             self.require_length(ascii_message[o], 5, "1 1 1 Qd Qx")
@@ -479,8 +486,9 @@ class BuoyZZYY(AsciiDecoder):
             if self.next_message_startswith(ascii_message, o, "0"):
                 self.require_length(ascii_message[o], 5, "0 d d f f")
                 q = quality if apply_to is True or apply_to == 0 else None
-                record.parameters["WindDirection"] = self.parse_wind_direction(ascii_message[o][1:3], Quality=q)
-                record.parameters["WindSpeed"] = self.parse_wind_speed(ascii_message[o][3:5], wind_units, Quality=q)
+                wind_units = self.parse_wind_type(wind_source)
+                record.parameters["WindDirection"] = self.parse_wind_direction(ascii_message[o][1:3], Quality=q, WMOWindSource=wind_source)
+                record.parameters["WindSpeed"] = self.parse_wind_speed(ascii_message[o][3:5], wind_units, Quality=q, WMOWindSource=wind_source)
                 o += 1
 
             # 1 sn T T T
@@ -582,13 +590,13 @@ class BuoyZZYY(AsciiDecoder):
             # 8 8 8 7 k2
             if self.next_message_startswith(ascii_message, o, "8887"):
                 self.require_length(ascii_message[o], 5, "8 8 8 7 k2")
-                sd_method = self.parse_salinity_depth_method(ascii_message[o][5])
+                sd_method = self.parse_salinity_depth_method(ascii_message[o][4])
                 o += 1
                 subrecord = None
                 while o < len(ascii_message) - 1:
 
                     # these are the next expected sections, either 6 6 k6 9 k3 or 4 4 4
-                    if [o][0:2] == "66" or ascii_message[o] == "444":
+                    if ascii_message[o][0:2] == "66" or ascii_message[o] == "444":
                         break
 
                     # 2 zn zn zn zn
@@ -597,6 +605,7 @@ class BuoyZZYY(AsciiDecoder):
                         if subrecord is not None:
                             record.subrecords.append_to_record_set("PROFILE", 0, subrecord)
                         subrecord = ChildRecord()
+                        subrecord.coordinates["Depth"] = self.parse_depth(ascii_message[o][1:])
                         o += 1
 
                     # 3 Tn Tn Tn Tn
@@ -617,7 +626,7 @@ class BuoyZZYY(AsciiDecoder):
 
                     # unexpected sequence
                     else:
-                        raise AsciiDecodeError(f"Invalid sequence during a T/S profile: [{ascii_message[o]}", 2002)
+                        raise AsciiDecodeError(f"Invalid sequence during a T/S profile: [{ascii_message[o]}]", 2002)
                 if subrecord is not None:
                     record.subrecords.append_to_record_set("PROFILE", 0, subrecord)
 
@@ -670,9 +679,9 @@ class BuoyZZYY(AsciiDecoder):
                 qz = self.parse_hsp_correction(ascii_message[o][4])
                 if qz is not None and "PROFILE" in record.subrecords.record_sets:
                     for profile in record.subrecords.record_sets["PROFILE"].values():
-                        for record in profile.records:
-                            if record.coordinates.has_value("Depth"):
-                                record.coordinates["Depth"].metadata["WMOHSPCorrected"] = qz
+                        for sr in profile.records:
+                            if sr.coordinates.has_value("Depth"):
+                                sr.coordinates["Depth"].metadata["WMOHSPCorrected"] = qz
                 o += 1
                 # QL = 1 or 2
                 try:
@@ -746,6 +755,7 @@ class BuoyZZYY(AsciiDecoder):
             if self.next_message_startswith(ascii_message, o, "9"):
                 self.require_length(ascii_message[o], 5, "9 / Zd Zd Zd")
                 record.metadata["DrogueCableLength"] = self.parse_drogue_cable_length(ascii_message[o][2:])
+                o += 1
 
         return o
 
