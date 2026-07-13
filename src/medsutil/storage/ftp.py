@@ -106,6 +106,8 @@ class _FTPWrapper:
             config['port'] = 21
         if 'timeout' not in config:
             config['timeout'] = 60
+        if 'buffer_size' not in config:
+            config['buffer_size'] = 256 * 1024
         self._config = config
         self._server: t.Optional[t.Union[ftplib.FTP, ftplib.FTP_TLS]] = None
         self._depth = 0
@@ -119,11 +121,11 @@ class _FTPWrapper:
             raise StorageError('Server is not open for connections', 1006)
         return self._server
 
-    def streaming_read(self, name: str, buffer_size=1024*1024) -> t.Iterable[bytes]:
+    def streaming_read(self, name: str) -> t.Iterable[bytes]:
         self.binary_mode()
         with self.transfer_command(f"RETR {name}") as conn:
             try:
-                while data := conn.recv(buffer_size):
+                while data := conn.recv(self._config['buffer_size']):
                     yield data
             finally:
                 if isinstance(conn, ssl.SSLSocket): # pragma: no coverage (no TLS server to test with)
