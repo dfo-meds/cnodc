@@ -162,7 +162,7 @@ class _FTPWrapper:
                     raise ex from ex
 
     def cwd(self, path: str):
-        if self._cwd is None or self._cwd != path or not path[0] == "/":
+        if self._cwd is None or self._cwd != path:
             self.server.cwd(path)
             # Don't guess at relative paths
             self._cwd = path if path[0] == "/" else None
