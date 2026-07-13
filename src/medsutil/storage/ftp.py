@@ -70,7 +70,7 @@ class FTPConnectionPool:
     def __init__(self):
         self._server_notes: dict = self.config.as_dict(('storage', 'ftp'), default={})
         self._connections: dict[tuple[str, str, int | None], _FTPWrapper] = {}
-        self._cache_connections: bool = bool(self._server_notes['_cache']) if 'cache' in self._server_notes else True
+        self._cache_connections: bool = bool(self._server_notes['_cache']) if 'cache' in self._server_notes else False
 
     def build_connection(self, url: str) -> _FTPWrapper:
         parts = urllib.parse.urlsplit(url)
@@ -105,7 +105,7 @@ class _FTPWrapper:
         if 'port' not in config:
             config['port'] = 21
         if 'timeout' not in config:
-            config['timeout'] = 20
+            config['timeout'] = 60
         self._config = config
         self._server: t.Optional[t.Union[ftplib.FTP, ftplib.FTP_TLS]] = None
         self._depth = 0
