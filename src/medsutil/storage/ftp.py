@@ -105,7 +105,7 @@ class _FTPWrapper:
         if 'port' not in config:
             config['port'] = 21
         if 'timeout' not in config:
-            config['timeout'] = 10
+            config['timeout'] = 20
         self._config = config
         self._server: t.Optional[t.Union[ftplib.FTP, ftplib.FTP_TLS]] = None
         self._depth = 0
@@ -249,9 +249,9 @@ class _FTPWrapper:
     def enter(self):
         if self._server is None:
             if self._config['tls'] == 'explicit':
-                self._server = ftplib.FTP_TLS(context=ssl.create_default_context())  # pragma: no coverage; no TLS server to test with
+                self._server = ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=self._config['timeout'])  # pragma: no coverage; no TLS server to test with
             elif self._config['tls'] == 'none':
-                self._server = ftplib.FTP()  # nosec B321 # no choice but to support FTP for now
+                self._server = ftplib.FTP(timeout=self._config['timeout'])  # nosec B321 # no choice but to support FTP for now
             else:   # pragma: no coverage # no TLS server to test with
                 raise StorageError("Invalid tls setting for FTP", 2005, is_transient=False)
             self.connect()
