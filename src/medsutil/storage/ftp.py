@@ -230,7 +230,7 @@ class _FTPWrapper:
                     if x.strip():
                         key, value = x.strip().split('=', maxsplit=1)
                         details[key] = value
-                return self.extend_info(details)
+                return self.extend_info({x.lower(): details[x] for x in details.keys()})
             except ftplib.error_perm as ex:
                 if ex.args[0][0:2] == '55':
                     return None
