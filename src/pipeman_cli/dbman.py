@@ -31,14 +31,13 @@ def download_errors(nodb: NODB = None):
                 print(f"{row[0]},{row[1]}")
 
 
-@db.command(help="Clear error on a file download")
+@db.command(help="Rerun a file download")
 @click.argument('file_path')
-@click.argument('modified_date')
 @injector.inject
-def clear_download_error(file_path: str, modified_date: str, nodb: NODB = None):
+def redownload(file_path: str, nodb: NODB = None):
     with nodb as db:
         with db.cursor() as cur:
-            cur.execute("UPDATE nodb_scanned_files SET was_errored = FALSE WHERE file_path = %s AND modified_date = %s", [file_path, modified_date])
+            cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
             db.commit()
 
 
