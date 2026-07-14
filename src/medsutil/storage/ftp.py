@@ -56,7 +56,7 @@ def ftplib_error_wrap_generator(cb):
         except ftplib.error_reply as ex:
             raise StorageError(str(ex), 2003, is_transient=False) from ex
         # actual error connecting to server
-        except ConnectionError as ex:
+        except (ConnectionError, TimeoutError) as ex:
             raise StorageError(str(ex), 2004, is_transient=True) from ex
 
     return _inner
