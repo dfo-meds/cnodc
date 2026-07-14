@@ -20,6 +20,27 @@ def queue_errors(nodb: NODB = None):
             for row in cur.fetch_stream(50):
                 print(f"{row[1]},{row[0]},{row[2]}")
 
+@db.command(help="Output file downloads that are flagged as errors")
+@injector.inject
+def download_errors(nodb: NODB = None):
+    with nodb as db:
+        with db.cursor() as cur:
+            cur.execute("SELECT file_path, modified_date, scanned_date, was_processed, was_errored FROM nodb_scanned_files WHERE was_errored = TRUE")
+            print("FILE_PATH,MODIFIED_DATE")
+            for row in cur.fetch_stream(50):
+                print(f"{row[0]},{row[1]}")
+
+
+@db.command(help="Clear error on a file download")
+@click.argument('file_path')
+@click.argument('modified_date')
+@injector.inject
+def clear_download_error(file_path: str, modified_date: str, nodb: NODB = None):
+    with nodb as db:
+        with db.cursor() as cur:
+            cur.execute("UPDATE nodb_scanned_files SET was_errored = FALSE WHERE file_path = ? AND modified_date = ?", [file_path, modified_date])
+            db.commit()
+
 
 @db.command(help="Output locked queue")
 @click.option("--locked-since", default=None, type=str, help="Enter a time in ISO format - only items that have been locked since before this date will be shown. If the timezone is omitted, the current system time is used. If omitted, defaults to using --locked-for to calculate a time.")
