@@ -38,7 +38,7 @@ def download_errors(nodb: NODB = None):
 def clear_download_error(file_path: str, modified_date: str, nodb: NODB = None):
     with nodb as db:
         with db.cursor() as cur:
-            cur.execute("UPDATE nodb_scanned_files SET was_errored = FALSE WHERE file_path = ? AND modified_date = ?", [file_path, modified_date])
+            cur.execute("UPDATE nodb_scanned_files SET was_errored = FALSE WHERE file_path = %s AND modified_date = %s", [file_path, modified_date])
             db.commit()
 
 
