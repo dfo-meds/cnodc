@@ -320,7 +320,7 @@ class FTPHandle(UrlBaseHandle):
     def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
         with self._connection() as ftp:
             yield from self._halt_flag.iterate(
-                ftp.streaming_read(self.name, buffer_size or 1024 * 1024)
+                ftp.streaming_read(self.name)
             )
 
     @ftplib_error_wrap
