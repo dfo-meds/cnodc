@@ -1,0 +1,1351 @@
+1001:
+  element: "metadata/WMOID"
+  import_processor: "medsutil.sanitize.clean_wmo_id"
+  remove_metadata:
+    - Units
+    - Uncertainty
+1003:
+  element: "metadata/WMOID"
+  import_processor: "medsutil.sanitize.clean_wmo_id"
+  remove_metadata:
+    - Units
+    - Uncertainty
+1007: "metadata/SatelliteIdentifier"
+1011:
+  element: "metadata/PlatformID"
+  remove_metadata:
+    - Units
+    - Uncertainty
+1012: "metadata/PlatformDirection"
+1013: "metadata/PlatformSpeed"
+1014: "metadata/PlatformSpeed"
+1015: "metadata/PlatformName"
+1019: "metadata/PlatformName"
+1023: "metadata/ShipObservationNumber"
+1036: "metadata/WMOAgencyCode"
+1051: "metadata/TransmitterID"
+1079: "metadata/ProfileID"
+1080: "metadata/ShipLineNumber"
+1085: "metadata/PlatformModel"
+1086: "metadata/PlatformSerial"
+1087:
+  element: "metadata/WMOID"
+  import_processor: "medsutil.sanitize.clean_wmo_id"
+  remove_metadata:
+    - Units
+    - Uncertainty
+1103:
+  element: "metadata/IMONumber"
+  remove_metadata:
+    - Units
+    - Uncertainty
+1115: "metadata/MissionID"
+1125:
+  element: "metadata/WIGOSID[wigos1]"
+1126:
+  element: "metadata/WIGOSID[wigos2]"
+1127:
+  element: "metadata/WIGOSID[wigos3]"
+1128:
+  element: "metadata/WIGOSID[wigos4]"
+
+2001: "metadata/WMOStationType"
+2002:
+  element: "common/WMOWindInstrumentType"
+  restrict_elements:
+    - WindDirection
+    - WindSpeed
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+2005:
+  element: "common/Uncertainty"  # TODO check this
+  remove_metadata:
+    - Units
+    - Uncertainty
+  restrict_elements:
+    - Temperature
+2030:
+  element: "common/WMOCurrentMeasurementMethod"
+  value_map:
+    1: 6
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+2031:
+  element: "common/WMOCurrentMeasurementDuration"
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+2032:
+  element: "common-recordset/DigitizationMethod"
+  import_map:
+    0: selected_depths
+    1: inflection_points
+  export_map:
+    selected_depths: 0
+    inflection_points: 1
+  restrict_recordsets:
+    - PROFILE
+2033:
+  element: "common/WMOSalinityDepthMeasurementMethod"
+  restrict_elements:
+    - PracticalSalinity
+2034: "metadata/WMODrogueType"
+2036: "metadata/WMOBuoyType"
+2038:
+  element: "common/WMOTemperatureSalinityMeasurementMethod"
+  restrict_elements:
+    - Temperature
+    - PracticalSalinity
+2039:
+  element: "common/WMOWetBulbMeasurementMethod"
+  restrict_elements:
+    - WetBulbTemperature
+2040:
+  element: "common/WMOPlatformMotionRemovalMethod"
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+2044: "metadata/WMOSpectralWaveMethod"
+2045: "metadata/WMOPlatformType"
+2046:
+  element: coordinates/WaveSensor
+  begin_subrecord_type: "SENSORS"
+2148: "metadata/WMOCommunicationSystem"
+2149: "metadata/WMODataBuoyType"
+2169:
+  element: "common/WMOAnemometerType"
+  restrict_elements:
+    - WindDirection
+    - WindSpeed
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+2171:
+  element: "common/SensorSerial"
+  restrict_elements:
+    - Temperature
+    - PracticalSalinity
+2190: "metadata/SubmergenceTime"
+
+3001: "metadata/WMOSurfaceStationType"
+3010:
+  element: "common/WMOCurrentMeasurementMethod"
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+3011:
+  element: "common/WMODepthMethod"
+  restrict_elements:
+    - Depth
+3012:
+  element: "common/WMODissolvedOxygenSensorType"
+  restrict_elements:
+    - DissolvedOxygen
+
+4001:
+  element: coordinates/Time[year]
+4002:
+  element: coordinates/Time[month]
+4003:
+  element: coordinates/Time[day]
+4004:
+  element: coordinates/Time[hour]
+4005:
+  element: coordinates/Time[minute]
+4006:
+  element: coordinates/Time[second]
+
+5001:
+  element: coordinates/Latitude
+  metadata:
+    Units: "degrees_north"
+    Datum: WGS84
+5002:
+  element: coordinates/Latitude
+  metadata:
+    Units: "degrees_north"
+    Datum: WGS84
+5036: "metadata/ShipTransectNumber"
+
+6001:
+  element: coordinates/Longitude
+  metadata:
+    Units: "degrees_east"
+    Datum: WGS84
+6002:
+  element: coordinates/Longitude
+  metadata:
+    Units: "degrees_east"
+    Datum: WGS84
+
+7004: noop
+7030: "metadata/PlatformHeight"
+7031:
+  element: "common/SensorHeight"
+  future_context: 7031
+  metadata:
+    SensorDepthReference: msl
+  filters:
+    SensorDepthReference: msl
+  restrict_elements:
+    - AirPressure
+    - AirPressureChange
+    - AirPressureAtSeaLevel
+7032:
+  element: "common/SensorHeight"
+  future_context: 7032
+  filters:
+    SensorDepthReference: local_ground
+  metadata:
+    SensorDepthReference: local_ground
+  restrict_elements:
+    - AirTemperature
+    - RelativeHumidity
+    - DewPointTemperature
+    - WetBulbTemperature
+    - TotalPrecipitation
+    - HorizontalVisibility
+    - WindDirection
+    - WindSpeed
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+7033:
+  element: "common/SensorHeight"
+  metadata:
+    SensorDepthReference: water
+  filters:
+    SensorDepthReference: water
+  restrict_elements:
+    - AirTemperature
+    - RelativeHumidity
+    - DewPointTemperature
+    - WetBulbTemperature
+    - TotalPrecipitation
+    - HorizontalVisibility
+    - WindDirection
+    - WindSpeed
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+7062:
+  element: "coordinates/Depth"
+  begin_subrecord_type: "PROFILE"
+7063:
+  element: "coordinates/Depth"
+  begin_subrecord_type: "PROFILE"
+  context:
+    306038:
+      element: "common/SensorDepth"
+      restrict_elements:
+        - Temperature
+        - PracticalSalinity
+    306033:
+      element: "common/SensorDepth"
+      restrict_elements:
+        - Temperature
+        - PracticalSalinity
+    302056:
+      element: "common/SensorDepth"
+      restrict_elements:
+        - Temperature
+        - PracticalSalinity
+    302090:
+      element: "common/SensorDepth"
+      restrict_elements:
+        - Temperature
+        - PracticalSalinity
+7065:
+  element: "coordinates/Pressure"
+  begin_subrecord_type: "PROFILE"
+7070: "metadata/DrogueDepth"
+
+8021:
+  instruction_map:
+    "":
+      element: "common/AggregationMethod"
+      value: null
+    2:
+      element: "common/AggregationMethod"
+      value: "AVERAGE"
+    25:
+      # TODO: Gliders have two of these, we will need to handle
+      element: "coordinates/Time"
+      pre_import_processor: "medsutil.ocproc2.codecs.wmo.bufr.parse_following_datetime_sequence"
+    26:
+      element: "metadata/LastKnownPositionTime"
+      pre_import_processor: "medsutil.ocproc2.codecs.wmo.bufr.parse_following_datetime_sequence"
+  context:
+    306038: "noop"
+8029: "metadata/WMOSurfaceType"
+8034:
+  element: "common/WMOTemperatureSalinityQualifier"
+  restrict_elements:
+    - Temperature
+    - PracticalSalinity
+8041:
+  instruction: "mapped"
+  instruction_map:
+    "":
+      instruction: noop
+      pre_import_processor: "medsutil.ocproc2.codecs.wmo.bufr.parse_following_datetime_sequence"
+    13:
+      element: "metadata/InstrumentManufacturingDate"
+      pre_import_processor: "medsutil.ocproc2.codecs.wmo.bufr.parse_following_datetime_sequence"
+8090:
+  instruction: scale_factor
+
+10004: "parameters/AirPressure"
+10009: noop
+10051: "parameters/AirPressureAtSeaLevel"
+10061:
+  element: parameters/AirPressureDelta
+  metadata:
+    ObservationPeriod: "PT3H"
+  filters:
+    ObservationPeriod: "PT3H"
+10062:
+  element: parameters/AirPressureDelta
+  metadata:
+    ObservationPeriod: "PT24H"
+  filters:
+    ObservationPeriod: "PT24H"
+
+10063: "parameters/WMOAirPressureCharacteristic"
+
+11001: "parameters/WindDirection"
+11002: "parameters/WindSpeed"
+11041: "parameters/WindGustMaxSpeed"
+11043: "parameters/WindGustMaxDirection"
+11104: "metadata/PlatformTrueHeading"
+
+12101:
+  element: parameters/AirTemperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+12102:
+  element: parameters/WetBulbTemperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+12103:
+  element: parameters/DewPointTemperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+12161:
+  element: parameters/AirSkinTemperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+
+13003: "parameters/RelativeHumidity"
+13011: "parameters/TotalPrecipitation"
+13023:
+  element: parameters/TotalPrecipitation
+  metadata:
+    ObservationPeriod: "PT24H"
+  filters:
+    ObservationPeriod: "PT24H"
+13080: "parameters/PH"
+13115: "parameters/IceThickness"
+
+14002: "parameters/LongwaveRadiation"
+14004: "parameters/ShortwaveRadiation"
+14016: "parameters/NetRadiation"
+14017: "parameters/LongwaveRadiationInstant"
+14018: "parameters/ShortwaveRadiationInstant"
+14028: "parameters/GlobalSolarRadiation"
+14029: "parameters/DiffuseSolarRadiation"
+14030: "parameters/DirectSolarRadiation"
+
+20001: "parameters/HorizontalVisibility"
+20031: noop
+20032: noop
+20033: noop
+20034: "parameters/WMOSeaIceConcentration"
+20035: noop
+20036: noop
+20037: noop
+20038: noop
+20058: noop
+
+22001: "parameters/WaveDirection"
+22004: "parameters/CurrentDirection"
+22005: "parameters/CurrentDirection"
+22011: "parameters/WavePeriod"
+22021: "parameters/WaveHeight"
+22031: "parameters/CurrentSpeed"
+22032: "parameters/CurrentSpeed"
+22042:
+  element: parameters/Temperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+22043:
+  element: parameters/Temperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+22045:
+  element: parameters/Temperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+22049:
+  element: parameters/Temperature
+  export_temperature_scale: "ITS-90"
+  metadata:
+    TemperatureScale: "ITS-90"
+22055: "metadata/ProfileNumber"
+22056:
+  element: "common-recordset/ProfileDirection"
+  import_map:
+    0: up
+    1: down
+    2: horizontal
+  export_map:
+    up: 0
+    down: 1
+    horizontal: 2
+  restrict_recordsets:
+    - PROFILE
+22059: "parameters/PracticalSalinity"
+22060: "metadata/WMODrogueStatus"
+22061: "parameters/WMOSeaState"
+22062: "parameters/PracticalSalinity"
+22063: "parameters/SeaDepth"
+22064: "parameters/PracticalSalinity"
+22065: "coordinates/Pressure"
+22066: "parameters/Conductivity"
+22067:
+  element: "common/WMOProfileInstrumentType"
+  restrict_elements:
+    - Temperature
+    - PracticalSalinity
+22068:
+  element: "common/WMOProfileRecorderType"
+  restrict_elements:
+    - Temperature
+    - PracticalSalinity
+22069: "parameters/SpectralWaveDensity"
+22070: "parameters/WaveSignificantHeight"
+22071: "parameters/SpectralWavePeakPeriod"
+22073: "parameters/WaveMaximumHeight"
+22074: "parameters/WaveAveragePeriod"
+22076: "parameters/WaveDominantDirection"
+22077: "parameters/WaveDominantSpread"
+22078:
+  element: "common/ObservationPeriod[seconds]"
+  data_type: duration
+  # TODO: this is length of wave record, should be restricted to those elements
+
+22080:
+  element: "coordinates/CentralFrequency"
+  begin_subrecord_type: "SPECTRAL_WAVE"
+22082: "parameters/SpectralWaveMaximumDensity"
+22084: "parameters/SpectralWaveMaximumDensityBand"
+22086: "parameters/WaveMeanDirection"
+22087: "parameters/WavePrincipalDirection"
+22088: "parameters/SpectralWaveFourier1"
+22089: "parameters/SpectralWaveFourier2"
+22094: "parameters/SpectralWaveBandCount"
+22096: "parameters/SpectralWaveBandWidth"
+#22102: "parameters/SpectralWaveMaxDensityByFrequency"
+#22104: "parameters/SpectralWaveDensityByFrequency"
+#22106: "parameters/SpectralWaveDirDensityByFrequency"
+#22108: "parameters/SpectralWaveDensityRatio"
+22177: "metadata/XBTHeight"
+22178: "metadata/WMOXBTType"
+#22186: "parameters/WaveDirection"
+#22187: "parameters/WaveSpread"
+22188: "parameters/DissolvedOxygen"
+
+25025: "metadata/BatteryVoltage"
+25026: "metadata/BatteryVoltage"
+#25043: "metadata/WaveSamplingTime"
+25061: "metadata/SoftwareID"
+
+33022: "metadata/WMOQualitySatellite"
+33023: "metadata/WMOQualityLocation"
+33027: "metadata/WMOQualityLocationClass"
+
+41001: "parameters/CarbonDioxidePartialPressure"
+41002: "parameters/Fluorescence"
+41003: "parameters/Nitrate"
+41005: "parameters/Turbidity"
+
+42011: "parameters/FourierA1"
+42012: "parameters/FourierB1"
+42013: "parameters/FourierA2"
+42014: "parameters/FourierB2"
+42015: "parameters/FourierK"
+42016: "parameters/PotentialDensity"
+
+302004: "noop"
+302005: "noop"
+302036: "noop"
+302037: "noop"
+302038: "noop"
+302039: "noop"
+302040: "noop"
+302041: "noop"
+302044: "noop"
+302046: "noop"
+302047: "noop"
+302048: "noop"
+
+301011: # TODO: custom decode
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "4001"
+      - "4002"
+      - "4003"
+301012:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "4004"
+      - "4005"
+301013:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "4004"
+      - "4005"
+      - "4006"
+301021:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "5001"
+      - "6001"
+301126:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "1087"
+      - "1015"
+      - "2149"
+      - "301011"
+      - "301012"
+      - "301021"
+301150:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "1125"
+      - "1126"
+      - "1127"
+      - "1128"
+
+302001:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "10004"
+      - "10051"
+      - "10061"
+      - "10063"
+302021:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "22001"
+      - "22011"
+      - "22021"
+302052:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "7032" # TODO needs a limiting factor
+      - "7033" # TODO needs a limiting factor
+      - "12101"
+      - "2039"
+      - "12102"
+      - "12103"
+      - "13003"
+302059:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "7032" # TODO needs a limiting factor
+      - "7033" # TODO needs a limiting factor
+      - "2002"
+      - descriptor: 8021
+        value: 2
+        is_optional: true
+      - "4025:common/ObservationPeriod" # todo: component
+      - "11001"
+      - "11002"
+      - "8021:NULL"
+      - repeats: 2
+        recordset_type: TIME_SERIES
+        required_elements:
+          - TimeSeries
+        optional_elements:
+          - WindGustMaxDirection
+          - WindGustMaxSpeed
+        instructions:
+          - "4025:coordinates/TimeOffset" # TODO: component
+          - "11043:parameters/WindGustMaxDirection"
+          - "11041:parameters/WindGustMaxSpeed"
+302082:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "4025:common/ObservationPeriod"  # TODO: component
+      - "14002"
+      - "14004"
+      - "14016"
+      - "14028"
+      - "14029"
+      - "14030"
+302090:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2038"
+      - "7063:parameters/Temperature/metadata/SensorDepth"
+      - "22045"
+302091:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "20001"
+      - "4024:parameters/TotalPrecipitation/metadata/ObservationPeriod"  # TODO: component
+      - "13011"
+
+306003:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2033"
+      - "7063:parameters/PracticalSalinity/metadata/SensorDepth"
+      - "22063"
+306004:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2032"
+      - "2033"
+      - repeats: -1
+        size_descriptor: 31001
+        instructions:
+          - "7062"
+          - "22043"
+          - "22062"
+306005:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2031"
+      - repeats: -1
+        size_descriptor: 31001
+        instructions:
+          - "7062"
+          - "22043"
+          - "22062"
+306034:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2031"
+      - "3010"
+      - "2040"
+      - "22005"
+      - "22032"
+306035:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - repeats: "*"
+        size_descriptor: 31002
+        instructions:
+          - "7062"
+          - "8080:13"
+          - "33050:coordinates/Depth/metadata/Quality"
+          - "7065"
+          - "8080:10"
+          - "33050:coordinates/Pressure/metadata/Quality"
+          - "22031"
+          - "8080:11"
+          - "33050:parameters/Temperature/metadata/Quality"
+          - "22004"
+          - "8080:12"
+          - "33050:parameters/PracticalSalinity/metadata/Quality"
+306036:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - repeats: "*"
+        size_descriptor: 31002
+        instructions:
+          - "7062"
+          - "8080:13"
+          - "33050:coordinates/Depth/metadata/Quality"
+          - "7065"
+          - "8080:10"
+          - "33050:coordinates/Pressure/metadata/Quality"
+          - "22031"
+          - "8080:14"
+          - "33050:parameters/CurrentSpeed/metadata/Quality"
+          - "22004"
+          - "8080:15"
+          - "33050:parameters/CurrentDirection/metadata/Quality"
+306037:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - repeats: "*"
+        size_descriptor: 31002
+        instructions:
+          - "7062"
+          - "8080:13"
+          - "33050:coordinates/Depth/metadata/Quality"
+          - "7065"
+          - "8080:10"
+          - "33050:coordinates/Pressure/metadata/Quality"
+          - "22031"
+          - "8080:16"
+          - "33050:parameters/DissolvedOxygen/metadata/Quality"
+306038:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "10004"
+      - "10051"
+      - descriptor: 7033
+        element: "common/SensorHeight[SensorReference=water]"
+        restrict_elements:
+          - AirTemperature
+          - DewPointTemperature
+          - RelativeHumidity
+      - "12102"
+      - "12103"
+      - "13003"
+      - descriptor: 7033
+        element: "common/SensorHeight[SensorReference=water]"
+        restrict_elements:
+          - WindDirection
+          - WindSpeed
+      - descriptor: 8021
+        value: 2
+        is_optional: true
+      - descriptor: 4025
+        element: "common/ObservationPeriod"  # TODO: component
+        restrict_elements:
+          - WindDirection
+          - WindSpeed
+      - "11001"
+      - "11002"
+      - "8021:NULL"
+      - "4025:parameters/WindGustMaxSpeed/metadata/ObservationPeriod"  # TODO: component
+      - "11041"
+      - "4025:NULL"
+      - "7033:NULL"
+      - "2005:parameters/Temperature/metadata/Uncertainty"  # TODO: how to handle multiple uncertainties?
+      - "7063:parameters/Temperature/metadata/SensorDepth"
+      - "22049"
+306039:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - descriptor: 22078
+        element: "common/ObservationPeriod"  # TODO: component
+        restrict_elements:
+          - WaveSignificantHeight
+          - WaveMaximumHeight
+          - WaveAveragePeriod
+          - SpectralWavePeakPeriod
+          - WaveDominantDirection
+          - WaveDominantSpread
+      - "22070:parameters/WaveSignificantHeight"
+      - "22073:parameters/WaveMaximumHeight"
+      - "22074:parameters/WaveAveragePeriod"
+      - "22071:parameters/SpectralWavePeakPeriod"
+      - "22076:parameters/WaveDominantDirection"
+      - "22077:parameters/WaveDominantSpread"
+306040:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - descriptor: 22078
+        element: "common/ObservationPeriod"  # TODO: component
+        restrict_elements:
+          - SpectralWaveMaximumDensity
+          - SpectralWaveDensity
+          - WaveMeanDirection
+          - WavePrincipalDirection
+          - SpectralWaveFourier1
+          - SpectralWaveFourier2
+        restrict_recordsets:
+          - SPECTRAL_WAVE
+        iterate_into_recordset: true
+      - "22083"
+      - repeats: -1
+        size_descriptor: 31001
+        instructions:
+          - "22080"
+          - "22069"
+          - "22086"
+          - "22087"
+          - "22088"
+          - "22088"
+306041:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2032"
+      - repeats: -1
+        size_descriptor: 31001
+        group:
+          - "7062"
+          - "22043"
+306042:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - "2169"
+      - descriptor: 7033
+        element: "common/SensorDepth[SensorDepthReference=water]"
+        restrict_elements:
+          - WindDirection
+          - WindSpeed
+      - "8021:2"
+      - descriptor: 4025
+        element: "common/ObservationPeriod" # Todo: component
+        restrict_elements:
+          - WindDirection
+          - WindSpeed
+      - "11001"
+      - "11002"
+
+307079:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: coastal
+    iterate_after: true
+  encode:
+
+308015:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: wave
+    iterate_after: true
+  encode:
+
+315003:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: profiler
+    iterate_after: true
+  encode:
+    instructions:
+      - "1087"
+      - "1085"
+      - "1086"
+      - "2036"
+      - "2148"
+      - "2149"
+      - "22055"
+      - recordset_type: PROFILE
+        required_elements:
+          - Pressure
+        optional_elements:
+          - Temperature
+          - PracticalSalinity
+        instructions:
+          - "22056"
+          - "22067"
+          - "301011"
+          - "301012"
+          - "301021"
+          - "8080:20"
+          - "33050:coordinates/Latitude/metadata/Quality"
+          - repeats: -1
+            size_descriptor: 31002
+            instructions:
+              - "7065"
+              - "8080:10"
+              - "33050:coordinates/Pressure/metadata/Quality"
+              - "22045"
+              - "8080:11"
+              - "33050:parameters/Temperature/metadata/Quality"
+              - "22064"
+              - "8080:12"
+              - "33050:parameters/Temperature/metadata/Quality"
+
+315004:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: xbt
+    iterate_after: true
+  encode:
+    instructions:
+      - "1079"
+      - "1011"
+      - "1103"
+      - "1087"
+      - "1019"
+      - "1080"
+      - "5036"
+      - "1036"
+      - "1013"
+      - "1012"
+      - "301011"
+      - "301012"
+      - "301021"
+      # TODO: I stopped here on July 15
+      - group:
+          - "7032:common/SensorDepth[SensorDepthReference=local_ground]"
+          - "7033:common/SensorDepth[SensorDepthReference=water]"
+          - "2002:common/WMOWindInstrumentType"
+          - "11002:parameters/WindSpeed"
+          - "11001:parameters/WindDirection"
+      - group:
+          - "7032:common/SensorDepth[SensorDepthReference=local_ground]"
+          - "7033:common/SensorDepth[SensorDepthReference=water]"
+          - "12101:parameters/AirTemperature"
+          - "12103:parameters/DewPointTemperature"
+      - "7032:NULL"
+      - "7033:NULL"
+      - "302021"
+      - group:
+          - "2031:common/WMOCurrentMeasurementDuration"
+          - "2030:common/WMOCurrentMeasurementMethod"
+          - "22005:parameters/CurrentDirection"
+          - "22032:parameters/CurrentSpeed"
+      - "22063"
+      - "8080:4"
+      - "33050:parameters/SeaDepth/metadata/Quality"
+      - "22178"
+      - "22177"
+      - recordset_type: PROFILE
+        required_elements:
+          - Depth
+          - Temperature
+        instructions:
+          - "22067:common/WMOProfileInstrumentType"
+          - "8041:13"
+          - "26021:metadata/InstrumentManufacturingDate[year]"
+          - "26022:metadata/InstrumentManufacturingDate[month]"
+          - "26023:metadata/InstrumentManufacturingDate[day]"
+          - "22068:common/WMOProfileRecorderType"
+          - "25061"
+          - "8041:NULL"
+          - "8080:NULL"
+          - "2171:parameters/Temperature/metadata/SensorSerial"
+          - "302090"
+          - "2171:common/SensorSerial"
+          - "2032"
+          - "315005"
+
+315005:
+  decode:
+    iterate_after: true
+  encode:
+    instructions:
+      - repeats: "*"
+        size_descriptor: 31002
+        group:
+        - "7063:coordinates/Depth"
+        - "8080:13"
+        - "33050:coordinates/Depth/metadata/Quality"
+        - "22043:parameters/Temperature"
+        - "8080:11"
+        - "33050:parameters/Temperature/metadata/Quality"
+
+
+315007:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: ship
+    iterate_after: true
+  encode:
+    instructions:
+      - "1011:metadata/PlatformID"
+      - "1012:metadata/PlatformDirection"
+      - "1013:metadata/PlatformSpeed"
+      - "1019:metadata/PlatformName"
+      - "1103:metadata/IMONumber"
+      - "1087:metadata/WMOID"
+      - "1036:metadata/WMOAgencyCode"
+      - "1115:metadata/MissionID"
+      - "1080:metadata/ShipLineNumber"
+      - "5036:metadata/ShipTransectNumber"
+      - "301001:record"
+      - "301012:record"
+      - "301021:record"
+      - "1079:metadata/ProfileID"
+      - "1023:metadata/ShipObservationNumber"
+      - "22063:parameters/SeaDepth"
+      - "1079:metadata/ProfileID"
+      - "302001:record[optional]"
+      - "302021:record[optional]"
+      - "302052:record[optional]"
+      - "302059:record[optional]"
+      - "22067:parameters/Temperature/metadata/WMOProfileInstrumentType"
+      - "2171:parameters/Temperature/metadata/SensorSerial"
+      - "302090:record"
+      - "306033:record"
+      - "306034:record"
+      - "2171:NULL"
+      - "22067:NULL"
+      - recordset_type: PROFILE
+        requires:
+          - Depth
+          - Pressure
+          - Temperature
+          - PracticalSalinity
+        group:
+          - "2038:common/WMOTemperatureSalinityMeasurementMethod"
+          - "22067:common/WMOProfileInstrumentType"
+          - "2038:common/WMOProfileRecorderType"
+          - "2171:common/SensorSerial"
+          - "2033:common/WMOSalinityDepthMeasurementMethod"
+          - descriptor: 2032
+            source: "recordset/DigitizationMethod"
+            data_map:
+              selected_depths: 0
+              inflection_points: 1
+          - descriptor: 22056
+            source: "recordset/ProfileDirection"
+            data_map:
+              up: 0
+              down: 1
+              horizontal: 2
+          - "3011:common/WMODepthMethod"
+          - "306035:recordset"
+      - recordset_type: PROFILE
+        requires:
+          - Depth
+          - Pressure
+          - CurrentDirection
+          - CurrentSpeed
+        is_optional: true
+        group:
+          - descriptor: 2032
+            source: "recordset/DigitizationMethod"
+            data_map:
+              selected_depths: 0
+              inflection_points: 1
+          - "3010:common/WMOCurrentMeasurementMethod"
+          - "2031:common/WMOCurrentMeasurementDuration"
+          - "2040:common/WMOPlatformMotionRemovalMethod"
+          - descriptor: 22056
+            source: "recordset/ProfileDirection"
+            data_map:
+              up: 0
+              down: 1
+              horizontal: 2
+          - "3011:common/WMODepthMethod"
+          - "306036:recordset"
+      - recordset_type: PROFILE
+        requires:
+          - Depth
+          - Pressure
+          - DissolvedOxygen
+        group:
+          - descriptor: 2032
+            source: "recordset/DigitizationMethod"
+            data_map:
+              selected_depths: 0
+              inflection_points: 1
+          - "3012:common/WMODissolvedOxygenSensorType"
+          - "3011:common/WMODepthMethod"
+          - "306037:recordset"
+
+
+315008:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: moored
+    iterate_after: true
+  encode:
+    instructions:
+      - "301126:record"
+      - "306038:record"
+      - "302091:record[optional]"
+      - "302082:record[optional]"
+      - "306039:record[optional]"
+      - recordset_type: SPECTRAL_WAVE
+        require:
+          - CentralFrequency
+        group:
+          - "306040:recordset[optional]"
+      - recordset_type: PROFILE
+        require:
+          - Depth
+          - Temperature
+        missing:
+          - PracticalSalinity
+        group:
+          - "2005:common/Uncertainty"
+          - "306041:recordset[optional]"
+      - recordset_type: PROFILE
+        require:
+          - Depth
+          - Temperature
+          - PracticalSalinity
+        group:
+          - "2005:common/Uncertainty"
+          - "306004:recordset[optional]"
+      - recordset_type: PROFILE
+        require:
+          - Depth
+          - CurrentDirection
+          - CurrentSpeed
+        group:
+          - "306005:recordset[optional]"
+315009:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: drifting
+    iterate_after: true
+  encode:
+    instructions:
+      - "1087:metadata/WMOID"
+      - "1019:metadata/PlatformName"
+      - "2149:metadata/WMODataBuoyType"
+      - "8021:26"
+      - instruction: sequence
+        descriptor: 301011
+        custom_encoder_function: "_build_last_known_position_date"
+      - instruction: sequence
+        descriptor: 301012
+        custom_encoder_function: "_build_last_known_position_time"
+      - "301021:record"
+      - "208016:NULL"
+      - "1051:metadata/TransmitterID"
+      - "208000:NULL"
+      - "2148:metadata/WMOCommunicationSystem"
+      - "1012:metadata/PlatformDirection"
+      - "1014:metadata/PlatformSpeed"
+      - "33022:metadata/WMOQualitySatellite"
+      - "33023:metadata/WMOQualityLocation"
+      - "33027:metadata/WMOQualityLocationClass"
+      - "25026:metadata/BatteryVoltage"
+      - "2034:metadata/WMODrogueType"
+      - "22060:metadata/WMODrogueStatus"
+      - "7070:metadata/DrogueDepth"
+      - "2190:metadata/SubmergenceTime"
+      - "8021:25"
+      - "301011:record"
+      - "301012:record"
+      - group:
+        - "2005:common/Uncertainty"
+        - "22043:parameters/Temperature"
+      - group:
+        - "2033:common/WMOSalinityDepthMeasurementMethod"
+        - "22059:parameters/PracticalSalinity"
+      - "8029:metadata/WMOSurfaceType"
+      - "13115:parameters/IceThickness"
+      - recordset_type: PROFILE
+        requires:
+          - Depth
+          - Temperature
+          - PracticalSalinity
+        group:
+          - "2005:common/Uncertainty"
+          - "306004:recordset"
+          - "2005:NULL"
+      - "10004:AirPressure"
+      - "10051:AirPressureAtSeaLevel"
+      - optional: true
+        group:
+          - "7033:common/SensorDepth[SensorDepthReference=water]"
+          - "12101:parameters/AirTemperature"
+      - "306042:record[optional]"
+      - "306039:record[optional]"
+
+315011:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: asc
+    iterate_after: true
+  encode:
+    instructions:
+      - "301150:record"
+      - "1087:metadata/WMOID"
+      - "1036:metadata/WMOAgencyCode"
+      - "1085:metadata/PlatformModel"
+      - "1086:metadata/PlatformSerial"
+      - "3001:metadata/WMOSurfaceStationType"
+      - "208032:NULL"
+      - "1079:metadata/ProfileID"
+      - "208000:NULL"
+      - "301011:record"
+      - "301012:record"
+      - "301021:record"
+      - "1012:metadata/PlatformDirection"
+      - "1014:metadata/PlatformSpeed"
+      - "11104:metadata/PlatformTrueHeading"
+      - optional: true
+        group:
+          - "7031:common/SensorDepth[SensorDepthReference=msl]"
+          - "306038:record"
+          - "12161:parameters/AirSkinTemperature"
+      - "306034:record[optional]"
+      - "306039:record[optional]"
+      - "306033:record[optional]"
+      - recordset_type: PROFILE
+        require:
+          - Depth
+          - Temperature
+        missing:
+          - PracticalSalinity
+        group:
+          - "2005:common/Uncertainty"
+          - "306041:recordset[optional]"
+      - recordset_type: PROFILE
+        require:
+          - Depth
+          - Temperature
+          - PracticalSalinity
+        group:
+          - "2005:common/Uncertainty"
+          - "306004:recordset[optional]"
+      - recordset_type: PROFILE
+        require:
+          - Depth
+          - CurrentDirection
+          - CurrentSpeed
+        group:
+          - "306005:recordset[optional]"
+      - optional: true
+        group:
+          - "41001:parameters/CarbonDioxidePartialPressure"
+          - "8043:NULL"  # TODO: select a pasrameter here?
+          - "15028:NULL"
+          - "8043:NULL"
+          - "13080:parameters/pH"
+      - optional: true
+        group:
+          - "41005:parameters/Turbidity"
+          - "41003:parameters/Nitrate"
+          - "22188:parameters/DissolvedOxygen"
+          - "41002:parameters/Fluorescence"
+      - recordset_type: SPECTRAL_WAVE
+        require:
+          - CentralFrequency
+        group:
+          - "306040:recordset[optional]"
+      - optional: true
+        group:
+          - "8021:2"
+          - "4025:common/ObservationPeriod"
+          - "14017:LongwaveRadiationInstant"
+          - "14018:ShortwaveRadiationInstant"
+
+315012:
+  decode:
+    element: metadata/BUFRPlatformType
+    value: glider
+    iterate_after: true
+  encode:
+    instructions:
+      - "301150:record"
+      - "201129:NULL"
+      - "1087:metadata/WMOID"
+      - "201000:NULL"
+      - "1019:metadata/PlatformName"
+      - "1036:metadata/WMOAgencyCode"
+      - "2148:metadata/WMOCommunicationSystem"
+      - "1085:metadata/PlatformModel"
+      - "1086:metadata/PlatformSerial"
+      - "8021:25"
+      - "301011:record"
+      - "301013:record"
+      - "301021:record"
+      - "11104:PlatformTrueHeading"
+      - group:
+        - "2169:common/WMOAnemometerType"
+        - "11002:parameters/WindDirection"
+        - "11001:parameters/WindSpeed"
+        - "2169:NULL"
+      - "22032:parameters/CurrentSpeed"
+      - "22005:parameters/CurrentDirection"
+      - recordset_type: TRAJECTORY
+        require:
+          - Latitude
+          - Longitude
+          - Time
+          - CurrentSpeed
+          - CurrentDirection
+        group:
+          - repeats: 1
+            group:
+              - "301001:record"
+              - "301013:record"
+              - "8021:2"
+              - "4025:common/ObservationPeriod"
+              - "22031:parameters/CurrentSpeed"
+              - "22004:parameters/CurrentDirection"
+              - "8021:NULL"
+      - "5068:metadata/ProfileNumber"
+      - "1079:metadata/ProfileID"
+      - recordset_type: TRAJECTORY
+        require:
+          - Latitude
+          - Longitude
+          - Time
+          - Depth
+          - Pressure
+          - Temperature
+          - Conductivity
+          - PracticalSalinity
+          - PotentialDensity
+        group:
+          - "22056:recordset/ProfileDirection"
+          - repeats: "*"
+            size_descriptor: 31002
+            group:
+              - "301011:record"
+              - "301013:record"
+              - "301021:record"
+              - "8080:20"
+              - "33050:coordinates/Latitude/metadata/Quality"
+              - "7062:coordinates/Depth"
+              - "8080:13"
+              - "33050:coordinates/Depth/metadata/Quality"
+              - "22065:coordinates/Pressure"
+              - "8080:10"
+              - "33050:coordinates/Pressure/metadata/Quality"
+              - "22045:parameters/Temperature"
+              - "8080:11"
+              - "33050:parameters/Temperature/metadata/Quality"
+              - "22066:parameters/Conductivity"
+              - "8080:25"
+              - "33050:parameters/Conductivity/metadata/Quality"
+              - "22064:parameters/PracticalSalinity"
+              - "8080:12"
+              - "33050:parameters/PracticalSalinity/metadata/Quality"
+              - "42016:parameters/PotentialDensity"
+              - "8080:26"
+              - "33050:parameters/PotentialDensity/metadata/Quality"

@@ -26,6 +26,14 @@ UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u
 """ All dash characters in Unicode. """
 
 
+def clean_wmo_id(wmo_id: str):
+    ...
+
+
+def clean_wigos_id(wigos_id: str):
+    ...
+
+
 def netcdf_bytes_to_string(byte_sequence: str | t.ByteString, encoding='utf-8') -> str:
     """ Converts NetCDF characters to a Python string object, if necessary. """
     return DataCoercer.nc_bytes_as_string(byte_sequence, encoding)

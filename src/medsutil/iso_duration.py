@@ -1,9 +1,23 @@
 import datetime
+import enum
 import typing as t
+
+from isodate import duration
 
 from medsutil import datadict as dd
 from medsutil.awaretime import AwareDateTime
+from medsutil.multienum import MultiValuedEnum
 from pipeman.programs.dmd.metadata import EntityRef
+
+class DurationUnit(MultiValuedEnum):
+
+    YEAR = "years", "a"
+    MONTH = "months", "mon"
+    DAYS = "days", "d"
+    HOURS = "hours", "h"
+    MINUTES = "minutes", "min"
+    SECONDS = "seconds", "s"
+    WEEKS = "weeks"
 
 
 class ISODuration(EntityRef):
@@ -15,12 +29,39 @@ class ISODuration(EntityRef):
     minutes: int = dd.p_int()
     seconds: int = dd.p_int()
 
+    def isoformat(self) -> str:
+        s = "P"
+        if self.years > 0:
+            s += f"{self.years}Y"
+        if self.months > 0:
+            s += f"{self.months}M"
+        if self.days > 0:
+            s += f"{self.days}D"
+        if self.hours > 0 or self.minutes > 0 or self.seconds > 0:
+            s += "T"
+            if self.hours > 0:
+                s += f"{self.hours}H"
+            if self.minutes > 0:
+                s += f"{self.hours}M"
+            if self.seconds > 0:
+                s += f"{self.hours}S"
+        return s
+
     def add_to(self, dt: AwareDateTime) -> AwareDateTime:
         dt2 = dt + datetime.timedelta(
             days=self.days or 0,
             seconds=self.time_part_total_seconds()
         )
         return self._adjust_year_month(dt2, self.date_part_total_months())
+
+    def to_duration(self, output_units: DurationUnit) -> float:
+        match self.years, self.months, self.days, self.hours, self.minutes, self.seconds:
+            case 0, 0, d, h, m, s:
+                return self.convert_duration_units((d * 86400) + (h * 3600) + (m * 60) + s, DurationUnit.SECONDS, output_units)
+            case y, m, 0, 0, 0, 0:
+                return self.convert_duration_units((y * 12) + m, DurationUnit.MONTH, output_units)
+            case _:
+                raise ValueError(f"Cannot combine months/years and days/hours/minutes/seconds when converting to a single duration")
 
     def _adjust_year_month(self, dt: AwareDateTime, d_months: int) -> AwareDateTime:
         if d_months == 0:
@@ -48,6 +89,73 @@ class ISODuration(EntityRef):
     def time_part_total_seconds(self) -> int:
         return ((((self.hours or 0) * 60) + (self.minutes or 0)) * 60) + (self.seconds or 0)
 
+    @staticmethod
+    def convert_duration_units(x: float, from_units: DurationUnit, to_units: DurationUnit) -> float:
+        match from_units, to_units:
+            case DurationUnit.SECONDS, DurationUnit.SECONDS:
+                return x
+            case DurationUnit.SECONDS, DurationUnit.MINUTES:
+                return x / 60
+            case DurationUnit.SECONDS, DurationUnit.HOURS:
+                return x / 3600
+            case DurationUnit.SECONDS, DurationUnit.DAYS:
+                return x / 86400
+            case DurationUnit.SECONDS, DurationUnit.WEEKS:
+                return x / 604800
+            case DurationUnit.MINUTES, DurationUnit.SECONDS:
+                return x * 60
+            case DurationUnit.MINUTES, DurationUnit.MINUTES:
+                return x
+            case DurationUnit.MINUTES, DurationUnit.HOURS:
+                return x / 60
+            case DurationUnit.MINUTES, DurationUnit.DAYS:
+                return x / 1440
+            case DurationUnit.MINUTES, DurationUnit.WEEKS:
+                return x / 10080
+            case DurationUnit.HOURS, DurationUnit.SECONDS:
+                return x * 3600
+            case DurationUnit.HOURS, DurationUnit.MINUTES:
+                return x * 60
+            case DurationUnit.HOURS, DurationUnit.HOURS:
+                return x
+            case DurationUnit.HOURS, DurationUnit.DAYS:
+                return x / 24
+            case DurationUnit.HOURS, DurationUnit.WEEKS:
+                return x / 168
+            case DurationUnit.DAYS, DurationUnit.SECONDS:
+                return x * 86400
+            case DurationUnit.DAYS, DurationUnit.MINUTES:
+                return x * 1440
+            case DurationUnit.DAYS, DurationUnit.HOURS:
+                return x * 24
+            case DurationUnit.DAYS, DurationUnit.DAYS:
+                return x
+            case DurationUnit.DAYS, DurationUnit.WEEKS:
+                return x / 7
+            case DurationUnit.WEEKS, DurationUnit.SECONDS:
+                return x * 604800
+            case DurationUnit.WEEKS, DurationUnit.MINUTES:
+                return x * 10080
+            case DurationUnit.WEEKS, DurationUnit.HOURS:
+                return x * 168
+            case DurationUnit.WEEKS, DurationUnit.DAYS:
+                return x * 7
+            case DurationUnit.WEEKS, DurationUnit.WEEKS:
+                return x
+            case DurationUnit.MONTH, DurationUnit.YEAR:
+                return x / 12
+            case DurationUnit.MONTH, DurationUnit.MONTH:
+                return x
+            case DurationUnit.YEAR, DurationUnit.YEAR:
+                return x
+            case DurationUnit.YEAR, DurationUnit.MONTH:
+                return x * 12
+            case _:
+                raise ValueError(f"Cannot convert {from_units} to {to_units} consistently")
+
+    @classmethod
+    def from_duration(cls, duration: float | int, units: DurationUnit):
+        ...
 
     @classmethod
     def from_iso_format(cls, iso_duration: str) -> t.Self:

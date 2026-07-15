@@ -1543,3 +1543,10 @@ class _Bufr4Decoder:
                 'instruction': 'apply_to_target'
             }, '-'.join(str(x) for x in node_vals), ctx, node)
             ctx.skip = 3
+
+
+def parse_following_datetime_sequence():
+    ...
+
+def parse_datetime_sequence():
+    ...
