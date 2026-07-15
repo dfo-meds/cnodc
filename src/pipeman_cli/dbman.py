@@ -52,3 +52,24 @@ def unlock(queue_uuid: str, nodb: NODB = None):
         for uuid in uuids:
             db.fast_update_queue_status(uuid, QueueStatus.UNLOCKED, require_locked=False)
         db.commit()
+
+
+@db.command(help="Output file downloads that are flagged as errors")
+@injector.inject
+def download_errors(nodb: NODB = None):
+    with nodb as db:
+        with db.cursor() as cur:
+            cur.execute("SELECT file_path, modified_date, scanned_date, was_processed, was_errored FROM nodb_scanned_files WHERE was_errored = TRUE")
+            print("FILE_PATH,MODIFIED_DATE")
+            for row in cur.fetch_stream(50):
+                print(f"{row[0]},{row[1]}")
+
+
+@db.command(help="Rerun a file download")
+@click.argument('file_path')
+@injector.inject
+def redownload(file_path: str, nodb: NODB = None):
+    with nodb as db:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
+            db.commit()
