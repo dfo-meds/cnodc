@@ -34,7 +34,7 @@ def ftplib_error_wrap(cb):
         except ftplib.error_reply as ex:
             raise StorageError(str(ex), 2003, is_transient=False) from ex
         # actual error connecting to server
-        except ConnectionError as ex:
+        except (ConnectionError, TimeoutError) as ex:
             raise StorageError(str(ex), 2004, is_transient=True) from ex
 
     return _inner
@@ -56,7 +56,7 @@ def ftplib_error_wrap_generator(cb):
         except ftplib.error_reply as ex:
             raise StorageError(str(ex), 2003, is_transient=False) from ex
         # actual error connecting to server
-        except ConnectionError as ex:
+        except (ConnectionError, TimeoutError) as ex:
             raise StorageError(str(ex), 2004, is_transient=True) from ex
 
     return _inner
@@ -70,7 +70,7 @@ class FTPConnectionPool:
     def __init__(self):
         self._server_notes: dict = self.config.as_dict(('storage', 'ftp'), default={})
         self._connections: dict[tuple[str, str, int | None], _FTPWrapper] = {}
-        self._cache_connections: bool = bool(self._server_notes['_cache']) if 'cache' in self._server_notes else True
+        self._cache_connections: bool = bool(self._server_notes['_cache']) if 'cache' in self._server_notes else False
 
     def build_connection(self, url: str) -> _FTPWrapper:
         parts = urllib.parse.urlsplit(url)
@@ -105,7 +105,9 @@ class _FTPWrapper:
         if 'port' not in config:
             config['port'] = 21
         if 'timeout' not in config:
-            config['timeout'] = 10
+            config['timeout'] = 60
+        if 'buffer_size' not in config:
+            config['buffer_size'] = 256 * 1024
         self._config = config
         self._server: t.Optional[t.Union[ftplib.FTP, ftplib.FTP_TLS]] = None
         self._depth = 0
@@ -119,11 +121,11 @@ class _FTPWrapper:
             raise StorageError('Server is not open for connections', 1006)
         return self._server
 
-    def streaming_read(self, name: str, buffer_size=1024*1024) -> t.Iterable[bytes]:
+    def streaming_read(self, name: str) -> t.Iterable[bytes]:
         self.binary_mode()
         with self.transfer_command(f"RETR {name}") as conn:
             try:
-                while data := conn.recv(buffer_size):
+                while data := conn.recv(self._config['buffer_size']):
                     yield data
             finally:
                 if isinstance(conn, ssl.SSLSocket): # pragma: no coverage (no TLS server to test with)
@@ -162,7 +164,7 @@ class _FTPWrapper:
                     raise ex from ex
 
     def cwd(self, path: str):
-        if self._cwd is None or self._cwd != path or not path[0] == "/":
+        if self._cwd is None or self._cwd != path:
             self.server.cwd(path)
             # Don't guess at relative paths
             self._cwd = path if path[0] == "/" else None
@@ -230,7 +232,7 @@ class _FTPWrapper:
                     if x.strip():
                         key, value = x.strip().split('=', maxsplit=1)
                         details[key] = value
-                return self.extend_info(details)
+                return self.extend_info({x.lower(): y for x, y in details.items()})
             except ftplib.error_perm as ex:
                 if ex.args[0][0:2] == '55':
                     return None
@@ -249,9 +251,9 @@ class _FTPWrapper:
     def enter(self):
         if self._server is None:
             if self._config['tls'] == 'explicit':
-                self._server = ftplib.FTP_TLS(context=ssl.create_default_context())  # pragma: no coverage; no TLS server to test with
+                self._server = ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=self._config['timeout'])  # pragma: no coverage; no TLS server to test with
             elif self._config['tls'] == 'none':
-                self._server = ftplib.FTP()  # nosec B321 # no choice but to support FTP for now
+                self._server = ftplib.FTP(timeout=self._config['timeout'])  # nosec B321 # no choice but to support FTP for now
             else:   # pragma: no coverage # no TLS server to test with
                 raise StorageError("Invalid tls setting for FTP", 2005, is_transient=False)
             self.connect()
@@ -318,7 +320,7 @@ class FTPHandle(UrlBaseHandle):
     def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
         with self._connection() as ftp:
             yield from self._halt_flag.iterate(
-                ftp.streaming_read(self.name, buffer_size or 1024 * 1024)
+                ftp.streaming_read(self.name)
             )
 
     @ftplib_error_wrap
