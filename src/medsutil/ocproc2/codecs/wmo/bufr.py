@@ -7,10 +7,9 @@ import pathlib
 
 from autoinject import injector
 import zrlog
-import pybufrkit.descriptors
 from pybufrkit.descriptors import SequenceDescriptor
 from pybufrkit.encoder import Encoder
-from pybufrkit.tables import TableGroupCacheManager, TableGroupKey, BufrTableGroup
+from pybufrkit.tables import TableGroupCacheManager, BufrTableGroup
 from pybufrkit.decoder import Decoder
 from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
     ValueDataNode, DataNode
@@ -576,26 +575,6 @@ class _Bufr4DecoderContext:
 
 class _Bufr4Decoder:
 
-    BUFR_MESSAGE_CODES = {
-        315008,
-        315009,
-        315004,
-        315007,
-        315011,
-        315003,
-        308015,
-        307079
-    }
-
-    BUFR_EQUIVALENT_CODES = {
-        5001: [5002],
-        5002: [5001],
-        6001: [6002],
-        6002: [6001],
-        1015: [1019],
-        1019: [1015],
-    }
-
     def __init__(self,
                  bufr_tables:
                  BufrCodeMap,
@@ -619,66 +598,6 @@ class _Bufr4Decoder:
         self._log.warning(message)
         ctx.parent.add_history_entry(message, "bufr_decode", "1.0", "", MessageType.WARNING)
 
-    def _expand_bufr_descriptors(self, descriptors: list[int], pbt):
-        def _expand_from_members(d):
-            new_d = []
-            for descriptor in d:
-                if descriptor.id < 100000:
-                    new_d.append(descriptor)
-                elif descriptor.id < 200000:
-                    new_d.append(descriptor)
-                    if hasattr(descriptor, 'factor') and descriptor.factor is not None:
-                        new_d.append(descriptor.factor)
-                    if descriptor.members:
-                        new_d.extend(_expand_from_members(descriptor.members))
-                elif descriptor.id >= 300000:
-                    new_d.extend(_expand_from_members(descriptor.members))
-            return new_d
-        y = _expand_from_members([pbt.lookup(d) for d in descriptors])
-        return [x.id for x in y]
-
-    def _identify_bufr_message_type(self, descriptors: list[int]):
-        message_types = set()
-        for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
-            if x in descriptors:
-                message_types.add(x)
-        if not message_types:
-            this_message = self._expand_bufr_descriptors(descriptors, self.pybufr_tables)
-            for version in range(39, 5, -1):
-                pbt = TableGroupCacheManager.get_table_group_by_key(
-                    TableGroupKey(self.message.table_group_key.tables_root_dir, ('0', '0_0', str(version)), None, None)
-                )
-                for x in _Bufr4Decoder.BUFR_MESSAGE_CODES:
-                    unpacked = pbt.lookup(x)
-                    if isinstance(unpacked, pybufrkit.descriptors.UndefinedSequenceDescriptor):
-                        continue
-                    compare_to = self._expand_bufr_descriptors([x], pbt)
-                    d = self._descriptor_distance(compare_to, this_message)
-                    if d > -1:
-                        message_types.add(x)
-        return list(message_types)
-
-    def _descriptor_distance(self, received: list[int], check_against: list[int]):
-        if received[0] not in check_against:
-            return -1
-        current_idx = check_against.index(received[0])
-        gaps = 0
-        for idx in range(0, len(received)):
-            find = [received[idx]]
-            if received[idx] in _Bufr4Decoder.BUFR_EQUIVALENT_CODES:
-                find.extend(_Bufr4Decoder.BUFR_EQUIVALENT_CODES[received[idx]])
-            best_idx: int | None = None
-            for x in find:
-                if x in check_against[current_idx:]:
-                    idx2 = check_against[current_idx:].index(x) + current_idx
-                    if best_idx is None or idx2 < best_idx:
-                        best_idx = idx2
-            if best_idx is None:
-                return -1
-            gaps += best_idx - current_idx
-            current_idx = best_idx + 1
-        return gaps
-
     def convert_to_records(self) -> t.Iterable[ocproc2.ParentRecord]:
         pieces = self.header.split(' ')
         if len(pieces) > 3 and pieces[3][0] in ('C', 'A', 'P'):
@@ -687,7 +606,6 @@ class _Bufr4Decoder:
         common_metadata = {
             'GTSHeader': self.header,
             'BUFRDescriptors': ocproc2.SingleElement(descriptors),
-            'BUFRInferredMessageType': ocproc2.SingleElement(self._identify_bufr_message_type(descriptors)),
             'BUFROriginCentre': self.message.originating_centre.value,
             'BUFROriginSubcentre': self.message.originating_subcentre.value,
             'BUFRDataCategory': self.message.data_category.value,

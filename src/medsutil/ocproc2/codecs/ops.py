@@ -621,6 +621,7 @@ class OPSContext:
         self.recordset_type: str | None = None
         self.recordset: RecordSet | None = None
         self.extras = {}
+        self._future_rs_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._future_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._ignore_rsids: list[int] = []
 
@@ -628,13 +629,16 @@ class OPSContext:
     def subcontext(self):
         old_extras = self.extras
         old_futures = self._future_metadata
+        old_futures_rs = self._future_rs_metadata
         try:
             self.extras = copy.deepcopy(self.extras)
             self._future_metadata = copy.deepcopy(self._future_metadata)
+            self._future_rs_metadata = copy.deepcopy(self._future_rs_metadata)
             yield self
         finally:
             self.extras = old_extras
             self._future_metadata = old_futures
+            self._future_rs_metadata = old_futures_rs
 
     @contextmanager
     def record_context(self, r: BaseRecord):
@@ -652,69 +656,85 @@ class OPSContext:
     def recordset_context(self, rs: RecordSet, rs_type: str):
         old_rs_type = self.recordset_type
         old_rs = self.recordset
+        old_futures = self._future_metadata
         try:
+            self._future_metadata = {
+                x: {
+                    k: v
+                    for k, v in self._future_metadata[x].items()
+                    if v.iterate_into_recordset
+                }
+                for x, d in self._future_metadata.items()
+            }
             self.recordset = rs
             self.recordset_type = rs_type
             yield self
         finally:
+            self._future_metadata = old_futures
             self.recordset = old_rs
             self.recordset_type = old_rs_type
 
     @contextmanager
     def new_recordset(self, rs_type: str):
         rs = self.record.subrecords.new_recordset(rs_type)
-        # TODO: forward metadata, see start_new_recordset()
-        old_rs = self.recordset
-        old_type = self.recordset_type
-        old_rsids = self._ignore_rsids
-        try:
-            self.recordset = rs
-            self.recordset_type = rs_type
-            self._ignore_rsids = []
+        with self.recordset_context(rs, rs_type):
+            for _, values in self._future_rs_metadata.items():
+                for key, future in values.items():
+                    if future.rs_types is not None and rs_type not in future.rs_types:
+                        continue
+                    self.set_recordset_metadata(
+                        key,
+                        future.element
+                    )
             yield self
-        finally:
-            self.recordset = old_rs
-            self.recordset_type = old_type
-            self._ignore_rsids = old_rsids
 
     @contextmanager
     def new_subrecord(self):
         record = ChildRecord()
-        old_record = self.record
-        # TODO: forward metadata see start_new_record()
-        try:
-            self.record = record
+        with self.record_context(record):
             yield self
-        finally:
-            self.record = old_record
 
     def set_element(self,
                     path: str,
                     element: AbstractElement | RawValue,
                     append_mode: bool = False):
+        _, name = path.rsplit("/", maxsplit=1)
+        forward = self.get_forward_metadata(name)
         if append_mode:
-            self.record.append_to(path, element)
+            self.record.append_to(path, element, **forward)
         else:
-            self.record.set(path, element)
+            self.record.set(path, element, **forward)
 
     def set_parent_element(self,
                     path: str,
                     element: AbstractElement | RawValue,
                     append_mode: bool = False):
+        _, name = path.rsplit("/", maxsplit=1)
+        forward = self.get_forward_metadata(name)
         if append_mode:
-            self.parent.append_to(path, element)
+            self.parent.append_to(path, element, **forward)
         else:
-            self.parent.set(path, element)
+            self.parent.set(path, element, **forward)
 
     def set_recordset_metadata(self,
                                metadata_name: str,
                                element: AbstractElement | RawValue,
                                append_mode: bool = False):
+        forward = self.get_forward_metadata(metadata_name)
         if self.recordset is not None:
             if append_mode:
-                self.recordset.metadata.append_to(metadata_name, element)
+                self.recordset.metadata.append_to(metadata_name, element, **forward)
             else:
-                self.recordset.metadata.set(metadata_name, element)
+                self.recordset.metadata.set(metadata_name, element, **forward)
+
+    def get_forward_metadata(self, property_name: str) -> dict[str, t.Any]:
+        md = {}
+        for _, d in self._future_metadata.items():
+            for key, future in d.items():
+                if future.names is not None and property_name not in future.names:
+                    continue
+                md[key] = future.element
+        return md
 
     def add_common_recordset_metadata(self,
                                       metadata_name: str,
@@ -722,14 +742,14 @@ class OPSContext:
                                       restrict_recordsets: list[str] | None = None,
                                       future_context: str | int | None = None,):
         if element.value is not None:
-            if future_context not in self._future_metadata:
-                self._future_metadata[future_context] = {}
-            self._future_metadata[future_context][metadata_name] = OPSContext.FutureMetadata(
+            if future_context not in self._future_rs_metadata:
+                self._future_rs_metadata[future_context] = {}
+            self._future_rs_metadata[future_context][metadata_name] = OPSContext.FutureMetadata(
                 element, restrict_recordsets
             )
         else:
-            if future_context in self._future_metadata and metadata_name in self._future_metadata[future_context]:
-                del self._future_metadata[future_context][metadata_name]
+            if future_context in self._future_rs_metadata and metadata_name in self._future_rs_metadata[future_context]:
+                del self._future_rs_metadata[future_context][metadata_name]
 
     def add_common_metadata(self,
                             metadata_name: str,
