@@ -3,7 +3,7 @@ import json
 
 from medsutil.ocproc2 import ParentRecord, BaseRecord, ElementMap
 from tests.helpers.base_test_case import BaseTestCase
-from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCDSTables
+from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCodeMap
 
 
 class TestBufr315004(BaseTestCase):
@@ -13,7 +13,7 @@ class TestBufr315004(BaseTestCase):
             good_version = ParentRecord.build_from_mapping(json.load(h))
         with open(self.data_file_path("bufr/315004_2.bufr"), "rb") as h:
             bufr_content = h.read()
-        decoder = _Bufr4Decoder("test", bufr_content, BufrCDSTables())
+        decoder = _Bufr4Decoder("test", bufr_content, BufrCodeMap())
         records = [x for x in decoder.convert_to_records()]
         self.assertEqual(1, len(records))
         self.assertEqual(records[0].metadata["ProfileID"].value, "1")

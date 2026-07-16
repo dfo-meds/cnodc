@@ -833,7 +833,6 @@ class BathyJJVV(AsciiDecoder):
 
             # IX IX IX XR XR
             self.require_length(ascii_message[o], 5, "IX IX IX XR XR")
-            # TODO: review these, one is on the element and teh other on the platform
 
             wmo_itype = self.parse_xbt_instrument(ascii_message[o][0:3])
             wmo_rtype = self.parse_xbt_recorder(ascii_message[o][3:5])

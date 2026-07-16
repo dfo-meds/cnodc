@@ -4,7 +4,7 @@ import json
 from medsutil.ocproc2 import ParentRecord, BaseRecord, ElementMap, RecordSet
 from medsutil.seawater import TemperatureScale
 from tests.helpers.base_test_case import BaseTestCase
-from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCDSTables
+from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCodeMap
 
 
 class TestBufr315003(BaseTestCase):
@@ -12,7 +12,7 @@ class TestBufr315003(BaseTestCase):
     def test_decode(self):
         with open(self.data_file_path("bufr/315003.bufr"), "rb") as h:
             bufr_content = h.read()
-        decoder = _Bufr4Decoder("test", bufr_content, BufrCDSTables())
+        decoder = _Bufr4Decoder("test", bufr_content, BufrCodeMap())
         records = [x for x in decoder.convert_to_records()]
 
         self.assertEqual(1, len(records))

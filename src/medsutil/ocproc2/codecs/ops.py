@@ -1,3 +1,4 @@
+import copy
 import datetime
 import enum
 from contextlib import contextmanager
@@ -6,9 +7,10 @@ from medsutil.dynamic import dynamic_name, dynamic_object
 from medsutil.exceptions import CodedError
 from medsutil.iso_duration import DurationUnit, ISODuration
 from medsutil.ocproc2 import ParentRecord, BaseRecord, RecordSet, AbstractElement, ElementMap, SingleElement, \
-    MultiElement
+    MultiElement, ChildRecord
 import typing as t
 
+from medsutil.ocproc2.util import Quality
 from medsutil.seawater import TemperatureScale
 
 
@@ -16,6 +18,7 @@ class OceanProcessingSchemaError(CodedError): CODE_SPACE = 'OPS'
 
 
 RawValue = int | float | str | datetime.date | bool | None
+RSElementList = list[str | list[str]] | None
 
 
 class DataType(enum.Enum):
@@ -29,6 +32,107 @@ class Instruction:
 
     def __init__(self, **kwargs):
         self.extras: dict[str, t.Any] = kwargs
+
+    @staticmethod
+    def parse_instructions(instructions: list[dict | str],
+                           builder: t.Callable[[dict | str, t.Callable | None], Instruction] | None = None) -> list[Instruction]:
+        built = []
+        for instruction in instructions:
+            built.append(Instruction.parse_instruction(instruction, builder))
+        return built
+
+    @staticmethod
+    def parse_instruction(instruction: dict | str, builder: t.Callable[[dict | str, t.Callable | None], Instruction] = None) -> Instruction:
+
+        if isinstance(instruction, dict):
+
+            if "context" in instruction and instruction["context"]:
+                return ContextInstruction(
+                    context={
+                        k: Instruction.parse_instruction(d, builder)
+                        for k, d in instruction["context"].items()
+                    },
+                    default_instruction=Instruction.parse_instruction(
+                        {k: v for k, v in instruction.items() if k != "context"},
+                        builder
+                    )
+                )
+
+            if "instruction_map" in instruction and instruction["instruction_map"]:
+                return ValueMappedInstruction(
+                    instruction_map={
+                        k: Instruction.parse_instruction(v, builder)
+                        for k, v in instruction["instruction_map"].items()
+                    },
+                    default_instruction=Instruction.parse_instruction(
+                        {k: v for k, v in instruction.items() if k != "instruction_map"},
+                        builder
+                    )
+                )
+
+            if "instruction" in instruction and instruction["instruction"]:
+                kwargs = {k: v for k, v in instruction.items() if k != "instruction"}
+                match instruction["instruction"]:
+                    case "noop":
+                        return NoopInstruction(**kwargs)
+                    case "scale_factor":
+                        return ScaleFactorInstruction(**kwargs)
+
+            if "encode" in instruction or "decode" in instruction:
+                return EncodeDecodeGroup(
+                    encode_instruction=(
+                        Instruction.parse_instruction(instruction["encode"], builder)
+                        if "encode" in instruction and instruction["encode"]
+                        else NoopInstruction()
+                    ),
+                    decode_instruction=(
+                        Instruction.parse_instruction(instruction["decode"], builder)
+                        if "decode" in instruction and instruction["decode"]
+                        else NoopInstruction()
+                    )
+                )
+
+            if "element" in instruction:
+                return ElementInstruction(
+                    **Instruction.parse_element_for_tags(instruction["element"]),
+                    **{k: v for k, v in instruction.items() if k != "element"}
+                )
+
+            if "instructions" in instruction:
+                instruction_list = Instruction.parse_instructions(instruction["instructions"])
+                kwargs = {k: v for k, v in instruction.items() if k != "instructions"}
+                if "recordset_type" in instruction:
+                    if "repeats" in instruction:
+                        return RecordSetRepeatInstructionGroup(
+                            instructions=instruction_list,
+                            **kwargs
+                        )
+                    else:
+                        return RecordSetInstructionGroup(
+                            instructions=instruction_list,
+                            **kwargs
+                        )
+                elif "repeats" in instruction:
+                    return RecordRepeatInstructionGroup(
+                        instructions=instruction_list,
+                        **kwargs
+                    )
+                else:
+                    return InstructionGroup(
+                        instructions=instruction_list,
+                        **kwargs
+                    )
+
+        if builder is not None:
+            return builder(instruction, builder)
+
+        raise OceanProcessingSchemaError("Unrecognized instruction", 3000)
+
+    @staticmethod
+    def parse_element_for_tags(element: str) -> dict:
+        if "[" not in element:
+            return {"element": element}
+        raise NotImplementedError
 
 
 class InstructionGroup(Instruction):
@@ -45,9 +149,9 @@ class RecordSetInstructionGroup(InstructionGroup):
 
     def __init__(self,
                  recordset_type: str,
-                 required_elements: list[str] | None,
-                 forbidden_elements: list[str] | None,
-                 optional_elements: list[str] | None,
+                 required_elements: RSElementList = None,
+                 forbidden_elements: RSElementList = None,
+                 optional_elements: RSElementList = None,
                  no_repeats: bool = True,
                  **kwargs):
         self.no_repeats: bool = no_repeats
@@ -70,7 +174,18 @@ class RecordSetInstructionGroup(InstructionGroup):
                 yield from self.instructions
 
 
-class RecordRepeatInstructionGroup(Instruction):
+class RepeatGroup(Instruction):
+
+    def __init__(self,
+                 repeats: int | None = None,
+                 **kwargs):
+        self.repeats = repeats
+        super().__init__(**kwargs)
+
+    def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
+        ...
+
+class RecordRepeatInstructionGroup(RepeatGroup):
 
     def __init__(self,
                  instructions: list[Instruction],
@@ -78,20 +193,20 @@ class RecordRepeatInstructionGroup(Instruction):
         self.instructions = instructions
         super().__init__(**kwargs)
 
-    def iterate_records(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
+    def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
         if context.recordset is not None:
             for record in context.recordset.records.iterate_with_load():
                 with context.record_context(record):
                     yield self.instructions
 
-class RecordSetRepeatInstructionGroup(Instruction):
+class RecordSetRepeatInstructionGroup(RepeatGroup):
 
     def __init__(self,
                  recordset_type: str,
                  instructions: list[Instruction],
-                 required_elements: list[str] | None = None,
-                 forbidden_elements: list[str] | None = None,
-                 optional_elements: list[str] | None = None,
+                 required_elements: RSElementList = None,
+                 forbidden_elements: RSElementList = None,
+                 optional_elements: RSElementList = None,
                  **kwargs):
         self.required_elements = required_elements
         self.forbidden_elements = forbidden_elements
@@ -100,7 +215,7 @@ class RecordSetRepeatInstructionGroup(Instruction):
         self.instructions = instructions
         super().__init__(**kwargs)
 
-    def iterate_recordsets(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
+    def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
         if context.recordset is not None:
             while rs := context.find_recordset(
                 self.recordset_type,
@@ -161,6 +276,20 @@ class ContextInstruction(Instruction):
         return self._default
 
 
+class EncodeDecodeGroup(Instruction):
+
+    def __init__(self, encode_instruction: Instruction, decode_instruction: Instruction, **kwargs):
+        super().__init__(**kwargs)
+        self.encode = encode_instruction
+        self.decode = decode_instruction
+
+    def get_instruction(self, for_encode: bool = False) -> Instruction:
+        if for_encode:
+            return self.encode
+        else:
+            return self.decode
+
+
 class ValueMappedInstruction(Instruction):
 
     def __init__(self,
@@ -177,7 +306,32 @@ class ValueMappedInstruction(Instruction):
         return self._default
 
 
+class WorstQualityInstruction(SingleValueInstruction):
 
+    def __init__(self,
+                 elements: list[str],
+                 **kwargs):
+        self.elements = elements
+        super().__init__(**kwargs)
+
+    def set_value(self,
+                  context: OPSContext,
+                  value: RawValue | AbstractElement,
+                  metadata: dict | None = None,
+                  **kwargs):
+        raise NotImplementedError  # TODO: set all the qualities on elements
+
+    def get_value(self, context: OPSContext) -> RawValue:
+        q = None
+        for element_name in self.elements:
+            element = context.record.find_child(element_name)
+            if element is None:
+                continue
+            if not isinstance(element, AbstractElement):
+                raise OceanProcessingSchemaError("Invalid element path", 2000)
+            if Quality.new_quality_allowed(element.quality, q):
+                q = element.quality
+        return q
 
 
 
@@ -191,6 +345,7 @@ class ElementInstruction(SingleValueInstruction):
                  metadata: dict[str, RawValue] | None = None,
                  remove_metadata: list[str] | None = None,
                  iterate_into_recordset: bool = False,
+                 use_current_record: bool = True,
                  restrict_recordsets: list[str] | None = None,
                  restrict_elements: list[str] | None = None,
                  places: int | None = None,
@@ -216,6 +371,7 @@ class ElementInstruction(SingleValueInstruction):
         self.element_path = element
         self.restrict_names = restrict_elements
         self.restrict_recordsets = restrict_recordsets
+        self.use_current_record = use_current_record
         self.iterate_into_recordset = iterate_into_recordset
         self.future_context = future_context
         self.export_temperature_scale = export_temperature_scale
@@ -257,12 +413,20 @@ class ElementInstruction(SingleValueInstruction):
                 du = DurationUnit(self.units)
                 isod = ISODuration.from_duration(float(value), du)
                 return isod.isoformat()
-
         return value
 
     def assemble_element(self, value, metadata: dict | None, kwargs: dict):
         value = self.clean_input_value(value)
         e = ElementMap.ensure_element(value, metadata, **kwargs)
+        additional_kwargs = {}
+        if self.places is not None:
+            additional_kwargs["Uncertainty"] = SingleElement(
+                (10 ** (-1 * self.places)) / 2,
+                UncertaintyType="uniform"
+            )
+        if self.units is not None:
+            additional_kwargs["Units"] = self.units
+        e.metadata.update(additional_kwargs)
         if self.remove_metadata:
             for x in self.remove_metadata:
                 if x in e.metadata:
@@ -282,22 +446,13 @@ class ElementInstruction(SingleValueInstruction):
             "metadata/",
             "coordinates/"
         )):
-            if self.append_mode:
-                context.record.append_element_to(self.element_path, e)
-            else:
-                context.record.set_element(self.element_path, e)
+            context.set_element(self.element_path, e, self.append_mode)
         elif self.element_path.startswith("parent/"):
-            if self.append_mode:
-                context.parent.append_element_to('/'.join(self.element_path.split('/')[1:]), e)
-            else:
-                context.parent.set_element('/'.join(self.element_path.split('/')[1:]), e)
+            _, element_path = self.element_path.split('/', maxsplit=1)
+            context.set_parent_element(element_path, e, self.append_mode)
         elif self.element_path.startswith("recordset/"):
-            if context.recordset is not None:
-                _, md_name = self.element_path.split('/', maxsplit=1)
-                if self.append_mode:
-                    context.recordset.metadata.append_element_to(md_name, e)
-                else:
-                    context.recordset.metadata.set_element(md_name, e)
+            _, element_path = self.element_path.split('/', maxsplit=1)
+            context.set_recordset_metadata(element_path, e, self.append_mode)
         elif self.element_path.startswith("common-recordset/"):
             _, md_name = self.element_path.split('/', maxsplit=1)
             context.add_common_recordset_metadata(md_name, e, self.restrict_recordsets, self.future_context)
@@ -327,7 +482,9 @@ class ElementInstruction(SingleValueInstruction):
             raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
         exp_p = self.export_processor
         if exp_p is not None:
-            return exp_p(v)
+            v = exp_p(v)
+        if self.export_map is not None and v in self.export_map:
+            v = self.export_map[v]
         return v
 
     def _get_record_child_element(self, context: OPSContext) -> RawValue:
@@ -353,7 +510,7 @@ class ElementInstruction(SingleValueInstruction):
     def _get_common_element(self, context: OPSContext) -> RawValue:
         values = set()
         _, metadata_name = self.element_path.split('/', maxsplit=1)
-        for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset):
+        for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.use_current_record):
             v = self._process_element(element.metadata.get(metadata_name, None), context)
             if v is not None:
                 values.add(v)
@@ -419,6 +576,8 @@ class ElementInstruction(SingleValueInstruction):
                 return SingleElement(p[int(self.component[5])])
             elif self.component in ("years", "months", "days", "hours", "minutes", "seconds"):
                 return SingleElement(self.convert_duration(value.to_string(), self.component))
+            elif self.component == "uncertainty":
+                ... #TODO
             else:
                 raise OceanProcessingSchemaError("Invalid component", 1400)
         else:
@@ -441,20 +600,41 @@ class OPSContext:
         def __init__(self,
                      element: AbstractElement,
                      rs_types: list[str] | None,
-                     names: list[str] | None | None = None,
+                     names: list[str] | None = None,
                      iterate_into_recordset: bool = False):
             self.element = element
             self.rs_types = rs_types
             self.names = names
             self.iterate_into_recordset = iterate_into_recordset
 
+        def __deepcopy__(self, memo):
+            return OPSContext.FutureMetadata(
+                element=self.element,
+                rs_types=self.rs_types,
+                names=self.names,
+                iterate_into_recordset=self.iterate_into_recordset
+            )
+
     def __init__(self, record: ParentRecord):
         self.parent: ParentRecord = record
         self.record: BaseRecord = record
         self.recordset_type: str | None = None
         self.recordset: RecordSet | None = None
+        self.extras = {}
         self._future_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._ignore_rsids: list[int] = []
+
+    @contextmanager
+    def subcontext(self):
+        old_extras = self.extras
+        old_futures = self._future_metadata
+        try:
+            self.extras = copy.deepcopy(self.extras)
+            self._future_metadata = copy.deepcopy(self._future_metadata)
+            yield self
+        finally:
+            self.extras = old_extras
+            self._future_metadata = old_futures
 
     @contextmanager
     def record_context(self, r: BaseRecord):
@@ -479,6 +659,62 @@ class OPSContext:
         finally:
             self.recordset = old_rs
             self.recordset_type = old_rs_type
+
+    @contextmanager
+    def new_recordset(self, rs_type: str):
+        rs = self.record.subrecords.new_recordset(rs_type)
+        # TODO: forward metadata, see start_new_recordset()
+        old_rs = self.recordset
+        old_type = self.recordset_type
+        old_rsids = self._ignore_rsids
+        try:
+            self.recordset = rs
+            self.recordset_type = rs_type
+            self._ignore_rsids = []
+            yield self
+        finally:
+            self.recordset = old_rs
+            self.recordset_type = old_type
+            self._ignore_rsids = old_rsids
+
+    @contextmanager
+    def new_subrecord(self):
+        record = ChildRecord()
+        old_record = self.record
+        # TODO: forward metadata see start_new_record()
+        try:
+            self.record = record
+            yield self
+        finally:
+            self.record = old_record
+
+    def set_element(self,
+                    path: str,
+                    element: AbstractElement | RawValue,
+                    append_mode: bool = False):
+        if append_mode:
+            self.record.append_to(path, element)
+        else:
+            self.record.set(path, element)
+
+    def set_parent_element(self,
+                    path: str,
+                    element: AbstractElement | RawValue,
+                    append_mode: bool = False):
+        if append_mode:
+            self.parent.append_to(path, element)
+        else:
+            self.parent.set(path, element)
+
+    def set_recordset_metadata(self,
+                               metadata_name: str,
+                               element: AbstractElement | RawValue,
+                               append_mode: bool = False):
+        if self.recordset is not None:
+            if append_mode:
+                self.recordset.metadata.append_to(metadata_name, element)
+            else:
+                self.recordset.metadata.set(metadata_name, element)
 
     def add_common_recordset_metadata(self,
                                       metadata_name: str,
@@ -514,10 +750,19 @@ class OPSContext:
 
     def find_recordset(self,
                        recordset_type: str,
-                       required_elements: list[str] | None,
-                       forbidden_elements: list[str] | None,
-                       helpful_elements: list[str] | None,
+                       required_elements: RSElementList,
+                       forbidden_elements: RSElementList,
+                       helpful_elements: RSElementList,
                        no_repeats: bool = True) -> RecordSet | None:
+        check_counts = set()
+        if helpful_elements is not None:
+            check_counts.update(helpful_elements)
+        if required_elements is not None:
+            for required_element in required_elements:
+                if isinstance(required_element, str):
+                    check_counts.add(required_element)
+                else:
+                    check_counts.update(required_element)
         if recordset_type not in self.record.subrecords.record_sets:
             return None
         best_id, best_rs = None, None
@@ -532,10 +777,21 @@ class OPSContext:
                 rs_elements.update(record.coordinates.keys())
             if forbidden_elements is not None and any(x in rs_elements for x in forbidden_elements):
                 continue
-            if required_elements is not None and any(x not in rs_elements for x in required_elements):
-                continue
-            if helpful_elements is not None:
-                c = sum(1 if x in rs_elements else 0 for x in helpful_elements)
+            if required_elements is not None:
+                good = True
+                for x in required_elements:
+                    if isinstance(x, str):
+                        if x not in rs_elements:
+                            good = False
+                            break
+                    else:
+                        if any(y not in rs_elements for y in x):
+                            good = False
+                            break
+                if not good:
+                    continue
+            if check_counts:
+                c = sum(1 if x in rs_elements else 0 for x in check_counts)
             else:
                 c = 0
             if c > best_count:
@@ -549,8 +805,10 @@ class OPSContext:
     def iterate_elements(self,
                          restrict_name: list[str] | None,
                          restrict_recordsets: list[str] | None = None,
-                         iterate_into_recordset: bool = False) -> t.Iterable[AbstractElement]:
-        yield from self._iterate_record_elements(self.record, restrict_name)
+                         iterate_into_recordset: bool = False,
+                         use_current_record: bool = True) -> t.Iterable[AbstractElement]:
+        if use_current_record:
+            yield from self._iterate_record_elements(self.record, restrict_name)
         if iterate_into_recordset:
             if self.recordset is not None and ((not restrict_recordsets) or self.recordset_type in restrict_recordsets):
                 yield from self._iterate_recordset_elements(self.recordset, restrict_recordsets, restrict_name)
