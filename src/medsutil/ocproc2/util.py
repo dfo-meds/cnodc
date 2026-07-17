@@ -219,7 +219,7 @@ def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, req
     return None
 
 
-def set_working_quality(element: ObjectWithMetadata, working_quality: int):
+def set_working_quality(element: ObjectWithMetadata, working_quality: int) -> bool:
     quality = element.metadata.best("Quality", coerce=int, default=None)
     existing_quality = element.metadata.best("WorkingQuality", coerce=int, default=None)
     if existing_quality is None:
@@ -227,6 +227,8 @@ def set_working_quality(element: ObjectWithMetadata, working_quality: int):
         existing_quality = quality
     if Quality.new_quality_allowed(working_quality, existing_quality):
         element.metadata["WorkingQuality"] = working_quality
+        return True
+    return False
 
 
 def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: RequiredQuality) -> bool:

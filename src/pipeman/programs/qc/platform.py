@@ -3,6 +3,7 @@ import typing as t
 from autoinject import injector
 
 from medsutil.cached import LeastRecentCache
+from medsutil.ocproc2.operations import AssignPlatform
 from nodb.observations import NODBPlatform
 from medsutil.ocproc2.util import RequiredQuality
 from pipeman.programs.qc.base import DeepDiveChecker
@@ -33,24 +34,29 @@ class NODBPlatformCheck(DeepDiveChecker):
         self.assert_is_instance(element, ocproc2.SingleElement, msg="multivalued_not_allowed")
         if not element.is_empty():
             self.assert_is_not_none(self.searcher.find_by_uuid(element.to_string()), msg="bad_platform_uuid")
-            element.metadata['Quality'] = 1
-            self._set_platform_candidates(None)
+            self._apply_platform_action(element.to_string())
         else:
-            self._assign_platform(t.cast(ocproc2.SingleElement, element))
+            self._assign_platform()
 
-    def _assign_platform(self, platform: ocproc2.SingleElement):
+    def _assign_platform(self):
         platforms: list[str] = self._find_platform_matches(self.current_record.record)
         match len(platforms):
+            case 1:
+                self._apply_platform_action(platforms[0])
             case 0:
                 self._set_platform_candidates(None)
                 self.report_qc_error("no_platforms_found")
-            case 1:
-                self._set_platform_candidates(None)
-                platform.value = platforms[0]
-                platform.metadata['Quality'] = 1
             case _:
                 self._set_platform_candidates(platforms)
                 self.report_qc_error("many_platforms_found")
+
+    def _apply_platform_action(self, platform_uuid: str):
+        action = AssignPlatform(
+            platform_uuid=platform_uuid,
+            source_name=self._test_name,
+            source_version=self._test_version,
+        )
+        action.apply(self.current_record.record)
 
     def _set_platform_candidates(self, platforms: list[str] | None):
         if not platforms:

@@ -3,9 +3,11 @@ import hashlib
 import typing as t
 import datetime
 
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.elements import ElementMap, AbstractElement, SingleElement, AnyElementExport, MetadataDict, \
     QCInfoMap, ExportQCInfo, QCInfo
-from medsutil.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType
+from medsutil.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType, ActionType, \
+    Organization
 from medsutil.lazy_load import LazyLoadList
 import medsutil.awaretime as awaretime
 
@@ -253,13 +255,51 @@ class ParentRecord(BaseRecord):
             if qct.test_name == test_name:
                 qct.is_stale = True
 
+    def add_processed_by(self,
+                         source_name: str,
+                         source_version: str,
+                         source_instance: str,
+                         organization: Organization = Organization.CNODC,
+                         change_time: t.Optional[AwareDateTime] = None):
+        self.history.append(HistoryEntry(
+            "Processing log",
+            change_time or AwareDateTime.utcnow(),
+            source_name,
+            source_version,
+            source_instance,
+            MessageType.ACTION,
+            ActionType.PROCESSED,
+            organization=organization
+        ))
+
+    def add_history_action(self,
+                           message: str,
+                           source_name: str,
+                           source_version: str,
+                           source_instance: str,
+                           action_type: ActionType,
+                           affected_path: str | None = None,
+                           organization: Organization = Organization.CNODC,
+                           change_time: t.Optional[AwareDateTime] = None):
+        self.history.append(HistoryEntry(
+            message,
+            change_time or AwareDateTime.utcnow(),
+            source_name,
+            source_version,
+            source_instance,
+            MessageType.ACTION,
+            action_type,
+            affected_path=affected_path,
+            organization=organization,
+        ))
+
     def add_history_entry(self,
                           message: str,
                           source_name: str,
                           source_version: str,
                           source_instance: str,
                           message_type: MessageType = MessageType.NOTE,
-                          change_time: t.Optional[datetime.datetime] = None):
+                          change_time: t.Optional[AwareDateTime] = None):
         self.history.append(HistoryEntry(
             message,
             change_time or awaretime.utc_now(),

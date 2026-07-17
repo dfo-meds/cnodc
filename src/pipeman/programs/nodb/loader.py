@@ -1,6 +1,7 @@
 import uuid
 
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
+from medsutil.ocproc2.history import ActionType
 from nodb.interface import LockType
 import medsutil.ocproc2 as ocproc2
 import typing as t
@@ -238,6 +239,13 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             record: ocproc2.ParentRecord,
                             make_completed_records):
         try:
+            record.add_history_action(
+                f"Record originally created",
+                self.process_name,
+                self.process_version,
+                self.process_uuid,
+                ActionType.CREATED_BY_UPDATE,
+            )
             if make_completed_records:
                 res = rm.create_completed_entry_from_source_file(
                     record=record,

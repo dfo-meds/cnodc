@@ -11,7 +11,7 @@ from nodb.observations import NODBBatch, NODBWorkingRecord, NODBPlatform
 from nodb.interface import NODB, LockType, QueueStatus
 from nodb.queue import NODBQueueItem
 from nodb.workflow import NODBUploadWorkflow
-from medsutil.ocproc2.operations import QCOperator
+from medsutil.ocproc2.operations import RecordOperator
 import medsutil.ocproc2 as ocproc2
 from pipeman.exceptions import CNODCError
 from medsutil.vlq import vlq_encode
@@ -382,7 +382,7 @@ class NODBWebController:
 
     def _apply_all_actions(self, record: ocproc2.ParentRecord, actions: list[dict]):
         for action_def in actions:
-            action = QCOperator.from_map(action_def)
+            action = RecordOperator.from_map(action_def)
             action.apply(record)
 
     def create_station(self, station_def: dict):

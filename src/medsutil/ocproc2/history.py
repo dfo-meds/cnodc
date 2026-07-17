@@ -17,6 +17,19 @@ class MessageType(enum.Enum):
     NOTE = "N"
     WARNING = "W"
     ERROR = "E"
+    ACTION = 'A'
+
+
+class ActionType(enum.Enum):
+    CHANGE_QUALITY = 'CF'
+    CHANGE_VALUE = 'CV'
+    PROCESSED = 'CR'
+    MERGED = 'MD'
+    ORIGINAL_SAVED = 'SV'
+    CREATED_BY_UPDATE = 'UP'
+    CREATED_BY_DEDUPE = 'DC'
+    CRUISE_ASSIGNED = 'AC'
+    PLATFORM_ASSIGNED = 'PlatformAssigned'
 
 
 class QCResult(enum.Enum):
@@ -29,16 +42,27 @@ class QCResult(enum.Enum):
     ERROR = 'E'
 
 
+class Organization(enum.Enum):
+    CNODC = 'ME'
+
+
 class HistoryEntry:
     """An entry in the history of the record."""
 
-    __slots__ = ('message', 'timestamp', 'source_name', 'source_version', 'source_instance', 'message_type')
+    __slots__ = (
+        'message', 'timestamp', 'source_name', 'source_version', 'source_instance', 'message_type',
+        'action_type', 'organization', 'affected_path'
+    )
 
     class Export(t.TypedDict):
         _message: str
         _timestamp: str
         _source: list[str]
         _message_type: str
+        _action_type: str | None
+        _organization: str
+        _affected: str | None
+
 
     def __init__(self,
                  message: str,
@@ -46,13 +70,20 @@ class HistoryEntry:
                  source_name: str,
                  source_version: str,
                  source_instance: str,
-                 message_type: MessageType):
+                 message_type: MessageType,
+                 action_type: ActionType | None = None,
+                 affected_path: str | None = None,
+                 previous_value: float | int | None = None,
+                 organization: Organization = Organization.CNODC):
         self.message: str = message
         self.timestamp: str = timestamp.isoformat() if isinstance(timestamp, datetime.datetime) else timestamp
         self.source_name: str = source_name
         self.source_version: str = source_version
         self.source_instance: str = source_instance
         self.message_type: MessageType = message_type
+        self.action_type: ActionType | None = action_type
+        self.organization = organization
+        self.affected_path = affected_path
 
     def to_mapping(self) -> Export:
         """Convert this history entry to a map."""
@@ -60,7 +91,10 @@ class HistoryEntry:
             '_message': self.message,
             '_timestamp': self.timestamp,
             '_source': [self.source_name, self.source_version, self.source_instance],
-            '_message_type': self.message_type.value
+            '_message_type': self.message_type.value,
+            '_action_type': self.action_type.value if self.action_type is not None else None,
+            '_organization': self.organization.value,
+            '_affected': self.affected_path,
         }
 
     def update_hash(self, h: ct.SupportsHashUpdate):
@@ -71,6 +105,9 @@ class HistoryEntry:
         h.update(self.source_version.encode('utf-8', 'replace'))
         h.update(self.source_instance.encode('utf-8', 'replace'))
         h.update(self.message_type.value.encode('utf-8', 'replace'))
+        h.update(self.action_type.value.encode('utf-8', 'replace') if self.action_type is not None else b'\x00')
+        h.update(self.organization.value.encode('utf-8', 'replace'))
+        h.update(self.affected_path.encode('utf-8', 'replace') if self.affected_path is not None else b'\x00')
 
     @staticmethod
     def from_mapping(map_: Export) -> HistoryEntry:
@@ -79,7 +116,10 @@ class HistoryEntry:
             map_['_message'],
             map_['_timestamp'],
             *map_['_source'],
-            message_type=MessageType(map_['_message_type'])
+            message_type=MessageType(map_['_message_type']),
+            action_type=ActionType(map_['_action_type']) if '_action_type' in map_ and map_['_action_type'] is not None else None,
+            organization=Organization(map_['_organization']) if '_organization' in map_ else Organization.CNODC,
+            affected_path=map_['_affected'] if '_affected' in map_ and map_['_affected'] else None,
         )
 
 

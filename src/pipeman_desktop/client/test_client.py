@@ -5,7 +5,7 @@ import random
 
 import medsutil.ocproc2 as ocproc2
 from medsutil.ocproc2.codecs import OCProc2YamlCodec
-from medsutil.ocproc2.operations import QCOperator
+from medsutil.ocproc2.operations import RecordOperator
 
 
 class TestClient:
@@ -220,6 +220,6 @@ class TestClient:
             for y in operations[x]['actions']:
                 if not isinstance(y, dict):
                     raise Exception('invalid operation format')
-                QCOperator.from_map(y)
+                RecordOperator.from_map(y)
                 results[x] = [True, operations[x]['hash']]
         return results

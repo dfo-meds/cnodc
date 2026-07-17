@@ -13,6 +13,7 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
 from medsutil.math import _functions
+from medsutil.ocproc2.operations import ChangeQuality
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
 from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, Quality, \
@@ -215,6 +216,7 @@ class QualityController(abc.ABC):
         self._source_file_uuid = source_file_uuid
         self._source_file_date = source_file_date
         self._set_qc_flag = qc_flags
+        record.add_processed_by(self._test_name, self._test_version, '')
         self._current_record = ParentRecordRef(record=record)
         self._db = db
         self.setup()
@@ -247,7 +249,6 @@ class QualityController(abc.ABC):
             messages=self._qc_messages,
             notes=f"passed={self._reviews_passed};failed={self._reviews_failed};skipped={self._reviews_skipped}",
         )
-
         record.qc_tests.append(test_run_info)
         self.teardown()
         return test_run_info, self._set_qc_flag
@@ -286,7 +287,7 @@ class QualityController(abc.ABC):
             self._reviews_passed += 1
             if pass_flag is not None:
                 for ref in refs:
-                    self.set_working_quality(pass_flag, ref.ref_object)
+                    self.set_working_quality(pass_flag, ref)
         except QCSkipReview as ex:
             self._log.info("review %s skipped: %s on [%s]", review_name, ex, refs)
             self._reviews_skipped += 1
@@ -347,12 +348,10 @@ class QualityController(abc.ABC):
                 self.recommend_for_review(specific_test_name, e, quality_flag, subpath, ref_value, qc_result, message)
         else:
             element_path = refs.path
-            element = refs.ref_object
             if subpath:
                 element_path = f"{refs.path.rstrip("/")}/{subpath.strip("/")}"
-                element = element.find_child(subpath)
-            if quality_flag is not None and element is not None and isinstance(element, (ocproc2.BaseRecord, ocproc2.RecordSet, ocproc2.AbstractElement)):
-                self.set_working_quality(quality_flag, element)
+            if quality_flag is not None:
+                self.set_working_quality(quality_flag, element_path)
             if message is not None:
                 self.add_qc_message(message, element_path, ref_value)
             if qc_result is not None:
@@ -360,8 +359,14 @@ class QualityController(abc.ABC):
 
     def set_working_quality(self,
                             working_quality: int,
-                            element: ocproc2.AbstractElement | ocproc2.RecordSet | ocproc2.BaseRecord):
-        set_working_quality(element, working_quality)
+                            ref: AnyRef | str):
+        action = ChangeQuality(
+            path=ref.path if isinstance(ref, AnyRef) else ref,
+            new_flag=working_quality,
+            source_name=self._test_name,
+            source_version=self._test_version
+        )
+        action.apply(self.current_record.record)
 
     def skip_entire_test(self, reason: str):
         raise QCSkipTest(reason)
@@ -761,7 +766,7 @@ class CheckerContext:
 
     def set_working_quality(self, working_quality: int):
         for reference in self.references:
-            self.checker.set_working_quality(working_quality, reference.ref_object)
+            self.checker.set_working_quality(working_quality)
 
     def recommend_for_review(self,
                              quality_flag: int | None = None,
