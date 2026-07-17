@@ -23,7 +23,8 @@ from medsutil.units import UnitConverter
 from autoinject import injector
 
 from nodb.interface import NODBInstance
-from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBSourceFile
+from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBSourceFile, \
+    QualityCheckFlags, DataMode
 
 if t.TYPE_CHECKING:
     from pipeman.programs.qc.references import ReferenceRange
@@ -112,16 +113,16 @@ class QualityController(abc.ABC):
         self._log = zrlog.get_logger(f"pipeman.qc_checker.{test_name}")
         self._db = None
         self._searcher = None
-        self._searcher_cls = searcher_cls or RealPlatformSearcher
+        self._searcher_cls = searcher_cls or RealSearchEngine
         self._set_qc_flag: int = 0
         self._source_file_uuid: str | None = None
         self._source_file_date: datetime.date | None = None
 
     @property
-    def searcher(self) -> PlatformSearcher:
+    def searcher(self) -> SearchEngine:
         if self._searcher is None:
             self._searcher = self._searcher_cls(self._db)
-        return t.cast(PlatformSearcher, self._searcher)
+        return t.cast(SearchEngine, self._searcher)
 
     @property
     def working_sort(self) -> str | tuple[str, bool] | None:
@@ -186,7 +187,7 @@ class QualityController(abc.ABC):
     def get_current_platform(self, require_good: bool = True) -> NODBPlatform | None:
         platform_id = self.get_current_platform_id(require_good)
         if platform_id is not None:
-            return self.searcher.find_by_uuid(platform_id)
+            return self.searcher.load_platform(platform_id)
         return None
 
     def get_current_platform_id(self, require_good: bool = True) -> str | None:
@@ -819,14 +820,14 @@ class ProfileChecker(DeepDiveChecker):
         ...
 
 
-class PlatformSearcher(t.Protocol):
+class SearchEngine(t.Protocol):
 
     def __init__(self, db: NODBInstance): ...
 
-    def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
+    def load_platform(self, platform_uuid: str) -> NODBPlatform | None:
         ...
 
-    def search(self,
+    def search_platforms(self,
                *,
                platform_id: str | None = None,
                platform_name: str | None = None,
@@ -835,36 +836,28 @@ class PlatformSearcher(t.Protocol):
                in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
         ...
 
-    def geosearch_working_records(self,
-                                  platform_uuid: str,
-                                  start_time: AwareDateTime,
-                                  end_time: AwareDateTime,
-                                  min_latitude: amath.BasicNumber,
-                                  max_latitude: amath.BasicNumber,
-                                  min_longitude: amath.BasicNumber,
-                                  max_longitude: amath.BasicNumber) -> t.Iterable[NODBWorkingRecord]:
+    def geosearch_working_records(self, *,
+                                  platform_uuid: str | None = None,
+                                  start_time: AwareDateTime | None = None,
+                                  end_time: AwareDateTime | None = None,
+                                  min_latitude: amath.BasicNumber | None = None,
+                                  max_latitude: amath.BasicNumber | None = None,
+                                  min_longitude: amath.BasicNumber | None = None,
+                                  max_longitude: amath.BasicNumber | None = None,
+                                  quality_checks: QualityCheckFlags | int | None = None,
+                                  data_mode: DataMode | None = None) -> t.Iterable[NODBWorkingRecord]:
         ...
 
-    def geosearch_observations(self,
-                               platform_uuid: str,
-                               start_time: AwareDateTime,
-                               end_time: AwareDateTime,
-                               min_latitude: amath.BasicNumber,
-                               max_latitude: amath.BasicNumber,
-                               min_longitude: amath.BasicNumber,
-                               max_longitude: amath.BasicNumber) -> t.Iterable[NODBObservationData]:
-        ...
-
-    def recent_working_records(self,
-                               platform_id: str,
-                               start_time: AwareDateTime,
-                               end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
-        ...
-
-    def recent_observations(self,
-                            platform_id: str,
-                            start_time: AwareDateTime,
-                            end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
+    def geosearch_observations(self, *,
+                               platform_uuid: str | None = None,
+                               start_time: AwareDateTime | None = None,
+                               end_time: AwareDateTime | None = None,
+                               min_latitude: amath.BasicNumber | None = None,
+                               max_latitude: amath.BasicNumber | None = None,
+                               min_longitude: amath.BasicNumber | None = None,
+                               max_longitude: amath.BasicNumber | None = None,
+                               quality_checks: QualityCheckFlags | int | None = None,
+                               data_mode: DataMode | None = None) -> t.Iterable[NODBObservationData]:
         ...
 
     def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
@@ -877,14 +870,11 @@ class PlatformSearcher(t.Protocol):
                                    new_date: datetime.date | str | None) -> bool:
         ...
 
-class RealPlatformSearcher(CachedObjectMixin):
+class RealSearchEngine(CachedObjectMixin):
 
     def __init__(self, db: NODBInstance):
         self._db = db
         super().__init__()
-
-    def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
-        return NODBPlatform.find_by_uuid(self._db, platform_uuid)
 
     def search(self, **kwargs) -> t.Iterable[NODBPlatform]:
         yield from NODBPlatform.search(self._db, **kwargs)
@@ -898,38 +888,15 @@ class RealPlatformSearcher(CachedObjectMixin):
             if obs_data is not None:
                 yield obs_data
 
+    def load_platform(self, platform_uuid: str) -> NODBPlatform | None:
+        return NODBPlatform.find_by_uuid(self._db, platform_uuid)
+
     def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
         if NODBObservationData.find_by_uuid(self._db, obs_uuid, obs_date, key_only=True) is not None:
             return True
         if NODBWorkingRecord.find_by_uuid(self._db, obs_uuid, key_only=True) is not None:
             return True
         return False
-
-    def recent_working_records(self,
-                               platform_id: str,
-                               start_time: AwareDateTime,
-                               end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
-        yield from NODBWorkingRecord.search(
-            self._db,
-            platform_uuid=platform_id,
-            start_time=start_time,
-            end_time=end_time
-        )
-
-    def recent_observations(self,
-                            platform_id: str,
-                            start_time: AwareDateTime,
-                            end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
-        for obs in NODBObservation.search(
-            self._db,
-            platform_uuid=platform_id,
-            start_time=start_time,
-            end_time=end_time,
-            key_only=True
-        ):
-            obs_data = obs.find_observation_data(self._db)
-            if obs_data is not None:
-                yield obs_data
 
     def is_source_file_replacement(self,
                                    old_uuid: str | None,
@@ -956,7 +923,7 @@ class RealPlatformSearcher(CachedObjectMixin):
             return False
         replacement = file.replaces_file(self._db)
         while replacement is not None:
-            if replacement.replaces_file_uuid == old_uuid and replacement.replaces_file_date == old_date:
+            if replacement.replaces_uuid == old_uuid and replacement.replaces_received_date == old_date:
                 return True
             replacement = replacement.replaces_file(self._db)
         return False

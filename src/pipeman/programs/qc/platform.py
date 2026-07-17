@@ -1,5 +1,4 @@
 from medsutil.awaretime import AwareDateTime
-import typing as t
 from autoinject import injector
 
 from medsutil.cached import LeastRecentCache
@@ -33,7 +32,7 @@ class NODBPlatformCheck(DeepDiveChecker):
     def platform_check(self, element: ocproc2.AbstractElement):
         self.assert_is_instance(element, ocproc2.SingleElement, msg="multivalued_not_allowed")
         if not element.is_empty():
-            self.assert_is_not_none(self.searcher.find_by_uuid(element.to_string()), msg="bad_platform_uuid")
+            self.assert_is_not_none(self.searcher.load_platform(element.to_string()), msg="bad_platform_uuid")
             self._apply_platform_action(element.to_string())
         else:
             self._assign_platform()
@@ -87,7 +86,7 @@ class NODBPlatformCheck(DeepDiveChecker):
         )
 
     def _real_get_platform_matches(self, search_kwargs) -> list[str]:
-        raw_matches = [x for x in self.searcher.search(**search_kwargs)]
+        raw_matches = [x for x in self.searcher.search_platforms(**search_kwargs)]
         if not raw_matches:
             return []
         resolved_matches = self._resolve_platform_matches(raw_matches)
@@ -105,4 +104,4 @@ class NODBPlatformCheck(DeepDiveChecker):
         if platform is None or platform.map_to_uuid is None:
             return platform
         else:
-            return self._resolve_platform_match(self.searcher.find_by_uuid(platform.map_to_uuid))
+            return self._resolve_platform_match(self.searcher.load_platform(platform.map_to_uuid))

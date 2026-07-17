@@ -65,15 +65,23 @@ class PlatformStatus(enum.Enum):
     REPLACED = 'REPLACED'
 
 
+class DataMode(enum.Enum):
+    REAL_TIME = "RT"
+    DELAYED_MODE = "DM"
+    UNKNOWN = "??"
 
-class ProcessingLevel(enum.Enum):
-    """Processing level of a record in the database."""
 
-    RAW = 'RAW'
-    ADJUSTED = 'ADJUSTED'
-    REAL_TIME = 'REAL_TIME'
-    DELAYED_MODE = 'DELAYED_MODE'
-    UNKNOWN = 'UNKNOWN'
+class QualityCheckFlags(enum.IntFlag):
+    DEDUPLICATE = 1
+    GTSPP = 2
+
+
+class ObservationRelationshipType(enum.Enum):
+
+    # A (relationship types) B
+    IS_DUPLICATE = 'is_duplicate_of'
+    BETTER_QUALITY = 'is_better_than'
+
 
 
 class _RecordMixin(s.NODBBaseObject):
@@ -139,8 +147,8 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
     source_uuid: str = s.UUIDColumn()
     received_date: datetime.date = s.DateColumn()
 
-    replaces_file_uuid: str | None = s.UUIDColumn()
-    replaces_file_date: datetime.date | None = s.DateColumn()
+    replaces_uuid: str | None = s.UUIDColumn()
+    replaces_received_date: datetime.date | None = s.DateColumn()
 
     source_path: str = s.StringColumn()
     file_name: str = s.StringColumn()
@@ -149,8 +157,6 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
 
     original_uuid: str = s.StringColumn()
     original_idx: int = s.IntColumn()
-
-    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel, default=ProcessingLevel.UNKNOWN)
 
     status: SourceFileStatus = s.EnumColumn(SourceFileStatus)
 
@@ -177,11 +183,11 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
         self._modified_values.add('history')
 
     def replaces_file(self, db: interface.NODBInstance, **kwargs) -> NODBSourceFile | None:
-        if self.replaces_file_uuid is None or self.replaces_file_date is None:
+        if self.replaces_uuid is None or self.replaces_received_date is None:
             return None
         return db.load_object(self.__class__, filters={
-            'source_uuid': self.replaces_file_uuid,
-            'received_date': self.replaces_file_date,
+            'source_uuid': self.replaces_uuid,
+            'received_date': self.replaces_received_date,
         }, **kwargs)
 
     def stream_observation_data(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBObservationData]:
@@ -431,7 +437,8 @@ class NODBObservation(s.NODBBaseObject):
     observation_type: ObservationType = s.EnumColumn(ObservationType)
     surface_parameters: set[str] = s.JsonSetColumn()
     profile_parameters: set[str] = s.JsonSetColumn()
-    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel)
+    data_mode: DataMode = s.EnumColumn(DataMode, default=DataMode.UNKNOWN)
+    quality_checks: int = s.IntColumn(default=0)
     embargo_date: t.Optional[AwareDateTime] = s.DateTimeColumn()
 
     @classmethod
@@ -444,6 +451,8 @@ class NODBObservation(s.NODBBaseObject):
                max_latitude: float | None = None,
                min_longitude: float | None = None,
                max_longitude: float | None = None,
+               data_mode: DataMode | None = None,
+               quality_checks: int | QualityCheckFlags | None = None,
                **kwargs) -> t.Iterable[NODBObservation]:
         filters = {}
         if min_latitude is not None or min_longitude is not None or max_latitude is not None or max_longitude is not None:
@@ -459,6 +468,10 @@ class NODBObservation(s.NODBBaseObject):
             filters['obs_time'] = (start_time, '>=', False)
         if end_time is not None:
             filters['obs_time'] = (end_time, '<=', False)
+        if data_mode is not None:
+            filters['data_mode'] = data_mode.value
+        if quality_checks:
+            filters['quality_checks'] = (quality_checks, '&', False)
         yield from db.stream_objects(cls, filters=filters, **kwargs)
 
     @classmethod
@@ -481,6 +494,9 @@ class NODBObservation(s.NODBBaseObject):
 
     def find_observation_data(self, db: interface.NODBInstance, **kwargs) -> NODBObservationData | None:
         return NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date, **kwargs)
+
+    def find_relationships(self, db, **kwargs) -> t.Iterable[NODBObservationRelationship]:
+        yield from NODBObservationRelationship.find_by_observation(db, self.obs_uuid, self.received_date, **kwargs)
 
     def update_from_record(self, record: ocproc2.ParentRecord):
         update_common_from_data_record(self, record)
@@ -558,10 +574,9 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     message_idx: int = s.IntColumn()
     record_idx: int = s.IntColumn()
     qc_tests: dict[str, dict[str, str]] = s.JsonDictColumn()
-    duplicate_uuid: str = s.UUIDColumn()
-    duplicate_received_date: datetime.date = s.DateColumn()
+    data_mode: DataMode = s.EnumColumn(DataMode, default=DataMode.UNKNOWN)
+    quality_checks: int = s.IntColumn(default=0)
     status: ObservationStatus = s.EnumColumn(ObservationStatus, default=ObservationStatus.UNVERIFIED)
-    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel, default=ProcessingLevel.UNKNOWN)
 
     @classmethod
     def prepare_insert(cls, db: interface.NODBInstance, name: str) -> interface.PreparedStatementProtocol:
@@ -575,7 +590,8 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
             'duplicate_uuid': 'UUID',
             'duplicate_received_date': 'DATE',
             'status': 'obs_status',
-            'processing_level': 'processing_level',
+            'data_mode': 'CHAR(2)',
+            'quality_checks': 'BIGINT',
         }, name=name)
 
     @classmethod
@@ -607,6 +623,9 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
             new_status = data_record.metadata.best('CNODCStatus', coerce=str)
             if hasattr(ObservationStatus, new_status):
                 self.status = getattr(ObservationStatus, new_status)
+
+    def find_relationships(self, db, **kwargs) -> t.Iterable[NODBObservationRelationship]:
+        yield from NODBObservationRelationship.find_by_observation(db, self.obs_uuid, self.received_date, **kwargs)
 
     @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Optional[NODBObservationData]:
@@ -640,22 +659,20 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
                             source_received_date: ct.AcceptAsDateTime,
                             message_idx: int,
                             record_idx: int,
-                            processing_level: t.Optional[t.Union[str, ProcessingLevel]] = None,
+                            data_mode: DataMode | None = None,
+                            quality_checks: int | QualityCheckFlags | None = None,
                             **kwargs) -> t.Optional[NODBObservationData]:
         """Locate a record by information about it in the source file."""
-        if processing_level is None:
-            plevel = ProcessingLevel.UNKNOWN.value
-        elif not isinstance(processing_level, str):
-            plevel = processing_level.value
-        else:
-            plevel = processing_level
-        filters = {
+        filters: dict[str, t.Any] = {
             "received_date": coerce.as_date(source_received_date),
             "source_file_uuid": source_file_uuid,
             "message_idx": message_idx,
             "record_idx": record_idx,
-            "processing_level": plevel
         }
+        if data_mode is not None:
+            filters['data_mode'] = data_mode.value
+        if quality_checks:
+            filters['quality_checks'] = (quality_checks, '&', False)
         return db.load_object(cls, filters, **kwargs)
 
 
@@ -680,9 +697,8 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     platform_uuid: str | None = s.UUIDColumn()
     obs_time: AwareDateTime | None = s.DateTimeColumn()
     location: str | None = s.WKTColumn()
-    processing_level: ProcessingLevel = s.EnumColumn(ProcessingLevel, default=ProcessingLevel.UNKNOWN)
-
-    qc_flags: int = s.IntColumn(default=0)
+    data_mode: DataMode = s.EnumColumn(DataMode, default=DataMode.UNKNOWN)
+    quality_checks: int = s.IntColumn(default=0)
 
     db_created_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
@@ -705,7 +721,8 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
                max_latitude: float | None = None,
                min_longitude: float | None = None,
                max_longitude: float | None = None,
-               qc_flag: int | None = None,
+               qc_flag: int | QualityCheckFlags | None = None,
+               data_mode: DataMode | None = None,
                **kwargs) -> t.Iterable[NODBWorkingRecord]:
         filters = {}
         if min_latitude is not None or min_longitude is not None or max_latitude is not None or max_longitude is not None:
@@ -721,8 +738,10 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
             filters['obs_time'] = (start_time, '>=', False)
         if end_time is not None:
             filters['obs_time'] = (end_time, '<=', False)
-        if qc_flag is not None:
-            filters['qc_flags'] = (qc_flag, '&', False)
+        if qc_flag:
+            filters['quality_checks'] = (qc_flag, '&', False)
+        if data_mode is not None:
+            filters['data_mode'] = data_mode.value
         yield from db.stream_objects(cls, filters=filters, **kwargs)
 
     @classmethod
@@ -732,16 +751,21 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
                             source_received_date: ct.AcceptAsDateTime,
                             message_idx: int,
                             record_idx: int,
-                            processing_level: ProcessingLevel,
+                            data_mode: DataMode | None = None,
+                            quality_checks: int | QualityCheckFlags | None = None,
                             **kwargs) -> t.Optional[NODBWorkingRecord]:
         """Find a working record by its source information"""
-        return db.load_object(cls, {
-                "processing_level": processing_level.value,
-                "received_date": s.parse_received_date(source_received_date),
-                "source_file_uuid": source_file_uuid,
-                "message_idx": message_idx,
-                "record_idx": record_idx
-            }, **kwargs)
+        filters: dict[str, t.Any] = {
+            "received_date": s.parse_received_date(source_received_date),
+            "source_file_uuid": source_file_uuid,
+            "message_idx": message_idx,
+            "record_idx": record_idx
+        }
+        if data_mode is not None:
+            filters['data_mode'] = data_mode.value
+        if quality_checks:
+            filters['quality_checks'] = (quality_checks, '&', False)
+        return db.load_object(cls, filters=filters, **kwargs)
 
     @staticmethod
     def bulk_set_batch_uuid(
@@ -755,3 +779,31 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
             key_values=working_uuids
         )
 
+
+class NODBObservationRelationship(s.NODBBaseObject):
+    left_obs_uuid: str = s.UUIDColumn()
+    left_received_date: datetime.date = s.DateColumn()
+    right_obs_uuid: str = s.UUIDColumn()
+    right_received_date: datetime.date = s.DateColumn()
+    relationship_type: ObservationRelationshipType = s.EnumColumn(ObservationRelationshipType)
+
+    def left_observation(self, db, **kwargs) -> NODBObservation | None:
+        return NODBObservation.find_by_uuid(db, self.left_obs_uuid, self.left_received_date, **kwargs)
+
+    def right_observation(self, db, **kwargs) -> NODBObservation | None:
+        return NODBObservation.find_by_uuid(db, self.right_obs_uuid, self.right_received_date, **kwargs)
+
+    @classmethod
+    def find_by_observation(cls, db, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Iterable[NODBObservationRelationship]:
+        yield from db.stream_objects(
+            cls, filters={
+                'left_obs_uuid': obs_uuid,
+                'left_received_date': s.parse_received_date(received_date)
+            }, **kwargs
+        )
+        yield from db.stream_objects(
+            cls, filters={
+                'right_obs_uuid': obs_uuid,
+                'right_received_date': s.parse_received_date(received_date)
+            }, **kwargs
+        )

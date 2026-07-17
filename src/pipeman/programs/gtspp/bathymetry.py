@@ -47,7 +47,7 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
             self.record_memory['should_skip_on_land'] = False
             pid = self.current_record.record.metadata.best("CNODCPlatform", coerce=str, default=None)
             if pid is not None:
-                platform = self.searcher.find_by_uuid(pid)
+                platform = self.searcher.load_platform(pid)
                 if platform is not None and platform.skip_on_land_check:
                     self.record_memory['should_skip_on_land'] = True
         return self.record_memory['should_skip_on_land']

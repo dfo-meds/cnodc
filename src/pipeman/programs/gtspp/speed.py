@@ -97,14 +97,21 @@ class GTSPPSpeedCheck(DeepDiveChecker):
         if ref_time is not None:
             start_time = ref_time - datetime.timedelta(days=self._past_time_days)
             end_time = ref_time - datetime.timedelta(seconds=1)
-            for working_record in self.searcher.recent_working_records(pid, start_time, end_time):
+            for working_record in self.searcher.geosearch_working_records(
+                    platform_uuid=pid,
+                    start_time=start_time,
+                    end_time=end_time):
                 rec = working_record.record
                 if rec is None:
                     continue
                 if "Latitude" not in rec.coordinates or "Longitude" not in rec.coordinates or "Time" not in rec.coordinates:
                     continue
                 yield ParentRecordRef(rec)
-            for observation in self.searcher.recent_observations(pid, start_time, end_time):
+            for observation in self.searcher.geosearch_observations(
+                platform_uuid=pid,
+                start_time=start_time,
+                end_time=end_time
+            ):
                 rec = observation.record
                 if rec is None:
                     continue
@@ -161,7 +168,7 @@ class GTSPPSpeedCheck(DeepDiveChecker):
         return top_speeds[platform_uuid]
 
     def _real_get_top_speed(self, platform_uuid: str) -> amath.AnyNumber | None:
-        platform = self.searcher.find_by_uuid(platform_uuid)
+        platform = self.searcher.load_platform(platform_uuid)
         if platform:
             if platform.skip_speed_check:
                 return None  # this indicates we should skip the check

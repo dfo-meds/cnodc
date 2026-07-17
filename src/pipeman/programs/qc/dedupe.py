@@ -13,6 +13,7 @@ from medsutil.ocproc2.refs import SingleElementRef
 from medsutil.ocproc2.util import RequiredQuality, pair_up_records, dates_overlap, pair_up_recordsets, \
     pair_up_single_elements
 from medsutil.units.structures import UnitError
+from nodb.observations import QualityCheckFlags
 from pipeman.programs.qc.base import QualityController
 
 
@@ -183,20 +184,20 @@ class NODBDuplicateCheck(QualityController):
                     diff_level_matches[record_level] = {}
                 diff_level_matches[record_level][(source_uuid, record_uuid, record_date)] = match_result
         search_parameters = self.search_kwargs()
-        for working in self.searcher.geosearch_working_records(**search_parameters):
+        for working in self.searcher.geosearch_working_records(**search_parameters, quality_checks=QualityCheckFlags.DEDUPLICATE):
             _process_record(
                 working.source_file_uuid,
                 t.cast(str, working.working_uuid),
                 t.cast(datetime.date, working.received_date),
                 working.record
             )
-        for obs_data in self.searcher.geosearch_working_records(**search_parameters):
-            if (obs_data.source_file_uuid, obs_data.working_uuid, obs_data.received_date) in potential_matches:
+        for obs_data in self.searcher.geosearch_observations(**search_parameters):
+            if (obs_data.source_file_uuid, obs_data.obs_uuid, obs_data.received_date) in potential_matches:
                 continue
             _process_record(
                 obs_data.source_file_uuid,
-                t.cast(str, obs_data.working_uuid),
-                t.cast(datetime.date, obs_data.received_date),
+                obs_data.obs_uuid,
+                obs_data.received_date,
                 obs_data.record
             )
         return (
