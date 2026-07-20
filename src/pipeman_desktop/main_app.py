@@ -33,7 +33,7 @@ from pipeman_desktop.gui.record_list_pane import RecordListPane
 from pipeman_desktop.gui.station_pane import StationPane
 from pipeman_desktop.gui.map_pane import MapPane
 from pipeman_desktop.util import TranslatableException
-from medsutil.ocproc2.operations import RecordOperator, QCSetWorkingQuality, QCAddHistory
+from medsutil.ocproc2.operations import RecordAction, QCSetWorkingQuality, QCAddHistory
 from medsutil.dynamic import dynamic_object
 from autoinject import injector
 
@@ -217,9 +217,9 @@ class CNODCQCApp:
         self.messenger.receive_into_label(self.status_info)
         self.root.after(50, self.check_messages)
 
-    def save_operations(self, actions: list[RecordOperator]):
+    def save_operations(self, actions: list[RecordAction]):
         if self.app_state.record_uuid is not None:
-            action_dict: dict[int, RecordOperator] = {}
+            action_dict: dict[int, RecordAction] = {}
             with self.local_db.cursor() as cur:
                 for action in actions:
                     rowid = cur.insert('actions', {
@@ -253,7 +253,7 @@ class CNODCQCApp:
                 cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [record_uuid])
                 actions = {}
                 for rowid, action_text in cur.fetchall():
-                    operator = RecordOperator.from_map(json.loads(action_text))
+                    operator = RecordAction.from_map(json.loads(action_text))
                     operator.apply(record, None)
                     actions[rowid] = operator
                 subrecord_path = None

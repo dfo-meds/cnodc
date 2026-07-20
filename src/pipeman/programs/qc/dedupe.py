@@ -58,7 +58,7 @@ class NODBDuplicateCheck(QualityController):
     def run(self):
         dupe_id_ref = self.current_record.metadata_ref("CNODCDedupeResult")
         relations = t.cast(SingleElementRef, self.current_record.metadata_ref("CNODCRelatedRecords"))
-        if self._set_qc_flag & 1:
+        if self._record_quality_flags & 1:
             self.qc_pass()
         if any(
             x is None

@@ -8,6 +8,7 @@ from medsutil.ocproc2.util import normalize_ocproc_path
 
 if t.TYPE_CHECKING:
     from medsutil.ocproc2.util import SupportedStorage
+    from medsutil.ocproc2.operations import RecordAction
 
 
 class MessageType(enum.Enum):
@@ -36,10 +37,16 @@ class QCResult(enum.Enum):
     """Defines the outcome of the quality control test"""
 
     PASS = 'P'      # nosec: B105 # is not a password
-    MANUAL_REVIEW = 'R'
+    MANUAL_PASS = 'RP'
+
     FAIL = 'F'
+    MANUAL_FAIL = 'RF'
+
     SKIP = 'S'
+    MANUAL_SKIP = 'RS'
+
     ERROR = 'E'
+    MANUAL_REVIEW = 'R'
 
 
 class Organization(enum.Enum):
@@ -126,20 +133,23 @@ class HistoryEntry:
 class QCMessage:
     """Records the failure of a QC test for an individual element."""
 
-    __slots__ = ('code', 'record_path', 'ref_value')
+    __slots__ = ('code', 'record_path', 'ref_value', 'review_name')
 
     class Export(t.TypedDict, total=False):
         _code: t.Required[str]
         _path: t.Required[str]
         _ref: SupportedStorage | None
+        _review: str | None
 
     def __init__(self,
                  code: str,
                  record_path: str | list[str],
-                 ref_value: SupportedStorage = None):
+                 ref_value: SupportedStorage = None,
+                 review_name: str | None = None):
         self.code = code
         self.record_path = normalize_ocproc_path(record_path)
         self.ref_value = ref_value
+        self.review_name = review_name
 
     def __str__(self):
         return f"{self.record_path}: {self.code}"
@@ -159,7 +169,8 @@ class QCMessage:
         return {
             '_code': self.code,
             '_path': self.record_path,
-            '_ref': self.ref_value
+            '_ref': self.ref_value,
+            '_review': self.review_name
         }
 
     @staticmethod
@@ -168,14 +179,16 @@ class QCMessage:
         return QCMessage(
             map_['_code'],
             map_['_path'],
-            map_['_ref'] if '_ref' in map_ else None
+            map_['_ref'] if '_ref' in map_ else None,
+            map_['_review'] if '_review' in map_ else None
         )
 
 
 class QCTestRunInfo:
     """Records the outcome of a QC test run."""
 
-    __slots__ = ('test_name', 'test_tags', 'test_version', 'test_date', 'result', 'messages', 'notes', 'is_stale')
+    __slots__ = ('test_name', 'test_tags', 'test_version', 'test_date',
+                 'result', 'messages', 'notes', 'is_stale', 'proposed_actions', 'applied_actions')
 
     def __init__(self,
                  test_name: str,
@@ -185,7 +198,9 @@ class QCTestRunInfo:
                  messages: list[QCMessage] = None,
                  notes: str = None,
                  is_stale: bool = False,
-                 test_tags: t.Optional[list[str]] = None):
+                 test_tags: t.Optional[list[str]] = None,
+                 proposed_actions: list[RecordAction] | None = None,
+                 applied_actions: list[RecordAction] | None = None):
         self.test_name = test_name
         self.test_tags = test_tags or []
         self.test_version = test_version
@@ -194,6 +209,8 @@ class QCTestRunInfo:
         self.messages = messages or []
         self.notes = notes
         self.is_stale = is_stale
+        self.proposed_actions = proposed_actions or []
+        self.applied_actions = applied_actions or []
 
     def __str__(self):
         return f"{self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}"
@@ -210,6 +227,8 @@ class QCTestRunInfo:
         _notes: t.Required[str | None]
         _stale: bool
         _tags: list[str] | None
+        _proposed: list[dict] | None
+        _applied: list[dict] | None
 
     def update_hash(self, h: ct.SupportsHashUpdate):
         """Update a hash with the unique values for this test run."""
@@ -235,7 +254,9 @@ class QCTestRunInfo:
             '_result': self.result.value,
             '_notes': self.notes,
             '_stale': self.is_stale,
-            '_tags': self.test_tags
+            '_tags': self.test_tags,
+            '_proposed': [x.export() for x in self.proposed_actions],
+            '_applied': [x.export() for x in self.applied_actions],
         }
 
     @staticmethod
@@ -249,6 +270,14 @@ class QCTestRunInfo:
             [QCMessage.from_mapping(x) for x in map_['_messages']],
             map_['_notes'],
             map_['_stale'] if '_stale' in map_ else False,
-            map_['_tags'] if '_tags' in map_ else None
+            map_['_tags'] if '_tags' in map_ else None,
+            proposed_actions = [
+                RecordAction.from_map(x)
+                for x in t.cast(list[dict], map_['_proposed'])
+            ] if '_proposed' in map_ and map_['_proposed'] else None,
+            applied_actions=[
+                RecordAction.from_map(x)
+                for x in t.cast(list[dict], map_['_applied'])
+            ] if '_applied' in map_ and map_['_applied'] else None,
         )
 

@@ -25,7 +25,7 @@ class GTSPPFreezingPointTest(DeepDiveChecker):
         if temp_ref is not None:
             freezing_points = [x for x in self.get_freezing_points(ref)]
             if freezing_points:
-                freezing_point = max(freezing_points) if self._aggressive_mode else min(freezing_points)
+                freezing_point = amath.max_(freezing_points) if self._aggressive_mode else amath.min_(freezing_points)
                 for temp_sref in temp_ref.single_element_refs():
                     self.freezing_point_test(
                         temp_sref,

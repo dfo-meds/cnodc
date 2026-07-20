@@ -5,7 +5,7 @@ from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayCha
 import typing as t
 import pipeman_desktop.translations as i18n
 from pipeman_desktop.gui.scrollable import ScrollableTreeview
-from medsutil.ocproc2.operations import RecordOperator
+from medsutil.ocproc2.operations import RecordAction
 import tkinter as tk
 import tkinter.ttk as ttk
 from autoinject import injector
@@ -55,7 +55,7 @@ class ActionPane(BasePane):
                 for action_id in sorted(app_state.actions.keys()):
                     self._add_action_item(action_id, app_state.actions[action_id])
 
-    def _add_action_item(self, action_id: int, action: RecordOperator):
+    def _add_action_item(self, action_id: int, action: RecordAction):
         self._action_list.table.insert(
             parent='',
             index='end',

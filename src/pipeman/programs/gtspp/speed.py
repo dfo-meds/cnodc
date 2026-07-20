@@ -34,7 +34,7 @@ class GTSPPSpeedCheck(DeepDiveChecker):
             test_version='1.0',
             searcher_cls=searcher_cls,
             test_tags=['GTSPP_1.5'],
-            working_sort=[('obs_time', 'asc')],
+            working_sort=('obs_time', True),
         )
         self._rewrite_threshold = international_dateline_check_threshold_degrees
         self._past_time_days = past_time_days
@@ -42,10 +42,10 @@ class GTSPPSpeedCheck(DeepDiveChecker):
             raise ValueError("Invalid rewrite threshold, must be at least 181 degrees or the math causes issues")
 
     def parent_record_check(self, ref: ParentRecordRef):
-        if "CNODCPlatform" not in ref.record.metadata:
+        pid = self.get_current_platform_id()
+        if pid is None:
             self.skip_review("no_platform")
-        self.require_quality(ref.record.metadata["CNODCPlatform"])
-        pid = ref.record.metadata['CNODCPlatform'].to_string()
+            return
         lat_ref = ref.setdefault_coordinate_ref("Latitude")
         lon_ref = ref.setdefault_coordinate_ref("Longitude")
         time_ref = ref.setdefault_coordinate_ref("Time")

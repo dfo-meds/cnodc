@@ -13,7 +13,8 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
 from medsutil.math import _functions
-from medsutil.ocproc2.operations import ChangeQuality
+from medsutil.ocproc2 import RecordAction, MessageType
+from medsutil.ocproc2.operations import ChangeQuality, RecordProcessed, AddHistoryEntry
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
 from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, Quality, \
@@ -114,9 +115,16 @@ class QualityController(abc.ABC):
         self._db = None
         self._searcher = None
         self._searcher_cls = searcher_cls or RealSearchEngine
-        self._set_qc_flag: int = 0
+        self._record_quality_flags: int = 0
         self._source_file_uuid: str | None = None
         self._source_file_date: datetime.date | None = None
+        self._process_id: str | None = None
+        self._reviewable_actions: list[RecordAction] = []
+        self._nonreviewable_actions: list[RecordAction] = []
+
+    @property
+    def test_name(self) -> str:
+        return self._test_name
 
     @property
     def searcher(self) -> SearchEngine:
@@ -180,7 +188,7 @@ class QualityController(abc.ABC):
         self.current_coordinates.update_from_record(record)
 
     def set_qc_flag(self, flag: int):
-        self._set_qc_flag = self._set_qc_flag | flag
+        self._record_quality_flags = self._record_quality_flags | flag
 
     def setup(self): ...
 
@@ -213,18 +221,22 @@ class QualityController(abc.ABC):
                          db: NODBInstance,
                          qc_flags: int = 0,
                          source_file_uuid: str | None = None,
-                         source_file_date: datetime.date | None = None) -> tuple[ocproc2.QCTestRunInfo, int]:
+                         source_file_date: datetime.date | None = None,
+                         process_id: str | None = None) -> tuple[ocproc2.QCTestRunInfo, int]:
         self._source_file_uuid = source_file_uuid
         self._source_file_date = source_file_date
-        self._set_qc_flag = qc_flags
-        record.add_processed_by(self._test_name, self._test_version, '')
+        self._process_id = process_id
+        self._record_quality_flags = qc_flags
         self._current_record = ParentRecordRef(record=record)
         self._db = db
         self.setup()
         try:
+            self.add_record_action(RecordProcessed(), False)
             self.run()
             if self._reviews_passed == 0 and self._reviews_failed == 0:
                 self.update_qc_result(ocproc2.QCResult.SKIP)
+            if self._reviewable_actions:
+                self.update_qc_result(ocproc2.QCResult.MANUAL_REVIEW)
         except QCSkipTest as ex:
             self.update_qc_result(ocproc2.QCResult.SKIP)
             self.add_note(f"test_skipped: {str(ex)}")
@@ -233,7 +245,7 @@ class QualityController(abc.ABC):
             self.update_qc_result(ocproc2.QCResult.PASS)
         except CodedError as ex:
             if ex.is_transient:
-                raise ex
+                raise
             self.update_qc_result(ocproc2.QCResult.ERROR)
             self.add_note(f"error cause: {ex.__class__.__name__}: {str(ex)}")
             self._log.error("test error", exc_info=True)
@@ -249,10 +261,11 @@ class QualityController(abc.ABC):
             result=self._qc_result,
             messages=self._qc_messages,
             notes=f"passed={self._reviews_passed};failed={self._reviews_failed};skipped={self._reviews_skipped}",
+            proposed_actions=self._reviewable_actions,
+            applied_actions=self._nonreviewable_actions,
         )
-        record.qc_tests.append(test_run_info)
         self.teardown()
-        return test_run_info, self._set_qc_flag
+        return test_run_info, self._record_quality_flags
 
     def run(self):
         raise NotImplementedError
@@ -262,9 +275,21 @@ class QualityController(abc.ABC):
         self._rmemory = None
         self._qc_result = ocproc2.QCResult.PASS
         self._qc_messages = []
+        self._reviewable_actions = []
+        self._nonreviewable_actions = []
         self._reviews_passed = 0
         self._reviews_failed = 0
         self._reviews_skipped = 0
+
+    def add_record_action(self, action: RecordAction, is_reviewable: bool = True):
+        action.source_name = self._test_name
+        action.source_version = self._test_version
+        action.process_id = self._process_id
+        if is_reviewable:
+            self._reviewable_actions.append(action)
+        else:
+            self._nonreviewable_actions.append(action)
+        action.apply(self.current_record.record)
 
     @contextlib.contextmanager
     def skip_review_blocker(self):
@@ -279,6 +304,8 @@ class QualityController(abc.ABC):
                    refs: t.Iterable[AnyRef],
                    fail_flag: int | None = None,
                    pass_flag: int | None = None,
+                   review_passes: bool = False,
+                   review_failures: bool = True,
                    qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW) -> t.Generator[
         CheckerContext, None, None]:
         ctx = CheckerContext(self, review_name, refs)
@@ -288,7 +315,7 @@ class QualityController(abc.ABC):
             self._reviews_passed += 1
             if pass_flag is not None:
                 for ref in refs:
-                    self.set_working_quality(pass_flag, ref)
+                    self.set_working_quality(pass_flag, ref, review_passes)
         except QCSkipReview as ex:
             self._log.info("review %s skipped: %s on [%s]", review_name, ex, refs)
             self._reviews_skipped += 1
@@ -300,7 +327,8 @@ class QualityController(abc.ABC):
                 ex.subpath or "",
                 ex.ref_value,
                 qc_result,
-                ex.error_code
+                ex.error_code,
+                review_failures
             )
 
     @contextlib.contextmanager
@@ -309,9 +337,11 @@ class QualityController(abc.ABC):
                ref: AnyRef,
                fail_flag: int | None = None,
                pass_flag: int | None = None,
+               review_passes: bool = False,
+               review_failures: bool = True,
                qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW) -> t.Generator[
         CheckerContext, None, None]:
-        with self.review_all(review_name, [ref], fail_flag, pass_flag, qc_result) as ctx:
+        with self.review_all(review_name, [ref], fail_flag, pass_flag, review_passes, review_failures, qc_result) as ctx:
             yield ctx
 
     def check_quality(self,
@@ -343,7 +373,8 @@ class QualityController(abc.ABC):
                              subpath: str = "",
                              ref_value: t.Any = None,
                              qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-                             message: str | None = None):
+                             message: str | None = None,
+                             is_reviewable: bool = True):
         if not isinstance(refs, AnyRef):
             for e in refs:
                 self.recommend_for_review(specific_test_name, e, quality_flag, subpath, ref_value, qc_result, message)
@@ -352,7 +383,7 @@ class QualityController(abc.ABC):
             if subpath:
                 element_path = f"{refs.path.rstrip("/")}/{subpath.strip("/")}"
             if quality_flag is not None:
-                self.set_working_quality(quality_flag, element_path)
+                self.set_working_quality(quality_flag, element_path, is_reviewable)
             if message is not None:
                 self.add_qc_message(message, element_path, ref_value)
             if qc_result is not None:
@@ -360,23 +391,15 @@ class QualityController(abc.ABC):
 
     def set_working_quality(self,
                             working_quality: int,
-                            ref: AnyRef | str):
+                            ref: AnyRef | str,
+                            is_reviewable: bool = True):
         action = ChangeQuality(
             path=ref.path if isinstance(ref, AnyRef) else ref,
             new_flag=working_quality,
             source_name=self._test_name,
             source_version=self._test_version
         )
-        action.apply(self.current_record.record)
-
-    def skip_entire_test(self, reason: str):
-        raise QCSkipTest(reason)
-
-    def skip_review(self, reason: str):
-        raise QCSkipReview(reason)
-
-    def qc_pass(self):
-        raise QCPassTest()
+        self.add_record_action(action, is_reviewable)
 
     def update_qc_result(self, new_result: ocproc2.QCResult):
         if new_result in self.ALLOW_NEW_QC_RESULT[self._qc_result]:
@@ -386,21 +409,32 @@ class QualityController(abc.ABC):
                        msg: str,
                        path: str | list[str],
                        ref_value: t.Any = None,
-                       specific_test_name: str = None):
+                       specific_test_name: str | None = None):
         # TODO: can we put specific_test_name into the message somewhere?
         self._qc_messages.append(ocproc2.QCMessage(
             msg,
             path,
-            ref_value
+            ref_value,
+            specific_test_name
         ))
 
-    def add_note(self, msg: str):
-        self.current_record.record.add_history_entry(
-            msg,
-            self._test_name,
-            self._test_version,
-            "",
-        )
+    def add_note(self,
+                 message: str,
+                 message_type: MessageType = MessageType.NOTE,
+                 is_reviewable: bool = False):
+        self.add_record_action(AddHistoryEntry(
+            message=message,
+            message_type=message_type
+        ), is_reviewable)
+
+    def skip_entire_test(self, reason: str):
+        raise QCSkipTest(reason)
+
+    def skip_review(self, reason: str):
+        raise QCSkipReview(reason)
+
+    def qc_pass(self):
+        raise QCPassTest()
 
     def require_quality(self,
                         value: ocproc2.AbstractElement | None,
@@ -765,16 +799,17 @@ class CheckerContext:
             required_quality
         )
 
-    def set_working_quality(self, working_quality: int):
+    def set_working_quality(self, working_quality: int, is_reviewable: bool = True):
         for reference in self.references:
-            self.checker.set_working_quality(working_quality)
+            self.checker.set_working_quality(working_quality, reference, is_reviewable)
 
     def recommend_for_review(self,
                              quality_flag: int | None = None,
                              subpath: str = "",
                              ref_value: t.Any = None,
                              qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-                             message: str | None = None):
+                             message: str | None = None,
+                             is_reviewable: bool = True):
         self.checker.recommend_for_review(
             self.specific_test_name,
             self.references,
@@ -782,7 +817,8 @@ class CheckerContext:
             subpath,
             ref_value,
             qc_result,
-            message
+            message,
+            is_reviewable=is_reviewable
         )
 
 

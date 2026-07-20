@@ -49,13 +49,12 @@ class NODBPlatformCheck(DeepDiveChecker):
                 self._set_platform_candidates(platforms)
                 self.report_qc_error("many_platforms_found")
 
-    def _apply_platform_action(self, platform_uuid: str):
-        action = AssignPlatform(
+    def _apply_platform_action(self, platform_uuid: str, is_reviewable: bool = False):
+        self.add_record_action(AssignPlatform(
             platform_uuid=platform_uuid,
             source_name=self._test_name,
             source_version=self._test_version,
-        )
-        action.apply(self.current_record.record)
+        ), is_reviewable)
 
     def _set_platform_candidates(self, platforms: list[str] | None):
         if not platforms:

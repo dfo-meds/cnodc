@@ -5,7 +5,7 @@ from medsutil.ocproc2.refs import ElementRef, RecordSetRef, RecordRef
 class NODBPreFlight(DeepDiveChecker):
 
     def __init__(self, **kwargs):
-        super().__init__('nodb_pretest', '1_0', **kwargs)
+        super().__init__('nodb_pretest', '1.0', **kwargs)
 
     def record_check(self, ref: RecordRef):
         if 'WorkingQuality' in ref.record.metadata:

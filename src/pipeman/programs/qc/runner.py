@@ -41,26 +41,37 @@ class QCTestRunner:
     def _process_working_records(self, working_records_streamer: t.Callable[..., t.Iterable[NODBWorkingRecord]]):
         tests, sort_order, batcher = self._build_tests()
         for working_record in working_records_streamer(self._db, order_by=sort_order):
-            if not self._db.has_temp_qc_outcome(self._process_id, working_record.working_uuid):
-                record = working_record.record
-                if record is not None:
-                    qc_results = []
-                    qc_flags = working_record.qc_flags
-                    for test in tests:
-                        result, qc_flags = test.run_record_check(
-                            record,
-                            self._db,
-                            qc_flags,
-                            working_record.source_file_uuid,
-                            working_record.received_date
-                        )
-                        qc_results.append(result.result)
-                    working_record.record = record
-                    working_record.qc_flags = qc_flags
-                    batch_key, outcome = batcher.assign_batch(working_record, record, qc_results)
-                    self._db.update_object(working_record)
-                    self._db.create_temp_qc_outcome(self._process_id, t.cast(str, working_record.working_uuid), batch_key, outcome)
-                    self._db.commit()
+            wuuid = working_record.working_uuid
+            if wuuid is None:
+                raise Exception("Invalid working record")
+            if not self._db.has_temp_qc_outcome(self._process_id, wuuid):
+                original_record = working_record.record
+                if original_record is None:
+                    raise Exception("Invalid record")
+                record = original_record.deepcopy()
+                qc_results = []
+                qc_flags = working_record.qc_flags
+                for test in tests:
+                    if record.test_already_run(test.test_name, False):
+                        continue
+                    result, qc_flags = test.run_record_check(
+                        record,
+                        self._db,
+                        qc_flags,
+                        working_record.source_file_uuid,
+                        working_record.received_date,
+                        self._process_id
+                    )
+                    qc_results.append(result.result)
+                    original_record.qc_tests.append(result)
+                    for action in result.applied_actions:
+                        action.apply(original_record)
+                working_record.record = original_record
+                working_record.qc_flags = qc_flags
+                batch_key, outcome = batcher.assign_batch(working_record, record, qc_results)
+                self._db.update_object(working_record)
+                self._db.create_temp_qc_outcome(self._process_id, wuuid, batch_key, outcome)
+                self._db.commit()
 
     def _flush_results(self, current_batch_uuid: str | None = None):
         for batch_identifier, outcome in self._db.stream_temp_qc_outcomes(self._process_id):

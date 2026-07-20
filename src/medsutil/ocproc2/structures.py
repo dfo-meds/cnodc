@@ -21,20 +21,13 @@ if t.TYPE_CHECKING:
 
 class BaseRecord:
 
-    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', '_qc_info')
+    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords')
 
     def __init__(self):
         self._metadata: t.Optional[ElementMap] = None
         self._parameters: t.Optional[ElementMap] = None
         self._coordinates: t.Optional[ElementMap] = None
         self._subrecords: t.Optional[RecordMap] = None
-        self._qc_info: t.Optional[QCInfoMap] = None
-
-    @property
-    def qc_info(self) -> QCInfoMap:
-        if self._qc_info is None:
-            self._qc_info = QCInfoMap()
-        return t.cast(QCInfoMap, self._qc_info)
 
     @property
     def metadata(self) -> ElementMap:
@@ -146,11 +139,6 @@ class BaseRecord:
             if sr:
                 self.subrecords.from_mapping(sr)
         except KeyError: ...
-        try:
-            qc = map_['_qc_info']
-            if qc:
-                self.qc_info.from_mapping(qc)
-        except KeyError: ...
 
     def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable[BaseRecord]:
         if self._subrecords is not None:
@@ -185,6 +173,9 @@ class ParentRecord(BaseRecord):
         super().__init__()
         self.history: LazyLoadList[HistoryEntry] = LazyLoadList(HistoryEntry.from_mapping)
         self.qc_tests: LazyLoadList[QCTestRunInfo] = LazyLoadList(QCTestRunInfo.from_mapping)
+
+    def deepcopy(self) -> ParentRecord:
+        return ParentRecord.build_from_mapping(self.to_mapping())
 
     def to_mapping(self) -> ParentExport:
         map_: ParentExport = {}

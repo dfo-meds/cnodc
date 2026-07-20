@@ -4,7 +4,7 @@ import datetime
 import typing as t
 import enum
 
-from medsutil.ocproc2.operations import RecordOperator
+from medsutil.ocproc2.operations import RecordAction
 import pipeman_desktop.translations as i18n
 
 
@@ -100,7 +100,7 @@ class ApplicationState:
         self.subrecord_path: t.Optional[str] = None
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
-        self.actions: t.Optional[list[RecordOperator]] = None
+        self.actions: t.Optional[list[RecordAction]] = None
         self.save_in_progress: bool = False
         self.username: t.Optional[str] = None
         self.has_unsaved_changes: bool = False
@@ -246,7 +246,7 @@ class ApplicationState:
         self._set_child_item()
         self.refresh_display(DisplayChange.RECORD_CHILD)
 
-    def extend_actions(self, actions: dict[int, RecordOperator]):
+    def extend_actions(self, actions: dict[int, RecordAction]):
         if self.actions is None:
             self.actions = actions
         else:
