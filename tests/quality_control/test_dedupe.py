@@ -1,5 +1,5 @@
 from medsutil.ocproc2 import SingleElement
-from pipeman.programs.qc.dedupe import NODBDuplicateCheck, CompareResult
+from pipeman.programs.dedupe.dedupe import NODBDuplicateCheck, CompareResult
 from tests.helpers.base_test_case import BaseTestCase, sub_tests
 
 

@@ -9,11 +9,12 @@ import medsutil.math as amath
 from medsutil.awaretime import ScienceDateTime, AwareDateTime
 from medsutil.ocproc2 import SingleElement, ElementMap, AbstractElement, MultiElement, OCProc2Ontology, BaseRecord, \
     RecordMap, RecordSet, ParentRecord, ChildRecord
+from medsutil.ocproc2.operations import SetRelationships
 from medsutil.ocproc2.refs import SingleElementRef
 from medsutil.ocproc2.util import RequiredQuality, pair_up_records, dates_overlap, pair_up_recordsets, \
     pair_up_single_elements
 from medsutil.units.structures import UnitError
-from nodb.observations import QualityCheckFlags
+from nodb.observations import QualityCheckFlags, DataMode
 from pipeman.programs.qc.base import QualityController
 
 
@@ -27,8 +28,8 @@ class CompareResult(enum.Enum):
 class ParentCompareResult(enum.Enum):
 
     IDENTICAL = 'D'
-    B_BETTER = 'D2'
-    A_BETTER = 'O'
+    B_BETTER = 'B'
+    A_BETTER = 'A'
     COMPATIBLE = 'M'
 
     INCOMPATIBLE = 'R'
@@ -36,11 +37,22 @@ class ParentCompareResult(enum.Enum):
     NO_MATCH = 'N'
 
 
-class DeduplicateAction(enum.Enum):
+class RelationshipAction(enum.Enum):
     MARK_DUPLICATE = 'mark_duplicate'
     MARK_OTHER_DUPLICATE = 'mark_other_duplicate'
     AUTOMERGE = 'merge'
-    REVIEW = 'review'
+    REVIEW_MERGE = 'merge_with_review'
+
+    MARK_OTHER_BETTER = 'mark_other_better'
+    MARK_THIS_BETTER = 'mark_this_better'
+    REVIEW_BETTER = "better_review"
+
+    @staticmethod
+    def is_reviewable(x: RelationshipAction):
+        return x in (
+            RelationshipAction.REVIEW_MERGE,
+            RelationshipAction.REVIEW_BETTER
+        )
 
 
 class NODBDuplicateCheck(QualityController):
@@ -56,90 +68,60 @@ class NODBDuplicateCheck(QualityController):
         super().__init__(test_name='nodb_dupe_check', test_version='1.0')
 
     def run(self):
-        dupe_id_ref = self.current_record.metadata_ref("CNODCDedupeResult")
-        relations = t.cast(SingleElementRef, self.current_record.metadata_ref("CNODCRelatedRecords"))
-        if self._record_quality_flags & 1:
-            self.qc_pass()
-        if any(
-            x is None
-            or x.element.is_empty()
-            or x.element.metadata.best('Quality', coerce=int, default=0) not in (1, 9)
-            or not self.ref_exists(x.element)
-            for x in (dupe_id_ref, relations)
-        ):
+        if self._record_quality_flags & QualityCheckFlags.DEDUPLICATE:
             self.qc_pass()
 
-        dedupe_results, diff_level_results = self.search_for_duplicates()
-        if len(diff_level_results) == 0:
-            self.current_record.record.metadata['CNODCRelatedRecords'] = None
-            self.current_record.record.metadata['CNODCRelatedRecords'].metadata['Quality'] = 9
-        else:
+        relationship_matches = self.search_for_relationships()
+
+        self.add_record_action(SetRelationships(relationships={
+            k.value: [
+                [x[0], x[1]]
+                for x in v
+            ]
+            for k, v in relationship_matches.items()
+        }), any(RelationshipAction.is_reviewable(x) for x in relationship_matches.keys()))
+        self._record_quality_flags = self._record_quality_flags | QualityCheckFlags.DEDUPLICATE
+
+    def set_duplicate_list(self, duplicates: dict | None):
+        if duplicates is not None:
             elements = []
-            for level in diff_level_results:
-                for (obs_uuid, obs_date), result in diff_level_results[level].items():
-                    se = SingleElement(f"{obs_date.isoformat()}/{obs_uuid}")
-                    se.metadata['RelationshipType'] = 'related'
-                    if result in (ParentCompareResult.IDENTICAL, ParentCompareResult.A_BETTER, ParentCompareResult.COMPATIBLE):
-                        se.metadata['Quality'] = 1
-                    else:
-                        se.metadata['WorkingQuality'] = 0
-                    elements.append(se)
-            if len(elements) > 1:
-                self.current_record.record.metadata['CNODCRelatedRecords'] = MultiElement(elements)
-            elif len(elements) == 1:
-                self.current_record.record.metadata['CNODCRelatedRecords'] = elements[0]
-
-        # no duplicates found, mark test as good.
-        self.set_qc_flag(1)  # indicates dedupe has been done
-        if len(dedupe_results) == 0:
-            self.set_duplicate_list(None)
-            self.current_record.record.metadata["CNODCDedupeResult"] = None
-            self.current_record.record.metadata["CNODCDedupeResult"].metadata["Quality"] = 9
-            self.qc_pass()
-        elif len(dedupe_results) > 1:
-            if "CNODCDedupeResult" in self.current_record.record.metadata:
-                del self.current_record.record.metadata["CNODCDedupeResult"]
-            self.set_duplicate_list(dedupe_results)
-        else:
-            (source_uuid, obs_uuid, obs_date), dedupe_result = next(iter(dedupe_results.items()))
-            self.set_duplicate_list(None)
-            self.current_record.record.metadata["CNODCDedupeResult"] = f"{obs_date.isoformat()}/{obs_uuid}"
-            self.current_record.record.metadata["CNODCDedupeResult"].metadata["CNODCDedupeResultType"] = dedupe_result.value
-            if dedupe_result is DeduplicateAction.REVIEW:
-                self.current_record.record.metadata["CNODCDedupeResult"].metadata["WorkingQuality"] = 1
-                self.report_qc_error("duplicate_for_review")
-            else:
-                self.current_record.record.metadata["CNODCDedupeResult"].metadata["Quality"] = 1
-                self.qc_pass()
+            for (source_uuid, obs_uuid, obs_date), dedupe_result in duplicates.items():
+                action = self.get_dedupe_action(dedupe_result, obs_date, source_uuid)
+                sub_element = SingleElement(f"{obs_date.isoformat()}/{obs_uuid}")
+                sub_element.metadata["CNODCDuplicateType"] = action.value
+                elements.append(sub_element)
+            self.current_record.record.metadata['CNODCDuplicateCandidates'] = MultiElement(elements)
+        elif 'CNODCDuplicateCandidates' in self.current_record.record.metadata:
+            del self.current_record.record.metadata['CNODCDuplicateCandidates']
 
     def get_dedupe_action(self,
                           dedupe_result: ParentCompareResult,
                           obs_date: datetime.date,
-                          source_uuid: str | None) -> DeduplicateAction:
+                          source_uuid: str | None) -> RelationshipAction:
         match dedupe_result:
             case ParentCompareResult.IDENTICAL:
-                return DeduplicateAction.MARK_DUPLICATE
+                return RelationshipAction.MARK_DUPLICATE
             case ParentCompareResult.A_BETTER:
-                return DeduplicateAction.MARK_OTHER_DUPLICATE
+                return RelationshipAction.MARK_OTHER_DUPLICATE
             case ParentCompareResult.B_BETTER:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
-                    return DeduplicateAction.MARK_OTHER_DUPLICATE
+                    return RelationshipAction.MARK_OTHER_DUPLICATE
                 else:
-                    return DeduplicateAction.MARK_DUPLICATE
+                    return RelationshipAction.MARK_DUPLICATE
             case ParentCompareResult.COMPATIBLE:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
-                    return DeduplicateAction.MARK_OTHER_DUPLICATE
+                    return RelationshipAction.MARK_OTHER_DUPLICATE
                 elif self.does_source_file_replace_current(source_uuid, obs_date):
-                    return DeduplicateAction.MARK_DUPLICATE
+                    return RelationshipAction.MARK_DUPLICATE
                 else:
-                    return DeduplicateAction.AUTOMERGE
+                    return RelationshipAction.AUTOMERGE
             case ParentCompareResult.INCOMPATIBLE:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
-                    return DeduplicateAction.MARK_OTHER_DUPLICATE
+                    return RelationshipAction.MARK_OTHER_DUPLICATE
                 elif self.does_source_file_replace_current(source_uuid, obs_date):
-                    return DeduplicateAction.MARK_DUPLICATE
+                    return RelationshipAction.MARK_DUPLICATE
                 else:
-                    return DeduplicateAction.REVIEW
+                    return RelationshipAction.REVIEW_MERGE
             case _:
                 raise ValueError(f"Unexpected dedupe result: {dedupe_result}")
 
@@ -155,91 +137,93 @@ class NODBDuplicateCheck(QualityController):
                 return False
         return True
 
-    def set_duplicate_list(self, duplicates: dict | None):
-        if duplicates is not None:
-            elements = []
-            for (source_uuid, obs_uuid, obs_date), dedupe_result in duplicates.items():
-                action = self.get_dedupe_action(dedupe_result, obs_date, source_uuid)
-                sub_element = SingleElement(f"{obs_date.isoformat()}/{obs_uuid}")
-                sub_element.metadata["CNODCDuplicateType"] = action.value
-                elements.append(sub_element)
-            self.current_record.record.metadata['CNODCDuplicateCandidates'] = MultiElement(elements)
-        elif 'CNODCDuplicateCandidates' in self.current_record.record.metadata:
-            del self.current_record.record.metadata['CNODCDuplicateCandidates']
+    def get_relationship_action(self,
+                                data_mode: DataMode,
+                                self_better: int,
+                                other_better: int) -> RelationshipAction:
+        if DataMode.is_better_than(self._record_data_mode, data_mode):
+            return RelationshipAction.MARK_THIS_BETTER
+        if DataMode.is_better_than(data_mode, self._record_data_mode):
+            return RelationshipAction.MARK_OTHER_BETTER
+        if self_better > 0 and other_better == 0:
+            return RelationshipAction.MARK_THIS_BETTER
+        if other_better > 0 and self_better == 0:
+            return RelationshipAction.MARK_OTHER_BETTER
+        return RelationshipAction.REVIEW_BETTER
 
-    def search_for_duplicates(self) -> tuple[dict[tuple[str | None, str, datetime.date], DeduplicateAction], dict[str, dict[tuple[str | None, str, datetime.date], ParentCompareResult]]]:
-        diff_level_matches: dict[str, dict[tuple[str | None, str, datetime.date], ParentCompareResult]] = {}
-        potential_matches: dict[tuple[str | None, str, datetime.date], DeduplicateAction] = {}
-        self_level = self.current_record.record.metadata.best("CNODCLevel", coerce=str, default="UNKNOWN")
-        def _process_record(source_uuid: str | None, record_uuid: str, record_date: datetime.date, record: ParentRecord | None):
+    @staticmethod
+    def quality_flags_difference(quality_a: int, quality_b: int, skip_tests: int = 0) -> tuple[int, int]:
+        a_better_tests = 0
+        b_better_tests = 0
+        while quality_a > 0 or quality_b > 0:
+            if skip_tests % 2 == 0:
+                a_check = quality_a % 2
+                b_check = quality_b % 2
+                if a_check == 1 and b_check == 0:
+                    a_better_tests += 1
+                elif a_check == 0 and b_check == 1:
+                    b_better_tests += 1
+            quality_a = quality_a >> 2
+            quality_b = quality_b >> 2
+        return a_better_tests, b_better_tests
+
+    def search_for_relationships(self) -> dict[RelationshipAction, set[tuple[str, datetime.date]]]:
+
+        relationships: dict[RelationshipAction, set[tuple[str, datetime.date]]] = {}
+
+        def _process_record(source_uuid: str | None,
+                            record_uuid: str,
+                            record_date: datetime.date,
+                            record: ParentRecord | None,
+                            data_mode: DataMode,
+                            quality_flags: int):
+
             if record is None: return
+
             match_result = self.compare_parent_records(self.current_record.record, record)
             if match_result is ParentCompareResult.NO_MATCH: return
-            record_level = record.metadata.best("CNODCLevel", coerce=str, default="UNKNOWN")
-            if record_level == self_level:
-                action = self.get_dedupe_action(match_result, record_date, source_uuid)
-                potential_matches[(source_uuid, record_uuid, record_date)] = action
+
+            # this check for quality_flags still matches if one is deduped and the other isn't.
+            self_better, other_better = self.quality_flags_difference(self._record_quality_flags, quality_flags, 1)
+            if data_mode != self._record_data_mode or (self_better + other_better) > 0:
+                action = self.get_relationship_action(match_result, data_mode, self_better, other_better)
             else:
-                if record_level not in diff_level_matches:
-                    diff_level_matches[record_level] = {}
-                diff_level_matches[record_level][(source_uuid, record_uuid, record_date)] = match_result
+                action = self.get_dedupe_action(match_result, record_date, source_uuid)
+            if action not in relationships:
+                relationships[action] = set()
+            relationships[action].add((record_uuid, record_date))
+
+
         search_parameters = self.search_kwargs()
+        seen: set[tuple[str, datetime.date]] = set()
+
         for working in self.searcher.geosearch_working_records(**search_parameters, quality_checks=QualityCheckFlags.DEDUPLICATE):
+            wuuid = t.cast(str, working.working_uuid)
+            wdate = t.cast(datetime.date, working.received_date)
+            seen.add((wuuid, wdate))
             _process_record(
                 working.source_file_uuid,
-                t.cast(str, working.working_uuid),
-                t.cast(datetime.date, working.received_date),
-                working.record
+                wuuid,
+                wdate,
+                working.record,
+                working.data_mode,
+                working.quality_checks
             )
+
         for obs_data in self.searcher.geosearch_observations(**search_parameters):
-            if (obs_data.source_file_uuid, obs_data.obs_uuid, obs_data.received_date) in potential_matches:
+            # prevents working records that were analyzed above from being re-screened
+            if (obs_data.obs_uuid, obs_data.received_date) in seen:
                 continue
             _process_record(
                 obs_data.source_file_uuid,
                 obs_data.obs_uuid,
                 obs_data.received_date,
-                obs_data.record
+                obs_data.record,
+                obs_data.data_mode,
+                obs_data.quality_checks
             )
-        return (
-            self.reduce_matches_action(potential_matches),
-            {
-                k: self.reduce_matches(diff_level_matches[k])
-                for k in diff_level_matches.keys()
-            }
-        )
 
-    def reduce_matches_action(self, potential_matches: dict[tuple[str | None, str, datetime.date], DeduplicateAction]) -> dict[tuple[str | None, str, datetime.date], DeduplicateAction]:
-        ordered_results = [
-            DeduplicateAction.MARK_DUPLICATE,
-            DeduplicateAction.MARK_OTHER_DUPLICATE,
-            DeduplicateAction.AUTOMERGE,
-            DeduplicateAction.REVIEW,
-        ]
-        for allow_value in ordered_results:
-            if allow_value in potential_matches.values():
-                return {
-                    k: v
-                    for k, v in potential_matches.items()
-                    if v is allow_value
-                }
-        return potential_matches
-
-    def reduce_matches(self, potential_matches: dict[tuple[str | None, str, datetime.date], ParentCompareResult]) -> dict[tuple[str | None, str, datetime.date], ParentCompareResult]:
-        ordered_results = [
-            ParentCompareResult.IDENTICAL,
-            ParentCompareResult.B_BETTER,
-            ParentCompareResult.A_BETTER,
-            ParentCompareResult.COMPATIBLE,
-            ParentCompareResult.INCOMPATIBLE,
-        ]
-        for allow_value in ordered_results:
-            if allow_value in potential_matches.values():
-                return {
-                    k: v
-                    for k, v in potential_matches.items()
-                    if v is allow_value
-                }
-        return potential_matches
+        return relationships
 
     def compare_parent_records(self, a: ParentRecord, b: ParentRecord) -> ParentCompareResult:
         result = self._build_result_stats(self.compare_record(a, b))

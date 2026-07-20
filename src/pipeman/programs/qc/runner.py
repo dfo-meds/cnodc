@@ -50,24 +50,25 @@ class QCTestRunner:
                     raise Exception("Invalid record")
                 record = original_record.deepcopy()
                 qc_results = []
-                qc_flags = working_record.qc_flags
+                qc_flags = working_record.quality_checks
                 for test in tests:
                     if record.test_already_run(test.test_name, False):
                         continue
                     result, qc_flags = test.run_record_check(
                         record,
                         self._db,
+                        working_record.data_mode,
                         qc_flags,
                         working_record.source_file_uuid,
                         working_record.received_date,
-                        self._process_id
+                        self._process_id,
                     )
                     qc_results.append(result.result)
                     original_record.qc_tests.append(result)
                     for action in result.applied_actions:
                         action.apply(original_record)
                 working_record.record = original_record
-                working_record.qc_flags = qc_flags
+                working_record.quality_checks = qc_flags
                 batch_key, outcome = batcher.assign_batch(working_record, record, qc_results)
                 self._db.update_object(working_record)
                 self._db.create_temp_qc_outcome(self._process_id, wuuid, batch_key, outcome)

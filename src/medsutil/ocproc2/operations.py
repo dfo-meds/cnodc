@@ -60,6 +60,28 @@ class AddHistoryEntry(RecordAction):
         )
 
 
+class SetRelationships(RecordAction):
+    relationships: dict[str, list[list[str]]]
+
+    def apply(self, record: ParentRecord):
+        if not self.relationships:
+            if "CNODCRelationships" in record.metadata:
+                del record.metadata["CNODCRelationships"]
+        else:
+            record.metadata["CNODCRelationships"] = self.relationships
+
+
+class SetPlatformCandidates(RecordAction):
+    platform_uuids: list[str] | None
+
+    def apply(self, record: ParentRecord):
+        if not self.platform_uuids:
+            if 'CNODCPlatformCandidates' in record.metadata:
+                del record.metadata["CNODCPlatformCandidates"]
+        else:
+            record.metadata["CNODCPlatformCandidates"] = self.platform_uuids
+
+
 class AssignPlatform(RecordAction):
     platform_uuid: str | None = dd.p_str()
 

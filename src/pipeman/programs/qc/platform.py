@@ -2,7 +2,7 @@ from medsutil.awaretime import AwareDateTime
 from autoinject import injector
 
 from medsutil.cached import LeastRecentCache
-from medsutil.ocproc2.operations import AssignPlatform
+from medsutil.ocproc2.operations import AssignPlatform, SetPlatformCandidates
 from nodb.observations import NODBPlatform
 from medsutil.ocproc2.util import RequiredQuality
 from pipeman.programs.qc.base import DeepDiveChecker
@@ -57,11 +57,7 @@ class NODBPlatformCheck(DeepDiveChecker):
         ), is_reviewable)
 
     def _set_platform_candidates(self, platforms: list[str] | None):
-        if not platforms:
-            if 'CNODCPlatformCandidates' in self.current_record.record.metadata:
-                del self.current_record.record.metadata['CNODCPlatformCandidates']
-        else:
-            self.current_record.record.metadata['CNODCPlatformCandidates'] = platforms
+        self.add_record_action(SetPlatformCandidates(platform_uuids=platforms), False)
 
     def _find_platform_matches(self, record: ocproc2.ParentRecord) -> list[str]:
         search_kwargs: dict[str, str | None | AwareDateTime] = {

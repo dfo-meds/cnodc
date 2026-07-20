@@ -70,6 +70,19 @@ class DataMode(enum.Enum):
     DELAYED_MODE = "DM"
     UNKNOWN = "??"
 
+    @staticmethod
+    def is_better_than(b: DataMode, a: DataMode) -> bool:
+        match a, b:
+            case DataMode.REAL_TIME, DataMode.DELAYED_MODE:
+                return True
+            case DataMode.UNKNOWN, DataMode.DELAYED_MODE:
+                return True
+            case DataMode.UNKNOWN, DataMode.REAL_TIME:
+                return True
+            case _:
+                return False
+
+
 
 class QualityCheckFlags(enum.IntFlag):
     DEDUPLICATE = 1

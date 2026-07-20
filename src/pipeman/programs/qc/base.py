@@ -115,6 +115,7 @@ class QualityController(abc.ABC):
         self._db = None
         self._searcher = None
         self._searcher_cls = searcher_cls or RealSearchEngine
+        self._record_data_mode: DataMode = DataMode.UNKNOWN
         self._record_quality_flags: int = 0
         self._source_file_uuid: str | None = None
         self._source_file_date: datetime.date | None = None
@@ -219,6 +220,7 @@ class QualityController(abc.ABC):
     def run_record_check(self,
                          record: ocproc2.ParentRecord,
                          db: NODBInstance,
+                         data_mode: DataMode = DataMode.UNKNOWN,
                          qc_flags: int = 0,
                          source_file_uuid: str | None = None,
                          source_file_date: datetime.date | None = None,
@@ -226,6 +228,7 @@ class QualityController(abc.ABC):
         self._source_file_uuid = source_file_uuid
         self._source_file_date = source_file_date
         self._process_id = process_id
+        self._record_data_mode = data_mode
         self._record_quality_flags = qc_flags
         self._current_record = ParentRecordRef(record=record)
         self._db = db
