@@ -9,16 +9,19 @@ from medsutil.exceptions import CodedError
 from medsutil.math import ScienceNumber
 from medsutil.ocproc2 import ParentRecord, ElementMap, AbstractElement, ChildRecord, SingleElement, MultiElement
 from medsutil.ocproc2.codecs import OCProc2JsonCodec
+from medsutil.ocproc2.history import ActionType
 from medsutil.ocproc2.refs import ParentRecordRef, RecordRef, ElementRef, RecordSetRef, ChildRecordRef
 from medsutil.ocproc2.util import pair_up_records, pair_up_recordsets, pair_up_single_elements
 from medsutil.storage import StorageController, FilePath
 from nodb.queue import NODBQueueItem
-from pipeman.processing.payloads import BatchPayload
+from pipeman.processing.payloads import BatchPayload, FilePayload
 from pipeman.processing.queue_worker import QueueItemResult, QueueWorker
 
-from nodb.observations import NODBObservation, NODBWorkingRecord, NODBObservationData, NODBSourceFile, SourceFileStatus, \
-    ProcessingLevel, NODBBatch
+from nodb.observations import NODBObservation, NODBWorkingRecord, NODBObservationData, NODBSourceFile, SourceFileStatus, NODBBatch
 from pipeman.programs.nodb.record_manager import NODBRecordManager
+
+
+class MergeError(CodedError): CODE_SPACE = "NODB-MERGE"
 
 class NODBMergeInsertWorker(QueueWorker):
 
@@ -36,46 +39,6 @@ class NODBMergeInsertWorker(QueueWorker):
 
         })
 
-    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
-        if any(not item.data.get(x, None) for x in ("merged_file", "workflow_name", "workflow_step", "finalize_queue", "processing_level")):
-            raise CodedError("Missing parameters for queue", 2001, code_space="MERGE")
-        with t.cast(FilePath, self.storage.get_filepath(item.data.get("merged_file", ""), self._halt_flag, True)) as handle:
-            temp_file = self.temp_dir() / "download.json"
-            handle.download(temp_file)
-            codec = OCProc2JsonCodec()
-            records = [x for x in codec.load(temp_file)]
-            sf = NODBSourceFile()
-            sf.received_date = AwareDateTime.utcnow()
-            sf.source_path = handle.path()
-            sf.status = SourceFileStatus.NEW
-            sf.file_name = handle.name
-            sf.source_name = 'merge'
-            sf.program_name = 'merge'
-            sf.processing_level = ProcessingLevel(item.data.get("processing_level"))
-            self.db.insert_object(sf)
-            for_batch = []
-            with NODBRecordManager(self.db) as rem:
-                for idx, record in enumerate(records):
-                    working_uuid = rem.create_working_entry_from_source_file(
-                        record,
-                        0,
-                        idx,
-                        sf
-                    )
-                    if working_uuid is not None:
-                        for_batch.append(working_uuid)
-            if for_batch:
-                batch = NODBBatch()
-                self.db.insert_object(batch)
-                NODBWorkingRecord.bulk_set_batch_uuid(self.db, for_batch, batch.batch_uuid)
-                batch_payload = BatchPayload(
-                    batch_uuid=batch.batch_uuid,
-                    workflow_name=item.data.get("workflow_name"),
-                    current_step=item.data.get("workflow_step"),
-                    current_step_done=False
-                )
-                batch_payload.enqueue(self.db, item.data.get("finalize_queue"))
-
 
 class NODBDuplicateMergeWorker(QueueWorker):
 
@@ -91,7 +54,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
         self.set_defaults({
             'queue_name': 'nodb_merge',
             'review_queue': 'nodb_merge_review',
-            'finish_queue': 'nodb_merge_finish',
+            'finish_queue': 'workflow_continue',
             'merge_directory': None,
             'review_all': False,
         })
@@ -100,17 +63,42 @@ class NODBDuplicateMergeWorker(QueueWorker):
         return t.cast(FilePath, self.storage.get_filepath(self.get_config('merge_directory'), self._halt_flag, True))
 
     def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
-        if any(not item.data.get(x, None) for x in ("processing_level", "current_uuid", "current_date", "others", "workflow_name", "workflow_step", "finalize_queue")):
-            raise CodedError("Missing parameters for queue", 2001, code_space="MERGE")
+        if "current_uuid" not in item.data:
+            raise MergeError("Missing current_uuid", 1000)
+        if "current_date" not in item.data:
+            raise MergeError("Missing current_date", 1001)
+        if "workflow_name" not in item.data:
+            raise MergeError("Missing workflow_name", 1002)
+        if "others" not in item.data:
+            raise MergeError("Missing others", 1003)
+        self.merge_items(
+            str(item.data["current_uuid"]),
+            str(item.data["current_date"]),
+            str(item.data["workflow_name"]),
+            list(item.data["others"]),
+            item
+        )
+
+
+    def merge_items(self,
+                    current_uuid: str,
+                    current_date: str,
+                    workflow_name: str,
+                    others: list[str],
+                    item: NODBQueueItem):
         with self.merge_directory() as merge_dir:
             merge_dir.mkdir(0o664, parents=True)
 
-            obs_datas_to_merge = [x for x in self.load_observation_data(item)]
+            obs_datas_to_merge = [x for x in self.load_observation_data((current_uuid, current_date), *others)]
             merger = ObservationDataMerger(obs_datas_to_merge, bool(self.get_config('review_all', False)))
             new_record, should_review = merger.merge()
-            new_record.metadata['CNODCDuplicates'] = MultiElement(
-                SingleElement(f"{x.received_date.isoformat()}/{x.obs_uuid}")
-                for x in obs_datas_to_merge
+
+            new_record.add_history_action(
+                f"Created by merge processor",
+                self.process_name,
+                self.process_version,
+                self.process_uuid,
+                ActionType.CREATED_BY_DEDUPE
             )
 
             json_codec = OCProc2JsonCodec()
@@ -120,61 +108,50 @@ class NODBDuplicateMergeWorker(QueueWorker):
             while file_handle.exists():
                 k += 1
                 if k > 5:
-                    raise CodedError(f"File {file_handle} already exists", 2001, code_space="MERGE")
+                    raise MergeError(f"File {file_handle} already exists", 2001)
                 file_handle = merge_dir.child(f"{now_.year}{now_.month}{now_.day}_{uuid.uuid4()}")
 
             file_handle.upload(json_codec.encode_records([new_record]))
 
-            queue_name = self.get_config("review_queue" if should_review else "finish_queue")
-            self.db.create_queue_item(
-                queue_name,
-                data={
-                    'merged_file': str(file_handle),
-                    'workflow_name': item.data['workflow_name'],
-                    'workflow_step': item.data['workflow_step'],
-                    'finish_queue': self.get_config('finish_queue'),
-                    'finalize_queue': item.data['finalize_queue'],
-                    'processing_level': obs_datas_to_merge[0].processing_level.value,
-                },
-                unique_item_name=item.data.get("current_uuid", None),
-                correlation_id=item.correlation_id,
-                tag=item.tag
-            )
+            if should_review:
+                self.db.create_queue_item(
+                    self.get_config("review_queue"),
+                    data={
+                        'merged_file': str(file_handle.path()),
+                        'workflow_name': workflow_name,
+                        'finish_queue': self.get_config('finish_queue'),
+                        'data_mode': obs_datas_to_merge[0].data_mode,
+                        'quality_checks': obs_datas_to_merge[0].quality_checks,
+                    },
+                    correlation_id=item.correlation_id,
+                    tag=item.tag
+                )
+            else:
+                sf = obs_datas_to_merge[0].find_source_file(self.db)
+                payload = FilePayload(
+                    file_path=str(file_handle.path()),
+                    filename=sf.file_name if sf is not None else 'merged.json',
+                    is_gzipped=False,
+                    last_modified_date=AwareDateTime.now()
+                )
+                payload.metadata.update({
+                    'source-name': sf.source_name if sf is not None else 'merge',
+                    'program-name': sf.program_name if sf is not None else 'merge',
+                    'data-mode': obs_datas_to_merge[0].data_mode,
+                    'quality-checks': obs_datas_to_merge[0].quality_checks,
+                })
+                payload.workflow_name = workflow_name
+                payload.enqueue(self.db, self.get_config('finish_queue'))
 
-    def load_observation_data(self, item: NODBQueueItem) -> t.Iterable[NODBObservationData]:
-        if "current_uuid" not in item.data:
-            raise CodedError("Missing current_uuid", 1000, code_space="MERGE-DUPES")
-        if "current_date" not in item.data:
-            raise CodedError("Missing current_date", 1001, code_space="MERGE-DUPES")
-        if "other" not in item.data:
-            raise CodedError("Missing list of others", 1002, code_space="MERGE-DUPES")
-        obs = NODBObservation.find_by_uuid(
-            self.db,
-            t.cast(str, item.data.get("best_uuid")),
-            t.cast(str, item.data.get("best_date")),
-            key_only=True
-        )
-        if obs is None:
-            raise CodedError("Invalid best observation uuid/date", 1003, code_space="MERGE-DUPES")
-        obs_data = obs.find_observation_data(self.db)
-        if obs_data is None:
-            raise CodedError("Missing observation data", 1004, code_space="MERGE-DUPES")
-        yield obs_data
-        for other_obs_code in t.cast(list[str], item.data.get("other")):
-            if '/' not in other_obs_code:
-                raise CodedError("Invalid other observation code", 1005, code_space="MERGE-DUPES")
-            other_date, other_uuid = other_obs_code.split("/", maxsplit=1)
-            other_obs = NODBObservation.find_by_uuid(self.db, other_uuid, other_date, key_only=True)
-            if other_obs is None:
-                working = NODBWorkingRecord.find_by_uuid(self.db, other_uuid, key_only=True)
-                if working is None:
-                    raise CodedError("Invalid other observation", 1006, code_space="MERGE-DUPES")
-                else:
-                    raise CodedError("Other observation has not yet been inserted", 1007, code_space="MERGE-DUPES", is_transient=True)
-            other_obs_data = other_obs.find_observation_data(self.db)
-            if other_obs_data is None:
-                raise CodedError("Missing other observation data", 1008, code_space="MERGE-DUPES")
-            yield other_obs_data
+    def load_observation_data(self, items: tuple[str, str] | list[str]) -> t.Iterable[NODBObservationData]:
+        for obs_uuid, obs_date in items:
+            obs = NODBObservation.find_by_uuid(self.db, obs_uuid, obs_date, key_only=True)
+            if obs is None:
+                raise MergeError("Missing observation", 1200, is_transient=True)
+            obs_data = obs.find_observation_data(self.db)
+            if obs_data is None:
+                raise MergeError("Missing observation", 1201, is_transient=True)
+            yield obs_data
 
 
 class ObservationDataMerger:
@@ -185,7 +162,6 @@ class ObservationDataMerger:
 
     def merge(self) -> tuple[ParentRecord, bool]:
         record = self._attempt_automerge()
-        # TODO: we should run an integrity check on this to be sure it is good - if it fails, tag it for review
         return record, self._is_reviewable
 
     def _attempt_automerge(self) -> ParentRecord:

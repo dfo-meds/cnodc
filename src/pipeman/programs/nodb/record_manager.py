@@ -11,10 +11,11 @@ from autoinject import injector
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
 from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, \
-    NODBMission, ProcessingLevel
+    NODBMission, DataMode
 from nodb.interface import NODBInstance, LockType
 from medsutil.ocproc2 import OCProc2Ontology
 from medsutil.units import UnitConverter
+from pipeman.programs.dedupe.dedupe import RelationshipAction
 
 
 class CreationResultType(enum.Enum):
@@ -30,11 +31,21 @@ class NODBCreationResult:
                  obs_uuid: str,
                  received_date: datetime.date,
                  dupe_action: CreationResultType,
-                 other_items: list[str] | None = None):
+                 other_items: dict[RelationshipAction, set[tuple[str, datetime.date]]]):
         self.obs_uuid = obs_uuid
         self.received_date = received_date
         self.action = dupe_action
-        self.others = other_items
+        self.merge_with = set()
+        if RelationshipAction.MERGE in other_items:
+            self.merge_with.update(other_items[RelationshipAction.MERGE])
+        if RelationshipAction.REVIEW_MERGE in other_items:
+            self.merge_with.update(other_items[RelationshipAction.REVIEW_MERGE])
+        self.relationships = {
+            k: v
+            for k, v in other_items.items()
+            if k not in (RelationshipAction.REVIEW_MERGE, RelationshipAction.MERGE)
+        }
+
 
 
 class NODBRecordManager:
@@ -64,14 +75,17 @@ class NODBRecordManager:
                                                 record: ocproc2.ParentRecord,
                                                 message_idx: int,
                                                 record_idx: int,
-                                                source_file: NODBSourceFile) -> NODBCreationResult:
+                                                source_file: NODBSourceFile,
+                                                data_mode: DataMode,
+                                                quality_flags: int = 0) -> NODBCreationResult:
         return self.create_completed_entry(
             record=record,
             message_idx=message_idx,
             record_idx=record_idx,
             source_file_uuid=source_file.source_uuid,
             received_date=source_file.received_date,
-            processing_level=source_file.processing_level
+            data_mode=data_mode,
+            quality_flags=quality_flags
         )
 
     def create_completed_entry_from_working_record(self, working: NODBWorkingRecord) -> NODBCreationResult:
@@ -82,7 +96,8 @@ class NODBRecordManager:
             source_file_uuid=working.source_file_uuid,
             received_date=working.received_date,
             original_uuid=working.working_uuid,
-            processing_level=working.processing_level
+            data_mode=working.data_mode,
+            quality_flags=working.quality_checks
         )
 
     def _check_completed_entry(self,
@@ -90,20 +105,21 @@ class NODBRecordManager:
                                received_date: datetime.date,
                                message_idx: int,
                                record_idx: int,
-                               processing_level: ProcessingLevel) -> tuple[str, str] | None:
+                               data_mode: DataMode,
+                               quality_flags: int) -> tuple[str, str] | None:
         key = f"{source_file_uuid}__{received_date.isoformat()}"
         if 'completed_entries_by_file' not in self._memory:
             self._memory['completed_entries_by_file'] = {}
         if key not in self._memory['completed_entries_by_file']:
             self._memory['completed_entries_by_file'][key] = self._load_all_completed(source_file_uuid, received_date)
-        return self._memory['completed_entries_by_file'][key][(message_idx, record_idx, processing_level.value)]
+        return self._memory['completed_entries_by_file'][key][(message_idx, record_idx, data_mode, quality_flags)]
 
     def _load_all_completed(self,
                             source_file_uuid: str,
-                            received_date: datetime.date) -> dict[tuple[int, int, str], tuple[str, str] | None]:
-        result: dict[tuple[int, int, str], tuple[str, str] | None] = defaultdict(lambda: None)
-        for row in NODBObservationData.find_all_by_source_file_raw(self._db, source_file_uuid, received_date, limit_fields=["obs_uuid", "received_date", "message_idx", "record_idx", "processing_level"]):
-            result[(int(row["message_idx"]), int(row["record_idx"]), row["processing_level"])] = row["obs_uuid"], row["received_date"]
+                            received_date: datetime.date) -> dict[tuple[int, int, DataMode, int], tuple[str, str] | None]:
+        result: dict[tuple[int, int, DataMode, int], tuple[str, str] | None] = defaultdict(lambda: None)
+        for row in NODBObservationData.find_all_by_source_file_raw(self._db, source_file_uuid, received_date, limit_fields=["obs_uuid", "received_date", "message_idx", "record_idx", "data_mode", "quality_checks"]):
+            result[(int(row["message_idx"]), int(row["record_idx"]), DataMode(row["data_mode"]), int(row["quality_checks"]))] = (row["obs_uuid"], row["received_date"])
         return result
 
     def create_completed_entry(self,
@@ -112,116 +128,92 @@ class NODBRecordManager:
                                received_date: datetime.date,
                                message_idx: int,
                                record_idx: int,
-                               processing_level: ProcessingLevel,
+                               data_mode: DataMode,
+                               quality_flags: int = 0,
                                original_uuid: str = None,) -> NODBCreationResult:
         check_result = self._check_completed_entry(
-                source_file_uuid,
-                received_date,
-                message_idx,
-                record_idx,
-                processing_level
+            source_file_uuid,
+            received_date,
+            message_idx,
+            record_idx,
+            data_mode,
+            quality_flags
         )
         if check_result is not None:
             return NODBCreationResult(check_result[0], datetime.date.fromisoformat(check_result[1]), CreationResultType.COPY_EXISTS)
-        self._identify_platform(record)
         self._prune_platform_metadata(record)
-        self._identify_mission(record)
         self._prune_mission_metadata(record)
-        obs, obs_data, result_type, options = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, processing_level, original_uuid)
+        obs, obs_data, result = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, data_mode, quality_flags, original_uuid)
         self._prep_obs.execute(obs)
         self._prep_obs_data.execute(obs_data)
-        return NODBCreationResult(obs.obs_uuid, obs.received_date, result_type, options)
+        return result
 
-    def _identify_platform(self, record: ocproc2.ParentRecord):
-        if record.metadata.has_value('CNODCPlatform'):
-            return
-        wmo_id = record.metadata.best('WMOID', coerce=str, default=None)
-        wigos_id = record.metadata.best('WIGOSID', coerce=str, default=None)
-        platform_name = record.metadata.best('PlatformName', coerce=str, default=None)
-        platform_id = record.metadata.best('PlatformID', coerce=str, default=None)
-        if not (wmo_id or platform_name or platform_id or wigos_id):
-            return
-        in_service_date = record.coordinates.best('Time', coerce=AwareDateTime.fromisoformat, default=None)
-        platform = self._find_platform(wmo_id=wmo_id, in_service_date=in_service_date, wigos_id=wigos_id, platform_name=platform_name, platform_id=platform_id)
-        if platform is None:
-            platform = NODBPlatform()
-            platform.platform_uuid = str(uuid.uuid4())
-            platform.wmo_id = wmo_id
-            platform.wigos_id = wigos_id
-            platform.platform_name = platform_name
-            platform.platform_id = platform_id
-            platform.platform_type = record.metadata.best("PlatformCNODCType", coerce=str, default="unknown")
-            platform.service_start_date = record.metadata.best("PlatformServiceStart", coerce=AwareDateTime, default=None)
-            platform.service_end_date = record.metadata.best("PlatformServiceEnd", coerce=AwareDateTime, default=None)
-            self._db.insert_object(platform)
-            self._memory['CNODCPlatform'][platform.platform_uuid] = platform
-        record.metadata['CNODCPlatform'] = platform.platform_uuid
+    def build_nodb_entry(self,
+                         record: ocproc2.ParentRecord,
+                         source_file_uuid: str,
+                         received_date: datetime.date,
+                         message_idx: int,
+                         record_idx: int,
+                         data_mode: DataMode,
+                         quality_flags: int = 0,
+                         original_uuid: str = None) -> tuple[
+            NODBObservation, NODBObservationData, NODBCreationResult
+        ]:
+        self.finalize(record, True)
+        obs_data = NODBObservationData()
+        obs_data.obs_uuid = original_uuid or str(uuid.uuid4())
+        obs_data.received_date = received_date
+        record.metadata['CNODCID'] = f"{obs_data.received_date.strftime('%Y%m%d')}/{obs_data.obs_uuid}"
+        obs_data.message_idx = message_idx
+        obs_data.record_idx = record_idx
+        obs_data.source_file_uuid = source_file_uuid
+        obs_data.data_mode = data_mode
+        obs_data.quality_checks = quality_flags
+        obs_data.record = record
 
-    def _find_platform(self,
-                       wmo_id: str | None = None,
-                       wigos_id: str | None = None,
-                       platform_name: str | None = None,
-                       platform_id: str | None = None,
-                       in_service_date: AwareDateTime | None = None) -> NODBPlatform | None:
-        if 'CNODCPlatform' in self._memory:
-            for platform_uuid, platform in self._memory['CNODCPlatform'].items():
-                platform: NODBPlatform = platform
-                if in_service_date is not None:
-                    if platform.service_start_date is not None and platform.service_start_date > in_service_date:
-                        continue
-                    if platform.service_end_date is not None and platform.service_end_date < in_service_date:
-                        continue
-                if wmo_id is not None and platform.wmo_id == wmo_id:
-                    return platform
-                elif wigos_id is not None and platform.wigos_id == wigos_id:
-                    return platform
-                elif platform_name is not None and platform.platform_name == platform_name:
-                    return platform
-                elif platform_id is not None and platform.platform_id == platform_id:
-                    return platform
-        else:
-            self._memory['CNODCPlatform'] = {}
-        for platform in NODBPlatform.search(db=self._db, wmo_id=wmo_id, limit_fields=("metadata", 'wmo_id', 'wigos_id', 'platform_name', 'platform_id', 'service_start_date', 'service_end_date', 'map_to_uuid',)):
-            self._memory['CNODCPlatform'][platform.platform_uuid] = platform
-            return platform
-        return None
+        obs = NODBObservation()
+        obs.obs_uuid = obs_data.obs_uuid
+        obs.received_date = obs_data.received_date
+        obs.data_mode = data_mode
+        obs.quality_checks = quality_flags
+        obs.update_from_record(record)
 
+        return obs, obs_data, self.check_for_relationships(record, obs_data)
 
-    def _identify_mission(self, record: ocproc2.ParentRecord):
-        ...
+    def check_for_relationships(self,
+                                record: ocproc2.ParentRecord,
+                                obs_data: NODBObservationData) -> NODBCreationResult:
 
-    """
-                platform = nodb.NODBPlatform()
-                platform.platform_type = 'glider'
-                platform.platform_uuid = str(uuid.uuid4())
-                platform.wmo_id = wmoid
-                if record.metadata.has_value('PlatformName'):
-                    platform.platform_name = record.metadata['PlatformName'].to_string()
-                if record.metadata.has_value('PlatformID'):
-                    platform.platform_id = record.metadata['PlatformID'].to_string()
-                db.insert_object(platform)
-                memory['platform_map'][wmoid] = platform.platform_uuid
-                record.metadata['CNODCPlatform'] = platform.platform_uuid
-    if record.metadata.has_value('CruiseID'):
-        cruise_id = record.metadata['CruiseID'].to_string()
-        if cruise_id in memory['mission_map']:
-            record.metadata['CNODCMission'] = memory['mission_map'][cruise_id]
-        else:
-            missions = [x for x in nodb.NODBMission.search(
-                db=db,
-                mission_id=cruise_id,
-            )]
-            if missions:
-                record.metadata['CNODCMission'] = missions[0].mission_uuid
-                memory['mission_map'][cruise_id] = missions[0].mission_uuid
-            else:
-                mission = nodb.NODBMission()
-                mission.mission_id = cruise_id
-                mission.mission_uuid = str(uuid.uuid4())
-                db.insert_object(mission)
-                memory['mission_map'][cruise_id] = mission.mission_uuid
-                record.metadata['CNODCMission'] = mission.mission_uuid
-    """
+        result = CreationResultType.NEW
+        relationships = {}
+        if record.metadata.has_value("CNODCRelationships"):
+            relationships = RelationshipAction.decode_action_list(record.metadata["CNODCRelationships"].value)
+
+            if RelationshipAction.MARK_DUPLICATE in relationships:
+                result = CreationResultType.DUPLICATE
+            elif RelationshipAction.MARK_OTHER_DUPLICATE in relationships:
+                result = CreationResultType.UPDATE
+            elif RelationshipAction.MERGE in relationships or RelationshipAction.REVIEW_MERGE in relationships:
+                result = CreationResultType.MERGE
+        return NODBCreationResult(obs_data.obs_uuid, obs_data.received_date, result, relationships)
+
+    def finalize(self, record: ocproc2.BaseRecord, is_top_level: bool = True):
+        for key in record.metadata:
+            self._finalize_value(record.metadata[key])
+        for key in record.parameters:
+            self._finalize_value(record.parameters[key])
+        for key in record.coordinates:
+            self._finalize_value(record.coordinates[key])
+        for record in record.iter_subrecords():
+            self.finalize(record, False)
+
+    def _finalize_value(self, value: ocproc2.AbstractElement):
+        if 'WorkingQuality' in value.metadata:
+            value.metadata['Quality'] = value.metadata['WorkingQuality'].best()
+            del value.metadata['WorkingQuality']
+        if isinstance(value, ocproc2.MultiElement):
+            for v in value.values():
+                self._finalize_value(v)
 
     def _prune_platform_metadata(self, record: ocproc2.ParentRecord):
         self._prune_metadata(
@@ -273,90 +265,21 @@ class NODBRecordManager:
             self._db.update_object(obj)
             self._memory[lookup_key_name][obj_uuid] = obj
 
-    def build_nodb_entry(self,
-                         record: ocproc2.ParentRecord,
-                         source_file_uuid: str,
-                         received_date: datetime.date,
-                         message_idx: int,
-                         record_idx: int,
-                         processing_level: ProcessingLevel,
-                         original_uuid: str = None) -> tuple[NODBObservation, NODBObservationData, CreationResultType, list[str] | None]:
-        self.finalize(record, True)
-        obs_data = NODBObservationData()
-        obs_data.obs_uuid = original_uuid or str(uuid.uuid4())
-        obs_data.received_date = received_date
-        record.metadata['CNODCID'] = f"{obs_data.received_date.strftime('%Y%m%d')}/{obs_data.obs_uuid}"
-        result_type, options = self.check_for_duplicate_action(record, obs_data)
-        obs_data.message_idx = message_idx
-        obs_data.record_idx = record_idx
-        obs_data.source_file_uuid = source_file_uuid
-        obs_data.processing_level = processing_level
-        obs_data.record = record
-
-        obs = NODBObservation()
-        obs.obs_uuid = obs_data.obs_uuid
-        obs.received_date = obs_data.received_date
-        obs.processing_level = processing_level
-        obs.update_from_record(record)
-
-        return obs, obs_data, result_type, options
-
-
-    def check_for_duplicate_action(self, record: ocproc2.ParentRecord, obs_data: NODBObservationData) -> tuple[CreationResultType, list[str] | None]:
-        if not record.metadata.has_value("CNODCDedupeResult"):
-            return CreationResultType.NEW, None
-        md = record.metadata["CNODCDedupeResult"]
-        mode = record.metadata.best("CNODCDedupeResultType", coerce=str, default=None)
-        if mode == "mark_duplicate":
-            obs_data.duplicate_uuid, obs_data.duplicate_received_date = md.ideal().to_string().split('/', maxsplit=1)
-            return CreationResultType.DUPLICATE, None
-        elif mode == "mark_other_duplicate":
-            return CreationResultType.UPDATE, [
-                v.to_string()
-                for v in md.all_values()
-            ]
-        elif mode == "merge":
-            return CreationResultType.MERGE, [
-                v.to_string()
-                for v in md.all_values()
-            ]
-        else:
-            raise ValueError(f"Invalid duplicate mode: [{mode}]")
-
-
-    def finalize(self, record: ocproc2.BaseRecord, is_top_level: bool = True):
-        if is_top_level:
-            if not record.metadata.has_value('CNODCLevel'):
-                record.metadata.set('CNODCLevel', 'UNKNOWN')
-        for key in record.metadata:
-            self._finalize_value(record.metadata[key])
-        for key in record.parameters:
-            self._finalize_value(record.parameters[key])
-        for key in record.coordinates:
-            self._finalize_value(record.coordinates[key])
-        for record in record.iter_subrecords():
-            self.finalize(record, False)
-
-    def _finalize_value(self, value: ocproc2.AbstractElement):
-        if 'WorkingQuality' in value.metadata:
-            value.metadata['Quality'] = value.metadata['WorkingQuality'].best()
-            del value.metadata['WorkingQuality']
-        if isinstance(value, ocproc2.MultiElement):
-            for v in value.values():
-                self._finalize_value(v)
-
     def create_working_entry_from_source_file(self,
                                               record: ocproc2.ParentRecord,
                                               message_idx: int,
                                               record_idx: int,
-                                              source_file: NODBSourceFile) -> str | None:
+                                              source_file: NODBSourceFile,
+                                              data_mode: DataMode,
+                                              quality_flags: int = 0) -> str | None:
         return self.create_working_entry(
             record=record,
             message_idx=message_idx,
             record_idx=record_idx,
             source_file_uuid=source_file.source_uuid,
             received_date=source_file.received_date,
-            processing_level=source_file.processing_level
+            data_mode=data_mode,
+            quality_flags=quality_flags
         )
 
     def create_working_entry(self,
@@ -365,13 +288,29 @@ class NODBRecordManager:
                              received_date: datetime.date,
                              message_idx: int,
                              record_idx: int,
-                             processing_level: ProcessingLevel) -> str | None:
+                             data_mode: DataMode,
+                             quality_flags: int = 0) -> str | None:
         check = NODBWorkingRecord.find_by_source_info(
-            self._db, source_file_uuid, received_date, message_idx, record_idx, processing_level, key_only=True
+            self._db,
+            source_file_uuid=source_file_uuid,
+            source_received_date=received_date,
+            message_idx=message_idx,
+            record_idx=record_idx,
+            data_mode=data_mode,
+            quality_checks=quality_flags,
+            key_only=True
         )
         if check is not None:
             return None
-        working_record = self.build_nodb_working_entry(record, source_file_uuid, received_date, message_idx, record_idx, processing_level)
+        working_record = self.build_nodb_working_entry(
+            record=record,
+            source_file_uuid=source_file_uuid,
+            received_date=received_date,
+            message_idx=message_idx,
+            record_idx=record_idx,
+            data_mode=data_mode,
+            quality_flags=quality_flags
+        )
         self._db.insert_object(working_record)
         return working_record.working_uuid
 
@@ -381,9 +320,11 @@ class NODBRecordManager:
                                  received_date: datetime.date,
                                  message_idx: int,
                                  record_idx: int,
-                                 processing_level: ProcessingLevel) -> NODBWorkingRecord:
+                                 data_mode: DataMode,
+                                 quality_flags: int = 0) -> NODBWorkingRecord:
         working_record = NODBWorkingRecord()
-        working_record.processing_level = processing_level
+        working_record.quality_flags = quality_flags
+        working_record.data_mode = data_mode
         working_record.working_uuid = str(uuid.uuid4())
         working_record.received_date = received_date
         working_record.message_idx = message_idx

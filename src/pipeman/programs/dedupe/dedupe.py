@@ -40,7 +40,7 @@ class ParentCompareResult(enum.Enum):
 class RelationshipAction(enum.Enum):
     MARK_DUPLICATE = 'mark_duplicate'
     MARK_OTHER_DUPLICATE = 'mark_other_duplicate'
-    AUTOMERGE = 'merge'
+    MERGE = 'merge'
     REVIEW_MERGE = 'merge_with_review'
 
     MARK_OTHER_BETTER = 'mark_other_better'
@@ -53,6 +53,26 @@ class RelationshipAction(enum.Enum):
             RelationshipAction.REVIEW_MERGE,
             RelationshipAction.REVIEW_BETTER
         )
+
+    @staticmethod
+    def encode_action_list(matches: dict[RelationshipAction, set[tuple[str, datetime.date]]]) -> dict[str, list[list[str]]]:
+        return {
+            k.value: [
+                [x[0], x[1].isoformat()]
+                for x in v
+            ]
+            for k, v in matches.items()
+        }
+
+    @staticmethod
+    def decode_action_list(matches: dict[str, list[list[str]]]) -> dict[RelationshipAction, set[tuple[str, datetime.date]]]:
+        return {
+            RelationshipAction(k): set(
+                (x[0], datetime.date.fromisoformat(x[1]))
+                for x in v
+            )
+            for k, v in matches.items()
+        }
 
 
 class NODBDuplicateCheck(QualityController):
@@ -73,13 +93,10 @@ class NODBDuplicateCheck(QualityController):
 
         relationship_matches = self.search_for_relationships()
 
-        self.add_record_action(SetRelationships(relationships={
-            k.value: [
-                [x[0], x[1]]
-                for x in v
-            ]
-            for k, v in relationship_matches.items()
-        }), any(RelationshipAction.is_reviewable(x) for x in relationship_matches.keys()))
+        self.add_record_action(
+            SetRelationships(relationships=RelationshipAction.encode_action_list(relationship_matches)),
+            any(RelationshipAction.is_reviewable(x) for x in relationship_matches.keys())
+        )
         self._record_quality_flags = self._record_quality_flags | QualityCheckFlags.DEDUPLICATE
 
     def set_duplicate_list(self, duplicates: dict | None):
@@ -114,7 +131,7 @@ class NODBDuplicateCheck(QualityController):
                 elif self.does_source_file_replace_current(source_uuid, obs_date):
                     return RelationshipAction.MARK_DUPLICATE
                 else:
-                    return RelationshipAction.AUTOMERGE
+                    return RelationshipAction.MERGE
             case ParentCompareResult.INCOMPATIBLE:
                 if self.does_current_replace_source_file(source_uuid, obs_date):
                     return RelationshipAction.MARK_OTHER_DUPLICATE

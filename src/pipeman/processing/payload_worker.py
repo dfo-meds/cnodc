@@ -13,8 +13,9 @@ import typing as t
 
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
-    ObservationPayload, Payload, WorkingRecordPayload, NewObservationsPayload
+    ObservationPayload, Payload, WorkingRecordPayload, NewObservationPayload
 from pipeman.processing.workflow import WorkflowController
+from pipeman.programs.nodb.record_manager import CreationResultType
 
 
 class PayloadWorker[T: Payload](QueueWorker):
@@ -90,6 +91,44 @@ class PayloadWorker[T: Payload](QueueWorker):
             raise CNODCError(f'Workflow [{workflow_name}] not found', 'FILEFLOW', 1002)
         return WorkflowController(workflow_name, workflow.configuration, halt_flag=self._halt_flag)
 
+    def batch_payload_from_uuid(self, batch_uuid: str) -> BatchPayload:
+        """Create a new payload from a batch UUID."""
+        payload = BatchPayload(batch_uuid=batch_uuid)
+        self.add_payload_metadata(payload)
+        return payload
+
+    def batch_payload_from_nodb(self, batch: NODBBatch) -> BatchPayload:
+        """Create a new payload from a batch object."""
+        payload = BatchPayload.from_batch(batch)
+        self.add_payload_metadata(payload)
+        return payload
+
+    def source_payload_from_nodb(self, source_file: NODBSourceFile) -> SourceFilePayload:
+        """Create a new payload from an NODB source file."""
+        payload = SourceFilePayload.from_source_file(source_file)
+        self.add_payload_metadata(payload)
+        return payload
+
+    def file_payload_from_path(self, path: str, mod_date: t.Optional[datetime.datetime] = None) -> FilePayload:
+        payload = FilePayload.from_path(path, mod_date)
+        self.add_payload_metadata(payload)
+        return payload
+
+    def observation_payload_from_uuid(self, obs_uuid: str, date: datetime.date | str) -> ObservationPayload:
+        obs_payload = ObservationPayload(obs_uuid=obs_uuid, recieved_date=date)
+        self.add_payload_metadata(obs_payload)
+        return obs_payload
+
+    def new_observation_payload_from_uuids(self, obs_uuid: str, date: datetime.date | str, result_type: CreationResultType) -> NewObservationPayload:
+        new_obs_payload = NewObservationPayload(obs_uuid=obs_uuid, received_date=date, creation_result=result_type)
+        self.add_payload_metadata(new_obs_payload)
+        return new_obs_payload
+
+    def working_record_payload_from_uuid(self, obs_uuid: str) -> WorkingRecordPayload:
+        wr_payload = WorkingRecordPayload(working_uuid=obs_uuid)
+        self.add_payload_metadata(wr_payload)
+        return wr_payload
+
 
 
 class WorkflowWorker[T: WorkflowPayload](PayloadWorker[WorkflowPayload]):
@@ -140,45 +179,6 @@ class WorkflowWorker[T: WorkflowPayload](PayloadWorker[WorkflowPayload]):
         super().after_cycle()
         self._skip_autoprogress_payload = False
 
-    def batch_payload_from_uuid(self, batch_uuid: str) -> BatchPayload:
-        """Create a new payload from a batch UUID."""
-        payload = BatchPayload(batch_uuid=batch_uuid)
-        self.add_payload_metadata(payload)
-        return payload
-
-    def batch_payload_from_nodb(self, batch: NODBBatch) -> BatchPayload:
-        """Create a new payload from a batch object."""
-        payload = BatchPayload.from_batch(batch)
-        self.add_payload_metadata(payload)
-        return payload
-
-    def source_payload_from_nodb(self, source_file: NODBSourceFile) -> SourceFilePayload:
-        """Create a new payload from an NODB source file."""
-        payload = SourceFilePayload.from_source_file(source_file)
-        self.add_payload_metadata(payload)
-        return payload
-
-    def file_payload_from_path(self, path: str, mod_date: t.Optional[datetime.datetime] = None) -> FilePayload:
-        payload = FilePayload.from_path(path, mod_date)
-        self.add_payload_metadata(payload)
-        return payload
-
-    def observation_payload_from_uuid(self, obs_uuid: str, date: datetime.date | str) -> ObservationPayload:
-        obs_payload = ObservationPayload(obs_uuid=obs_uuid, recieved_date=date)
-        self.add_payload_metadata(obs_payload)
-        return obs_payload
-
-    def new_observations_payload_from_uuids(self, obs_uuids: t.Iterable[tuple[str, datetime.date, str]]) -> NewObservationsPayload:
-        obs_group_payload = NewObservationsPayload(obs_uuids=list(x for x in obs_uuids))
-        self.add_payload_metadata(obs_group_payload)
-        return obs_group_payload
-
-    def working_record_payload_from_uuid(self, obs_uuid: str) -> WorkingRecordPayload:
-        wr_payload = WorkingRecordPayload(working_uuid=obs_uuid)
-        self.add_payload_metadata(wr_payload)
-        return wr_payload
-
-
 class BatchWorkflowWorker(WorkflowWorker[BatchPayload]):
     """Implementation of PayloadWorker that limits payloads to Batch types."""
 
@@ -198,13 +198,13 @@ class SourceWorkflowWorker(WorkflowWorker[SourceFilePayload]):
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError  # pragma: no coverage
 
-class ObservationGroupWorkflowWorker(WorkflowWorker[NewObservationsPayload]):
+class ObservationGroupWorkflowWorker(WorkflowWorker[NewObservationPayload]):
     """Implementation of PayloadWorker that limits payloads to SourceFile types."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, require_type=NewObservationsPayload)
+        super().__init__(*args, **kwargs, require_type=NewObservationPayload)
 
-    def process_payload(self, payload: NewObservationsPayload) -> t.Optional[QueueItemResult]:
+    def process_payload(self, payload: NewObservationPayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError  # pragma: no coverage
 
 

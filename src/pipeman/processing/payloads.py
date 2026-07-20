@@ -19,7 +19,7 @@ from medsutil.storage import StorageController, FilePath
 from pipeman.exceptions import CNODCError
 from medsutil.halts import HaltFlag, ungzip_with_halt
 from medsutil.awaretime import AwareDateTime
-from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_dict, p_list
+from medsutil.datadict import DataDictObject, p_str, p_bool, p_date, p_awaretime, p_dict, p_list, p_enum
 from pipeman.programs.nodb.record_manager import CreationResultType
 
 if t.TYPE_CHECKING:
@@ -355,12 +355,13 @@ class WorkingRecordPayload(WorkflowPayload):
         )
 
 
-class NewObservationsPayload(WorkflowPayload):
-    obs_info: list[tuple[str, datetime.date, str]] = p_list()
+class NewObservationPayload(WorkflowPayload):
+    obs_uuid: str = p_str()
+    received_date: datetime.date = p_date()
+    creation_result: CreationResultType = p_enum(CreationResultType)
 
-    def stream_observations(self, db, **kwargs) -> t.Iterable[tuple[NODBObservation, CreationResultType]]:
-        for obs_uuid, received_date, result_type in self.obs_info:
-            yield NODBObservation.find_by_uuid(db, obs_uuid=obs_uuid, received_date=received_date, **kwargs), CreationResultType(result_type)
+    def load_observation(self, db, **kwargs) -> NODBObservation | None:
+        return NODBObservation.find_by_uuid(db, obs_uuid=self.obs_uuid, received_date=self.received_date, **kwargs)
 
 
 class ObservationPayload(WorkflowPayload):

@@ -118,7 +118,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         was_single_file = False
 
         # Decode each entry and save them
-        with NODBRecordManager(self._db) as rm:
+        with NODBRecordManager(self.db) as rm:
             with open(temp_file, "rb") as h:
                 for result in self._decode_records(h):
                     success, skipped, had_error = self._create_nodb_record_from_result(rm, source_file, result)
@@ -239,13 +239,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             record: ocproc2.ParentRecord,
                             make_completed_records):
         try:
-            record.add_history_action(
-                f"Record originally created",
-                self.process_name,
-                self.process_version,
-                self.process_uuid,
-                ActionType.CREATED_BY_UPDATE,
-            )
             if make_completed_records:
                 res = rm.create_completed_entry_from_source_file(
                     record=record,

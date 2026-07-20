@@ -613,6 +613,9 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         keys.append(['source_file_uuid', 'received_date', 'message_idx', 'record_idx', 'processing_level'])
         return keys
 
+    def find_source_file(self, db: interface.NODBInstance):
+        return NODBSourceFile.find_by_uuid(db, self.source_file_uuid, self.received_date)
+
     def find_observation(self, db: interface.NODBInstance):
         return NODBObservation.find_by_uuid(db, self.obs_uuid, self.received_date)
 
@@ -794,11 +797,24 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
 
 
 class NODBObservationRelationship(s.NODBBaseObject):
+
+    TABLE_NAME = "nodb_observation_relationships"
+    PRIMARY_KEYS = ("left_obs_uuid", "left_received_date", "right_obs_uuid", "right_received_date", "relationship_type",)
+
     left_obs_uuid: str = s.UUIDColumn()
     left_received_date: datetime.date = s.DateColumn()
     right_obs_uuid: str = s.UUIDColumn()
     right_received_date: datetime.date = s.DateColumn()
     relationship_type: ObservationRelationshipType = s.EnumColumn(ObservationRelationshipType)
+
+    def exists(self, db) -> bool:
+        return db.load_object(self.__class__, filters={
+            'left_obs_uuid': self.left_obs_uuid,
+            'left_received_date': self.left_received_date,
+            'right_obs_uuid': self.right_obs_uuid,
+            'right_received_date': self.right_received_date,
+            'relationship_type': self.relationship_type.value,
+        }, key_only=True) is not None
 
     def left_observation(self, db, **kwargs) -> NODBObservation | None:
         return NODBObservation.find_by_uuid(db, self.left_obs_uuid, self.left_received_date, **kwargs)

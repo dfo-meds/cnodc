@@ -5,7 +5,7 @@ from medsutil.exceptions import CodedError
 from pipeman.processing.payload_worker import ObservationGroupWorkflowWorker
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.programs.nodb.record_manager import NODBRecordManager
-from pipeman.processing.payloads import NewObservationsPayload
+from pipeman.processing.payloads import NewObservationPayload
 
 from nodb.observations import ProcessingLevel, NODBBatch, NODBWorkingRecord
 
@@ -25,7 +25,7 @@ class NODBStartQC(ObservationGroupWorkflowWorker):
             'qc_workflow_name': None,
         })
 
-    def process_payload(self, payload: NewObservationsPayload) -> t.Optional[QueueItemResult]:
+    def process_payload(self, payload: NewObservationPayload) -> t.Optional[QueueItemResult]:
         try:
             pl = ProcessingLevel(self.get_config('processing_level', None))
         except ValueError as ex:
