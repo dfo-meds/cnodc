@@ -856,6 +856,15 @@ class PostgresController:
                 result
             ))
 
+    def clear_temp_finalize_result(self,
+                                    object_type: str,
+                                    object_uuid: str):
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM nodb_temporary_finalize_results WHERE object_type = %s AND object_uuid = %s", (
+                object_type,
+                object_uuid
+            ))
+
     def stream_temp_finalize_results(self,
                                      object_type: str,
                                      object_uuid: str) -> t.Iterable[tuple[str, str, str]]:

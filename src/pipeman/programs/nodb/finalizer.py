@@ -73,4 +73,5 @@ class NODBFinalizeWorker(WorkflowWorker):
             self.progress_payload(next_payload, prevent_default_progression=True)
         else:
             self.prevent_default_progression()
+        self.db.clear_temp_finalize_result(object_type, object_uuid)
 
