@@ -14,11 +14,10 @@ from medsutil.ocproc2.refs import ParentRecordRef, RecordRef, ElementRef, Record
 from medsutil.ocproc2.util import pair_up_records, pair_up_recordsets, pair_up_single_elements
 from medsutil.storage import StorageController, FilePath
 from nodb.queue import NODBQueueItem
-from pipeman.processing.payloads import BatchPayload, FilePayload
+from pipeman.processing.payloads import FilePayload
 from pipeman.processing.queue_worker import QueueItemResult, QueueWorker
 
-from nodb.observations import NODBObservation, NODBWorkingRecord, NODBObservationData, NODBSourceFile, SourceFileStatus, NODBBatch
-from pipeman.programs.nodb.record_manager import NODBRecordManager
+from nodb.observations import NODBObservation, NODBObservationData
 
 
 class MergeError(CodedError): CODE_SPACE = "NODB-MERGE"
