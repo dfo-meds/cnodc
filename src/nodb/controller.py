@@ -841,6 +841,31 @@ class PostgresController:
             ))
             return cur.fetchone()[0] == 1
 
+    def create_temp_finalize_result(self,
+                                    object_type: str,
+                                    object_uuid: str,
+                                    obs_uuid: str,
+                                    obs_date: datetime.date,
+                                    result: str):
+        with self.cursor() as cur:
+            cur.execute("INSERT INTO nodb_temporary_finalize_results (object_type, object_uuid, obs_uuid, obs_date, result) VALUES (%s, %s, %s, %s, %s)", (
+                object_type,
+                object_uuid,
+                obs_uuid,
+                obs_date,
+                result
+            ))
+
+    def stream_temp_finalize_results(self,
+                                     object_type: str,
+                                     object_uuid: str) -> t.Iterable[tuple[str, str, str]]:
+        with self.cursor() as cur:
+            cur.execute("SELECT obs_uuid, obs_date, result FROM nodb_temporary_finalize_results WHERE object_type = %s AND obs_date = %s", (
+                object_type, object_uuid
+            ))
+            for result in cur.fetch_stream(25):
+                yield result[0], result[1], result[2]
+
     def has_temp_qc_outcome(self, process_id: str, working_uuid: str) -> bool:
         with self.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND working_uuid = %s", (

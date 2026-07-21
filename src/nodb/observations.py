@@ -532,6 +532,32 @@ class NODBObservation(s.NODBBaseObject):
             self.observation_type = ObservationType.PROFILE
 
     @classmethod
+    def find_best_copy(cls, db: interface.NODBInstance, obs_uuid: str, received_date: ct.AcceptAsDateTime, known_better_than: t.Iterable[tuple[str, ct.AcceptAsDateTime]] | None = None) -> set[tuple[str, datetime.date]]:
+        results = set()
+        exclude_list = set()
+        if known_better_than is not None:
+            search_list = {*known_better_than}
+            if search_list:
+                exclude_list.add((obs_uuid, received_date))
+            else:
+                results.add((obs_uuid, received_date))
+        else:
+            search_list = {(obs_uuid, received_date)}
+        while search_list:
+            check_uuid, check_date = search_list.pop()
+            if (check_uuid, check_date) in exclude_list:
+                continue
+            exclude_list.add((check_uuid, check_date))
+            found = False
+            for rel in NODBObservationRelationship.better_than(db, check_uuid, check_date):
+                search_list.add((rel.right_obs_uuid, rel.right_received_date))
+                found = True
+            # no records are better than it
+            if not found:
+                results.add((check_uuid, check_date))
+        return results
+
+    @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Self | None:
         """Find an observation by UUID and received date."""
         return db.load_object(cls, {
@@ -821,6 +847,14 @@ class NODBObservationRelationship(s.NODBBaseObject):
 
     def right_observation(self, db, **kwargs) -> NODBObservation | None:
         return NODBObservation.find_by_uuid(db, self.right_obs_uuid, self.right_received_date, **kwargs)
+
+    @classmethod
+    def better_than(cls, db, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Iterable[NODBObservationRelationship]:
+        yield from db.stream_objects(cls, filters={
+            'left_obs_uuid': obs_uuid,
+            'left_received_date': s.parse_received_date(received_date),
+            'relationship_type': ObservationRelationshipType.BETTER_QUALITY.value
+        }, **kwargs)
 
     @classmethod
     def find_by_observation(cls, db, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Iterable[NODBObservationRelationship]:

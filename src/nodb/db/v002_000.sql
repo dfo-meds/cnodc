@@ -19,11 +19,9 @@ CREATE TABLE IF NOT EXISTS nodb_observation_relationships(
     relationship_type   VARCHAR(32)     NOT NULL,
 
     right_obs_uuid      UUID            NOT NULL,
-    right_received_date DATE            NOT NULL
+    right_received_date DATE            NOT NULL,
 
-    PRIMARY KEY (left_obs_uuid, left_received_date, right_obs_uuid, right_received_date, relationship_type),
-    FOREIGN KEY (left_obs_uuid, left_received_date) REFERENCES nodb_obs(obs_uuid, received_date),
-    FOREIGN KEY (right_obs_uuid, right_received_date) REFERENCES nodb_obs(obs_uuid, received_date)
+    PRIMARY KEY (left_obs_uuid, left_received_date, right_obs_uuid, right_received_date, relationship_type)
 );
 
 ALTER TABLE nodb_obs_data DROP CONSTRAINT nodb_obs_data_duplicate_uuid_duplicate_received_date_fkey;
@@ -52,6 +50,12 @@ ALTER TABLE nodb_obs ADD COLUMN data_mode CHAR(2) DEFAULT '??';
 ALTER TABLE nodb_obs ADD COLUMN quality_checks BIGINT DEFAULT 0;
 
 
-
-
-
+-- Finalizer result table
+CREATE TABLE IF NOT EXISTS nodb_temporary_finalize_results(
+    object_type     CHAR(1)         NOT NULL,
+    object_uuid     VARCHAR(256)    NOT NULL,
+    obs_uuid        UUID            NOT NULL,
+    obs_date        DATE            NOT NULL,
+    result          VARCHAR(125)    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_nodb_temp_finalize_results ON nodb_temporary_finalize_results(object_type, object_uuid);

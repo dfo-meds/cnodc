@@ -119,8 +119,11 @@ class PayloadWorker[T: Payload](QueueWorker):
         self.add_payload_metadata(obs_payload)
         return obs_payload
 
-    def new_observation_payload_from_uuids(self, obs_uuid: str, date: datetime.date | str, result_type: CreationResultType) -> NewObservationPayload:
-        new_obs_payload = NewObservationPayload(obs_uuid=obs_uuid, received_date=date, creation_result=result_type)
+    def new_observations_payload_from_uuids(self, entries: t.Iterable[tuple[str, datetime.date | str, CreationResultType | str]]) -> NewObservationPayload:
+        new_obs_payload = NewObservationPayload(observations=[
+            (x, (y.isoformat() if isinstance(y, datetime.date) else y), (z.value if isinstance(z, CreationResultType) else z))
+            for x, y, z in entries
+        ])
         self.add_payload_metadata(new_obs_payload)
         return new_obs_payload
 

@@ -356,12 +356,12 @@ class WorkingRecordPayload(WorkflowPayload):
 
 
 class NewObservationPayload(WorkflowPayload):
-    obs_uuid: str = p_str()
-    received_date: datetime.date = p_date()
-    creation_result: CreationResultType = p_enum(CreationResultType)
+    observations: list[tuple[str, str, str]]
 
-    def load_observation(self, db, **kwargs) -> NODBObservation | None:
-        return NODBObservation.find_by_uuid(db, obs_uuid=self.obs_uuid, received_date=self.received_date, **kwargs)
+    def stream_observations(self, db, **kwargs) -> t.Generator[tuple[NODBObservation | None, CreationResultType], None, None]:
+        for obs_uuid, obs_date, cr_type in self.observations:
+            observation = NODBObservation.find_by_uuid(db, obs_uuid, obs_date, **kwargs)
+            yield observation, CreationResultType(cr_type)
 
 
 class ObservationPayload(WorkflowPayload):

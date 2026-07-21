@@ -11,7 +11,7 @@ from autoinject import injector
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
 from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, \
-    NODBMission, DataMode
+    NODBMission, DataMode, NODBObservationRelationship, ObservationRelationshipType
 from nodb.interface import NODBInstance, LockType
 from medsutil.ocproc2 import OCProc2Ontology
 from medsutil.units import UnitConverter
@@ -146,7 +146,53 @@ class NODBRecordManager:
         obs, obs_data, result = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, data_mode, quality_flags, original_uuid)
         self._prep_obs.execute(obs)
         self._prep_obs_data.execute(obs_data)
+        if result.relationships:
+            for key, value in result.relationships.items():
+                for obs_uuid, obs_date in value:
+                    self.insert_relationship(obs, obs_uuid, obs_date, key)
         return result
+
+    def insert_relationship(self,
+                            obs: NODBObservation,
+                            other_obs_uuid: str,
+                            other_obs_date: datetime.date | str,
+                            action: RelationshipAction):
+        relationship = None
+        match action:
+            case RelationshipAction.MARK_DUPLICATE:
+                relationship = NODBObservationRelationship(
+                    left_obs_uuid=obs.obs_uuid,
+                    left_received_date=obs.received_date,
+                    right_obs_uuid=other_obs_uuid,
+                    right_received_date=other_obs_date,
+                    relationship_type=ObservationRelationshipType.IS_DUPLICATE
+                )
+            case RelationshipAction.MARK_OTHER_DUPLICATE:
+                relationship = NODBObservationRelationship(
+                    left_obs_uuid=other_obs_uuid,
+                    left_received_date=other_obs_date,
+                    right_obs_uuid=obs.obs_uuid,
+                    right_received_date=obs.received_date,
+                    relationship_type=ObservationRelationshipType.IS_DUPLICATE
+                )
+            case RelationshipAction.MARK_THIS_BETTER:
+                relationship = NODBObservationRelationship(
+                    left_obs_uuid=obs.obs_uuid,
+                    left_received_date=obs.received_date,
+                    right_obs_uuid=other_obs_uuid,
+                    right_received_date=other_obs_date,
+                    relationship_type=ObservationRelationshipType.BETTER_QUALITY
+                )
+            case RelationshipAction.MARK_OTHER_BETTER:
+                relationship = NODBObservationRelationship(
+                    left_obs_uuid=other_obs_uuid,
+                    left_received_date=other_obs_date,
+                    right_obs_uuid=obs.obs_uuid,
+                    right_received_date=obs.received_date,
+                    relationship_type=ObservationRelationshipType.BETTER_QUALITY
+                )
+        if relationship is not None and not relationship.exists(self._db):
+            self._db.insert_object(relationship)
 
     def build_nodb_entry(self,
                          record: ocproc2.ParentRecord,
