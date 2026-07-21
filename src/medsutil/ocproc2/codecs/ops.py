@@ -16,6 +16,7 @@ from medsutil.seawater import TemperatureScale
 
 class OceanProcessingSchemaError(CodedError): CODE_SPACE = 'OPS'
 
+class SkipDecodeInterrupt(Exception): ...
 
 RawValue = int | float | str | datetime.date | bool | None
 RSElementList = list[str | list[str]] | None
@@ -45,7 +46,6 @@ class Instruction:
     def parse_instruction(instruction: dict | str, builder: t.Callable[[dict | str, t.Callable | None], Instruction] = None) -> Instruction:
 
         if isinstance(instruction, dict):
-
             if "context" in instruction and instruction["context"]:
                 return ContextInstruction(
                     context={
@@ -77,6 +77,8 @@ class Instruction:
                         return NoopInstruction(**kwargs)
                     case "scale_factor":
                         return ScaleFactorInstruction(**kwargs)
+                    case "skip":
+                        return SkipDecodeInstruction(**kwargs)
 
             if "encode" in instruction or "decode" in instruction:
                 return EncodeDecodeGroup(
@@ -133,6 +135,12 @@ class Instruction:
         if "[" not in element:
             return {"element": element}
         raise NotImplementedError
+
+
+class SkipDecodeInstruction(Instruction):
+
+    def raise_exception(self):
+        raise SkipDecodeInterrupt
 
 
 class InstructionGroup(Instruction):

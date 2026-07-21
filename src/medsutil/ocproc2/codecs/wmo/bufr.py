@@ -24,7 +24,7 @@ import medsutil.ocproc2 as ocproc2
 import medsutil.awaretime as awaretime
 from medsutil.ocproc2.codecs.ops import Instruction, EncodeDecodeGroup, OPSContext, DataType, \
     SingleValueInstruction, InstructionGroup, RepeatGroup, NoopInstruction, \
-    ContextInstruction, ValueMappedInstruction, ScaleFactorInstruction
+    ContextInstruction, ValueMappedInstruction, ScaleFactorInstruction, SkipDecodeInstruction
 from medsutil.sanitize import clean_wmo_id
 from medsutil.units import UnitConverter
 from pipeman.exceptions import CNODCError
@@ -174,6 +174,8 @@ class Bufr4Decoder(GtsSubDecoder):
                 records=[x for x in instance.convert_to_records()],
                 original=original_data,
             )
+        except SkipDecodeInstruction:
+            return DecodeResult(skipped=True, original=header.encode('ascii') + b"\n" + content)
         except Exception as ex:
             return DecodeResult(
                 exc=ex,
@@ -481,98 +483,6 @@ class _Bufr4Encoder:
 
 
 
-
-
-class _Bufr4DecoderContext:
-
-    def __init__(self, subset_no=None):
-        self.subset = subset_no
-        self.hierarchy = []
-        self.top: t.Optional[ocproc2.ParentRecord] = None
-        self.target: t.Optional[ocproc2.BaseRecord] = None
-        self.parent_target = None
-        self.var_metadata = {}
-        self.record_metadata = {}
-        self.node_list = None
-        self.current_idx = None
-        self.skip = None
-        self.child_record_type = None
-        self.scale_factor = None
-        self.target_subset: t.Optional[ocproc2.RecordSet] = None
-        self.recordset_metadata = {}
-
-    def copy(self):
-        new = _Bufr4DecoderContext(self.subset)
-        new.hierarchy = [x for x in self.hierarchy]
-        new.target = self.target
-        new.top = self.top
-        new.var_metadata = {x: self.var_metadata[x] for x in self.var_metadata}
-        new.record_metadata = {x: self.record_metadata[x] for x in self.record_metadata}
-        new.recordset_metadata = {x: self.recordset_metadata[x] for x in self.recordset_metadata}
-        return new
-
-    def start_iteration(self, node_list):
-        self.skip = 0
-        self.current_idx = 0
-        self.node_list = node_list
-
-    def start_new_recordset(self, rs: ocproc2.RecordSet):
-        if self.recordset_metadata:
-            rs.metadata.update(self.recordset_metadata)
-        self.recordset_metadata = {}
-
-    def peek(self, look_ahead: int):
-        if self.node_list:
-            new_idx = self.current_idx + look_ahead
-            if 0 <= new_idx <= len(self.node_list):
-                return self.node_list[new_idx]
-        return None
-
-    def start_new_record(self):
-        self.close_subrecord()
-        self.target = ocproc2.ChildRecord()
-
-    def close_subrecord(self):
-        if self.target:
-            if self.record_metadata:
-                for x in self.record_metadata:
-                    if self.record_metadata[x][1] is None or any(
-                        x in self.parent_target.parameters or x in self.parent_target.coordinates
-                        for x in self.record_metadata[x][1]
-                    ):
-                        self.target.set(x, self.record_metadata[x][0])
-            self.target_subset.records.append(t.cast(ocproc2.ChildRecord, self.target))
-            self.target = None
-
-    def set_recordset_property(self, property_name: str, value: ocproc2.AbstractElement):
-        if self.target_subset is not None:
-            self.target_subset.metadata[property_name] = value if value.value is not None else None
-        else:
-            self.recordset_metadata[property_name] = value if value.value is not None else None
-
-    def set_record_property(self, property_full_name: str, value: ocproc2.AbstractElement | None):
-        if value is None or value.value is None or self.target is None:
-            return
-        if self.var_metadata:
-            pieces = property_full_name.split('/')
-            for a, x in self.var_metadata.items():
-                if x[2] is None or pieces[-1] in x[2]:
-                    value.metadata[x[0]] = x[1]
-        self.target.set(property_full_name, value)
-
-    def add_future_parameter_metadata(self, applied_from: int, property_name, value, limit_to_parameters: t.Optional[list[str]] = None):
-        if value.value is not None:
-            self.var_metadata[applied_from] = (property_name, value, limit_to_parameters or None)
-        elif applied_from in self.var_metadata:
-            del self.var_metadata[applied_from]
-
-    def add_future_subrecord_data(self, property_name, value, limit_to_subrecord_types: t.Optional[list[str]] = None):
-        if value.value is not None:
-            self.record_metadata[property_name] = (value, limit_to_subrecord_types)
-        elif property_name in self.record_metadata:
-            del self.record_metadata[property_name]
-
-
 class _Bufr4Decoder:
 
     def __init__(self,
@@ -754,6 +664,8 @@ class _Bufr4Decoder:
             ...
         elif isinstance(instruction, ScaleFactorInstruction):
             context.extras["scale_factor"] = self._get_node_value(instruction, node, context)
+        elif isinstance(instruction, SkipDecodeInstruction):
+            instruction.raise_exception()
         else:
             raise ValueError("Unrecognized instruction")
         if instruction.extras.get("iterate_after", False) and isinstance(node, SequenceNode):
