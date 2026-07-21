@@ -35,11 +35,14 @@ class GtsCodec(BaseCodec):
         super().__init__(log_name="cnodc.codecs.gts", is_decoder=True, *args, **kwargs)
         self._sub_codecs: dict[bytes, GtsSubDecoder] = {
             b'BUFR': Bufr4Decoder(),
+
             b'ZZYY': BuoyZZYY(),
             b'JJVV': BathyJJVV(),
-            b'KKYY': TesacKKYY()
-            #b'NNXX': TrackObNNXX(),
-            #b'MMXX': WaveObMMXX(),
+            b'KKYY': TesacKKYY(),
+
+            # b'NNXX': TrackObNNXX(),
+
+            # b'MMXX': WaveObMMXX(),
         }
         self._skip_ascii = []
 
@@ -47,9 +50,20 @@ class GtsCodec(BaseCodec):
         reader = ByteSequenceReader(data)
         s = options.get('skip_to_message_idx', None)
         rdate = options.get("received_date", None)
+        header_data_type_allow_list = options.get("allow_headers", None)
+        if isinstance(header_data_type_allow_list, str):
+            header_data_type_allow_list = header_data_type_allow_list.split(";")
+        if header_data_type_allow_list is not None:
+            header_data_type_allow_list = [x.strip() for x in header_data_type_allow_list if x.strip() != '']
         skip_to = int(s) if s is not None else None
         for current_idx, header in self._find_headers(reader):
-            x = self._attempt_decode_next_gts_message(reader, header, skip_to is not None and (skip_to > current_idx), received_date=rdate)
+            x = self._attempt_decode_next_gts_message(
+                reader=reader,
+                header=header,
+                skip_decode=skip_to is not None and (skip_to > current_idx),
+                received_date=rdate,
+                allow_headers=header_data_type_allow_list or None
+            )
             if x is not None:
                 yield x
 
@@ -91,13 +105,22 @@ class GtsCodec(BaseCodec):
             print(discard_line.decode('ascii'))
         return None
 
-    def _attempt_decode_next_gts_message(self, reader: ByteSequenceReader, header: str, skip_decode: bool = False, received_date: AwareDateTime | None = None) -> t.Optional[DecodeResult]:
-        message_type = reader.peek(5)
-        for key in self._sub_codecs:
-            if message_type.startswith(key):
-                return self._sub_codecs[key].decode_from_bytes(reader, header, skip_decode, received_date)
-        discard_line = reader.consume_line(True)
-        self.log.debug(f"Discarding line {discard_line.decode('ascii', 'replace')}, unrecognized start sequence")
+    def _attempt_decode_next_gts_message(self,
+                                         reader: ByteSequenceReader,
+                                         header: str,
+                                         skip_decode: bool = False,
+                                         received_date: AwareDateTime | None = None,
+                                         allow_headers: list[str] | None = None) -> t.Optional[DecodeResult]:
+        if allow_headers is None or any(header.startswith(x) for x in allow_headers):
+            message_type = bytes(reader.peek(5))
+            for key in self._sub_codecs:
+                if message_type.startswith(key):
+                    return self._sub_codecs[key].decode_from_bytes(reader, header, skip_decode, received_date)
+            discard_line = bytes(reader.consume_line(True))
+            self.log.info(f"Discarding line %s, unrecognized start sequence", discard_line.decode('ascii', 'replace'))
+        else:
+            discard_line = bytes(reader.consume_line(True))
+            self.log.info(f"Discarding line %s, [%s] is excluded as a message header", discard_line.decode('ascii', 'replace'), header)
         return None
 
     def _is_gts_header(self, s: str) -> bool:
@@ -109,7 +132,6 @@ class GtsCodec(BaseCodec):
         # White space may be on either side
         len_s = len(s)
         if len_s not in (18, 22):
-            print('no')
             return False
         if s[6] != ' ':
             return False
