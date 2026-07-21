@@ -22,22 +22,6 @@ from nodb.observations import NODBObservation, NODBObservationData
 
 class MergeError(CodedError): CODE_SPACE = "NODB-MERGE"
 
-class NODBMergeInsertWorker(QueueWorker):
-
-    storage: StorageController = None
-
-    @injector.construct
-    def __init__(self, **kwargs):
-        super().__init__(
-            process_name="merge_inserter",
-            process_version="1.0",
-            **kwargs
-        )
-        self.set_defaults({
-            'queue_name': 'nodb_merge_finish',
-
-        })
-
 
 class NODBDuplicateMergeWorker(QueueWorker):
 
