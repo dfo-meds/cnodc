@@ -13,7 +13,7 @@ import typing as t
 
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload, BatchPayload, \
-    ObservationPayload, Payload, WorkingRecordPayload, NewObservationPayload
+    ObservationPayload, Payload, WorkingRecordPayload, NewObservationsPayload
 from pipeman.processing.workflow import WorkflowController
 from pipeman.programs.nodb.record_manager import CreationResultType
 
@@ -119,8 +119,8 @@ class PayloadWorker[T: Payload](QueueWorker):
         self.add_payload_metadata(obs_payload)
         return obs_payload
 
-    def new_observations_payload_from_uuids(self, entries: t.Iterable[tuple[str, datetime.date | str, CreationResultType | str]]) -> NewObservationPayload:
-        new_obs_payload = NewObservationPayload(observations=[
+    def new_observations_payload_from_uuids(self, entries: t.Iterable[tuple[str, datetime.date | str, CreationResultType | str]]) -> NewObservationsPayload:
+        new_obs_payload = NewObservationsPayload(observations=[
             (x, (y.isoformat() if isinstance(y, datetime.date) else y), (z.value if isinstance(z, CreationResultType) else z))
             for x, y, z in entries
         ])
@@ -201,13 +201,13 @@ class SourceWorkflowWorker(WorkflowWorker[SourceFilePayload]):
     def process_payload(self, payload: SourceFilePayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError  # pragma: no coverage
 
-class ObservationGroupWorkflowWorker(WorkflowWorker[NewObservationPayload]):
+class NewObservationsWorkflowWorker(WorkflowWorker[NewObservationsPayload]):
     """Implementation of PayloadWorker that limits payloads to SourceFile types."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, require_type=NewObservationPayload)
+        super().__init__(*args, **kwargs, require_type=NewObservationsPayload)
 
-    def process_payload(self, payload: NewObservationPayload) -> t.Optional[QueueItemResult]:
+    def process_payload(self, payload: NewObservationsPayload) -> t.Optional[QueueItemResult]:
         raise NotImplementedError  # pragma: no coverage
 
 

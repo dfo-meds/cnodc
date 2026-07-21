@@ -355,8 +355,12 @@ class WorkingRecordPayload(WorkflowPayload):
         )
 
 
-class NewObservationPayload(WorkflowPayload):
+class NewObservationsPayload(WorkflowPayload):
     observations: list[tuple[str, str, str]]
+
+    def stream_observation_info(self) -> t.Generator[tuple[str, str, CreationResultType], None, None]:
+        for obs_uuid, obs_date, cr_type in self.observations:
+            yield obs_uuid, obs_date, CreationResultType(cr_type)
 
     def stream_observations(self, db, **kwargs) -> t.Generator[tuple[NODBObservation | None, CreationResultType], None, None]:
         for obs_uuid, obs_date, cr_type in self.observations:

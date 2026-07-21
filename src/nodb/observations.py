@@ -855,6 +855,11 @@ class NODBObservationRelationship(s.NODBBaseObject):
             'left_received_date': s.parse_received_date(received_date),
             'relationship_type': ObservationRelationshipType.BETTER_QUALITY.value
         }, **kwargs)
+        yield from db.stream_object(cls, filters={
+            'left_obs_uuid': obs_uuid,
+            'left_received_date': s.parse_received_date(received_date),
+            'relationship_type': ObservationRelationshipType.IS_DUPLICATE.value
+        })
 
     @classmethod
     def find_by_observation(cls, db, obs_uuid: str, received_date: ct.AcceptAsDateTime, **kwargs) -> t.Iterable[NODBObservationRelationship]:

@@ -234,7 +234,6 @@ class NODBRecordManager:
         relationships = {}
         if record.metadata.has_value("CNODCRelationships"):
             relationships = RelationshipAction.decode_action_list(record.metadata["CNODCRelationships"].value)
-
             if RelationshipAction.MARK_DUPLICATE in relationships:
                 result = CreationResultType.DUPLICATE
             elif RelationshipAction.MARK_OTHER_DUPLICATE in relationships:
