@@ -28,7 +28,7 @@ def dynamic_object(cls_name: str) -> t.Any:
         mod = importlib.import_module(package)
         return getattr(mod, specific_cls_name)
     except ModuleNotFoundError as ex:
-        raise DynamicObjectLoadError(f"[module: {package}] not found", 1001) from ex
+        raise DynamicObjectLoadError(f"[module: {package}] not found: {ex}", 1001) from ex
     except AttributeError as ex:
-        raise DynamicObjectLoadError(f"[object: {specific_cls_name}] not found in [module: {package}]", 1002) from ex
+        raise DynamicObjectLoadError(f"[object: {specific_cls_name}] not found in [module: {package}]: {ex}", 1002) from ex
 
