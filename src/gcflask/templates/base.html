@@ -46,9 +46,9 @@
             {% endblock %}
             {% block userLine %}
             <div class="topnav">
-                {% if topnav %}
+                {% if menu_topnav %}
                 <div class="topnav_container">
-                    {{topnav}}
+                    {{menu_topnav}}
                 </div>
                 {% endif %}
                 <div class="user_info">
@@ -64,9 +64,9 @@
             {% block container %}
             <div class="main_body">
                 {% block main_body %}
-                {% if leftnav %}
+                {% if menu_leftnav %}
                 <div class="nav">
-                    {{leftnav}}
+                    {{menu_leftnav}}
                 </div>
                 {% endif %}
                 {% block inner_body %}
@@ -98,8 +98,8 @@
                 {% endblock %}
             </div>
             <div class="separator_block">
-                {% if bottomnav %}
-                {{ bottomnav }}
+                {% if menu_bottomnav %}
+                {{ menu_bottomnav }}
                 {% endif %}
             </div>
             <div class="footer">
