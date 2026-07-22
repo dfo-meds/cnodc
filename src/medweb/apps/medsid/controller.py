@@ -6,7 +6,7 @@ from autoinject import injector
 
 from gcflask.i18n import TranslatableError
 from medsutil.awaretime import AwareDateTime
-from medsutil.email import EmailController
+from medsutil.sendmail import EmailController
 from nodb.access import NODBUser, UserStatus, NODBAccessToken
 from nodb.interface import NODB, LockType, NODBInstance
 from medsutil import secure
