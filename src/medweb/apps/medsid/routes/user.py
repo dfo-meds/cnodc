@@ -24,7 +24,7 @@ def me(ac: AccessController = auto()):
     return flask.render_template("myself.html", user=c_user, title=c_user.display)
 
 
-@user.route('/api/create-access-token', methods='POST')
+@user.route('/api/create-access-token', methods=['POST'])
 @require_permission(is_api=True, anonymous_only=True)
 @api_error_handling
 @injector.inject
@@ -45,7 +45,7 @@ def create_access_token(ac: AccessController = auto()):
     })
 
 
-@user.route('/api/renew-access-token', methods='POST')
+@user.route('/api/renew-access-token', methods=['POST'])
 @require_permission(is_api=True, anonymous_only=True)
 @api_error_handling
 @injector.inject
@@ -61,7 +61,7 @@ def renew_access_token(ac: AccessController = auto()):
     })
 
 
-@user.route('/api/remove-access-token', methods='POST')
+@user.route('/api/remove-access-token', methods=['POST'])
 @require_permission(is_api=True, anonymous_only=True)
 @api_error_handling
 @injector.inject
