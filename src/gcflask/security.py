@@ -117,6 +117,11 @@ class RequirePermission:
             self._rs = injector.get(RequestSecurity)
         return self._rs
 
+    def deny_permission(self,
+                        is_api: bool,
+                        result: AuthResult = AuthResult.DENY):
+        return self.auth_man.unauthorized_handler(result, is_api)
+
     def __call__[**P,Q](self,
         required_permissions: str | t.Sequence[str] | None = None,
         *,
@@ -158,11 +163,15 @@ class RequirePermission:
                 if result == AuthResult.ALLOW:
                     return flask.current_app.ensure_sync(func)(*args, **kwargs)
                 else:
-                    return self.auth_man.unauthorized_handler(result=result, is_api_call=is_api)
+                    return self.deny_permission(result=result, is_api=is_api)
             return _decorated
         return _decorator
 
 require_permission = RequirePermission()
+deny_permission = require_permission.deny_permission
+
+
+
 
 # TODO: need to be able to enable/disable more detailed errors depending on the environment
 
