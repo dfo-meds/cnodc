@@ -1,4 +1,3 @@
-
 -- Redo the primary key index
 ALTER TABLE nodb_users DROP CONSTRAINT nodb_users_pkey CASCADE;
 DROP INDEX IF EXISTS nodb_users_pkey;
