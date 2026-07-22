@@ -1,0 +1,8 @@
+-r ./req.pipeman.web.txt
+-r ./req.pipeman.tests.txt
+-r ./req.pipeman.desktop.txt
+-r ./req.medsid.txt
+
+sphinx ~= 9.1.0
+sphinx-toolbox ~= 4.2.0
+sphinx-click ~= 6.2.0
