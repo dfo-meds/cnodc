@@ -23,11 +23,12 @@ from medsutil.exceptions import CodedError
 class AuthError(CodedError):
     CODE_SPACE='AUTH'
 
-    def __init__(self, msg, code_number, *, is_lockable: bool = False, create_record: bool = True, username: str | None = None):
+    def __init__(self, msg, code_number, *, is_lockable: bool = False, create_record: bool = True, username: str | None = None, as_info: bool = False):
         super().__init__(msg, code_number)
         self.is_lockable = is_lockable
         self.create_record = create_record
         self.username = username
+        self.as_info = as_info
 
 
 class AuthenticationHandler:
@@ -72,7 +73,10 @@ class AuthenticationHandler:
                 lockable=error.is_lockable,
                 username=error.username
             )
-        self._log.error(str(error), exc_info=(error.__class__, error, error.__traceback__))
+        if error.as_info:
+            self._log.info(str(error), exc_info=(error.__class__, error, error.__traceback__))
+        else:
+            self._log.error(str(error), exc_info=(error.__class__, error, error.__traceback__))
 
 
     def _create_login_record(self,
@@ -108,7 +112,7 @@ class AuthenticationHandler:
             if auth_header:
                 user = self._attempt_login_from_auth_header(auth_header)
             else:
-                raise AuthError("No request login method found", 2000, create_record=False)
+                raise AuthError("No request login method found", 2000, create_record=False, as_info=True)
             if user is not None:
                 self._log_login_success(user, True)
             return user
