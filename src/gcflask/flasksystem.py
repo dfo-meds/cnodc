@@ -246,8 +246,12 @@ class FlaskSystemMixin(System):
         if universal_prefix:
             universal_prefix = f"/{universal_prefix.lstrip('/')}"
         for module_name, object_name, path_prefix in self._flask_blueprints:
-            if universal_prefix or path_prefix:
-                prefix = '/' + ('/'.join((universal_prefix.strip('/'), path_prefix.strip('/'))))
-                self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"), url_prefix=prefix)
-            else:
-                self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"))
+            try:
+                if universal_prefix or path_prefix:
+                    prefix = '/' + ('/'.join((universal_prefix.strip('/'), path_prefix.strip('/'))))
+                    self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"), url_prefix=prefix)
+                else:
+                    self.flask_app.register_blueprint(dynamic_object(f"{module_name}.{object_name}"))
+            except Exception as ex:
+                ex.add_note(f"Error while registering {module_name}.{object_name}")
+                raise
