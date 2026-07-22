@@ -154,7 +154,7 @@ class CNODCServerAPI:
 
     def refresh(self) -> int:
         if self.web_client.is_logged_in():
-            now = datetime.datetime.now(tz=datetime.timezone.utc)
+            now = AwareDateTime.now()
             time_left = int((self._expiry - now).total_seconds())
             if time_left < 0:
                 self.web_client.set_token(None)
