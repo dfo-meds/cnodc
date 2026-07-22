@@ -59,10 +59,3 @@ CREATE TABLE IF NOT EXISTS nodb_temporary_finalize_results(
     result          VARCHAR(125)    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_nodb_temp_finalize_results ON nodb_temporary_finalize_results(object_type, object_uuid);
-
-
--- Product def table
-CREATE TABLE IF NOT EXISTS nodb_product_definitions(
-
-    product_rule    JSON            DEFAULT NULL,
-);
