@@ -31,7 +31,7 @@ ALTER TABLE nodb_obs_data DROP COLUMN duplicate_received_date;
 
 -- "Replaces" relationship for source files
 ALTER TABLE nodb_source_files ADD COLUMN replaces_uuid UUID DEFAULT NULL;
-ALTER TABLE nodb_source_files ADD COLUMN replaces_received_date UUID DEFAULT NULL;
+ALTER TABLE nodb_source_files ADD COLUMN replaces_received_date DATE DEFAULT NULL;
 ALTER TABLE nodb_source_files ADD CONSTRAINT fk_replaces FOREIGN KEY (replaces_uuid, replaces_received_date) REFERENCES nodb_source_files(source_uuid, received_date);
 
 
@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS ix_nodb_temp_finalize_results ON nodb_temporary_final
 
 
 -- Product def table
-CREATE TABLE IF NOT EXISTS nodb_product_definitions(
+--CREATE TABLE IF NOT EXISTS nodb_product_definitions(
 
-    product_rule    JSON            DEFAULT NULL,
-);
+--    product_rule    JSON            DEFAULT NULL
+--);
