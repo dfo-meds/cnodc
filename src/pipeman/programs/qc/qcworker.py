@@ -23,7 +23,6 @@ class NODBQCWorker(WorkflowWorker):
             'review_queue': 'nodb_manual_review',
             'error_queue': 'nodb_qc_errors',
             'recheck_queue': None,
-            'escalation_queue': None,
         })
 
     def _build_test_runner(self):
@@ -53,14 +52,12 @@ class NODBQCWorker(WorkflowWorker):
         bp.metadata['recheck_queue'] = None
         bp.metadata['next_queue'] = None
         bp.metadata['error_queue'] = None
-        bp.metadata['escalation_queue'] = None
         if outcome == ResultBatcher.RESULT_NEXT:
             bp.enqueue(db, self.get_config("next_queue"))
         elif outcome == ResultBatcher.RESULT_REVIEW:
             bp.metadata['recheck_queue'] = self.get_config("recheck_queue", self.get_config("queue_name", None))
             bp.metadata['next_queue'] = self.get_config("next_queue", None)
             bp.metadata['error_queue'] = self.get_config("error_queue", None)
-            bp.metadata['escalation_queue'] = self.get_config("escalation_queue", None)
             bp.enqueue(db, self.get_config("review_queue"))
         else:
             bp.enqueue(db, self.get_config("error_queue"))

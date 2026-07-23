@@ -1,4 +1,5 @@
 import functools
+from types import EllipsisType
 
 import flask_login
 import flask_login as fl
@@ -11,8 +12,10 @@ from urllib.parse import urlparse
 
 from gcflask.auth import AuthResult, AuthenticationManager
 from gcflask.user import AuthenticatedUser, ANONYMOUS_PRIVILEGE, ADMIN_PRIVILEGE, ANYONE_PRIVILEGE, \
-    AUTHENTICATED_PRIVILEGE
+    AUTHENTICATED_PRIVILEGE, PermissionType, AnyPermission
 from medsutil.exceptions import CodedError
+
+
 
 
 @injector.injectable_global
@@ -34,14 +37,14 @@ class RequestSecurity:
             return fl.current_user.is_authenticated
         return False
 
-    def require_all(self, perm_names: t.Sequence[str] | str) -> bool:
+    def require_permissions(self, permissions: PermissionType, require_all: bool = True) -> bool:
         """Check if the user has at least one of the given permissions."""
         if flask.has_request_context():
             cu: AuthenticatedUser = fl.current_user
-            if isinstance(perm_names, str):
-                return cu.require_all([perm_names])
+            if require_all:
+                return cu.require_all(permissions)
             else:
-                return cu.require_all(perm_names)
+                return cu.require_any(permissions)
         return False
 
     def check_referrer(self) -> bool:
@@ -87,18 +90,28 @@ class RequestSecurity:
         return True
 
     def check_access(self,
-                     perm_names: t.Sequence[str] | str | None,
+                     required_permissions: PermissionType,
                      check_referrer: bool | None = None,
-                     check_https: bool | None = None) -> AuthResult:
+                     check_https: bool | None = None,
+                     require_any: bool = False) -> AuthResult:
         """Check all configured requirements to access the page."""
-        if perm_names and not self.require_all(perm_names):
-            self._log.warning(f"Request denied because of missing privileges: [%s]", perm_names)
+        if required_permissions and not self.require_permissions(required_permissions, require_any):
+            self._log.warning(f"Request denied because of missing privileges: [%s]", required_permissions)
             return AuthResult.DENY
         if check_referrer is not False and not self.check_referrer():
             return AuthResult.SPLASH
         if check_https is not False and not self.check_for_https():
             return AuthResult.SPLASH
         return AuthResult.ALLOW
+
+
+
+class Forbidden(Exception):
+
+    def __init__(self, result: AuthResult, is_api: bool, message: str | None = None):
+        self.result = result
+        self.is_api = is_api
+        self.message = message or 'access denied'
 
 
 class RequirePermission:
@@ -117,13 +130,25 @@ class RequirePermission:
             self._rs = injector.get(RequestSecurity)
         return self._rs
 
+    def check_access(self,
+                     required_permissions: PermissionType,
+                     is_api: bool = False,
+                     message: str | None = None,
+                     check_referrer: bool | None = False,
+                     check_https: bool | None = False,
+                     require_any: bool = False):
+        result = self.rs.check_access(required_permissions, check_referrer, check_https, require_any)
+        if result is not AuthResult.ALLOW:
+            raise Forbidden(AuthResult.DENY, is_api, message)
+
     def deny_permission(self,
                         is_api: bool,
-                        result: AuthResult = AuthResult.DENY):
-        return self.auth_man.unauthorized_handler(result, is_api)
+                        result: AuthResult = AuthResult.DENY,
+                        message: str | None = None):
+        raise Forbidden(result, is_api, message)
 
     def __call__[**P,Q](self,
-        required_permissions: str | t.Sequence[str] | None = None,
+        required_permissions: PermissionType | t.Callable = None,
         *,
         authenticated_only: bool = False,
         anonymous_only: bool = False,
@@ -131,50 +156,61 @@ class RequirePermission:
         check_referrer: bool = None,
         check_https: bool = None,
         is_api: bool = False,
+        require_any: bool = False,
         allow_auth_header_access: bool = False) -> t.Callable[[t.Callable[P, Q]], t.Callable[P,Q]]:
         """Ensure the current user is logged in and has one of the given permissions before allowing the request."""
 
-        if (authenticated_only or anonymous_only or anyone):
-            if required_permissions is None:
-                required_permissions = []
-            elif isinstance(required_permissions, str):
-                required_permissions = [required_permissions]
+        if isinstance(required_permissions, (str, None, t.Sequence)):
+            perms: list[str | AnyPermission] = []
+            if isinstance(required_permissions, str):
+                perms.append(required_permissions)
+            elif isinstance(required_permissions, t.Sequence):
+                perms.extend(required_permissions)
             if anonymous_only:
-                required_permissions.append(ANONYMOUS_PRIVILEGE)
+                perms.append(ANONYMOUS_PRIVILEGE)
             if authenticated_only:
-                required_permissions.append(AUTHENTICATED_PRIVILEGE)
+                perms.append(AUTHENTICATED_PRIVILEGE)
             if anyone:
-                required_permissions.append(ANYONE_PRIVILEGE)
+                perms.append(ANYONE_PRIVILEGE)
 
-        if is_api:
-            allow_auth_header_access = True
+            if is_api:
+                allow_auth_header_access = True
 
-        def _decorator(func: t.Callable[P, Q]) -> t.Callable[P,Q]:
+            def _decorator(func: t.Callable[P, Q]) -> t.Callable[P,Q]:
+                return self._build_wrapper(func, perms, allow_auth_header_access, is_api, require_any)
 
-            @functools.wraps(func)
-            def _decorated(*args, **kwargs):
-                if allow_auth_header_access and flask_login.current_user.is_anonymous:
-                        self.auth_man.request_loader(flask.request)
-                result = self.rs.check_access(
-                    required_permissions,
-                    check_referrer,
-                    check_https
-                )
-                if result == AuthResult.ALLOW:
-                    return flask.current_app.ensure_sync(func)(*args, **kwargs)
-                else:
-                    return self.deny_permission(result=result, is_api=is_api)
-            return _decorated
-        return _decorator
+            return _decorator
+        elif callable(required_permissions):
+            return self._build_wrapper(required_permissions)
+        else:
+            raise ValueError("Invalid argument to __call__")
 
-require_permission = RequirePermission()
-deny_permission = require_permission.deny_permission
+    def _build_wrapper[**P, Q](self,
+                               func: t.Callable[P, Q],
+                               required_permissions: PermissionType = None,
+                               allow_auth_header_access: bool = False,
+                               is_api: bool = False,
+                               require_any: bool = False) -> t.Callable[P, Q]:
+        @functools.wraps(func)
+        def _decorated(*args, **kwargs):
+            if allow_auth_header_access and flask_login.current_user.is_anonymous:
+                self.auth_man.request_loader(flask.request)
+            try:
+                self.check_access(required_permissions, is_api, require_any=require_any)
+                return flask.current_app.ensure_sync(func)(*args, **kwargs)
+            except Forbidden as ex:
+                return self.auth_man.unauthorized_handler(ex.result, ex.is_api)
+        return _decorated
+
+
+security_check = RequirePermission()
+deny_permission = security_check.deny_permission
+require_permission = security_check.check_access
 
 
 
 
 # TODO: need to be able to enable/disable more detailed errors depending on the environment
-
 def api_error_handling(func: t.Callable) -> t.Callable:
 
     @functools.wraps(func)
@@ -187,6 +223,7 @@ def api_error_handling(func: t.Callable) -> t.Callable:
                 code = ex.internal_code
             return flask.jsonify({
                 "error": str(ex),
+                "success": False,
                 "code": code,
             }), 500
     return _inner

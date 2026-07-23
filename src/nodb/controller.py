@@ -567,10 +567,13 @@ class PostgresController:
                 yield process_info
 
     @wrap_nodb_exceptions
-    def fast_renew_queue_item(self, queue_uuid: str, now_: AwareDateTime | None = None) -> AwareDateTime:
+    def fast_renew_queue_item(self, queue_uuid: str, now_: AwareDateTime | None = None) -> AwareDateTime | None:
         with self.cursor() as cur:
             dt = now_ or AwareDateTime.now()
-            cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED'", [dt.isoformat(), queue_uuid])  # nosec: B608 # not hard coded string
+            cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED' RETURNING 1 AS outcome", [dt.isoformat(), queue_uuid])  # nosec: B608 # not hard coded string
+            result = cur.fetchone()
+            if result is None or result[0] != 1:
+                return None
             return dt
 
     @wrap_nodb_exceptions
@@ -711,11 +714,13 @@ class PostgresController:
                               queue_name: str,
                               app_id: str,
                               subqueue_name: str | None = None,
+                              min_escalation: int = 0,
+                              max_escalation: int = 0,
                               retries: int = 1) -> t.Optional[NODBQueueItem]:
         """Get the next queue item."""
         with self.cursor() as cur:
             while retries > 0:
-                item_uuid = self._attempt_fetch_queue_item(queue_name, subqueue_name, app_id, cur)
+                item_uuid = self._attempt_fetch_queue_item(queue_name, subqueue_name, app_id, min_escalation, max_escalation, cur)
                 if item_uuid is not None:
                     return NODBQueueItem.find_by_uuid(self, item_uuid)
                 retries -= 1
@@ -738,16 +743,21 @@ class PostgresController:
 
     @staticmethod
     @wrap_nodb_exceptions
-    def _attempt_fetch_queue_item(queue_name: str, subqueue_name: t.Optional[str], app_id: str, cur: _PGCursor) -> t.Optional[str]:
+    def _attempt_fetch_queue_item(queue_name: str,
+                                  subqueue_name: t.Optional[str],
+                                  app_id: str,
+                                  min_escalation: int,
+                                  max_escalation: int,
+                                  cur: _PGCursor) -> t.Optional[str]:
         """Make a single attempt to get a queue item."""
         sp = False
         try:
             cur.create_savepoint("fetch_queue_item")
             sp = True
             if subqueue_name:
-                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s::varchar(126))", (queue_name, app_id, subqueue_name))
+                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s::varchar(126), %s, %s)", (queue_name, app_id, min_escalation, max_escalation, subqueue_name))
             else:
-                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126))", (queue_name, app_id))
+                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s, %s)", (queue_name, app_id, min_escalation, max_escalation))
             item = cur.fetchone()
             if item is not None and item[0] is not None:
                 cur.release_savepoint("fetch_queue_item")

@@ -8,6 +8,15 @@ ANONYMOUS_PRIVILEGE = '__anonymous__'
 ANYONE_PRIVILEGE = '__anyone__'
 AUTHENTICATED_PRIVILEGE = '__authenticated__'
 
+
+class AnyPermission:
+
+    def __init__(self, permissions: t.Sequence[str | AnyPermission]):
+        self.permissions: t.Sequence[PermissionType] = permissions
+
+PermissionType = AnyPermission | str | t.Sequence[str | AnyPermission] | None
+
+
 class BaseUserMixin:
 
     def __init__(self, display_name: str | None = None, email: str | None = None, permissions: t.Iterable[str] | None = None, **extras):
@@ -34,11 +43,32 @@ class BaseUserMixin:
     def permissions(self) -> set[str]:
         return self._permissions
 
-    def require_all(self, permission_names: t.Sequence[str]):
+    def require_all(self, permissions: PermissionType) -> bool:
         """Check if the user has the given permission."""
-        if (not permission_names) or self.is_admin:
+        if (not permissions) or self.is_admin:
             return True
-        return all(x in self._permissions for x in permission_names)
+        perms = [permissions] if isinstance(permissions, (str, AnyPermission)) else permissions
+        for x in perms:
+            if isinstance(x, str):
+                if x not in self._permissions:
+                    return False
+            elif isinstance(x, AnyPermission):
+                if not self.require_any(x.permissions):
+                    return False
+        return True
+
+    def require_any(self, permissions: PermissionType) -> bool:
+        if (not permissions) or self.is_admin:
+            return True
+        perms = [permissions] if isinstance(permissions, (str, AnyPermission)) else permissions
+        for x in perms:
+            if isinstance(x, str):
+                if x in self._permissions:
+                    return True
+            elif isinstance(x, AnyPermission):
+                if self.require_any(x.permissions):
+                    return True
+        return False
 
     def last_login_success_time(self) -> AwareDateTime | None:
         dt = self.extra('last_success', None)

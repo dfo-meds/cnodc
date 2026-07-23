@@ -61,7 +61,7 @@ class NavItem(BaseNav):
         if flask.has_request_context():
             if not self.permissions:
                 return True
-            return flask_login.current_user.require_all(self.permissions)
+            return flask_login.current_user.require_permissions(self.permissions)
         return False
 
     def markup(self) -> str:

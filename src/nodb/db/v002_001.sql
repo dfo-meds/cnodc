@@ -115,3 +115,92 @@ BEGIN
     END IF;
     RETURN 0;
 END; $$;
+
+
+
+
+-- Function to get the next queue item
+CREATE OR REPLACE FUNCTION next_queue_item(
+    qname VARCHAR(126),
+    app_id VARCHAR(126),
+    min_level INTEGER DEFAULT 0,
+    max_level INTEGER DEFAULT 0,
+    subqueue_name VARCHAR(126) DEFAULT NULL
+)
+RETURNS UUID
+AS $next_item$
+DECLARE
+    item_key UUID;
+    selected_key UUID;
+BEGIN
+    IF subqueue_name IS NULL THEN
+        SELECT q.queue_uuid INTO item_key
+        FROM nodb_queues q
+        WHERE
+            q.queue_name = qname
+            AND q.escalation_level <= max_level
+            AND q.escalation_level >= min_level
+            AND (
+                q.status = 'UNLOCKED'
+                OR (
+                    q.status = 'DELAYED_RELEASE'
+                    AND q.delay_release <= CURRENT_TIMESTAMP(0)
+                )
+            )
+            AND (
+                q.unique_item_name IS NULL
+                OR q.unique_item_name NOT IN (
+                    SELECT q2.unique_item_name
+                    FROM nodb_queues q2
+                    WHERE
+                        q2.queue_name = qname
+                        AND q2.status = 'LOCKED'
+                )
+            )
+        ORDER BY priority DESC
+        LIMIT 1
+        FOR NO KEY UPDATE;
+    ELSE
+        SELECT q.queue_uuid INTO item_key
+        FROM nodb_queues q
+        WHERE
+            q.queue_name = qname
+            AND q.escalation_level <= max_level
+            AND q.subqueue_name = subqueue_name
+            AND (
+                q.status = 'UNLOCKED'
+                OR (
+                    q.status = 'DELAYED_RELEASE'
+                    AND q.delay_release <= CURRENT_TIMESTAMP(0)
+                )
+            )
+            AND (
+                q.unique_item_name IS NULL
+                OR q.unique_item_name NOT IN (
+                    SELECT q2.unique_item_name
+                    FROM nodb_queues q2
+                    WHERE
+                        q2.queue_name = qname
+                        AND q2.status = 'LOCKED'
+                )
+            )
+        ORDER BY priority DESC
+        LIMIT 1
+        FOR NO KEY UPDATE;
+    END IF;
+    IF FOUND THEN
+        UPDATE nodb_queues
+        SET
+            status = 'LOCKED',
+            locked_by = app_id,
+            locked_since = CURRENT_TIMESTAMP(0),
+            db_locked_date = CURRENT_TIMESTAMP(0),
+            db_closed_date = NULL
+        WHERE
+            queue_uuid = item_key
+            AND status IN ('UNLOCKED', 'DELAYED_RELEASE')
+        RETURNING queue_uuid INTO selected_key;
+        RETURN selected_key;
+    END IF;
+    RETURN NULL;
+END; $next_item$ LANGUAGE plpgsql;

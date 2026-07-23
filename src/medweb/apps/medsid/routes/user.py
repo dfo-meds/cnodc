@@ -8,7 +8,7 @@ from gcflask.forms import GCFlaskForm, StringField, SubmitField, PasswordField, 
     NoControlCharacters, BooleanField
 from gcflask.i18n import TString
 from gcflask.i18n_url import MultiLanguageBlueprint
-from gcflask.security import require_permission, api_error_handling, web_error_handling
+from gcflask.security import security_check, api_error_handling, web_error_handling
 from gcflask.user import current_user
 from gcflask.util import flasht, FlaskRequestJsonData
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
@@ -17,7 +17,7 @@ user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
 
 
 @user.route('/me')
-@require_permission(authenticated_only=True)
+@security_check(authenticated_only=True)
 @injector.inject
 def me(ac: AccessController = auto()):
     c_user = ac.load_user_by_id(current_user().get_id())
@@ -25,7 +25,7 @@ def me(ac: AccessController = auto()):
 
 
 @user.route('/api/create-access-token', methods=['POST'])
-@require_permission(is_api=True, anonymous_only=True)
+@security_check(is_api=True, anonymous_only=True)
 @api_error_handling
 @injector.inject
 def create_access_token(ac: AccessController = auto()):
@@ -46,7 +46,7 @@ def create_access_token(ac: AccessController = auto()):
 
 
 @user.route('/api/renew-access-token', methods=['POST'])
-@require_permission(is_api=True, anonymous_only=True)
+@security_check(is_api=True, anonymous_only=True)
 @api_error_handling
 @injector.inject
 def renew_access_token(ac: AccessController = auto()):
@@ -62,7 +62,7 @@ def renew_access_token(ac: AccessController = auto()):
 
 
 @user.route('/api/remove-access-token', methods=['POST'])
-@require_permission(is_api=True, anonymous_only=True)
+@security_check(is_api=True, anonymous_only=True)
 @api_error_handling
 @injector.inject
 def remove_access_token(ac: AccessController = auto()):
@@ -74,7 +74,7 @@ def remove_access_token(ac: AccessController = auto()):
 
 
 @user.route('/me/edit', methods=['GET', 'POST'])
-@require_permission(authenticated_only=True)
+@security_check(authenticated_only=True)
 @web_error_handling
 @injector.inject
 def edit(ac: AccessController = auto()):
@@ -103,7 +103,7 @@ def edit(ac: AccessController = auto()):
 
 
 @user.route('/me/change-password', methods=['GET', 'POST'])
-@require_permission(authenticated_only=True)
+@security_check(authenticated_only=True)
 @web_error_handling
 @injector.inject
 def change_password(ac: AccessController = auto()):
@@ -124,7 +124,7 @@ def change_password(ac: AccessController = auto()):
 
 
 @user.route('/users/<username>')
-@require_permission("medsid.user_management.view")
+@security_check("medsid.user_management.view")
 @web_error_handling
 @injector.inject
 def view_user(username: str, ac: AccessController = auto()):
@@ -135,7 +135,7 @@ def view_user(username: str, ac: AccessController = auto()):
 
 
 @user.route('/users/create', methods=['GET', 'POST'])
-@require_permission("medsid.user_management.edit")
+@security_check("medsid.user_management.edit")
 @web_error_handling
 @injector.inject
 def create_user(ac: AccessController = auto()):
@@ -160,7 +160,7 @@ def create_user(ac: AccessController = auto()):
 
 
 @user.route('/users/<username>/edit', methods=['GET', 'POST'])
-@require_permission("medsid.user_management.edit")
+@security_check("medsid.user_management.edit")
 @web_error_handling
 def edit_user(username: str, ac: AccessController = auto()):
     c_user = ac.load_user_by_name(username)
@@ -193,14 +193,14 @@ def edit_user(username: str, ac: AccessController = auto()):
 
 
 @user.route('/api/users')
-@require_permission("medsid.user_management.view", is_api=True)
+@security_check("medsid.user_management.view", is_api=True)
 @api_error_handling
 def api_list_users():
     return flask.abort(404)
 
 
 @user.route('/users')
-@require_permission("medsid.user_management.view")
+@security_check("medsid.user_management.view")
 @web_error_handling
 def list_users():
     return flask.abort(404)
