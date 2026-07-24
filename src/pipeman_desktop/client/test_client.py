@@ -11,7 +11,11 @@ from medsutil.ocproc2.operations import RecordAction
 class TestClient:
 
     def __init__(self):
-        self._token = None
+        self.token = None
+
+    @property
+    def is_logged_in(self):
+        return self.token is not None
 
     def make_json_request(self, endpoint: str, method: str, **kwargs: str) -> dict:
         if endpoint == 'api/create-access-token' and method == 'POST':
@@ -42,40 +46,37 @@ class TestClient:
             return self._descalate_item(**kwargs)
         raise Exception('invalid test request')
 
-    def make_working_records_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
-        if endpoint.startswith('download/') and method == 'GET':
-            return self._download_station_failure(endpoint[9:], **kwargs)
-        raise Exception('invalid test request')
-
-    def make_json_dict_list_request(self, endpoint: str, method: str, **kwargs: str) -> t.Iterable[dict]:
-        if endpoint == 'stations' and method == 'GET':
-            return self._list_stations()
-        raise Exception('invalid test request')
-
-    def set_token(self, token):
-        self._token = token
-
-    def is_logged_in(self):
-        return self._token is not None
-
     def _logout(self) -> dict:
         return {'success': True}
 
-    def _login(self, username, password) -> dict:
-        queue_path = pathlib.Path(__file__).absolute().parent / 'ocproc2_examples'
-        queues = []
-        for file in queue_path.glob('*.yaml'):
-            queues.append(file.name[:-5])
+    def _login(self, username: str, password: str) -> dict:
         return {
+            'success': True,
             'token': 'abc',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
-            'access': [],
+            'access': {
+                'user.renew': {
+                    'url': 'api/renew-access-token',
+                    'kwargs': {},
+                } ,
+                'user.logout': {
+                    'url': 'api/remove-access-token',
+                    'kwargs': {},
+                }
+            },
             'username': username,
             'display': username,
         }
 
     def _renew(self):
-        return self._login('', '')
+        return {
+            'success': True,
+            'token': 'abc',
+            'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
+        }
+
+
+
 
     def _list_stations(self) -> t.Iterable[dict]:
         return []

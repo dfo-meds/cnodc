@@ -25,6 +25,7 @@ def request(method: str,
             session: requests.Session | None = None,
             headers: t.MutableMapping[str, str] | None = None,
             data: str | bytes | dict[str, UrlParamValueType] | list[tuple[str, UrlParamValueType]] | SupportsRead | None = None,
+            check_for_response_error: bool = True,
             **kwargs) -> requests.Response:
     """ Wrapper around requests.request() that converts errors to appropriate CNODC errors. """
     try:
@@ -41,8 +42,8 @@ def request(method: str,
             result = session.request(method, url, data=data, headers=headers, **kwargs)
         else:
             result = requests.request(method, url, data=data, headers=headers, **kwargs)
-        result.raise_for_status()
-
+        if check_for_response_error:
+            result.raise_for_status()
         return result
     except Exception as ex:
         if isinstance(ex, (requests.ConnectionError, requests.Timeout, requests.TooManyRedirects)):

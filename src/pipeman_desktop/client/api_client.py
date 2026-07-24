@@ -4,17 +4,18 @@ import typing as t
 
 import zrlog
 from autoinject import injector
+from requests import JSONDecodeError, HTTPError, RequestException
 
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
+from medsutil.web import request
 from pipeman_desktop.client.local_db import LocalDatabase, CursorWrapper
 from pipeman_desktop.gui.messenger import CrossThreadMessenger
 from pipeman_desktop.util import TranslatableException
 import zirconium as zr
 import requests
 import medsutil.ocproc2 as ocproc2
-from medsutil.sanitize import coerce
 
 
 class RemoteAPIError(TranslatableException):
@@ -22,6 +23,16 @@ class RemoteAPIError(TranslatableException):
     def __init__(self, message: str, code: str = None):
         super().__init__('remote_api_error', message=message, code=code or '')
 
+
+def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:
+    def _inner(*args, **kwargs):
+        try:
+            return cb(*args, **kwargs)
+        except JSONDecodeError as ex:
+            raise RemoteAPIError("Invalid JSON", None) from ex
+        except HTTPError as ex:
+            raise RemoteAPIError(f"{ex.errno}: {ex}", None) from ex
+    return _inner
 
 
 
@@ -33,32 +44,40 @@ class WebAPIClient:
 
     @injector.construct
     def __init__(self):
-        self._token = None
+        import socket
+        self.token = None
+        self._app_id = socket.gethostname()
         self._app_url = self.config.as_str(('medweb_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
         self._log = zrlog.get_logger('pipeman.desktop.web_client')
+        self._session = requests.Session()
+
+    @property
+    def is_logged_in(self) -> bool:
+        return self.token is not None
 
     def _make_raw_request(self, endpoint: str, method: str, **kwargs: str) -> requests.Response:
-        full_url = f"{self._app_url}/{endpoint}" if not endpoint.startswith('http') else endpoint
-        self._log.debug(f"{method} {full_url}")
+        full_url = f"{self._app_url.rstrip('/')}/{endpoint.lstrip('/')}" if not endpoint.startswith('http') else endpoint
+        self._log.trace(f"Web request: {method} {full_url}")
         headers = {}
-        if self._token is not None:
-            headers['Authorization'] = f'Bearer {self._token}'
-        if kwargs:
-            response = requests.request(method, full_url, json=coerce.as_json_safe(kwargs), headers=headers)
-        else:
-            response = requests.request(method, full_url, json={}, headers=headers)
-        response.raise_for_status()
-        return response
+        if self.token is not None:
+            headers['Authorization'] = f'Bearer {self.token}'
+        return request(method, full_url, session=self._session, json=kwargs, headers=headers, check_for_response_error=False)
 
+    @with_remote_api_error_handling
     def make_json_request(self, *args, **kwargs) -> dict:
+        kwargs["app_id"] = self._app_id
         response = self._make_raw_request(*args, **kwargs)
+        if not response.headers.get('Content-Type', '').startswith('application/json'):
+            response.raise_for_status()
         json_body = response.json()
         if 'error' in json_body:
             raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
         return json_body
 
+    # deprecated?
     def make_working_records_request(self, *args, **kwargs) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
         response = self._make_raw_request(*args, **kwargs)
+        response.raise_for_status()
         codec = OCProc2BinCodec()
         stream = ByteSequenceReader(response.iter_content(10240, False))
         while not stream.at_eof():
@@ -71,6 +90,7 @@ class WebAPIClient:
                 actions = json.loads(action_content.decode('utf-8'))
             yield record_id, record_hash, next(codec.decode_messages([record_content])), actions
 
+    # deprecated?
     def make_json_dict_list_request(self, *args, **kwargs) -> t.Iterable[dict]:
         response = self._make_raw_request(*args, **kwargs)
         buffer = ''
@@ -99,11 +119,6 @@ class WebAPIClient:
                     check_idx = 1
                     depth = 1
 
-    def set_token(self, token):
-        self._token = token
-
-    def is_logged_in(self) -> bool:
-        return self._token is not None
 
 
 @injector.injectable
@@ -116,12 +131,48 @@ class CNODCServerAPI:
     @injector.construct
     def __init__(self):
         self._expiry: AwareDateTime | None = None
-        self._access_list: list[str] | None = None
+        self._service_list: dict[str, dict] | None = None
         self._check_time: int = 300  # Renew when five minutes left on session
         self._current_queue_item = None
         self._username: str | None = None
         self._display_name: str | None = None
         self._log = zrlog.get_logger('cnodc.desktop.api')
+
+    @property
+    def username(self) -> str | None:
+        return self._username
+
+    @property
+    def display_name(self) -> str | None:
+        return self._display_name or self._username
+
+    @property
+    def services(self) -> list[str]:
+        return list(self._service_list.keys()) if self._service_list else []
+
+    def make_service_json_request(self,
+                                  service_identifier: str,
+                                  method: str,
+                                  **kwargs):
+        endpoint, extra_kwargs = self.service_info(service_identifier)
+        return self.web_client.make_json_request(
+            endpoint=endpoint,
+            method=method,
+            **kwargs,
+            **extra_kwargs
+        )
+
+    def service_info(self, service_identifier: str) -> tuple[str, dict[str, t.Any]]:
+        if self._service_list is not None and service_identifier in self._service_list:
+            return (
+                self._service_list[service_identifier]["url"],
+                self._service_list[service_identifier]["kwargs"]
+            )
+        else:
+            raise RemoteAPIError(f"No access to the service {service_identifier}")
+
+    def has_access(self, service_identifier: str):
+        _ = self.service_info(service_identifier)
 
     def login(self, username: str, password: str) -> bool:
         response = self.web_client.make_json_request(
@@ -130,57 +181,56 @@ class CNODCServerAPI:
             username=username,
             password=password
         )
-        self.web_client.set_token(response['token'])
+        self.web_client.token = response['token']
         self._expiry = AwareDateTime.fromisoformat(response['expiry'])
-        self._access_list = response['access']
+        self._service_list = response['access']
         self._username = response['username']
         self._display_name = response['display']
         self._log.info(f'User {self._username} logged in')
         return True
 
     def logout(self) -> bool:
-        if self.web_client.is_logged_in():
-            self.web_client.make_json_request(
-                endpoint='api/remove-access-token',
-                method='POST'
+        if self.web_client.is_logged_in:
+            self.make_service_json_request(
+                service_identifier='user.logout',
+                method='POST',
+                token=self.web_client.token
             )
+            self._clear_user_info()
             self._log.info(f'User logged out')
-            self._username = None
-            self._display_name = None
-            self.web_client.set_token(None)
-            self._access_list = None
-            self._expiry = None
         return True
 
     def refresh(self) -> int:
-        if self.web_client.is_logged_in():
+        if self.web_client.is_logged_in and self._expiry is not None:
             now = AwareDateTime.now()
             time_left = int((self._expiry - now).total_seconds())
             if time_left < 0:
-                self.web_client.set_token(None)
-                self._expiry = None
-                self._access_list = None
+                self._clear_user_info()
                 self._log.info('User session expired')
                 return -1
             elif time_left < self._check_time:
                 self._log.debug('Renewing session')
-                response = self.web_client.make_json_request(
-                    endpoint='api/renew-access-token',
-                    method='POST'
+                response = self.make_service_json_request(
+                    service_identifier='user.renew',
+                    method='POST',
+                    token=self.web_client.token
                 )
-                self.web_client.set_token(response['token'])
-                self._expiry = AwareDateTime.fromisoformat(response['expiry'])
+                self.web_client.token = response['token']
+                self._expiry = expiry = AwareDateTime.fromisoformat(response['expiry'])
                 now = AwareDateTime.now()
-                return int((self._expiry - now).total_seconds()) - self._check_time
+                return int((expiry - now).total_seconds()) - self._check_time
             else:
                 return time_left - self._check_time
         else:
             return -1
 
-    def _check_access(self, access_key_name: str):
-        if self._access_list is None or access_key_name not in self._access_list:
-            raise RemoteAPIError('access_denied')
-
+    def _clear_user_info(self):
+        self._username = None
+        self._display_name = None
+        self.web_client.token = None
+        self._service_list = None
+        self._expiry = None
+"""
     def reload_stations(self) -> bool:
         self._check_access('queue:station-failure')
         with self.local_db.cursor() as cur:
@@ -209,7 +259,7 @@ class CNODCServerAPI:
 
     def _api_endpoint(self, item_name: str):
         item_names = item_name.split(':')
-        d = self._access_list
+        d = self._service_list
         for x in item_names:
             d = d[x]
         return d['url'] if isinstance(d, dict) else d
@@ -375,17 +425,26 @@ class CNODCServerAPI:
         if not s:
             s.append(f"I:{working_id}")
         return '  '.join(s)
-
+"""
 
 @injector.inject
-def login(username: str, password: str, client: CNODCServerAPI = None):
+def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str | None, list[str]]:
     client.login(username, password)
-    return client._username, client._access_list
+    return client.display_name, client.services
 
 
 @injector.inject
 def refresh(client: CNODCServerAPI = None) -> int:
     return client.refresh()
+
+
+@injector.inject
+def logout(client: CNODCServerAPI = None) -> bool:
+    return client.logout()
+
+
+"""
+
 
 
 @injector.inject
@@ -442,8 +501,4 @@ def save_work(client: CNODCServerAPI = None) -> bool:
 def change_password(password: str, client: CNODCServerAPI = None) -> bool:
     return client.change_password(password)
 
-
-@injector.inject
-def logout(client: CNODCServerAPI = None) -> bool:
-    return client.logout()
-
+"""
