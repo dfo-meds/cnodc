@@ -126,8 +126,9 @@ class StationPane(BasePane):
         self._station_list: t.Optional[ScrollableTreeview] = None
 
     def on_init(self):
-        self.app.menus.add_command('qc/reload_stations', 'menu_reload_stations', self.reload_stations, True)
-        self.app.menus.add_command('qc/create_station', 'menu_create_station', self.create_station, True)
+        self.app.menus.add_sub_menu('stations', 'menu_qc')
+        self.app.menus.add_command('stations/reload', 'menu_reload_stations', self.reload_stations, True)
+        self.app.menus.add_command('stations/create', 'menu_create_station', self.create_station, True)
         station_frame = ttk.Frame(self.app.bottom_notebook)
         station_frame.rowconfigure(0, weight=1)
         station_frame.columnconfigure(0, weight=1)
