@@ -6,7 +6,9 @@ import random
 import medsutil.ocproc2 as ocproc2
 from medsutil.ocproc2.codecs import OCProc2YamlCodec
 from medsutil.ocproc2.operations import RecordAction
-
+# this line is currently necessary to ensure it is properly override
+# I should put in a fix for autoinject to ensure overrides always override
+from pipeman_desktop.client.api_client import WebAPIClient
 
 class TestClient:
 

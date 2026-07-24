@@ -253,8 +253,8 @@ class TranslatableError(CodedError):
         super().__init__(TString(key), code_number, code_space=code_space, is_transient=is_transient)
 
 
-def tr(key: str, default: str = "", *args, **kwargs) -> str:
-    return t.cast(str, t.cast(object, TString(key, default, *args, **kwargs)))
+def tr(key: str, default: str | None = None, *args, **kwargs) -> str:
+    return str(TString(key, default, *args, **kwargs))
 
 
 def format_date(dt: datetime.date | None) -> str:
