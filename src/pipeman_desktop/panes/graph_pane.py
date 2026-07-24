@@ -30,7 +30,7 @@ class GraphPane(BasePane):
         self._oc2graph.grid(row=0, column=0, sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & (DisplayChange.RECORD | DisplayChange.BATCH):
+        if change_type & (DisplayChange.RECORD | DisplayChange.BATCH_STATE):
             self._oc2graph.clear_graph_data()
             if app_state.batch_state == BatchOpenState.OPEN:
                 self._oc2graph.update_graph_options()

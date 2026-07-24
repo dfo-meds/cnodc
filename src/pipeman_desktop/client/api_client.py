@@ -230,6 +230,16 @@ class CNODCServerAPI:
         self.web_client.token = None
         self._service_list = None
         self._expiry = None
+
+    def fetch_queue_ready_count(self) -> list[tuple[str, str | None, int, int]]:
+        response = self.make_service_json_request(
+            service_identifier="desktop.queue_items_ready",
+            method="GET"
+        )
+        return response["ready"]
+
+
+
 """
     def reload_stations(self) -> bool:
         self._check_access('queue:station-failure')
@@ -441,6 +451,27 @@ def refresh(client: CNODCServerAPI = None) -> int:
 @injector.inject
 def logout(client: CNODCServerAPI = None) -> bool:
     return client.logout()
+
+
+@injector.inject
+def fetch_queue_ready_count(client: CNODCServerAPI = None) -> list[tuple[str, str | None, int, int]]:
+    return client.fetch_queue_ready_count()
+
+
+@injector.inject
+def save_changes(batch_service_name: str, client: CNODCServerAPI = None) -> bool:
+    ...
+
+
+@injector.inject
+def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> bool:
+    ...
+
+
+@injector.inject
+def close_batch(batch_service_name: str, close_operation: str, client: CNODCServerAPI = None) -> bool:
+    ...
+
 
 
 """

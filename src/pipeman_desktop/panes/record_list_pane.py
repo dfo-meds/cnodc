@@ -75,7 +75,7 @@ class RecordListPane(BasePane):
             self._subrecord_label.configure(text=i18n.tr('child_record_list_title'))
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.BATCH:
+        if change_type & DisplayChange.BATCH_STATE:
             self._record_list.clear_items()
             self._subrecord_list.clear_items()
             if app_state.batch_record_info:

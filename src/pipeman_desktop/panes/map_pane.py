@@ -48,7 +48,7 @@ class MapPane(BasePane):
             self._map.set_zoom(self._current_zoom)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if self._map is not None and (change_type & DisplayChange.BATCH):
+        if self._map is not None and (change_type & DisplayChange.BATCH_STATE):
             self._map.delete_all_marker()
             if app_state.batch_state == BatchOpenState.OPEN and app_state.batch_record_info:
                 min_lat = None

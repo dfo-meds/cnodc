@@ -16,7 +16,7 @@ from pipeman_desktop.util import QCBatchCloseOperation, ApplicationState, BatchO
     SimpleRecordInfo, CloseBatchResult
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.action_pane import ActionPane
-from pipeman_desktop.panes.button_pane import ButtonPane
+from pipeman_desktop.panes.qc_pane import QCPane
 from pipeman_desktop.components.choice_dialog import ask_choice
 import gcapp.i18n as i18n
 import threading
@@ -141,7 +141,7 @@ class PipemanDesktop:
         self._is_closing: bool = False
         self._save_data = SaveData(pathlib.Path("~/.pipeman.preferences.json").expanduser().absolute(), True)
         self.log = zrlog.get_logger('cnodc.desktop')
-        self.state = ApplicationState(self.refresh_display)
+        self.state = ApplicationState(self)
         self._current_screen_size = None
         self._last_screen_width_change_time = None
         self._screen_resize_in_progress = False
@@ -201,7 +201,7 @@ class PipemanDesktop:
         self.dispatcher = PipemanDispatcher(self.loading_wheel)
         self._panes = []
         self._panes.append(LoginPane(self))
-        self._panes.append(ButtonPane(self))
+        self._panes.append(QCPane(self))
         self._panes.append(RecordListPane(self))
         self._panes.append(MapPane(self))
         self._panes.append(GraphPane(self))
@@ -296,19 +296,6 @@ class PipemanDesktop:
         elif self.state.subrecord_path is not None:
             self.state.set_record_subpath(None)
 
-
-    def save_changes(self, after_save: t.Callable = None):
-        if self.state.is_batch_action_available('apply_working'):
-            if self.state.has_unsaved_changes:
-                self.state.set_save_flag(True)
-                self.dispatcher.submit_job(
-                    'cnodc.desktop.client.api_client.save_work',
-                    on_error=self._on_save_error,
-                    on_success=functools.partial(self._after_save, after_save=after_save)
-                )
-            elif after_save is not None:
-                after_save(True)
-
     def quality_color(self, wq: int, ind_wq: int = None):
         if wq == 1:
             return 'forestgreen'
@@ -333,26 +320,6 @@ class PipemanDesktop:
         elif ind_wq is not None and ind_wq in (3, 4, 13, 14, 19, 9):
             return 'silver'
         return 'black'
-
-    def _on_save_error(self, ex):
-        self.show_user_exception(ex)
-        self.state.set_save_flag(False, self.state.has_unsaved_changes)
-
-    def _after_save(self, res: bool, after_save: t.Callable = None):
-        if not res:
-            self.show_user_info(
-                i18n.tr('save_partial_fail_title'),
-                i18n.tr('save_partial_fail_message')
-            )
-            self.state.set_save_flag(False, self.state.has_unsaved_changes)
-        else:
-            self.state.set_save_flag(False, False)
-        if after_save:
-            after_save(res)
-
-    def update_user_info(self, username: t.Optional[str], access_list: dict[str, dict[str, str]]):
-        if self.state.update_user_info(username, access_list) and username is None:
-            self.force_close_current_batch()
 
     def create_flag_operator(self, target_path: str, flag: int):
         return None  # TODO
@@ -381,85 +348,19 @@ class PipemanDesktop:
         else:
             self.load_child(None)
 
-    def open_qc_batch(self, batch_service_name: str):
-        # TODO: check if the batch is open and prompt?
-        self.state.start_batch_open(batch_service_name)
-        self.dispatcher.submit_job(
-            'cnodc.desktop.client.api_client.next_queue_item',
-            job_kwargs={
-                'service_name': batch_service_name
-            },
-            on_success=self._open_qc_batch_success,
-            on_error=self._open_qc_batch_error
-        )
-
-    def _open_qc_batch_success(self, result: tuple[list[str], list[str]]):
-        if result is not None and result[0] is not None:
-            with self.local_db.cursor() as cur:
-                cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, station_id FROM records ORDER BY station_id ASC, datetime ASC")
-                record_info = [SimpleRecordInfo(idx + 1, *x) for idx, x in enumerate(cur.fetchall())]
-                self.state.complete_batch_open(result[0], result[1], record_info)
-        else:
-            self.show_user_info(
-                title=i18n.tr(f'no_items_title_{self.state.batch_service_name}'),
-                message=i18n.tr(f'no_items_message_{self.state.batch_service_name}')
-            )
-            self.state.clear_batch()
-
-    def _open_qc_batch_error(self, ex):
-        self.show_user_exception(ex)
-        self.state.handle_batch_open_error()
-
-    def force_close_current_batch(self):
-        if self.state.batch_state == BatchOpenState.OPEN:
-            self.state.start_batch_close(QCBatchCloseOperation.FORCE_CLOSE, False)
-            self.state.complete_batch_close()
-            self.state.clear_batch()
-
-    def close_current_batch(self,
-                            op: QCBatchCloseOperation,
-                            load_next: bool = False,
-                            after_close: t.Callable = None) -> CloseBatchResult:
-        if self.state.batch_state == BatchOpenState.OPEN:
-            if self.state.has_unsaved_changes:
-                result = tkmb.askyesno(
-                    title=i18n.tr('close_without_saving_title'),
-                    message=i18n.tr('close_without_saving_message')
-                )
-                if not result:
-                    return CloseBatchResult.CANCELLED
-            self.state.start_batch_close(op, load_next)
-            self.dispatcher.submit_job(
-                op.value if '.' in op.value else QCBatchCloseOperation.RELEASE.value,
-                on_success=functools.partial(self._close_qc_batch_success, after_close=after_close),
-                on_error=self._close_qc_batch_error
-            )
-            return CloseBatchResult.CLOSING
-        elif after_close is not None:
-            after_close()
-        return CloseBatchResult.ALREADY_CLOSED
-
-    def _close_qc_batch_success(self, res, after_close: t.Callable = None):
-        self.state.complete_batch_close()
-        if self.state.batch_load_after_close:
-            self.open_qc_batch(t.cast(str, self.state.batch_service_name))
-        else:
-            self.state.clear_batch()
-        if after_close is not None:
-            after_close()
-
-    def _close_qc_batch_error(self, ex):
-        self.show_user_exception(ex)
-        self.state.handle_batch_close_error()
-
-
 
     def close(self):
         if self._is_closing:
             return
         self._is_closing = True
-        result = self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._close)
+        result = self.state.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._close)
         if result == CloseBatchResult.CANCELLED:
+            self._is_closing = False
+        elif result == CloseBatchResult.UNABLE_TO_CLOSE:
+            self.show_user_info(
+                i18n.tr('unable_to_close_title'),
+                i18n.tr('unable_to_close_message')
+            )
             self._is_closing = False
 
     def _close(self):
@@ -470,11 +371,11 @@ class PipemanDesktop:
         )
 
     def _actual_close(self, e=None):
-        self.state.clear_batch()
+        self.state.update_batch_state(None)
+        self._pane_broadcast('on_close')
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()
             self.dispatcher.join()
-        self._pane_broadcast('on_close')
         self.dispatcher.close()
         self.messenger.close()
         self.status_info.destroy()

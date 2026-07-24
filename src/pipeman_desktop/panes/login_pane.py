@@ -17,7 +17,7 @@ class LoginPane(BasePane):
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & (DisplayChange.USER | DisplayChange.BATCH):
+        if change_type & (DisplayChange.USER | DisplayChange.BATCH_STATE):
             self.update_user_state()
 
     def do_logout(self):
