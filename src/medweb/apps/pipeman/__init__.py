@@ -12,6 +12,7 @@ def init_plugin(s: System):
     if isinstance(s, FlaskSystemMixin):
         s.register_blueprint("medweb.apps.pipeman.routes.vocabularies", "vocabularies")
         s.register_blueprint("medweb.apps.pipeman.routes.desktop", "desktop")
+        s.register_api_operation("desktop.queue_items_ready", "desktop.get_queue_report", ["pipeman.lock_queue_items"])
         s.register_dynamic_api_operation_builder("desktop", get_qc_actions)
 
 

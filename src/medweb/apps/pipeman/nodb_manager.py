@@ -36,7 +36,7 @@ class NODBController:
         with self.nodb as db:
             return {
                 "success": True,
-                "status": [x for x in db.fetch_queue_ready_summary()]
+                "ready": [x for x in db.fetch_queue_ready_summary()]
             }
 
     def fetch_next_queue_item(self,
