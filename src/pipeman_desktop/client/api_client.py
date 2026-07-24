@@ -4,24 +4,24 @@ import typing as t
 
 import zrlog
 from autoinject import injector
-from requests import JSONDecodeError, HTTPError, RequestException
+from requests import JSONDecodeError, HTTPError
 
+from gcapp.i18n import TranslatableError
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.web import request
-from pipeman_desktop.client.local_db import LocalDatabase, CursorWrapper
-from pipeman_desktop.gui.messenger import CrossThreadMessenger
-from pipeman_desktop.util import TranslatableException
+from pipeman_desktop.client.local_db import LocalDatabase
+from pipeman_desktop.messenger import CrossThreadMessenger
 import zirconium as zr
 import requests
 import medsutil.ocproc2 as ocproc2
 
 
-class RemoteAPIError(TranslatableException):
+class RemoteAPIError(TranslatableError):
 
-    def __init__(self, message: str, code: str = None):
-        super().__init__('remote_api_error', message=message, code=code or '')
+    def __init__(self, message: str, remote_code: str, local_code: int | None = None):
+        super().__init__(f"{remote_code}: {message}", local_code, code_space="REMOTE")
 
 
 def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:

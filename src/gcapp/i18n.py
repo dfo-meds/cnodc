@@ -248,7 +248,7 @@ class MLLink(MLString):
 
 class TranslatableError(CodedError):
 
-    def __init__(self, key: str, code_number: int, *, code_space: str | None = None, is_transient: bool = False):
+    def __init__(self, key: str, code_number: int | None = None, *, code_space: str | None = None, is_transient: bool = False):
         self.message_key = key
         super().__init__(TString(key), code_number, code_space=code_space, is_transient=is_transient)
 
