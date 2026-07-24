@@ -32,6 +32,13 @@ class NODBController:
     def __init__(self):
         ...
 
+    def get_queue_report(self) -> dict:
+        with self.nodb as db:
+            return {
+                "success": True,
+                "status": [x for x in db.fetch_queue_ready_summary()]
+            }
+
     def fetch_next_queue_item(self,
                               queue_name: str,
                               escalation_level: int,

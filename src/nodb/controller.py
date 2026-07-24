@@ -591,6 +591,13 @@ class PostgresController:
         return res
 
     @wrap_nodb_exceptions
+    def fetch_queue_ready_summary(self) -> t.Iterable[tuple[str, str, int, int]]:
+        with self.cursor() as cur:
+            cur.execute("SELECT queue_name, subqueue_name, escalation_level, COUNT(*) FROM nodb_queues WHERE status = 'UNLOCKED' GROUP BY queue_name, subqueue_name, escalation_level")
+            for row in cur.fetch_stream(25):
+                yield str(row[0]), str(row[1]), int(row[2] or 0), int(row[3])
+
+    @wrap_nodb_exceptions
     def fast_update_queue_status(self,
                                  queue_uuid: str,
                                  new_status: QueueStatus,

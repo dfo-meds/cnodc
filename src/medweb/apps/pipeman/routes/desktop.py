@@ -4,7 +4,7 @@ import flask
 import typing as t
 
 from gcflask.i18n_url import MultiLanguageBlueprint
-from gcflask.security import security_check, web_error_handling, require_permission
+from gcflask.security import security_check, web_error_handling, require_permission, api_error_handling
 from autoinject import injector
 
 from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
@@ -28,10 +28,17 @@ def json_param[T](param_name: str, coerce: t.Callable[[t.Any], T] | None = None,
         flask.abort(400, f"Invalid parameter for [{param_name}]: {e}")
 
 
+@desktop.route("/internal/queues/ready", methods=["GET"])
+@security_check("pipeman.lock_queue_items")
+@api_error_handling
+@injector.inject
+def get_queue_report(nodb: NODBController = None):
+    return nodb.get_queue_report()
+
 
 @desktop.route("/internal/queues/next", methods=["POST"])
 @security_check("pipeman.lock_queue_items")
-@web_error_handling
+@api_error_handling
 @injector.inject
 def lock_next_queue_item(nodb: NODBController = None):
     # Check request parameters
@@ -56,7 +63,7 @@ def lock_next_queue_item(nodb: NODBController = None):
 
 @desktop.route("/internal/queues/queue_uuid>/renew", methods=["POST"])
 @security_check("pipeman.lock_queue_items")
-@web_error_handling
+@api_error_handling
 @injector.inject
 def renew_queue_item(queue_uuid: str, nodb: NODBController = None):
     return nodb.renew_queue_item(queue_uuid)
@@ -64,7 +71,7 @@ def renew_queue_item(queue_uuid: str, nodb: NODBController = None):
 
 @desktop.route("/internal/queues/<queue_uuid>/close-qc", methods=["POST"])
 @security_check("pipeman.lock_queue_items")
-@web_error_handling
+@api_error_handling
 @injector.inject
 def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
     return nodb.close_qc_item(
@@ -76,7 +83,7 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
 
 @desktop.route("/internal/working/<record_uuid>", methods=["POST"])
 @security_check("pipeman.working.view")
-@web_error_handling
+@api_error_handling
 @injector.inject
 def download_working_record(record_uuid: str, nodb: NODBController = None):
     return nodb.serve_working_record(record_uuid)
