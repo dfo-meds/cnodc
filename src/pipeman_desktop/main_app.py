@@ -1,5 +1,6 @@
 import functools
 import json
+import pathlib
 import queue
 import time
 import tkinter as tk
@@ -10,6 +11,7 @@ import traceback
 import zrlog
 import medsutil.ocproc2 as ocproc2
 from gcapp.system import System
+from medsutil.savedata import SaveData
 from pipeman_desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
     SimpleRecordInfo, CloseBatchResult
 from pipeman_desktop.client.local_db import LocalDatabase
@@ -32,10 +34,12 @@ from pipeman_desktop.gui.parameter_pane import ParameterPane
 from pipeman_desktop.gui.record_list_pane import RecordListPane
 from pipeman_desktop.gui.station_pane import StationPane
 from pipeman_desktop.gui.map_pane import MapPane
-from gcapp.i18n import TranslatableError
+from gcapp.i18n import TranslatableError, TranslationManager
 from medsutil.ocproc2.operations import RecordAction
 from medsutil.dynamic import dynamic_object
 from autoinject import injector
+
+from pipeman_desktop.i18n import DesktopLanguageDetector
 
 
 class PipemanDispatcher(threading.Thread):
@@ -128,10 +132,13 @@ class PipemanDesktop:
 
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
+    detector: i18n.LanguageDetector = None
+    translations: TranslationManager = None
 
     @injector.construct
     def __init__(self, system: System):
         self._is_closing: bool = False
+        self._save_data = SaveData(pathlib.Path("~/.pipeman.preferences.json").expanduser().absolute(), True)
         self.log = zrlog.get_logger('cnodc.desktop')
         self.app_state = ApplicationState(self.refresh_display)
         self._current_screen_size = None
@@ -142,7 +149,7 @@ class PipemanDesktop:
         self.root.title(i18n.tr('root_title'))
         self.root.geometry('900x500')
         self.root.bind("<Configure>", self.on_configure)
-        self.root.protocol('WM_DELETE_WINDOW', self.on_close)
+        self.root.protocol('WM_DELETE_WINDOW', self.close)
         self._run_on_startup = True
         s = ttk.Style()
         s.configure('Errored.BorderedEntry.TFrame', background='red')
@@ -205,20 +212,40 @@ class PipemanDesktop:
         self._panes.append(StationPane(self))
         self._pane_broadcast('on_init')
 
+    # BORING STUFF
+
+    def refresh_display(self, app_state, change_type: DisplayChange):
+        self._pane_broadcast('refresh_display', app_state, change_type)
+
     def after(self, delay_ms: int, cb: t.Callable[[], t.Any], *args):
         self.root.after(delay_ms, cb, *args)  # note: this is an error in tkinter's typing not mine
 
-    def check_dispatcher(self):
-        self.dispatcher.process_results()
-        self.after(500, self.check_dispatcher)
+    def launch(self):
+        self.root.mainloop()
 
-    def check_messages(self):
-        self.messenger.receive_into_label(self.status_info)
-        self.after(50, self.check_messages)
+    def _pane_broadcast(self, call_name: str, *args, **kwargs):
+        for pane in self._panes:
+            try:
+                getattr(pane, call_name)(*args, **kwargs)
+            except Exception as ex:
+                self.log.exception(f"error broadcasting {call_name} to {pane}")
 
+    # Callbacks for other panes
 
+    def show_user_info(self, title: str, message: str):
+        tkmb.showinfo(title, message)
 
-
+    def show_user_exception(self, ex: Exception):
+        if isinstance(ex, TranslatableError):
+            tkmb.showerror(
+                title=i18n.tr('error_message_title'),
+                message=i18n.tr(ex.message_key)
+            )
+        else:
+            tkmb.showerror(
+                title=i18n.tr('error_message_title'),
+                message=f"{ex.__class__.__name__}: {str(ex)}"
+            )
 
 
 
@@ -268,30 +295,6 @@ class PipemanDesktop:
         elif self.app_state.subrecord_path is not None:
             self.app_state.set_record_subpath(None)
 
-    def refresh_display(self, app_state, change_type: DisplayChange):
-        self._pane_broadcast('refresh_display', app_state, change_type)
-
-    def _pane_broadcast(self, call_name: str, *args, **kwargs):
-        for pane in self._panes:
-            try:
-                getattr(pane, call_name)(*args, **kwargs)
-            except Exception as ex:
-                self.log.exception(f"error broadcasting {call_name} to {pane}")
-
-    def show_user_info(self, title: str, message: str):
-        tkmb.showinfo(title, message)
-
-    def show_user_exception(self, ex: Exception):
-        if isinstance(ex, TranslatableError):
-            tkmb.showerror(
-                title=i18n.tr('error_message_title'),
-                message=i18n.tr(ex.key, **ex.kwargs)
-            )
-        else:
-            tkmb.showerror(
-                title=i18n.tr('error_message_title'),
-                message=f"{ex.__class__.__name__}: {str(ex)}"
-            )
 
     def save_changes(self, after_save: t.Callable = None):
         if self.app_state.is_batch_action_available('apply_working'):
@@ -350,32 +353,6 @@ class PipemanDesktop:
         if self.app_state.update_user_info(username, access_list) and username is None:
             self.force_close_current_batch()
 
-    def on_close(self):
-        if self._is_closing:
-            return
-        self._is_closing = True
-        result = self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._on_close)
-        if result == CloseBatchResult.CANCELLED:
-            self._is_closing = False
-
-    def _on_close(self):
-        self.dispatcher.submit_job(
-            'pipeman_desktop.client.api_client.logout',
-            on_success=self._actual_close,
-            on_error=self._actual_close
-        )
-
-    def _actual_close(self, e=None):
-        self.app_state.clear_batch()
-        if self.dispatcher.is_alive():
-            self.dispatcher.halt.set()
-            self.dispatcher.join()
-        self._pane_broadcast('on_close')
-        self.dispatcher.close()
-        self.messenger.close()
-        self.status_info.destroy()
-        self.root.destroy()
-
     def create_flag_operator(self, target_path: str, flag: int):
         return None  # TODO
         #return QCSetWorkingQuality(
@@ -391,11 +368,6 @@ class PipemanDesktop:
         #        )
         #    ]
         #)
-
-    def on_language_change(self):
-        self.root.title(i18n.tr('root_title'))
-        self.menus.update_languages()
-        self._pane_broadcast('on_language_change')
 
     def load_closest_child(self, full_path: str):
         path: list[str] = full_path.split('/')
@@ -479,6 +451,42 @@ class PipemanDesktop:
         self.show_user_exception(ex)
         self.app_state.handle_batch_close_error()
 
+
+
+    def close(self):
+        if self._is_closing:
+            return
+        self._is_closing = True
+        result = self.close_current_batch(QCBatchCloseOperation.RELEASE, after_close=self._close)
+        if result == CloseBatchResult.CANCELLED:
+            self._is_closing = False
+
+    def _close(self):
+        self.dispatcher.submit_job(
+            'pipeman_desktop.client.api_client.logout',
+            on_success=self._actual_close,
+            on_error=self._actual_close
+        )
+
+    def _actual_close(self, e=None):
+        self.app_state.clear_batch()
+        if self.dispatcher.is_alive():
+            self.dispatcher.halt.set()
+            self.dispatcher.join()
+        self._pane_broadcast('on_close')
+        self.dispatcher.close()
+        self.messenger.close()
+        self.status_info.destroy()
+        self.root.destroy()
+
+
+    # EVENTS
+
+    def on_language_change(self):
+        self.root.title(i18n.tr('root_title'))
+        self.menus.update_languages()
+        self._pane_broadcast('on_language_change')
+
     def on_configure(self, e):
         if self._run_on_startup:
             self._run_on_startup = False
@@ -489,6 +497,39 @@ class PipemanDesktop:
             self._last_screen_width_change_time = time.monotonic()
             self._screen_resize_in_progress = True
 
+    def on_startup(self):
+        self.dispatcher.start()
+        if isinstance(self.detector, DesktopLanguageDetector):
+            language: str = str(self._save_data.get("language", "und"))
+            self.detector.set_language(language)
+            if self.detector.detect_language(self.translations.supported_languages("interface")) == "und":
+                sel = ask_choice(
+                    self.root,
+                    options=self.translations.language_options(),
+                    title=i18n.tr('language_select_dialog_title')
+                )
+                if sel is None:
+                    self.close()
+                else:
+                    self.detector.set_language(sel)
+        self.on_language_change()
+        self.check_dispatcher()
+        self.check_messages()
+        self.check_screen_resize_complete()
+
+
+
+
+    # REGULAR EVENT CHECKS
+
+    def check_dispatcher(self):
+        self.dispatcher.process_results()
+        self.after(500, self.check_dispatcher)
+
+    def check_messages(self):
+        self.messenger.receive_into_label(self.status_info)
+        self.after(50, self.check_messages)
+
     def check_screen_resize_complete(self):
         if self._screen_resize_in_progress:
             elapsed = time.monotonic() - self._last_screen_width_change_time
@@ -498,17 +539,3 @@ class PipemanDesktop:
                 self.app_state.refresh_display(DisplayChange.SCREEN_SIZE)
         self.after(500, self.check_screen_resize_complete)
 
-    def on_startup(self):
-        self.dispatcher.start()
-        sel = ask_choice(self.root, options=i18n.supported_languages(), title=i18n.tr('language_select_dialog_title'))
-        if sel is None:
-            self.on_close()
-        else:
-            i18n.set_language(sel)
-            self.on_language_change()
-        self.check_dispatcher()
-        self.check_messages()
-        self.check_screen_resize_complete()
-
-    def launch(self):
-        self.root.mainloop()

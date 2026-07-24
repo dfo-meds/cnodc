@@ -17,11 +17,17 @@ class TranslationManager:
     @injector.construct
     def __init__(self): ...
 
-    def get_text(self, text_key: str, default: str = None) -> str:
+    def get_text(self, text_key: str, default: str = None, _language: str | None = None) -> str:
         return default if default is not None else text_key
 
     def supported_languages(self, context: str = "interface"):
         return ['und']
+
+    def language_options(self, context: str = "interface") -> dict[str, str]:
+        return {
+            x: self.get_text(f"language_{x}", _language=x)
+            for x in self.supported_languages(context)
+        }
 
 
 @injector.injectable_global
