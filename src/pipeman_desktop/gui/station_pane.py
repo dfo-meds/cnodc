@@ -3,7 +3,7 @@ import datetime
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
 from pipeman_desktop.gui.scrollable import ScrollableTreeview
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import tkinter.simpledialog as tksd
 import tkinter as tk
 import typing as t
@@ -28,36 +28,36 @@ class StationCreationDialog(tksd.Dialog):
         self.top_speed = tk.StringVar()
         self.embargo_days = tk.StringVar()
         self._units_box = None
-        super().__init__(parent=parent, title=i18n.get_text('station_creation_title'))
+        super().__init__(parent=parent, title=i18n.tr('station_creation_title'))
 
     def body(self, parent):
-        ttk.Label(parent, text=i18n.get_text('station_wmo_id')).grid(row=0, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_wmo_id')).grid(row=0, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.wmo_id).grid(row=0, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
-        ttk.Label(parent, text=i18n.get_text('station_wigos_id')).grid(row=1, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_wigos_id')).grid(row=1, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.wigos_id).grid(row=1, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
-        ttk.Label(parent, text=i18n.get_text('station_id')).grid(row=2, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_id')).grid(row=2, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.station_id).grid(row=2, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
-        ttk.Label(parent, text=i18n.get_text('station_name')).grid(row=3, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_name')).grid(row=3, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.station_name).grid(row=3, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
-        ttk.Label(parent, text=i18n.get_text('station_start_date')).grid(row=4, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_start_date')).grid(row=4, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.start_date).grid(row=4, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
-        ttk.Label(parent, text=i18n.get_text('station_end_date')).grid(row=5, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_end_date')).grid(row=5, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.end_date).grid(row=5, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
         # TODO instrumentation
         # TODO map to uuid
         # TODO status
         # TODO station type
-        ttk.Label(parent, text=i18n.get_text('station_embargo_days')).grid(row=6, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_embargo_days')).grid(row=6, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.embargo_days).grid(row=6, column=1, sticky='EW', columnspan=2, padx=2, pady=2)
-        ttk.Label(parent, text=i18n.get_text('station_top_speed')).grid(row=7, column=0, sticky='W', padx=2, pady=2)
+        ttk.Label(parent, text=i18n.tr('station_top_speed')).grid(row=7, column=0, sticky='W', padx=2, pady=2)
         ttk.Entry(parent, textvariable=self.top_speed).grid(row=7, column=1, sticky='EW', padx=2, pady=2)
         self._units_box = ttk.Combobox(parent, values=['m s-1', 'knot', 'km h-1'])
         self._units_box.current(0)
         self._units_box.grid(row=7, column=2, sticky='EW', padx=2, pady=2)
-        ttk.Checkbutton(parent, text=i18n.get_text('station_keep_external_qc'), onvalue=1, offvalue=0, variable=self.keep_external_qc).grid(row=8, column=1, sticky='W', columnspan=2, padx=2, pady=2)
-        ttk.Checkbutton(parent, text=i18n.get_text('station_require_review'), onvalue=1, offvalue=0, variable=self.require_review).grid(row=9, column=1, sticky='W', columnspan=2, padx=2, pady=2)
-        ttk.Checkbutton(parent, text=i18n.get_text('station_skip_bathymetry'), onvalue=1, offvalue=0, variable=self.skip_bathymetry).grid(row=10, column=1, sticky='W', columnspan=2, padx=2, pady=2)
-        ttk.Checkbutton(parent, text=i18n.get_text('station_skip_speed'), onvalue=1, offvalue=0, variable=self.skip_speed).grid(row=11, column=1, sticky='W', columnspan=2, padx=2, pady=2)
+        ttk.Checkbutton(parent, text=i18n.tr('station_keep_external_qc'), onvalue=1, offvalue=0, variable=self.keep_external_qc).grid(row=8, column=1, sticky='W', columnspan=2, padx=2, pady=2)
+        ttk.Checkbutton(parent, text=i18n.tr('station_require_review'), onvalue=1, offvalue=0, variable=self.require_review).grid(row=9, column=1, sticky='W', columnspan=2, padx=2, pady=2)
+        ttk.Checkbutton(parent, text=i18n.tr('station_skip_bathymetry'), onvalue=1, offvalue=0, variable=self.skip_bathymetry).grid(row=10, column=1, sticky='W', columnspan=2, padx=2, pady=2)
+        ttk.Checkbutton(parent, text=i18n.tr('station_skip_speed'), onvalue=1, offvalue=0, variable=self.skip_speed).grid(row=11, column=1, sticky='W', columnspan=2, padx=2, pady=2)
         # other metadata?
 
     def validate(self):
@@ -135,20 +135,20 @@ class StationPane(BasePane):
             selectmode="browse",
             show="headings",
             headers=[
-                i18n.get_text('station_uuid'),
-                i18n.get_text('station_wmo_id'),
-                i18n.get_text('station_wigos_id'),
-                i18n.get_text('station_name'),
-                i18n.get_text('station_id'),
-                i18n.get_text('station_start_date'),
-                i18n.get_text('station_end_date')
+                i18n.tr('station_uuid'),
+                i18n.tr('station_wmo_id'),
+                i18n.tr('station_wigos_id'),
+                i18n.tr('station_name'),
+                i18n.tr('station_id'),
+                i18n.tr('station_start_date'),
+                i18n.tr('station_end_date')
             ],
             displaycolumns=(0, 1, 2, 3, 4, 5, 6),
             on_right_click=self._on_right_click
         )
         self._station_list.grid(row=0, column=0, sticky='NSEW')
         # TODO: station searching options?
-        self.app.bottom_notebook.add(station_frame, text=i18n.get_text('station_list'), sticky='NSEW')
+        self.app.bottom_notebook.add(station_frame, text=i18n.tr('station_list'), sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:

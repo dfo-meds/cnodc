@@ -4,7 +4,7 @@ from pipeman_desktop.client.local_db import LocalDatabase
 from autoinject import injector
 import typing as t
 from pipeman_desktop.gui.scrollable import ScrollableTreeview
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 
@@ -36,15 +36,15 @@ class RecordListPane(BasePane):
         self._group.rowconfigure(3, weight=1)
         self._group.columnconfigure(0, weight=1)
         # TODO: label styling
-        self._record_label = ttk.Label(self._group, text=i18n.get_text("record_list_title")).grid(row=0, column=0, sticky='NSEW')
-        self._subrecord_label = ttk.Label(self._group, text=i18n.get_text("child_record_list_title")).grid(row=2, column=0, sticky='NSEW')
+        self._record_label = ttk.Label(self._group, text=i18n.tr("record_list_title")).grid(row=0, column=0, sticky='NSEW')
+        self._subrecord_label = ttk.Label(self._group, text=i18n.tr("child_record_list_title")).grid(row=2, column=0, sticky='NSEW')
         self._record_list = ScrollableTreeview(
             parent=self._group,
             selectmode="browse",
             show="",
             headers=[
-                i18n.get_text('record_list_index'),
-                i18n.get_text('record_list_title'),
+                i18n.tr('record_list_index'),
+                i18n.tr('record_list_title'),
             ],
             on_click=self._on_record_click,
             displaycolumns=(0, 1)
@@ -58,7 +58,7 @@ class RecordListPane(BasePane):
             selectmode="browse",
             show="tree",
             headers=[
-                i18n.get_text('subrecord_list_title'),
+                i18n.tr('subrecord_list_title'),
             ],
             on_click=self._on_subrecord_click,
             displaycolumns=(0,)
@@ -70,9 +70,9 @@ class RecordListPane(BasePane):
 
     def on_language_change(self, language: str):
         if self._record_label is not None:
-            self._record_label.configure(text=i18n.get_text('record_list_title'))
+            self._record_label.configure(text=i18n.tr('record_list_title'))
         if self._subrecord_label is not None:
-            self._subrecord_label.configure(text=i18n.get_text('child_record_list_title'))
+            self._subrecord_label.configure(text=i18n.tr('child_record_list_title'))
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.BATCH:
@@ -126,7 +126,7 @@ class RecordListPane(BasePane):
         return f'{(" " * (depth * 2))}{name}#{record_set_idx}'
 
     def _build_record_display(self, record: ocproc2.BaseRecord, srt: str, idx: int, depth: int):
-        display = i18n.get_text(f"record_label", index=str(idx))
+        display = i18n.tr(f"record_label", index=str(idx))
         einfo = self.ontology.recordset_info(srt)
         if einfo and einfo.coordinates:
             c_names = list(einfo.coordinates)

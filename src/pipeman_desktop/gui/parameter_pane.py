@@ -2,7 +2,7 @@ import datetime
 from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
 from pipeman_desktop.gui.choice_dialog import ask_choice
 from pipeman_desktop.gui.scrollable import ScrollableTreeview
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
@@ -32,27 +32,27 @@ class ParameterContextMenu:
         self._target_path = target_path
         self._menu = tk.Menu(app.root, tearoff=0)
         self._menu.add_command(
-            label=i18n.get_text('parameter_context_edit'),
+            label=i18n.tr('parameter_context_edit'),
             command=self._edit_value
         )
         self._menu.add_command(
-            label=i18n.get_text('parameter_context_flag_good'),
+            label=i18n.tr('parameter_context_flag_good'),
             command=self._flag_good
         )
         self._menu.add_command(
-            label=i18n.get_text('parameter_context_flag_probably_good'),
+            label=i18n.tr('parameter_context_flag_probably_good'),
             command=self._flag_probably_good
         )
         self._menu.add_command(
-            label=i18n.get_text('parameter_context_flag_dubious'),
+            label=i18n.tr('parameter_context_flag_dubious'),
             command=self._flag_dubious
         )
         self._menu.add_command(
-            label=i18n.get_text('parameter_context_flag_erroneous'),
+            label=i18n.tr('parameter_context_flag_erroneous'),
             command=self._flag_erroneous
         )
         self._menu.add_command(
-            label=i18n.get_text('parameter_context_flag_missing'),
+            label=i18n.tr('parameter_context_flag_missing'),
             command=self._flag_missing
         )
 
@@ -83,11 +83,11 @@ class ParameterContextMenu:
             ]
             if self._element_info.max_value is not None or self._element_info.min_value is not None:
                 if self._element_info.max_value is None:
-                    prompt.append(i18n.get_text('prompt_min_value', min=str(self._element_info.min_value)))
+                    prompt.append(i18n.tr('prompt_min_value', min=str(self._element_info.min_value)))
                 elif self._element_info.min_value is None:
-                    prompt.append(i18n.get_text('prompt_max_value', max=str(self._element_info.max_value)))
+                    prompt.append(i18n.tr('prompt_max_value', max=str(self._element_info.max_value)))
                 else:
-                    prompt.append(i18n.get_text('prompt_range', min=str(self._element_info.min_value), max=str(self._element_info.max_value)))
+                    prompt.append(i18n.tr('prompt_range', min=str(self._element_info.min_value), max=str(self._element_info.max_value)))
             prompt = "\n".join(prompt)
             if self._element_info.allowed_values:
                 return ask_choice(
@@ -138,15 +138,15 @@ class ParameterContextMenu:
             )
         elif data_type is None:
             data_type = ask_choice(
-                title=i18n.get_text('data_type_choice_title'),
-                prompt=i18n.get_text('data_type_choice_prompt'),
+                title=i18n.tr('data_type_choice_title'),
+                prompt=i18n.tr('data_type_choice_prompt'),
                 parent=self._app.root,
                 options={
-                    'string': i18n.get_text('data_type_string'),
-                    'integer': i18n.get_text('data_type_integer'),
-                    'dateTimeStamp': i18n.get_text('data_type_datetime'),
-                    'date': i18n.get_text('data_type_date'),
-                    'decimal': i18n.get_text('data_type_decimal')
+                    'string': i18n.tr('data_type_string'),
+                    'integer': i18n.tr('data_type_integer'),
+                    'dateTimeStamp': i18n.tr('data_type_datetime'),
+                    'date': i18n.tr('data_type_date'),
+                    'decimal': i18n.tr('data_type_decimal')
                 }
             )
             if data_type is not None:
@@ -158,8 +158,8 @@ class ParameterContextMenu:
                 return None
         else:
             tkmb.showwarning(
-                title=i18n.get_text('data_type_not_supported_title'),
-                message=i18n.get_text('data_type_not_supported_message', data_type=data_type)
+                title=i18n.tr('data_type_not_supported_title'),
+                message=i18n.tr('data_type_not_supported_message', data_type=data_type)
             )
 
     def _flag_dubious(self):
@@ -226,10 +226,10 @@ class ParameterPane(BasePane):
             show="tree headings",
             headers=[
                 '',
-                i18n.get_text('parameter_list_name'),
-                i18n.get_text('parameter_list_value'),
-                i18n.get_text('parameter_list_units'),
-                i18n.get_text('parameter_list_quality'),
+                i18n.tr('parameter_list_name'),
+                i18n.tr('parameter_list_value'),
+                i18n.tr('parameter_list_units'),
+                i18n.tr('parameter_list_quality'),
             ],
             on_right_click=self._on_parameter_right_click,
             displaycolumns=(1, 2, 3, 4)
@@ -276,21 +276,21 @@ class ParameterPane(BasePane):
         self._value_lookup = {}
         if record.metadata:
             m_path = f'{path}/metadata' if path else 'metadata'
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.get_text('metadata'), '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.tr('metadata'), '', '', ''], tags=['header'])
             is_alt = False
             for k in record.metadata.keys():
                 self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
         if record.coordinates:
             c_path = f'{path}/coordinates' if path else 'coordinates'
-            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=['', i18n.get_text('coordinates'), '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=['', i18n.tr('coordinates'), '', '', ''], tags=['header'])
             is_alt = False
             for k in record.coordinates.keys():
                 self._create_parameter_entry(record.coordinates[k], c_path, k, is_alt=is_alt)
                 is_alt = not is_alt
         if record.parameters:
             p_path = f'{path}/parameters' if path else 'parameters'
-            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=['', i18n.get_text('parameters'), '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=['', i18n.tr('parameters'), '', '', ''], tags=['header'])
             is_alt = False
             for k in record.parameters.keys():
                 self._create_parameter_entry(record.parameters[k], p_path, k, is_alt=is_alt)
@@ -301,7 +301,7 @@ class ParameterPane(BasePane):
         if record_set.metadata:
             m_path = f'{path}/metadata'
             is_alt = False
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.get_text('metadata'), '', '', ''], tags=['header'])
+            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.tr('metadata'), '', '', ''], tags=['header'])
             for k in record_set.metadata.keys():
                 self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt

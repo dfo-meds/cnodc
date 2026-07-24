@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tkinter.ttk as ttk
 import typing as t
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import matplotlib.axes as mpla
 import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
@@ -12,7 +12,7 @@ from pipeman_desktop.gui.base_pane import SimpleRecordInfo
 from medsutil.geodesy import great_circle_distance
 
 if t.TYPE_CHECKING:
-    from pipeman_desktop.main_app import CNODCQCApp
+    from pipeman_desktop.main_app import PipemanDesktop
     import medsutil.ocproc2 as ocproc2
 
 
@@ -41,7 +41,7 @@ TICK_INTERVALS = [
 
 class OCProc2Graph(ttk.Frame):
 
-    def __init__(self, parent, app: CNODCQCApp):
+    def __init__(self, parent, app: PipemanDesktop):
         super().__init__(parent, width=500, height=500)
         self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
@@ -416,7 +416,7 @@ class OCProc2Graph(ttk.Frame):
     def _build_graph_list(self) -> dict[str, str]:
         graph_options = {}
         if self.app.app_state.batch_record_info is not None and len(self.app.app_state.batch_record_info) > 1:
-            graph_options['batch::speed_chart'] = i18n.get_text('graph_speed_chart')
+            graph_options['batch::speed_chart'] = i18n.tr('graph_speed_chart')
         if self.app.app_state.record is not None:
             graph_options.update(self._record_graph_options(self.app.app_state.record))
         return graph_options

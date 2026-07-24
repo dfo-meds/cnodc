@@ -1,6 +1,9 @@
-import contextvars as cv
+from autoinject import injector
 import typing as t
 
+from zirconium import ApplicationConfig
+
+from gcapp.i18n import LanguageDetector
 
 TRANSLATIONS = {
     'und': {
@@ -113,55 +116,17 @@ TRANSLATIONS = {
 }
 
 
-CURRENT_LANGUAGE = cv.ContextVar[str]("current_language", default="und")
+class DesktopLanguageDetector(LanguageDetector):
 
+    config: ApplicationConfig
 
-def get_text(key: str, lang: str = None, **kwargs: str):
-    if lang is None:
-        lang = current_language()
-    if key in TRANSLATIONS[lang]:
-        return sub_text(TRANSLATIONS[lang][key], kwargs)
-    elif lang != 'und' and key in TRANSLATIONS['und']:
-        return sub_text(TRANSLATIONS['und'][key], kwargs)
-    elif lang != 'en' and key in TRANSLATIONS['en']:
-        return sub_text(TRANSLATIONS['en'][key], kwargs)
-    else:
-        return f"?{key}?"
+    @injector.construct
+    def __init__(self):
+        self._current_language: str = t.cast(str, self.config.as_str("language", default="und"))
 
+    def set_language(self, language: str):
+        self._current_language = language
 
-def get_text_from_dict(options: dict[str, str], lang: str = None, default: t.Optional[str] = None):
-    if lang is None:
-        lang = current_language()
-    if lang in options:
-        return options[lang]
-    elif lang != 'und' and 'und' in options:
-        return options['und']
-    elif lang != 'en' and 'en' in options:
-        return options['en']
-    else:
-        return default or str(options)
+    def detect_language(self, supported_languages: t.Sequence[str]) -> str:
+        return self._current_language if self._current_language in supported_languages else "und"
 
-
-def sub_text(txt: str, subs: dict[str, str]):
-    for x in subs:
-        key = '{' + str(x) + '}'
-        if key in txt:
-            txt = txt.replace(key, subs[x])
-    return txt
-
-
-def current_language() -> str:
-    return CURRENT_LANGUAGE.get()
-
-
-def set_language(lang_code: str):
-    if lang_code not in ('en', 'fr', 'und'):
-        raise ValueError(f'Invalid language code {lang_code}')
-    CURRENT_LANGUAGE.set(lang_code)
-
-
-def supported_languages() -> dict:
-    return {
-        'en': 'English',
-        'fr': 'Français'
-    }

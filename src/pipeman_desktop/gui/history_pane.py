@@ -4,7 +4,7 @@ import typing as t
 import tkinter as tk
 import datetime
 import tkinter.ttk as ttk
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 from medsutil.ocproc2 import MessageType
 
 
@@ -24,10 +24,10 @@ class HistoryPane(BasePane):
             selectmode="browse",
             show="headings",
             headers=[
-                i18n.get_text('history_time'),
-                i18n.get_text('history_message'),
-                i18n.get_text('history_source'),
-                i18n.get_text('history_type')
+                i18n.tr('history_time'),
+                i18n.tr('history_message'),
+                i18n.tr('history_source'),
+                i18n.tr('history_type')
             ],
             displaycolumns=(0, 1, 2, 3)
         )
@@ -60,7 +60,7 @@ class HistoryPane(BasePane):
                             datetime.datetime.fromisoformat(history.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
                             history.message,
                             f"{history.source_name} {history.source_version} [{history.source_instance}]",
-                            i18n.get_text(f'message_type_{history.message_type.value.lower()}')
+                            i18n.tr(f'message_type_{history.message_type.value.lower()}')
                         ],
                         tags=tags
                     )

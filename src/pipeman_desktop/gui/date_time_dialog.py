@@ -5,7 +5,7 @@ import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import tkinter.messagebox as tkmb
 import typing as t
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import tkcalendar as tkc
 import datetime
 
@@ -76,10 +76,10 @@ class DateTimeDialog(tksd.Dialog):
                 self._date_control.set_date(self._default)
             first = self._date_control
         if self._mode in (_DateTimeDialogMode.DATE_TIME, _DateTimeDialogMode.TIME_ONLY):
-            ttk.Label(parent, text=i18n.get_text('hour')).grid(row=2, column=0, sticky='NSEW', padx=2, pady=2)
-            ttk.Label(parent, text=i18n.get_text('minute')).grid(row=2, column=1, sticky='NSEW', padx=2, pady=2)
-            ttk.Label(parent, text=i18n.get_text('second')).grid(row=2, column=2, sticky='NSEW', padx=2, pady=2)
-            ttk.Label(parent, text=i18n.get_text('timezone')).grid(row=2, column=3, sticky='NSEW', padx=2, pady=2)
+            ttk.Label(parent, text=i18n.tr('hour')).grid(row=2, column=0, sticky='NSEW', padx=2, pady=2)
+            ttk.Label(parent, text=i18n.tr('minute')).grid(row=2, column=1, sticky='NSEW', padx=2, pady=2)
+            ttk.Label(parent, text=i18n.tr('second')).grid(row=2, column=2, sticky='NSEW', padx=2, pady=2)
+            ttk.Label(parent, text=i18n.tr('timezone')).grid(row=2, column=3, sticky='NSEW', padx=2, pady=2)
             hour = ttk.Combobox(parent, textvariable=self._hour, values=[str(x) for x in range(0, 24)], width=5)
             hour.grid(row=3, column=0, sticky='NSEW', padx=2, pady=2)
             minute = ttk.Combobox(parent, textvariable=self._minute, values=[str(x) for x in range(0, 60)], width=5)

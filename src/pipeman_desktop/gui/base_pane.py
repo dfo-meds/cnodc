@@ -5,11 +5,11 @@ import typing as t
 import enum
 
 from medsutil.ocproc2.operations import RecordAction
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 
 
 if t.TYPE_CHECKING:
-    from pipeman_desktop.main_app import CNODCQCApp
+    from pipeman_desktop.main_app import PipemanDesktop
     import medsutil.ocproc2 as ocproc2
 
 
@@ -288,7 +288,7 @@ class ApplicationState:
 
 class BasePane:
 
-    def __init__(self, app: CNODCQCApp):
+    def __init__(self, app: PipemanDesktop):
         self.app = app
 
     def on_init(self):

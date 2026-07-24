@@ -3,7 +3,7 @@ from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayCha
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import tkinter.simpledialog as tksd
 from pipeman_desktop.gui.bordered_entry import BorderedEntry
 
@@ -15,14 +15,14 @@ class PasswordDialog(tksd.Dialog):
         self.password2_var = tk.StringVar(parent)
         self._password1_entry: t.Optional[BorderedEntry] = None
         self._password2_entry: t.Optional[BorderedEntry] = None
-        super().__init__(parent, title=i18n.get_text('change_password_dialog_title'))
+        super().__init__(parent, title=i18n.tr('change_password_dialog_title'))
 
     def body(self, parent):
-        ttk.Label(parent, text=i18n.get_text('password_change_message')).grid(row=0, column=0, columnspan=2)
-        ttk.Label(parent, text=i18n.get_text('password_change_1')).grid(row=1, column=0, sticky='W')
+        ttk.Label(parent, text=i18n.tr('password_change_message')).grid(row=0, column=0, columnspan=2)
+        ttk.Label(parent, text=i18n.tr('password_change_1')).grid(row=1, column=0, sticky='W')
         self._password1_entry = BorderedEntry(parent, textvariable=self.password1_var, show='*')
         self._password1_entry.grid(row=1, column=1)
-        ttk.Label(parent, text=i18n.get_text('password_change_2')).grid(row=2, column=0, sticky='W')
+        ttk.Label(parent, text=i18n.tr('password_change_2')).grid(row=2, column=0, sticky='W')
         self._password2_entry = BorderedEntry(parent, textvariable=self.password2_var, show='*')
         self._password2_entry.grid(row=2, column=1)
         return self._password1_entry
@@ -78,8 +78,8 @@ class LoginPane(BasePane):
 
     def on_logout(self, result: tuple[str, list[str]]):
         self.app.show_user_info(
-            i18n.get_text('logout_success_title'),
-            i18n.get_text('logout_success_message')
+            i18n.tr('logout_success_title'),
+            i18n.tr('logout_success_message')
         )
         self._username = None
         self._access_list = None
@@ -140,9 +140,9 @@ class LoginPane(BasePane):
 
     def on_language_change(self, language: str):
         if self._username is None:
-            self._user_status_bar.configure(text=i18n.get_text('no_user_logged_in'))
+            self._user_status_bar.configure(text=i18n.tr('no_user_logged_in'))
         else:
-            self._user_status_bar.configure(text=i18n.get_text('user_logged_in', username=self._username))
+            self._user_status_bar.configure(text=i18n.tr('user_logged_in', username=self._username))
 
     def update_user_state(self):
         if self._username is None:

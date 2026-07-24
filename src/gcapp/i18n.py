@@ -24,6 +24,13 @@ class TranslationManager:
         return ['und']
 
 
+@injector.injectable_global
+class LanguageDetector:
+
+    def detect_language(self, supported_languages: t.Sequence[str]) -> str:
+        return supported_languages[0] if supported_languages else "und"
+
+
 class BaseDString(abc.ABC):
 
     def __bool__(self) -> bool:
@@ -212,6 +219,27 @@ class MLString(DStringIndividual):
         return key in self.language_map and self.language_map[key]
 
 
+class MLLink(MLString):
+
+    def __init__(self, link: str, language_map: dict[str, str], *args, new_tab: bool = False, **kwargs):
+        self.link = link
+        self.new_tab = new_tab
+        super().__init__(language_map, *args, **kwargs)
+
+    def _render(self, **kwargs):
+        text = super().render(**kwargs)
+        target = "" if not self.new_tab else " target='_blank'"
+        return markupsafe.Markup(f'<a href="{self.link}"{target}>{markupsafe.escape(text)}</a>')
+
+    def _build(self,
+               new_args: list | None = None,
+               new_kwargs: dict[str, t.Any] | None = None,
+               new_transforms: list[str] | None = None):
+        new_mlstring = MLLink(self.link, self.language_map, new_tab=self.new_tab)
+        new_mlstring._update_from(self, new_args, new_kwargs, new_transforms)
+        return new_mlstring
+
+
 class TranslatableError(CodedError):
 
     def __init__(self, key: str, code_number: int, *, code_space: str | None = None, is_transient: bool = False):
@@ -256,31 +284,3 @@ def i18n_sort_key(x, key, language_order, ignore_case):
             if x[lang]:
                 return x[lang] if not ignore_case else x[lang].lower()
     return ""
-
-
-@injector.injectable_global
-class LanguageDetector:
-
-    def detect_language(self, supported_languages: t.Sequence[str]) -> str:
-        return supported_languages[0] if supported_languages else "und"
-
-
-class MLLink(MLString):
-
-    def __init__(self, link: str, language_map: dict[str, str], *args, new_tab: bool = False, **kwargs):
-        self.link = link
-        self.new_tab = new_tab
-        super().__init__(language_map, *args, **kwargs)
-
-    def _render(self, **kwargs):
-        text = super().render(**kwargs)
-        target = "" if not self.new_tab else " target='_blank'"
-        return markupsafe.Markup(f'<a href="{self.link}"{target}>{markupsafe.escape(text)}</a>')
-
-    def _build(self,
-               new_args: list | None = None,
-               new_kwargs: dict[str, t.Any] | None = None,
-               new_transforms: list[str] | None = None):
-        new_mlstring = MLLink(self.link, self.language_map, new_tab=self.new_tab)
-        new_mlstring._update_from(self, new_args, new_kwargs, new_transforms)
-        return new_mlstring

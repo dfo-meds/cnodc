@@ -11,7 +11,7 @@ import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.backend_bases as mplbb
 import tkinter as tk
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 from pipeman_desktop.gui.ocproc_graph import OCProc2Graph
 from medsutil.geodesy import great_circle_distance
 from medsutil.units import UnitConverter
@@ -112,11 +112,11 @@ class _GraphPane(BasePane):
             label=coordinate_value
         )
         menu.add_command(
-            label=i18n.get_text(flag_right_key, coordinate=str(coordinate_value), flag=str(4)),
+            label=i18n.tr(flag_right_key, coordinate=str(coordinate_value), flag=str(4)),
             command=functools.partial(self._flag_right, coordinate_value=coordinate_value, flag=4)
         )
         menu.add_command(
-            label=i18n.get_text(flag_right_key, coordinate=str(coordinate_value), flag=str(3)),
+            label=i18n.tr(flag_right_key, coordinate=str(coordinate_value), flag=str(3)),
             command=functools.partial(self._flag_right, coordinate_value=coordinate_value, flag=3)
         )
         widget_x = self._canvas.get_tk_widget().winfo_rootx() + event.x

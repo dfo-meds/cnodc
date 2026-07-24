@@ -2,7 +2,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import typing as t
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 from pipeman_desktop.gui.bordered_entry import BorderedEntry
 
 
@@ -17,7 +17,7 @@ class LoginDialog(tksd.Dialog):
                  parent,
                  title: t.Optional[str] = None):
         if title is None:
-            title = i18n.get_text('login_dialog_title')
+            title = i18n.tr('login_dialog_title')
         self.username_var = tk.StringVar(parent)
         self.password_var = tk.StringVar(parent)
         self._username_entry: t.Optional[BorderedEntry] = None
@@ -26,10 +26,10 @@ class LoginDialog(tksd.Dialog):
         super().__init__(parent=parent, title=title)
 
     def body(self, parent):
-        ttk.Label(parent, text=i18n.get_text('login_dialog_username')).grid(row=0, column=0)
+        ttk.Label(parent, text=i18n.tr('login_dialog_username')).grid(row=0, column=0)
         self._username_entry = BorderedEntry(parent, textvariable=self.username_var)
         self._username_entry.grid(row=0, column=1)
-        ttk.Label(parent, text=i18n.get_text('login_dialog_password')).grid(row=1, column=0)
+        ttk.Label(parent, text=i18n.tr('login_dialog_password')).grid(row=1, column=0)
         self._password_entry = BorderedEntry(parent, show='*', textvariable=self.password_var)
         self._password_entry.grid(row=1, column=1)
         return self._username_entry

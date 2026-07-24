@@ -2,7 +2,7 @@ from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayCha
 from pipeman_desktop.gui.scrollable import ScrollableTreeview
 import typing as t
 import tkinter.ttk as ttk
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 
 
 class ErrorPane(BasePane):
@@ -21,10 +21,10 @@ class ErrorPane(BasePane):
             selectmode='browse',
             show='headings',
             headers=[
-                i18n.get_text('qc_test_name'),
-                i18n.get_text('qc_test_time'),
-                i18n.get_text('qc_test_error_name'),
-                i18n.get_text('qc_test_element_name')
+                i18n.tr('qc_test_name'),
+                i18n.tr('qc_test_time'),
+                i18n.tr('qc_test_error_name'),
+                i18n.tr('qc_test_element_name')
             ],
             displaycolumns=(0, 1, 2, 3),
             on_click=self._on_click
@@ -49,9 +49,9 @@ class ErrorPane(BasePane):
                                 parent='',
                                 index='end',
                                 values=[
-                                    i18n.get_text(f'qc_test_{result.test_name.lower()}'),
+                                    i18n.tr(f'qc_test_{result.test_name.lower()}'),
                                     result.test_date,
-                                    i18n.get_text(f'qc_error_{message.code.lower()}'),
+                                    i18n.tr(f'qc_error_{message.code.lower()}'),
                                     message.record_path
                                 ]
                             )

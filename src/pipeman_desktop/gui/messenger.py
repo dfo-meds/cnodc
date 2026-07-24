@@ -1,7 +1,7 @@
 from autoinject import injector
 import queue
 import tkinter as tk
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 
 
 @injector.injectable_global
@@ -14,7 +14,7 @@ class CrossThreadMessenger:
         self._messages.put_nowait(msg)
 
     def send_translatable(self, key: str, **kwargs):
-        self._messages.put_nowait(i18n.get_text(key, **kwargs))
+        self._messages.put_nowait(i18n.tr(key, **kwargs))
 
     def receive_into_label(self, label: tk.Label):
         try:

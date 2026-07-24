@@ -9,14 +9,14 @@ import traceback
 
 import zrlog
 import medsutil.ocproc2 as ocproc2
-from pipeman_desktop import VERSION
+from gcapp.system import System
 from pipeman_desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
     SimpleRecordInfo, CloseBatchResult
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.gui.action_pane import ActionPane
 from pipeman_desktop.gui.button_pane import ButtonPane
 from pipeman_desktop.gui.choice_dialog import ask_choice
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import threading
 import uuid
 import typing as t
@@ -32,13 +32,13 @@ from pipeman_desktop.gui.parameter_pane import ParameterPane
 from pipeman_desktop.gui.record_list_pane import RecordListPane
 from pipeman_desktop.gui.station_pane import StationPane
 from pipeman_desktop.gui.map_pane import MapPane
-from pipeman_desktop.util import TranslatableException
-from medsutil.ocproc2.operations import RecordAction, QCSetWorkingQuality, QCAddHistory
+from gcapp.i18n import TranslatableError
+from medsutil.ocproc2.operations import RecordAction
 from medsutil.dynamic import dynamic_object
 from autoinject import injector
 
 
-class CNODCQCAppDispatcher(threading.Thread):
+class PipemanDispatcher(threading.Thread):
 
     messenger: CrossThreadMessenger = None
 
@@ -124,17 +124,13 @@ class CNODCQCAppDispatcher(threading.Thread):
                 del self._job_map[job_id]
 
 
-class CNODCQCApp:
+class PipemanDesktop:
 
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
 
     @injector.construct
-    def __init__(self, test_mode: bool = True):
-        if test_mode:
-            from pipeman_desktop.client.api_client import WebAPIClient
-            from pipeman_desktop.client.test_client import TestClient
-            injector.override(WebAPIClient, TestClient)
+    def __init__(self, system: System):
         self._is_closing: bool = False
         self.log = zrlog.get_logger('cnodc.desktop')
         self.app_state = ApplicationState(self.refresh_display)
@@ -143,7 +139,7 @@ class CNODCQCApp:
         self._screen_resize_in_progress = False
         self.root = tk.Tk()
         self.root.state('zoomed')
-        self.root.title(i18n.get_text('root_title'))
+        self.root.title(i18n.tr('root_title'))
         self.root.geometry('900x500')
         self.root.bind("<Configure>", self.on_configure)
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
@@ -193,9 +189,9 @@ class CNODCQCApp:
         self.left_frame.columnconfigure(0, weight=1)
         self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
         self.loading_wheel.grid(row=0, column=0, sticky='W')
-        self.status_info = ttk.Label(self.bottom_bar, text="W", relief=tk.SOLID, borderwidth=2)
+        self.status_info = ttk.Label(self.bottom_bar, text="W", relief="solid", borderwidth=2)
         self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
-        self.dispatcher = CNODCQCAppDispatcher(self.loading_wheel)
+        self.dispatcher = PipemanDispatcher(self.loading_wheel)
         self._panes = []
         self._panes.append(LoginPane(self))
         self._panes.append(ButtonPane(self))
@@ -209,13 +205,22 @@ class CNODCQCApp:
         self._panes.append(StationPane(self))
         self._pane_broadcast('on_init')
 
+    def after(self, delay_ms: int, cb: t.Callable[[], t.Any], *args):
+        self.root.after(delay_ms, cb, *args)  # note: this is an error in tkinter's typing not mine
+
     def check_dispatcher(self):
         self.dispatcher.process_results()
-        self.root.after(500, self.check_dispatcher)
+        self.after(500, self.check_dispatcher)
 
     def check_messages(self):
         self.messenger.receive_into_label(self.status_info)
-        self.root.after(50, self.check_messages)
+        self.after(50, self.check_messages)
+
+
+
+
+
+
 
     def save_operations(self, actions: list[RecordAction]):
         if self.app_state.record_uuid is not None:
@@ -277,14 +282,14 @@ class CNODCQCApp:
         tkmb.showinfo(title, message)
 
     def show_user_exception(self, ex: Exception):
-        if isinstance(ex, TranslatableException):
+        if isinstance(ex, TranslatableError):
             tkmb.showerror(
-                title=i18n.get_text('error_message_title'),
-                message=i18n.get_text(ex.key, **ex.kwargs)
+                title=i18n.tr('error_message_title'),
+                message=i18n.tr(ex.key, **ex.kwargs)
             )
         else:
             tkmb.showerror(
-                title=i18n.get_text('error_message_title'),
+                title=i18n.tr('error_message_title'),
                 message=f"{ex.__class__.__name__}: {str(ex)}"
             )
 
@@ -332,8 +337,8 @@ class CNODCQCApp:
     def _after_save(self, res: bool, after_save: t.Callable = None):
         if not res:
             self.show_user_info(
-                i18n.get_text('save_partial_fail_title'),
-                i18n.get_text('save_partial_fail_message')
+                i18n.tr('save_partial_fail_title'),
+                i18n.tr('save_partial_fail_message')
             )
             self.app_state.set_save_flag(False, self.app_state.has_unsaved_changes)
         else:
@@ -372,24 +377,25 @@ class CNODCQCApp:
         self.root.destroy()
 
     def create_flag_operator(self, target_path: str, flag: int):
-        return QCSetWorkingQuality(
-            value_path=target_path,
-            new_value=flag,
-            children=[
-                QCAddHistory(
-                    message=f"CHANGE QC FLAG [{target_path}] to [{flag}]",
-                    source_name="manual_qc",
-                    source_version=VERSION,
-                    source_instance=t.cast(str, self.app_state.username),
-                    message_type=ocproc2.MessageType.INFO.value
-                )
-            ]
-        )
+        return None  # TODO
+        #return QCSetWorkingQuality(
+        #    value_path=target_path,
+        #    new_value=flag,
+        #    children=[
+        #        QCAddHistory(
+        #            message=f"CHANGE QC FLAG [{target_path}] to [{flag}]",
+        #            source_name="manual_qc",
+        #            source_version=VERSION,
+        #            source_instance=t.cast(str, self.app_state.username),
+        #            message_type=ocproc2.MessageType.INFO.value
+        #        )
+        #    ]
+        #)
 
     def on_language_change(self):
-        self.root.title(i18n.get_text('root_title'))
+        self.root.title(i18n.tr('root_title'))
         self.menus.update_languages()
-        self._pane_broadcast('on_language_change', i18n.current_language())
+        self._pane_broadcast('on_language_change')
 
     def load_closest_child(self, full_path: str):
         path: list[str] = full_path.split('/')
@@ -422,8 +428,8 @@ class CNODCQCApp:
                 self.app_state.complete_batch_open(result[0], result[1], record_info)
         else:
             self.show_user_info(
-                title=i18n.get_text(f'no_items_title_{self.app_state.batch_service_name}'),
-                message=i18n.get_text(f'no_items_message_{self.app_state.batch_service_name}')
+                title=i18n.tr(f'no_items_title_{self.app_state.batch_service_name}'),
+                message=i18n.tr(f'no_items_message_{self.app_state.batch_service_name}')
             )
             self.app_state.clear_batch()
 
@@ -444,8 +450,8 @@ class CNODCQCApp:
         if self.app_state.batch_state == BatchOpenState.OPEN:
             if self.app_state.has_unsaved_changes:
                 result = tkmb.askyesno(
-                    title=i18n.get_text('close_without_saving_title'),
-                    message=i18n.get_text('close_without_saving_message')
+                    title=i18n.tr('close_without_saving_title'),
+                    message=i18n.tr('close_without_saving_message')
                 )
                 if not result:
                     return CloseBatchResult.CANCELLED
@@ -476,7 +482,7 @@ class CNODCQCApp:
     def on_configure(self, e):
         if self._run_on_startup:
             self._run_on_startup = False
-            self.root.after(250, self.on_startup)
+            self.after(250, self.on_startup)
         screen_size = (self.root.winfo_width(), self.root.winfo_height())
         if screen_size != self._current_screen_size:
             self._current_screen_size = screen_size
@@ -490,11 +496,11 @@ class CNODCQCApp:
                 self._screen_resize_in_progress = False
                 self._last_screen_width_change_time = None
                 self.app_state.refresh_display(DisplayChange.SCREEN_SIZE)
-        self.root.after(500, self.check_screen_resize_complete)
+        self.after(500, self.check_screen_resize_complete)
 
     def on_startup(self):
         self.dispatcher.start()
-        sel = ask_choice(self.root, options=i18n.supported_languages(), title=i18n.get_text('language_select_dialog_title'))
+        sel = ask_choice(self.root, options=i18n.supported_languages(), title=i18n.tr('language_select_dialog_title'))
         if sel is None:
             self.on_close()
         else:

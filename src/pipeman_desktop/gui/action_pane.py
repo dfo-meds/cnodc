@@ -3,7 +3,7 @@ import functools
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
 import typing as t
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 from pipeman_desktop.gui.scrollable import ScrollableTreeview
 from medsutil.ocproc2.operations import RecordAction
 import tkinter as tk
@@ -29,9 +29,9 @@ class ActionPane(BasePane):
             selectmode='browse',
             show='headings',
             headers=[
-                i18n.get_text('action_item_name'),
-                i18n.get_text('action_item_object'),
-                i18n.get_text('action_item_value')
+                i18n.tr('action_item_name'),
+                i18n.tr('action_item_object'),
+                i18n.tr('action_item_value')
             ],
             on_right_click=self._on_action_right_click,
             displaycolumns=(0, 1, 2)
@@ -67,11 +67,11 @@ class ActionPane(BasePane):
     def _on_action_right_click(self, item, e):
         menu = tk.Menu(self.app.root, tearoff=0)
         menu.add_command(
-            label=i18n.get_text('goto'),
+            label=i18n.tr('goto'),
             command=functools.partial(self._goto_item, path=item['values'][1])
         )
         menu.add_command(
-            label=i18n.get_text('remove'),
+            label=i18n.tr('remove'),
             command=functools.partial(self._remove_item, db_index=item['values'][-1])
         )
         try:

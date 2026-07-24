@@ -1,5 +1,5 @@
-from main_app import CNODCQCApp
+
 
 if __name__ == '__main__':
-    app = CNODCQCApp()
-    app.launch()
+    from pipeman_desktop.boot import boot_pipeman_desktop
+    boot_pipeman_desktop()

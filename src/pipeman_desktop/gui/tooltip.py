@@ -1,4 +1,4 @@
-import pipeman_desktop.translations as i18n
+import gcapp.i18n as i18n
 import typing as t
 import tkinter as tk
 
@@ -26,9 +26,9 @@ class Tooltip:
 
     def _get_text(self):
         if isinstance(self._text, str):
-            return i18n.get_text(self._text)
+            return i18n.tr(self._text)
         else:
-            return i18n.get_text_from_dict(self._text)
+            return str(i18n.MLString(self._text))
 
     def _on_leave(self, e):
         if self._window is not None:
