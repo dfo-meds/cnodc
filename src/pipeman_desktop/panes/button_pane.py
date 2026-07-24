@@ -165,7 +165,7 @@ class ButtonPane(BasePane):
         self.app.save_changes()
 
     def _next_item(self):
-        choice = ask_choice(self.app.root, self.app.app_state.service_choices())
+        choice = ask_choice(self.app.root, self.app.state.service_choices())
         if choice is not None:
             self.app.open_qc_batch(choice)
 
@@ -198,22 +198,22 @@ class ButtonPane(BasePane):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))
 
     def _then_complete(self, res: bool = True, load_next: bool = False):
-        if self.app.app_state.is_batch_action_available('complete'):
+        if self.app.state.is_batch_action_available('complete'):
             self.app.close_current_batch(QCBatchCloseOperation.COMPLETE, load_next)
 
     def _then_release(self, res: bool = True):
-        if self.app.app_state.is_batch_action_available('release'):
+        if self.app.state.is_batch_action_available('release'):
             self.app.close_current_batch(QCBatchCloseOperation.RELEASE)
 
     def _then_fail(self, res: bool = True):
-        if self.app.app_state.is_batch_action_available('fail'):
+        if self.app.state.is_batch_action_available('fail'):
             self.app.close_current_batch(QCBatchCloseOperation.FAIL)
 
     def _then_escalate(self, res: bool = True):
-        if self.app.app_state.is_batch_action_available('escalate'):
+        if self.app.state.is_batch_action_available('escalate'):
             self.app.close_current_batch(QCBatchCloseOperation.ESCALATE)
 
     def _then_descalate(self, res: bool = True):
-        if self.app.app_state.is_batch_action_available('descalate'):
+        if self.app.state.is_batch_action_available('descalate'):
             self.app.close_current_batch(QCBatchCloseOperation.DESCALATE)
 

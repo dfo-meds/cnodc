@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
 class BasePane:
 
     def __init__(self, app: PipemanDesktop):
-        self.app = app
+        self.app: PipemanDesktop = app
 
     def on_init(self):
         pass

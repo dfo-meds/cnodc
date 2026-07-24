@@ -42,7 +42,7 @@ class CloseBatchResult(enum.Enum):
     CANCELLED = 'N'
 
 
-class DisplayChange(enum.Flag):
+class DisplayChange(enum.IntFlag):
 
     USER = enum.auto()
     BATCH = enum.auto()
@@ -102,10 +102,15 @@ class ApplicationState:
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
         self.actions: t.Optional[list[RecordAction]] = None
         self.save_in_progress: bool = False
-        self.username: t.Optional[str] = None
+        self._username: t.Optional[str] = None
+        self._available_services: list[str] | None = None
         self.has_unsaved_changes: bool = False
         self.user_access: t.Optional[dict[str, dict[str, str]]] = None
         self.batch_record_info: t.Optional[dict[str, SimpleRecordInfo]] = None
+
+    @property
+    def username(self) -> str | None:
+        return self._username
 
     def can_logout(self):
         if self.username is None:
@@ -113,6 +118,22 @@ class ApplicationState:
         if self.save_in_progress:
             return False
         return self.batch_state is None or self.batch_state == BatchOpenState.OPEN
+
+    def refresh_display(self, change_type: DisplayChange, *args, **kwargs):
+        self._display_cb(self, change_type)
+
+    def logout(self,
+               after_close: t.Callable[[], t.Any],
+               after_cancel: t.Callable[[], t.Any]):
+        # TODO: this used to call close_current_batch()
+        if self.can_logout():
+            after_close()
+        else:
+            after_cancel()
+
+
+
+
 
     def has_access(self, access_name: str) -> bool:
         return self.user_access is not None and access_name in self.user_access
@@ -218,10 +239,10 @@ class ApplicationState:
         self.batch_load_after_close = None
         self.refresh_display(DisplayChange.BATCH | DisplayChange.OP_ONGOING)
 
-    def update_user_info(self, username: str | None, access_list: dict[str, dict[str, str]]) -> bool:
+    def update_user_info(self, username: str | None, access_list: list[str]) -> bool:
         if self.username != username or self.user_access != access_list:
-            self.username = username
-            self.user_access = access_list
+            self._username = username
+            self._available_services = access_list
             self.refresh_display(DisplayChange.USER)
             return True
         return False
@@ -275,9 +296,6 @@ class ApplicationState:
         else:
             self.child_record = None
             self.child_recordset = None
-
-    def refresh_display(self, change_type: DisplayChange, *args, **kwargs):
-        self._display_cb(self, change_type)
 
     def _update_batch_info_from_current_record(self) -> bool:
         # TODO:

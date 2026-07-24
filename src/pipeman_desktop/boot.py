@@ -12,6 +12,6 @@ def boot_pipeman_desktop(test_mode: bool = True):
         manual_overrides=overrides,
     )
 
-    from main_app import PipemanDesktop
+    from pipeman_desktop.main_app import PipemanDesktop
     app = PipemanDesktop(system)
     app.launch()

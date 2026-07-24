@@ -12,28 +12,29 @@ import zrlog
 import medsutil.ocproc2 as ocproc2
 from gcapp.system import System
 from medsutil.savedata import SaveData
-from pipeman_desktop.gui.base_pane import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
+from pipeman_desktop.util import QCBatchCloseOperation, ApplicationState, BatchOpenState, DisplayChange, \
     SimpleRecordInfo, CloseBatchResult
 from pipeman_desktop.client.local_db import LocalDatabase
-from pipeman_desktop.gui.action_pane import ActionPane
-from pipeman_desktop.gui.button_pane import ButtonPane
-from pipeman_desktop.gui.choice_dialog import ask_choice
+from pipeman_desktop.panes.action_pane import ActionPane
+from pipeman_desktop.panes.button_pane import ButtonPane
+from pipeman_desktop.components.choice_dialog import ask_choice
 import gcapp.i18n as i18n
 import threading
 import uuid
 import typing as t
 
-from pipeman_desktop.gui.error_pane import ErrorPane
-from pipeman_desktop.gui.graph_pane import GraphPane
-from pipeman_desktop.gui.history_pane import HistoryPane
-from pipeman_desktop.gui.loading_wheel import LoadingWheel
-from pipeman_desktop.gui.login_pane import LoginPane
-from pipeman_desktop.gui.menu_manager import MenuManager
-from pipeman_desktop.gui.messenger import CrossThreadMessenger
-from pipeman_desktop.gui.parameter_pane import ParameterPane
-from pipeman_desktop.gui.record_list_pane import RecordListPane
-from pipeman_desktop.gui.station_pane import StationPane
-from pipeman_desktop.gui.map_pane import MapPane
+from pipeman_desktop.panes.error_pane import ErrorPane
+from pipeman_desktop.panes.graph_pane import GraphPane
+from pipeman_desktop.panes.history_pane import HistoryPane
+from pipeman_desktop.components.loading_wheel import LoadingWheel
+from pipeman_desktop.panes.login_pane import LoginPane
+from pipeman_desktop.components.menu_manager import MenuManager
+from pipeman_desktop.messenger import CrossThreadMessenger
+from pipeman_desktop.panes.parameter_pane import ParameterPane
+from pipeman_desktop.panes.record_list_pane import RecordListPane
+from pipeman_desktop.panes.station_pane import StationPane
+from pipeman_desktop.panes.map_pane import MapPane
+
 from gcapp.i18n import TranslatableError, TranslationManager
 from medsutil.ocproc2.operations import RecordAction
 from medsutil.dynamic import dynamic_object
@@ -140,7 +141,7 @@ class PipemanDesktop:
         self._is_closing: bool = False
         self._save_data = SaveData(pathlib.Path("~/.pipeman.preferences.json").expanduser().absolute(), True)
         self.log = zrlog.get_logger('cnodc.desktop')
-        self.app_state = ApplicationState(self.refresh_display)
+        self.state = ApplicationState(self.refresh_display)
         self._current_screen_size = None
         self._last_screen_width_change_time = None
         self._screen_resize_in_progress = False
@@ -155,7 +156,7 @@ class PipemanDesktop:
         s.configure('Errored.BorderedEntry.TFrame', background='red')
         s.configure('TButton', background='#FFFFFF')
         s.configure('Treeview', indent=5)
-        self.menus = MenuManager(self.root)
+        self.menus: MenuManager = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu_file')
         self.menus.add_sub_menu('qc', 'menu_qc')
         self.root.rowconfigure(0, weight=0)
@@ -232,6 +233,7 @@ class PipemanDesktop:
 
     # Callbacks for other panes
 
+
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
 
@@ -250,16 +252,16 @@ class PipemanDesktop:
 
 
     def save_operations(self, actions: list[RecordAction]):
-        if self.app_state.record_uuid is not None:
+        if self.state.record_uuid is not None:
             action_dict: dict[int, RecordAction] = {}
             with self.local_db.cursor() as cur:
                 for action in actions:
                     rowid = cur.insert('actions', {
-                        'record_uuid': self.app_state.record_uuid,
+                        'record_uuid': self.state.record_uuid,
                         'action_text': json.dumps(action.to_map())
                     })
                     action_dict[rowid] = action
-            self.app_state.extend_actions(action_dict)
+            self.state.extend_actions(action_dict)
 
     def delete_operation(self, db_index: int):
         with self.local_db.cursor() as cur:
@@ -268,15 +270,15 @@ class PipemanDesktop:
         self.reload_record()
 
     def reload_record(self):
-        if self.app_state.record_uuid is not None:
-            self.load_record(self.app_state.record_uuid, True)
+        if self.state.record_uuid is not None:
+            self.load_record(self.state.record_uuid, True)
 
     def load_child(self, child_path: t.Optional[str]):
-        if child_path != self.app_state.subrecord_path:
-            self.app_state.set_record_subpath(child_path)
+        if child_path != self.state.subrecord_path:
+            self.state.set_record_subpath(child_path)
 
     def load_record(self, record_uuid, force_reload: bool = False):
-        if force_reload or self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
+        if force_reload or self.state.record_uuid is None or self.state.record_uuid != record_uuid:
             with self.local_db.cursor() as cur:
                 cur.execute("SELECT record_uuid, record_content FROM records WHERE record_uuid = ?", [record_uuid])
                 row = cur.fetchone()
@@ -289,17 +291,17 @@ class PipemanDesktop:
                     operator.apply(record, None)
                     actions[rowid] = operator
                 subrecord_path = None
-                if self.app_state.record_uuid is None or self.app_state.record_uuid != record_uuid:
-                    subrecord_path = self.app_state.subrecord_path
-                self.app_state.set_record_info(record_uuid, record, subrecord_path, actions)
-        elif self.app_state.subrecord_path is not None:
-            self.app_state.set_record_subpath(None)
+                if self.state.record_uuid is None or self.state.record_uuid != record_uuid:
+                    subrecord_path = self.state.subrecord_path
+                self.state.set_record_info(record_uuid, record, subrecord_path, actions)
+        elif self.state.subrecord_path is not None:
+            self.state.set_record_subpath(None)
 
 
     def save_changes(self, after_save: t.Callable = None):
-        if self.app_state.is_batch_action_available('apply_working'):
-            if self.app_state.has_unsaved_changes:
-                self.app_state.set_save_flag(True)
+        if self.state.is_batch_action_available('apply_working'):
+            if self.state.has_unsaved_changes:
+                self.state.set_save_flag(True)
                 self.dispatcher.submit_job(
                     'cnodc.desktop.client.api_client.save_work',
                     on_error=self._on_save_error,
@@ -335,7 +337,7 @@ class PipemanDesktop:
 
     def _on_save_error(self, ex):
         self.show_user_exception(ex)
-        self.app_state.set_save_flag(False, self.app_state.has_unsaved_changes)
+        self.state.set_save_flag(False, self.state.has_unsaved_changes)
 
     def _after_save(self, res: bool, after_save: t.Callable = None):
         if not res:
@@ -343,14 +345,14 @@ class PipemanDesktop:
                 i18n.tr('save_partial_fail_title'),
                 i18n.tr('save_partial_fail_message')
             )
-            self.app_state.set_save_flag(False, self.app_state.has_unsaved_changes)
+            self.state.set_save_flag(False, self.state.has_unsaved_changes)
         else:
-            self.app_state.set_save_flag(False, False)
+            self.state.set_save_flag(False, False)
         if after_save:
             after_save(res)
 
     def update_user_info(self, username: t.Optional[str], access_list: dict[str, dict[str, str]]):
-        if self.app_state.update_user_info(username, access_list) and username is None:
+        if self.state.update_user_info(username, access_list) and username is None:
             self.force_close_current_batch()
 
     def create_flag_operator(self, target_path: str, flag: int):
@@ -382,7 +384,7 @@ class PipemanDesktop:
 
     def open_qc_batch(self, batch_service_name: str):
         # TODO: check if the batch is open and prompt?
-        self.app_state.start_batch_open(batch_service_name)
+        self.state.start_batch_open(batch_service_name)
         self.dispatcher.submit_job(
             'cnodc.desktop.client.api_client.next_queue_item',
             job_kwargs={
@@ -397,37 +399,37 @@ class PipemanDesktop:
             with self.local_db.cursor() as cur:
                 cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, station_id FROM records ORDER BY station_id ASC, datetime ASC")
                 record_info = [SimpleRecordInfo(idx + 1, *x) for idx, x in enumerate(cur.fetchall())]
-                self.app_state.complete_batch_open(result[0], result[1], record_info)
+                self.state.complete_batch_open(result[0], result[1], record_info)
         else:
             self.show_user_info(
-                title=i18n.tr(f'no_items_title_{self.app_state.batch_service_name}'),
-                message=i18n.tr(f'no_items_message_{self.app_state.batch_service_name}')
+                title=i18n.tr(f'no_items_title_{self.state.batch_service_name}'),
+                message=i18n.tr(f'no_items_message_{self.state.batch_service_name}')
             )
-            self.app_state.clear_batch()
+            self.state.clear_batch()
 
     def _open_qc_batch_error(self, ex):
         self.show_user_exception(ex)
-        self.app_state.handle_batch_open_error()
+        self.state.handle_batch_open_error()
 
     def force_close_current_batch(self):
-        if self.app_state.batch_state == BatchOpenState.OPEN:
-            self.app_state.start_batch_close(QCBatchCloseOperation.FORCE_CLOSE, False)
-            self.app_state.complete_batch_close()
-            self.app_state.clear_batch()
+        if self.state.batch_state == BatchOpenState.OPEN:
+            self.state.start_batch_close(QCBatchCloseOperation.FORCE_CLOSE, False)
+            self.state.complete_batch_close()
+            self.state.clear_batch()
 
     def close_current_batch(self,
                             op: QCBatchCloseOperation,
                             load_next: bool = False,
                             after_close: t.Callable = None) -> CloseBatchResult:
-        if self.app_state.batch_state == BatchOpenState.OPEN:
-            if self.app_state.has_unsaved_changes:
+        if self.state.batch_state == BatchOpenState.OPEN:
+            if self.state.has_unsaved_changes:
                 result = tkmb.askyesno(
                     title=i18n.tr('close_without_saving_title'),
                     message=i18n.tr('close_without_saving_message')
                 )
                 if not result:
                     return CloseBatchResult.CANCELLED
-            self.app_state.start_batch_close(op, load_next)
+            self.state.start_batch_close(op, load_next)
             self.dispatcher.submit_job(
                 op.value if '.' in op.value else QCBatchCloseOperation.RELEASE.value,
                 on_success=functools.partial(self._close_qc_batch_success, after_close=after_close),
@@ -439,17 +441,17 @@ class PipemanDesktop:
         return CloseBatchResult.ALREADY_CLOSED
 
     def _close_qc_batch_success(self, res, after_close: t.Callable = None):
-        self.app_state.complete_batch_close()
-        if self.app_state.batch_load_after_close:
-            self.open_qc_batch(t.cast(str, self.app_state.batch_service_name))
+        self.state.complete_batch_close()
+        if self.state.batch_load_after_close:
+            self.open_qc_batch(t.cast(str, self.state.batch_service_name))
         else:
-            self.app_state.clear_batch()
+            self.state.clear_batch()
         if after_close is not None:
             after_close()
 
     def _close_qc_batch_error(self, ex):
         self.show_user_exception(ex)
-        self.app_state.handle_batch_close_error()
+        self.state.handle_batch_close_error()
 
 
 
@@ -469,7 +471,7 @@ class PipemanDesktop:
         )
 
     def _actual_close(self, e=None):
-        self.app_state.clear_batch()
+        self.state.clear_batch()
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()
             self.dispatcher.join()
@@ -536,6 +538,6 @@ class PipemanDesktop:
             if elapsed >= 1:
                 self._screen_resize_in_progress = False
                 self._last_screen_width_change_time = None
-                self.app_state.refresh_display(DisplayChange.SCREEN_SIZE)
+                self.state.refresh_display(DisplayChange.SCREEN_SIZE)
         self.after(500, self.check_screen_resize_complete)
 

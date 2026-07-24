@@ -256,7 +256,7 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
 
     def on_language_change(self):
-        self._rebuild_parameter_list(self.app.app_state)
+        self._rebuild_parameter_list(self.app.state)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD_CHILD | DisplayChange.RECORD):
@@ -368,7 +368,7 @@ class ParameterPane(BasePane):
                 self.app,
                 item['values'][0],
                 self._get_element_info(item['values'][0]),
-                self.app.app_state.username,
+                self.app.state.username,
                 item['values'][3],
                 self._value_lookup[item['values'][0]]
             )

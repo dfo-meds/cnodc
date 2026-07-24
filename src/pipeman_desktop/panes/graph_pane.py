@@ -155,7 +155,7 @@ class _GraphPane(BasePane):
                 self._clear_graph()
             else:
                 if self._current_recordset_id == 'Batch':
-                    self._show_batch_graph(self.app.app_state.batch_record_info, c, p)
+                    self._show_batch_graph(self.app.state.batch_record_info, c, p)
                 else:
                     self._show_graph(
                         self._current_recordset,
@@ -363,7 +363,7 @@ class _GraphPane(BasePane):
             return key
 
     def _calculate_density(self, record: ocproc2.BaseRecord, unit_map: dict) -> tuple[t.Optional[float], int]:
-        v, qc, _ = oom.calc_density_record(record, self.app.app_state.record, 'kg m-3')
+        v, qc, _ = oom.calc_density_record(record, self.app.state.record, 'kg m-3')
         return v, qc
 
     def _extract_value(self, map_: ocproc2.ElementMap, value_name: str, unit_map: dict) -> tuple[t.Optional[float], int]:

@@ -75,8 +75,8 @@ class OCProc2Graph(ttk.Frame):
         else:
             # TODO: better default selection? (i.e. T&S most of the time if available, speed if speed check, etc)
             self.graph_option_box.current(0)
-        self.update_graph_data(force_redraw=self._current_record_uuid != self.app.app_state.record_uuid)
-        self._current_record_uuid = self.app.app_state.record_uuid
+        self.update_graph_data(force_redraw=self._current_record_uuid != self.app.state.record_uuid)
+        self._current_record_uuid = self.app.state.record_uuid
 
     def update_graph_data(self, e=None, force_redraw: bool = False):
         if force_redraw:
@@ -121,7 +121,7 @@ class OCProc2Graph(ttk.Frame):
         speeds = {}
         indexes = {}
         last_records = {}
-        for idx, record in enumerate(self.app.app_state.ordered_simple_records()):
+        for idx, record in enumerate(self.app.state.ordered_simple_records()):
             if not record.station_id:
                 continue
             if record.station_id not in speeds:
@@ -161,7 +161,7 @@ class OCProc2Graph(ttk.Frame):
         ), qc
 
     def _build_recordset_graph(self, recordset_path: str, ind_var: str, dep_var: str):
-        recordset = self.app.app_state.record.find_child(recordset_path)
+        recordset = self.app.state.record.find_child(recordset_path)
         if dep_var == '_TnSP':
             self._build_tsp_graph(recordset, ind_var)
         elif dep_var == '_TnSA':
@@ -192,7 +192,7 @@ class OCProc2Graph(ttk.Frame):
                         units = unit_map['_Density'] if '_Density' in unit_map else None
                         value, value_qc, rho_units = oom.calc_density_record(
                             level_record=record,
-                            position_record=self.app.app_state.record,
+                            position_record=self.app.state.record,
                             units=units
                         )
                         unit_map['_Density'] = rho_units
@@ -415,10 +415,10 @@ class OCProc2Graph(ttk.Frame):
 
     def _build_graph_list(self) -> dict[str, str]:
         graph_options = {}
-        if self.app.app_state.batch_record_info is not None and len(self.app.app_state.batch_record_info) > 1:
+        if self.app.state.batch_record_info is not None and len(self.app.state.batch_record_info) > 1:
             graph_options['batch::speed_chart'] = i18n.tr('graph_speed_chart')
-        if self.app.app_state.record is not None:
-            graph_options.update(self._record_graph_options(self.app.app_state.record))
+        if self.app.state.record is not None:
+            graph_options.update(self._record_graph_options(self.app.state.record))
         return graph_options
 
     def _record_graph_options(self, record: ocproc2.BaseRecord) -> dict[str, str]:

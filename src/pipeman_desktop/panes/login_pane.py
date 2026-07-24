@@ -1,54 +1,13 @@
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ApplicationState, DisplayChange, QCBatchCloseOperation
-import typing as t
-import tkinter as tk
+from pipeman_desktop.util import ApplicationState, DisplayChange
 import tkinter.ttk as ttk
 import gcapp.i18n as i18n
-import tkinter.simpledialog as tksd
-from pipeman_desktop.components.bordered_entry import BorderedEntry
-
-
-class PasswordDialog(tksd.Dialog):
-
-    def __init__(self, parent):
-        self.password1_var = tk.StringVar(parent)
-        self.password2_var = tk.StringVar(parent)
-        self._password1_entry: t.Optional[BorderedEntry] = None
-        self._password2_entry: t.Optional[BorderedEntry] = None
-        super().__init__(parent, title=i18n.tr('change_password_dialog_title'))
-
-    def body(self, parent):
-        ttk.Label(parent, text=i18n.tr('password_change_message')).grid(row=0, column=0, columnspan=2)
-        ttk.Label(parent, text=i18n.tr('password_change_1')).grid(row=1, column=0, sticky='W')
-        self._password1_entry = BorderedEntry(parent, textvariable=self.password1_var, show='*')
-        self._password1_entry.grid(row=1, column=1)
-        ttk.Label(parent, text=i18n.tr('password_change_2')).grid(row=2, column=0, sticky='W')
-        self._password2_entry = BorderedEntry(parent, textvariable=self.password2_var, show='*')
-        self._password2_entry.grid(row=2, column=1)
-        return self._password1_entry
-
-    def validate(self) -> bool:
-        pw1 = self.password1_var.get()
-        pw2 = self.password2_var.get()
-        self._password1_entry.set_errored(len(pw1) < 15)
-        self._password2_entry.set_errored(pw2 != pw1)
-        return pw1 == pw2 and len(pw1) >= 15
-
-    def apply(self):
-        pw1 = self.password1_var.get()
-        pw2 = self.password2_var.get()
-        if pw1 == pw2 and len(pw1) > 15:
-            self.result = pw1
-        else:
-            self.result = None
 
 
 class LoginPane(BasePane):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._username = None
-        self._access_list = None
         self._user_status_bar = None
 
     def on_init(self):
@@ -58,31 +17,29 @@ class LoginPane(BasePane):
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.BATCH:
-            self.app.menus.set_state('file/logout', app_state.can_logout())
+        if change_type & (DisplayChange.USER | DisplayChange.BATCH):
+            self.update_user_state()
 
     def do_logout(self):
-        self.app.close_current_batch(
-            QCBatchCloseOperation.LOGOUT,
-            load_next=False,
-            after_close=self._real_logout
+        self.app.menus.disable_command('file/logout')
+        self.app.state.logout(
+            after_close=self._real_logout,
+            after_cancel=self.update_user_state
         )
 
     def _real_logout(self):
-        self.app.menus.disable_command('file/logout')
         self.app.dispatcher.submit_job(
             'pipeman_desktop.client.api_client.logout',
             on_success=self.on_logout,
             on_error=self.on_logout_fail
         )
 
-    def on_logout(self, result: tuple[str, list[str]]):
+    def on_logout(self, result):
         self.app.show_user_info(
             i18n.tr('logout_success_title'),
             i18n.tr('logout_success_message')
         )
-        self._username = None
-        self._access_list = None
+        self.app.state.update_user_info(None, None)
         self.update_user_state()
 
     def on_logout_fail(self, ex: Exception):
@@ -105,53 +62,48 @@ class LoginPane(BasePane):
             )
 
     def on_login(self, result: tuple[str, list[str]]):
-        self._username = result[0]
-        self._access_list = result[1]
-        self.update_user_state()
+        self.app.state.update_user_info(result[0], result[1])
         self.app.root.after(5000, self.auto_refresh_session)
 
     def on_login_fail(self, ex: Exception):
         self.app.show_user_exception(ex)
-        if self._username is not None:
-            self._username = None
-            self._access_list = None
-        self.update_user_state()
+        self.app.state.update_user_info(None, None)
 
     def auto_refresh_session(self):
-        if self._username is not None:
+        if self.app.state.username is not None:
             self.app.dispatcher.submit_job(
                 'pipeman_desktop.client.api_client.refresh',
                 on_success=self.after_refresh,
-                on_error=self.after_refresh
+                on_error=self.after_refresh_error
             )
 
-    def after_refresh(self, res: t.Union[int, Exception]):
-        if res < 0:
-            self._username = None
-            self._access_list = None
-            self.update_user_state()
-            return
-        elif isinstance(res, Exception):
-            self.app.show_user_exception(res)
-            res = 5000
-        else:
-            res = max(res * 1000, 5000)
-        self.app.root.after(res, self.auto_refresh_session)
+    def after_refresh_error(self, ex: Exception):
+        self.app.show_user_exception(ex)
+        self.after_refresh(5000)
+
+    def after_refresh(self, result: int):
+        if result < 0:
+            self.app.state.update_user_info(None, None)
+        elif self.app.state.username is not None:
+            res = max(result * 1000, 5000)
+            self.app.after(res, self.auto_refresh_session)
 
     def on_language_change(self):
-        if self._username is None:
+        if self.app.state.username is None:
             self._user_status_bar.configure(text=i18n.tr('no_user_logged_in'))
         else:
-            self._user_status_bar.configure(text=i18n.tr('user_logged_in', username=self._username))
+            self._user_status_bar.configure(text=i18n.tr('user_logged_in', username=self.app.state.username))
 
     def update_user_state(self):
-        if self._username is None:
+        if self.app.state.username is None:
             self.app.menus.enable_command('file/login')
             self.app.menus.disable_command('file/logout')
         else:
             self.app.menus.disable_command('file/login')
-            self.app.menus.enable_command('file/logout')
+            if self.app.state.can_logout():
+                self.app.menus.enable_command('file/logout')
+            else:
+                self.app.menus.disable_command('file/logout')
         self.on_language_change()
-        self.app.update_user_info(self._username or None, self._access_list or {})
 
 
