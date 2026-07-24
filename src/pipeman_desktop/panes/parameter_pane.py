@@ -1,7 +1,8 @@
 import datetime
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
-from pipeman_desktop.gui.choice_dialog import ask_choice
-from pipeman_desktop.gui.scrollable import ScrollableTreeview
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange
+from pipeman_desktop.components.choice_dialog import ask_choice
+from pipeman_desktop.components.scrollable import ScrollableTreeview
 import gcapp.i18n as i18n
 import tkinter.messagebox as tkmb
 import typing as t
@@ -11,7 +12,7 @@ import tkinter.simpledialog as tksd
 
 from pipeman_desktop import VERSION
 import medsutil.ocproc2 as ocproc2
-from pipeman_desktop.gui.date_time_dialog import ask_date, ask_datetime
+from pipeman_desktop.components.date_time_dialog import ask_date, ask_datetime
 from autoinject import injector
 
 
@@ -254,7 +255,7 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#3', width=75, anchor='e')
         self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         self._rebuild_parameter_list(self.app.app_state)
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):

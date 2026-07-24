@@ -1,9 +1,9 @@
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, \
-    SimpleRecordInfo
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange, SimpleRecordInfo
 from pipeman_desktop.client.local_db import LocalDatabase
 from autoinject import injector
 import typing as t
-from pipeman_desktop.gui.scrollable import ScrollableTreeview
+from pipeman_desktop.components.scrollable import ScrollableTreeview
 import gcapp.i18n as i18n
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
@@ -68,7 +68,7 @@ class RecordListPane(BasePane):
         self._subrecord_list.table.column('#0', width=30, stretch=False)
         self._subrecord_list.table.column('#1', anchor='w')
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         if self._record_label is not None:
             self._record_label.configure(text=i18n.tr('record_list_title'))
         if self._subrecord_label is not None:
@@ -112,7 +112,7 @@ class RecordListPane(BasePane):
                 rs_text = f'{srt_text}/{rs_idx}'
                 # TODO: profile flagging of errors
                 self._subrecord_list.table.insert(parent_text, 'end', text='', iid=rs_text, values=(self._build_record_set_display(srt, rs_idx, depth), rs_text))
-                for idx, record in enumerate(record.subrecords[srt][rs_idx].records):
+                for idx, record in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
                     record_text = f"{srt_text}/{rs_idx}/{idx}"
                     # TODO: row flagging of errors
                     self._subrecord_list.table.insert(rs_text, 'end', text='', iid=record_text, values=(self._build_record_display(record, srt, idx, depth + 1), record_text))

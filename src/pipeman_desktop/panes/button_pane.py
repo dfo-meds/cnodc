@@ -1,15 +1,17 @@
 import functools
 import tkinter as tk
-from pipeman_desktop.gui.base_pane import BasePane, QCBatchCloseOperation, ApplicationState, DisplayChange
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import QCBatchCloseOperation, ApplicationState, DisplayChange
 import tkinter.ttk as ttk
 import typing as t
-from pipeman_desktop.gui.choice_dialog import ask_choice
+from pipeman_desktop.components.choice_dialog import ask_choice
+from pipeman_desktop.components.tooltip import Tooltip
 import PIL.Image as Image
 import PIL.ImageTk as ImageTk
 import pathlib
 import numpy as np
 
-from pipeman_desktop.gui.tooltip import Tooltip
+
 
 
 class ButtonPane(BasePane):
@@ -188,7 +190,7 @@ class ButtonPane(BasePane):
                 else:
                     self._label.configure(text=app_state.record_uuid)
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         # TODO: button labels
         pass
 

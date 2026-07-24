@@ -1,5 +1,6 @@
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
-from pipeman_desktop.gui.scrollable import ScrollableTreeview
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange
+from pipeman_desktop.components.scrollable import ScrollableTreeview
 import typing as t
 import tkinter as tk
 import datetime
@@ -37,7 +38,7 @@ class HistoryPane(BasePane):
         self._history_list.table.column('#4', width=125, stretch=tk.NO, anchor='w')
         self._history_list.grid(row=0, column=0, sticky='NSEW')
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         # TODO: treeview headings
         # TODO: notebook label
         # TODO: column 3 (message type) and maybe date/time format?

@@ -33,9 +33,9 @@ class ScrollableTreeview(tk.Frame):
                  padding=0,
                  displaycolumns: t.Optional[t.Union[tuple, list]] = None,
                  selectmode: t.Optional[str] = "browse",
-                 on_select: t.Optional[callable] = None,
-                 on_click: t.Optional[callable] = None,
-                 on_right_click: t.Optional[callable] = None,
+                 on_select: t.Optional[t.Callable] = None,
+                 on_click: t.Optional[t.Callable] = None,
+                 on_right_click: t.Optional[t.Callable] = None,
                  show: t.Optional[str] = None):
         super().__init__(parent)
         self.rowconfigure(0, weight=1)
@@ -75,7 +75,7 @@ class ScrollableTreeview(tk.Frame):
         self.table.configure(columns=[x+1 for x in range(0, len(headers))])
         for i in range(0, len(headers)):
             key = f"# {i + 1}"
-            self.table.column(key, anchor=tk.CENTER)
+            self.table.column(key, anchor="center")
             self.table.heading(key, text=headers[i])
 
     def extend_items(self, values: t.Iterable[tuple[str, tuple, tuple]]):

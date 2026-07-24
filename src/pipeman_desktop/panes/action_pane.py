@@ -1,10 +1,11 @@
 import functools
 
 from pipeman_desktop.client.local_db import LocalDatabase
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange
 import typing as t
 import gcapp.i18n as i18n
-from pipeman_desktop.gui.scrollable import ScrollableTreeview
+from pipeman_desktop.components.scrollable import ScrollableTreeview
 from medsutil.ocproc2.operations import RecordAction
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -42,7 +43,7 @@ class ActionPane(BasePane):
         self._action_list.table.column('#3', width=150, anchor='w')
         self.app.bottom_notebook.add(action_frame, text='Operations', sticky='NSEW')
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         # TODO: treeview headings
         # TODO: notebook text label
         # TODO: translate action names??

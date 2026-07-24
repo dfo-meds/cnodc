@@ -1,6 +1,7 @@
 import functools
 from matplotlib.lines import Line2D
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, BatchOpenState, SimpleRecordInfo
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange, BatchOpenState, SimpleRecordInfo
 import typing as t
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
@@ -12,8 +13,7 @@ import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.backend_bases as mplbb
 import tkinter as tk
 import gcapp.i18n as i18n
-from pipeman_desktop.gui.ocproc_graph import OCProc2Graph
-from medsutil.geodesy import great_circle_distance
+from pipeman_desktop.components.ocproc_graph import OCProc2Graph
 from medsutil.units import UnitConverter
 import medsutil.ocproc_math as oom
 
@@ -40,7 +40,7 @@ class GraphPane(BasePane):
             else:
                 self._oc2graph.clear_graph_data()
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         pass
 
 

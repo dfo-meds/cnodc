@@ -1,5 +1,6 @@
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange
-from pipeman_desktop.gui.scrollable import ScrollableTreeview
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange
+from pipeman_desktop.components.scrollable import ScrollableTreeview
 import typing as t
 import tkinter.ttk as ttk
 import gcapp.i18n as i18n
@@ -31,7 +32,7 @@ class ErrorPane(BasePane):
         )
         self._error_list.grid(row=0, column=0, sticky='NSEW')
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         # TODO: treeview headings
         # TODO: notebook label
         # columns 0 and 2 (test name, error name)

@@ -66,7 +66,7 @@ class DateTimeDialog(tksd.Dialog):
         parent.columnconfigure(3, weight=1)
 
         if self._prompt is not None:
-            label = ttk.Label(parent, text=self._prompt, wraplength=300, justify=tk.LEFT)
+            label = ttk.Label(parent, text=self._prompt, wraplength=300, justify="left")
             label.grid(row=0, column=0, sticky='NSEW', columnspan=4)
         first = None
         if self._mode in (_DateTimeDialogMode.DATE_TIME, _DateTimeDialogMode.DATE_ONLY):

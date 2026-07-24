@@ -27,7 +27,7 @@ class LoadingWheel(ttk.Label):
         self._current_frame = None
         self._max_frame = len(self._images)
         self._root = root
-        self.configure(image=self._blank, relief=tk.SOLID, borderwidth=2)
+        self.configure(image=self._blank, relief="solid", borderwidth=2)
         self._delay = 50
 
     def destroy(self):

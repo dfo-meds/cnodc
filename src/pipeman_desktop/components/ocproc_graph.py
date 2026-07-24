@@ -8,7 +8,7 @@ import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.style as mpls
 import medsutil.ocproc_math as oom
-from pipeman_desktop.gui.base_pane import SimpleRecordInfo
+from pipeman_desktop.util import SimpleRecordInfo
 from medsutil.geodesy import great_circle_distance
 
 if t.TYPE_CHECKING:

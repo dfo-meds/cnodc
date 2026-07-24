@@ -37,14 +37,14 @@ class ChoiceDialog(tksd.Dialog):
 
     def body(self, parent):
         if self._prompt is not None:
-            label = ttk.Label(parent, text=self._prompt, wraplength=300, justify=tk.LEFT)
-            label.pack(expand=True, fill=tk.BOTH, padx=2, pady=2)
+            label = ttk.Label(parent, text=self._prompt, wraplength=300, justify="left")
+            label.pack(expand=True, fill="both", padx=2, pady=2)
         opt_menu = ttk.Combobox(
             parent,
             textvariable=self.result_var,
             values=self.option_display
         )
-        opt_menu.pack(expand=True, fill=tk.BOTH, padx=2, pady=2)
+        opt_menu.pack(expand=True, fill="both", padx=2, pady=2)
         return opt_menu
 
     def apply(self):

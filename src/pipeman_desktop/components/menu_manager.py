@@ -1,5 +1,6 @@
 import tkinter as tk
 import gcapp.i18n as i18n
+import typing as t
 
 
 class MenuManager:
@@ -43,7 +44,7 @@ class MenuManager:
         menu = self._menu_items[parent_key][0]
         menu.entryconfigure(self._commands[path][1], state=tk.NORMAL)
 
-    def add_command(self, path: str, text_key: str, command: callable, start_disabled: bool = False):
+    def add_command(self, path: str, text_key: str, command: t.Callable, start_disabled: bool = False):
         if path in self._commands:
             raise ValueError('path already defined')
         parent_key = path[:path.rfind('/')]

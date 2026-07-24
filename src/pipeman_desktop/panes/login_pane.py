@@ -1,11 +1,11 @@
-from __future__ import annotations
-from pipeman_desktop.gui.base_pane import BasePane, ApplicationState, DisplayChange, QCBatchCloseOperation
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.util import ApplicationState, DisplayChange, QCBatchCloseOperation
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
 import gcapp.i18n as i18n
 import tkinter.simpledialog as tksd
-from pipeman_desktop.gui.bordered_entry import BorderedEntry
+from pipeman_desktop.components.bordered_entry import BorderedEntry
 
 
 class PasswordDialog(tksd.Dialog):
@@ -54,7 +54,7 @@ class LoginPane(BasePane):
     def on_init(self):
         self.app.menus.add_command('file/login', 'menu_login', self.do_login)
         self.app.menus.add_command('file/logout', 'menu_logout', self.do_logout, True)
-        self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief=tk.SOLID, borderwidth=2, width=15, anchor=tk.E)
+        self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief="solid", borderwidth=2, width=15, anchor="e")
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -90,7 +90,7 @@ class LoginPane(BasePane):
         self.update_user_state()
 
     def do_login(self):
-        from pipeman_desktop.gui.login_dialog import ask_login
+        from pipeman_desktop.components.login_dialog import ask_login
         unpw = ask_login(self.app.root)
         if unpw is not None:
             self.app.menus.disable_command('file/login')
@@ -138,7 +138,7 @@ class LoginPane(BasePane):
             res = max(res * 1000, 5000)
         self.app.root.after(res, self.auto_refresh_session)
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         if self._username is None:
             self._user_status_bar.configure(text=i18n.tr('no_user_logged_in'))
         else:
@@ -151,7 +151,7 @@ class LoginPane(BasePane):
         else:
             self.app.menus.disable_command('file/login')
             self.app.menus.enable_command('file/logout')
-        self.on_language_change(i18n.current_language())
+        self.on_language_change()
         self.app.update_user_info(self._username or None, self._access_list or {})
 
 
