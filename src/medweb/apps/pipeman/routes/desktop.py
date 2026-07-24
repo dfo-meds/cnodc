@@ -9,7 +9,7 @@ from autoinject import injector
 
 from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
 
-qc = MultiLanguageBlueprint("qc", __name__)
+desktop = MultiLanguageBlueprint("desktop", __name__)
 
 
 def json_param[T](param_name: str, coerce: t.Callable[[t.Any], T] | None = None, default: T | EllipsisType = ...) -> T:
@@ -29,7 +29,7 @@ def json_param[T](param_name: str, coerce: t.Callable[[t.Any], T] | None = None,
 
 
 
-@qc.route("/internal/queues/next", methods=["POST"])
+@desktop.route("/internal/queues/next", methods=["POST"])
 @security_check("pipeman.lock_queue_items")
 @web_error_handling
 @injector.inject
@@ -54,7 +54,7 @@ def lock_next_queue_item(nodb: NODBController = None):
     )
 
 
-@qc.route("/internal/queues/queue_uuid>/renew", methods=["POST"])
+@desktop.route("/internal/queues/queue_uuid>/renew", methods=["POST"])
 @security_check("pipeman.lock_queue_items")
 @web_error_handling
 @injector.inject
@@ -62,7 +62,7 @@ def renew_queue_item(queue_uuid: str, nodb: NODBController = None):
     return nodb.renew_queue_item(queue_uuid)
 
 
-@qc.route("/internal/queues/<queue_uuid>/close-qc", methods=["POST"])
+@desktop.route("/internal/queues/<queue_uuid>/close-qc", methods=["POST"])
 @security_check("pipeman.lock_queue_items")
 @web_error_handling
 @injector.inject
@@ -74,7 +74,7 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
     )
 
 
-@qc.route("/internal/working/<record_uuid>", methods=["POST"])
+@desktop.route("/internal/working/<record_uuid>", methods=["POST"])
 @security_check("pipeman.working.view")
 @web_error_handling
 @injector.inject

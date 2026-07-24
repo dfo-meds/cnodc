@@ -16,6 +16,21 @@ def init_plugin(s: System):
         s.register_blueprint("medweb.apps.medsid.routes.auth", "auth")
         s.register_blueprint("medweb.apps.medsid.routes.user", "user")
         s.register_blueprint("medweb.apps.medsid.routes.base", "base")
+        s.register_api_operation(
+            operation_identifier="user.renew",
+            flask_endpoint="user.renew_access_token",
+            required_permissions="__authenticated__",
+        )
+        s.register_api_operation(
+            operation_identifier="user.logout",
+            flask_endpoint="user.remove_access_token",
+            required_permissions="__authenticated__",
+        )
+        s.register_api_operation(
+            operation_identifier="user.logout",
+            flask_endpoint="user.remove_access_token",
+            required_permissions="__authenticated__",
+        )
         s.on_flask_init(_init_flask_app)
         s.register_template_directory(BASE_DIR / 'templates')
         s.register_menu_item("topnav", "home", NavItem(

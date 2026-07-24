@@ -50,6 +50,9 @@ class BaseUserMixin:
         perms = [permissions] if isinstance(permissions, (str, AnyPermission)) else permissions
         for x in perms:
             if isinstance(x, str):
+                if "|" in x:
+                    if not self.require_any([x.strip() for x in x.split("|")]):
+                        return False
                 if x not in self._permissions:
                     return False
             elif isinstance(x, AnyPermission):

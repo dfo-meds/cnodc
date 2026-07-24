@@ -12,6 +12,7 @@ from gcflask.security import security_check, api_error_handling, web_error_handl
 from gcflask.user import current_user
 from gcflask.util import flasht, FlaskRequestJsonData
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
+from medweb.apps.pipeman.routes.desktop import json_param
 
 user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
 
@@ -29,18 +30,17 @@ def me(ac: AccessController = auto()):
 @api_error_handling
 @injector.inject
 def create_access_token(ac: AccessController = auto()):
-    data = FlaskRequestJsonData()
     token, expiry = ac.create_temporary_access_token(
-        data.get("username"),
-        data.get("password")
+        json_param("username"),
+        json_param("password"),
     )
     c_user = current_user()
     return flask.jsonify({
         'success': True,
         'token': token,
         'expiry': expiry.isoformat(),
-        'access': list(c_user.permissions),
-        'username': c_user.get_username(),
+        'access': ac.list_available_operations(),
+        'username': c_user.get_username() if hasattr(c_user, 'get_username') else None,
         'display': c_user.display_name
     })
 
@@ -50,9 +50,8 @@ def create_access_token(ac: AccessController = auto()):
 @api_error_handling
 @injector.inject
 def renew_access_token(ac: AccessController = auto()):
-    data = FlaskRequestJsonData()
     token, expiry = ac.renew_temporary_access_token(
-        data.get("token")
+        json_param("token")
     )
     return flask.jsonify({
         'success': True,
@@ -66,8 +65,7 @@ def renew_access_token(ac: AccessController = auto()):
 @api_error_handling
 @injector.inject
 def remove_access_token(ac: AccessController = auto()):
-    data = FlaskRequestJsonData()
-    ac.remove_temporary_access_token(data.get("token"))
+    ac.remove_temporary_access_token(json_param("token"))
     return flask.jsonify({
         'success': True,
     })
