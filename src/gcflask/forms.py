@@ -8,7 +8,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField
 from wtforms.fields.core import UnboundField
 
-from gcflask.i18n import TString, TranslationManager, LanguageDetector
+from gcapp.i18n import TranslationManager, TString, LanguageDetector
 from gcflask.widgets import BetterTableWidget, TabbedFieldFormWidget
 
 CONTROL_LIST = [

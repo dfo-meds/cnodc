@@ -1,6 +1,6 @@
 import typing as t
 
-from gcflask.i18n import MLString
+from gcapp.i18n import MLString
 
 
 class Keyword:

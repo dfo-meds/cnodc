@@ -6,7 +6,7 @@ from wtforms.fields.core import UnboundField
 from wtforms.validators import Optional
 
 from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length, NoControlCharacters
-from gcflask.i18n import MLString
+from gcapp.i18n import MLString
 from gcflask.widgets import HtmlList, MultilingualList
 from medweb.entityfields.keywords import Keyword
 

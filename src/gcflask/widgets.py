@@ -5,7 +5,7 @@ from markupsafe import Markup, escape
 from wtforms.widgets import html_params
 
 from gcflask.csp import csp_nonce
-from gcflask.i18n import tr, LanguageDetector, TranslationManager, TString
+from gcapp.i18n import TranslationManager, TString, tr, LanguageDetector
 
 
 class BetterTableWidget:

@@ -12,7 +12,7 @@ def init_plugin(s: System):
     from gcflask.flasksystem import FlaskSystemMixin
     if isinstance(s, FlaskSystemMixin):
         from gcflask.nav import NavItem
-        from gcflask.i18n import TString
+        from gcapp.i18n import TString
         s.register_blueprint("medweb.apps.medsid.routes.auth", "auth")
         s.register_blueprint("medweb.apps.medsid.routes.user", "user")
         s.register_blueprint("medweb.apps.medsid.routes.base", "base")

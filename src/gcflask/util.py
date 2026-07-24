@@ -1,6 +1,6 @@
 import flask
 
-from gcflask.i18n import BaseDString, TString
+from gcapp.i18n import BaseDString, TString
 from medsutil.exceptions import CodedError
 
 

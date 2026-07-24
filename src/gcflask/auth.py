@@ -12,7 +12,7 @@ import zrlog
 import flask
 import flask_login as fl
 
-from gcflask.i18n import LanguageDetector, TranslationManager
+from gcapp.i18n import TranslationManager, LanguageDetector
 from gcflask.user import AuthenticatedUser, AnonymousUser
 from medsutil.awaretime import AwareDateTime
 from medsutil.dynamic import dynamic_object

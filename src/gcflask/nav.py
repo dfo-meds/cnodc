@@ -4,7 +4,7 @@ import flask
 import flask_login
 import markupsafe
 
-from gcflask.i18n import BaseDString
+from gcapp.i18n import BaseDString
 
 
 class BaseNav:

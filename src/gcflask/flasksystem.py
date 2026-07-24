@@ -2,6 +2,7 @@ import functools
 import logging
 import pathlib
 import typing as t
+from typing import TypedDict
 
 import flask
 import flask_autoinject
@@ -11,7 +12,7 @@ from autoinject import injector
 from flask_wtf import CSRFProtect
 from jinja2 import pass_context
 
-import gcflask.i18n
+from gcapp import i18n
 from gcflask.util import caps_to_snake
 from gcapp.requestinfo import RequestInfo
 from gcapp.system import System
@@ -23,6 +24,18 @@ from medsutil.dynamic import dynamic_object
 from medsutil.exceptions import CodedError
 
 class GCFlaskError(CodedError): CODE_SPACE='GCFLASK'
+
+
+class APIOperation(TypedDict):
+    endpoint: str
+    url_kwargs: dict[str, t.Any]
+    access: PermissionType
+    request_kwargs: dict[str, t.Any]
+
+
+class APIResolvedOperation(TypedDict):
+    url: str
+    kwargs: dict[str, t.Any]
 
 
 class FlaskSystemMixin(System):
@@ -40,8 +53,8 @@ class FlaskSystemMixin(System):
             'refresh_session_url': ''
         }
         self._flask_filters: dict[str, t.Callable[..., str]] = {
-            'tr': gcflask.i18n.tr,
-            'format_date': gcflask.i18n.format_date,
+            'tr': i18n.tr,
+            'format_date': i18n.format_date,
             'caps_to_snake': caps_to_snake,
         }
         gcflask_root = pathlib.Path(__file__).absolute().resolve().parent
@@ -51,12 +64,56 @@ class FlaskSystemMixin(System):
         self._resource_directories: list[tuple[pathlib.Path, int]] = [
             (gcflask_root / 'resources', 0),
         ]
+        self._api_operations: dict[str, APIOperation] = {}
+        self._dynamic_api_operations: dict[str, t.Callable[[], dict[str, APIOperation]]] = {}
 
     @property
     def flask_app(self) -> flask.Flask:
         if self._flask_app is None:
             raise RuntimeError('Flask app not initialized yet')
         return self._flask_app
+
+    def get_api_operations(self) -> dict[str, APIResolvedOperation]:
+        operations: dict[str, APIResolvedOperation] = {}
+        for key, operation in self._api_operations.items():
+            resolved = self._resolve_operation(operation)
+            if resolved is not None:
+                operations[key] = resolved
+        for key, builder in self._dynamic_api_operations.items():
+            for subkey, operation in builder().items():
+                resolved = self._resolve_operation(operation)
+                if resolved is not None:
+                    operations[f"{key}.{subkey}"] = resolved
+        return operations
+
+    def _resolve_operation(self, api_operation: APIOperation) -> APIResolvedOperation | None:
+        if flask.has_request_context():
+            c_user = current_user()
+            if not c_user.require_all(api_operation["access"]):
+                return None
+        resolved: APIResolvedOperation = {
+            "url": flask.url_for(api_operation["endpoint"], _external=True, **api_operation["url_kwargs"]),
+            "kwargs": api_operation["request_kwargs"]
+        }
+        return resolved
+
+    def register_dynamic_api_operation_builder(self,
+                                               build_identifier: str,
+                                               builder: t.Callable[[], dict[str, APIOperation]]):
+        self._dynamic_api_operations[build_identifier] = builder
+
+    def register_api_operation(self,
+                               operation_identifier: str,
+                               flask_endpoint: str,
+                               required_permissions: PermissionType = None,
+                               request_kwargs: dict[str, t.Any] | None = None,
+                               url_kwargs: dict[str, t.Any] | None = None):
+        self._api_operations[operation_identifier] = {
+            'endpoint': flask_endpoint,
+            'access': required_permissions,
+            'request_kwargs': request_kwargs or {},
+            'url_kwargs': url_kwargs or {},
+        }
 
     def register_template_global(self, name: str, value: t.Any):
         self._flask_globals[name] = value
@@ -193,16 +250,16 @@ class FlaskSystemMixin(System):
         return response
 
     @injector.inject
-    def _context_processor(self, ld: gcflask.i18n.LanguageDetector = None, tm: gcflask.i18n.TranslationManager = None):
+    def _context_processor(self, ld: i18n.LanguageDetector = None, tm: i18n.TranslationManager = None):
         language = ld.detect_language(tm.supported_languages())
         contextual_vars: dict[str, t.Any] = {
             'language': language,
-            'i18n_sort': functools.partial(gcflask.i18n.i18n_sort, language_order=[language, 'und']),
+            'i18n_sort': functools.partial(i18n.i18n_sort, language_order=[language, 'und']),
         }
         for menu_name in self._menus:
             contextual_vars[f"menu_{menu_name}"] = self._menus[menu_name]
         if flask.has_request_context():
-            contextual_vars["default_title"] = gcflask.i18n.tr(f"{flask.request.endpoint}.title", default=t.cast(str, flask.request.endpoint))
+            contextual_vars["default_title"] = i18n.tr(f"{flask.request.endpoint}.title", default=t.cast(str, flask.request.endpoint))
         else:
             contextual_vars["default_title"] = ''
         return contextual_vars

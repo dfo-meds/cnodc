@@ -4,7 +4,9 @@ from types import EllipsisType
 
 from autoinject import injector
 
-from gcflask.i18n import TranslatableError
+from gcapp.system import System
+from gcflask.flasksystem import FlaskSystemMixin, APIResolvedOperation
+from gcapp.i18n import TranslatableError
 from medsutil.awaretime import AwareDateTime
 from medsutil.sendmail import EmailController
 from nodb.access import NODBUser, UserStatus, NODBAccessToken
@@ -23,6 +25,7 @@ class AccessController:
     nodb: NODB
     smtp: EmailController
     config: zr.ApplicationConfig
+    system: System
 
     def load_user_by_id(self, user_id: int) -> NODBUser | None:
         with self.nodb as db:
@@ -258,3 +261,9 @@ class AccessController:
         with self.nodb as db:
             db.remove_permission(role_name, permission_name)
             db.commit()
+
+    def list_available_operations(self) -> dict[str, APIResolvedOperation]:
+        if isinstance(self.system, FlaskSystemMixin):
+            return self.system.get_api_operations()
+        return {}
+

@@ -5,7 +5,7 @@ import datetime
 import wtforms
 from markupsafe import Markup, escape
 
-from gcflask.i18n import tr, format_date, TString, MLString
+from gcapp.i18n import TString, MLString, tr, format_date
 from gcflask.widgets import FlatPickrWidget, Select2Widget
 from medweb.entityfields.base import Field, NumberMixin, StringMixin
 
