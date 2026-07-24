@@ -1,7 +1,8 @@
 import threading
 
 from pipeman_service.controller import BaseProcess, ProcessInfo
-from pipeman.processing.base_worker import BaseWorker, SaveData
+from pipeman.processing.base_worker import BaseWorker
+from medsutil.savedata import SaveData
 from medsutil.exceptions import HaltInterrupt
 from medsutil.halts import HaltFlag
 from tests.helpers.base_test_case import BaseTestCase

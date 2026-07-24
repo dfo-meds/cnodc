@@ -8,7 +8,7 @@ from nodb.interface import QueueStatus, NODBError
 from nodb.queue import NODBQueueItem
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, FileWorkflowWorker
-from pipeman.processing.base_worker import SaveData
+from medsutil.savedata import SaveData
 from pipeman.processing.payload_worker import ObservationWorkflowWorker
 from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
 from pipeman.processing.scheduled_task import ScheduledTask
