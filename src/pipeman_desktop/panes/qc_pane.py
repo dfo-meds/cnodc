@@ -1,7 +1,8 @@
 import functools
 import tkinter as tk
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import QCBatchCloseOperation, ApplicationState, DisplayChange
+from pipeman_desktop.util import QCResult
+from pipeman_desktop.state import DisplayChange, ApplicationState
 import tkinter.ttk as ttk
 import typing as t
 from pipeman_desktop.components.choice_dialog import ask_choice
@@ -19,7 +20,7 @@ class QCPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._buttons: dict[str, ttk.Button] = {}
-        self._button_close_state: dict[str, QCBatchCloseOperation] = {}
+        self._button_close_state: dict[str, QCResult] = {}
         self._button_frame: t.Optional[ttk.Frame] = None
         self._base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
         self._images = {}
@@ -82,7 +83,7 @@ class QCPane(BasePane):
                       button_name: str,
                       file_name: str,
                       command: t.Callable,
-                      close_state: QCBatchCloseOperation | None = None,
+                      close_state: QCResult | None = None,
                       rotate: bool = False):
         self._images[button_name] = self._build_button_image(
             self._base_path / file_name,
@@ -147,17 +148,17 @@ class QCPane(BasePane):
             self.app.state.open_qc_batch(choice)
 
     def complete_item(self, e=None, load_next: bool = False):
-        self.app.state.close_current_batch(QCBatchCloseOperation.COMPLETE, self.next_item if load_next else None)
+        self.app.state.close_current_batch(QCResult.CONTINUE, self.next_item if load_next else None)
 
     def release_item(self, e=None):
-        self.app.state.close_current_batch(QCBatchCloseOperation.RELEASE)
+        self.app.state.close_current_batch(QCResult.RELEASE)
 
     def fail_item(self, e=None):
-        self.app.state.close_current_batch(QCBatchCloseOperation.FAIL)
+        self.app.state.close_current_batch(QCResult.ERROR)
 
     def escalate_item(self, e=None):
-        self.app.state.close_current_batch(QCBatchCloseOperation.ESCALATE)
+        self.app.state.close_current_batch(QCResult.ESCALATE)
 
     def descalate_item(self, e=None):
-        self.app.state.close_current_batch(QCBatchCloseOperation.DESCALATE)
+        self.app.state.close_current_batch(QCResult.DESCALATE)
 

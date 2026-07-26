@@ -2,7 +2,7 @@ import functools
 
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ApplicationState, DisplayChange
+from pipeman_desktop.state import DisplayChange, ApplicationState
 import typing as t
 import gcapp.i18n as i18n
 from pipeman_desktop.components.scrollable import ScrollableTreeview

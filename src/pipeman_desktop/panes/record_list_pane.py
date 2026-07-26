@@ -1,5 +1,5 @@
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ApplicationState, DisplayChange, SimpleRecordInfo
+from pipeman_desktop.state import DisplayChange, SimpleRecordInfo, ApplicationState
 from pipeman_desktop.client.local_db import LocalDatabase
 from autoinject import injector
 import typing as t

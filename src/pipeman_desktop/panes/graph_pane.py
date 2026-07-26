@@ -1,7 +1,8 @@
 import functools
 from matplotlib.lines import Line2D
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ApplicationState, DisplayChange, BatchOpenState, SimpleRecordInfo
+from pipeman_desktop.util import BatchOpenState
+from pipeman_desktop.state import DisplayChange, SimpleRecordInfo, ApplicationState
 import typing as t
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk

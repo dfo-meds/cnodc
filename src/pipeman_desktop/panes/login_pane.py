@@ -1,5 +1,5 @@
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ApplicationState, DisplayChange
+from pipeman_desktop.state import DisplayChange, ApplicationState
 import tkinter.ttk as ttk
 import gcapp.i18n as i18n
 

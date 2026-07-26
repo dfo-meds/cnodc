@@ -1,6 +1,6 @@
 import typing as t
 
-from pipeman_desktop.util import DisplayChange, ApplicationState
+from pipeman_desktop.state import DisplayChange, ApplicationState
 
 if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import PipemanDesktop

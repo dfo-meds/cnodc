@@ -2,7 +2,8 @@ import functools
 import pathlib
 
 from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ApplicationState, DisplayChange, BatchOpenState
+from pipeman_desktop.util import BatchOpenState
+from pipeman_desktop.state import DisplayChange, ApplicationState
 import tkintermapview as tkmv
 import typing as t
 import tkinter.ttk as ttk

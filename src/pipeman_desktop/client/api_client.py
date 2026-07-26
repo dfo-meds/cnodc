@@ -238,7 +238,53 @@ class CNODCServerAPI:
         )
         return response["ready"]
 
+    def open_batch(self, batch_service_name: str) -> bool:
+        response = self.make_service_json_request(
+            service_identifier=f"batch_qc.{batch_service_name}.open",
+            method="POST",
+        )
+        if "queue_uuid" in response and response["queue_uuid"]:
+            self._current_queue_item = response
+            return self._load_batch()
+        else:
+            self._current_queue_item = None
+            return False
 
+    def _load_batch(self) -> bool:
+        ...
+
+    def make_batch_json_request(self, action_name, method: str, **kwargs) -> dict:
+        if not self._current_queue_item:
+            raise ValueError("No open queue item")
+        if action_name not in self._current_queue_item["actions"]:
+            raise ValueError("Action not available")
+        endpoint = self._current_queue_item["actions"][action_name].get("endpoint")
+        extra_kwargs = self._current_queue_item["actions"][action_name].get("kwargs", None) or {}
+        return self.web_client.make_json_request(
+            endpoint=endpoint,
+            method=method,
+            **kwargs,
+            **extra_kwargs
+        )
+
+    def renew_batch(self) -> bool:
+        response = self.make_batch_json_request(
+            action_name="renew",
+            method="POST"
+        )
+        return "success" in response and response["success"]
+
+    def close_batch(self, close_operation: str):
+        response = self.make_batch_json_request(
+            action_name="close",
+            method="POST",
+            result=close_operation
+        )
+        self._current_queue_item = None
+        return "success" in response and response["success"]
+
+    def save_changes(self):
+        ...
 
 """
     def reload_stations(self) -> bool:
@@ -460,17 +506,17 @@ def fetch_queue_ready_count(client: CNODCServerAPI = None) -> list[tuple[str, st
 
 @injector.inject
 def save_changes(batch_service_name: str, client: CNODCServerAPI = None) -> bool:
-    ...
+    return client.save_changes(batch_service_name)
 
 
 @injector.inject
 def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> bool:
-    ...
+    return client.open_batch(batch_service_name)
 
 
 @injector.inject
 def close_batch(batch_service_name: str, close_operation: str, client: CNODCServerAPI = None) -> bool:
-    ...
+    return client.close_batch(batch_service_name, close_operation)
 
 
 

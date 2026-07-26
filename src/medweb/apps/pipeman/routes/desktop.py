@@ -7,7 +7,7 @@ from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import security_check, web_error_handling, require_permission, api_error_handling
 from autoinject import injector
 
-from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
+from medweb.apps.pipeman.nodb_manager import NODBController, QCResult
 
 desktop = MultiLanguageBlueprint("desktop", __name__)
 
@@ -77,13 +77,13 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
     return nodb.close_qc_item(
         queue_uuid,
         json_param("app_id", str),
-        json_param("result", ReviewResult),
+        json_param("result", QCResult),
     )
 
 
-@desktop.route("/internal/working/<record_uuid>", methods=["POST"])
-@security_check("pipeman.working.view")
+@desktop.route("/internal/queues/<queue_uuid>/stream", methods=["POST"])
+@security_check("pipeman.lock_queue_items")
 @api_error_handling
 @injector.inject
-def download_working_record(record_uuid: str, nodb: NODBController = None):
-    return nodb.serve_working_record(record_uuid)
+def stream_queue_item_records(queue_uuid: str, nodb: NODBController = None):
+    return nodb.stream_working_records(queue_uuid, json_param("app_id", str))
