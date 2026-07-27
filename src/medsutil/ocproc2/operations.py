@@ -10,6 +10,18 @@ class RecordAction(dd.DataDictObject):
     process_id: str | None = dd.p_str()
     organization: Organization = dd.p_enum(Organization)
 
+    @property
+    def name(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def object(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def value(self) -> str:
+        raise NotImplementedError
+
     def apply(self, record: ParentRecord):
         raise NotImplementedError
 
@@ -32,11 +44,35 @@ class RecordAction(dd.DataDictObject):
 class RetestRecord(RecordAction):
     qc_test_name: str
 
+    @property
+    def name(self) -> str:
+        return "qc_action_retest"
+
+    @property
+    def object(self) -> str:
+        return "record"
+
+    @property
+    def value(self) -> str:
+        return self.qc_test_name
+
     def apply(self, record: ParentRecord):
         record.mark_test_results_stale(self.qc_test_name)
 
 
 class RecordProcessed(RecordAction):
+
+    @property
+    def name(self) -> str:
+        return "qc_processed"
+
+    @property
+    def object(self) -> str:
+        return "record"
+
+    @property
+    def value(self) -> str:
+        return self.source_name or 'unknown'
 
     def apply(self, record: ParentRecord):
         self.add_history_action(
@@ -49,6 +85,18 @@ class RecordProcessed(RecordAction):
 class AddHistoryEntry(RecordAction):
     message: str = dd.p_str()
     message_type: MessageType = dd.p_enum(MessageType, default=MessageType.NOTE)
+
+    @property
+    def name(self) -> str:
+        return "qc_add_history"
+
+    @property
+    def object(self) -> str:
+        return "record"
+
+    @property
+    def value(self) -> str:
+        return self.message
 
     def apply(self, record: ParentRecord):
         record.add_history_entry(
@@ -85,6 +133,18 @@ class SetPlatformCandidates(RecordAction):
 class AssignPlatform(RecordAction):
     platform_uuid: str | None = dd.p_str()
 
+    @property
+    def name(self) -> str:
+        return "assign_platform"
+
+    @property
+    def object(self) -> str:
+        return "record"
+
+    @property
+    def value(self) -> str:
+        return self.platform_uuid or ''
+
     def apply(self, record: ParentRecord):
         record.metadata["CNODCPlatform"] = SingleElement(self.platform_uuid, Quality=1 if self.platform_uuid else 9)
         if 'CNODCPlatformCandidates' in record.metadata:
@@ -100,6 +160,18 @@ class AssignPlatform(RecordAction):
 class ChangeQuality(RecordAction):
     path: str = dd.p_str()
     new_flag: int = dd.p_int()
+
+    @property
+    def name(self) -> str:
+        return "qc_change_quality"
+
+    @property
+    def object(self) -> str:
+        return self.path
+
+    @property
+    def value(self) -> str:
+        return str(self.new_flag)
 
     def apply(self, record: ParentRecord):
         element = record.find_child(self.path)
@@ -118,6 +190,17 @@ class SetManualQCOutcome(RecordAction):
     qc_index: int = dd.p_int()
     actual_result: QCResult = dd.p_enum(QCResult)
 
+    @property
+    def name(self) -> str:
+        return "qc_set_result"
+
+    @property
+    def object(self) -> str:
+        return f"QC Test #{self.qc_index}"
+
+    @property
+    def value(self) -> str:
+        return self.actual_result.value
 
     def apply(self, record: ParentRecord):
         qc_test = record.qc_tests[self.qc_index]
@@ -133,6 +216,18 @@ class SetManualQCOutcome(RecordAction):
 class ChangeValue(RecordAction):
     path: str = dd.p_str()
     new_element: dict = dd.p_dict()
+
+    @property
+    def name(self) -> str:
+        return "qc_set_value"
+
+    @property
+    def object(self) -> str:
+        return self.path
+
+    @property
+    def value(self) -> str:
+        return AbstractElement.build_from_mapping(self.new_element).to_string()
 
     def apply(self, record: ParentRecord):
         element = record.find_child(self.path)

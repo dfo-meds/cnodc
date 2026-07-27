@@ -96,6 +96,10 @@ class ApplicationState:
         return self._batch_service_name
 
     @property
+    def record_actions(self) -> dict[int, RecordAction]:
+        return self._current_actions or {}
+
+    @property
     def batch_records(self) -> dict[str, SimpleRecordInfo]:
         return self._batch_records or {}
 
@@ -310,6 +314,12 @@ class ApplicationState:
             x: i18n.tr(f"batch_qc_{x}")
             for x in results
         }
+
+    def delete_action(self, action_index: int):
+        ...
+
+    def load_closest(self, path: str):
+        ...
 
     def update_record(self, working_uuid: str | None, force_reload: bool = False):
         if working_uuid is None and self._current_record is not None:

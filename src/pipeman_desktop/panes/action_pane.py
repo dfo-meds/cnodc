@@ -20,6 +20,7 @@ class ActionPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._action_list: t.Optional[ScrollableTreeview] = None
+        self._pane_id: str | None = None
 
     def on_init(self):
         action_frame = ttk.Frame(self.app.bottom_notebook)
@@ -41,20 +42,29 @@ class ActionPane(BasePane):
         self._action_list.table.column('#1', width=50, anchor='w', stretch=tk.NO)
         self._action_list.table.column('#2', width=250, anchor='w')
         self._action_list.table.column('#3', width=150, anchor='w')
-        self.app.bottom_notebook.add(action_frame, text='Operations', sticky='NSEW')
+        self.app.bottom_notebook.add(action_frame, text=i18n.tr("pane_actions"), sticky='NSEW')
+        self._pane_id = self.app.bottom_notebook.tabs()[-1]
 
     def on_language_change(self):
-        # TODO: treeview headings
-        # TODO: notebook text label
-        # TODO: translate action names??
-        pass
+        if self._action_list is not None:
+            self._action_list.set_headers([
+                i18n.tr('action_item_name'),
+                i18n.tr('action_item_object'),
+                i18n.tr('action_item_value')
+            ])
+        if self._pane_id is not None:
+            self.app.bottom_notebook.tab(self._pane_id, {"text": i18n.tr("pane_actions")})
+        self._rebuild_action_list()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.ACTION:
-            self._action_list.clear_items()
-            if app_state.actions:
-                for action_id in sorted(app_state.actions.keys()):
-                    self._add_action_item(action_id, app_state.actions[action_id])
+            self._rebuild_action_list()
+
+    def _rebuild_action_list(self):
+        self._action_list.clear_items()
+        actions = self.app.state.record_actions
+        for action_id in sorted(list(actions.keys())):
+            self._add_action_item(action_id, actions[action_id])
 
     def _add_action_item(self, action_id: int, action: RecordAction):
         self._action_list.table.insert(
