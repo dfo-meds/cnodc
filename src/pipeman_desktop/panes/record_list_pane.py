@@ -78,20 +78,18 @@ class RecordListPane(BasePane):
         if change_type & DisplayChange.BATCH_STATE:
             self._record_list.clear_items()
             self._subrecord_list.clear_items()
-            if app_state.batch_record_info:
-                self._build_record_list(app_state)
+            self._build_record_list()
         if change_type & DisplayChange.RECORD:
-            #self._record_list.table.selection(app_state.record_uuid)
             # TODO: set the selection
             self._subrecord_list.clear_items()
             if app_state.record is not None:
-                self._build_subrecord_list(app_state.record)
+                self._build_subrecord_list(self.app.state.record)
         if change_type & DisplayChange.RECORD_CHILD:
             # TODO: set the selection for child
             pass
 
-    def _build_record_list(self, app_state: ApplicationState):
-        for sr in app_state.batch_record_info.values():
+    def _build_record_list(self):
+        for sr in self.app.state.batch_record_info.values():
             self._record_list.table.insert(
                 parent='',
                 index='end',
@@ -119,33 +117,28 @@ class RecordListPane(BasePane):
                     self._build_subrecord_list(record, record_text, depth + 2)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
-        name = subrecord_set_type
-        einfo = self.ontology.recordset_info(subrecord_set_type)
-        if einfo is not None:
-            name = einfo.label(i18n.current_language())
-        return f'{(" " * (depth * 2))}{name}#{record_set_idx}'
+        return f'{(" " * (depth * 2))}{i18n.tr(f"recordset_type_{subrecord_set_type}")} #{record_set_idx}'
 
     def _build_record_display(self, record: ocproc2.BaseRecord, srt: str, idx: int, depth: int):
         display = i18n.tr(f"record_label", index=str(idx))
-        einfo = self.ontology.recordset_info(srt)
-        if einfo and einfo.coordinates:
-            c_names = list(einfo.coordinates)
-            c_names.sort()
-            for c_name in c_names:
-                if record.coordinates.has_value(c_name):
-                    value = record.coordinates[c_name]
-                    units = value.metadata.best('Units')
-                    if units:
-                        display += f" [{value.to_float()} {units}]"
-                    else:
-                        display += f" [{value.to_float()}]"
+        c_names = list(x for x in record.coordinates.keys())
+        c_names.sort()
+        for c_name in c_names:
+            ideal = record.coordinates.ideal(c_name)
+            if ideal and not ideal.is_empty():
+                value = ideal.to_float()
+                units = ideal.units
+                if units:
+                    display += f" [{value} {units}]"
+                else:
+                    display += f" [{value}]"
         return f'{(" " * (depth * 2))}{display}'
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):
-        self.app.load_child(item_info['values'][1])
+        self.app.state.update_subrecord(item_info['values'][1])
 
     def _on_record_click(self, item_info, is_change: bool, event):
-        self.app.load_record(item_info['text'])
+        self.app.state.update_record(item_info['text'])
 
 
 

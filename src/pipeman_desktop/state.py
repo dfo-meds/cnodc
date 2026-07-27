@@ -5,7 +5,7 @@ import typing as t
 from tkinter import messagebox as tkmb
 
 from gcapp import i18n as i18n
-from medsutil import ocproc2 as ocproc2
+from medsutil import ocproc2 as ocproc2, json
 from medsutil.ocproc2 import RecordAction
 from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult
 
@@ -23,6 +23,7 @@ class DisplayChange(enum.IntFlag):
     SAVING = enum.auto()
     SCREEN_SIZE = enum.auto()
     QUEUE_INFO = enum.auto()
+    RECORD_SET = enum.auto()
 
 
 class SimpleRecordInfo:
@@ -66,9 +67,13 @@ class ApplicationState:
         self._batch_records: dict[str, SimpleRecordInfo] | None = {}
         self._batch_close_op: t.Optional[ReviewResult] = None
         self._batch_actions: list[str] | None = None
+        self._current_working_uuid: str | None = None
+        self._current_parent: ocproc2.ParentRecord | None = None
+        self._current_actions: dict[int, RecordAction] | None = None
+        self._current_recordset: ocproc2.RecordSet | None = None
+        self._current_record: ocproc2.BaseRecord | None = None
+        self._current_child_path: str | None = None
 
-        self.record: t.Optional[ocproc2.ParentRecord] = None
-        self.record_uuid: t.Optional[str] = None
         self.subrecord_path: t.Optional[str] = None
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
@@ -89,6 +94,10 @@ class ApplicationState:
     @property
     def batch_service_name(self) -> str | None:
         return self._batch_service_name
+
+    @property
+    def batch_records(self) -> dict[str, SimpleRecordInfo]:
+        return self._batch_records or {}
 
     @property
     def has_unsaved_changes(self) -> bool:
@@ -302,6 +311,60 @@ class ApplicationState:
             for x in results
         }
 
+    def update_record(self, working_uuid: str | None, force_reload: bool = False):
+        if working_uuid is None and self._current_record is not None:
+            self._current_record = None
+            self._current_parent = None
+            self._current_actions = None
+            self._current_recordset = None
+            self._current_child_path = None
+            self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+        elif force_reload or working_uuid != self._current_working_uuid:
+            with self._app.local_db.cursor() as cur:
+                cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", (working_uuid,))
+                row = cur.fetchone()
+                if row is None:
+                    raise ValueError("Invalid record ID")
+                self._current_parent = ocproc2.ParentRecord.build_from_mapping(row[0])
+                cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
+                self._current_actions = {}
+                for rowid, action in cur.fetchall():
+                    operation = RecordAction.from_map(json.load_dict(action))
+                    operation.apply(self._current_parent)
+                    self._current_actions[rowid] = action
+
+                self._current_recordset = None
+                self._current_record = self._current_parent
+                self._current_working_uuid = working_uuid
+                if working_uuid == self._current_working_uuid and self._current_child_path is not None:
+                    self.update_subrecord(self._current_child_path, force_reload=True, _send_refresh=False)
+                else:
+                    self._current_child_path = None
+                self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+
+    def update_subrecord(self, subrecord_path: str | None, force_reload: bool = False, _send_refresh: bool = True):
+        if subrecord_path is None and self._current_child_path is not None:
+            self._current_record = None
+            self._current_recordset = None
+            self._current_child_path = None
+            if _send_refresh:
+                self.refresh_display(DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET)
+        if force_reload or subrecord_path != self._current_child_path:
+            self._current_child_path = subrecord_path
+            child = self._current_parent.find_child(subrecord_path) if subrecord_path is not None else None
+            if isinstance(child, ocproc2.RecordSet):
+                self._current_recordset = child
+                self._current_record = None
+            elif isinstance(child, ocproc2.ChildRecord):
+                self._current_record = child
+                self._current_recordset = None
+            else:
+                self._current_record = None
+                self._current_recordset = None
+                self._current_child_path = None
+            if _send_refresh:
+                self.refresh_display(DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET)
+
     def update_user_info(self, username: str | None, access_list: list[str]) -> bool:
         if self.username != username or self._available_services != access_list:
             self._username = username
@@ -360,20 +423,6 @@ class ApplicationState:
             return None
         return info.latitude, info.longitude
 
-    def set_record_info(self, record_uuid: str, record: ocproc2.ParentRecord, subrecord_path: t.Optional[str], actions):
-        self.record = record
-        self.record_uuid = record_uuid
-        self.actions = actions
-        self.subrecord_path = subrecord_path
-        self._set_child_item()
-        self._update_batch_info_from_current_record()
-        self.refresh_display(DisplayChange.ACTION | DisplayChange.RECORD | DisplayChange.RECORD_CHILD)
-
-    def set_record_subpath(self, subpath: t.Optional[str]):
-        self.subrecord_path = subpath
-        self._set_child_item()
-        self.refresh_display(DisplayChange.RECORD_CHILD)
-
     def extend_actions(self, actions: dict[int, RecordAction]):
         if self.actions is None:
             self.actions = actions
@@ -387,25 +436,3 @@ class ApplicationState:
             mode |= DisplayChange.RECORD
         self.refresh_display(mode)
 
-    def _set_child_item(self):
-        if self.record_uuid is not None and self.subrecord_path is not None:
-            child = self.record.find_child(self.subrecord_path)
-            if isinstance(child, ocproc2.ChildRecord):
-                self.child_record = child
-                self.child_recordset = None
-            elif isinstance(child, ocproc2.RecordSet):
-                self.child_record = None
-                self.child_recordset = child
-            else:
-                self.child_recordset = None
-                self.child_record = None
-                self.subrecord_path = None
-        else:
-            self.child_record = None
-            self.child_recordset = None
-
-    def _update_batch_info_from_current_record(self) -> bool:
-        # TODO:
-        # return true if the record was updated
-        # check latitude, longitude, time, and if there are any errors
-        pass
