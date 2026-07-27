@@ -1,4 +1,7 @@
 import datetime
+
+from packaging import tags
+
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.components.choice_dialog import ask_choice
@@ -256,73 +259,82 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
 
     def on_language_change(self):
-        self._rebuild_parameter_list(self.app.state)
+        if self._parameter_list is not None:
+            self._parameter_list.set_headers([
+                '',
+                i18n.tr('parameter_list_name'),
+                i18n.tr('parameter_list_value'),
+                i18n.tr('parameter_list_units'),
+                i18n.tr('parameter_list_quality'),
+            ])
+        self._rebuild_parameter_list()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD_CHILD | DisplayChange.RECORD):
-            self._rebuild_parameter_list(app_state)
+            self._rebuild_parameter_list()
 
-    def _rebuild_parameter_list(self, app_state):
-        if app_state.child_recordset is not None:
-            self.show_recordset(app_state.child_recordset, app_state.subrecord_path)
-        elif app_state.child_record is not None:
-            self.show_record(app_state.child_record, app_state.subrecord_path)
-        elif app_state.record is not None:
-            self.show_record(app_state.record, app_state.subrecord_path)
-        else:
+    def _rebuild_parameter_list(self):
+        if self._parameter_list is not None:
             self._parameter_list.clear_items()
+            if self.app.state.current_recordset is not None:
+                self.show_recordset(self.app.state.child_recordset, self.app.state.subrecord_path)
+            elif self.app.state.current_record is not None:
+                self.show_record(self.app.state.child_record, self.app.state.current_subrecord_path)
 
     def show_record(self, record: ocproc2.BaseRecord, path: str):
-        self._parameter_list.clear_items()
         self._value_lookup = {}
-        if record.metadata:
-            m_path = f'{path}/metadata' if path else 'metadata'
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.tr('metadata'), '', '', ''], tags=['header'])
-            is_alt = False
-            for k in record.metadata.keys():
-                self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
-                is_alt = not is_alt
         if record.coordinates:
-            c_path = f'{path}/coordinates' if path else 'coordinates'
-            self._parameter_list.table.insert('', 'end', open=True, iid=c_path, text='', values=['', i18n.tr('coordinates'), '', '', ''], tags=['header'])
+            c_path = self._create_parameter_header(path, 'coordinates')
             is_alt = False
             for k in record.coordinates.keys():
                 self._create_parameter_entry(record.coordinates[k], c_path, k, is_alt=is_alt)
                 is_alt = not is_alt
         if record.parameters:
-            p_path = f'{path}/parameters' if path else 'parameters'
-            self._parameter_list.table.insert('', 'end', open=True, iid=p_path, text='', values=['', i18n.tr('parameters'), '', '', ''], tags=['header'])
+            p_path = self._create_parameter_header(path, 'parameters')
             is_alt = False
             for k in record.parameters.keys():
                 self._create_parameter_entry(record.parameters[k], p_path, k, is_alt=is_alt)
+                is_alt = not is_alt
+        if record.metadata:
+            m_path = self._create_parameter_header(path, 'metadata')
+            is_alt = False
+            for k in record.metadata.keys():
+                self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
 
     def show_recordset(self, record_set: ocproc2.RecordSet, path: str):
         self._parameter_list.clear_items()
         if record_set.metadata:
-            m_path = f'{path}/metadata'
+            m_path = self._create_parameter_header(path, 'metadata')
             is_alt = False
-            self._parameter_list.table.insert('', 'end', open=True, iid=m_path, text='', values=['', i18n.tr('metadata'), '', '', ''], tags=['header'])
             for k in record_set.metadata.keys():
                 self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
 
+    def _create_parameter_header(self, path: str, header_name: str) -> str:
+        m_path = f'{path}/{header_name}' if path else header_name
+        self._parameter_list.append_item(
+            iid=m_path,
+            values=('', i18n.tr(f'element_header_{header_name}'), '', '', ''),
+            tags=('header',)
+        )
+        return m_path
+
     def _create_parameter_entry(self, v: ocproc2.AbstractElement, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
+        my_path = f'{parent_path}/{key}'
         if isinstance(v, ocproc2.MultiElement):
             is_alt = False
             # TODO: need a heading here (with translations)
+            self._parameter_list.append_item(
+                iid=my_path,
+                values=('', key, '', '', ''),
+                tags=('header',)
+            )
             for idx, subv in v.values():
-                self._create_parameter_entry(subv, f'{parent_path}/{key}/{idx}', str(idx), depth + 1, is_alt)
+                self._create_parameter_entry(subv, my_path, str(idx), depth + 1, is_alt)
                 is_alt = not is_alt
         elif isinstance(v, ocproc2.SingleElement):
             self._create_parameter_list_item(v, parent_path, key, depth, is_alt)
-        if v.metadata:
-            is_alt = False
-            for k in v.metadata:
-                if k in ('Units', 'Quality', 'WorkingQuality'):
-                    continue
-                self._create_parameter_entry(v.metadata[k], f'{parent_path}/{key}', k, depth + 1, is_alt)
-                is_alt = not is_alt
 
     def _create_parameter_list_item(self, v: ocproc2.SingleElement, parent_path: str, key: str, depth: int, is_alt: bool):
         path = f'{parent_path}/{key}'
@@ -330,22 +342,24 @@ class ParameterPane(BasePane):
         if is_alt:
             tags.append('alt')
         self._value_lookup[path] = v
-        self._parameter_list.table.insert(parent_path, 'end', iid=path, text='', values=[path, f'{"  " * depth}{self._key_name(key)}', *dv], tags=tags)
+        self._parameter_list.append(
+            parent=parent_path,
+            iid=path,
+            values=(path, f'{"  " * depth}{self._key_name(key)}', *dv),
+            tags=tags
+        )
+        is_alt = False
+        for m_name, md in v.metadata.items():
+            if m_name not in {"WorkingQuality"}:
+                self._create_parameter_entry(md, path, m_name, depth + 1, is_alt)
+                is_alt = not is_alt
 
     def _key_name(self, key: str):
-        einfo = self.ontology.info(key)
-        if einfo is not None:
-            return einfo.label(i18n.current_language())
         return key
 
     def _parameter_display_value(self, v: ocproc2.AbstractElement) -> tuple[tuple, list]:
         tags = []
-        wq = v.metadata.best('WorkingQuality', 0)
-        if wq is not None and not isinstance(wq, int):
-            try:
-                wq = int(wq)
-            except ValueError:
-                wq = 0
+        wq = v.metadata.best('WorkingQuality', default=0, coerce=int)
         if wq is not None and wq in ParameterPane.TAG_MAP:
             tags.append(ParameterPane.TAG_MAP[wq])
         if v.is_empty():
