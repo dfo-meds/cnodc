@@ -25,8 +25,8 @@ class QCPane(BasePane):
         self._base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
         self._images = {}
         self._last_choice = None
-        self._load_next = tk.IntVar()
-        self._checkbox: ttk.Checkbutton | None = None
+        self._load_next = tk.IntVar(value=1)
+        self._checkbox: tk.Checkbutton | None = None
         self._label: ttk.Label | None = None
         self.tts = []
 
@@ -68,7 +68,7 @@ class QCPane(BasePane):
         self._build_button(button_frame, "report", "report.png", self.fail_item)
 
         self._build_button(button_frame, "submit", "submit.png", self.complete_item)
-        self.app.root.bind('<Control-n>', functools.partial(self.complete_item))
+        self.app.root.bind('<Control-n>', self.complete_item)
 
         self._build_button(button_frame, "recheck", "recheck.png", self.recheck_item)
 
@@ -76,12 +76,25 @@ class QCPane(BasePane):
 
         self._build_button(button_frame, "descalate", "calate.png", self.descalate_item, rotate=True)
 
-        self._checkbox = ttk.Checkbutton(self.app.top_bar, variable=self._load_next)
-        self._checkbox.grid(row=0, column=len(self._buttons), ipadx=2, ipady=2, sticky='w')
+        self._cb_off = tk.PhotoImage(width=50, height=25)
+        self._cb_off.put(("black",), to=(0, 0, 24, 24))
+        self._cb_on = tk.PhotoImage(width=50, height=25)
+        self._cb_on.put(("green",), to=(25, 0, 49, 24))
+        self._checkbox = tk.Checkbutton(self.app.top_bar,
+                                        offrelief="sunken",
+                                        variable=self._load_next,
+                                        image=self._cb_off,
+                                        selectimage=self._cb_on,
+                                        indicatoron=False,
+                                        onvalue=1,
+                                        offvalue=0)
+        self._checkbox.grid(row=0, column=len(self._buttons))
         self.tts.append(Tooltip(self._checkbox, f'tooltip_toggle_autoload'))
+        self.app.top_bar.grid_columnconfigure(len(self._buttons), weight=0)
 
         self._label = ttk.Label(self.app.top_bar, text="", font=('', 18, 'bold'))
-        self._label.grid(row=0, column=len(self._buttons) + 1, ipadx=2, ipady=2, sticky='e')
+        self._label.grid(row=0, column=len(self._buttons) + 1, ipadx=2, ipady=2, sticky='ew')
+        self.app.top_bar.grid_columnconfigure(len(self._buttons) + 1, weight=1)
 
         self.fetch_queue_ready_count()
 
@@ -106,6 +119,7 @@ class QCPane(BasePane):
         if close_state is not None:
             self._button_close_state[button_name] = close_state
         self._buttons[button_name].grid(row=0, column=len(self._buttons) - 1, ipadx=0, ipady=0, padx=0, pady=0)
+        self.app.top_bar.grid_columnconfigure(len(self._buttons) - 1, weight=0)
         self.tts.append(Tooltip(self._buttons[button_name], f'tooltip_{button_name}'))
 
     def _build_button_image(self, path: pathlib.Path, master, rotate: bool = False, size: int = 30):
