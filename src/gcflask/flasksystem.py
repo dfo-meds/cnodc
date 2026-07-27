@@ -32,11 +32,13 @@ class APIOperation(TypedDict):
     url_kwargs: dict[str, t.Any]
     access: PermissionType
     request_kwargs: dict[str, t.Any]
+    metadata: dict[str, t.Any]
 
 
 class APIResolvedOperation(TypedDict):
     endpoint: str
     kwargs: dict[str, t.Any]
+    metadata: dict[str, t.Any]
 
 
 class FlaskSystemMixin(System):
@@ -94,7 +96,8 @@ class FlaskSystemMixin(System):
                 return None
         resolved: APIResolvedOperation = {
             "endpoint": flask.url_for(api_operation["endpoint"], _external=True, **api_operation["url_kwargs"]),
-            "kwargs": api_operation["request_kwargs"]
+            "kwargs": api_operation["request_kwargs"],
+            "metadata": api_operation["metadata"],
         }
         return resolved
 
@@ -108,12 +111,14 @@ class FlaskSystemMixin(System):
                                flask_endpoint: str,
                                required_permissions: PermissionType = None,
                                request_kwargs: dict[str, t.Any] | None = None,
-                               url_kwargs: dict[str, t.Any] | None = None):
+                               url_kwargs: dict[str, t.Any] | None = None,
+                               metadata: dict[str, t.Any] | None = None):
         self._api_operations[operation_identifier] = {
             'endpoint': flask_endpoint,
             'access': required_permissions,
             'request_kwargs': request_kwargs or {},
             'url_kwargs': url_kwargs or {},
+            "metadata": metadata or {}
         }
 
     def register_template_global(self, name: str, value: t.Any):

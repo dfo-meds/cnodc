@@ -250,19 +250,21 @@ class CNODCServerAPI:
         )
         return response["ready"]
 
-    def open_batch(self, batch_service_name: str) -> bool:
+    def open_batch(self, batch_service_name: str) -> list[str] | None:
         response = self.make_service_json_request(
             service_identifier=f"batch_qc.{batch_service_name}.open",
             method="POST",
         )
         if "queue_uuid" in response and response["queue_uuid"]:
             self._current_queue_item = response
-            return self._load_batch()
+            self._load_batch()
+            return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", [])
+
         else:
             self._current_queue_item = None
-            return False
+            return None
 
-    def _load_batch(self) -> bool:
+    def _load_batch(self):
         with self.local_db.cursor() as cur:
             response = self.make_batch_json_request(
                 action_name="stream",
@@ -305,7 +307,6 @@ class CNODCServerAPI:
                             "action_text": json.dumps(action.export()),
                             "is_saved": 1 if is_saved else 0,
                         })
-        return True
 
     def _build_local_record(self, record: ocproc2.ParentRecord, working_uuid: str) -> tuple[dict, list]:
         lat = record.coordinates.ideal("Latitude")
@@ -618,18 +619,18 @@ def fetch_queue_ready_count(client: CNODCServerAPI = None) -> list[tuple[str, st
 
 
 @injector.inject
-def save_changes(batch_service_name: str, client: CNODCServerAPI = None) -> bool:
-    return client.save_changes(batch_service_name)
+def save_changes(client: CNODCServerAPI = None) -> bool:
+    return client.save_changes()
 
 
 @injector.inject
-def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> bool:
+def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> list[str] | None:
     return client.open_batch(batch_service_name)
 
 
 @injector.inject
-def close_batch(batch_service_name: str, close_operation: str, client: CNODCServerAPI = None) -> bool:
-    return client.close_batch(batch_service_name, close_operation)
+def close_batch(close_operation: str, client: CNODCServerAPI = None) -> bool:
+    return client.close_batch(close_operation)
 
 
 

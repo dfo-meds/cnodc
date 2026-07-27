@@ -25,6 +25,9 @@ class QCPane(BasePane):
         self._base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
         self._images = {}
         self._last_choice = None
+        self._load_next = tk.IntVar()
+        self._checkbox: ttk.Checkbutton | None = None
+        self._label: ttk.Label | None = None
         self.tts = []
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -65,16 +68,20 @@ class QCPane(BasePane):
         self._build_button(button_frame, "report", "report.png", self.fail_item)
 
         self._build_button(button_frame, "submit", "submit.png", self.complete_item)
+        self.app.root.bind('<Control-n>', functools.partial(self.complete_item))
 
-        self._build_button(button_frame, "load_next", "submit_next.png", functools.partial(self.complete_item, load_next=True))
-        self.app.root.bind('<Control-n>', functools.partial(self.complete_item, load_next=True))
+        self._build_button(button_frame, "recheck", "recheck.png", self.recheck_item)
 
         self._build_button(button_frame, "escalate", "calate.png", self.escalate_item)
 
         self._build_button(button_frame, "descalate", "calate.png", self.descalate_item, rotate=True)
 
+        self._checkbox = ttk.Checkbutton(self.app.top_bar, variable=self._load_next)
+        self._checkbox.grid(row=0, column=len(self._buttons), ipadx=2, ipady=2, sticky='w')
+        self.tts.append(Tooltip(self._checkbox, f'tooltip_toggle_autoload'))
+
         self._label = ttk.Label(self.app.top_bar, text="", font=('', 18, 'bold'))
-        self._label.grid(row=0, column=len(self._buttons), ipadx=2, ipady=2, sticky='e')
+        self._label.grid(row=0, column=len(self._buttons) + 1, ipadx=2, ipady=2, sticky='e')
 
         self.fetch_queue_ready_count()
 
@@ -147,18 +154,33 @@ class QCPane(BasePane):
         if choice is not None:
             self.app.state.open_qc_batch(choice)
 
-    def complete_item(self, e=None, load_next: bool = False):
+    def recheck_item(self, e=None, load_next: bool | None = None):
+        if load_next is None:
+            load_next = self._load_next.get() > 0
+        self.app.state.close_current_batch(ReviewResult.RECHECK, self.next_item if load_next else None)
+
+    def complete_item(self, e=None, load_next: bool | None = None):
+        if load_next is None:
+            load_next = self._load_next.get() > 0
         self.app.state.close_current_batch(ReviewResult.CONTINUE, self.next_item if load_next else None)
 
-    def release_item(self, e=None):
-        self.app.state.close_current_batch(ReviewResult.RELEASE)
+    def release_item(self, e=None, load_next: bool | None = None):
+        if load_next is None:
+            load_next = self._load_next.get() > 0
+        self.app.state.close_current_batch(ReviewResult.RELEASE, self.next_item if load_next else None)
 
-    def fail_item(self, e=None):
-        self.app.state.close_current_batch(ReviewResult.ERROR)
+    def fail_item(self, e=None, load_next: bool | None = None):
+        if load_next is None:
+            load_next = self._load_next.get() > 0
+        self.app.state.close_current_batch(ReviewResult.ERROR, self.next_item if load_next else None)
 
-    def escalate_item(self, e=None):
-        self.app.state.close_current_batch(ReviewResult.ESCALATE)
+    def escalate_item(self, e=None, load_next: bool | None = None):
+        if load_next is None:
+            load_next = self._load_next.get() > 0
+        self.app.state.close_current_batch(ReviewResult.ESCALATE, self.next_item if load_next else None)
 
-    def descalate_item(self, e=None):
-        self.app.state.close_current_batch(ReviewResult.DESCALATE)
+    def descalate_item(self, e=None, load_next: bool | None = None):
+        if load_next is None:
+            load_next = self._load_next.get() > 0
+        self.app.state.close_current_batch(ReviewResult.DESCALATE, self.next_item if load_next else None)
 

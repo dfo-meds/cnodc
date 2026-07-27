@@ -7,8 +7,10 @@ from tkinter import messagebox as tkmb
 from gcapp import i18n as i18n
 from medsutil import ocproc2 as ocproc2
 from medsutil.ocproc2 import RecordAction
-from pipeman_desktop.main_app import PipemanDesktop
 from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult
+
+if t.TYPE_CHECKING:
+    from pipeman_desktop.main_app import PipemanDesktop
 
 
 class DisplayChange(enum.IntFlag):
@@ -63,6 +65,7 @@ class ApplicationState:
         self._has_unsaved_changes: bool = False
         self._batch_records: dict[str, SimpleRecordInfo] | None = {}
         self._batch_close_op: t.Optional[ReviewResult] = None
+        self._batch_actions: list[str] | None = None
 
         self.record: t.Optional[ocproc2.ParentRecord] = None
         self.record_uuid: t.Optional[str] = None
@@ -181,10 +184,11 @@ class ApplicationState:
         self._app.show_user_exception(ex)
         self._batch_state = BatchOpenState.OPEN_ERROR
         self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
-        self._on_qc_batch_open_success(None, on_no_item)
+        self._on_qc_batch_open_success(False, on_no_item)
 
-    def _on_qc_batch_open_success(self, result: bool | None, on_no_item: t.Callable | None = None):
-        if result:
+    def _on_qc_batch_open_success(self, result: list[str] | None | bool, on_no_item: t.Callable | None = None):
+        if isinstance(result, list):
+            self._batch_actions = result
             self._batch_records = {}
             with self._app.local_db.cursor() as cur:
                 cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, station_id FROM records ORDER BY station_id ASC, datetime ASC")
@@ -195,7 +199,8 @@ class ApplicationState:
             self._has_unsaved_changes = False
             self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
         else:
-            if result is False:
+            self._batch_actions = None
+            if result is not False:
                 self._app.show_user_info(
                     title=i18n.tr(f'no_items_title_{self.batch_service_name}'),
                     message=i18n.tr(f'no_items_message_{self.batch_service_name}')
@@ -266,6 +271,12 @@ class ApplicationState:
         if after_close is not None:
             after_close()
 
+    BATCH_VARIABLE_AVAILABILITY = {
+        ReviewResult.DESCALATE,
+        ReviewResult.ESCALATE,
+        ReviewResult.CONTINUE,
+    }
+
     def can_close_current_batch(self, batch_action: ReviewResult) -> bool:
         if self.save_in_progress:
             return False
@@ -273,7 +284,11 @@ class ApplicationState:
             return False
         if batch_action.value.startswith("_"):
             return True
-        return self.has_access(f"batch_qc.{self._batch_service_name}.{batch_action.value}")
+        if batch_action in self.BATCH_VARIABLE_AVAILABILITY:
+            return self._batch_actions is not None and batch_action.value in self._batch_actions
+        else:
+            return True
+
 
     def batch_queue_choices(self) -> dict[str, str]:
         results = set()
@@ -315,7 +330,7 @@ class ApplicationState:
                 self._batch_service_name = None
                 self._batch_records = None
                 self._batch_close_op = None
-                self._batch_records = None
+                self._batch_actions = None
                 self.refresh_display(DisplayChange.BATCH_STATE)
             self.update_save_flags(False, False)
         elif batch_state is not self._batch_state:

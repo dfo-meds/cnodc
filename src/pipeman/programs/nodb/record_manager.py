@@ -9,7 +9,6 @@ from collections import defaultdict
 from autoinject import injector
 
 from medsutil import ocproc2 as ocproc2
-from medsutil.awaretime import AwareDateTime
 from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, \
     NODBMission, DataMode, NODBObservationRelationship, ObservationRelationshipType
 from nodb.interface import NODBInstance, LockType
