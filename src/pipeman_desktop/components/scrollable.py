@@ -60,10 +60,16 @@ class ScrollableTreeview(tk.Frame):
         self._on_select_call = on_select
         self._on_right_call = on_right_click
         self._on_click_call = on_click
+        self._ignoring_callback = False
 
     def clear_items(self):
         for item in self.table.get_children():
             self.table.delete(item)
+
+    def set_selection(self, iids: list[str], _ignore_callback: bool = True):
+        self._ignoring_callback = _ignore_callback
+        self.table.selection_set(iids)
+        self._ignoring_callback = False
 
     def tag_configure(self, tag_name: str, **kwargs):
         self.table.tag_configure(tag_name, **kwargs)
@@ -78,11 +84,16 @@ class ScrollableTreeview(tk.Frame):
             self.table.column(key, anchor="center")
             self.table.heading(key, text=headers[i])
 
-    def extend_items(self, values: t.Iterable[tuple[str, tuple, tuple]]):
-        for txt, v, tags in values:
-            self.table.insert('', 'end', text=txt, values=v, tags=tags, open=False)
+    def append_item(self, iid: str, values: tuple, parent: str = '', text: str = '', tags: tuple | None = None):
+        self.table.insert(parent, 'end', iid=iid, text=text, values=values, tags=tags or tuple(), open=False)
+
+    def extend_items(self, values: t.Iterable[tuple]):
+        for args in values:
+            self.append_item(*args)
 
     def _on_select(self, e: tk.Event):
+        if self._ignoring_callback:
+            return
         if self._on_select_call is not None or self._on_click_call is not None:
             iid = self.table.selection()
             if iid:

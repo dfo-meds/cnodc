@@ -76,26 +76,29 @@ class RecordListPane(BasePane):
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.BATCH_STATE:
-            self._record_list.clear_items()
-            self._subrecord_list.clear_items()
+            if self._record_list is not None:
+                self._record_list.clear_items()
+            if self._subrecord_list is not None:
+                self._subrecord_list.clear_items()
             self._build_record_list()
         if change_type & DisplayChange.RECORD:
-            # TODO: set the selection
-            self._subrecord_list.clear_items()
-            if app_state.record is not None:
-                self._build_subrecord_list(self.app.state.record)
+            if self._record_list is not None:
+                self._record_list.set_selection([self.app.state.current_working_uuid], _ignore_callback=True)
+            if self._subrecord_list is not None:
+                self._subrecord_list.clear_items()
+            if app_state.current_parent is not None:
+                self._build_subrecord_list(self.app.state.current_parent)
         if change_type & DisplayChange.RECORD_CHILD:
-            # TODO: set the selection for child
-            pass
+            if self._subrecord_list is not None:
+                self._subrecord_list.set_selection([self.app.state.current_child_path])
 
     def _build_record_list(self):
         for sr in self.app.state.batch_record_info.values():
-            self._record_list.table.insert(
+            self._record_list.append_item(
                 parent='',
-                index='end',
-                text=sr.record_uuid,
-                values=[sr.index, self._build_top_record_display(sr)],
-                tags=['has-error' if sr.has_errors else 'no-error']
+                iid=sr.record_uuid,
+                values=(sr.index, self._build_top_record_display(sr)),
+                tags=('has-error' if sr.has_errors else 'no-error',)
             )
 
     def _build_top_record_display(self, sr: SimpleRecordInfo):
@@ -104,17 +107,26 @@ class RecordListPane(BasePane):
         return f'{sr.record_uuid}'
 
     def _build_subrecord_list(self, record: ocproc2.BaseRecord, parent_text: str = '', depth: int = 0):
-        for srt in record.subrecords:
-            srt_text = f'{parent_text}/subrecords/{srt}' if parent_text else f'subrecords/{srt}'
-            for rs_idx in record.subrecords[srt]:
-                rs_text = f'{srt_text}/{rs_idx}'
-                # TODO: profile flagging of errors
-                self._subrecord_list.table.insert(parent_text, 'end', text='', iid=rs_text, values=(self._build_record_set_display(srt, rs_idx, depth), rs_text))
-                for idx, record in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
-                    record_text = f"{srt_text}/{rs_idx}/{idx}"
-                    # TODO: row flagging of errors
-                    self._subrecord_list.table.insert(rs_text, 'end', text='', iid=record_text, values=(self._build_record_display(record, srt, idx, depth + 1), record_text))
-                    self._build_subrecord_list(record, record_text, depth + 2)
+        if self._subrecord_list is not None:
+            for srt in record.subrecords:
+                srt_text = f'{parent_text}/subrecords/{srt}' if parent_text else f'subrecords/{srt}'
+                for rs_idx in record.subrecords[srt]:
+                    rs_text = f'{srt_text}/{rs_idx}'
+                    # TODO: profile flagging of errors
+                    self._subrecord_list.append_item(
+                        iid=rs_text,
+                        parent=parent_text,
+                        values=(self._build_record_set_display(srt, rs_idx, depth), rs_text)
+                    )
+                    for idx, record in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
+                        record_text = f"{srt_text}/{rs_idx}/{idx}"
+                        # TODO: row flagging of errors
+                        self._subrecord_list.append_item(
+                            iid=record_text,
+                            parent=rs_text,
+                            values=(self._build_record_display(record, srt, idx, depth + 1), record_text)
+                        )
+                        self._build_subrecord_list(record, record_text, depth + 2)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
         return f'{(" " * (depth * 2))}{i18n.tr(f"recordset_type_{subrecord_set_type}")} #{record_set_idx}'
@@ -138,7 +150,7 @@ class RecordListPane(BasePane):
         self.app.state.update_subrecord(item_info['values'][1])
 
     def _on_record_click(self, item_info, is_change: bool, event):
-        self.app.state.update_record(item_info['text'])
+        self.app.state.update_record(item_info['iid'])
 
 
 

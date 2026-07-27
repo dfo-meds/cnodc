@@ -111,6 +111,10 @@ class ApplicationState:
     def current_parent(self) -> ocproc2.ParentRecord | None:
         return self._current_parent
 
+    @property
+    def current_child_path(self) -> str | None:
+        return self._current_child_path
+
     def refresh_display(self, change_type: DisplayChange, *args, **kwargs):
         self._app.refresh_display(self, change_type)
 

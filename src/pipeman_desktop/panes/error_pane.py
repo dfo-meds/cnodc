@@ -22,6 +22,10 @@ class ErrorPane(BasePane):
             selectmode='browse',
             show='headings',
             headers=[
+                i18n.tr('qc_test_name'),
+                i18n.tr('qc_test_time'),
+                i18n.tr('qc_test_error_name'),
+                i18n.tr('qc_test_element_name')
             ],
             displaycolumns=(0, 1, 2, 3),
             on_click=self._on_click
