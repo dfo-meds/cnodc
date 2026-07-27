@@ -14,12 +14,12 @@ class HistoryPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._history_list: t.Optional[ScrollableTreeview] = None
+        self._pane_id: str | None = None
 
     def on_init(self):
         history_frame = ttk.Frame(self.app.bottom_notebook)
         history_frame.rowconfigure(0, weight=1)
         history_frame.columnconfigure(0, weight=1)
-        self.app.bottom_notebook.add(history_frame, text='History', sticky='NSEW')
         self._history_list = ScrollableTreeview(
             parent=history_frame,
             selectmode="browse",
@@ -37,18 +37,30 @@ class HistoryPane(BasePane):
         self._history_list.table.column('#3', anchor='w')
         self._history_list.table.column('#4', width=125, stretch=tk.NO, anchor='w')
         self._history_list.grid(row=0, column=0, sticky='NSEW')
+        self.app.bottom_notebook.add(history_frame, text=i18n.tr("pane_history"), sticky='NSEW')
+        self._pane_id = self.app.bottom_notebook.tabs()[-1]
 
     def on_language_change(self):
-        # TODO: treeview headings
-        # TODO: notebook label
-        # TODO: column 3 (message type) and maybe date/time format?
-        pass
+        if self._history_list is not None:
+            self._history_list.set_headers([
+                i18n.tr('history_time'),
+                i18n.tr('history_message'),
+                i18n.tr('history_source'),
+                i18n.tr('history_type')
+            ])
+        if self._pane_id is not None:
+            self.app.bottom_notebook.tab(self._pane_id, text=i18n.tr("pane_history"))
+        self.update_history_display()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD | DisplayChange.ACTION):
+            self.update_history_display()
+
+    def update_history_display(self):
+        if self._history_list is not None:
             self._history_list.clear_items()
-            if app_state.record is not None:
-                for history in app_state.record.history:
+            if self.app.state.current_parent is not None:
+                for history in self.app.state.current_parent.history:
                     tags = []
                     if history.message_type == MessageType.ERROR:
                         tags.append('error')
