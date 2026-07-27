@@ -107,6 +107,10 @@ class ApplicationState:
     def has_unsaved_changes(self) -> bool:
         return self._has_unsaved_changes
 
+    @property
+    def current_parent(self) -> ocproc2.ParentRecord | None:
+        return self._current_parent
+
     def refresh_display(self, change_type: DisplayChange, *args, **kwargs):
         self._app.refresh_display(self, change_type)
 
