@@ -5,7 +5,7 @@ class StopAction(Exception):
     pass
 
 
-class QCResult(enum.Enum):
+class ReviewResult(enum.Enum):
 
     CONTINUE = 'continue'
     RECHECK = 'recheck'

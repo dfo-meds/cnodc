@@ -3,6 +3,8 @@ import typing as t
 
 from medsutil import ocproc2 as ocproc2
 from medsutil.exceptions import CodedError
+from medsutil.ocproc2 import QCResult
+from medsutil.ocproc2.operations import SetManualQCOutcome
 from nodb.interface import NODBInstance, LockType
 from nodb.observations import NODBSourceFile, NODBBatch, BatchStatus, NODBWorkingRecord
 from pipeman.programs.qc.base import QualityController
@@ -65,6 +67,11 @@ class QCTestRunner:
                     )
                     qc_results.append(result.result)
                     original_record.qc_tests.append(result)
+                    if result.result is QCResult.MANUAL_REVIEW:
+                        result.proposed_actions.append(SetManualQCOutcome(
+                            qc_index=len(original_record.qc_tests) - 1,
+                            actual_result=QCResult.MANUAL_FAIL
+                        ))
                     for action in result.applied_actions:
                         action.apply(original_record)
                 working_record.record = original_record

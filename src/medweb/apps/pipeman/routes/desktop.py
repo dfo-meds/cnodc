@@ -7,7 +7,7 @@ from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import security_check, web_error_handling, require_permission, api_error_handling
 from autoinject import injector
 
-from medweb.apps.pipeman.nodb_manager import NODBController, QCResult
+from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
 
 desktop = MultiLanguageBlueprint("desktop", __name__)
 
@@ -77,7 +77,7 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
     return nodb.close_qc_item(
         queue_uuid,
         json_param("app_id", str),
-        json_param("result", QCResult),
+        json_param("result", ReviewResult),
     )
 
 
@@ -86,4 +86,23 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
 @api_error_handling
 @injector.inject
 def stream_queue_item_records(queue_uuid: str, nodb: NODBController = None):
-    return nodb.stream_working_records(queue_uuid, json_param("app_id", str))
+    return nodb.stream_queue_working_records(queue_uuid, json_param("app_id", str))
+
+
+@desktop.route("/internal/working/<record_uuid>", methods=["GET"])
+@security_check("pipeman.lock_queue_items")
+@api_error_handling
+@injector.inject
+def fetch_working_record(record_uuid: str, nodb: NODBController = None):
+    return nodb.stream_working_record(record_uuid)
+
+
+@desktop.route("/internal/working/<record_uuid>", methods=["POST"])
+@security_check("pipeman.lock_queue_items")
+@api_error_handling
+@injector.inject
+def save_working_record(record_uuid: str, nodb: NODBController = None):
+    return nodb.save_record_actions(
+        record_uuid,
+        json_param("actions")
+    )

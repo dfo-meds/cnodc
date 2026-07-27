@@ -1,5 +1,5 @@
 import medsutil.datadict as dd
-from medsutil.ocproc2 import ParentRecord, AbstractElement, SingleElement, RecordSet, BaseRecord, MessageType
+from medsutil.ocproc2 import ParentRecord, AbstractElement, SingleElement, RecordSet, BaseRecord, MessageType, QCResult
 from medsutil.ocproc2.history import ActionType, Organization
 from medsutil.ocproc2.util import set_working_quality
 
@@ -111,6 +111,22 @@ class ChangeQuality(RecordAction):
                 f"Quality flag changed to {self.new_flag}",
                 ActionType.CHANGE_QUALITY,
                 self.path
+            )
+
+
+class SetManualQCOutcome(RecordAction):
+    qc_index: int = dd.p_int()
+    actual_result: QCResult = dd.p_enum(QCResult)
+
+
+    def apply(self, record: ParentRecord):
+        qc_test = record.qc_tests[self.qc_index]
+        if qc_test.result is QCResult.MANUAL_REVIEW:
+            qc_test.result = self.actual_result
+            self.add_history_action(
+                record,
+                f"Manual review of QC test [{self.qc_index}] set to {self.actual_result}",
+                ActionType.QC_RESULT_UPDATED
             )
 
 

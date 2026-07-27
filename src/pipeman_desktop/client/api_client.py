@@ -8,6 +8,8 @@ from requests import JSONDecodeError, HTTPError
 
 from gcapp.i18n import TranslatableError
 from medsutil.awaretime import AwareDateTime
+from medsutil.exceptions import CodedError
+from medsutil.ocproc2 import QCResult
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.web import request
@@ -18,10 +20,13 @@ import requests
 import medsutil.ocproc2 as ocproc2
 
 
-class RemoteAPIError(TranslatableError):
+class RemoteAPIError(CodedError):
 
-    def __init__(self, message: str, remote_code: str, local_code: int | None = None):
-        super().__init__(f"{remote_code}: {message}", local_code, code_space="REMOTE")
+    def __init__(self, message: str, remote_code: str | None = None, local_code: int | None = None):
+        super().__init__(f"{remote_code or ''}: {message}", local_code, code_space="REMOTE")
+
+
+class LocalAPIError(TranslatableError): CODE_SPACE="API-LOCAL"
 
 
 def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:
@@ -29,9 +34,9 @@ def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:
         try:
             return cb(*args, **kwargs)
         except JSONDecodeError as ex:
-            raise RemoteAPIError("Invalid JSON", None) from ex
+            raise LocalAPIError("error_invalid_json", 1000) from ex
         except HTTPError as ex:
-            raise RemoteAPIError(f"{ex.errno}: {ex}", None) from ex
+            raise RemoteAPIError(f"{ex.errno}: {ex}", "HTTP", 1000) from ex
     return _inner
 
 
@@ -153,8 +158,12 @@ class CNODCServerAPI:
     def make_service_json_request(self,
                                   service_identifier: str,
                                   method: str,
+                                  _service_list: dict[str, dict[str, t.Any]] | None = None,
                                   **kwargs):
-        endpoint, extra_kwargs = self.service_info(service_identifier)
+        endpoint, extra_kwargs = self.service_info(
+            service_list=_service_list if _service_list is not None else self._service_list,
+            service_identifier=service_identifier
+        )
         return self.web_client.make_json_request(
             endpoint=endpoint,
             method=method,
@@ -162,17 +171,20 @@ class CNODCServerAPI:
             **extra_kwargs
         )
 
-    def service_info(self, service_identifier: str) -> tuple[str, dict[str, t.Any]]:
-        if self._service_list is not None and service_identifier in self._service_list:
+    @staticmethod
+    def service_info(service_list: dict[str, dict[str, t.Any]] | None, service_identifier: str) -> tuple[str, dict[str, t.Any]]:
+        if service_list is not None and service_identifier in service_list:
             return (
-                self._service_list[service_identifier]["url"],
-                self._service_list[service_identifier]["kwargs"]
+                service_list[service_identifier]["url"],
+                service_list[service_identifier].get("kwargs", None) or {}
             )
         else:
-            raise RemoteAPIError(f"No access to the service {service_identifier}")
+            err = LocalAPIError("error_no_access", 1100)
+            err.add_note(f"service: {service_identifier}")
+            raise err
 
     def has_access(self, service_identifier: str):
-        _ = self.service_info(service_identifier)
+        _ = self.service_info(self._service_list, service_identifier)
 
     def login(self, username: str, password: str) -> bool:
         response = self.web_client.make_json_request(
@@ -251,20 +263,96 @@ class CNODCServerAPI:
             return False
 
     def _load_batch(self) -> bool:
-        ...
+        with self.local_db.cursor() as cur:
+            response = self.make_batch_json_request(
+                action_name="stream",
+                method="GET"
+            )
+            cur.truncate_table('records')
+            cur.truncate_table('actions')
+            for working_info in response["data"]:
+                cur.insert('records', {
+                    'record_uuid': working_info["working_uuid"],
+                    'downloaded': 0,
+                    'platform_id': working_info["platform_uuid"],
+                    'actions': json.dumps(working_info["actions"]),
+                })
+            cur.commit()
+            cur.execute("SELECT record_uuid, actions FROM records WHERE downloaded = 0")
+            while row := cur.fetchone():
+                actions = json.loads(row["actions"])
+                response = self.make_service_json_request(
+                    "fetch",
+                    "GET",
+                    _service_list=actions
+                )
+                record = ocproc2.ParentRecord.build_from_mapping(response["data"])
+                local_info, proposed_actions = self._build_local_record(record, row[0])
+                is_saved = False
+                if response["proposed_actions"] is not None:
+                    proposed_actions = response["proposed_actions"]
+                    is_saved = True
+                with self.local_db.cursor() as cur:
+                    cur.update("records", {
+                        "record_content": json.dumps(response["data"]),
+                        **local_info
+                    }, {
+                        "record_uuid": row[0]
+                    })
+                    for action in proposed_actions:
+                        cur.insert("actions", {
+                            "record_uuid": row[0],
+                            "action_text": json.dumps(action.export()),
+                            "is_saved": 1 if is_saved else 0,
+                        })
+        return True
+
+    def _build_local_record(self, record: ocproc2.ParentRecord, working_uuid: str) -> tuple[dict, list]:
+        lat = record.coordinates.ideal("Latitude")
+        lon = record.coordinates.ideal("Longitude")
+        time = record.coordinates.ideal("Time")
+        info = {
+            "lat": lat.to_string() if lat else None,
+            "lat_qc": lat.quality if lat else None,
+            "lon": lon.to_string() if lon else None,
+            "lon_qc": lon.quality if lon else None,
+            "datetime": time.to_string() if time else None,
+            "datetime_qc": time.quality if time else None,
+            "has_errors": 0,
+            "display": self._build_display(record, working_uuid),
+        }
+        default_actions = []
+        for qcr in record.qc_tests.iterate_with_load():
+            if qcr.result is QCResult.MANUAL_REVIEW:
+                info["has_errors"] = 1
+                default_actions.extend(qcr.proposed_actions)
+        return info, default_actions
+
+    def _build_display(self, record: ocproc2.ParentRecord, working_uuid: str):
+        s = []
+        if record.coordinates.has_value('Time'):
+            s.append(f'T:{record.coordinates.best("Time")}')
+        if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
+            s.append(f'X:{record.coordinates.best("Longitude")}')
+            s.append(f'Y:{record.coordinates.best("Latitude")}')
+        if record.coordinates.has_value('Depth'):
+            s.append(f'Z:{record.coordinates.best("Depth")}')
+        elif record.coordinates.has_value('Pressure'):
+            s.append(f'P:{record.coordinates.best("Pressure")}')
+        if not s:
+            s.append(f"I:{working_uuid}")
+        return '  '.join(s)
 
     def make_batch_json_request(self, action_name, method: str, **kwargs) -> dict:
         if not self._current_queue_item:
-            raise ValueError("No open queue item")
-        if action_name not in self._current_queue_item["actions"]:
-            raise ValueError("Action not available")
-        endpoint = self._current_queue_item["actions"][action_name].get("endpoint")
-        extra_kwargs = self._current_queue_item["actions"][action_name].get("kwargs", None) or {}
-        return self.web_client.make_json_request(
-            endpoint=endpoint,
-            method=method,
-            **kwargs,
-            **extra_kwargs
+            err = LocalAPIError("no_open_batch", 1200)
+            err.add_note(f"action: {action_name}")
+            raise err
+        return self.make_service_json_request(
+            action_name,
+            method,
+            _service_list=self._current_queue_item.get("actions", None),
+            **kwargs
         )
 
     def renew_batch(self) -> bool:
@@ -283,8 +371,33 @@ class CNODCServerAPI:
         self._current_queue_item = None
         return "success" in response and response["success"]
 
-    def save_changes(self):
-        ...
+    def save_changes(self) -> bool:
+        with self.local_db.cursor() as cur:
+            cur.execute("SELECT DISTINCT record_uuid FROM actions WHERE is_saved = 0")
+            for row in cur.fetchall():
+                self._save_changes(row[0])
+            return True
+
+    def _save_changes(self, record_uuid: str):
+        with self.local_db.cursor() as cur:
+            cur.execute("SELECT actions FROM record WHERE record_uuid = ?", (record_uuid,))
+            row = cur.fetchone()
+            if row is None:
+                raise LocalAPIError("error_no_record_entry", 1300)
+            record_actions = row[0]
+            action_list = []
+            cur.execute("SELECT action_text FROM action WHERE record_uuid = ?", (record_uuid,))
+            for row in cur.fetchall():
+                action_list.append(row[0])
+            response = self.make_service_json_request(
+                service_identifier="save",
+                method="POST",
+                _service_list=record_actions,
+                actions=action_list
+            )
+            if response["success"]:
+                cur.execute("UPDATE actions SET is_saved = 1 WHERE record_uuid = ?", (record_uuid,))
+
 
 """
     def reload_stations(self) -> bool:

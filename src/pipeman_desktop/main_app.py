@@ -12,7 +12,7 @@ import zrlog
 import medsutil.ocproc2 as ocproc2
 from gcapp.system import System
 from medsutil.savedata import SaveData
-from pipeman_desktop.util import QCResult, BatchOpenState, CloseBatchResult
+from pipeman_desktop.util import ReviewResult, BatchOpenState, CloseBatchResult
 from pipeman_desktop.state import DisplayChange, SimpleRecordInfo, ApplicationState
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.action_pane import ActionPane
@@ -353,7 +353,7 @@ class PipemanDesktop:
         if self._is_closing:
             return
         self._is_closing = True
-        result = self.state.close_current_batch(QCResult.RELEASE, after_close=self._close)
+        result = self.state.close_current_batch(ReviewResult.RELEASE, after_close=self._close)
         if result == CloseBatchResult.CANCELLED:
             self._is_closing = False
         elif result == CloseBatchResult.UNABLE_TO_CLOSE:

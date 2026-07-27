@@ -13,7 +13,7 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
 from medsutil.math import _functions
-from medsutil.ocproc2 import RecordAction, MessageType
+from medsutil.ocproc2 import RecordAction, MessageType, QCResult
 from medsutil.ocproc2.operations import ChangeQuality, RecordProcessed, AddHistoryEntry
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler

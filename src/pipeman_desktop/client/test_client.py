@@ -1,19 +1,137 @@
+import copy
 import datetime
 import pathlib
 import typing as t
 import random
 
 import medsutil.ocproc2 as ocproc2
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.codecs import OCProc2YamlCodec
 from medsutil.ocproc2.operations import RecordAction
+from nodb.observations import NODBWorkingRecord
+from nodb.queue import NODBQueueItem
 # this line is currently necessary to ensure it is properly override
 # I should put in a fix for autoinject to ensure overrides always override
 from pipeman_desktop.client.api_client import WebAPIClient
+
+class MockNODB:
+
+    def __init__(self):
+        self._records: dict[str, tuple[NODBWorkingRecord, list[dict] | None]] = {}
+        self._queue_items: dict[str, dict] = {}
+        self._queue_records: dict[str, list[NODBWorkingRecord]] = {}
+
+    def add_queue_item(self,
+                       records: t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]],
+                       queue_uuid: str,
+                       queue_name: str,
+                       subqueue_name: str | None,
+                       escalation_level: int = 0):
+        self._queue_items[queue_uuid] = {
+            "queue_name": queue_name,
+            "subqueue_name": subqueue_name,
+            "escalation_level": escalation_level,
+            "queue_uuid": queue_uuid,
+            "success": True,
+            "message": "Success",
+            "actions": {
+                "renew": {
+                    "endpoint": f"api/renew/{queue_uuid}",
+                },
+                "close": {
+                    "endpoint": f"api/close/{queue_uuid}",
+                },
+                "stream": {
+                    "endpoint": f"api/stream/{queue_uuid}",
+                },
+            }
+        }
+        self._queue_records[queue_uuid] = [x[0] for x in records]
+        for record, actions in records:
+            self._records[str(record.working_uuid)] = (record, actions)
+
+    def get_queue_item(self,
+                       queue_name: str,
+                       subqueue_name: str | None,
+                       escalation_level: int = 0) -> dict:
+        for item_uuid, item in self._queue_items:
+            if item["queue_name"] != queue_name:
+                continue
+            if subqueue_name is not None and subqueue_name != item["subqueue_name"]:
+                continue
+            if escalation_level != item["escalation_level"]:
+                continue
+            return {
+                **item,
+                "locked_until": (AwareDateTime.utcnow() + datetime.timedelta(hours=2))
+            }
+        return {
+            "success": False,
+            "message": "No queue items available",
+            "actions": {},
+            "queue_uuid": None,
+            "locked_until": None,
+            "data": None,
+            "subqueue_name": subqueue_name,
+            "queue_name": queue_name,
+            "escalation_level": escalation_level
+        }
+
+    def renew_queue_item(self, queue_uuid: str):
+        return {"success": True, "message": "Success"}
+
+    def close_batch(self, queue_uuid: str, result: str):
+        del self._queue_items[queue_uuid]
+        return {
+            "success": True,
+            "message": "Success"
+        }
+
+    def stream_batch(self, queue_uuid: str):
+        return {
+            "success": True,
+            "message": "Success",
+            "data": [
+                {
+                    "working_uuid": record.working_uuid,
+                    "received_date": record.received_date,
+                    "source_file_uuid": record.source_file_uuid,
+                    "message_idx": record.message_idx,
+                    "record_idx": record.record_idx,
+                    "platform_uuid": record.platform_uuid,
+                    "data_mode": record.data_mode,
+                    "quality_checks": record.quality_checks,
+                    "actions": {
+                        "fetch": {
+                            "endpoint": f"api/fetch/{record.working_uuid}",
+                        },
+                        "save": {
+                            "endpoint": f"api/save/{record.working_uuid}",
+                        }
+                    }
+                }
+                for record in self._queue_records[queue_uuid]
+            ]
+        }
+
+    def fetch_record(self, record_uuid: str) -> dict:
+        return {
+            "success": True,
+            "message": "Success",
+            "data": self._records[record_uuid][0].record.to_mapping(),
+            "proposed_actions": copy.deepcopy(self._records[record_uuid][1])
+        }
+
+    def save_record(self, record_uuid: str, actions: list[dict]) -> dict:
+        self._records[record_uuid] = (self._records[record_uuid][0], copy.deepcopy(actions))
+        return {"success": True, "message": "Record updated"}
+
 
 class TestClient:
 
     def __init__(self):
         self.token = None
+        self.mock_nodb = MockNODB()
 
     @property
     def is_logged_in(self):
@@ -26,27 +144,53 @@ class TestClient:
             return self._logout()
         elif endpoint == 'api/renew-access-token' and method == 'POST':
             return self._renew()
-
-
-        elif endpoint == 'stations/new' and method == 'POST':
-            return self._create_station(**kwargs)
-        elif endpoint.startswith('next/') and method == 'POST':
-            return self._next_queue_item(endpoint[5:])
-        elif endpoint.startswith('release/') and method == 'POST':
-            return self._release_item(**kwargs)
-        elif endpoint.startswith('fail/') and method == 'POST':
-            return self._fail_item(**kwargs)
-        elif endpoint.startswith('complete/') and method == 'POST':
-            return self._complete_item(**kwargs)
-        elif endpoint.startswith('renew/') and method == 'POST':
-            return self._renew_item(**kwargs)
-        elif endpoint.startswith('apply/') and method == 'POST':
-            return self._apply_to_item(**kwargs)
-        elif endpoint.startswith('escalate/') and method == 'POST':
-            return self._escalate_item(**kwargs)
-        elif endpoint.startswith('descalate/') and method == 'POST':
-            return self._descalate_item(**kwargs)
+        elif endpoint == "api/open" and method == "POST":
+            return self._open_batch(**kwargs)
+        elif endpoint.startswith("api/renew") and method == "POST":
+            return self._renew_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/close") and method == "POST":
+            return self._close_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/stream") and method == "GET":
+            return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/fetch") and method == "GET":
+            return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/save") and method == "POST":
+            return self._save_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
         raise Exception('invalid test request')
+
+    def _fetch_record(self,
+                      record_uuid: str,
+                      app_id: str):
+        return self.mock_nodb.fetch_record(record_uuid)
+
+    def _save_record(self,
+                    record_uuid: str,
+                    app_id: str,
+                    actions: list[dict]):
+        return self.mock_nodb.save_record(record_uuid, actions)
+
+    def _open_batch(self,
+                    queue_name: str,
+                    app_id: str,
+                    subqueue_name: str | None = None,
+                    escalation_level: int = 0) -> dict:
+        return self.mock_nodb.get_queue_item(queue_name, subqueue_name, escalation_level)
+
+    def _renew_batch(self,
+                     queue_uuid: str,
+                     app_id: str) -> dict:
+        return self.mock_nodb.renew_queue_item(queue_uuid)
+
+    def _close_batch(self,
+                     queue_uuid: str,
+                     app_id: str,
+                     result: str) -> dict:
+        return self.mock_nodb.close_batch(queue_uuid, result)
+
+    def _stream_batch(self,
+                      queue_uuid: str,
+                      app_id: str) -> dict:
+        return self.mock_nodb.stream_batch(queue_uuid)
 
     def _logout(self) -> dict:
         return {'success': True}
@@ -58,13 +202,76 @@ class TestClient:
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
             'access': {
                 'user.renew': {
-                    'url': 'api/renew-access-token',
-                    'kwargs': {},
+                    'endpoint': 'api/renew-access-token',
                 } ,
                 'user.logout': {
-                    'url': 'api/remove-access-token',
-                    'kwargs': {},
-                }
+                    'endpoint': 'api/remove-access-token',
+                },
+                'batch_qc.integrity_check.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'integrity_check',
+                    },
+                },
+                'batch_qc.platform_check.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'platform_check',
+                    },
+                },
+                'batch_qc.gtspp_qca.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'gtspp_qca',
+                    },
+                },
+                'batch_qc.gtspp_qcb.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'gtspp_qcb',
+                    },
+                },
+                'batch_qc.relationships.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'relationships',
+                    },
+                },
+                'batch_qc.integrity_check_esc.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'escalation_level': 1,
+                        'queue_name': 'integrity_check'
+                    }
+                },
+                'batch_qc.platform_check_esc.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'platform_check',
+                        'escalation_level': 1,
+                    }
+                },
+                'batch_qc.gtspp_qca_esc.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'gtspp_qca',
+                        'escalation_level': 1,
+                    }
+                },
+                'batch_qc.gtspp_qcb_esc.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'gtspp_qcb',
+                        'escalation_level': 1,
+                    }
+                },
+                'batch_qc.relationships_esc.open': {
+                    'endpoint': 'api/open',
+                    'kwargs': {
+                        'queue_name': 'relationships',
+                        'escalation_level': 1,
+                    }
+                },
             },
             'username': username,
             'display': username,
@@ -77,152 +284,8 @@ class TestClient:
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
         }
 
-
-
-
     def _list_stations(self) -> t.Iterable[dict]:
         return []
 
     def _create_station(self, station: dict) -> dict:
         return {'success': True}
-
-    def _next_queue_item(self, error_file_name: str) -> dict:
-        tests = []
-        if error_file_name.startswith('station_'):
-            tests.append('nodb_station_check')
-        return {
-            'item_uuid': error_file_name,
-            'app_id': '67890',
-            'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
-            # TODO
-            'current_tests': tests,
-            'batch_size': 1,
-            'actions': {
-                'renew': f'renew/{error_file_name}',
-                'release': f'release/{error_file_name}',
-                'fail': f'fail/{error_file_name}',
-                'complete': f'complete/{error_file_name}',
-                'escalate': f'escalate/{error_file_name}',
-                'descalate': f'descalate/{error_file_name}',
-                'download_working': f'download/{error_file_name}',
-                'apply_working': f'apply/{error_file_name}',
-                'clear_actions': f'clear/{error_file_name}',
-            }
-        }
-
-    def _download_station_failure(self, filename: str, app_id: str) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        file_path = pathlib.Path(__file__).absolute().parent / 'ocproc2_examples' / f'{filename}.yaml'
-        codec = OCProc2YamlCodec()
-        for idx, record in enumerate(codec.load(file_path)):
-            yield str(idx), record.generate_hash(), record, []
-
-    def _get_lat(self, x: int):
-        return 45 - (0.03 * x) + (random.randint(-100, 100) / 100) - (0 if x % 2 else 10)
-
-    def _get_long(self, x: int):
-        return -45 - (0.03 * x) + (random.randint(-100, 100) / 100)
-
-    def _get_time(self, x: int):
-        dt = datetime.datetime.now(datetime.timezone.utc)
-        dt += datetime.timedelta(hours=x, minutes=random.randint(0, 10))
-        return dt.isoformat()
-
-    def _temp_wq(self, depth: float):
-        if depth < 100:
-            return 1
-        elif depth < 150:
-            return 2
-        elif depth < 200:
-            return 3
-        elif depth < 250:
-            return 4
-        elif depth < 300:
-            return 5
-        elif depth < 350:
-            return 13
-        elif depth < 400:
-            return 14
-        else:
-            return 0
-
-    def _temp(self, depth: float):
-        if depth > 300:
-            return 279.15 - (depth / 100) + (random.randint(0, 100) / 200)
-        elif depth < 50:
-            return 305.15 - (depth / 100) + (random.randint(0, 100) / 200)
-        else:
-            return 310 - (0.114 * depth) + (random.randint(0, 100) / 200)
-
-    def _sal(self, depth: float):
-        if depth < 100:
-            return 36.000 - (depth / 1000) + (random.randint(0, 100) / 500)
-        elif depth > 500:
-            return 35 - random.randint(-50, 50) / 1000
-        else:
-            return 36.25 - (0.0025 * depth) + (random.randint(0, 100) / 500)
-
-    def _curspd(self, depth: float):
-        if depth < 200 or depth > 400:
-            return 0.02 + (random.randint(0, 100) / 1000)
-        else:
-            return 0.15 + (random.randint(0, 100) / 100)
-
-    def _curdir(self, depth: float):
-        if depth < 200 or depth > 400:
-            return 45 + random.randint(-10, 10)
-        else:
-            return 97 + random.randint(-10, 10)
-
-    def _release_item(self, app_id: str) -> dict:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        return {'success': True}
-
-    def _escalate_item(self, app_id: str) -> dict:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        return {'success': True}
-
-    def _descalate_item(self, app_id: str) -> dict:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        return {'success': True}
-
-    def _fail_item(self, app_id: str) -> dict:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        return {'success': True}
-
-    def _complete_item(self, app_id: str) -> dict:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        return {'success': True}
-
-    def _renew_item(self, app_id: str) -> dict:
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        return {'success': True}
-
-    def _apply_to_item(self, app_id: str, operations: dict) -> dict:
-        results = {}
-        if app_id != '67890':
-            raise Exception('invalid app id')
-        if not isinstance(operations, dict):
-            raise Exception('invalid operations')
-        for x in operations:
-            if 'hash' not in operations[x]:
-                raise Exception('invalid operation format')
-            if not isinstance(operations[x]['hash'], str):
-                raise Exception('invalid operation format')
-            if 'actions' not in operations[x]:
-                raise Exception('invalid operation format')
-            if not isinstance(operations[x]['actions'], list):
-                raise Exception('invalid operation format')
-            for y in operations[x]['actions']:
-                if not isinstance(y, dict):
-                    raise Exception('invalid operation format')
-                RecordAction.from_map(y)
-                results[x] = [True, operations[x]['hash']]
-        return results

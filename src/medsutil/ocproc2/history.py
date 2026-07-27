@@ -31,6 +31,7 @@ class ActionType(enum.Enum):
     CREATED_BY_DEDUPE = 'DC'
     CRUISE_ASSIGNED = 'AC'
     PLATFORM_ASSIGNED = 'PlatformAssigned'
+    QC_RESULT_UPDATED = 'QCResultUpdated'
 
 
 class QCResult(enum.Enum):

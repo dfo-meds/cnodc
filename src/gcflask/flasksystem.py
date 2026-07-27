@@ -35,7 +35,7 @@ class APIOperation(TypedDict):
 
 
 class APIResolvedOperation(TypedDict):
-    url: str
+    endpoint: str
     kwargs: dict[str, t.Any]
 
 
@@ -93,7 +93,7 @@ class FlaskSystemMixin(System):
             if not c_user.require_all(api_operation["access"]):
                 return None
         resolved: APIResolvedOperation = {
-            "url": flask.url_for(api_operation["endpoint"], _external=True, **api_operation["url_kwargs"]),
+            "endpoint": flask.url_for(api_operation["endpoint"], _external=True, **api_operation["url_kwargs"]),
             "kwargs": api_operation["request_kwargs"]
         }
         return resolved

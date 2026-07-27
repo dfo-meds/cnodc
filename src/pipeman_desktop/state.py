@@ -8,7 +8,7 @@ from gcapp import i18n as i18n
 from medsutil import ocproc2 as ocproc2
 from medsutil.ocproc2 import RecordAction
 from pipeman_desktop.main_app import PipemanDesktop
-from pipeman_desktop.util import BatchOpenState, QCResult, CloseBatchResult
+from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult
 
 
 class DisplayChange(enum.IntFlag):
@@ -62,7 +62,7 @@ class ApplicationState:
         self._batch_state: t.Optional[BatchOpenState] = None
         self._has_unsaved_changes: bool = False
         self._batch_records: dict[str, SimpleRecordInfo] | None = {}
-        self._batch_close_op: t.Optional[QCResult] = None
+        self._batch_close_op: t.Optional[ReviewResult] = None
 
         self.record: t.Optional[ocproc2.ParentRecord] = None
         self.record_uuid: t.Optional[str] = None
@@ -212,12 +212,12 @@ class ApplicationState:
 
     def force_close_current_batch(self):
         if self._batch_state is not None:
-            self._batch_close_op = QCResult.FORCE_CLOSE
+            self._batch_close_op = ReviewResult.FORCE_CLOSE
             self.update_batch_state(BatchOpenState.CLOSING)
             self._on_close_current_batch_success(True)
 
     def close_current_batch(self,
-                            batch_action: QCResult,
+                            batch_action: ReviewResult,
                             on_success: t.Callable | None = None,
                             after_close: t.Callable | None = None) -> CloseBatchResult:
         if self.can_close_current_batch(batch_action):
@@ -266,7 +266,7 @@ class ApplicationState:
         if after_close is not None:
             after_close()
 
-    def can_close_current_batch(self, batch_action: QCResult) -> bool:
+    def can_close_current_batch(self, batch_action: ReviewResult) -> bool:
         if self.save_in_progress:
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:

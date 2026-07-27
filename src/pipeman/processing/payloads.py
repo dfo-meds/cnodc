@@ -449,3 +449,15 @@ class NewFilePayload(Payload):
             deduplicate_key=hashlib.md5(str(path).encode('utf-8', 'replace'), usedforsecurity=False).hexdigest(),
             **kwargs
         )
+
+def stream_payload_working_records(db: interface.NODBInstance, payload: Payload) -> t.Generator[NODBWorkingRecord, None, None]:
+    if isinstance(payload, BatchPayload):
+        batch = payload.load_batch(db, key_only=True)
+        yield from batch.stream_working_records(db)
+    elif isinstance(payload, SourceFilePayload):
+        sf = payload.load_source_file(db, key_only=True)
+        yield from sf.stream_working_records(db)
+    elif isinstance(payload, WorkingRecordPayload):
+        yield payload.load_working_record(db)
+    else:
+        raise ValueError("invalid payload type for streamer")

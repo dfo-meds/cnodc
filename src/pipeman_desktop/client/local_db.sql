@@ -1,3 +1,9 @@
+
+DROP TABLE IF EXISTS records;
+DROP TABLE IF EXISTS actions;
+DROP TABLE IF EXISTS stations;
+
+
 CREATE TABLE IF NOT EXISTS stations (
 
     station_uuid TEXT,
@@ -16,23 +22,24 @@ CREATE TABLE IF NOT EXISTS stations (
 
 );
 
-DROP TABLE IF EXISTS records;
-DROP TABLE IF EXISTS actions;
 
 CREATE TABLE IF NOT EXISTS records (
 
-    record_uuid TEXT,
-    record_hash TEXT,
-    display TEXT,
     record_content TEXT,
-    lat REAL,
+    lat TEXT,
     lat_qc INT,
-    lon REAL,
+    lon TEXT,
     lon_qc INT,
     datetime TEXT,
-    datetime_qc INTEGER,
+    datetime_qc INT,
     has_errors INT,
-    station_id TEXT
+    record_hash TEXT,
+    display TEXT,
+
+    actions TEXT,
+    record_uuid TEXT,
+    downloaded INT,
+    platform_id TEXT
 
 );
 
