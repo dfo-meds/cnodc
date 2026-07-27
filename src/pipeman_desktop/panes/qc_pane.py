@@ -50,10 +50,6 @@ class QCPane(BasePane):
     def set_button_state(self, key: str, is_enabled: bool):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))
 
-    def on_language_change(self):
-        # TODO: button labels
-        pass
-
     def on_init(self):
         button_frame = ttk.Frame(self.app.top_bar)
         button_frame.grid(row=0, column=0)
