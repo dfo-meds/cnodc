@@ -13,6 +13,7 @@ class LoginPane(BasePane):
     def on_init(self):
         self.app.menus.add_command('file/login', 'menu_login', self.do_login)
         self.app.menus.add_command('file/logout', 'menu_logout', self.do_logout, True)
+        self.app.root.bind('<Control-l>', self.do_login)
         self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief="solid", borderwidth=2, width=15, anchor="e")
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
 
@@ -46,7 +47,7 @@ class LoginPane(BasePane):
         self.app.show_user_exception(ex)
         self.update_user_state()
 
-    def do_login(self):
+    def do_login(self, e=None):
         from pipeman_desktop.components.login_dialog import ask_login
         unpw = ask_login(self.app.root)
         if unpw is not None:
