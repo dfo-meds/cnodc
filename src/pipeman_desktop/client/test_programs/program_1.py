@@ -46,7 +46,7 @@ def _build_12345_records() -> t.Iterable[tuple[NODBWorkingRecord, list[dict] | N
         for y in range(0, 20):
             srecord = ChildRecord()
             srecord.coordinates["Depth"] = SingleElement(25 + (y * 50), Units="m")
-            srecord.coordinates["Temperature"] = SingleElement(287.12 + (0.01 * x) + (0.004 * y), Units = "K")
+            srecord.parameters["Temperature"] = SingleElement(287.12 + (0.01 * x) + (0.004 * y), Units = "K")
             rs.records.append(srecord)
         record.subrecords.record_sets["PROFILE"] = {0: rs}
         qc_test = QCTestRunInfo(
