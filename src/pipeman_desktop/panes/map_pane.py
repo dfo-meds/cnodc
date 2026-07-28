@@ -1,6 +1,8 @@
 import functools
 import pathlib
 
+from bandit.cli.baseline import initialize
+
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.util import BatchOpenState
 from pipeman_desktop.state import DisplayChange, ApplicationState
@@ -23,7 +25,7 @@ class MapPane(BasePane):
         self._map_frame: t.Optional[ttk.Frame] = None
         self._map: t.Optional[tkmv.TkinterMapView] = None
         self._current_position = (45.41694, -75.70131)
-        self._current_zoom = 10
+        self._current_zoom = 18
         base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
         self._error_image = ImageTk.PhotoImage(Image.open(str(base_path / 'red_dot.png')).resize((15, 15)))
         self._good_image = ImageTk.PhotoImage(Image.open(str(base_path / 'green_dot.png')).resize((15, 15)))
@@ -41,12 +43,20 @@ class MapPane(BasePane):
             self._map.destroy()
             self._map = None
         if width > 1 and height > 1:
-            self._map = tkmv.TkinterMapView(self._map_frame, width=width, height=height, corner_radius=0)
+            # 25 workers seems to set off Google's rate limiting
+            # 2 works fine.
+            self._map = tkmv.TkinterMapView(
+                self._map_frame,
+                width=width,
+                height=height,
+                corner_radius=0,
+                background_load_workers=3,
+                cache_tile_radius=2,)
             self._map.grid(row=0, column=0, sticky='NSEW')
-            # TODO configurable map servers and starting configuration
             self._map.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
-            self._map.set_position(*self._current_position)
             self._map.set_zoom(self._current_zoom)
+            self._map.set_position(*self._current_position)
+            print(self._map.get_position())
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if self._map is not None and (change_type & DisplayChange.BATCH_STATE):
@@ -86,7 +96,7 @@ class MapPane(BasePane):
                     self._map.set_path(station_path, width=4, color='#666666')
                 if max_lat == min_lat and max_lon == min_lon:
                     self._map.set_position(max_lat, max_lon)
-                else:
+                elif min_lon is not None and max_lon is not None and min_lat is not None and max_lat is not None:
                     self._map.fit_bounding_box(
                         (max_lat, min_lon),
                         (min_lat, max_lon)
@@ -96,6 +106,7 @@ class MapPane(BasePane):
             if coordinates is not None:
                 self._map.set_position(*coordinates)
                 self._map.set_zoom(10)
+                print(self._map.get_position())
 
     def _open_record(self, marker, record_uuid: str):
         self.app.load_record(record_uuid)

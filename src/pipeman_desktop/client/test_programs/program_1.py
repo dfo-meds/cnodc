@@ -21,8 +21,8 @@ def setup(nodb: MockNODB):
 
 def _build_12345_records() -> t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]]:
     start_time = AwareDateTime(2015, 1, 2, 3, 4, tzinfo="Etc/UTC")
-    start_lat = -45.125
-    start_lon = -123.515
+    start_lat = 44.694320
+    start_lon = -63.640544
 
     for x in range(0, 10):
         record = ParentRecord()

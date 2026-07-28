@@ -1,4 +1,5 @@
 import functools
+import threading
 import typing as t
 
 from medsutil.awaretime import AwareDateTime
@@ -76,21 +77,52 @@ class LeastRecentCache:
         self._values: dict[t.Hashable, t.Any] = {}
         self._value_set_times: dict[t.Hashable, AwareDateTime] = {}
         self._max_size = max_size
+        self._lock = threading.RLock()
+
+    def __contains__(self, key: t.Hashable) -> bool:
+        with self._lock:
+            return key in self._values
+
+    def __getitem__(self, key: t.Hashable):
+        with self._lock:
+            self._value_set_times[key] = AwareDateTime.now()
+            return self._values[key]
+
+    def clear(self):
+        with self._lock:
+            self._values.clear()
+            self._value_set_times.clear()
+
+    def get(self, item: t.Hashable, default=None):
+        with self._lock:
+            self._value_set_times[item] = AwareDateTime.now()
+            return self._values.get(item, default)
+
+    def set(self, item: t.Hashable, value: t.Any):
+        with self._lock:
+            self._values[item] = value
+            self._value_set_times[item] = AwareDateTime.now()
+
+    def __setitem__(self, key: t.Hashable, value: t.Any):
+        with self._lock:
+            self._values[key] = value
+            self._value_set_times[key] = AwareDateTime.now()
 
     def with_cache[T](self, cache_key: t.Hashable, cb: t.Callable[..., T], *args, _prune_cache: bool = True, **kwargs) -> T:
-        if cache_key not in self._values:
-            self._values[cache_key] = result = cb(*args, **kwargs)
-            self._value_set_times[cache_key] = AwareDateTime.now()
-            if _prune_cache:
-                self.prune_cache()
-            return result
-        else:
-            return self._values[cache_key]
+        with self._lock:
+            if cache_key not in self._values:
+                self.set(cache_key, result := cb(*args, **kwargs))
+                if _prune_cache:
+                    self.prune_cache()
+                return result
+            else:
+                return self.get(cache_key)
 
     def prune_cache(self):
-        if len(self._values) > self._max_size:
-            keys = [(k, v) for k, v in self._values.items()]
-            keys.sort(key=lambda x: x[1], reverse=True)
-            for k, _ in keys[self._max_size:]:
-                del self._values[k]
-                del self._value_set_times[k]
+        with self._lock:
+            if len(self._values) > self._max_size:
+                keys = [(k, v) for k, v in self._values.items()]
+                keys.sort(key=lambda x: x[1], reverse=True)
+                for k, _ in keys[self._max_size:]:
+                    del self._values[k]
+                    del self._value_set_times[k]
