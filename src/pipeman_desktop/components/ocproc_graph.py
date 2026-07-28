@@ -207,6 +207,7 @@ class ParameterGraph(Graph):
         self._pname = parameter_name
         self._p2name = second_parameter_name
 
+    @property
     def display_name(self) -> str:
         pieces = self._rs_path.strip('/').split('/')
         return "{rs_type}#{rs_index} - {variables} {by} {coordinate}".format(
