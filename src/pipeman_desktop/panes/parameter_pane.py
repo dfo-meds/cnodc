@@ -18,6 +18,8 @@ import medsutil.ocproc2 as ocproc2
 from pipeman_desktop.components.date_time_dialog import ask_date, ask_datetime
 from autoinject import injector
 
+from pipeman_desktop.util import quality_color
+
 
 class ParameterContextMenu:
 
@@ -240,16 +242,16 @@ class ParameterPane(BasePane):
         self._parameter_list.tag_configure('header', background='#000000', foreground='#FFFFFF')
         self._parameter_list.tag_configure('alt', background='#EEEEEE')
         self._parameter_list.tag_configure('invalid', foreground='red')
-        self._parameter_list.tag_configure('good', foreground=self.app.quality_color(1))
-        self._parameter_list.tag_configure('probably-good', foreground=self.app.quality_color(2))
-        self._parameter_list.tag_configure('dubious', foreground=self.app.quality_color(3))
-        self._parameter_list.tag_configure('erroneous', foreground=self.app.quality_color(4))
-        self._parameter_list.tag_configure('missing', foreground=self.app.quality_color(9))
-        self._parameter_list.tag_configure('recommend-probably-good', foreground=self.app.quality_color(12))
-        self._parameter_list.tag_configure('recommend-dubious', foreground=self.app.quality_color(13))
-        self._parameter_list.tag_configure('recommend-erroneous', foreground=self.app.quality_color(14))
-        self._parameter_list.tag_configure('recommend-missing', foreground=self.app.quality_color(19))
-        self._parameter_list.tag_configure('invalid', foreground=self.app.quality_color(20))
+        self._parameter_list.tag_configure('good', foreground=quality_color(1))
+        self._parameter_list.tag_configure('probably-good', foreground=quality_color(2))
+        self._parameter_list.tag_configure('dubious', foreground=quality_color(3))
+        self._parameter_list.tag_configure('erroneous', foreground=quality_color(4))
+        self._parameter_list.tag_configure('missing', foreground=quality_color(9))
+        self._parameter_list.tag_configure('recommend-probably-good', foreground=quality_color(12))
+        self._parameter_list.tag_configure('recommend-dubious', foreground=quality_color(13))
+        self._parameter_list.tag_configure('recommend-erroneous', foreground=quality_color(14))
+        self._parameter_list.tag_configure('recommend-missing', foreground=quality_color(19))
+        self._parameter_list.tag_configure('invalid', foreground=quality_color(20))
         self._parameter_list.grid(row=0, column=0, sticky='NSEW')
         self._parameter_list.table.column('#0', width=35, stretch=tk.NO)
         self._parameter_list.table.column('#1', width=150, anchor='w')
