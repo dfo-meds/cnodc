@@ -18,7 +18,6 @@ def setup(nodb: MockNODB):
         "gtspp_qca",
     )
     nodb.add_batch_qc_endpoint("gtspp_qca", 0, None)
-    nodb.add_batch_qc_endpoint("gtspp_qca", 1, None)
 
 def _build_12345_records() -> t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]]:
     start_time = AwareDateTime(2015, 1, 2, 3, 4, tzinfo="Etc/UTC")
