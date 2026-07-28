@@ -1,4 +1,3 @@
-import datetime
 import enum
 import functools
 import typing as t
@@ -6,6 +5,7 @@ from tkinter import messagebox as tkmb
 
 from gcapp import i18n as i18n
 from medsutil import ocproc2 as ocproc2, json
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import RecordAction
 from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult
 
@@ -39,18 +39,18 @@ class SimpleRecordInfo:
                  lat_qc: t.Optional[int] = None,
                  lon_qc: t.Optional[int] = None,
                  time_qc: t.Optional[int] = None,
-                 station_id: t.Optional[str] = None):
-        self.index = idx
-        self.rowid = rowid
-        self.record_uuid = record_uuid
-        self.latitude = lat
-        self.longitude = lon
-        self.timestamp = datetime.datetime.fromisoformat(ts) if ts else None
-        self.has_errors = has_errors
-        self.station_id = station_id
-        self.latitude_qc = lat_qc or 0
-        self.longitude_qc = lon_qc or 0
-        self.time_qc = time_qc or 0
+                 platform_id: t.Optional[str] = None):
+        self.index: int = idx
+        self.rowid: int = rowid
+        self.record_uuid: str = record_uuid
+        self.latitude: float | None = float(lat) if lat is not None else None
+        self.longitude: float | None = float(lon) if lon is not None else None
+        self.timestamp: AwareDateTime | None = AwareDateTime.fromisoformat(ts) if ts else None
+        self.has_errors: bool = bool(has_errors)
+        self.platform_id: str | None = platform_id
+        self.latitude_qc: int = int(lat_qc) if lat_qc is not None else 0
+        self.longitude_qc: int = int(lon_qc) if lon_qc is not None else 0
+        self.time_qc: int = int(time_qc) if time_qc is not None else 0
 
 
 class ApplicationState:
@@ -429,7 +429,7 @@ class ApplicationState:
 
     def ordered_simple_records(self) -> list[SimpleRecordInfo]:
         srs = list(self.batch_records.values())
-        srs.sort(key=lambda x: (x.station_id, x.timestamp))
+        srs.sort(key=lambda x: (x.platform_id, x.timestamp))
         return srs
 
 

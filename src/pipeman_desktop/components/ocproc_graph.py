@@ -122,17 +122,17 @@ class OCProc2Graph(ttk.Frame):
         indexes = {}
         last_records = {}
         for idx, record in enumerate(self.app.state.ordered_simple_records()):
-            if not record.station_id:
+            if not record.platform_id:
                 continue
-            if record.station_id not in speeds:
-                speeds[record.station_id] = []
-                indexes[record.station_id] = []
-            indexes[record.station_id].append(idx)
-            if record.station_id not in last_records:
-                speeds[record.station_id].append(None)
+            if record.platform_id not in speeds:
+                speeds[record.platform_id] = []
+                indexes[record.platform_id] = []
+            indexes[record.platform_id].append(idx)
+            if record.platform_id not in last_records:
+                speeds[record.platform_id].append(None)
             else:
-                speeds[record.station_id].append(self._calculate_station_speed(last_records[record.station_id], record))
-            last_records[record.station_id] = record
+                speeds[record.platform_id].append(self._calculate_station_speed(last_records[record.platform_id], record))
+            last_records[record.platform_id] = record
         self._axes = self._figure.subplots(1, 1)
         self._set_axis_info(
             self._axes,

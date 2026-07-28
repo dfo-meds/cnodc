@@ -59,11 +59,11 @@ class MapPane(BasePane):
                 last_station = None
                 station_path = []
                 for sr in app_state.batch_record_info.values():
-                    if last_station is not None and sr.station_id != last_station:
+                    if last_station is not None and sr.platform_id != last_station:
                         if len(station_path) > 1:
                             self._map.set_path(station_path, width=4, color='#666666')
                         station_path = []
-                    last_station = sr.station_id
+                    last_station = sr.platform_id
                     station_path.append((sr.latitude, sr.longitude))
                     if sr.latitude is not None and sr.longitude is not None:
                         if min_lat is None or sr.latitude < min_lat:
