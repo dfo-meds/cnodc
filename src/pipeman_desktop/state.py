@@ -108,6 +108,10 @@ class ApplicationState:
         return self._has_unsaved_changes
 
     @property
+    def current_working_uuid(self) -> str | None:
+        return self._current_working_uuid
+
+    @property
     def current_parent(self) -> ocproc2.ParentRecord | None:
         return self._current_parent
 
@@ -348,13 +352,13 @@ class ApplicationState:
                 row = cur.fetchone()
                 if row is None:
                     raise ValueError("Invalid record ID")
-                self._current_parent = ocproc2.ParentRecord.build_from_mapping(row[0])
+                self._current_parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
                 cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
                 self._current_actions = {}
                 for rowid, action in cur.fetchall():
                     operation = RecordAction.from_map(json.load_dict(action))
                     operation.apply(self._current_parent)
-                    self._current_actions[rowid] = action
+                    self._current_actions[rowid] = operation
 
                 self._current_recordset = None
                 self._current_record = self._current_parent
@@ -423,16 +427,17 @@ class ApplicationState:
             self._batch_state = batch_state
             self.refresh_display(DisplayChange.BATCH_STATE)
 
-
-
-
-
-
-
     def ordered_simple_records(self) -> list[SimpleRecordInfo]:
-        srs = list(self.batch_record_info.values())
+        srs = list(self.batch_records.values())
         srs.sort(key=lambda x: (x.station_id, x.timestamp))
         return srs
+
+
+
+
+
+
+
 
     def current_coordinates(self) -> t.Optional[tuple[float, float]]:
         if self.record_uuid is None:

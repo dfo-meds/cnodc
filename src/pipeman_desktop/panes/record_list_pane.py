@@ -150,7 +150,6 @@ class RecordListPane(BasePane):
         self.app.state.update_subrecord(item_info['values'][1])
 
     def _on_record_click(self, item_info, is_change: bool, event):
-        print(item_info)
         self.app.state.update_record(item_info['iid'])
 
 

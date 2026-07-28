@@ -97,9 +97,10 @@ class ScrollableTreeview(tk.Frame):
         if self._on_select_call is not None or self._on_click_call is not None:
             iid = self.table.selection()
             if iid:
-                item = self.table.item(iid[0])
+                item = {**self.table.item(iid[0])}
                 is_new = self._current_selection != iid[0]
                 self._current_selection = iid[0]
+                item['iid'] = iid[0]
                 if is_new and self._on_select_call is not None:
                     self._on_select_call(item, e)
                 if self._on_click_call is not None:
@@ -109,7 +110,10 @@ class ScrollableTreeview(tk.Frame):
         if self._on_right_call is not None:
             iid = self.table.identify('item', e.x, e.y)
             if iid:
-                self.table.selection_set(iid)
-                self._on_right_call(self.table.item(self.table.selection()), e)
+                self.table.selection_set([iid])
+                self._on_right_call({
+                    **self.table.item(iid),
+                    "iid": iid,
+                }, e)
 
 
