@@ -175,7 +175,7 @@ class CNODCServerAPI:
     def service_info(service_list: dict[str, dict[str, t.Any]] | None, service_identifier: str) -> tuple[str, dict[str, t.Any]]:
         if service_list is not None and service_identifier in service_list:
             return (
-                service_list[service_identifier]["url"],
+                service_list[service_identifier]["endpoint"],
                 service_list[service_identifier].get("kwargs", None) or {}
             )
         else:
@@ -280,9 +280,10 @@ class CNODCServerAPI:
                     'actions': json.dumps(working_info["actions"]),
                 })
             cur.commit()
+        with self.local_db.cursor() as cur:
             cur.execute("SELECT record_uuid, actions FROM records WHERE downloaded = 0")
             while row := cur.fetchone():
-                actions = json.loads(row["actions"])
+                actions = json.loads(row[1])
                 response = self.make_service_json_request(
                     "fetch",
                     "GET",
@@ -294,15 +295,15 @@ class CNODCServerAPI:
                 if response["proposed_actions"] is not None:
                     proposed_actions = response["proposed_actions"]
                     is_saved = True
-                with self.local_db.cursor() as cur:
-                    cur.update("records", {
-                        "record_content": json.dumps(response["data"]),
+                with self.local_db.cursor() as cur2:
+                    cur2.update("records", {
+                        "record_content": json.dumps(record.to_mapping()),
                         **local_info
                     }, {
                         "record_uuid": row[0]
                     })
                     for action in proposed_actions:
-                        cur.insert("actions", {
+                        cur2.insert("actions", {
                             "record_uuid": row[0],
                             "action_text": json.dumps(action.export()),
                             "is_saved": 1 if is_saved else 0,

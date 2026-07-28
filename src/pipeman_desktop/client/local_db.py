@@ -71,10 +71,13 @@ class CursorWrapper:
     def update(self, table_name: str, values: dict, where: dict):
         v_keys = list(values.keys())
         w_keys = list(where.keys())
+        actual_values = []
         set_clause = ', '.join(f'{key} = ?' for key in v_keys)
+        actual_values.extend([self._clean_for_insert(values[k]) for k in v_keys])
         where_clause = ' AND '.join(f'{key} = ?' for key in w_keys)
+        actual_values.extend([self._clean_for_insert(where[k]) for k in w_keys])
         q = f'UPDATE {table_name} SET {set_clause} WHERE {where_clause}'
-        actual_values = [itertools.chain((values[v] for v in v_keys), (where[w] for w in w_keys))]
+        print(q, actual_values)
         self.execute(q, actual_values)
 
     def delete(self, table_name: str, values: dict):

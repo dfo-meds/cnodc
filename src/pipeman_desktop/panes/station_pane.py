@@ -154,8 +154,8 @@ class StationPane(BasePane):
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:
-            self.app.menus.set_state('qc/reload_stations', app_state.has_access('other:list_stations'))
-            self.app.menus.set_state('qc/create_station', app_state.has_access('other:create_station'))
+            self.app.menus.set_state('stations/reload', app_state.has_access('stations.list'))
+            self.app.menus.set_state('stations/create', app_state.has_access('stations.create'))
             self._update_station_list()
 
     def create_station(self):

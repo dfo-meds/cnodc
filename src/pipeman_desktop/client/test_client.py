@@ -1,31 +1,29 @@
 import copy
 import datetime
-import pathlib
 import typing as t
-import random
-
-import medsutil.ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2.codecs import OCProc2YamlCodec
-from medsutil.ocproc2.operations import RecordAction
+from medsutil.dynamic import dynamic_object
 from nodb.observations import NODBWorkingRecord
-from nodb.queue import NODBQueueItem
 # this line is currently necessary to ensure it is properly override
 # I should put in a fix for autoinject to ensure overrides always override
 from pipeman_desktop.client.api_client import WebAPIClient
 
 class MockNODB:
 
+    PROGRAM_NAME = "pipeman_desktop.client.test_programs.program_1"
+
     def __init__(self):
         self._records: dict[str, tuple[NODBWorkingRecord, list[dict] | None]] = {}
         self._queue_items: dict[str, dict] = {}
-        self._queue_records: dict[str, list[NODBWorkingRecord]] = {}
+        self._queue_records: dict[str, list[str]] = {}
+        setup = dynamic_object(f"{self.PROGRAM_NAME}.setup")
+        setup(self)
 
     def add_queue_item(self,
                        records: t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]],
                        queue_uuid: str,
                        queue_name: str,
-                       subqueue_name: str | None,
+                       subqueue_name: str | None = None,
                        escalation_level: int = 0):
         self._queue_items[queue_uuid] = {
             "queue_name": queue_name,
@@ -46,15 +44,18 @@ class MockNODB:
                 },
             }
         }
-        self._queue_records[queue_uuid] = [x[0] for x in records]
+        self._queue_records[queue_uuid] = []
         for record, actions in records:
-            self._records[str(record.working_uuid)] = (record, actions)
+            wuuid = str(record.working_uuid)
+            self._queue_records[queue_uuid].append(wuuid)
+            self._records[wuuid] = (record, actions)
+
 
     def get_queue_item(self,
                        queue_name: str,
                        subqueue_name: str | None,
                        escalation_level: int = 0) -> dict:
-        for item_uuid, item in self._queue_items:
+        for item_uuid, item in self._queue_items.items():
             if item["queue_name"] != queue_name:
                 continue
             if subqueue_name is not None and subqueue_name != item["subqueue_name"]:
@@ -93,24 +94,24 @@ class MockNODB:
             "message": "Success",
             "data": [
                 {
-                    "working_uuid": record.working_uuid,
-                    "received_date": record.received_date,
-                    "source_file_uuid": record.source_file_uuid,
-                    "message_idx": record.message_idx,
-                    "record_idx": record.record_idx,
-                    "platform_uuid": record.platform_uuid,
-                    "data_mode": record.data_mode,
-                    "quality_checks": record.quality_checks,
+                    "working_uuid": self._records[ruuid][0].working_uuid,
+                    "received_date": self._records[ruuid][0].received_date,
+                    "source_file_uuid": self._records[ruuid][0].source_file_uuid,
+                    "message_idx": self._records[ruuid][0].message_idx,
+                    "record_idx": self._records[ruuid][0].record_idx,
+                    "platform_uuid": self._records[ruuid][0].platform_uuid,
+                    "data_mode": self._records[ruuid][0].data_mode,
+                    "quality_checks": self._records[ruuid][0].quality_checks,
                     "actions": {
                         "fetch": {
-                            "endpoint": f"api/fetch/{record.working_uuid}",
+                            "endpoint": f"api/fetch/{ruuid}",
                         },
                         "save": {
-                            "endpoint": f"api/save/{record.working_uuid}",
+                            "endpoint": f"api/save/{ruuid}",
                         }
                     }
                 }
-                for record in self._queue_records[queue_uuid]
+                for ruuid in self._queue_records[queue_uuid]
             ]
         }
 
@@ -145,17 +146,17 @@ class TestClient:
         elif endpoint == 'api/renew-access-token' and method == 'POST':
             return self._renew()
         elif endpoint == "api/open" and method == "POST":
-            return self._open_batch(**kwargs)
+            return self._open_batch(**kwargs, app_id="12345")
         elif endpoint.startswith("api/renew") and method == "POST":
-            return self._renew_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+            return self._renew_batch(endpoint.split("/", maxsplit=2)[2], **kwargs, app_id="12345")
         elif endpoint.startswith("api/close") and method == "POST":
-            return self._close_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+            return self._close_batch(endpoint.split("/", maxsplit=2)[2], **kwargs, app_id="12345")
         elif endpoint.startswith("api/stream") and method == "GET":
-            return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+            return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs, app_id="12345")
         elif endpoint.startswith("api/fetch") and method == "GET":
-            return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
+            return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs, app_id="12345")
         elif endpoint.startswith("api/save") and method == "POST":
-            return self._save_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
+            return self._save_record(endpoint.split('/', maxsplit=2)[2], **kwargs, app_id="12345")
         raise Exception('invalid test request')
 
     def _fetch_record(self,

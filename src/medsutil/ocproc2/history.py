@@ -263,6 +263,7 @@ class QCTestRunInfo:
     @staticmethod
     def from_mapping(map_: Export):
         """Rebuild the QC test run from a map."""
+        from medsutil.ocproc2.operations import RecordAction
         return QCTestRunInfo(
             map_['_name'],
             map_['_version'],

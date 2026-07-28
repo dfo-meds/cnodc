@@ -78,7 +78,7 @@ class ScrollableTreeview(tk.Frame):
         self.table.configure(displaycolumns=[x + 1 for x in columns] or "#all")
 
     def set_headers(self, headers: list[str]):
-        self.table.configure(columns=[x+1 for x in range(0, len(headers))])
+        self.table.configure(columns=[x + 1 for x in range(0, len(headers))])
         for i in range(0, len(headers)):
             key = f"# {i + 1}"
             self.table.column(key, anchor="center")

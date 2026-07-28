@@ -115,6 +115,14 @@ class ApplicationState:
     def current_child_path(self) -> str | None:
         return self._current_child_path
 
+    @property
+    def current_recordset(self) -> ocproc2.RecordSet | None:
+        return self._current_recordset
+
+    @property
+    def current_record(self) -> ocproc2.BaseRecord | None:
+        return self._current_record
+
     def refresh_display(self, change_type: DisplayChange, *args, **kwargs):
         self._app.refresh_display(self, change_type)
 
@@ -154,9 +162,6 @@ class ApplicationState:
                 self.update_save_flags(True)
                 self._app.dispatcher.submit_job(
                     "pipeman_desktop.client.api_client.save_changes",
-                    job_kwargs={
-                        "batch_service_name": self._batch_service_name,
-                    },
                     on_error=functools.partial(self._on_save_error, after_save=after_save),
                     on_success=functools.partial(self._on_save_success, after_save=after_save)
                 )
@@ -212,7 +217,7 @@ class ApplicationState:
             self._batch_actions = result
             self._batch_records = {}
             with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, station_id FROM records ORDER BY station_id ASC, datetime ASC")
+                cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id FROM records ORDER BY platform_id ASC, datetime ASC")
                 for idx, row in enumerate(cur.fetchall()):
                     record = SimpleRecordInfo(idx + 1, *row)
                     self._batch_records[record.record_uuid] = record
@@ -226,7 +231,8 @@ class ApplicationState:
                     title=i18n.tr(f'no_items_title_{self.batch_service_name}'),
                     message=i18n.tr(f'no_items_message_{self.batch_service_name}')
                 )
-            on_no_item()
+            if on_no_item is not None:
+                on_no_item()
             self.update_batch_state(None)
 
     def can_open_qc_batch(self) -> bool:
@@ -259,7 +265,6 @@ class ApplicationState:
             self._app.dispatcher.submit_job(
                 "pipeman_desktop.client.api_client.close_batch",
                 job_kwargs={
-                    "batch_service_name": self._batch_service_name,
                     "close_operation": batch_action.value,
                 },
                 on_success=functools.partial(self._on_close_current_batch_success, on_success=on_success, after_close=after_close),

@@ -53,7 +53,7 @@ class ActionPane(BasePane):
                 i18n.tr('action_item_value')
             ])
         if self._pane_id is not None:
-            self.app.bottom_notebook.tab(self._pane_id, {"text": i18n.tr("pane_actions")})
+            self.app.bottom_notebook.tab(self._pane_id, text=i18n.tr("pane_actions"))
         self._rebuild_action_list()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):

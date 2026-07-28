@@ -235,8 +235,7 @@ class ParameterPane(BasePane):
                 i18n.tr('parameter_list_units'),
                 i18n.tr('parameter_list_quality'),
             ],
-            on_right_click=self._on_parameter_right_click,
-            displaycolumns=(1, 2, 3, 4)
+            on_right_click=self._on_parameter_right_click
         )
         self._parameter_list.tag_configure('header', background='#000000', foreground='#FFFFFF')
         self._parameter_list.tag_configure('alt', background='#EEEEEE')
@@ -261,11 +260,10 @@ class ParameterPane(BasePane):
     def on_language_change(self):
         if self._parameter_list is not None:
             self._parameter_list.set_headers([
-                '',
                 i18n.tr('parameter_list_name'),
                 i18n.tr('parameter_list_value'),
                 i18n.tr('parameter_list_units'),
-                i18n.tr('parameter_list_quality'),
+                i18n.tr('parameter_list_quality')
             ])
         self._rebuild_parameter_list()
 
