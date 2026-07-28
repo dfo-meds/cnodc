@@ -296,31 +296,6 @@ class PipemanDesktop:
         elif self.state.subrecord_path is not None:
             self.state.set_record_subpath(None)
 
-    def quality_color(self, wq: int, ind_wq: int = None):
-        if wq == 1:
-            return 'forestgreen'
-        elif wq == 2:
-            return 'lightseagreen'
-        elif wq == 12:
-            return 'turquoise'
-        elif wq == 3:
-            return 'darkorange'
-        elif wq == 13:
-            return 'goldenrod'
-        elif wq == 4:
-            return 'maroon'
-        elif wq == 14:
-            return 'coral'
-        elif wq == 9:
-            return 'purple'
-        elif wq == 19:
-            return 'pink'
-        elif wq in (20, 21):
-            return 'red'
-        elif ind_wq is not None and ind_wq in (3, 4, 13, 14, 19, 9):
-            return 'silver'
-        return 'black'
-
     def create_flag_operator(self, target_path: str, flag: int):
         return None  # TODO
         #return QCSetWorkingQuality(

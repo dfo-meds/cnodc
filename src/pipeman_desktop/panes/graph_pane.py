@@ -34,7 +34,7 @@ class GraphPane(BasePane):
         if change_type & (DisplayChange.RECORD | DisplayChange.BATCH_STATE):
             self._oc2graph.clear_graph_data()
             if app_state.batch_state == BatchOpenState.OPEN:
-                self._oc2graph.update_graph_options()
+                self._oc2graph.update_graph()
         elif change_type & DisplayChange.ACTION:
             if app_state.batch_state == BatchOpenState.OPEN:
                 self._oc2graph.update_graph_data()
