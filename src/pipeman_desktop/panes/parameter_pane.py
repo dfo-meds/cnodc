@@ -275,9 +275,9 @@ class ParameterPane(BasePane):
         if self._parameter_list is not None:
             self._parameter_list.clear_items()
             if self.app.state.current_recordset is not None:
-                self.show_recordset(self.app.state.child_recordset, self.app.state.current_child_path)
+                self.show_recordset(self.app.state.current_recordset, self.app.state.current_child_path)
             elif self.app.state.current_record is not None:
-                self.show_record(self.app.state.child_record, self.app.state.current_child_path)
+                self.show_record(self.app.state.current_record, self.app.state.current_child_path)
 
     def show_record(self, record: ocproc2.BaseRecord, path: str):
         self._value_lookup = {}

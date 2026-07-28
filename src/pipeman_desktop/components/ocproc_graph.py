@@ -76,7 +76,7 @@ class OCProc2Graph(ttk.Frame):
             # TODO: better default selection? (i.e. T&S most of the time if available, speed if speed check, etc)
             self.graph_option_box.current(0)
         self.update_graph_data(force_redraw=self._current_record_uuid != self.app.state.current_working_uuid)
-        self._current_record_uuid = self.app.state.record_uuid
+        self._current_record_uuid = self.app.state.current_working_uuid
 
     def update_graph_data(self, e=None, force_redraw: bool = False):
         if force_redraw:
@@ -127,9 +127,9 @@ class OCProc2Graph(ttk.Frame):
             if record.platform_id not in speeds:
                 speeds[record.platform_id] = []
                 indexes[record.platform_id] = []
-            indexes[record.platform_id].append(idx)
+            indexes[record.platform_id].append((idx, 1))
             if record.platform_id not in last_records:
-                speeds[record.platform_id].append(None)
+                speeds[record.platform_id].append((None, 1))
             else:
                 speeds[record.platform_id].append(self._calculate_station_speed(last_records[record.platform_id], record))
             last_records[record.platform_id] = record
@@ -313,13 +313,8 @@ class OCProc2Graph(ttk.Frame):
                               linewidth=1):
         x_values = []
         y_values = []
-        for i in range(0, len(ind_v_qc)):
-            if reverse_axes:
-                x = dep_v_qc[i]
-                y = ind_v_qc[i]
-            else:
-                x = ind_v_qc[i]
-                y = dep_v_qc[i]
+        x_qc, y_qc = (dep_v_qc, ind_v_qc) if reverse_axes else (ind_v_qc, dep_v_qc)
+        for x, y in zip(x_qc, y_qc):
             axes.scatter(
                 x[0], y[0], c=(self.app.quality_color(y[1], x[1]) if use_qc_color else color)
             )

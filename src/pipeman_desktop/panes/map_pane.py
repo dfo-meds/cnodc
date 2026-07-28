@@ -51,14 +51,14 @@ class MapPane(BasePane):
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if self._map is not None and (change_type & DisplayChange.BATCH_STATE):
             self._map.delete_all_marker()
-            if app_state.batch_state == BatchOpenState.OPEN and app_state.batch_record_info:
+            if app_state.batch_state == BatchOpenState.OPEN and app_state.batch_records:
                 min_lat = None
                 max_lat = None
                 min_lon = None
                 max_lon = None
                 last_station = None
                 station_path = []
-                for sr in app_state.batch_record_info.values():
+                for sr in app_state.batch_records.values():
                     if last_station is not None and sr.platform_id != last_station:
                         if len(station_path) > 1:
                             self._map.set_path(station_path, width=4, color='#666666')
