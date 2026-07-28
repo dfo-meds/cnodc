@@ -1,3 +1,4 @@
+from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, SimpleRecordInfo, ApplicationState
 from pipeman_desktop.client.local_db import LocalDatabase
@@ -15,6 +16,7 @@ class RecordListPane(BasePane):
 
     local_db: LocalDatabase = None
     ontology: OCProc2Ontology = None
+    translator: OCProc2Translator
 
     @injector.construct
     def __init__(self, *args, **kwargs):
@@ -129,7 +131,7 @@ class RecordListPane(BasePane):
                         self._build_subrecord_list(record, record_text, depth + 2)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
-        return f'{(" " * (depth * 2))}{i18n.tr(f"recordset_type_{subrecord_set_type}")} #{record_set_idx}'
+        return f'{(" " * (depth * 2))}{self.translator.translate_recordset_type(subrecord_set_type)} #{record_set_idx}'
 
     def _build_record_display(self, record: ocproc2.BaseRecord, srt: str, idx: int, depth: int):
         display = i18n.tr(f"record_label", index=str(idx))

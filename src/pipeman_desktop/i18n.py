@@ -130,3 +130,19 @@ class DesktopLanguageDetector(LanguageDetector):
     def detect_language(self, supported_languages: t.Sequence[str]) -> str:
         return self._current_language if self._current_language in supported_languages else "und"
 
+
+@injector.injectable
+class OCProc2Translator:
+
+    detector: LanguageDetector
+
+    @injector.construct
+    def __init__(self):
+        ...
+
+    def translate_recordset_type(self, rs_type: str) -> str:
+        return rs_type
+
+    def translate_element_name(self, element_name: str) -> str:
+        return element_name
+
