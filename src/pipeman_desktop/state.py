@@ -432,24 +432,21 @@ class ApplicationState:
         srs.sort(key=lambda x: (x.platform_id, x.timestamp))
         return srs
 
-
-
-
-
-
-
-
     def current_coordinates(self) -> t.Optional[tuple[float, float]]:
-        if self.record_uuid is None:
+        if self.current_working_uuid is None:
             return None
-        if self.batch_record_info is None:
+        if self.batch_records is None:
             return None
-        if self.record_uuid not in self.batch_record_info:
+        if self.current_working_uuid not in self.batch_records:
             return None
-        info = self.batch_record_info[self.record_uuid]
+        info = self.batch_records[str(self.current_working_uuid)]
         if info.latitude is None or info.longitude is None:
             return None
         return info.latitude, info.longitude
+
+
+
+
 
     def extend_actions(self, actions: dict[int, RecordAction]):
         if self.actions is None:

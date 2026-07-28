@@ -41,11 +41,11 @@ class QCPane(BasePane):
             for bn, close_op in self._button_close_state.items():
                 self.set_button_state(bn, app_state.can_close_current_batch(close_op))
         if change_type & DisplayChange.RECORD:
-            if app_state.record is not None:
-                if app_state.record.metadata.has_value('WMOID'):
-                    self._label.configure(text=f'WMO ID: {app_state.record.metadata.best("WMOID")}')
+            if app_state.current_parent is not None:
+                if app_state.current_parent.metadata.has_value('WMOID'):
+                    self._label.configure(text=f'WMO ID: {app_state.current_parent.metadata.best("WMOID")}')
                 else:
-                    self._label.configure(text=app_state.record_uuid or '')
+                    self._label.configure(text=app_state.current_working_uuid or '')
 
     def set_button_state(self, key: str, is_enabled: bool):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))

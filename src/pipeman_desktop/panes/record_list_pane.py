@@ -91,7 +91,7 @@ class RecordListPane(BasePane):
             if app_state.current_parent is not None:
                 self._build_subrecord_list(self.app.state.current_parent)
         if change_type & DisplayChange.RECORD_CHILD:
-            if self._subrecord_list is not None:
+            if self._subrecord_list is not None and self.app.state.current_child_path is not None:
                 self._subrecord_list.set_selection([self.app.state.current_child_path])
 
     def _build_record_list(self):
