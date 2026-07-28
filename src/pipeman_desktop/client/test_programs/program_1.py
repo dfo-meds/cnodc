@@ -3,7 +3,8 @@ import typing as t
 import uuid
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import ParentRecord, SingleElement, QCTestRunInfo, QCResult, QCMessage, ChangeQuality
+from medsutil.ocproc2 import ParentRecord, SingleElement, QCTestRunInfo, QCResult, QCMessage, ChangeQuality, \
+    ChildRecord, RecordSet
 from medsutil.ocproc2.operations import SetManualQCOutcome
 from nodb.observations import NODBWorkingRecord
 
@@ -16,6 +17,8 @@ def setup(nodb: MockNODB):
         "12345",
         "gtspp_qca",
     )
+    nodb.add_batch_qc_endpoint("gtspp_qca", 0, None)
+    nodb.add_batch_qc_endpoint("gtspp_qca", 1, None)
 
 def _build_12345_records() -> t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]]:
     start_time = AwareDateTime(2015, 1, 2, 3, 4, tzinfo="Etc/UTC")
@@ -40,6 +43,13 @@ def _build_12345_records() -> t.Iterable[tuple[NODBWorkingRecord, list[dict] | N
             8312.31,
             Units="K"
         )
+        rs = RecordSet()
+        for y in range(0, 20):
+            record = ChildRecord()
+            record.coordinates["Depth"] = SingleElement(25 + (y * 50), Units="m")
+            record.coordinates["Temperature"] = SingleElement(287.12 + (0.01 * x) + (0.004 * y), Units = "K")
+            rs.records.append(record)
+        record.subrecords.record_sets["PROFILE"] = {0: rs}
         qc_test = QCTestRunInfo(
             "fake", "1.0", AwareDateTime.utcnow(), QCResult.MANUAL_REVIEW, [
                 QCMessage("failed_temperature_check", "parameters/Temperature", review_name="oh_no")

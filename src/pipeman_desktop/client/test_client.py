@@ -16,8 +16,26 @@ class MockNODB:
         self._records: dict[str, tuple[NODBWorkingRecord, list[dict] | None]] = {}
         self._queue_items: dict[str, dict] = {}
         self._queue_records: dict[str, list[str]] = {}
+        self._batch_qc_queues: list[tuple[str, int, str | None]] = []
         setup = dynamic_object(f"{self.PROGRAM_NAME}.setup")
         setup(self)
+
+    def batch_qc_endpoints(self) -> dict:
+        return {
+            f"batch_qc.{queue_name}{str(esc) if esc != 0 else ''}{str(subqueue_name) if subqueue_name else ''}.open": {
+                "endpoint": "api/open",
+                "kwargs": {
+                    "queue_name": queue_name,
+                    "escalation_level": esc,
+                    "subqueue_name": subqueue_name
+                }
+            }
+            for queue_name, esc, subqueue_name in self._batch_qc_queues
+        }
+
+    def add_batch_qc_endpoint(self, queue_name: str, escalation_level: int = 0, subqueue_name: str | None = None):
+        self._batch_qc_queues.append((queue_name, escalation_level, subqueue_name))
+
 
     def add_queue_item(self,
                        records: t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]],
@@ -208,71 +226,7 @@ class TestClient:
                 'user.logout': {
                     'endpoint': 'api/remove-access-token',
                 },
-                'batch_qc.integrity_check.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'integrity_check',
-                    },
-                },
-                'batch_qc.platform_check.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'platform_check',
-                    },
-                },
-                'batch_qc.gtspp_qca.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'gtspp_qca',
-                    },
-                },
-                'batch_qc.gtspp_qcb.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'gtspp_qcb',
-                    },
-                },
-                'batch_qc.relationships.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'relationships',
-                    },
-                },
-                'batch_qc.integrity_check_esc.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'escalation_level': 1,
-                        'queue_name': 'integrity_check'
-                    }
-                },
-                'batch_qc.platform_check_esc.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'platform_check',
-                        'escalation_level': 1,
-                    }
-                },
-                'batch_qc.gtspp_qca_esc.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'gtspp_qca',
-                        'escalation_level': 1,
-                    }
-                },
-                'batch_qc.gtspp_qcb_esc.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'gtspp_qcb',
-                        'escalation_level': 1,
-                    }
-                },
-                'batch_qc.relationships_esc.open': {
-                    'endpoint': 'api/open',
-                    'kwargs': {
-                        'queue_name': 'relationships',
-                        'escalation_level': 1,
-                    }
-                },
+                **self.mock_nodb.batch_qc_endpoints(),
             },
             'username': username,
             'display': username,
