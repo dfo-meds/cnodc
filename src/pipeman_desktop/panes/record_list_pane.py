@@ -139,7 +139,7 @@ class RecordListPane(BasePane):
             ideal = record.coordinates.ideal(c_name)
             if ideal and not ideal.is_empty():
                 value = ideal.to_float()
-                units = ideal.units
+                units = ideal.units()
                 if units:
                     display += f" [{value} {units}]"
                 else:
