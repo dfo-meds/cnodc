@@ -340,11 +340,11 @@ class ParameterPane(BasePane):
         if is_alt:
             tags.append('alt')
         self._value_lookup[path] = v
-        self._parameter_list.append(
+        self._parameter_list.append_item(
             parent=parent_path,
             iid=path,
             values=(path, f'{"  " * depth}{self._key_name(key)}', *dv),
-            tags=tags
+            tags=tuple(tags)
         )
         is_alt = False
         for m_name, md in v.metadata.items():
