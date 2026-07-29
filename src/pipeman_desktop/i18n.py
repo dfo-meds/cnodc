@@ -146,3 +146,6 @@ class OCProc2Translator:
     def translate_element_name(self, element_name: str) -> str:
         return element_name
 
+    def translate_element_type(self, element_type: str) -> str:
+        return element_type
+

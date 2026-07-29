@@ -2,6 +2,7 @@ import datetime
 
 from packaging import tags
 
+from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.components.choice_dialog import ask_choice
@@ -200,19 +201,16 @@ class ParameterContextMenu:
 class ParameterPane(BasePane):
 
     ontology: ocproc2.OCProc2Ontology = None
+    ocproc_translator: OCProc2Translator = None
 
     TAG_MAP = {
+        -1: 'invalid',
         1: 'good',
         2: 'probably-good',
         3: 'dubious',
         4: 'erroneous',
+        5: 'modified',
         9: 'missing',
-        12: 'recommend-probably-good',
-        13: 'recommend-dubious',
-        14: 'recommend-erroneous',
-        19: 'recommend-missing',
-        20: 'invalid',
-        21: 'invalid',
     }
 
     @injector.construct
@@ -231,7 +229,6 @@ class ParameterPane(BasePane):
             selectmode='browse',
             show="tree headings",
             headers=[
-                '',
                 i18n.tr('parameter_list_name'),
                 i18n.tr('parameter_list_value'),
                 i18n.tr('parameter_list_units'),
@@ -246,18 +243,15 @@ class ParameterPane(BasePane):
         self._parameter_list.tag_configure('probably-good', foreground=quality_color(2))
         self._parameter_list.tag_configure('dubious', foreground=quality_color(3))
         self._parameter_list.tag_configure('erroneous', foreground=quality_color(4))
+        self._parameter_list.tag_configure('modified', foreground=quality_color(5))
         self._parameter_list.tag_configure('missing', foreground=quality_color(9))
-        self._parameter_list.tag_configure('recommend-probably-good', foreground=quality_color(12))
-        self._parameter_list.tag_configure('recommend-dubious', foreground=quality_color(13))
-        self._parameter_list.tag_configure('recommend-erroneous', foreground=quality_color(14))
-        self._parameter_list.tag_configure('recommend-missing', foreground=quality_color(19))
-        self._parameter_list.tag_configure('invalid', foreground=quality_color(20))
+        self._parameter_list.tag_configure('invalid', foreground=quality_color(-1))
         self._parameter_list.grid(row=0, column=0, sticky='NSEW')
-        self._parameter_list.table.column('#0', width=35, stretch=tk.NO)
-        self._parameter_list.table.column('#1', width=150, anchor='w')
-        self._parameter_list.table.column('#2', width=150, anchor='w')
-        self._parameter_list.table.column('#3', width=75, anchor='e')
-        self._parameter_list.table.column('#4', width=22, stretch=tk.NO)
+        self._parameter_list.table.column('#0', width=25, stretch=tk.NO)
+        self._parameter_list.table.column('#1', width=50, anchor='w')
+        self._parameter_list.table.column('#2', width=50, anchor='w')
+        self._parameter_list.table.column('#3', width=25, anchor='e')
+        self._parameter_list.table.column('#4', width=25, stretch=tk.NO)
 
     def on_language_change(self):
         if self._parameter_list is not None:
@@ -281,6 +275,7 @@ class ParameterPane(BasePane):
             elif self.app.state.current_record is not None:
                 self.show_record(self.app.state.current_record, self.app.state.current_child_path)
 
+
     def show_record(self, record: ocproc2.BaseRecord, path: str):
         self._value_lookup = {}
         if record.coordinates:
@@ -289,18 +284,21 @@ class ParameterPane(BasePane):
             for k in record.coordinates.keys():
                 self._create_parameter_entry(record.coordinates[k], c_path, k, is_alt=is_alt)
                 is_alt = not is_alt
+            self._parameter_list.open_item(c_path)
         if record.parameters:
             p_path = self._create_parameter_header(path, 'parameters')
             is_alt = False
             for k in record.parameters.keys():
                 self._create_parameter_entry(record.parameters[k], p_path, k, is_alt=is_alt)
                 is_alt = not is_alt
+            self._parameter_list.open_item(p_path)
         if record.metadata:
             m_path = self._create_parameter_header(path, 'metadata')
             is_alt = False
             for k in record.metadata.keys():
                 self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
+            self._parameter_list.open_item(m_path)
 
     def show_recordset(self, record_set: ocproc2.RecordSet, path: str):
         self._parameter_list.clear_items()
@@ -315,7 +313,7 @@ class ParameterPane(BasePane):
         m_path = f'{path}/{header_name}' if path else header_name
         self._parameter_list.append_item(
             iid=m_path,
-            values=('', i18n.tr(f'element_header_{header_name}'), '', '', ''),
+            values=(self.ocproc_translator.translate_element_type(header_name), '', '', ''),
             tags=('header',)
         )
         return m_path
@@ -327,7 +325,7 @@ class ParameterPane(BasePane):
             # TODO: need a heading here (with translations)
             self._parameter_list.append_item(
                 iid=my_path,
-                values=('', key, '', '', ''),
+                values=(key, '', '', ''),
                 tags=('header',)
             )
             for idx, subv in v.values():
@@ -345,12 +343,12 @@ class ParameterPane(BasePane):
         self._parameter_list.append_item(
             parent=parent_path,
             iid=path,
-            values=(path, f'{"  " * depth}{self._key_name(key)}', *dv),
+            values=(f'{"  " * depth}{self._key_name(key)}', *dv),
             tags=tuple(tags)
         )
         is_alt = False
         for m_name, md in v.metadata.items():
-            if m_name not in {"WorkingQuality"}:
+            if m_name not in {"WorkingQuality", "Units"}:
                 self._create_parameter_entry(md, path, m_name, depth + 1, is_alt)
                 is_alt = not is_alt
 

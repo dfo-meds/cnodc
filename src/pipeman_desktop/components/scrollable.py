@@ -87,6 +87,9 @@ class ScrollableTreeview(tk.Frame):
     def append_item(self, iid: str, values: tuple, parent: str = '', text: str = '', tags: tuple | None = None):
         self.table.insert(parent, 'end', iid=iid, text=text, values=values, tags=tags or tuple(), open=False)
 
+    def open_item(self, iid: str):
+        self.table.item(iid, open=True)
+
     def extend_items(self, values: t.Iterable[tuple]):
         for args in values:
             self.append_item(*args)
