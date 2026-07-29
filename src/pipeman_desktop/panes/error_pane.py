@@ -21,27 +21,23 @@ class ErrorPane(BasePane):
             parent=error_frame,
             selectmode='browse',
             show='headings',
-            headers=[
-                i18n.tr('qc_test_name'),
-                i18n.tr('qc_test_time'),
-                i18n.tr('qc_test_error_name'),
-                i18n.tr('qc_test_element_name')
-            ],
-            displaycolumns=(0, 1, 2, 3),
+            columns=["name", "time", "error", "element"],
             on_click=self._on_click
         )
+        self._error_list.set_header_text("name", i18n.tr("qc_errors_name"))
+        self._error_list.set_header_text("time", i18n.tr("qc_errors_time"))
+        self._error_list.set_header_text("error", i18n.tr("qc_errors_error"))
+        self._error_list.set_header_text("element", i18n.tr("qc_errors_element"))
         self._error_list.grid(row=0, column=0, sticky='NSEW')
         self.app.middle_bottom.add(error_frame, text=i18n.tr("pane_qc_errors"), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def on_language_change(self):
         if self._error_list is not None:
-            self._error_list.set_headers([
-                i18n.tr('qc_test_name'),
-                i18n.tr('qc_test_time'),
-                i18n.tr('qc_test_error_name'),
-                i18n.tr('qc_test_element_name')
-            ])
+            self._error_list.set_header_text("name", i18n.tr("qc_errors_name"))
+            self._error_list.set_header_text("time", i18n.tr("qc_errors_time"))
+            self._error_list.set_header_text("error", i18n.tr("qc_errors_error"))
+            self._error_list.set_header_text("element", i18n.tr("qc_errors_element"))
         if self._pane_id is not None:
             self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_qc_errors"))
         self.update_errors()

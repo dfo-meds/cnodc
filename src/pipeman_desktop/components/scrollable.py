@@ -27,11 +27,8 @@ class ScrollableTreeview(tk.Frame):
 
     def __init__(self,
                  parent,
-                 headers: list[str],
-                 height=None,
-                 width=None,
+                 columns: list[str],
                  padding=0,
-                 displaycolumns: t.Optional[t.Union[tuple, list]] = None,
                  selectmode: t.Optional[str] = "browse",
                  on_select: t.Optional[t.Callable] = None,
                  on_click: t.Optional[t.Callable] = None,
@@ -46,10 +43,7 @@ class ScrollableTreeview(tk.Frame):
             self.table.configure(selectmode=selectmode)
         if show is not None:
             self.table.configure(show=show)
-        self.set_headers(headers)
-        if displaycolumns is not None:
-            self.set_display_columns(displaycolumns)
-        self.table.configure(padding=padding)
+        self.table.configure(columns=columns, padding=padding)
         self.table.grid(row=0, column=0, sticky="nsew")
         self.table.bind('<<TreeviewSelect>>', self._on_select)
         self.table.bind('<Button-3>', self._on_button3)
@@ -74,15 +68,8 @@ class ScrollableTreeview(tk.Frame):
     def tag_configure(self, tag_name: str, **kwargs):
         self.table.tag_configure(tag_name, **kwargs)
 
-    def set_display_columns(self, columns: t.Union[list, tuple]):
-        self.table.configure(displaycolumns=[x + 1 for x in columns] or "#all")
-
-    def set_headers(self, headers: list[str]):
-        self.table.configure(columns=[x + 1 for x in range(0, len(headers))])
-        for i in range(0, len(headers)):
-            key = f"# {i + 1}"
-            self.table.column(key, anchor="center")
-            self.table.heading(key, text=headers[i])
+    def set_header_text(self, column_id: str, header: str):
+        self.table.heading(column_id, text=header)
 
     def append_item(self, iid: str, values: tuple, parent: str = '', text: str = '', tags: tuple | None = None):
         self.table.insert(parent, 'end', iid=iid, text=text, values=values, tags=tags or tuple(), open=False)
@@ -94,13 +81,19 @@ class ScrollableTreeview(tk.Frame):
         for args in values:
             self.append_item(*args)
 
+    def get_item(self, iid: str):
+        return {
+            **self.table.item(iid),
+            "iid": iid
+        }
+
     def _on_select(self, e: tk.Event):
         if self._ignoring_callback:
             return
         if self._on_select_call is not None or self._on_click_call is not None:
             iid = self.table.selection()
             if iid:
-                item = {**self.table.item(iid[0])}
+                item = self.get_item(iid[0])
                 is_new = self._current_selection != iid[0]
                 self._current_selection = iid[0]
                 item['iid'] = iid[0]
@@ -114,9 +107,6 @@ class ScrollableTreeview(tk.Frame):
             iid = self.table.identify('item', e.x, e.y)
             if iid:
                 self.table.selection_set([iid])
-                self._on_right_call({
-                    **self.table.item(iid),
-                    "iid": iid,
-                }, e)
+                self._on_right_call(self.get_item(iid), e)
 
 

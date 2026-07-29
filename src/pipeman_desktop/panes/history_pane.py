@@ -24,14 +24,12 @@ class HistoryPane(BasePane):
             parent=history_frame,
             selectmode="browse",
             show="headings",
-            headers=[
-                i18n.tr('history_time'),
-                i18n.tr('history_message'),
-                i18n.tr('history_source'),
-                i18n.tr('history_type')
-            ],
-            displaycolumns=(0, 1, 2, 3)
+            columns=["time", "message", "source", "type"],
         )
+        self._history_list.set_header_text("time", i18n.tr("history_time"))
+        self._history_list.set_header_text("message", i18n.tr("history_message"))
+        self._history_list.set_header_text("source", i18n.tr("history_source"))
+        self._history_list.set_header_text("type", i18n.tr("history_type"))
         self._history_list.table.column('#1', width=150, stretch=tk.NO, anchor='w')
         self._history_list.table.column('#2', anchor='w')
         self._history_list.table.column('#3', anchor='w')
@@ -42,12 +40,10 @@ class HistoryPane(BasePane):
 
     def on_language_change(self):
         if self._history_list is not None:
-            self._history_list.set_headers([
-                i18n.tr('history_time'),
-                i18n.tr('history_message'),
-                i18n.tr('history_source'),
-                i18n.tr('history_type')
-            ])
+            self._history_list.set_header_text("time", i18n.tr("history_time"))
+            self._history_list.set_header_text("message", i18n.tr("history_message"))
+            self._history_list.set_header_text("source", i18n.tr("history_source"))
+            self._history_list.set_header_text("type", i18n.tr("history_type"))
         if self._pane_id is not None:
             self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_history"))
         self.update_history_display()

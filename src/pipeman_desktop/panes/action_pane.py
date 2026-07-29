@@ -30,14 +30,12 @@ class ActionPane(BasePane):
             parent=action_frame,
             selectmode='browse',
             show='headings',
-            headers=[
-                i18n.tr('action_item_name'),
-                i18n.tr('action_item_object'),
-                i18n.tr('action_item_value')
-            ],
+            columns=["name", "object", "value"],
             on_right_click=self._on_action_right_click,
-            displaycolumns=(0, 1, 2)
         )
+        self._action_list.set_header_text("name", i18n.tr("action_item_name"))
+        self._action_list.set_header_text("object", i18n.tr("action_item_object"))
+        self._action_list.set_header_text("value", i18n.tr("action_item_value"))
         self._action_list.grid(row=0, column=0, sticky='NEWS')
         self._action_list.table.column('#1', width=50, anchor='w', stretch=tk.NO)
         self._action_list.table.column('#2', width=250, anchor='w')
@@ -47,11 +45,9 @@ class ActionPane(BasePane):
 
     def on_language_change(self):
         if self._action_list is not None:
-            self._action_list.set_headers([
-                i18n.tr('action_item_name'),
-                i18n.tr('action_item_object'),
-                i18n.tr('action_item_value')
-            ])
+            self._action_list.set_header_text("name", i18n.tr("action_item_name"))
+            self._action_list.set_header_text("object", i18n.tr("action_item_object"))
+            self._action_list.set_header_text("value", i18n.tr("action_item_value"))
         if self._pane_id is not None:
             self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_actions"))
         self._rebuild_action_list()

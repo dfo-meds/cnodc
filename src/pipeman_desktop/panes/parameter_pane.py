@@ -224,14 +224,13 @@ class ParameterPane(BasePane):
             parent=param_frame,
             selectmode='browse',
             show="tree headings",
-            headers=[
-                i18n.tr('parameter_list_name'),
-                i18n.tr('parameter_list_value'),
-                i18n.tr('parameter_list_units'),
-                i18n.tr('parameter_list_quality'),
-            ],
+            columns=["name", "value", "units", "quality"],
             on_right_click=self._on_parameter_right_click
         )
+        self._parameter_list.set_header_text("name", i18n.tr('parameter_list_name'))
+        self._parameter_list.set_header_text("value", i18n.tr('parameter_list_value'))
+        self._parameter_list.set_header_text("units", i18n.tr('parameter_list_units'))
+        self._parameter_list.set_header_text("quality", i18n.tr('parameter_list_quality'))
         self._parameter_list.tag_configure('header', background='#000000', foreground='#FFFFFF')
         self._parameter_list.tag_configure('alt', background='#EEEEEE')
         self._parameter_list.tag_configure('invalid', foreground='red')
@@ -243,20 +242,18 @@ class ParameterPane(BasePane):
         self._parameter_list.tag_configure('missing', foreground=quality_color(9))
         self._parameter_list.tag_configure('invalid', foreground=quality_color(-1))
         self._parameter_list.grid(row=0, column=0, sticky='NSEW')
-        self._parameter_list.table.column('#0', width=25, stretch=tk.NO)
+        self._parameter_list.table.column('#0', width=40, stretch=tk.NO)
         self._parameter_list.table.column('#1', width=50, anchor='w')
-        self._parameter_list.table.column('#2', width=50, anchor='w')
-        self._parameter_list.table.column('#3', width=25, anchor='e')
+        self._parameter_list.table.column('#2', width=50, anchor='e')
+        self._parameter_list.table.column('#3', width=25, anchor='w')
         self._parameter_list.table.column('#4', width=25, stretch=tk.NO)
 
     def on_language_change(self):
         if self._parameter_list is not None:
-            self._parameter_list.set_headers([
-                i18n.tr('parameter_list_name'),
-                i18n.tr('parameter_list_value'),
-                i18n.tr('parameter_list_units'),
-                i18n.tr('parameter_list_quality')
-            ])
+            self._parameter_list.set_header_text("name", i18n.tr('parameter_list_name'))
+            self._parameter_list.set_header_text("value", i18n.tr('parameter_list_value'))
+            self._parameter_list.set_header_text("units", i18n.tr('parameter_list_units'))
+            self._parameter_list.set_header_text("quality", i18n.tr('parameter_list_quality'))
         self._rebuild_parameter_list()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -270,7 +267,6 @@ class ParameterPane(BasePane):
                 self.show_recordset(self.app.state.current_recordset, self.app.state.current_child_path)
             elif self.app.state.current_record is not None:
                 self.show_record(self.app.state.current_record, self.app.state.current_child_path)
-
 
     def show_record(self, record: ocproc2.BaseRecord, path: str):
         self._value_lookup = {}

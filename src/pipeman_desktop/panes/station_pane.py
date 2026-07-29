@@ -136,18 +136,16 @@ class StationPane(BasePane):
             parent=station_frame,
             selectmode="browse",
             show="headings",
-            headers=[
-                i18n.tr('station_uuid'),
-                i18n.tr('station_wmo_id'),
-                i18n.tr('station_wigos_id'),
-                i18n.tr('station_name'),
-                i18n.tr('station_id'),
-                i18n.tr('station_start_date'),
-                i18n.tr('station_end_date')
-            ],
-            displaycolumns=(0, 1, 2, 3, 4, 5, 6),
+            columns=["uuid", "wmo_id", "wigos_id", "name", "id", "start", "end"],
             on_right_click=self._on_right_click
         )
+        self._station_list.set_header_text("uuid", i18n.tr("station_list_uuid"))
+        self._station_list.set_header_text("wmo_id", i18n.tr("station_list_wmo_id"))
+        self._station_list.set_header_text("wigos_id", i18n.tr("station_list_wigos_id"))
+        self._station_list.set_header_text("name", i18n.tr("station_list_name"))
+        self._station_list.set_header_text("id", i18n.tr("station_list_id"))
+        self._station_list.set_header_text("start", i18n.tr("station_list_start"))
+        self._station_list.set_header_text("end", i18n.tr("station_list_end"))
         self._station_list.grid(row=0, column=0, sticky='NSEW')
         # TODO: station searching options?
         self.app.middle_bottom.add(station_frame, text=i18n.tr('station_list'), sticky='NSEW')

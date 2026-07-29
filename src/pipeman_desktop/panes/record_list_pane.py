@@ -44,13 +44,11 @@ class RecordListPane(BasePane):
             parent=self._group,
             selectmode="browse",
             show="",
-            headers=[
-                i18n.tr('record_list_index'),
-                i18n.tr('record_list_title'),
-            ],
+            columns=["index", "title"],
             on_click=self._on_record_click,
-            displaycolumns=(0, 1)
         )
+        self._record_list.set_header_text("index", i18n.tr("record_list_index"))
+        self._record_list.set_header_text("title", i18n.tr("record_list_title"))
         self._record_list.tag_configure('has-error', foreground='red')
         self._record_list.grid(row=1, column=0, sticky='EWNS')
         self._record_list.table.column('#1', anchor='w', stretch=False, width=45)
@@ -59,12 +57,10 @@ class RecordListPane(BasePane):
             parent=self._group,
             selectmode="browse",
             show="tree",
-            headers=[
-                i18n.tr('subrecord_list_title'),
-            ],
+            columns=["title"],
             on_click=self._on_subrecord_click,
-            displaycolumns=(0,)
         )
+        self._subrecord_list.set_header_text("title", i18n.tr("subrecord_list_title"))
         self._subrecord_list.tag_configure('has-error', foreground='red')
         self._subrecord_list.grid(row=3, column=0, sticky='EWNS')
         self._subrecord_list.table.column('#0', width=30, stretch=False)
@@ -75,6 +71,11 @@ class RecordListPane(BasePane):
             self._record_label.configure(text=i18n.tr('record_list_title'))
         if self._subrecord_label is not None:
             self._subrecord_label.configure(text=i18n.tr('child_record_list_title'))
+        if self._record_list is not None:
+            self._record_list.set_header_text("index", i18n.tr("record_list_index"))
+            self._record_list.set_header_text("title", i18n.tr("record_list_title"))
+        if self._subrecord_list is not None:
+            self._subrecord_list.set_header_text("title", i18n.tr("subrecord_list_title"))
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.BATCH_STATE:

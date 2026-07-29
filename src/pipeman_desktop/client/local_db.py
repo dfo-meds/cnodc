@@ -77,7 +77,6 @@ class CursorWrapper:
         where_clause = ' AND '.join(f'{key} = ?' for key in w_keys)
         actual_values.extend([self._clean_for_insert(where[k]) for k in w_keys])
         q = f'UPDATE {table_name} SET {set_clause} WHERE {where_clause}'
-        print(q, actual_values)
         self.execute(q, actual_values)
 
     def delete(self, table_name: str, values: dict):
