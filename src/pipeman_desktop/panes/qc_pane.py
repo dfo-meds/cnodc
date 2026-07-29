@@ -51,7 +51,7 @@ class QCPane(BasePane):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))
 
     def on_init(self):
-        button_frame = ttk.Frame(self.app.top_bar)
+        button_frame = ttk.Frame(self.app.top)
         button_frame.grid(row=0, column=0)
 
         self._build_button(button_frame, "load_new", "load.png", self.next_item)
@@ -76,7 +76,7 @@ class QCPane(BasePane):
         self._cb_off.put(("black",), to=(0, 0, 24, 24))
         self._cb_on = tk.PhotoImage(width=50, height=25)
         self._cb_on.put(("green",), to=(25, 0, 49, 24))
-        self._checkbox = tk.Checkbutton(self.app.top_bar,
+        self._checkbox = tk.Checkbutton(self.app.top,
                                         offrelief="sunken",
                                         variable=self._load_next,
                                         image=self._cb_off,
@@ -86,11 +86,11 @@ class QCPane(BasePane):
                                         offvalue=0)
         self._checkbox.grid(row=0, column=len(self._buttons))
         self.tts.append(Tooltip(self._checkbox, f'tooltip_toggle_autoload'))
-        self.app.top_bar.grid_columnconfigure(len(self._buttons), weight=0)
+        self.app.top.grid_columnconfigure(len(self._buttons), weight=0)
 
-        self._label = ttk.Label(self.app.top_bar, text="", font=('', 18, 'bold'))
+        self._label = ttk.Label(self.app.top, text="", font=('', 18, 'bold'))
         self._label.grid(row=0, column=len(self._buttons) + 1, ipadx=2, ipady=2, sticky='ew')
-        self.app.top_bar.grid_columnconfigure(len(self._buttons) + 1, weight=1)
+        self.app.top.grid_columnconfigure(len(self._buttons) + 1, weight=1)
 
         self.fetch_queue_ready_count()
 
@@ -103,7 +103,7 @@ class QCPane(BasePane):
                       rotate: bool = False):
         self._images[button_name] = self._build_button_image(
             self._base_path / file_name,
-            self.app.top_bar.master,
+            self.app.top.master,
             rotate
         )
         self._buttons[button_name] = ttk.Button(
@@ -115,7 +115,7 @@ class QCPane(BasePane):
         if close_state is not None:
             self._button_close_state[button_name] = close_state
         self._buttons[button_name].grid(row=0, column=len(self._buttons) - 1, ipadx=0, ipady=0, padx=0, pady=0)
-        self.app.top_bar.grid_columnconfigure(len(self._buttons) - 1, weight=0)
+        self.app.top.grid_columnconfigure(len(self._buttons) - 1, weight=0)
         self.tts.append(Tooltip(self._buttons[button_name], f'tooltip_{button_name}'))
 
     def _build_button_image(self, path: pathlib.Path, master, rotate: bool = False, size: int = 30):

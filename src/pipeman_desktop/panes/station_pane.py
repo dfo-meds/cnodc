@@ -129,7 +129,7 @@ class StationPane(BasePane):
         self.app.menus.add_sub_menu('stations', 'menu_qc')
         self.app.menus.add_command('stations/reload', 'menu_reload_stations', self.reload_stations, True)
         self.app.menus.add_command('stations/create', 'menu_create_station', self.create_station, True)
-        station_frame = ttk.Frame(self.app.bottom_notebook)
+        station_frame = ttk.Frame(self.app.middle_bottom)
         station_frame.rowconfigure(0, weight=1)
         station_frame.columnconfigure(0, weight=1)
         self._station_list = ScrollableTreeview(
@@ -150,7 +150,7 @@ class StationPane(BasePane):
         )
         self._station_list.grid(row=0, column=0, sticky='NSEW')
         # TODO: station searching options?
-        self.app.bottom_notebook.add(station_frame, text=i18n.tr('station_list'), sticky='NSEW')
+        self.app.middle_bottom.add(station_frame, text=i18n.tr('station_list'), sticky='NSEW')
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:

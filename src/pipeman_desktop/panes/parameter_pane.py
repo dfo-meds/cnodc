@@ -222,7 +222,7 @@ class ParameterPane(BasePane):
         self._value_lookup: dict[str, ocproc2.SingleElement] = {}
 
     def on_init(self):
-        param_frame = ttk.Frame(self.app.far_right)
+        param_frame = ttk.Frame(self.app.right)
         param_frame.rowconfigure(0, weight=1)
         param_frame.columnconfigure(0, weight=1)
         param_frame.grid(row=0, column=0, sticky='NSEW')

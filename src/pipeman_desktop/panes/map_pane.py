@@ -3,6 +3,7 @@ import pathlib
 
 from bandit.cli.baseline import initialize
 
+from gcapp import i18n
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.util import BatchOpenState
 from pipeman_desktop.state import DisplayChange, ApplicationState
@@ -29,11 +30,15 @@ class MapPane(BasePane):
         base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
         self._error_image = ImageTk.PhotoImage(Image.open(str(base_path / 'red_dot.png')).resize((15, 15)))
         self._good_image = ImageTk.PhotoImage(Image.open(str(base_path / 'green_dot.png')).resize((15, 15)))
+        self._pane_id: str | None = None
 
     def on_init(self):
-        self._map_frame = ttk.Frame(self.app.middle_left, width=500, height=500)
-        self._map_frame.grid(row=0, column=0, sticky='NSEW')
-        self._rebuild_map(300, 300)
+        self._map_frame = ttk.Frame(self.app.middle)
+        self.app.middle.add(self._map_frame, text=i18n.tr("pane_map"), sticky="NSEW")
+        self._pane_id = self.app.middle.tabs()[-1]
+        # TODO: reload pane title on language change
+        width = self.app.root.winfo_screenwidth() / 2.5
+        self._rebuild_map(width, width)
 
     def _rebuild_map(self, width: int, height: int):
         if self._map is not None:
@@ -44,7 +49,7 @@ class MapPane(BasePane):
             self._map = None
         if width > 1 and height > 1:
             # 25 workers seems to set off Google's rate limiting
-            # 2 works fine.
+            # 2-3 works fine.
             self._map = tkmv.TkinterMapView(
                 self._map_frame,
                 width=width,
@@ -56,9 +61,11 @@ class MapPane(BasePane):
             self._map.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
             self._map.set_zoom(self._current_zoom)
             self._map.set_position(*self._current_position)
-            print(self._map.get_position())
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
+        if change_type & DisplayChange.SCREEN_SIZE:
+            if self._map is not None:
+                self._rebuild_map(self.app.middle.winfo_width(), self.app.middle.winfo_height())
         if self._map is not None and (change_type & DisplayChange.BATCH_STATE):
             self._map.delete_all_marker()
             if app_state.batch_state == BatchOpenState.OPEN and app_state.batch_records:

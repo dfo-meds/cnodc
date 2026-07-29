@@ -160,45 +160,52 @@ class PipemanDesktop:
         self.menus.add_sub_menu('file', 'menu_file')
         self.root.rowconfigure(0, weight=0)
         self.root.rowconfigure(1, weight=1)
-        self.root.rowconfigure(2, weight=1)
+        self.root.rowconfigure(2, weight=0)
         self.root.rowconfigure(3, weight=0)
         self.root.columnconfigure(0, weight=1)
-        self.root.columnconfigure(1, weight=0)
-        self.root.columnconfigure(2, weight=2)
-        self.root.columnconfigure(3, weight=1)
-        self.top_bar = ttk.Frame(self.root)
-        self.top_bar.grid(row=0, column=1, sticky='NSEW', columnspan=3)
-        self.top_bar.rowconfigure(0, weight=1)
-        self.top_bar.columnconfigure(0, weight=0)
-        self.top_bar.columnconfigure(1, weight=1)
-        self.middle_left = ttk.Frame(self.root)
-        self.middle_left.grid(row=1, column=1, sticky='NSEW', rowspan=2)
-        self.middle_left.rowconfigure(0, weight=1)
-        self.middle_left.columnconfigure(0, weight=1)
-        self.middle_right = ttk.Frame(self.root)
-        self.middle_right.grid(row=1, column=2, sticky='NSEW', rowspan=2)
-        self.middle_right.rowconfigure(0, weight=1)
-        self.middle_right.columnconfigure(0, weight=1)
-        self.far_right = ttk.Frame(self.root)
-        self.far_right.grid(row=1, column=3, sticky='NSEW', rowspan=2)
-        self.far_right.rowconfigure(0, weight=1)
-        self.far_right.columnconfigure(0, weight=1)
-        self.bottom_notebook = ttk.Notebook(self.root)
-        self.bottom_notebook.grid(row=3, column=1, sticky='NSEW', columnspan=3)
+        self.root.columnconfigure(1, weight=4)
+        self.root.columnconfigure(2, weight=1)
+
+        # top bar
+        self.top = ttk.Frame(self.root)
+        self.top.grid(row=0, column=0, sticky='NSEW', columnspan=3)
+        self.top.rowconfigure(0, weight=1)
+
+        # entire left-hand side
+        self.left = ttk.Frame(self.root)
+        self.left.grid(row=1, column=0, sticky='NSEW', rowspan=2)
+        self.left.rowconfigure(0, weight=1)
+        self.left.columnconfigure(0, weight=1)
+
+        # middle
+        self.middle = ttk.Notebook(self.root)
+        self.middle.grid(row=1, column=1, sticky='NSEW')
+
+        # right
+        self.right = ttk.Frame(self.root)
+        self.right.grid(row=1, column=2, sticky='NSEW')
+        self.right.rowconfigure(0, weight=1)
+        self.right.columnconfigure(0, weight=1)
+
+        # below middle and right
+        self.middle_bottom = ttk.Notebook(self.root)
+        self.middle_bottom.grid(row=2, column=1, sticky='NSEW', columnspan=2)
+
+        # bottom bar
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=4, column=0, sticky='EWNS', columnspan=4)
+        self.bottom_bar.grid(row=3, column=0, sticky='EWNS', columnspan=3)
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
-        self.left_frame = ttk.Frame(self.root)
-        self.left_frame.grid(row=0, column=0, sticky='NSEW', rowspan=4)
-        self.left_frame.rowconfigure(0, weight=1)
-        self.left_frame.columnconfigure(0, weight=1)
+
+        # Bottom bar stuff
         self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
         self.loading_wheel.grid(row=0, column=0, sticky='W')
         self.status_info = ttk.Label(self.bottom_bar, text="W", relief="solid", borderwidth=2)
         self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
+
         self.dispatcher = PipemanDispatcher(self.loading_wheel)
+
         self._panes = []
         self._panes.append(LoginPane(self))
         self._panes.append(QCPane(self))

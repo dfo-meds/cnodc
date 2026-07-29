@@ -14,7 +14,7 @@ class ErrorPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        error_frame = ttk.Frame(self.app.bottom_notebook)
+        error_frame = ttk.Frame(self.app.middle_bottom)
         error_frame.rowconfigure(0, weight=1)
         error_frame.columnconfigure(0, weight=1)
         self._error_list = ScrollableTreeview(
@@ -31,8 +31,8 @@ class ErrorPane(BasePane):
             on_click=self._on_click
         )
         self._error_list.grid(row=0, column=0, sticky='NSEW')
-        self.app.bottom_notebook.add(error_frame, text=i18n.tr("pane_qc_errors"), sticky='NSEW')
-        self._pane_id = self.app.bottom_notebook.tabs()[-1]
+        self.app.middle_bottom.add(error_frame, text=i18n.tr("pane_qc_errors"), sticky='NSEW')
+        self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def on_language_change(self):
         if self._error_list is not None:
@@ -43,7 +43,7 @@ class ErrorPane(BasePane):
                 i18n.tr('qc_test_element_name')
             ])
         if self._pane_id is not None:
-            self.app.bottom_notebook.tab(self._pane_id, text=i18n.tr("pane_qc_errors"))
+            self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_qc_errors"))
         self.update_errors()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):

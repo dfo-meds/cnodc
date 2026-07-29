@@ -17,7 +17,7 @@ class HistoryPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        history_frame = ttk.Frame(self.app.bottom_notebook)
+        history_frame = ttk.Frame(self.app.middle_bottom)
         history_frame.rowconfigure(0, weight=1)
         history_frame.columnconfigure(0, weight=1)
         self._history_list = ScrollableTreeview(
@@ -37,8 +37,8 @@ class HistoryPane(BasePane):
         self._history_list.table.column('#3', anchor='w')
         self._history_list.table.column('#4', width=125, stretch=tk.NO, anchor='w')
         self._history_list.grid(row=0, column=0, sticky='NSEW')
-        self.app.bottom_notebook.add(history_frame, text=i18n.tr("pane_history"), sticky='NSEW')
-        self._pane_id = self.app.bottom_notebook.tabs()[-1]
+        self.app.middle_bottom.add(history_frame, text=i18n.tr("pane_history"), sticky='NSEW')
+        self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def on_language_change(self):
         if self._history_list is not None:
@@ -49,7 +49,7 @@ class HistoryPane(BasePane):
                 i18n.tr('history_type')
             ])
         if self._pane_id is not None:
-            self.app.bottom_notebook.tab(self._pane_id, text=i18n.tr("pane_history"))
+            self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_history"))
         self.update_history_display()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):

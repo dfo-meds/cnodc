@@ -25,10 +25,13 @@ class GraphPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._oc2graph: t.Optional[OCProc2Graph] = None
+        self._pane_id: str | None = None
 
     def on_init(self):
-        self._oc2graph = OCProc2Graph(self.app.middle_right, self.app)
-        self._oc2graph.grid(row=0, column=0, sticky='NSEW')
+        self._oc2graph = OCProc2Graph(self.app.middle, self.app)
+        self.app.middle.add(self._oc2graph, text=i18n.tr("pane_graph"), sticky='NSEW')
+        self._pane_id = self.app.middle.tabs()[-1]
+        # TODO: refresh tab text on language change
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD | DisplayChange.BATCH_STATE):
@@ -91,7 +94,7 @@ class _GraphPane(BasePane):
         self._combo_independent.grid(row=0, column=1, padx=5, pady=5)
         self._combo_independent.bind('<<ComboboxSelected>>', self._var_change)
 
-    def on_language_change(self, language: str):
+    def on_language_change(self):
         # TODO: labels for table
         # TODO: if possible, drop-down list elements
         pass

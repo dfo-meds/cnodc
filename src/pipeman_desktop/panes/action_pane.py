@@ -23,7 +23,7 @@ class ActionPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        action_frame = ttk.Frame(self.app.bottom_notebook)
+        action_frame = ttk.Frame(self.app.middle_bottom)
         action_frame.rowconfigure(0, weight=1)
         action_frame.columnconfigure(0, weight=1)
         self._action_list = ScrollableTreeview(
@@ -42,8 +42,8 @@ class ActionPane(BasePane):
         self._action_list.table.column('#1', width=50, anchor='w', stretch=tk.NO)
         self._action_list.table.column('#2', width=250, anchor='w')
         self._action_list.table.column('#3', width=150, anchor='w')
-        self.app.bottom_notebook.add(action_frame, text=i18n.tr("pane_actions"), sticky='NSEW')
-        self._pane_id = self.app.bottom_notebook.tabs()[-1]
+        self.app.middle_bottom.add(action_frame, text=i18n.tr("pane_actions"), sticky='NSEW')
+        self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def on_language_change(self):
         if self._action_list is not None:
@@ -53,7 +53,7 @@ class ActionPane(BasePane):
                 i18n.tr('action_item_value')
             ])
         if self._pane_id is not None:
-            self.app.bottom_notebook.tab(self._pane_id, text=i18n.tr("pane_actions"))
+            self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_actions"))
         self._rebuild_action_list()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):

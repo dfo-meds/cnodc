@@ -30,7 +30,7 @@ class RecordListPane(BasePane):
         self._current_subrecord_info = None
 
     def on_init(self):
-        self._group = ttk.Frame(self.app.left_frame)
+        self._group = ttk.Frame(self.app.left)
         self._group.grid(row=0, column=0, sticky='NSEW')
         self._group.rowconfigure(0, weight=0)
         self._group.rowconfigure(1, weight=3)

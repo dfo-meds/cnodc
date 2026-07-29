@@ -387,7 +387,7 @@ class ParameterGraph(Graph):
 class OCProc2Graph(ttk.Frame):
 
     def __init__(self, parent, app: PipemanDesktop):
-        super().__init__(parent, width=500, height=500)
+        super().__init__(parent)
         self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
