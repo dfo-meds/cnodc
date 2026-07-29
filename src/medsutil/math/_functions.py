@@ -337,3 +337,36 @@ def min_(arg1: NumberOrIterable, /, *args: NumberOrIterable) -> mt.AnyNumber:
     else:
         flint.extend(float(x) for x in ns)
     return min(*sn, *dc, *flint)
+
+
+def significant_digits(std_dev: mt.AnyNumber, c: int = 2) -> int | None:
+    """ Given a standard deviation and a confidence level, calculate the first decimal place of the margin of error.
+
+        For example:
+
+        Consider std_dev=0.005, c=2
+
+        test_compatibility is true iff |A-B| / sqrt(2 * (std_dev ** 2)) <= c
+        and therefore margin_of_error = |A-B| <= c * sqrt(2 * (std_dev ** 2))
+        i.e. margin_of_error is the largest possible absolute difference between A and B that leaves them compatible.
+
+        Here that works out to 0.0141421, i.e. for value k we accept anything from (k-0.0141421, k+0.0141421)
+
+        log10 of margin_of_error is -1.84949 and the floor of that is -2.
+        This indicates that the second decimal place is uncertain.
+        The first decimal place may also vary slightly, but it is more likely to be accurate.
+
+        We therefore return 2, indicating the position of the first truly uncertain decimal place.
+
+        In other words, given a number X and its standard deviation s, rounding X and the margin of error to
+        n = signficiant_digits(std_dev) places produces a sensible output where the margin of error has one
+        significant decimal place.
+
+
+    """
+    sd = nominal_value(std_dev)
+    if sd <= 0:
+        return None
+    margin_of_error = sqrt(2 * (sd ** 2)) * c
+    places = _math.floor(_common.log10(margin_of_error))
+    return places * -1

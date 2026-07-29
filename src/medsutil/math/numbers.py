@@ -154,6 +154,23 @@ class ScienceNumber:
         else:
             return sd
 
+    def significant_digits(self, c: int = 2) -> int:
+        digits = basics.significant_digits(self.std_dev, c)
+        if digits is None:
+            x = str(self.nominal_value)
+            if "." not in x:
+                return 0
+            integer_size = len(x[:x.find(".")])
+            decimal_size = len(x[x.find(".")+1:])
+            return min(12 - integer_size, decimal_size)
+        else:
+            return digits
+
+    def to_places_as_string(self, places: int):
+        fstr = "{num:." + str(places) + "f}" if places > 0 else "{num:d}"
+        num = fstr.format(num=self.nominal_value)
+        return num
+
     def range(self, sigma: mt.BasicNumber = 2) -> tuple[mt.BasicNumber, mt.BasicNumber]:
         sigma_diff = basics.mul(sigma, self.std_dev)
         return (

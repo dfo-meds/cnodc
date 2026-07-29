@@ -85,6 +85,20 @@ def log(x: mt.AnyNumber, base: mt.AnyNumber, /) -> mt.BasicNumber:
     except AttributeError:
         return _math.log(float(x), float(base))
 
+def floor(x: mt.AnyNumber) -> int:
+    return _math.floor(nominal_value(x))
+
+
+def ceil(x: mt.AnyNumber) -> int:
+    return _math.ceil(nominal_value(x))
+
+
+def round_to_int(x: mt.AnyNumber) -> int:
+    return round(nominal_value(x))
+
+def round_to_place(x: mt.AnyNumber, places: int) -> mt.BasicNumber:
+    return round(nominal_value(x), places)
+
 
 def is_complex(x: mt.AnyNumber) -> bool:
     x = nominal_value(x)
