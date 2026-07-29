@@ -1,7 +1,3 @@
-import datetime
-
-from packaging import tags
-
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
@@ -185,7 +181,7 @@ class ParameterContextMenu:
         self._set_working_quality_flag(2)
 
     def _set_working_quality_flag(self, flag_no: int):
-        cwq = self._current_value.metadata.best('WorkingQuality', 0)
+        cwq = self._current_value.metadata.best('WorkingQuality', coerce=int, default=0)
         if int(cwq) != flag_no:
             self._app.save_operations([
                 self._app.create_flag_operator(self._target_path, flag_no)
@@ -308,6 +304,7 @@ class ParameterPane(BasePane):
             for k in record_set.metadata.keys():
                 self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
                 is_alt = not is_alt
+            self._parameter_list.open_item(m_path)
 
     def _create_parameter_header(self, path: str, header_name: str) -> str:
         m_path = f'{path}/{header_name}' if path else header_name
@@ -320,21 +317,22 @@ class ParameterPane(BasePane):
 
     def _create_parameter_entry(self, v: ocproc2.AbstractElement, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
         my_path = f'{parent_path}/{key}'
+        label = f"#{key}" if key.isdigit() else self.ocproc_translator.translate_element_name(key)
         if isinstance(v, ocproc2.MultiElement):
             is_alt = False
             # TODO: need a heading here (with translations)
             self._parameter_list.append_item(
                 iid=my_path,
-                values=(key, '', '', ''),
+                values=(label, '', '', ''),
                 tags=('header',)
             )
             for idx, subv in v.values():
                 self._create_parameter_entry(subv, my_path, str(idx), depth + 1, is_alt)
                 is_alt = not is_alt
         elif isinstance(v, ocproc2.SingleElement):
-            self._create_parameter_list_item(v, parent_path, key, depth, is_alt)
+            self._create_parameter_list_item(v, parent_path, key, label, depth, is_alt)
 
-    def _create_parameter_list_item(self, v: ocproc2.SingleElement, parent_path: str, key: str, depth: int, is_alt: bool):
+    def _create_parameter_list_item(self, v: ocproc2.SingleElement, parent_path: str, key: str, label: str, depth: int, is_alt: bool):
         path = f'{parent_path}/{key}'
         dv, tags = self._parameter_display_value(v)
         if is_alt:
@@ -343,7 +341,7 @@ class ParameterPane(BasePane):
         self._parameter_list.append_item(
             parent=parent_path,
             iid=path,
-            values=(f'{"  " * depth}{self._key_name(key)}', *dv),
+            values=(f'{"  " * depth}{label}', *dv),
             tags=tuple(tags)
         )
         is_alt = False
@@ -352,9 +350,6 @@ class ParameterPane(BasePane):
                 self._create_parameter_entry(md, path, m_name, depth + 1, is_alt)
                 is_alt = not is_alt
 
-    def _key_name(self, key: str):
-        return key
-
     def _parameter_display_value(self, v: ocproc2.AbstractElement) -> tuple[tuple, list]:
         tags = []
         wq = v.metadata.best('WorkingQuality', default=0, coerce=int)
@@ -362,17 +357,20 @@ class ParameterPane(BasePane):
             tags.append(ParameterPane.TAG_MAP[wq])
         if v.is_empty():
             return ('', '', wq), tags,
-        if v.is_iso_datetime():
-            dt_utc = datetime.datetime.fromtimestamp(v.to_datetime().timestamp(), datetime.timezone.utc)
+        elif v.is_iso_datetime():
+            dt_utc = v.to_datetime().astimezone("Etc/UTC")
+            # TODO: date precision?
             return (dt_utc.strftime('%Y-%m-%d %H:%M:%S'), 'UTC', wq), tags
-        if v.is_numeric():
+        elif v.is_numeric():
             val = v.to_float() if not v.is_integer() else v.to_int()
+            # TODO: apply uncertainty and round?
             units = v.metadata.best('Units', None)
             if units is not None:
                 return (str(val), v.metadata.best('Units'), wq), tags
             else:
                 return (str(val), '', wq), tags
-        return (v.to_string(), '', wq), tags
+        else:
+            return (v.to_string(), '', wq), tags
 
     def _on_parameter_right_click(self, item, event):
         if item['values'][0] != '':
