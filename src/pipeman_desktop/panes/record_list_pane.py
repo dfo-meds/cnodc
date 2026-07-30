@@ -38,8 +38,8 @@ class RecordListPane(BasePane):
         self._group.rowconfigure(3, weight=1)
         self._group.columnconfigure(0, weight=1)
         # TODO: label styling
-        self._record_label = ttk.Label(self._group, text=i18n.tr("record_list_title")).grid(row=0, column=0, sticky='NSEW')
-        self._subrecord_label = ttk.Label(self._group, text=i18n.tr("child_record_list_title")).grid(row=2, column=0, sticky='NSEW')
+        self._record_label = ttk.Label(self._group, text=i18n.tr("tree.record_list.title")).grid(row=0, column=0, sticky='NSEW')
+        self._subrecord_label = ttk.Label(self._group, text=i18n.tr("tree.subrecord_list.title")).grid(row=2, column=0, sticky='NSEW')
         self._record_list = ScrollableTreeview(
             parent=self._group,
             selectmode="browse",
@@ -47,8 +47,8 @@ class RecordListPane(BasePane):
             columns=["index", "title"],
             on_click=self._on_record_click,
         )
-        self._record_list.set_header_text("index", i18n.tr("record_list_index"))
-        self._record_list.set_header_text("title", i18n.tr("record_list_title"))
+        self._record_list.set_header_text("index", i18n.tr("tree.record_list.index"))
+        self._record_list.set_header_text("title", i18n.tr("tree.record_list.name"))
         self._record_list.tag_configure('has-error', foreground='red')
         self._record_list.grid(row=1, column=0, sticky='EWNS')
         self._record_list.table.column('#1', anchor='w', stretch=False, width=45)
@@ -60,7 +60,7 @@ class RecordListPane(BasePane):
             columns=["title"],
             on_click=self._on_subrecord_click,
         )
-        self._subrecord_list.set_header_text("title", i18n.tr("subrecord_list_title"))
+        self._subrecord_list.set_header_text("title", i18n.tr("tree.subrecord_list.nbame"))
         self._subrecord_list.tag_configure('has-error', foreground='red')
         self._subrecord_list.grid(row=3, column=0, sticky='EWNS')
         self._subrecord_list.table.column('#0', width=30, stretch=False)
@@ -86,14 +86,12 @@ class RecordListPane(BasePane):
                     self._subrecord_list.selection_clear()
         if change_type & DisplayChange.LANGUAGE:
             if self._record_label is not None:
-                self._record_label.configure(text=i18n.tr('record_list_title'))
+                self._record_label.configure(text=i18n.tr('tree.record_list.title'))
+                self._record_list.set_header_text("index", i18n.tr("tree.record_list.index"))
+                self._record_list.set_header_text("title", i18n.tr("tree.record_list.name"))
             if self._subrecord_label is not None:
-                self._subrecord_label.configure(text=i18n.tr('child_record_list_title'))
-            if self._record_list is not None:
-                self._record_list.set_header_text("index", i18n.tr("record_list_index"))
-                self._record_list.set_header_text("title", i18n.tr("record_list_title"))
-            if self._subrecord_list is not None:
-                self._subrecord_list.set_header_text("title", i18n.tr("subrecord_list_title"))
+                self._subrecord_label.configure(text=i18n.tr('tree.subrecord_list.title'))
+                self._subrecord_list.set_header_text("title", i18n.tr("tree.subrecord_list.name"))
             # TODO: we need to update the recordset display labels
 
     def _build_record_list(self):
@@ -137,10 +135,15 @@ class RecordListPane(BasePane):
                     self._build_subrecord_list(srecord, record_text, depth + 2)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
-        return f'{(" " * (depth * 2))}{self.translator.translate_recordset_type(subrecord_set_type)} #{record_set_idx}'
+        return i18n.tr(
+            "tree.record_list.recordset_header",
+            prefix=" " * (depth * 2),
+            rs_type=self.translator.translate_recordset_type(subrecord_set_type),
+            rs_index=record_set_idx
+        )
 
     def _build_record_display(self, record: ocproc2.BaseRecord, srt: str, idx: int, depth: int):
-        display = i18n.tr(f"record_label", index=str(idx))
+        display = i18n.tr(f"tree.record_list.record_label", index=str(idx))
         c_names = list(x for x in record.coordinates.keys())
         c_names.sort()
         for c_name in c_names:

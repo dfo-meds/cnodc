@@ -8,6 +8,11 @@ import zrlog
 from autoinject import injector
 import typing as t
 
+from gcapp.i18n import TranslatableError
+
+
+class LocalDatabaseError(TranslatableError): CODE_SPACE = "LOCAL-DB"
+
 
 class CursorWrapper:
 
@@ -98,7 +103,7 @@ class CursorWrapper:
 class LocalDatabase:
 
     def __init__(self):
-        self._database_file = pathlib.Path('~/cnodcqc.local.db').expanduser().absolute().resolve()
+        self._database_file = pathlib.Path('~/.pipemandesktop.local.db').expanduser().absolute().resolve()
         self._connection = None
         self.get_connection()
 
@@ -114,7 +119,7 @@ class LocalDatabase:
     def _create_db(self):
         sql_file = pathlib.Path(__file__).absolute().resolve().parent / 'local_db.sql'
         if not sql_file.exists():
-            raise ValueError('schema file not defined')
+            raise LocalDatabaseError("error.no_schema_file", 1000)
         with open(sql_file, 'r', encoding='utf-8') as h:
             with self.cursor() as cur:
                 cur.execute_script(h.read())

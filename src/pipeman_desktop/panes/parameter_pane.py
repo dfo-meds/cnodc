@@ -39,27 +39,27 @@ class ParameterContextMenu:
         self._menu = tk.Menu(app.root, tearoff=0)
         if self._element_info is not None and self._element_info.data_type in {"string", "integer", "date", "decimal", "Duration", "dateTimeStamp"}:
             self._menu.add_command(
-                label=i18n.tr('parameter_context_edit'),
+                label=i18n.tr('context_menu.parameter.edit'),
                 command=self._edit_value
             )
         self._menu.add_command(
-            label=i18n.tr('parameter_context_flag_good'),
+            label=i18n.tr('context_menu.parameter.flag_good'),
             command=self._flag_good
         )
         self._menu.add_command(
-            label=i18n.tr('parameter_context_flag_probably_good'),
+            label=i18n.tr('context_menu.parameter.flag_probably_good'),
             command=self._flag_probably_good
         )
         self._menu.add_command(
-            label=i18n.tr('parameter_context_flag_dubious'),
+            label=i18n.tr('context_menu.parameter.flag_dubious'),
             command=self._flag_dubious
         )
         self._menu.add_command(
-            label=i18n.tr('parameter_context_flag_erroneous'),
+            label=i18n.tr('context_menu.parameter.flag_erroneous'),
             command=self._flag_erroneous
         )
         self._menu.add_command(
-            label=i18n.tr('parameter_context_flag_missing'),
+            label=i18n.tr('context_menu.parameter.flag_missing'),
             command=self._flag_missing
         )
 
@@ -77,16 +77,16 @@ class ParameterContextMenu:
         data_type = self._element_info.data_type if self._element_info is not None else None
         if data_type is None:
             data_type = ask_choice(
-                title=i18n.tr('data_type_choice_title'),
-                prompt=i18n.tr('data_type_choice_prompt'),
+                title=i18n.tr('dialog.choose_data_type.title'),
+                prompt=i18n.tr('dialog.choose_data_type.message'),
                 parent=self._app.root,
                 options={
-                    'string': i18n.tr('data_type_string'),
-                    'integer': i18n.tr('data_type_integer'),
-                    'dateTimeStamp': i18n.tr('data_type_datetime'),
-                    'date': i18n.tr('data_type_date'),
-                    'decimal': i18n.tr('data_type_decimal'),
-                    'Duration': i18n.tr('data_type_duration'),
+                    'string': i18n.tr('data_type.string'),
+                    'integer': i18n.tr('data_type.integer'),
+                    'dateTimeStamp': i18n.tr('data_type.datetime'),
+                    'date': i18n.tr('data_type.date'),
+                    'decimal': i18n.tr('data_type.decimal'),
+                    'Duration': i18n.tr('data_type.duration'),
                 }
             )
             if data_type is not None:
@@ -164,10 +164,10 @@ class ParameterPane(BasePane):
             columns=["name", "value", "units", "quality"],
             on_right_click=self._on_parameter_right_click
         )
-        self._parameter_list.set_header_text("name", i18n.tr('parameter_list_name'))
-        self._parameter_list.set_header_text("value", i18n.tr('parameter_list_value'))
-        self._parameter_list.set_header_text("units", i18n.tr('parameter_list_units'))
-        self._parameter_list.set_header_text("quality", i18n.tr('parameter_list_quality'))
+        self._parameter_list.set_header_text("name", i18n.tr('tree.parameter_list.name'))
+        self._parameter_list.set_header_text("value", i18n.tr('tree.parameter_list.value'))
+        self._parameter_list.set_header_text("units", i18n.tr('tree.parameter_list.units'))
+        self._parameter_list.set_header_text("quality", i18n.tr('tree.parameter_list.quality'))
         self._parameter_list.tag_configure('header', background='#000000', foreground='#FFFFFF')
         self._parameter_list.tag_configure('alt', background='#EEEEEE')
         self._parameter_list.tag_configure('invalid', foreground='red')
@@ -194,10 +194,10 @@ class ParameterPane(BasePane):
             self._rebuild_parameter_list()
         if change_type & DisplayChange.LANGUAGE:
             if self._parameter_list is not None:
-                self._parameter_list.set_header_text("name", i18n.tr('parameter_list_name'))
-                self._parameter_list.set_header_text("value", i18n.tr('parameter_list_value'))
-                self._parameter_list.set_header_text("units", i18n.tr('parameter_list_units'))
-                self._parameter_list.set_header_text("quality", i18n.tr('parameter_list_quality'))
+                self._parameter_list.set_header_text("name", i18n.tr('tree.parameter_list.name'))
+                self._parameter_list.set_header_text("value", i18n.tr('tree.parameter_list.value'))
+                self._parameter_list.set_header_text("units", i18n.tr('tree.parameter_list.units'))
+                self._parameter_list.set_header_text("quality", i18n.tr('tree.parameter_list.quality'))
                 self._rebuild_parameter_list()
 
     def _rebuild_parameter_list(self):

@@ -29,7 +29,7 @@ class GraphPane(BasePane):
 
     def on_init(self):
         self._oc2graph = OCProc2Graph(self.app.middle, self.app)
-        self.app.middle.add(self._oc2graph, text=i18n.tr("pane_graph"), sticky='NSEW')
+        self.app.middle.add(self._oc2graph, text=i18n.tr("pane.graph"), sticky='NSEW')
         self._pane_id = self.app.middle.tabs()[-1]
         # TODO: refresh tab text on language change
 
@@ -43,6 +43,9 @@ class GraphPane(BasePane):
                 self._oc2graph.update_graph_data()
             else:
                 self._oc2graph.clear_graph_data()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._pane_id is not None:
+                self.app.middle.tab(self._pane_id, text=i18n.tr("pane.graph"))
 
 
 class _GraphPane(BasePane):

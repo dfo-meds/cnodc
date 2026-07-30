@@ -11,8 +11,8 @@ class LoginPane(BasePane):
         self._user_status_bar = None
 
     def on_init(self):
-        self.app.menus.add_command('file/login', 'menu_login', self.do_login)
-        self.app.menus.add_command('file/logout', 'menu_logout', self.do_logout, True)
+        self.app.menus.add_command('file/login', 'menu.login', self.do_login)
+        self.app.menus.add_command('file/logout', 'menu.logout', self.do_logout, True)
         self.app.root.bind('<Control-l>', self.do_login)
         self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief="solid", borderwidth=2, width=15, anchor="e")
         self._user_status_bar.grid(row=0, column=2, ipadx=5, ipady=2, sticky='NSEW')
@@ -25,9 +25,9 @@ class LoginPane(BasePane):
 
     def update_user_display(self):
         if self.app.state.username is None:
-            self._user_status_bar.configure(text=i18n.tr('no_user_logged_in'))
+            self._user_status_bar.configure(text=i18n.tr('user.none'))
         else:
-            self._user_status_bar.configure(text=i18n.tr('user_logged_in', username=self.app.state.username))
+            self._user_status_bar.configure(text=i18n.tr('user.logged_in', username=self.app.state.username))
 
     def do_logout(self):
         self.app.menus.disable_command('file/logout')
@@ -39,8 +39,8 @@ class LoginPane(BasePane):
 
     def _logout_success(self):
         self.app.show_user_info(
-            i18n.tr('logout_success_title'),
-            i18n.tr('logout_success_message')
+            i18n.tr('dialog.logout_success.title'),
+            i18n.tr('dialog.logout_success.message')
         )
         self.update_user_state()
 

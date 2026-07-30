@@ -147,7 +147,7 @@ class SpeedGraph(Graph):
 
     @property
     def display_name(self) -> str:
-        return i18n.tr("graph_speed")
+        return i18n.tr("graph.speed_chart.title")
 
     def build_graph(self, figure, state: ApplicationState) -> tuple[mpla.Axes, list[mpla.Axes] | None]:
         speeds = {}
@@ -168,12 +168,12 @@ class SpeedGraph(Graph):
         axes = figure.subplots(1, 1)
         self._set_axis_info(
             axes,
-            label='Index',
+            label=i18n.tr("graph.speed_chart.observation_index"),
             is_integer_data=True,
         )
         self._set_axis_info(
             axes,
-            label='Speed',
+            label=i18n.tr("graph.speed_chart.speed"),
             on_y_axis=True
         )
         for station_id in indexes.keys():
@@ -209,11 +209,10 @@ class ParameterGraph(Graph):
     @property
     def display_name(self) -> str:
         pieces = self._rs_path.strip('/').split('/')
-        return "{rs_type}#{rs_index} - {variables} {by} {coordinate}".format(
+        return i18n.tr("graph.parameter_chart.title",
             rs_type=self.translate_recordset_name(pieces[-2]),
             rs_index=pieces[-1],
             variables=self.translate_element_name(self._pname) + (f", {self.translate_element_name(self._p2name)}" if self._p2name is not None else ''),
-            by=i18n.tr("graph_word_by"),
             coordinate=self.translate_element_name(self._cname)
         )
 

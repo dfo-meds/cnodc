@@ -58,7 +58,7 @@ class RetestRecord(RecordAction):
 
     @property
     def name(self) -> str:
-        return "qc_action_retest"
+        return "action.retest"
 
     @property
     def object(self) -> str:
@@ -79,7 +79,7 @@ class RecordProcessed(RecordAction):
 
     @property
     def name(self) -> str:
-        return "qc_processed"
+        return "action.processed"
 
     @property
     def object(self) -> str:
@@ -103,7 +103,7 @@ class AddHistoryEntry(RecordAction):
 
     @property
     def name(self) -> str:
-        return "qc_add_history"
+        return "action.add_history"
 
     @property
     def object(self) -> str:
@@ -150,7 +150,7 @@ class AssignPlatform(RecordAction):
 
     @property
     def name(self) -> str:
-        return "assign_platform"
+        return "action.set_platform"
 
     @property
     def object(self) -> str:
@@ -186,7 +186,7 @@ class SetToEmpty(PathAction):
 
     @property
     def name(self) -> str:
-        return "qc_set_empty"
+        return "action.set_empty"
 
     @property
     def object(self) -> str:
@@ -222,7 +222,7 @@ class ChangeQuality(PathAction):
 
     @property
     def name(self) -> str:
-        return "qc_change_quality"
+        return "action.set_quality"
 
     @property
     def object(self) -> str:
@@ -251,7 +251,7 @@ class SetManualQCOutcome(RecordAction):
 
     @property
     def name(self) -> str:
-        return "qc_set_result"
+        return "action.set_outcome"
 
     @property
     def object(self) -> str:
@@ -281,7 +281,7 @@ class ChangeValue(PathAction):
 
     @property
     def name(self) -> str:
-        return "qc_set_value"
+        return "action.set_value"
 
     @property
     def object(self) -> str:

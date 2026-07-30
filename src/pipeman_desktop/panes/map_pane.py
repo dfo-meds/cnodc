@@ -33,7 +33,7 @@ class MapPane(BasePane):
 
     def on_init(self):
         self._map_frame = ttk.Frame(self.app.middle)
-        self.app.middle.add(self._map_frame, text=i18n.tr("pane_map"), sticky="NSEW")
+        self.app.middle.add(self._map_frame, text=i18n.tr("pane.map"), sticky="NSEW")
         self._pane_id = self.app.middle.tabs()[-1]
         width = self.app.root.winfo_screenwidth() / 2.5
         self._rebuild_map(width, width)
@@ -72,7 +72,7 @@ class MapPane(BasePane):
                 self._update_map_position()
         if change_type & DisplayChange.LANGUAGE:
             if self._pane_id is not None:
-                self.app.middle.tab(self._pane_id, text=i18n.tr("pane_map"))
+                self.app.middle.tab(self._pane_id, text=i18n.tr("pane.map"))
 
     def _update_map_position(self):
         coordinates = self.app.state.current_coordinates()

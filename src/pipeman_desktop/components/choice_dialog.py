@@ -21,7 +21,7 @@ class ChoiceDialog(tksd.Dialog):
                  prompt: t.Optional[str] = None,
                  default: t.Any = None):
         self.options = options
-        self.button_label = button_label or i18n.tr('choice_dialog_ok')
+        self.button_label = button_label or i18n.tr('desktop.ok')
         self.option_display = list(options.values())
         self._prompt = prompt
         self.result_var = tk.StringVar(parent)

@@ -33,14 +33,14 @@ class ActionPane(BasePane):
             columns=["name", "object", "value"],
             on_right_click=self._on_action_right_click,
         )
-        self._action_list.set_header_text("name", i18n.tr("action_item_name"))
-        self._action_list.set_header_text("object", i18n.tr("action_item_object"))
-        self._action_list.set_header_text("value", i18n.tr("action_item_value"))
+        self._action_list.set_header_text("name", i18n.tr("tree.action_items.name"))
+        self._action_list.set_header_text("object", i18n.tr("tree.action_items.object"))
+        self._action_list.set_header_text("value", i18n.tr("tree.action_items.value"))
         self._action_list.grid(row=0, column=0, sticky='NEWS')
         self._action_list.table.column('#1', width=50, anchor='w', stretch=tk.NO)
         self._action_list.table.column('#2', width=250, anchor='w')
         self._action_list.table.column('#3', width=150, anchor='w')
-        self.app.middle_bottom.add(action_frame, text=i18n.tr("pane_actions"), sticky='NSEW')
+        self.app.middle_bottom.add(action_frame, text=i18n.tr("pane.action_items"), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -49,12 +49,12 @@ class ActionPane(BasePane):
                 self._rebuild_action_list()
         if change_type & DisplayChange.LANGUAGE:
             if self._action_list is not None:
-                self._action_list.set_header_text("name", i18n.tr("action_item_name"))
-                self._action_list.set_header_text("object", i18n.tr("action_item_object"))
-                self._action_list.set_header_text("value", i18n.tr("action_item_value"))
+                self._action_list.set_header_text("name", i18n.tr("tree.action_items.name"))
+                self._action_list.set_header_text("object", i18n.tr("tree.action_items.object"))
+                self._action_list.set_header_text("value", i18n.tr("tree.action_items.value"))
                 self._rebuild_action_list()
             if self._pane_id is not None:
-                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_actions"))
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane.action_items"))
 
     def _rebuild_action_list(self):
         self._action_list.clear_items()
@@ -67,18 +67,18 @@ class ActionPane(BasePane):
             parent='',
             index='end',
             # TODO: better format action names?
-            values=[action.name, action.object, action.value, action_id],
+            values=[i18n.tr(action.name), action.object, action.value, action_id],
             iid=str(action_id)
         )
 
     def _on_action_right_click(self, item, e):
         menu = tk.Menu(self.app.root, tearoff=0)
         menu.add_command(
-            label=i18n.tr('goto'),
+            label=i18n.tr('desktop.goto'),
             command=functools.partial(self._goto_item, path=item['values'][1])
         )
         menu.add_command(
-            label=i18n.tr('remove'),
+            label=i18n.tr('desktop.remove'),
             command=functools.partial(self._remove_item, db_index=item['values'][-1])
         )
         try:

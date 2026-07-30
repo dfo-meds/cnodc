@@ -32,7 +32,7 @@ class OCProc2Entry(tksd.Dialog):
                  allowed_values: list[str | int] | None = None,
                  current_element: ocproc2.SingleElement | None = None,
                  button_label: t.Optional[str] = None):
-        self.button_label = button_label or i18n.tr('choice_dialog_ok')
+        self.button_label = button_label or i18n.tr('desktop.ok')
         self.element_name = element_name
         self.data_type = data_type
         self.min_value = min_value
@@ -64,15 +64,15 @@ class OCProc2Entry(tksd.Dialog):
             prompt.append(desc)
         units = self.current_element.units()
         if units:
-            prompt.append(i18n.tr("ocproc2_entry_units", units=units))
+            prompt.append(i18n.tr("dialog.ocproc2_entry.units", units=units))
         if self.data_type in {"dateTimeStamp", "date"}:
-            prompt.append(i18n.tr("ocproc2_entry_time_prompt"))
+            prompt.append(i18n.tr("dialog.ocproc2_entry.time_info"))
         if self.min_value is not None and self.max_value is not None:
-            prompt.append(i18n.tr("ocproc2_entry_range", min_value=self.min_value, max_value=self.max_value))
+            prompt.append(i18n.tr("dialog.ocproc2_entry.range", min_value=self.min_value, max_value=self.max_value))
         elif self.min_value is not None:
-            prompt.append(i18n.tr("ocproc2_entry_min", min_value=self.min_value))
+            prompt.append(i18n.tr("dialog.ocproc2_entry.min", min_value=self.min_value))
         elif self.max_value is not None:
-            prompt.append(i18n.tr("ocproc2_entry_max", max_value=self.max_value))
+            prompt.append(i18n.tr("dialog.ocproc2_entry.max", max_value=self.max_value))
         return "\n".join(prompt)
 
     def _build_control(self, parent):

@@ -26,16 +26,16 @@ class HistoryPane(BasePane):
             show="headings",
             columns=["time", "message", "source", "type"],
         )
-        self._history_list.set_header_text("time", i18n.tr("history_time"))
-        self._history_list.set_header_text("message", i18n.tr("history_message"))
-        self._history_list.set_header_text("source", i18n.tr("history_source"))
-        self._history_list.set_header_text("type", i18n.tr("history_type"))
+        self._history_list.set_header_text("time", i18n.tr("tree.history.time"))
+        self._history_list.set_header_text("message", i18n.tr("tree.history.message"))
+        self._history_list.set_header_text("source", i18n.tr("tree.history.source"))
+        self._history_list.set_header_text("type", i18n.tr("tree.history.type"))
         self._history_list.table.column('#1', width=150, stretch=tk.NO, anchor='w')
         self._history_list.table.column('#2', anchor='w')
         self._history_list.table.column('#3', anchor='w')
         self._history_list.table.column('#4', width=125, stretch=tk.NO, anchor='w')
         self._history_list.grid(row=0, column=0, sticky='NSEW')
-        self.app.middle_bottom.add(history_frame, text=i18n.tr("pane_history"), sticky='NSEW')
+        self.app.middle_bottom.add(history_frame, text=i18n.tr("pane.history"), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -44,13 +44,13 @@ class HistoryPane(BasePane):
                 self.update_history_display()
         if change_type & DisplayChange.LANGUAGE:
             if self._history_list is not None:
-                self._history_list.set_header_text("time", i18n.tr("history_time"))
-                self._history_list.set_header_text("message", i18n.tr("history_message"))
-                self._history_list.set_header_text("source", i18n.tr("history_source"))
-                self._history_list.set_header_text("type", i18n.tr("history_type"))
+                self._history_list.set_header_text("time", i18n.tr("tree.history.time"))
+                self._history_list.set_header_text("message", i18n.tr("tree.history.message"))
+                self._history_list.set_header_text("source", i18n.tr("tree.history.source"))
+                self._history_list.set_header_text("type", i18n.tr("tree.history.type"))
                 self.update_history_display()
             if self._pane_id is not None:
-                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_history"))
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane.history"))
 
     def update_history_display(self):
         if self._history_list is not None:
@@ -69,7 +69,7 @@ class HistoryPane(BasePane):
                             datetime.datetime.fromisoformat(history.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
                             history.message,
                             f"{history.source_name} {history.source_version} [{history.source_instance}]",
-                            i18n.tr(f'message_type_{history.message_type.value.lower()}')
+                            i18n.tr(f'message_type.{history.message_type.value.lower()}')
                         ],
                         tags=tags
                     )

@@ -4,6 +4,145 @@ title = "Pipeman Desktop"
 [menu]
 file = "File"
 exit = "Exit"
+login = "Login"
+logout = "Logout"
+
+[error]
+invalid_json = "The JSON from a remote request could not be parsed"
+no_access = "The service you have requested is not available to you"
+no_open_batch = "There is no batch currently open"
+no_record_entry = "There is no such record UUID"
+no_schema_file = "The schema file is missing or not accessible."
+
+[user]
+none = "Not logged in"
+# {username}
+username = "Welcome {username}"
+
+[desktop]
+ok = "OK"
+goto = "Go to"
+remove = "Remove"
+
+[graph.speed_chart]
+title = "Platform Speed"
+observation_index = "Station #"
+speed = "Speed"
+
+[graph.parameter_chart]
+# {rs_type}: the translated name of the recordset type (e.g. Profile)
+# {rs_index}: the index of the recordset
+# {parameters}: either PARAMETER_NAME or PARAM1, PARAM2 (both translateed)
+# {coordinate}: the translated name of the coordinate
+title = "{rs_type}#{rs_index} - {parameters} by {coordinate}"
+
+[action]
+retest = "Rerun QC Test"
+processed = "Record Processed"
+add_history = "Add History Entry"
+set_platform = "Set Platform ID"
+set_empty = "Clear Value"
+set_quality = "Set Quality Flag"
+set_outcome = "Set QC Test Outcome"
+set_value = "Set Value"
+
+[pane]
+action_items = "Proposed Actions"
+graph = "Graph"
+history = "History"
+map = "Map"
+
+[tree.action_items]
+name = "Name"
+object = "Target Path"
+value = "New Value"
+
+[tree.history]
+time = "Time"
+message = "Message"
+source = "Source"
+type = "Type"
+
+[tree.parameter_list]
+name = "Element Name"
+value = "Value"
+units = "Units"
+quality = "Q"
+
+[tree.record_list]
+title = "Records"
+index = "Index"
+name = "Identifier"
+# {prefix} is the right spacing
+# {rs_type} is the translated recordset type
+# {rs_index} is the index of the recordset type
+recordset_header = "{prefix}{rs_type}#{rs_index}"
+# {index} is the index of the record
+# note that coordinates get appended here
+record_label = "Record {index}"
+
+[tree.subrecord_list]
+title = "Child Records"
+name = "Identifier"
+
+[tooltip]
+toggle_autoload = "If on, try to load the next batch when you close a batch."
+load_new = "Load the next batch from a queue"
+save = "Save your changes to the server"
+release = "Return the batch to the queue for later processing"
+report = "Mark the current batch as an error and direct it to the error queue"
+submit = "Apply your changes and continue the batch to the next step in its workflow"
+recheck = "Apply your changes and re-run the quality control tests"
+escalate = "Escalate the item for review"
+descalate = "De-escalate the item"
+
+[message_type]
+i = "Information"
+n = "Note"
+w = "Warning"
+e = "Error"
+a = "Action"
+
+[data_type]
+string = "Text"
+integer = "Integer"
+datetime = "Datetime"
+date = "Date"
+decimal = "Decimal"
+duration = "ISO Duration"
+
+[context_menu.parameter]
+edit = "Edit"
+flag_good = "Flag Good (1)"
+flag_probably_good = "Flag Probably Good (2)"
+flag_dubious = "Flag Dubious (3)"
+flag_erroneous = "Flag Erroneous (4)"
+flag_missing = "Flag Missing (9)"
+
+
+[dialog.choose_data_type]
+title = "Select Data Type"
+message = "A data type could not be automatically determined for this element, please select one."
+
+[dialog.login]
+title = "Login"
+username = "Username"
+password = "Password"
+
+[dialog.logut]
+title = "Logout"
+message = "You have been successfully logged out"
+
+[dialog.ocproc2_entry]
+# {units} for the current units
+units = "Enter the value in {units}"
+time_info = "Enter the date / time in UTC and using the ISO standard format."
+# {min_value} and {max_value}
+range = "Enter a value between {min_value} and {max_value}"
+# {min_value}
+min = "Enter a value greater than or equal to {min_value}"
+# {max_value}
+max = "Enter a value less than or equal to {max_value}"
 
 [dialog.error_message]
 title = "Error"
@@ -31,4 +170,5 @@ message = "An error occurred while saving your work"
 # {service} is the batch service that failed
 title = "No Items"
 message = "No items are in the queue"
+
 

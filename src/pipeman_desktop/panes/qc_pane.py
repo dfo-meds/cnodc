@@ -85,7 +85,7 @@ class QCPane(BasePane):
                                         onvalue=1,
                                         offvalue=0)
         self._checkbox.grid(row=0, column=len(self._buttons))
-        self.tts.append(Tooltip(self._checkbox, f'tooltip_toggle_autoload'))
+        self.tts.append(Tooltip(self._checkbox, 'tooltip.toggle_autoload'))
         self.app.top.grid_columnconfigure(len(self._buttons), weight=0)
 
         self._label = ttk.Label(self.app.top, text="", font=('', 18, 'bold'))
@@ -116,7 +116,7 @@ class QCPane(BasePane):
             self._button_close_state[button_name] = close_state
         self._buttons[button_name].grid(row=0, column=len(self._buttons) - 1, ipadx=0, ipady=0, padx=0, pady=0)
         self.app.top.grid_columnconfigure(len(self._buttons) - 1, weight=0)
-        self.tts.append(Tooltip(self._buttons[button_name], f'tooltip_{button_name}'))
+        self.tts.append(Tooltip(self._buttons[button_name], f'tooltip.{button_name}'))
 
     def _build_button_image(self, path: pathlib.Path, master, rotate: bool = False, size: int = 30):
         image = Image.open(str(path)).convert('RGBA').resize((size, size))

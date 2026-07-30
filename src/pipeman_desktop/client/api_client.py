@@ -33,7 +33,7 @@ def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:
         try:
             return cb(*args, **kwargs)
         except JSONDecodeError as ex:
-            raise LocalAPIError("error_invalid_json", 1000) from ex
+            raise LocalAPIError("error.invalid_json", 1000) from ex
         except HTTPError as ex:
             raise RemoteAPIError(f"{ex.errno}: {ex}", "HTTP", 1000) from ex
     return _inner
@@ -178,7 +178,7 @@ class CNODCServerAPI:
                 service_list[service_identifier].get("kwargs", None) or {}
             )
         else:
-            err = LocalAPIError("error_no_access", 1100)
+            err = LocalAPIError("error.no_access", 1100)
             err.add_note(f"service: {service_identifier}")
             raise err
 
@@ -346,7 +346,7 @@ class CNODCServerAPI:
 
     def make_batch_json_request(self, action_name, method: str, **kwargs) -> dict:
         if not self._current_queue_item:
-            err = LocalAPIError("no_open_batch", 1200)
+            err = LocalAPIError("error.no_open_batch", 1200)
             err.add_note(f"action: {action_name}")
             raise err
         return self.make_service_json_request(
@@ -384,7 +384,7 @@ class CNODCServerAPI:
             cur.execute("SELECT actions FROM record WHERE record_uuid = ?", (record_uuid,))
             row = cur.fetchone()
             if row is None:
-                raise LocalAPIError("error_no_record_entry", 1300)
+                raise LocalAPIError("error.no_record_entry", 1300)
             record_actions = row[0]
             action_list = []
             cur.execute("SELECT action_text FROM action WHERE record_uuid = ?", (record_uuid,))
