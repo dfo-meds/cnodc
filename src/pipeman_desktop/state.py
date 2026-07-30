@@ -171,8 +171,8 @@ class ApplicationState:
         # we ask the user what they want to do - cancel or force close without saving changes
         if result is CloseBatchResult.UNABLE_TO_CLOSE:
             user_option = tkmb.askyesno(
-                title=i18n.tr("error_close_without_saving_title"),
-                message=i18n.tr("error_close_without_saving_message"),
+                title=i18n.tr("dialog.close_without_saving_error.title"),
+                message=i18n.tr("dialog.close_without_saving_error.message"),
             )
             if result:
                 self.force_close_current_batch()
@@ -249,8 +249,8 @@ class ApplicationState:
     def _on_save_success(self, result: bool | None, after_save: t.Callable[[bool | None], t.Any] | None = None):
         if result is False:
             self._app.show_user_info(
-                i18n.tr("save_partial_fail_title"),
-                i18n.tr("save_partial_fail_message"),
+                i18n.tr("dialog.save_fail.title"),
+                i18n.tr("dialog.save_fail.message"),
             )
         elif result:
             self._has_unsaved_changes = False
@@ -302,8 +302,8 @@ class ApplicationState:
             self._batch_actions = None
             if result is not False:
                 self._app.show_user_info(
-                    title=i18n.tr(f'no_items_title_{self.batch_service_name}'),
-                    message=i18n.tr(f'no_items_message_{self.batch_service_name}')
+                    title=i18n.tr(f'dialog.no_items.title', service=self.batch_service_name),
+                    message=i18n.tr(f'dialog.no_items.message', service=self.batch_service_name),
                 )
             if on_no_item is not None:
                 on_no_item()
@@ -330,8 +330,8 @@ class ApplicationState:
         if self.can_close_current_batch(batch_action):
             if self.has_unsaved_changes:
                 result = tkmb.askyesno(
-                    title=i18n.tr("close_without_saving_title"),
-                    message=i18n.tr("close_without_saving_message"),
+                    title=i18n.tr("dialog.close_without_saving.title"),
+                    message=i18n.tr("dialog.close_without_saving.message"),
                 )
                 if not result:
                     return CloseBatchResult.CANCELLED

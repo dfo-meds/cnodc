@@ -152,7 +152,7 @@ class PipemanDesktop:
         s.configure('TButton', background='#FFFFFF')
         s.configure('Treeview', indent=5)
         self.menus: MenuManager = MenuManager(self.root)
-        self.menus.add_sub_menu('file', 'menu_file')
+        self.menus.add_sub_menu('file', 'menu.file')
         self.root.rowconfigure(0, weight=0)
         self.root.rowconfigure(1, weight=1)
         self.root.rowconfigure(2, weight=0)
@@ -215,11 +215,11 @@ class PipemanDesktop:
         self._pane_broadcast('on_init')
 
         # make sure the Exit command is last
-        self.menus.add_command("file/exit", "menu_exit", self.close)
+        self.menus.add_command("file/exit", "menu.exit", self.close)
 
     def refresh_display(self, app_state, change_type: DisplayChange):
         if change_type & DisplayChange.LANGUAGE:
-            self.root.title(i18n.tr('root_title'))
+            self.root.title(i18n.tr('root.title'))
             self.menus.update_languages()
         self._pane_broadcast('refresh_display', app_state, change_type)
 
@@ -242,12 +242,12 @@ class PipemanDesktop:
     def show_user_exception(self, ex: Exception):
         if isinstance(ex, TranslatableError):
             tkmb.showerror(
-                title=i18n.tr('error_message_title'),
+                title=i18n.tr('dialog.error_message.title'),
                 message=i18n.tr(ex.message_key)
             )
         else:
             tkmb.showerror(
-                title=i18n.tr('error_message_title'),
+                title=i18n.tr('dialog.error_message.title'),
                 message=f"{ex.__class__.__name__}: {str(ex)}"
             )
 
@@ -266,8 +266,8 @@ class PipemanDesktop:
 
     def _cancel_close(self):
         self.show_user_info(
-            i18n.tr('unable_to_close_title'),
-            i18n.tr('unable_to_close_message')
+            i18n.tr('dialog.unable_to_close.title'),
+            i18n.tr('dialog.unable_to_close.message')
         )
         self._is_closing = False
 
@@ -303,7 +303,7 @@ class PipemanDesktop:
                 sel = ask_choice(
                     self.root,
                     options=self.translations.language_options(),
-                    title=i18n.tr('language_select_dialog_title')
+                    title=i18n.tr('dialog.language_select.title')
                 )
                 if sel is None:
                     self.close()
