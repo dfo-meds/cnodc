@@ -1,6 +1,8 @@
 import functools
 import pathlib
 
+import gcapp.i18n as i18n
+
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.util import BatchOpenState
 from pipeman_desktop.state import DisplayChange, ApplicationState

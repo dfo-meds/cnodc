@@ -14,9 +14,9 @@ def boot_pipeman_desktop(test_mode: bool = True):
         app_name="pipemandesktop",
         manual_overrides=overrides,
         default_config={
-            "gcapp.toml_translations.paths": [
+            "gcapp": { "toml_translations": { "paths": [
                 str(pathlib.Path(__file__).absolute().parent / "translations"),
-            ]
+            ]}}
         }
     )
 
