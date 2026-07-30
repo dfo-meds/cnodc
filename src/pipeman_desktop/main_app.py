@@ -238,9 +238,6 @@ class PipemanDesktop:
             except Exception as ex:
                 self.log.exception(f"error broadcasting {call_name} to {pane}")
 
-    # Callbacks for other panes
-
-
     def show_user_info(self, title: str, message: str):
         tkmb.showinfo(title, message)
 
@@ -257,80 +254,7 @@ class PipemanDesktop:
             )
 
 
-
-    def save_operations(self, actions: list[RecordAction]):
-        if self.state.record_uuid is not None:
-            action_dict: dict[int, RecordAction] = {}
-            with self.local_db.cursor() as cur:
-                for action in actions:
-                    rowid = cur.insert('actions', {
-                        'record_uuid': self.state.record_uuid,
-                        'action_text': json.dumps(action.to_map())
-                    })
-                    action_dict[rowid] = action
-            self.state.extend_actions(action_dict)
-
-    def delete_operation(self, db_index: int):
-        with self.local_db.cursor() as cur:
-            cur.execute('DELETE FROM actions WHERE rowid = ?', [db_index])
-            cur.commit()
-        self.reload_record()
-
-    def reload_record(self):
-        if self.state.record_uuid is not None:
-            self.load_record(self.state.record_uuid, True)
-
-    def load_child(self, child_path: t.Optional[str]):
-        if child_path != self.state.subrecord_path:
-            self.state.set_record_subpath(child_path)
-
-    def load_record(self, record_uuid, force_reload: bool = False):
-        if force_reload or self.state.record_uuid is None or self.state.record_uuid != record_uuid:
-            with self.local_db.cursor() as cur:
-                cur.execute("SELECT record_uuid, record_content FROM records WHERE record_uuid = ?", [record_uuid])
-                row = cur.fetchone()
-                record = ocproc2.ParentRecord()
-                record.from_mapping(json.loads(row[1]))
-                cur.execute('SELECT rowid, action_text FROM actions WHERE record_uuid = ?', [record_uuid])
-                actions = {}
-                for rowid, action_text in cur.fetchall():
-                    operator = RecordAction.from_map(json.loads(action_text))
-                    operator.apply(record, None)
-                    actions[rowid] = operator
-                subrecord_path = None
-                if self.state.record_uuid is None or self.state.record_uuid != record_uuid:
-                    subrecord_path = self.state.subrecord_path
-                self.state.set_record_info(record_uuid, record, subrecord_path, actions)
-        elif self.state.subrecord_path is not None:
-            self.state.set_record_subpath(None)
-
-    def create_flag_operator(self, target_path: str, flag: int):
-        return None  # TODO
-        #return QCSetWorkingQuality(
-        #    value_path=target_path,
-        #    new_value=flag,
-        #    children=[
-        #        QCAddHistory(
-        #            message=f"CHANGE QC FLAG [{target_path}] to [{flag}]",
-        #            source_name="manual_qc",
-        #            source_version=VERSION,
-        #            source_instance=t.cast(str, self.app_state.username),
-        #            message_type=ocproc2.MessageType.INFO.value
-        #        )
-        #    ]
-        #)
-
-    def load_closest_child(self, full_path: str):
-        path: list[str] = full_path.split('/')
-        if 'subrecords' in path:
-            idx = -1
-            while path[idx] != 'subrecords':
-                idx -= 1
-            record_path = '/'.join(path[0:idx + 4])
-            self.load_child(record_path)
-        else:
-            self.load_child(None)
-
+    # CLOSE ROUTINE
 
     def close(self):
         if self._is_closing:
@@ -396,9 +320,6 @@ class PipemanDesktop:
         self.check_dispatcher()
         self.check_messages()
         self.check_screen_resize_complete()
-
-
-
 
     # REGULAR EVENT CHECKS
 

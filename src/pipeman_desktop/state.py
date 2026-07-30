@@ -410,6 +410,22 @@ class ApplicationState:
     def load_closest(self, path: str):
         ...
 
+
+    """
+   
+    def load_closest_child(self, full_path: str):
+        path: list[str] = full_path.split('/')
+        if 'subrecords' in path:
+            idx = -1
+            while path[idx] != 'subrecords':
+                idx -= 1
+            record_path = '/'.join(path[0:idx + 4])
+            self.load_child(record_path)
+        else:
+            self.load_child(None)
+
+"""
+
     def add_action(self, action: RecordAction):
         from pipeman_desktop import VERSION
         action.source_name = "pipeman_desktop"
