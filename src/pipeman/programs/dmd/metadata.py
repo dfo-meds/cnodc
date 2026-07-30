@@ -18,6 +18,7 @@ from medsutil.multienum import MultiValuedEnum, variants
 from medsutil.frozendict import FrozenDict
 import medsutil.types as ct
 from medsutil.ocproc2.ontology import OCProc2Ontology
+from medsutil.iso_duration import ISODuration
 
 if t.TYPE_CHECKING:
     from medsutil.storage import FilePath
@@ -1377,7 +1378,6 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
 
     spatial_resolution: t.Optional[SpatialResolution] = dd.p_ddo(SpatialResolution)
 
-    from medsutil.iso_duration import ISODuration
     temporal_resolution: t.Optional[ISODuration] = dd.p_ddo(ISODuration)
     metadata_owner: t.Optional[_Contact] = dd.p_ddo(_Contact)
     publisher: t.Optional[_Contact] = dd.p_ddo(_Contact)
@@ -1613,7 +1613,6 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             self.alt_metadata.append(cit)
         if 'time_coverage_resolution' in attrs and attrs['time_coverage_resolution']:
             try:
-                from medsutil.iso_duration import ISODuration
                 self.temporal_resolution = ISODuration.from_iso_format(attrs.pop('time_coverage_resolution', ''))
             except ValueError:
                 self._log.exception("Invalid value for time_coverage_resolution")

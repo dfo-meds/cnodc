@@ -1,13 +1,9 @@
 import datetime
-import enum
 import typing as t
-
-from isodate import duration
 
 from medsutil import datadict as dd
 from medsutil.awaretime import AwareDateTime
 from medsutil.multienum import MultiValuedEnum
-from pipeman.programs.dmd.metadata import EntityRef
 
 class DurationUnit(MultiValuedEnum):
 
@@ -20,7 +16,7 @@ class DurationUnit(MultiValuedEnum):
     WEEKS = "weeks"
 
 
-class ISODuration(EntityRef):
+class ISODuration(dd.DataDictObject):
 
     years: int = dd.p_int()
     months: int = dd.p_int()
