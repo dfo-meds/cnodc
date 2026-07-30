@@ -66,36 +66,38 @@ class RecordListPane(BasePane):
         self._subrecord_list.table.column('#0', width=30, stretch=False)
         self._subrecord_list.table.column('#1', anchor='w')
 
-    def on_language_change(self):
-        if self._record_label is not None:
-            self._record_label.configure(text=i18n.tr('record_list_title'))
-        if self._subrecord_label is not None:
-            self._subrecord_label.configure(text=i18n.tr('child_record_list_title'))
-        if self._record_list is not None:
-            self._record_list.set_header_text("index", i18n.tr("record_list_index"))
-            self._record_list.set_header_text("title", i18n.tr("record_list_title"))
-        if self._subrecord_list is not None:
-            self._subrecord_list.set_header_text("title", i18n.tr("subrecord_list_title"))
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.BATCH_STATE:
             if self._record_list is not None:
-                self._record_list.clear_items()
+                self._build_record_list()
             if self._subrecord_list is not None:
                 self._subrecord_list.clear_items()
-            self._build_record_list()
         if change_type & DisplayChange.RECORD:
             if self._record_list is not None:
                 self._record_list.set_selection([self.app.state.current_working_uuid], _ignore_callback=True)
             if self._subrecord_list is not None:
-                self._subrecord_list.clear_items()
-            if app_state.current_parent is not None:
                 self._build_subrecord_list(self.app.state.current_parent)
         if change_type & DisplayChange.RECORD_CHILD:
-            if self._subrecord_list is not None and self.app.state.current_child_path is not None:
-                self._subrecord_list.set_selection([self.app.state.current_child_path])
+            if self._subrecord_list is not None:
+                if self.app.state.current_child_path is not None:
+                    self._subrecord_list.set_selection([self.app.state.current_child_path])
+                else:
+                    self._subrecord_list.selection_clear()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._record_label is not None:
+                self._record_label.configure(text=i18n.tr('record_list_title'))
+            if self._subrecord_label is not None:
+                self._subrecord_label.configure(text=i18n.tr('child_record_list_title'))
+            if self._record_list is not None:
+                self._record_list.set_header_text("index", i18n.tr("record_list_index"))
+                self._record_list.set_header_text("title", i18n.tr("record_list_title"))
+            if self._subrecord_list is not None:
+                self._subrecord_list.set_header_text("title", i18n.tr("subrecord_list_title"))
+            # TODO: we need to update the recordset display labels
 
     def _build_record_list(self):
+        self._record_list.clear_items()
         for sr in self.app.state.batch_records.values():
             self._record_list.append_item(
                 parent='',
@@ -109,27 +111,30 @@ class RecordListPane(BasePane):
             return f"{sr.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
         return f'{sr.record_uuid}'
 
-    def _build_subrecord_list(self, record: ocproc2.BaseRecord, parent_text: str = '', depth: int = 0):
-        if self._subrecord_list is not None:
-            for srt in record.subrecords:
-                srt_text = f'{parent_text}/subrecords/{srt}' if parent_text else f'subrecords/{srt}'
-                for rs_idx in record.subrecords[srt]:
-                    rs_text = f'{srt_text}/{rs_idx}'
-                    # TODO: profile flagging of errors
+    def _build_subrecord_list(self, record: ocproc2.BaseRecord | None, parent_text: str = '', depth: int = 0):
+        if depth == 0:
+            self._subrecord_list.clear_items()
+        if record is None:
+            return
+        for srt in record.subrecords:
+            srt_text = f'{parent_text}/subrecords/{srt}' if parent_text else f'subrecords/{srt}'
+            for rs_idx in record.subrecords[srt]:
+                rs_text = f'{srt_text}/{rs_idx}'
+                # TODO: profile flagging of errors
+                self._subrecord_list.append_item(
+                    iid=rs_text,
+                    parent=parent_text,
+                    values=(self._build_record_set_display(srt, rs_idx, depth), rs_text)
+                )
+                for idx, srecord in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
+                    record_text = f"{srt_text}/{rs_idx}/{idx}"
+                    # TODO: row flagging of errors
                     self._subrecord_list.append_item(
-                        iid=rs_text,
-                        parent=parent_text,
-                        values=(self._build_record_set_display(srt, rs_idx, depth), rs_text)
+                        iid=record_text,
+                        parent=rs_text,
+                        values=(self._build_record_display(srecord, srt, idx, depth + 1), record_text)
                     )
-                    for idx, record in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
-                        record_text = f"{srt_text}/{rs_idx}/{idx}"
-                        # TODO: row flagging of errors
-                        self._subrecord_list.append_item(
-                            iid=record_text,
-                            parent=rs_text,
-                            values=(self._build_record_display(record, srt, idx, depth + 1), record_text)
-                        )
-                        self._build_subrecord_list(record, record_text, depth + 2)
+                    self._build_subrecord_list(srecord, record_text, depth + 2)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
         return f'{(" " * (depth * 2))}{self.translator.translate_recordset_type(subrecord_set_type)} #{record_set_idx}'

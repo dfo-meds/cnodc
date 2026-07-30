@@ -38,19 +38,19 @@ class HistoryPane(BasePane):
         self.app.middle_bottom.add(history_frame, text=i18n.tr("pane_history"), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
-    def on_language_change(self):
-        if self._history_list is not None:
-            self._history_list.set_header_text("time", i18n.tr("history_time"))
-            self._history_list.set_header_text("message", i18n.tr("history_message"))
-            self._history_list.set_header_text("source", i18n.tr("history_source"))
-            self._history_list.set_header_text("type", i18n.tr("history_type"))
-        if self._pane_id is not None:
-            self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_history"))
-        self.update_history_display()
-
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD | DisplayChange.ACTION):
-            self.update_history_display()
+            if self._history_list is not None:
+                self.update_history_display()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._history_list is not None:
+                self._history_list.set_header_text("time", i18n.tr("history_time"))
+                self._history_list.set_header_text("message", i18n.tr("history_message"))
+                self._history_list.set_header_text("source", i18n.tr("history_source"))
+                self._history_list.set_header_text("type", i18n.tr("history_type"))
+                self.update_history_display()
+            if self._pane_id is not None:
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_history"))
 
     def update_history_display(self):
         if self._history_list is not None:

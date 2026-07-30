@@ -20,6 +20,14 @@ class LoginPane(BasePane):
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.USER | DisplayChange.BATCH_STATE):
             self.update_user_state()
+        if change_type & DisplayChange.LANGUAGE:
+            self.update_user_display()
+
+    def update_user_display(self):
+        if self.app.state.username is None:
+            self._user_status_bar.configure(text=i18n.tr('no_user_logged_in'))
+        else:
+            self._user_status_bar.configure(text=i18n.tr('user_logged_in', username=self.app.state.username))
 
     def do_logout(self):
         self.app.menus.disable_command('file/logout')
@@ -71,12 +79,6 @@ class LoginPane(BasePane):
             res = max(result * 1000, 5000)
             self.app.after(res, self.auto_refresh_session)
 
-    def on_language_change(self):
-        if self.app.state.username is None:
-            self._user_status_bar.configure(text=i18n.tr('no_user_logged_in'))
-        else:
-            self._user_status_bar.configure(text=i18n.tr('user_logged_in', username=self.app.state.username))
-
     def update_user_state(self):
         if self.app.state.username is None:
             self.app.menus.enable_command('file/login')
@@ -87,6 +89,6 @@ class LoginPane(BasePane):
                 self.app.menus.enable_command('file/logout')
             else:
                 self.app.menus.disable_command('file/logout')
-        self.on_language_change()
+        self.update_user_display()
 
 

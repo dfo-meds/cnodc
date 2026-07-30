@@ -14,9 +14,6 @@ class BasePane:
     def on_init(self):
         pass
 
-    def on_language_change(self):
-        pass
-
     def on_close(self):
         pass
 

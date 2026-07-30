@@ -124,6 +124,7 @@ class StationPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._station_list: t.Optional[ScrollableTreeview] = None
+        self._pane_id: str | None = None
 
     def on_init(self):
         self.app.menus.add_sub_menu('stations', 'menu_qc')
@@ -148,13 +149,25 @@ class StationPane(BasePane):
         self._station_list.set_header_text("end", i18n.tr("station_list_end"))
         self._station_list.grid(row=0, column=0, sticky='NSEW')
         # TODO: station searching options?
-        self.app.middle_bottom.add(station_frame, text=i18n.tr('station_list'), sticky='NSEW')
+        self.app.middle_bottom.add(station_frame, text=i18n.tr('pane_station_list'), sticky='NSEW')
+        self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:
             self.app.menus.set_state('stations/reload', app_state.has_access('stations.list'))
             self.app.menus.set_state('stations/create', app_state.has_access('stations.create'))
             self._update_station_list()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._station_list is not None:
+                self._station_list.set_header_text("uuid", i18n.tr("station_list_uuid"))
+                self._station_list.set_header_text("wmo_id", i18n.tr("station_list_wmo_id"))
+                self._station_list.set_header_text("wigos_id", i18n.tr("station_list_wigos_id"))
+                self._station_list.set_header_text("name", i18n.tr("station_list_name"))
+                self._station_list.set_header_text("id", i18n.tr("station_list_id"))
+                self._station_list.set_header_text("start", i18n.tr("station_list_start"))
+                self._station_list.set_header_text("end", i18n.tr("station_list_end"))
+            if self._pane_id is not None:
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_station_list"))
 
     def create_station(self):
         s = StationCreationDialog(self.app.root)

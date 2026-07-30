@@ -36,7 +36,6 @@ class MapPane(BasePane):
         self._map_frame = ttk.Frame(self.app.middle)
         self.app.middle.add(self._map_frame, text=i18n.tr("pane_map"), sticky="NSEW")
         self._pane_id = self.app.middle.tabs()[-1]
-        # TODO: reload pane title on language change
         width = self.app.root.winfo_screenwidth() / 2.5
         self._rebuild_map(width, width)
 
@@ -67,53 +66,63 @@ class MapPane(BasePane):
             if self._map is not None:
                 self._rebuild_map(self.app.middle.winfo_width(), self.app.middle.winfo_height())
         if self._map is not None and (change_type & DisplayChange.BATCH_STATE):
-            self._map.delete_all_marker()
-            if app_state.batch_state == BatchOpenState.OPEN and app_state.batch_records:
-                min_lat = None
-                max_lat = None
-                min_lon = None
-                max_lon = None
-                last_station = None
-                station_path = []
-                for sr in app_state.batch_records.values():
-                    if last_station is not None and sr.platform_id != last_station:
-                        if len(station_path) > 1:
-                            self._map.set_path(station_path, width=4, color='#666666')
-                        station_path = []
-                    last_station = sr.platform_id
-                    station_path.append((sr.latitude, sr.longitude))
-                    if sr.latitude is not None and sr.longitude is not None:
-                        if min_lat is None or sr.latitude < min_lat:
-                            min_lat = sr.latitude
-                        if max_lat is None or sr.latitude > max_lat:
-                            max_lat = sr.latitude
-                        if min_lon is None or sr.longitude < min_lon:
-                            min_lon = sr.longitude
-                        if max_lon is None or sr.longitude > max_lon:
-                            max_lon = sr.longitude
-                        self._map.set_marker(
-                            sr.latitude,
-                            sr.longitude,
-                            text=str(sr.index),
-                            icon=self._error_image if sr.has_errors else self._good_image,
-                            command=functools.partial(self._open_record, record_uuid=sr.record_uuid),
-                            text_color="#FFFFFF"
-                        )
-                if len(station_path) > 1:
-                    self._map.set_path(station_path, width=4, color='#666666')
-                if max_lat == min_lat and max_lon == min_lon:
-                    self._map.set_position(max_lat, max_lon)
-                elif min_lon is not None and max_lon is not None and min_lat is not None and max_lat is not None:
-                    self._map.fit_bounding_box(
-                        (max_lat, min_lon),
-                        (min_lat, max_lon)
-                    )
+            if self._map is not None:
+                self._rebuild_markers()
         if change_type & DisplayChange.RECORD:
-            coordinates = app_state.current_coordinates()
-            if coordinates is not None:
-                self._map.set_position(*coordinates)
-                self._map.set_zoom(10)
-                print(self._map.get_position())
+            if self._map is not None:
+                self._update_map_position()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._pane_id is not None:
+                self.app.middle.tab(self._pane_id, text=i18n.tr("pane_map"))
+
+    def _update_map_position(self):
+        coordinates = self.app.state.current_coordinates()
+        if coordinates is not None:
+            self._map.set_position(*coordinates)
+            self._map.set_zoom(10)
+
+    def _rebuild_markers(self):
+        self._map.delete_all_marker()
+        if self.app.state.batch_state == BatchOpenState.OPEN and self.app.state.batch_records:
+            min_lat = None
+            max_lat = None
+            min_lon = None
+            max_lon = None
+            last_station = None
+            station_path = []
+            for sr in self.app.state.batch_records.values():
+                if last_station is not None and sr.platform_id != last_station:
+                    if len(station_path) > 1:
+                        self._map.set_path(station_path, width=4, color='#666666')
+                    station_path = []
+                last_station = sr.platform_id
+                station_path.append((sr.latitude, sr.longitude))
+                if sr.latitude is not None and sr.longitude is not None:
+                    if min_lat is None or sr.latitude < min_lat:
+                        min_lat = sr.latitude
+                    if max_lat is None or sr.latitude > max_lat:
+                        max_lat = sr.latitude
+                    if min_lon is None or sr.longitude < min_lon:
+                        min_lon = sr.longitude
+                    if max_lon is None or sr.longitude > max_lon:
+                        max_lon = sr.longitude
+                    self._map.set_marker(
+                        sr.latitude,
+                        sr.longitude,
+                        text=str(sr.index),
+                        icon=self._error_image if sr.has_errors else self._good_image,
+                        command=functools.partial(self._open_record, record_uuid=sr.record_uuid),
+                        text_color="#FFFFFF"
+                    )
+            if len(station_path) > 1:
+                self._map.set_path(station_path, width=4, color='#666666')
+            if max_lat == min_lat and max_lon == min_lon:
+                self._map.set_position(max_lat, max_lon)
+            elif min_lon is not None and max_lon is not None and min_lat is not None and max_lat is not None:
+                self._map.fit_bounding_box(
+                    (max_lat, min_lon),
+                    (min_lat, max_lon)
+                )
 
     def _open_record(self, marker, record_uuid: str):
         self.app.load_record(record_uuid)

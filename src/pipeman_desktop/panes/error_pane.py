@@ -32,19 +32,19 @@ class ErrorPane(BasePane):
         self.app.middle_bottom.add(error_frame, text=i18n.tr("pane_qc_errors"), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
-    def on_language_change(self):
-        if self._error_list is not None:
-            self._error_list.set_header_text("name", i18n.tr("qc_errors_name"))
-            self._error_list.set_header_text("time", i18n.tr("qc_errors_time"))
-            self._error_list.set_header_text("error", i18n.tr("qc_errors_error"))
-            self._error_list.set_header_text("element", i18n.tr("qc_errors_element"))
-        if self._pane_id is not None:
-            self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_qc_errors"))
-        self.update_errors()
-
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.RECORD:
-            self.update_errors()
+            if self._error_list is not None:
+                self.update_errors()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._error_list is not None:
+                self._error_list.set_header_text("name", i18n.tr("qc_errors_name"))
+                self._error_list.set_header_text("time", i18n.tr("qc_errors_time"))
+                self._error_list.set_header_text("error", i18n.tr("qc_errors_error"))
+                self._error_list.set_header_text("element", i18n.tr("qc_errors_element"))
+                self.update_errors()
+            if self._pane_id is not None:
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_qc_errors"))
 
     def update_errors(self):
         if self._error_list is not None:

@@ -25,6 +25,7 @@ class DisplayChange(enum.IntFlag):
     SCREEN_SIZE = enum.auto()
     QUEUE_INFO = enum.auto()
     RECORD_SET = enum.auto()
+    LANGUAGE = enum.auto()
 
 
 class SimpleRecordInfo:

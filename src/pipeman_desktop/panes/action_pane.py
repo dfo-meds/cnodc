@@ -43,18 +43,18 @@ class ActionPane(BasePane):
         self.app.middle_bottom.add(action_frame, text=i18n.tr("pane_actions"), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
-    def on_language_change(self):
-        if self._action_list is not None:
-            self._action_list.set_header_text("name", i18n.tr("action_item_name"))
-            self._action_list.set_header_text("object", i18n.tr("action_item_object"))
-            self._action_list.set_header_text("value", i18n.tr("action_item_value"))
-        if self._pane_id is not None:
-            self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_actions"))
-        self._rebuild_action_list()
-
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.ACTION:
-            self._rebuild_action_list()
+            if self._action_list is not None:
+                self._rebuild_action_list()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._action_list is not None:
+                self._action_list.set_header_text("name", i18n.tr("action_item_name"))
+                self._action_list.set_header_text("object", i18n.tr("action_item_object"))
+                self._action_list.set_header_text("value", i18n.tr("action_item_value"))
+                self._rebuild_action_list()
+            if self._pane_id is not None:
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_actions"))
 
     def _rebuild_action_list(self):
         self._action_list.clear_items()

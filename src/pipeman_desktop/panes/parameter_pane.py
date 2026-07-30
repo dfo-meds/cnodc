@@ -188,17 +188,17 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#3', width=75, anchor='w')
         self._parameter_list.table.column('#4', width=25, stretch=tk.NO)
 
-    def on_language_change(self):
-        if self._parameter_list is not None:
-            self._parameter_list.set_header_text("name", i18n.tr('parameter_list_name'))
-            self._parameter_list.set_header_text("value", i18n.tr('parameter_list_value'))
-            self._parameter_list.set_header_text("units", i18n.tr('parameter_list_units'))
-            self._parameter_list.set_header_text("quality", i18n.tr('parameter_list_quality'))
-        self._rebuild_parameter_list()
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD_CHILD | DisplayChange.RECORD):
             self._rebuild_parameter_list()
+        if change_type & DisplayChange.LANGUAGE:
+            if self._parameter_list is not None:
+                self._parameter_list.set_header_text("name", i18n.tr('parameter_list_name'))
+                self._parameter_list.set_header_text("value", i18n.tr('parameter_list_value'))
+                self._parameter_list.set_header_text("units", i18n.tr('parameter_list_units'))
+                self._parameter_list.set_header_text("quality", i18n.tr('parameter_list_quality'))
+                self._rebuild_parameter_list()
 
     def _rebuild_parameter_list(self):
         self._parameter_name_lookup.clear()

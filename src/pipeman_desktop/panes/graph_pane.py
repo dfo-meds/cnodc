@@ -44,9 +44,6 @@ class GraphPane(BasePane):
             else:
                 self._oc2graph.clear_graph_data()
 
-    def on_language_change(self):
-        pass
-
 
 class _GraphPane(BasePane):
 

@@ -223,6 +223,9 @@ class PipemanDesktop:
         self.menus.add_command("file/exit", "menu_exit", self.close)
 
     def refresh_display(self, app_state, change_type: DisplayChange):
+        if change_type & DisplayChange.LANGUAGE:
+            self.root.title(i18n.tr('root_title'))
+            self.menus.update_languages()
         self._pane_broadcast('refresh_display', app_state, change_type)
 
     def after(self, delay_ms: int, cb: t.Callable[[], t.Any], *args):
@@ -286,11 +289,6 @@ class PipemanDesktop:
 
     # EVENTS
 
-    def on_language_change(self):
-        self.root.title(i18n.tr('root_title'))
-        self.menus.update_languages()
-        self._pane_broadcast('on_language_change')
-
     def on_configure(self, e):
         if self._run_on_startup:
             self._run_on_startup = False
@@ -316,7 +314,7 @@ class PipemanDesktop:
                     self.close()
                 else:
                     self.detector.set_language(sel)
-        self.on_language_change()
+        self.refresh_display(self.state, DisplayChange.LANGUAGE)
         self.check_dispatcher()
         self.check_messages()
         self.check_screen_resize_complete()
