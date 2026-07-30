@@ -265,6 +265,6 @@ class ChangeValue(PathAction):
         self.add_history_action(
             record,
             f"Value changed",
-            ActionType.CHANGE_QUALITY,
+            ActionType.CHANGE_VALUE,
             self.path
         )
