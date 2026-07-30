@@ -445,12 +445,15 @@ class ApplicationState:
                 json.dumps(action.export())
             ))
             cur.commit()
+            self._has_unsaved_changes = True
         self.update_record(self._current_working_uuid, True)
 
     def delete_action(self, db_id: int):
         with self._app.local_db.cursor() as cur:
             cur.execute("DELETE FROM actions WHERE rowid = ?", (db_id,))
             cur.commit()
+            self._has_unsaved_changes = True
+        self.update_record(self._current_working_uuid, True)
 
     def update_record(self, working_uuid: str | None, force_reload: bool = False):
         if working_uuid is None and self._current_record is not None:
