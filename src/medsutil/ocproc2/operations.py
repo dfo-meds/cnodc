@@ -9,6 +9,7 @@ class RecordAction(dd.DataDictObject):
     source_version: str | None = dd.p_str()
     process_id: str | None = dd.p_str()
     organization: Organization = dd.p_enum(Organization)
+    username: str | None = dd.p_str()
 
     @property
     def name(self) -> str:
@@ -30,15 +31,21 @@ class RecordAction(dd.DataDictObject):
                            message: str,
                            action_type: ActionType,
                            path: str | None = None):
+        proc_id = self.process_id or 'unknown'
+        if self.username is not None:
+            proc_id += f" [{self.username}]"
         record.add_history_action(
             message,
             self.source_name or 'unknown',
             self.source_version or 'unknown',
-            self.process_id or 'unknown',
+            proc_id,
             action_type,
             path,
             self.organization
         )
+
+    def conflicts_with(self, action: RecordAction) -> bool:
+        return False
 
 
 class RetestRecord(RecordAction):
@@ -58,6 +65,9 @@ class RetestRecord(RecordAction):
 
     def apply(self, record: ParentRecord):
         record.mark_test_results_stale(self.qc_test_name)
+
+    def conflicts_with(self, action: RecordAction) -> bool:
+        return isinstance(action, RetestRecord) and action.qc_test_name == self.qc_test_name
 
 
 class RecordProcessed(RecordAction):
@@ -156,9 +166,19 @@ class AssignPlatform(RecordAction):
             "metadata/CNODCPlatform"
         )
 
+    def conflicts_with(self, action: RecordAction) -> bool:
+        return isinstance(action, AssignPlatform)
 
-class ChangeQuality(RecordAction):
+
+class PathAction(RecordAction):
     path: str = dd.p_str()
+
+
+    def conflicts_with(self, action: RecordAction) -> bool:
+        return isinstance(action, PathAction) and action.path == self.path
+
+
+class ChangeQuality(PathAction):
     new_flag: int = dd.p_int()
 
     @property
@@ -212,8 +232,11 @@ class SetManualQCOutcome(RecordAction):
                 ActionType.QC_RESULT_UPDATED
             )
 
+    def conflicts_with(self, action: RecordAction) -> bool:
+        return isinstance(action, SetManualQCOutcome) and action.qc_index == self.qc_index
 
-class ChangeValue(RecordAction):
+
+class ChangeValue(PathAction):
     path: str = dd.p_str()
     new_element: dict = dd.p_dict()
 
