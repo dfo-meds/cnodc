@@ -246,6 +246,9 @@ class DataDictObject(object):
             return dynamic_object(data['_cls_'])(**data)
         return cls(**data)
 
+def p_any(**kwargs) -> _SimpleProperty[ct.SupportsExtendedJson, ct.SupportsExtendedJson]:
+    return ddo_property(**kwargs)
+
 def p_int(**kwargs) -> _SimpleProperty[ct.AcceptAsInteger, int]:
     return ddo_property(**kwargs, coerce_set=int)
 
