@@ -49,7 +49,8 @@ def boot(
         extra_config_paths: list[str] | None = None,
         version_no: str | None = None,
         env_map_files: list[pathlib.Path] | None = None,
-        boot_log_level: int = logging.WARNING
+        boot_log_level: int = logging.WARNING,
+        default_config: dict[str, t.Any] | None = None
 ):
 
     # Temporary logging settings during boot process
@@ -62,6 +63,8 @@ def boot(
     import zirconium as zr
     @zr.configure
     def configure_extra_files(config: zr.ApplicationConfig):
+        if default_config is not None:
+            config.set_defaults(default_config)
         config_paths = [x for x in _config_paths(extra_config_paths)]
         logging.getLogger("gcapp.boot").info(f"Config Search Paths: {';'.join(str(x) for x in config_paths)}")
         for path in config_paths:
