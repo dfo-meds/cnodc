@@ -38,8 +38,10 @@ class RecordListPane(BasePane):
         self._group.rowconfigure(3, weight=1)
         self._group.columnconfigure(0, weight=1)
         # TODO: label styling
-        self._record_label = ttk.Label(self._group, text=i18n.tr("tree.record_list.title")).grid(row=0, column=0, sticky='NSEW')
-        self._subrecord_label = ttk.Label(self._group, text=i18n.tr("tree.subrecord_list.title")).grid(row=2, column=0, sticky='NSEW')
+        self._record_label = ttk.Label(self._group, text=i18n.tr("tree.record_list.title"))
+        self._record_label.grid(row=0, column=0, sticky='NSEW')
+        self._subrecord_label = ttk.Label(self._group, text=i18n.tr("tree.subrecord_list.title"))
+        self._subrecord_label.grid(row=2, column=0, sticky='NSEW')
         self._record_list = ScrollableTreeview(
             parent=self._group,
             selectmode="browse",

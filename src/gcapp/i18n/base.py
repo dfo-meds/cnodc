@@ -26,7 +26,7 @@ class TranslationManager:
 
     def language_options(self, context: str = "interface") -> dict[str, str]:
         return {
-            x: self.get_text(f"language_{x}", _language=x)
+            x: self.get_text(f"language.{x}", _language=x)
             for x in self.supported_languages(context)
         }
 

@@ -16,7 +16,7 @@ class LoginDialog(tksd.Dialog):
     def __init__(self,
                  parent,
                  title: t.Optional[str] = None):
-        if title is None:
+        if not title:
             title = i18n.tr('dialog.login.title')
         self.username_var = tk.StringVar(parent)
         self.password_var = tk.StringVar(parent)
@@ -26,10 +26,12 @@ class LoginDialog(tksd.Dialog):
         super().__init__(parent=parent, title=title)
 
     def body(self, parent):
-        ttk.Label(parent, text=i18n.tr('dialog.login.username')).grid(row=0, column=0)
+        username_label = ttk.Label(parent, text=i18n.tr('dialog.login.username'))
+        username_label.grid(row=0, column=0)
         self._username_entry = BorderedEntry(parent, textvariable=self.username_var)
         self._username_entry.grid(row=0, column=1)
-        ttk.Label(parent, text=i18n.tr('dialog.login.password')).grid(row=1, column=0)
+        password_label = ttk.Label(parent, text=i18n.tr('dialog.login.password'))
+        password_label.grid(row=1, column=0)
         self._password_entry = BorderedEntry(parent, show='*', textvariable=self.password_var)
         self._password_entry.grid(row=1, column=1)
         return self._username_entry

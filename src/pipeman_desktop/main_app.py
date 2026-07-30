@@ -303,7 +303,7 @@ class PipemanDesktop:
                 sel = ask_choice(
                     self.root,
                     options=self.translations.language_options(),
-                    title=i18n.tr('dialog.language_select.title')
+                    title="Select Language"  # todo: add a English / French style title here
                 )
                 if sel is None:
                     self.close()

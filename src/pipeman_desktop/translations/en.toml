@@ -46,11 +46,32 @@ set_quality = "Set Quality Flag"
 set_outcome = "Set QC Test Outcome"
 set_value = "Set Value"
 
+[qc_test]
+# qc test names from QC tests can go here for translation
+
+[qc_review]
+# sub-test names from QC messages can go here
+
+[qc_error_code]
+# error codes from QC messages can go here
+
+[batch_qc]
+gtspp_qca = "GTSPP (QC-A)"
+
 [pane]
 action_items = "Proposed Actions"
-graph = "Graph"
+graph = "Graphs"
 history = "History"
 map = "Map"
+qc_errors = "QC Errors"
+station_list = "Stations"
+
+[tree.qc_errors]
+name = "QC Test"
+review = "Sub-Test"
+time = "Date"
+error = "Message"
+element = "Element Path"
 
 [tree.action_items]
 name = "Name"
@@ -147,12 +168,13 @@ max = "Enter a value less than or equal to {max_value}"
 [dialog.error_message]
 title = "Error"
 
+[language]
+en = "English"
+fr = "French"
+
 [dialog.unable_to_close]
 title = "Unable to Close"
 message = "We were unable to close the current batch"
-
-[dialog.language_select]
-title = "Select Language"
 
 [dialog.close_without_saving_error]
 title = "Error - Close"

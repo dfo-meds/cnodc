@@ -149,7 +149,7 @@ class StationPane(BasePane):
         self._station_list.set_header_text("end", i18n.tr("station_list_end"))
         self._station_list.grid(row=0, column=0, sticky='NSEW')
         # TODO: station searching options?
-        self.app.middle_bottom.add(station_frame, text=i18n.tr('pane_station_list'), sticky='NSEW')
+        self.app.middle_bottom.add(station_frame, text=i18n.tr('pane.station_list'), sticky='NSEW')
         self._pane_id = self.app.middle_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
@@ -167,7 +167,7 @@ class StationPane(BasePane):
                 self._station_list.set_header_text("start", i18n.tr("station_list_start"))
                 self._station_list.set_header_text("end", i18n.tr("station_list_end"))
             if self._pane_id is not None:
-                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane_station_list"))
+                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane.station_list"))
 
     def create_station(self):
         s = StationCreationDialog(self.app.root)

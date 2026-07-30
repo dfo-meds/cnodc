@@ -401,7 +401,7 @@ class ApplicationState:
                 if pieces[0] == "batch_qc" and len(pieces) > 1 and pieces[1]:
                     results.add(pieces[1])
         return {
-            x: i18n.tr(f"batch_qc_{x}")
+            x: i18n.tr(f"batch_qc.{x}", default=x)
             for x in results
         }
 
