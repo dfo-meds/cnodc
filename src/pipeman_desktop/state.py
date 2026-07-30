@@ -200,10 +200,7 @@ class ApplicationState:
     def _logout_success(self,
                         result,
                         after_success: t.Callable[[], t.Any] | None = None):
-        self._app.show_user_info(
-            i18n.tr('logout_success_title'),
-            i18n.tr('logout_success_message')
-        )
+
         self._app.state.update_user_info(None, None)
         if after_success is not None:
             after_success()

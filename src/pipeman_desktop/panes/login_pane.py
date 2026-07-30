@@ -32,10 +32,17 @@ class LoginPane(BasePane):
     def do_logout(self):
         self.app.menus.disable_command('file/logout')
         self.app.state.logout(
-            after_success=self.update_user_state,
+            after_success=self._logout_success,
             after_error=self.update_user_state,
             after_cancel=self.update_user_state
         )
+
+    def _logout_success(self):
+        self.app.show_user_info(
+            i18n.tr('logout_success_title'),
+            i18n.tr('logout_success_message')
+        )
+        self.update_user_state()
 
     def do_login(self, e=None):
         from pipeman_desktop.components.login_dialog import ask_login
