@@ -219,7 +219,8 @@ class PipemanDesktop:
         self._panes.append(StationPane(self))
         self._pane_broadcast('on_init')
 
-    # BORING STUFF
+        # make sure the Exit command is last
+        self.menus.add_command("file/exit", "menu_exit", self.close)
 
     def refresh_display(self, app_state, change_type: DisplayChange):
         self._pane_broadcast('refresh_display', app_state, change_type)
@@ -335,25 +336,20 @@ class PipemanDesktop:
         if self._is_closing:
             return
         self._is_closing = True
-        result = self.state.close_current_batch(ReviewResult.RELEASE, after_close=self._close)
-        if result == CloseBatchResult.CANCELLED:
-            self._is_closing = False
-        elif result == CloseBatchResult.UNABLE_TO_CLOSE:
-            self.show_user_info(
-                i18n.tr('unable_to_close_title'),
-                i18n.tr('unable_to_close_message')
-            )
-            self._is_closing = False
-
-    def _close(self):
-        self.dispatcher.submit_job(
-            'pipeman_desktop.client.api_client.logout',
-            on_success=self._actual_close,
-            on_error=self._actual_close
+        self.state.logout(
+            after_success=self._actual_close,
+            after_error=self._actual_close,
+            after_cancel=self._cancel_close
         )
 
+    def _cancel_close(self):
+        self.show_user_info(
+            i18n.tr('unable_to_close_title'),
+            i18n.tr('unable_to_close_message')
+        )
+        self._is_closing = False
+
     def _actual_close(self, e=None):
-        self.state.update_batch_state(None)
         self._pane_broadcast('on_close')
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()

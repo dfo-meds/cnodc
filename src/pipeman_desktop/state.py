@@ -135,13 +135,84 @@ class ApplicationState:
         return self._available_services is not None and service_name in self._available_services
 
     def logout(self,
-               after_close: t.Callable[[], t.Any],
-               after_cancel: t.Callable[[], t.Any]):
-        # TODO: this used to call close_current_batch()
+               after_success: t.Callable[[], t.Any] | None = None,
+               after_error: t.Callable[[], t.Any] | None = None,
+               after_cancel: t.Callable[[], t.Any] | None = None):
+        result = CloseBatchResult.UNABLE_TO_CLOSE if self._batch_state is not None else CloseBatchResult.ALREADY_CLOSED
         if self.can_logout():
-            after_close()
-        else:
+            result = self.close_current_batch(
+                batch_action=ReviewResult.RELEASE,
+                after_close=functools.partial(
+                    self._finish_logout,
+                    after_success=after_success,
+                    after_error=after_error,
+                    after_cancel=after_cancel
+                )
+            )
+        self._finish_logout(result, after_success=after_success, after_error=after_error, after_cancel=after_cancel)
+        return result
+
+    def _finish_logout(self,
+                       result: CloseBatchResult | None = None,
+                       after_success: t.Callable[[], t.Any] | None = None,
+                       after_error: t.Callable[[], t.Any] | None = None,
+                       after_cancel: t.Callable[[], t.Any] | None = None):
+
+        # this indicates we're coming in after the dispatcher has attempted to close the
+        # current batch, so we try to determine the current state.
+        if result is None:
+            if self._batch_state is None:
+                result = CloseBatchResult.ALREADY_CLOSED
+            else:
+                result = CloseBatchResult.UNABLE_TO_CLOSE
+
+        # this indicates an error or the current state prohibits us from closing
+        # we ask the user what they want to do - cancel or force close without saving changes
+        if result is CloseBatchResult.UNABLE_TO_CLOSE:
+            user_option = tkmb.askyesno(
+                title=i18n.tr("error_close_without_saving_title"),
+                message=i18n.tr("error_close_without_saving_message"),
+            )
+            if result:
+                self.force_close_current_batch()
+                result = CloseBatchResult.ALREADY_CLOSED
+            else:
+                result = CloseBatchResult.CANCELLED
+
+        # we closed or force closed the batch, we call after_close()
+        if result is CloseBatchResult.ALREADY_CLOSED:
+            self._real_logout(after_success=after_success, after_error=after_error)
+
+        # otherwise, we call the cancel handler
+        elif result is CloseBatchResult.CANCELLED:
             after_cancel()
+
+    def _real_logout(self,
+                     after_success: t.Callable[[], t.Any] | None = None,
+                     after_error: t.Callable[[], t.Any] | None = None,):
+        self._app.dispatcher.submit_job(
+            'pipeman_desktop.client.api_client.logout',
+            on_success=functools.partial(self._logout_success, after_success=after_success),
+            on_error=functools.partial(self._logout_error, after_error=after_error),
+        )
+
+    def _logout_success(self,
+                        result,
+                        after_success: t.Callable[[], t.Any] | None = None):
+        self._app.show_user_info(
+            i18n.tr('logout_success_title'),
+            i18n.tr('logout_success_message')
+        )
+        self._app.state.update_user_info(None, None)
+        if after_success is not None:
+            after_success()
+
+    def _logout_error(self,
+                      result,
+                      after_error: t.Callable[[], t.Any] | None = None):
+        self._app.show_user_exception(result)
+        if after_error is not None:
+            after_error()
 
     def can_logout(self):
         if self.username is None:
@@ -256,6 +327,7 @@ class ApplicationState:
     def close_current_batch(self,
                             batch_action: ReviewResult,
                             on_success: t.Callable | None = None,
+                            on_error: t.Callable | None = None,
                             after_close: t.Callable | None = None) -> CloseBatchResult:
         if self.can_close_current_batch(batch_action):
             if self.has_unsaved_changes:
@@ -273,7 +345,7 @@ class ApplicationState:
                     "close_operation": batch_action.value,
                 },
                 on_success=functools.partial(self._on_close_current_batch_success, on_success=on_success, after_close=after_close),
-                on_error=functools.partial(self._on_close_current_batch_error, after_close=after_close)
+                on_error=functools.partial(self._on_close_current_batch_error, on_error=on_error, after_close=after_close)
             )
             return CloseBatchResult.CLOSING
         elif self._batch_state is None:
@@ -282,9 +354,11 @@ class ApplicationState:
         else:
             return CloseBatchResult.UNABLE_TO_CLOSE
 
-    def _on_close_current_batch_error(self, ex: Exception, after_close: t.Callable | None = None):
+    def _on_close_current_batch_error(self, ex: Exception, on_error: t.Callable | None = None, after_close: t.Callable | None = None):
         self._app.show_user_exception(ex)
         self.update_batch_state(BatchOpenState.CLOSE_ERROR)
+        if on_error is not None:
+            on_error()
         self._on_close_current_batch_success(None, after_close=after_close)
 
     def _on_close_current_batch_success(self, result: bool | None, on_success: t.Callable | None = None, after_close: t.Callable | None = None):
