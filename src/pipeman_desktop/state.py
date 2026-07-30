@@ -1,5 +1,6 @@
 import enum
 import functools
+import socket
 import typing as t
 from tkinter import messagebox as tkmb
 
@@ -332,11 +333,34 @@ class ApplicationState:
             for x in results
         }
 
-    def delete_action(self, action_index: int):
-        ...
-
     def load_closest(self, path: str):
         ...
+
+    def add_action(self, action: RecordAction):
+        from pipeman_desktop import VERSION
+        action.source_name = "pipeman_desktop"
+        action.source_version = VERSION
+        action.process_id = socket.gethostname()
+        action.username = self.username
+        remove_keys = []
+        if self._current_record is not None:
+            for key, other_action in self._current_actions.items():
+                if action.conflicts_with(other_action):
+                    remove_keys.append(key)
+        with self._app.local_db.cursor() as cur:
+            for delete_id in remove_keys:
+                cur.execute("DELETE FROM actions WHERE rowid = ?", (delete_id,))
+            cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?)", (
+                self._current_working_uuid,
+                json.dumps(action.export())
+            ))
+            cur.commit()
+        self.update_record(self._current_working_uuid, True)
+
+    def delete_action(self, db_id: int):
+        with self._app.local_db.cursor() as cur:
+            cur.execute("DELETE FROM actions WHERE rowid = ?", (db_id,))
+            cur.commit()
 
     def update_record(self, working_uuid: str | None, force_reload: bool = False):
         if working_uuid is None and self._current_record is not None:
@@ -353,21 +377,25 @@ class ApplicationState:
                 if row is None:
                     raise ValueError("Invalid record ID")
                 self._current_parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
-                cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
-                self._current_actions = {}
-                for rowid, action in cur.fetchall():
-                    operation = RecordAction.from_map(json.load_dict(action))
-                    operation.apply(self._current_parent)
-                    self._current_actions[rowid] = operation
-
                 self._current_recordset = None
                 self._current_record = self._current_parent
-                self._current_working_uuid = working_uuid
                 if working_uuid == self._current_working_uuid and self._current_child_path is not None:
                     self.update_subrecord(self._current_child_path, force_reload=True, _send_refresh=False)
                 else:
                     self._current_child_path = None
+                self._current_working_uuid = working_uuid
                 self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+
+    def _update_actions(self, working_uuid: str | None = None):
+        if working_uuid is None: working_uuid = self._current_working_uuid
+        if working_uuid is None: return
+        with self._app.local_db.cursor() as cur:
+            cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
+            self._current_actions = {}
+            for rowid, action in cur.fetchall():
+                operation = RecordAction.from_map(json.load_dict(action))
+                operation.apply(self._current_parent)
+                self._current_actions[rowid] = operation
 
     def update_subrecord(self, subrecord_path: str | None, force_reload: bool = False, _send_refresh: bool = True):
         if subrecord_path is None and self._current_child_path is not None:
@@ -443,21 +471,3 @@ class ApplicationState:
         if info.latitude is None or info.longitude is None:
             return None
         return info.latitude, info.longitude
-
-
-
-
-
-    def extend_actions(self, actions: dict[int, RecordAction]):
-        if self.actions is None:
-            self.actions = actions
-        else:
-            self.actions.update(actions)
-        for action in actions.values():
-            action.apply(self.record, None)
-        self.has_unsaved_changes = True
-        mode = DisplayChange.ACTION | DisplayChange.RECORD_CHILD
-        if self._update_batch_info_from_current_record():
-            mode |= DisplayChange.RECORD
-        self.refresh_display(mode)
-
