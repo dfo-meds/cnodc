@@ -1,43 +1,47 @@
+from pipeman_desktop.components.ocproc_data_entry import ask_ocproc2, InputType
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.components.choice_dialog import ask_choice
 from pipeman_desktop.components.scrollable import ScrollableTreeview
 import gcapp.i18n as i18n
-import tkinter.messagebox as tkmb
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
-import tkinter.simpledialog as tksd
 
-from pipeman_desktop import VERSION
 import medsutil.ocproc2 as ocproc2
-from pipeman_desktop.components.date_time_dialog import ask_date, ask_datetime
 from autoinject import injector
 
 from pipeman_desktop.util import quality_color
 
+if t.TYPE_CHECKING:
+    from pipeman_desktop.main_app import PipemanDesktop
+
 
 class ParameterContextMenu:
 
+    ocproc_translator: OCProc2Translator = None
+
+    @injector.construct
     def __init__(self,
-                 app,
+                 app: PipemanDesktop,
                  target_path,
                  element_info: t.Optional[ocproc2.OCProc2ElementInfo],
-                 current_user: str,
-                 current_units: t.Optional[str] = None,
-                 current_value: t.Optional = None):
-        self._current_value: ocproc2.SingleElement = current_value
-        self._current_user = current_user
+                 element_name: str,
+                 current_units: str | None = None,
+                 current_value: ocproc2.SingleElement | None = None):
+        self._current_value: ocproc2.SingleElement | None = current_value
+        self._element_name = element_name
         self._app = app
         self._element_info = element_info
         self._current_units = current_units or (element_info.preferred_unit if element_info else '')
         self._target_path = target_path
         self._menu = tk.Menu(app.root, tearoff=0)
-        self._menu.add_command(
-            label=i18n.tr('parameter_context_edit'),
-            command=self._edit_value
-        )
+        if self._element_info is not None and self._element_info.data_type in {"string", "integer", "date", "decimal", "Duration", "dateTimeStamp"}:
+            self._menu.add_command(
+                label=i18n.tr('parameter_context_edit'),
+                command=self._edit_value
+            )
         self._menu.add_command(
             label=i18n.tr('parameter_context_flag_good'),
             command=self._flag_good
@@ -62,84 +66,16 @@ class ParameterContextMenu:
     def _edit_value(self):
         new_value = self._edit_choice()
         if new_value is not None:
-            self._app.save_operations([
-                ocproc2.QCSetValue(self._target_path, new_value, children=[
-                    ocproc2.QCSetWorkingQuality(self._target_path, 5),
-                    ocproc2.QCAddHistory(
-                        f"CHANGE [{self._target_path}] FROM [{self._current_value.to_string()}] TO [{str(new_value)}]",
-                        "operator_qc",
-                        VERSION,
-                        self._current_user,
-                        message_type=ocproc2.MessageType.INFO.value
-                    )
-                ])
-            ])
-
-    def _edit_choice(self):
-        title = ''
-        prompt = ''
-        unit_str = '' if self._current_units is None else f' [{self._current_units}]'
-        if self._element_info is not None:
-            title = self._element_info.label(i18n.current_language())
-            prompt = [
-                f"{self._element_info.documentation(i18n.current_language())}{unit_str}"
-            ]
-            if self._element_info.max_value is not None or self._element_info.min_value is not None:
-                if self._element_info.max_value is None:
-                    prompt.append(i18n.tr('prompt_min_value', min=str(self._element_info.min_value)))
-                elif self._element_info.min_value is None:
-                    prompt.append(i18n.tr('prompt_max_value', max=str(self._element_info.max_value)))
-                else:
-                    prompt.append(i18n.tr('prompt_range', min=str(self._element_info.min_value), max=str(self._element_info.max_value)))
-            prompt = "\n".join(prompt)
-            if self._element_info.allowed_values:
-                return ask_choice(
-                    title=title,
-                    prompt=prompt,
-                    default=self._current_value.value,
-                    parent=self._app.root,
-                    options={x: str(x) for x in self._element_info.allowed_values}
+            self._app.state.add_action(
+                ocproc2.ChangeValue(
+                    path=self._target_path,
+                    new_value=new_value
                 )
-        return self._prompt_for_data_type(title, prompt, self._element_info.data_type if self._element_info else None)
+            )
 
-    def _prompt_for_data_type(self, title, prompt, data_type):
-        if data_type == 'decimal':
-            return tksd.askfloat(
-                title=title,
-                prompt=prompt,
-                initialvalue=self._current_value.to_float() if self._current_value.is_numeric() else None,
-                minvalue=self._element_info.min_value if self._element_info is not None else None,
-                maxvalue=self._element_info.max_value if self._element_info is not None else None
-            )
-        elif data_type == 'integer':
-            return tksd.askinteger(
-                title=title,
-                prompt=prompt,
-                initialvalue=self._current_value.to_int() if self._current_value.is_integer() else None,
-                minvalue=self._element_info.min_value if self._element_info is not None else None,
-                maxvalue=self._element_info.max_value if self._element_info is not None else None
-            )
-        elif data_type == 'string':
-            return tksd.askstring(
-                title=title,
-                initialvalue=self._current_value.to_string(),
-                prompt=prompt
-            )
-        elif data_type == 'dateTimeStamp':
-            return ask_datetime(
-                parent=self._app.root,
-                default=self._current_value.to_datetime() if self._current_value.is_iso_datetime() else None,
-                title=title,
-                prompt=prompt
-            )
-        elif data_type == 'date':
-            return ask_date(
-                parent=self._app.root,
-                default=self._current_value.to_datetime() if self._current_value.is_iso_datetime() else None,
-                title=title,
-                prompt=prompt
-            )
-        elif data_type is None:
+    def _edit_choice(self) -> InputType:
+        data_type = self._element_info.data_type if self._element_info is not None else None
+        if data_type is None:
             data_type = ask_choice(
                 title=i18n.tr('data_type_choice_title'),
                 prompt=i18n.tr('data_type_choice_prompt'),
@@ -149,21 +85,25 @@ class ParameterContextMenu:
                     'integer': i18n.tr('data_type_integer'),
                     'dateTimeStamp': i18n.tr('data_type_datetime'),
                     'date': i18n.tr('data_type_date'),
-                    'decimal': i18n.tr('data_type_decimal')
+                    'decimal': i18n.tr('data_type_decimal'),
+                    'Duration': i18n.tr('data_type_duration'),
                 }
             )
             if data_type is not None:
                 # We need for tk to process the focus event from ask_choice
                 # before we give it another prompt.
                 self._app.root.update()
-                return self._prompt_for_data_type(title, prompt, data_type)
             else:
                 return None
-        else:
-            tkmb.showwarning(
-                title=i18n.tr('data_type_not_supported_title'),
-                message=i18n.tr('data_type_not_supported_message', data_type=data_type)
-            )
+        return ask_ocproc2(
+            parent=self._app.root,
+            element_name=self._element_name,
+            data_type=data_type,
+            min_value=self._element_info.min_value if self._element_info is not None else None,
+            max_value=self._element_info.max_value if self._element_info is not None else None,
+            allowed_values=self._element_info.allowed_values if self._element_info is not None else None,
+            current_element=self._current_value,
+        )
 
     def _flag_dubious(self):
         self._set_working_quality_flag(3)
@@ -181,11 +121,7 @@ class ParameterContextMenu:
         self._set_working_quality_flag(2)
 
     def _set_working_quality_flag(self, flag_no: int):
-        cwq = self._current_value.metadata.best('WorkingQuality', coerce=int, default=0)
-        if int(cwq) != flag_no:
-            self._app.save_operations([
-                self._app.create_flag_operator(self._target_path, flag_no)
-            ])
+        self._app.state.add_action(ocproc2.ChangeQuality(path=self._target_path, new_flag=flag_no))
 
     def handle_popup_click(self, e):
         try:
@@ -214,6 +150,7 @@ class ParameterPane(BasePane):
         super().__init__(*args, **kwargs)
         self._parameter_list: t.Optional[ScrollableTreeview] = None
         self._value_lookup: dict[str, ocproc2.SingleElement] = {}
+        self._parameter_name_lookup: dict[str, str] = {}
 
     def on_init(self):
         param_frame = ttk.Frame(self.app.right)
@@ -242,10 +179,13 @@ class ParameterPane(BasePane):
         self._parameter_list.tag_configure('missing', foreground=quality_color(9))
         self._parameter_list.tag_configure('invalid', foreground=quality_color(-1))
         self._parameter_list.grid(row=0, column=0, sticky='NSEW')
-        self._parameter_list.table.column('#0', width=40, stretch=tk.NO)
-        self._parameter_list.table.column('#1', width=50, anchor='w')
-        self._parameter_list.table.column('#2', width=50, anchor='e')
-        self._parameter_list.table.column('#3', width=25, anchor='w')
+        self._parameter_list.table.heading("#1", anchor="w")
+        self._parameter_list.table.heading("#2", anchor="e")
+        self._parameter_list.table.heading("#3", anchor="w")
+        self._parameter_list.table.column('#0', width=50, stretch=tk.NO)
+        self._parameter_list.table.column('#1', width=150, anchor='w')
+        self._parameter_list.table.column('#2', width=150, anchor='e')
+        self._parameter_list.table.column('#3', width=75, anchor='w')
         self._parameter_list.table.column('#4', width=25, stretch=tk.NO)
 
     def on_language_change(self):
@@ -261,6 +201,7 @@ class ParameterPane(BasePane):
             self._rebuild_parameter_list()
 
     def _rebuild_parameter_list(self):
+        self._parameter_name_lookup.clear()
         if self._parameter_list is not None:
             self._parameter_list.clear_items()
             if self.app.state.current_recordset is not None:
@@ -311,39 +252,41 @@ class ParameterPane(BasePane):
         )
         return m_path
 
-    def _create_parameter_entry(self, v: ocproc2.AbstractElement, parent_path: str, key: str, depth: int = 1, is_alt: bool = False):
+    def _create_parameter_entry(self, v: ocproc2.AbstractElement, parent_path: str, key: str, depth: int = 1, param_name: str = None, is_alt: bool = False):
+        if param_name is None:
+            param_name = key
         my_path = f'{parent_path}/{key}'
         label = f"#{key}" if key.isdigit() else self.ocproc_translator.translate_element_name(key)
         if isinstance(v, ocproc2.MultiElement):
             is_alt = False
-            # TODO: need a heading here (with translations)
             self._parameter_list.append_item(
                 iid=my_path,
                 values=(label, '', '', ''),
                 tags=('header',)
             )
             for idx, subv in v.values():
-                self._create_parameter_entry(subv, my_path, str(idx), depth + 1, is_alt)
+                self._create_parameter_entry(subv, my_path, str(idx), depth + 1, param_name, is_alt)
                 is_alt = not is_alt
         elif isinstance(v, ocproc2.SingleElement):
-            self._create_parameter_list_item(v, parent_path, key, label, depth, is_alt)
+            self._create_parameter_list_item(v, parent_path, key, label, depth, param_name, is_alt)
 
-    def _create_parameter_list_item(self, v: ocproc2.SingleElement, parent_path: str, key: str, label: str, depth: int, is_alt: bool):
+    def _create_parameter_list_item(self, v: ocproc2.SingleElement, parent_path: str, key: str, label: str, depth: int, parameter_name: str, is_alt: bool):
         path = f'{parent_path}/{key}'
         dv, tags = self._parameter_display_value(v)
         if is_alt:
             tags.append('alt')
-        self._value_lookup[path] = v
         self._parameter_list.append_item(
             parent=parent_path,
             iid=path,
             values=(f'{"  " * depth}{label}', *dv),
             tags=tuple(tags)
         )
+        self._value_lookup[path] = v
+        self._parameter_name_lookup[path] = parameter_name
         is_alt = False
         for m_name, md in v.metadata.items():
             if m_name not in {"WorkingQuality", "Units"}:
-                self._create_parameter_entry(md, path, m_name, depth + 1, is_alt)
+                self._create_parameter_entry(md, path, m_name, depth + 1, is_alt=is_alt)
                 is_alt = not is_alt
 
     def _parameter_display_value(self, v: ocproc2.AbstractElement) -> tuple[tuple, list]:
@@ -355,34 +298,48 @@ class ParameterPane(BasePane):
             return ('', '', wq), tags,
         elif v.is_iso_datetime():
             dt_utc = v.to_datetime().astimezone("Etc/UTC")
-            # TODO: date precision?
-            return (dt_utc.strftime('%Y-%m-%d %H:%M:%S'), 'UTC', wq), tags
+            precision = v.metadata.best('DatePrecision', default=None, coerce=str)
+            dt_format = "%Y-%m-%d %H:%M:%S"
+            if precision == "minute":
+                dt_format = "%Y-%m-%d %H:%M"
+            elif precision == "hour":
+                dt_format = "%Y-%m-%d %H"
+            elif precision == "day":
+                dt_format = "%Y-%m-%d"
+            return (dt_utc.strftime(dt_format), 'UTC', wq), tags
         elif v.is_numeric():
-            val = v.to_float() if not v.is_integer() else v.to_int()
-            # TODO: apply uncertainty and round?
-            units = v.metadata.best('Units', None)
-            if units is not None:
-                return (str(val), v.metadata.best('Units'), wq), tags
+            if v.is_integer():
+                val = str(v.to_int())
+            elif v.metadata.has_value("Uncertainty"):
+                sn = v.to_scinum()
+                val = sn.to_places_as_string(sn.significant_digits() + 1)
             else:
-                return (str(val), '', wq), tags
+                val = f"{v.to_float():.9f}"
+                if "." in val:
+                    val = val.rstrip("0")
+                    if val.endswith("."):
+                        val = val + "0"
+            units = v.metadata.best('Units', None, coerce=str)
+            if units is not None:
+                return (val, v.metadata.best('Units'), wq), tags
+            else:
+                return (val, '', wq), tags
         else:
             return (v.to_string(), '', wq), tags
 
     def _on_parameter_right_click(self, item, event):
-        if item['values'][0] != '':
-            pcm = ParameterContextMenu(
-                self.app,
-                item['values'][0],
-                self._get_element_info(item['values'][0]),
-                self.app.state.username,
-                item['values'][3],
-                self._value_lookup[item['values'][0]]
-            )
-            pcm.handle_popup_click(event)
+        if item['iid'] not in self._parameter_name_lookup:
+            return
+        pcm = ParameterContextMenu(
+            self.app,
+            item['iid'],
+            self._get_element_info(self._parameter_name_lookup[item['iid']]),
+            self.app.state.username,
+            item['values'][3],
+            self._value_lookup[item['iid']]
+        )
+        pcm.handle_popup_click(event)
 
-    def _get_element_info(self, path: str) -> t.Optional[ocproc2.OCProc2ElementInfo]:
-        elements = path.split('/')
-        while elements[-1].isdigit():
-            elements = elements[:-1]
-        return self.ontology.info(elements[-1])
+    def _get_element_info(self, parameter_name: str) -> t.Optional[ocproc2.OCProc2ElementInfo]:
+        return self.ontology.info(parameter_name)
 

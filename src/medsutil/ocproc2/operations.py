@@ -1,7 +1,12 @@
+import typing as t
+
 import medsutil.datadict as dd
 from medsutil.ocproc2 import ParentRecord, AbstractElement, SingleElement, RecordSet, BaseRecord, MessageType, QCResult
 from medsutil.ocproc2.history import ActionType, Organization
 from medsutil.ocproc2.util import set_working_quality
+
+if t.TYPE_CHECKING:
+    from medsutil.ocproc2.util import SupportedValue
 
 
 class RecordAction(dd.DataDictObject):
@@ -177,6 +182,40 @@ class PathAction(RecordAction):
     def conflicts_with(self, action: RecordAction) -> bool:
         return isinstance(action, PathAction) and action.path == self.path
 
+class SetToEmpty(PathAction):
+
+    @property
+    def name(self) -> str:
+        return "qc_set_empty"
+
+    @property
+    def object(self) -> str:
+        return self.path
+
+    @property
+    def value(self) -> str:
+        return ""
+
+    def apply(self, record: ParentRecord):
+        element = record.find_child(self.path)
+        if not isinstance(element, SingleElement):
+            raise ValueError("Invalid element path")
+        past_value = element.value
+        element.value = None
+        element.metadata.append_to("PreviousValue", past_value)
+        element.metadata["WorkingQuality"] = 9
+        self.add_history_action(
+            record,
+            f"Value removed",
+            ActionType.CHANGE_VALUE,
+            self.path
+        )
+        self.add_history_action(
+            record,
+            f"Quality flag changed to 9",
+            ActionType.CHANGE_QUALITY,
+            self.path
+        )
 
 class ChangeQuality(PathAction):
     new_flag: int = dd.p_int()
@@ -238,7 +277,7 @@ class SetManualQCOutcome(RecordAction):
 
 class ChangeValue(PathAction):
     path: str = dd.p_str()
-    new_element: dict = dd.p_dict()
+    new_value: SupportedValue = dd.p_any()
 
     @property
     def name(self) -> str:
@@ -250,18 +289,19 @@ class ChangeValue(PathAction):
 
     @property
     def value(self) -> str:
-        return AbstractElement.build_from_mapping(self.new_element).to_string()
+        return str(self.new_value)
 
     def apply(self, record: ParentRecord):
         element = record.find_child(self.path)
-        if not isinstance(element, (AbstractElement, None)):
+        if not isinstance(element, (SingleElement, None)):
             raise ValueError(f"Invalid path: {self.path}")
-        new_value = AbstractElement.build_from_mapping(self.new_element)
         if element is not None:
-            previous = element.to_mapping()
-            record.set(self.path, new_value, WorkingQuality=5, PreviousValue=previous)
+            previous = element.value
+            element.value = self.new_value
+            element.metadata["WorkingQuality"] = 5
+            element.metadata.append_to("PreviousValue", previous)
         else:
-            record.set(self.path, new_value, WorkingQuality=5)
+            record.set(self.path, self.new_value, WorkingQuality=5)
         self.add_history_action(
             record,
             f"Value changed",
