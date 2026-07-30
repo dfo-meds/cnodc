@@ -12,7 +12,6 @@ from autoinject import injector
 from flask_wtf import CSRFProtect
 from jinja2 import pass_context
 
-from gcapp import i18n
 from gcflask.user import PermissionType, current_user
 from gcflask.util import caps_to_snake
 from gcapp.requestinfo import RequestInfo

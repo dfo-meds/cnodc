@@ -1,16 +1,15 @@
 import flask
-import flask_login
 import zrlog
 
 from autoinject import injector, auto
 
 from gcflask.forms import GCFlaskForm, StringField, SubmitField, PasswordField, SelectField, InputRequired, \
     NoControlCharacters, BooleanField
-from gcapp.i18n import TString
+from gcapp.i18n.base import TString
 from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import security_check, api_error_handling, web_error_handling
 from gcflask.user import current_user
-from gcflask.util import flasht, FlaskRequestJsonData
+from gcflask.util import flasht
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
 from medweb.apps.pipeman.routes.desktop import json_param
 

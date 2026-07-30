@@ -4,7 +4,7 @@ import socket
 import typing as t
 from tkinter import messagebox as tkmb
 
-from gcapp import i18n as i18n
+from gcapp.i18n import base as i18n
 from medsutil import ocproc2 as ocproc2, json
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import RecordAction

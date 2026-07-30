@@ -5,7 +5,7 @@ import typing as t
 import tkinter as tk
 import datetime
 import tkinter.ttk as ttk
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 from medsutil.ocproc2 import MessageType
 
 

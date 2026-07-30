@@ -2,16 +2,15 @@ from autoinject import injector
 import math
 import tkinter.ttk as ttk
 import typing as t
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 import matplotlib.axes as mpla
 import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.style as mpls
-import medsutil.ocproc_math as oom
 from medsutil.ocproc2 import RecordSet, BaseRecord
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.state import SimpleRecordInfo, ApplicationState
-from medsutil.geodesy import great_circle_distance, YXPoint, geodesic_distance
+from medsutil.geodesy import YXPoint, geodesic_distance
 from pipeman_desktop.util import quality_color
 
 if t.TYPE_CHECKING:

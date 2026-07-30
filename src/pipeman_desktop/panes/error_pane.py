@@ -3,7 +3,7 @@ from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.components.scrollable import ScrollableTreeview
 import typing as t
 import tkinter.ttk as ttk
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 
 
 class ErrorPane(BasePane):

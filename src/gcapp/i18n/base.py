@@ -13,6 +13,7 @@ from medsutil.exceptions import CodedError
 class TranslationManager:
 
     config: zr.ApplicationConfig = None
+    detector: LanguageDetector = None
 
     @injector.construct
     def __init__(self): ...
@@ -20,7 +21,7 @@ class TranslationManager:
     def get_text(self, text_key: str, default: str = None, _language: str | None = None) -> str:
         return default if default is not None else text_key
 
-    def supported_languages(self, context: str = "interface"):
+    def supported_languages(self, context: str = "interface") -> list[str]:
         return ['und']
 
     def language_options(self, context: str = "interface") -> dict[str, str]:

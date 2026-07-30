@@ -1,4 +1,3 @@
-import datetime
 import json
 import typing as t
 
@@ -6,7 +5,7 @@ import zrlog
 from autoinject import injector
 from requests import JSONDecodeError, HTTPError
 
-from gcapp.i18n import TranslatableError
+from gcapp.i18n.base import TranslatableError
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import QCResult

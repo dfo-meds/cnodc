@@ -1,4 +1,4 @@
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 import typing as t
 import tkinter as tk
 

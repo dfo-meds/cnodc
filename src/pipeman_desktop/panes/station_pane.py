@@ -4,7 +4,7 @@ from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.components.scrollable import ScrollableTreeview
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 import tkinter.simpledialog as tksd
 import tkinter as tk
 import typing as t

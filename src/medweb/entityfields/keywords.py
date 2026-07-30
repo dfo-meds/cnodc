@@ -1,6 +1,6 @@
 import typing as t
 
-from gcapp.i18n import MLString
+from gcapp.i18n.base import MLString
 
 
 class Keyword:

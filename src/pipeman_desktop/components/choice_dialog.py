@@ -2,7 +2,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import typing as t
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 
 
 def ask_choice(*args, **kwargs):

@@ -5,7 +5,7 @@ from pipeman_desktop.client.local_db import LocalDatabase
 from autoinject import injector
 import typing as t
 from pipeman_desktop.components.scrollable import ScrollableTreeview
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 

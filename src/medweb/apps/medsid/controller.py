@@ -6,7 +6,7 @@ from autoinject import injector
 
 from gcapp.system import System
 from gcflask.flasksystem import FlaskSystemMixin, APIResolvedOperation
-from gcapp.i18n import TranslatableError
+from gcapp.i18n.base import TranslatableError
 from medsutil.awaretime import AwareDateTime
 from medsutil.sendmail import EmailController
 from nodb.access import NODBUser, UserStatus, NODBAccessToken

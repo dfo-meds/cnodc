@@ -1,7 +1,7 @@
 from autoinject import injector
 import queue
 import tkinter as tk
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 
 
 @injector.injectable_global

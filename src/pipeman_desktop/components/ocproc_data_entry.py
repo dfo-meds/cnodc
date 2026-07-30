@@ -3,7 +3,7 @@ import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import typing as t
 from medsutil import ocproc2
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 from autoinject import injector
 
 from medsutil.awaretime import AwareDateTime

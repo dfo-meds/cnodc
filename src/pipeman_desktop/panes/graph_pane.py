@@ -13,7 +13,7 @@ import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.backend_bases as mplbb
 import tkinter as tk
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 from pipeman_desktop.components.ocproc_graph import OCProc2Graph
 from medsutil.units import UnitConverter
 import medsutil.ocproc_math as oom

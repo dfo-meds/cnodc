@@ -1,5 +1,3 @@
-import functools
-import json
 import pathlib
 import queue
 import time
@@ -9,16 +7,14 @@ import tkinter.ttk as ttk
 import traceback
 
 import zrlog
-import medsutil.ocproc2 as ocproc2
 from gcapp.system import System
 from medsutil.savedata import SaveData
-from pipeman_desktop.util import ReviewResult, BatchOpenState, CloseBatchResult
-from pipeman_desktop.state import DisplayChange, SimpleRecordInfo, ApplicationState
+from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.action_pane import ActionPane
 from pipeman_desktop.panes.qc_pane import QCPane
 from pipeman_desktop.components.choice_dialog import ask_choice
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 import threading
 import uuid
 import typing as t
@@ -35,8 +31,7 @@ from pipeman_desktop.panes.record_list_pane import RecordListPane
 from pipeman_desktop.panes.station_pane import StationPane
 from pipeman_desktop.panes.map_pane import MapPane
 
-from gcapp.i18n import TranslatableError, TranslationManager
-from medsutil.ocproc2.operations import RecordAction
+from gcapp.i18n.base import TranslatableError, TranslationManager
 from medsutil.dynamic import dynamic_object
 from autoinject import injector
 

@@ -8,7 +8,7 @@ from autoinject import injector
 import zirconium as zr
 from werkzeug.routing import Rule
 
-from gcapp.i18n import TranslationManager, LanguageDetector
+from gcapp.i18n.base import TranslationManager, LanguageDetector
 
 
 @injector.injectable_global

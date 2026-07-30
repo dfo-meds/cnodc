@@ -4,7 +4,7 @@ from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 import typing as t
-import gcapp.i18n as i18n
+import gcapp.i18n.base as i18n
 from pipeman_desktop.components.scrollable import ScrollableTreeview
 from medsutil.ocproc2.operations import RecordAction
 import tkinter as tk

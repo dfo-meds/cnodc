@@ -3,7 +3,7 @@ import typing as t
 
 from zirconium import ApplicationConfig
 
-from gcapp.i18n import LanguageDetector
+from gcapp.i18n.base import LanguageDetector
 
 TRANSLATIONS = {
     'und': {
