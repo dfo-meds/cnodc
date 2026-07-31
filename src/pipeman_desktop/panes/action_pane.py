@@ -87,7 +87,7 @@ class ActionPane(BasePane):
             menu.grab_release()
 
     def _remove_item(self, db_index: int):
-        self.app.delete_operation(db_index)
+        self.app.state.delete_action(db_index)
 
     def _goto_item(self, path: str):
-        self.app.load_closest_child(path)
+        self.app.state.load_closest(path)
