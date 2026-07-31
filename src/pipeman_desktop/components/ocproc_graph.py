@@ -226,6 +226,7 @@ class ParameterGraph(Graph):
         recordset = state.current_record.find_child(self._rs_path)
         axes = figure.subplots(1, 1)
         if not isinstance(recordset, RecordSet):
+            # TODO: should be a warning here
             return axes, None
         if self._p2name is not None:
             return self._build_two_variable_graph(axes, recordset, self._cname, self._pname, self._p2name)
@@ -351,8 +352,6 @@ class ParameterGraph(Graph):
         if rs is not None:
             for record in rs.records:
                 for v in variables:
-                    value, value_qc = None, 9
-
                     if v.startswith("_") and v.endswith("_"):
                         value, value_qc = self._derived_parameter(v, record, unit_map)
                     else:
@@ -449,7 +448,7 @@ class OCProc2Graph(ttk.Frame):
         options = {}
         for srt in record.subrecords:
             for rs_idx in record.subrecords[srt]:
-                options.update(self._recordset_graph_options(record.subrecords[srt][rs_idx], f"{path.rstrip('/')}/{srt}/{rs_idx}".lstrip('/')))
+                options.update(self._recordset_graph_options(record.subrecords[srt][rs_idx], f"{path.rstrip('/')}/subrecords/{srt}/{rs_idx}".lstrip('/')))
         return options
 
     def _recordset_graph_options(self, recordset: ocproc2.RecordSet, rs_path: str) -> dict[str, Graph]:
