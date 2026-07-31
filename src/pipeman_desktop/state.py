@@ -428,7 +428,7 @@ class ApplicationState:
         from pipeman_desktop import VERSION
         action.source_name = "pipeman_desktop"
         action.source_version = VERSION
-        action.process_id = socket.gethostname()
+        action.source_instance = socket.gethostname()
         action.username = self.username
         remove_keys = []
         if self._current_record is not None:

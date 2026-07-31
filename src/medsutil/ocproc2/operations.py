@@ -12,7 +12,7 @@ if t.TYPE_CHECKING:
 class RecordAction(dd.DataDictObject):
     source_name: str | None = dd.p_str()
     source_version: str | None = dd.p_str()
-    process_id: str | None = dd.p_str()
+    source_instance: str | None = dd.p_str()
     organization: Organization = dd.p_enum(Organization)
     username: str | None = dd.p_str()
 
@@ -36,7 +36,7 @@ class RecordAction(dd.DataDictObject):
                            message: str,
                            action_type: ActionType,
                            path: str | None = None):
-        proc_id = self.process_id or 'unknown'
+        proc_id = self.source_instance or 'unknown'
         if self.username is not None:
             proc_id += f" [{self.username}]"
         record.add_history_action(
@@ -93,7 +93,7 @@ class RecordProcessed(RecordAction):
         self.add_history_action(
             record,
             "Processed",
-            ActionType.PROCESSED
+            ActionType.PROCESS
         )
 
 
@@ -118,7 +118,7 @@ class AddHistoryEntry(RecordAction):
             self.message,
             self.source_name or 'unknown',
             self.source_version or 'unknown',
-            self.process_id or 'unknown',
+            self.source_instance or 'unknown',
             self.message_type
         )
 
@@ -167,7 +167,7 @@ class AssignPlatform(RecordAction):
         self.add_history_action(
             record,
             f"Platform assigned",
-            ActionType.PLATFORM_ASSIGNED,
+            ActionType.CHANGE_PLATFORM,
             "metadata/CNODCPlatform"
         )
 
@@ -268,7 +268,7 @@ class SetManualQCOutcome(RecordAction):
             self.add_history_action(
                 record,
                 f"Manual review of QC test [{self.qc_index}] set to {self.actual_result}",
-                ActionType.QC_RESULT_UPDATED
+                ActionType.UPDATE_QC_RESULT
             )
 
     def conflicts_with(self, action: RecordAction) -> bool:

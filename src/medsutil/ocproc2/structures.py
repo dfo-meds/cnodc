@@ -259,7 +259,7 @@ class ParentRecord(BaseRecord):
             source_version,
             source_instance,
             MessageType.ACTION,
-            ActionType.PROCESSED,
+            ActionType.PROCESS,
             organization=organization
         ))
 

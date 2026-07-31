@@ -22,16 +22,13 @@ class MessageType(enum.Enum):
 
 
 class ActionType(enum.Enum):
-    CHANGE_QUALITY = 'CF'
-    CHANGE_VALUE = 'CV'
-    PROCESSED = 'CR'
-    MERGED = 'MD'
-    ORIGINAL_SAVED = 'SV'
-    CREATED_BY_UPDATE = 'UP'
-    CREATED_BY_DEDUPE = 'DC'
-    CRUISE_ASSIGNED = 'AC'
-    PLATFORM_ASSIGNED = 'PlatformAssigned'
-    QC_RESULT_UPDATED = 'QCResultUpdated'
+    CHANGE_QUALITY = 'ChangeQuality'
+    CHANGE_VALUE = 'ChangeValue'
+    PROCESS = 'Process'
+    MERGE = 'Merge'
+
+    CHANGE_PLATFORM = 'ChangePlatform'
+    UPDATE_QC_RESULT = 'UpdateQCResult'
 
 
 class QCResult(enum.Enum):
@@ -51,7 +48,7 @@ class QCResult(enum.Enum):
 
 
 class Organization(enum.Enum):
-    CNODC = 'ME'
+    CNODC = 'CNODC'
 
 
 class HistoryEntry:

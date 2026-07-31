@@ -287,7 +287,7 @@ class QualityController(abc.ABC):
     def add_record_action(self, action: RecordAction, is_reviewable: bool = True):
         action.source_name = self._test_name
         action.source_version = self._test_version
-        action.process_id = self._process_id
+        action.source_instance = self._process_id
         if is_reviewable:
             self._reviewable_actions.append(action)
         else:
