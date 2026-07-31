@@ -468,6 +468,7 @@ class ApplicationState:
                 if row is None:
                     raise ValueError("Invalid record ID")
                 self._current_parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
+                self._update_actions(working_uuid)
                 self._current_recordset = None
                 self._current_record = self._current_parent
                 if working_uuid == self._current_working_uuid and self._current_child_path is not None:
