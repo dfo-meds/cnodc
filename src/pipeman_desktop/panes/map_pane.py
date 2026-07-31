@@ -78,7 +78,6 @@ class MapPane(BasePane):
         coordinates = self.app.state.current_coordinates()
         if coordinates is not None:
             self._map.set_position(*coordinates)
-            self._map.set_zoom(10)
 
     def _rebuild_markers(self):
         self._map.delete_all_marker()
@@ -124,4 +123,4 @@ class MapPane(BasePane):
                 )
 
     def _open_record(self, marker, record_uuid: str):
-        self.app.load_record(record_uuid)
+        self.app.state.update_record(record_uuid)
