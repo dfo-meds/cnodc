@@ -136,7 +136,13 @@ class DStringIndividual(BaseDString):
         self.transforms = []
 
     def _finish_render(self, x: str) -> str:
-        x = x.format(self.format_args, self.format_kwargs)
+        try:
+            x = x.format(*self.format_args, **self.format_kwargs)
+        except KeyError as ex:
+            ex.add_note("string: " + str(x))
+            for x in self.format_kwargs:
+                ex.add_note("kwarg " + str(x) + ": " + str(self.format_kwargs[x]))
+            raise
         for transform in self.transforms:
             x = getattr(x, transform)()
         return x

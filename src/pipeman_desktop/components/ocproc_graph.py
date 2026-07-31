@@ -212,7 +212,7 @@ class ParameterGraph(Graph):
         return i18n.tr("graph.parameter_chart.title",
             rs_type=self.translate_recordset_name(pieces[-2]),
             rs_index=pieces[-1],
-            variables=self.translate_element_name(self._pname) + (f", {self.translate_element_name(self._p2name)}" if self._p2name is not None else ''),
+            parameters=self.translate_element_name(self._pname) + (f", {self.translate_element_name(self._p2name)}" if self._p2name is not None else ''),
             coordinate=self.translate_element_name(self._cname)
         )
 
