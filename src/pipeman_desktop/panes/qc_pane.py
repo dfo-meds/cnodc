@@ -161,10 +161,10 @@ class QCPane(BasePane):
 
     def _next_item(self):
         choices = self.app.state.batch_queue_choices()
-        if len(choices) > 2:
+        if len(choices) > 1:
             choice = ask_choice(self.app.root, choices)
         elif len(choices) == 1:
-            choice = [choices.keys()][0]
+            choice = list(choices.keys())[0]
         else:
             # TODO: warn that there are no QC batches available
             choice = None
