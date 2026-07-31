@@ -160,7 +160,7 @@ class RecordListPane(BasePane):
         return f'{(" " * (depth * 2))}{display}'
 
     def _on_subrecord_click(self, item_info, is_change: bool, event):
-        self.app.state.update_subrecord(item_info['values'][1])
+        self.app.state.update_child_path(item_info['values'][1])
 
     def _on_record_click(self, item_info, is_change: bool, event):
         self.app.state.update_record(item_info['iid'])

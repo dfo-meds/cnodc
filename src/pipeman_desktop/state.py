@@ -392,7 +392,6 @@ class ApplicationState:
         else:
             return True
 
-
     def batch_queue_choices(self) -> dict[str, str]:
         results = set()
         if self._available_services is not None:
@@ -406,23 +405,14 @@ class ApplicationState:
         }
 
     def load_closest(self, path: str):
-        ...
-
-
-    """
-   
-    def load_closest_child(self, full_path: str):
-        path: list[str] = full_path.split('/')
-        if 'subrecords' in path:
+        all_items: list[str] = path.split('/')
+        if "subrecords" in all_items:
             idx = -1
-            while path[idx] != 'subrecords':
+            while all_items[idx] != "subrecords":
                 idx -= 1
-            record_path = '/'.join(path[0:idx + 4])
-            self.load_child(record_path)
+            self.update_child_path("/".join(all_items[:idx+4]))
         else:
-            self.load_child(None)
-
-"""
+            self.update_child_path(None)
 
     def add_action(self, action: RecordAction):
         from pipeman_desktop import VERSION
@@ -472,7 +462,7 @@ class ApplicationState:
                 self._current_recordset = None
                 self._current_record = self._current_parent
                 if working_uuid == self._current_working_uuid and self._current_child_path is not None:
-                    self.update_subrecord(self._current_child_path, force_reload=True, _send_refresh=False)
+                    self.update_child_path(self._current_child_path, force_reload=True, _send_refresh=False)
                 else:
                     self._current_child_path = None
                 self._current_working_uuid = working_uuid
@@ -489,7 +479,7 @@ class ApplicationState:
                 operation.apply(self._current_parent)
                 self._current_actions[rowid] = operation
 
-    def update_subrecord(self, subrecord_path: str | None, force_reload: bool = False, _send_refresh: bool = True):
+    def update_child_path(self, subrecord_path: str | None, force_reload: bool = False, _send_refresh: bool = True):
         if subrecord_path is None and self._current_child_path is not None:
             self._current_record = None
             self._current_recordset = None
