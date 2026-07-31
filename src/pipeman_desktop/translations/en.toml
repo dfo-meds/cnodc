@@ -134,6 +134,7 @@ duration = "ISO Duration"
 
 [context_menu.parameter]
 edit = "Edit"
+flag_unchecked = "Flag Not Checked (0)"
 flag_good = "Flag Good (1)"
 flag_probably_good = "Flag Probably Good (2)"
 flag_dubious = "Flag Dubious (3)"

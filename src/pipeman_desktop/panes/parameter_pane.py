@@ -43,6 +43,10 @@ class ParameterContextMenu:
                 command=self._edit_value
             )
         self._menu.add_command(
+            label=i18n.tr('context_menu.parameter.flag_unchecked'),
+            command=self._flag_unchecked
+        )
+        self._menu.add_command(
             label=i18n.tr('context_menu.parameter.flag_good'),
             command=self._flag_good
         )
@@ -104,6 +108,9 @@ class ParameterContextMenu:
             allowed_values=self._element_info.allowed_values if self._element_info is not None else None,
             current_element=self._current_value,
         )
+
+    def _flag_unchecked(self):
+        self._set_working_quality_flag(0)
 
     def _flag_dubious(self):
         self._set_working_quality_flag(3)
