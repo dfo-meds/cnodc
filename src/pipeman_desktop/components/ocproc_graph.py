@@ -47,6 +47,14 @@ class Graph:
     def display_name(self) -> str:
         raise NotImplementedError
 
+    def on_button_press(self, event):
+        print(event)
+        # TODO:
+        # - identify the nearest point (within tolerance)
+        # - open a context menu
+        # - here is where we want the "flag all below" as well
+
+
     def _set_axis_info(self,
                         axes: mpla.Axes,
                         label: str,
@@ -401,10 +409,15 @@ class OCProc2Graph(ttk.Frame):
         self.graph_option_box.grid(row=0, column=0, padx=5, pady=5)
         self._figure = mplf.Figure(dpi=100, figsize=(1, 1))
         self._canvas = mpltk.FigureCanvasTkAgg(self._figure, master=self)
+        self._canvas.mpl_connect("button_press_event", self._on_button_press)
         self._canvas.draw()
         self._canvas.get_tk_widget().grid(row=1, column=0, sticky='NSEW')
         self._current_graph_name: t.Optional[str] = None
         self._current_record_uuid: t.Optional[str] = None
+
+    def _on_button_press(self, event):
+        if self._current_graph_name is not None and self._current_graph_name in self._graph_options:
+            self._graph_options[self._current_graph_name].on_button_press(event)
 
     def update_graph(self):
 
