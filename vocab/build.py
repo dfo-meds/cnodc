@@ -221,25 +221,64 @@ with open(temp_file, 'w', encoding='utf-8') as output:
         if row[10]:
             output.write(f'  cnodc:ioosCategory ioos:{sanitize(row[10])} ; \n')
         # CIOOS EOVs
-        if row[16]:
-            for eov in row[16].split(';'):
+        if row[11]:
+            for eov in row[11].split(';'):
                 output.write(f'  cnodc:essentialOceanVariable eov:{sanitize(eov)} ; \n')
         # Minimum valid value
-        if row[11]:
-            output.write(f'  cnodc:minValue {row[11]} ; \n')
-        # Maximum valid value
         if row[12]:
-            output.write(f'  cnodc:maxValue {row[12]} ; \n')
-        # Allowed values, separated by semicolons
+            output.write(f'  cnodc:minValue {row[12]} ; \n')
+        # Maximum valid value
         if row[13]:
-            for allowed_value in row[13].split(';'):
+            output.write(f'  cnodc:maxValue {row[13]} ; \n')
+        # Allowed values, separated by semicolons
+        if row[14]:
+            for allowed_value in row[14].split(';'):
                 output.write(f'  cnodc:allowedValue "{allowed_value}" ;\n')
         # Whether to ignore this field when checking for duplicates.
-        if row[14] and row[14] == 'Y':
+        if row[15] and row[15] == 'Y':
             output.write(f'  cnodc:ignoreInDuplicateCheck "True" ;\n')
         # Whether to allow multiple values for this element.
-        if row[15] and row[15] == 'Y':
+        if row[16] and row[16] == 'Y':
             output.write(f'  cnodc:allowMulti "True" ;\n')
+        # 17 is a list of decoders that use this
+        # BUFR exact matches
+        if row[18]:
+            if row[0] not in maps: maps[row[0]] = {}
+            if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
+            maps[row[0]]["bufr4"].extend([
+                ("Exact", "B" + str(x).rjust(5, "0"))
+                for x in row[18].split(";")
+            ])
+        # BUFR narrower matches
+        if row[19]:
+            if row[0] not in maps: maps[row[0]] = {}
+            if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
+            maps[row[0]]["bufr4"].extend([
+                ("Narrower", "B" + str(x).rjust(5, "0"))
+                for x in row[19].split(";")
+            ])
+        if row[20]:
+            if row[0] not in maps: maps[row[0]] = {}
+            if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
+            maps[row[0]]["bufr4"].extend([
+                ("Related", "B" + str(x).rjust(5, "0"))
+                for x in row[20].split(";")
+            ])
+        if row[21]:
+            if row[0] not in maps: maps[row[0]] = {}
+            if "pcode" not in maps[row[0]]: maps[row[0]]["pcode"] = []
+            maps[row[0]]["pcode"].extend([
+                ("Exact", x)
+                for x in row[21].split(';')
+            ])
+        if row[22]:
+            if row[0] not in maps: maps[row[0]] = {}
+            if "og1" not in maps[row[0]]: maps[row[0]]["og1"] = []
+            maps[row[0]]["og1"].extend([
+                ("Exact", x)
+                for x in row[22].split(';')
+            ])
+
         # Write out all the mappings.
         if row[0] in maps:
             for vocab_name in maps[row[0]]:
