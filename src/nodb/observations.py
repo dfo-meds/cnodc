@@ -284,13 +284,13 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
     wigos_id: str | None = s.StringColumn()
     platform_name: str | None = s.StringColumn()
     platform_id: str | None = s.StringColumn()
-    platform_type: str = s.StringColumn()
+    platform_type: str | None = s.StringColumn()
     service_start_date: AwareDateTime | None = s.DateTimeColumn()
     service_end_date: AwareDateTime | None = s.DateTimeColumn()
     instrumentation: dict = s.JsonDictColumn()
-    map_to_uuid: str = s.UUIDColumn()
+    map_to_uuid: str | None = s.UUIDColumn()
     status: PlatformStatus = s.EnumColumn(PlatformStatus)
-    embargo_data_days: int = s.IntColumn()
+    embargo_data_days: int | None = s.IntColumn()
 
     @property
     def skip_speed_check(self) -> bool:

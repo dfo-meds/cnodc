@@ -7,7 +7,9 @@ from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import security_check, web_error_handling, require_permission, api_error_handling
 from autoinject import injector
 
+from medsutil.awaretime import AwareDateTime
 from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
+from nodb.observations import PlatformStatus
 
 desktop = MultiLanguageBlueprint("desktop", __name__)
 
@@ -105,4 +107,68 @@ def save_working_record(record_uuid: str, nodb: NODBController = None):
     return nodb.save_record_actions(
         record_uuid,
         json_param("actions")
+    )
+
+
+@desktop.route("/internal/platforms/<platform_uuid>", methods=["GET"])
+@security_check("pipeman.lock_queue_items")
+@api_error_handling
+@injector.inject
+def fetch_platform_record(platform_uuid: str, nodb: NODBController = None):
+    return nodb.fetch_platform(platform_uuid)
+
+
+@desktop.route("/internal/platforms/create", methods=["POST"])
+@security_check("pipeman.create_platforms")
+@api_error_handling
+@injector.inject
+def create_platform_record(nodb: NODBController = None):
+    return nodb.create_platform(
+        wmo_id=json_param("wmo_id", coerce=str, default=None),
+        wigos_id=json_param("wigos_id", coerce=str, default=None),
+        platform_name=json_param("platform_name", coerce=str, default=None),
+        platform_id=json_param("platform_id", coerce=str, default=None),
+        platform_type=json_param("platform_type", coerce=str, default=None),
+        start_date=json_param("start_date", coerce=AwareDateTime.fromisoformat, default=None),
+        end_date=json_param("end_date", coerce=AwareDateTime.fromisoformat, default=None),
+        status=json_param("status", coerce=PlatformStatus),
+        embargo_data_days=json_param("embargo_data_days", coerce=int, default=None),
+        skip_speed_check=json_param("skip_speed_check", coerce=bool, default=False),
+        skip_land_check=json_param("skip_land_check", coerce=bool, default=False),
+        dedupe_time_window=json_param("dedupe_time_window", coerce=float, default=None),
+        dedupe_distance_window=json_param("dedupe_distance_window", coerce=float, default=None),
+        top_speed=json_param("top_speed", coerce=str, default=None),
+    )
+
+
+@desktop.route("/internal/platforms/<platform_uuid>", methods=["POST"])
+@security_check("pipeman.update_platforms")
+@api_error_handling
+@injector.inject
+def update_platform_record(platform_uuid: str, nodb: NODBController = None):
+    return nodb.update_platform(
+        platform_uuid=platform_uuid,
+        wmo_id=json_param("wmo_id", coerce=str, default=None),
+        wigos_id=json_param("wigos_id", coerce=str, default=None),
+        platform_name=json_param("platform_name", coerce=str, default=None),
+        platform_id=json_param("platform_id", coerce=str, default=None),
+        platform_type=json_param("platform_type", coerce=str, default=None),
+        start_date=json_param("start_date", coerce=AwareDateTime.fromisoformat, default=None),
+        end_date=json_param("end_date", coerce=AwareDateTime.fromisoformat, default=None),
+        status=json_param("status", coerce=PlatformStatus),
+        embargo_data_days=json_param("embargo_data_days", coerce=int, default=None),
+        skip_speed_check=json_param("skip_speed_check", coerce=bool, default=False),
+        skip_land_check=json_param("skip_land_check", coerce=bool, default=False),
+        dedupe_time_window=json_param("dedupe_time_window", coerce=float, default=None),
+        dedupe_distance_window=json_param("dedupe_distance_window", coerce=float, default=None),
+        top_speed=json_param("top_speed", coerce=str, default=None),
+    )
+
+@desktop.route("/internal/platforms/search", methods=["GET"])
+@security_check("pipeman.lock_queue_items")
+@api_error_handling
+@injector.inject
+def search_platforms(nodb: NODBController = None):
+    return nodb.search_stations(
+        ...
     )

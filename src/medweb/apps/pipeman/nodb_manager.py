@@ -9,7 +9,7 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import QCTestRunInfo, QCResult, RecordAction
 from nodb.interface import NODB, LOCK_EXPIRY_TIME, NODBInstance
-from nodb.observations import NODBWorkingRecord
+from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus
 from nodb.queue import NODBQueueItem
 from pipeman.processing.payloads import Payload, BatchPayload, SourceFilePayload, WorkingRecordPayload, \
     stream_payload_working_records, WorkflowPayload
@@ -206,3 +206,118 @@ class NODBController:
                     "data": record.record.to_mapping(),
                     "proposed_actions": record.metadata.get("proposed_actions", None),
                 }
+
+    def fetch_platform(self, station_uuid: str) -> dict:
+        with self.nodb as db:
+            platform = NODBPlatform.find_by_uuid(db, station_uuid)
+            if platform is None:
+                return {
+                    "success": False,
+                    "message": "No such platform",
+                    "data": None,
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": "Success",
+                    "data": platform.to_map()
+                }
+
+    def create_platform(self,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_name: str | None,
+                        platform_id: str | None,
+                        platform_type: str | None,
+                        start_date: AwareDateTime | None,
+                        end_date: AwareDateTime | None,
+                        status: PlatformStatus,
+                        embargo_data_days: int | None,
+                        skip_speed_check: bool,
+                        skip_land_check: bool,
+                        dedupe_time_window: float | None,
+                        dedupe_distance_window: float | None,
+                        top_speed: str | float | None) -> dict:
+        with self.nodb as db:
+            platform = NODBPlatform()
+            platform.wmo_id = wmo_id
+            platform.wigos_id = wigos_id
+            platform.platform_name = platform_name
+            platform.platform_id = platform_id
+            platform.platform_type = platform_type
+            platform.service_start_date = start_date
+            platform.service_end_date = end_date
+            platform.status = status
+            platform.embargo_data_days = embargo_data_days
+            platform.metadata["skip_speed_check"] = bool(skip_speed_check)
+            platform.metadata["skip_on_land_check"] = bool(skip_land_check)
+            platform.metadata["dedupe_time_window"] = dedupe_time_window
+            platform.metadata["dedupe_distance_window"] = dedupe_distance_window
+            platform.metadata["top_speed"] = top_speed
+            db.insert_object(platform)
+            db.commit()
+            return {
+                "success": True,
+                "message": "Success",
+            }
+
+    def update_platform(self,
+                        platform_uuid: str,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_name: str | None,
+                        platform_id: str | None,
+                        platform_type: str | None,
+                        start_date: AwareDateTime | None,
+                        end_date: AwareDateTime | None,
+                        status: PlatformStatus,
+                        embargo_data_days: int | None,
+                        skip_speed_check: bool,
+                        skip_land_check: bool,
+                        dedupe_time_window: float | None,
+                        dedupe_distance_window: float | None,
+                        top_speed: str | float | None):
+        with self.nodb as db:
+            platform = NODBPlatform.find_by_uuid(db, platform_uuid)
+            if platform is None:
+                return {
+                    "success": False,
+                    "message": "No such platform",
+                }
+            else:
+                platform.wmo_id = wmo_id
+                platform.wigos_id = wigos_id
+                platform.platform_name = platform_name
+                platform.platform_id = platform_id
+                platform.platform_type = platform_type
+                platform.service_start_date = start_date
+                platform.service_end_date = end_date
+                platform.status = status
+                platform.embargo_data_days = embargo_data_days
+                platform.metadata["skip_speed_check"] = bool(skip_speed_check)
+                platform.metadata["skip_on_land_check"] = bool(skip_land_check)
+                platform.metadata["dedupe_time_window"] = dedupe_time_window
+                platform.metadata["dedupe_distance_window"] = dedupe_distance_window
+                platform.metadata["top_speed"] = top_speed
+                db.update_object(platform)
+                db.commit()
+                return {
+                    "success": True,
+                    "message": "Success",
+                }
+
+    def search_stations(self,
+                        time_frame: AwareDateTime | None,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_id: str | None,
+                        platform_name: str | None) -> dict:
+        with self.nodb as db:
+            results = []
+            for x in NODBPlatform.search(db, time_frame, wmo_id, wigos_id, platform_id, platform_name, key_only=True):
+                results.append(x.platform_uuid)
+            return {
+                "success": True,
+                "message": "Success",
+                "data": results
+            }
