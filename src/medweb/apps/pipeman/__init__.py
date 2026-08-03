@@ -26,19 +26,27 @@ def get_qc_actions() -> dict[str, APIOperation]:
 
     @injector.inject
     def _get_qc_actions(config: ApplicationConfig = auto()) -> dict[str, APIOperation]:
-        qc = config.as_dict(("medweb", "pipeman", "endpoints"))
+        import flask
+        qc = config.as_dict(("medweb", "pipeman", "batch_queues"))
         if qc is not None:
             actions = {}
-            for action, item in qc.items():
-                endpoint: str = str(item.get("endpoint"))
-                permissions: PermissionType = item.get("permissions", None)
-                request_kwargs: dict[str, t.Any] = item.get("request_kwargs", {})
-                url_kwargs: dict[str, t.Any] = item.get("url_kwargs", {})
-                actions[action] = {
-                    "endpoint": endpoint,
+            for qc_name, item in qc.items():
+                queue_name = item.get("queue_name")
+                escalation_level = item.get("escalation_level", 0)
+                permissions = [
+                    "pipeman.handle_queue_items",
+                    f"pipeman.handle_queue_items.all | pipeman.handle_queue_items.{queue_name}",
+                ]
+                if escalation_level > 0:
+                    permissions.append(f"pipeman.handle_queue_items.escalated.{queue_name} | pipeman.handle_queue_items.escalated.all")
+                actions[f"batch_qc.{qc_name}.open"] = {
+                    "endpoint": flask.url_for("desktop.lock_next_queue_item", _external=True),
                     "permissions": permissions,
-                    "request_kwargs": request_kwargs,
-                    "url_kwargs": url_kwargs,
+                    "request_kwargs": {
+                        "queue_name": queue_name,
+                        "subqueue_name": item.get("subqueue_name", None),
+                        "escalation_level": escalation_level
+                    }
                 }
             return actions
         return {}
