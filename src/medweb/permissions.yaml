@@ -14,12 +14,23 @@ pipeman.submit_files:
   en: Allows users to submit files to pipeman. Permission to the specific workflow is also required.
 pipeman.submit_files.[WORKFLOW_NAME]:
   en: Allows users to submit files to this specific workflow.
-pipeman.lock_queue_items:
+pipeman.handle_queue_items:
   en: Allows users to handle queue items.
-pipeman.lock_queue_items.[QUEUE_NAME]:
+pipeman.handle_queue_items.[QUEUE_NAME]:
   en: Allows users to handle items from a specific queue.
-pipeman.lock_queue_items.all:
+pipeman.handle_queue_items.all:
   en: Allows users to handle all queue items.
-pipeman.lock_queue_items.escalated:
+pipeman.handle_queue_items.escalated.[QUEUE_NAME]:
   en: Allows users to handle queue items that have been escalated.
-
+pipeman.handle_queue_items.escalated.all:
+  en: Allows users to handle queue items that have been escalated.
+pipeman.view_working_records:
+  en: Allows users to view working records.
+pipeman.update_working_records:
+  en: Allows users to save working records.
+pipeman.view_platforms:
+  en: Allows users to view platforms.
+pipeman.create_platforms:
+  en: Allows users to create new platforms.
+pipeman.update_platforms:
+  en: Allows users to update existing platforms.

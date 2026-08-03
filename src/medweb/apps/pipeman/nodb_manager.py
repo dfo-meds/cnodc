@@ -192,7 +192,8 @@ class NODBController:
     def stream_working_record(self, record_uuid: str):
         with self.nodb as db:
             record = NODBWorkingRecord.find_by_uuid(db, record_uuid)
-            if record is None or record.record is None:
+            ocproc_record = record.record
+            if record is None or ocproc_record is None:
                 return {
                     "success": False,
                     "message": "No such record",
@@ -203,7 +204,7 @@ class NODBController:
                 return {
                     "success": True,
                     "message": "Success",
-                    "data": record.record.to_mapping(),
+                    "data": ocproc_record.to_mapping(),
                     "proposed_actions": record.metadata.get("proposed_actions", None),
                 }
 
@@ -220,7 +221,10 @@ class NODBController:
                 return {
                     "success": True,
                     "message": "Success",
-                    "data": platform.to_map()
+                    "data": {
+                        "actions": self._platform_actions(platform.platform_uuid),
+                        **platform.to_map()
+                    }
                 }
 
     def create_platform(self,
@@ -259,7 +263,31 @@ class NODBController:
             return {
                 "success": True,
                 "message": "Success",
+                "data": {
+                    "platform_uuid": platform.platform_uuid,
+                    "actions": self._platform_actions(platform.platform_uuid),
+                }
             }
+
+    def _platform_actions(self, platform_uuid: str) -> dict:
+        actions = {}
+        if current_user().require_all("pipeman.view_platforms"):
+            actions["view"] = {
+                "endpoint": flask.url_for(
+                    "desktop.fetch_platform_record",
+                    platform_uuid=platform_uuid,
+                    _external=True
+                )
+            }
+        if current_user().require_all("pipeman.update_platforms"):
+            actions["update"] = {
+                "endpoint": flask.url_for(
+                    "desktop.update_platform_record",
+                    platform_uuid=platform_uuid,
+                    _external=True
+                )
+            }
+        return actions
 
     def update_platform(self,
                         platform_uuid: str,
@@ -315,7 +343,10 @@ class NODBController:
         with self.nodb as db:
             results = []
             for x in NODBPlatform.search(db, time_frame, wmo_id, wigos_id, platform_id, platform_name, key_only=True):
-                results.append(x.platform_uuid)
+                results.append({
+                    "platform_uuid": x.platform_uuid,
+                    "actions": self._platform_actions(x.platform_uuid),
+                })
             return {
                 "success": True,
                 "message": "Success",

@@ -13,6 +13,10 @@ def init_plugin(s: System):
         s.register_blueprint("medweb.apps.pipeman.routes.vocabularies", "vocabularies")
         s.register_blueprint("medweb.apps.pipeman.routes.desktop", "desktop")
         s.register_api_operation("desktop.queue_items_ready", "desktop.get_queue_report", ["pipeman.lock_queue_items"])
+        s.register_api_operation("desktop.find_working_record", "desktop.find_working_record", ["pipeman.view_working_records"])
+        s.register_api_operation("desktop.search_platforms", "desktop.search_platforms", ["pipeman.view_platforms"])
+        s.register_api_operation("desktop.create_platform", "desktop.create_platform_record", ["pipeman.create_platforms"])
+        s.register_api_operation("desktop.find_platform", "desktop.find_platform_by_uuid", ["pipeman.view_platforms"])
         s.register_dynamic_api_operation_builder("desktop", get_qc_actions)
 
 

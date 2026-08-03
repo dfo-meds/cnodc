@@ -31,7 +31,7 @@ def json_param[T](param_name: str, coerce: t.Callable[[t.Any], T] | None = None,
 
 
 @desktop.route("/internal/queues/ready", methods=["GET"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.handle_queue_items")
 @api_error_handling
 @injector.inject
 def get_queue_report(nodb: NODBController = None):
@@ -39,7 +39,7 @@ def get_queue_report(nodb: NODBController = None):
 
 
 @desktop.route("/internal/queues/next", methods=["POST"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.handle_queue_items")
 @api_error_handling
 @injector.inject
 def lock_next_queue_item(nodb: NODBController = None):
@@ -50,9 +50,9 @@ def lock_next_queue_item(nodb: NODBController = None):
     escalation_level = json_param("escalation_level", int, 0)
 
     # Security checks
-    require_permission([f"pipeman.lock_queue_items.{queue_name}", "pipeman.lock_queue_items.all"], require_any=True)
+    require_permission([f"pipeman.handle_queue_items.{queue_name}", "pipeman.handle_queue_items.all"], require_any=True)
     if escalation_level > 0:
-        require_permission(f"pipeman.lock_queue_items.escalated")
+        require_permission([f"pipeman.handle_queue_items.escalated.{queue_name}", "pipeman.handle_queue_items.escalated.all"], require_any=True)
 
     # Delegate to controller
     return nodb.fetch_next_queue_item(
@@ -64,7 +64,7 @@ def lock_next_queue_item(nodb: NODBController = None):
 
 
 @desktop.route("/internal/queues/queue_uuid>/renew", methods=["POST"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.handle_queue_items")
 @api_error_handling
 @injector.inject
 def renew_queue_item(queue_uuid: str, nodb: NODBController = None):
@@ -72,7 +72,7 @@ def renew_queue_item(queue_uuid: str, nodb: NODBController = None):
 
 
 @desktop.route("/internal/queues/<queue_uuid>/close-qc", methods=["POST"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.handle_queue_items")
 @api_error_handling
 @injector.inject
 def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
@@ -84,15 +84,23 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
 
 
 @desktop.route("/internal/queues/<queue_uuid>/stream", methods=["POST"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.view_working_records")
 @api_error_handling
 @injector.inject
 def stream_queue_item_records(queue_uuid: str, nodb: NODBController = None):
     return nodb.stream_queue_working_records(queue_uuid, json_param("app_id", str))
 
 
+@desktop.route("/internal/working", methods=["GET"])
+@security_check("pipeman.view_working_records")
+@api_error_handling
+@injector.inject
+def find_working_record(nodb: NODBController = None):
+    return nodb.stream_working_record(json_param("working_record_uuid", coerce=str))
+
+
 @desktop.route("/internal/working/<record_uuid>", methods=["GET"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.view_working_records")
 @api_error_handling
 @injector.inject
 def fetch_working_record(record_uuid: str, nodb: NODBController = None):
@@ -100,7 +108,7 @@ def fetch_working_record(record_uuid: str, nodb: NODBController = None):
 
 
 @desktop.route("/internal/working/<record_uuid>", methods=["POST"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.save_working_records")
 @api_error_handling
 @injector.inject
 def save_working_record(record_uuid: str, nodb: NODBController = None):
@@ -110,8 +118,16 @@ def save_working_record(record_uuid: str, nodb: NODBController = None):
     )
 
 
+@desktop.route("/internal/platforms", methods=["GET"])
+@security_check("pipeman.view_platforms")
+@api_error_handling
+@injector.inject
+def find_platform_by_uuid( nodb: NODBController = None):
+    return nodb.fetch_platform(json_param("platform_uuid", coerce=str))
+
+
 @desktop.route("/internal/platforms/<platform_uuid>", methods=["GET"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.view_platforms")
 @api_error_handling
 @injector.inject
 def fetch_platform_record(platform_uuid: str, nodb: NODBController = None):
@@ -165,10 +181,14 @@ def update_platform_record(platform_uuid: str, nodb: NODBController = None):
     )
 
 @desktop.route("/internal/platforms/search", methods=["GET"])
-@security_check("pipeman.lock_queue_items")
+@security_check("pipeman.view_platforms")
 @api_error_handling
 @injector.inject
 def search_platforms(nodb: NODBController = None):
     return nodb.search_stations(
-        ...
+        wmo_id=json_param("wmo_id", coerce=str, default=None),
+        wigos_id=json_param("wigos_id", coerce=str, default=None),
+        platform_id=json_param("platform_id", coerce=str, default=None),
+        platform_name=json_param("platform_name", coerce=str, default=None),
+        time_frame=json_param("time_frame", coerce=AwareDateTime.fromisoformat, default=None),
     )
