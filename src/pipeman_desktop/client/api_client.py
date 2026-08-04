@@ -265,6 +265,7 @@ class CNODCServerAPI:
             return None
 
     def _load_batch(self):
+        platform_load_list = set()
         with self.local_db.cursor() as cur:
             response = self.make_batch_json_request(
                 action_name="stream",
@@ -279,6 +280,7 @@ class CNODCServerAPI:
                     'platform_id': working_info["platform_uuid"],
                     'actions': json.dumps(working_info["actions"]),
                 })
+                platform_load_list.add(working_info["platform_uuid"])
             cur.commit()
         with self.local_db.cursor() as cur:
             cur.execute("SELECT record_uuid, actions FROM records WHERE downloaded = 0")
@@ -290,6 +292,8 @@ class CNODCServerAPI:
                     _service_list=actions
                 )
                 record = ocproc2.ParentRecord.build_from_mapping(response["data"])
+                if record.metadata.has_value("CNODCPlatformCandidates"):
+                    platform_load_list.update(record.metadata["CNODCPlatformCandidates"].value)
                 local_info, proposed_actions = self._build_local_record(record, row[0])
                 is_saved = False
                 if response["proposed_actions"] is not None:
@@ -308,6 +312,7 @@ class CNODCServerAPI:
                             "action_text": json.dumps(action.export()),
                             "is_saved": 1 if is_saved else 0,
                         })
+        self.load_platforms(platform_load_list)
 
     def _build_local_record(self, record: ocproc2.ParentRecord, working_uuid: str) -> tuple[dict, list]:
         lat = record.coordinates.ideal("Latitude")

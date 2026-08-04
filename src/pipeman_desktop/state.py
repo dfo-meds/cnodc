@@ -62,7 +62,8 @@ class ApplicationState:
         self._username: t.Optional[str] = None
         self._available_services: list[str] | None = None
         self._queue_ready_report: list[tuple[str, str | None, int, int]] = []
-        self._save_in_progress: bool = False
+        self._batch_save_in_progress: bool = False
+        self._platform_save_in_progress: bool = False
         self._batch_service_name: str | None = None
         self._batch_state: t.Optional[BatchOpenState] = None
         self._has_unsaved_changes: bool = False
@@ -82,8 +83,12 @@ class ApplicationState:
         self.actions: t.Optional[list[RecordAction]] = None
 
     @property
-    def save_in_progress(self) -> bool:
-        return self._save_in_progress
+    def batch_save_in_progress(self) -> bool:
+        return self._batch_save_in_progress
+
+    @property
+    def platform_save_in_progress(self) -> bool:
+        return self._platform_save_in_progress
 
     @property
     def username(self) -> str | None:
@@ -215,7 +220,7 @@ class ApplicationState:
     def can_logout(self):
         if self.username is None:
             return False
-        if self.save_in_progress:
+        if self.batch_save_in_progress or self.platform_save_in_progress:
             return False
         return self.batch_state is None or self.batch_state == BatchOpenState.OPEN
 
@@ -259,7 +264,7 @@ class ApplicationState:
             after_save(result)
 
     def can_save_changes(self) -> bool:
-        if self.save_in_progress:
+        if self.batch_save_in_progress:
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:
             return False
@@ -381,7 +386,7 @@ class ApplicationState:
     }
 
     def can_close_current_batch(self, batch_action: ReviewResult) -> bool:
-        if self.save_in_progress:
+        if self.batch_save_in_progress:
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:
             return False
@@ -413,6 +418,13 @@ class ApplicationState:
             self.update_child_path("/".join(all_items[:idx+4]))
         else:
             self.update_child_path(None)
+
+    def can_save_platform(self, for_update: bool = False) -> bool:
+        if self.username is None:
+            return False
+        if self.platform_save_in_progress:
+            return False
+        return self._available_services is not None and "desktop.create_platform" in self._available_services
 
     def add_action(self, action: RecordAction):
         from pipeman_desktop import VERSION
@@ -512,10 +524,13 @@ class ApplicationState:
             return True
         return False
 
-    def update_save_flags(self, is_saving: bool | None = None, has_unsaved_changes: t.Optional[bool] = None):
+    def update_save_flags(self, saving_batch: bool | None = None, has_unsaved_changes: t.Optional[bool] = None, saving_platform: bool | None = None):
         broadcast: bool = False
-        if is_saving is not None and is_saving != self._save_in_progress:
-            self._save_in_progress = bool(is_saving)
+        if saving_batch is not None and saving_batch != self._batch_save_in_progress:
+            self._batch_save_in_progress = bool(saving_batch)
+            broadcast = True
+        if saving_platform is not None and saving_platform != self._platform_save_in_progress:
+            self._platform_save_in_progress = bool(saving_platform)
             broadcast = True
         if has_unsaved_changes is not None and has_unsaved_changes != self._has_unsaved_changes:
             self._has_unsaved_changes = bool(has_unsaved_changes)

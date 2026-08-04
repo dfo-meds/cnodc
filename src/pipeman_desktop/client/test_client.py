@@ -396,7 +396,7 @@ class TestClient:
                       app_id: str) -> dict:
         return self.mock_nodb.stream_batch(queue_uuid)
 
-    def _logout(self, app_id: str) -> dict:
+    def _logout(self, app_id: str, token: str) -> dict:
         return {'success': True}
 
     def _login(self, username: str, password: str, app_id: str) -> dict:
@@ -429,7 +429,7 @@ class TestClient:
             'display': username,
         }
 
-    def _renew(self, app_id: str):
+    def _renew(self, app_id: str, token: str = None):
         return {
             'success': True,
             'token': 'abc',

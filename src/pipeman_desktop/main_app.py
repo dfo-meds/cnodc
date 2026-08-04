@@ -28,7 +28,7 @@ from pipeman_desktop.components.menu_manager import MenuManager
 from pipeman_desktop.messenger import CrossThreadMessenger
 from pipeman_desktop.panes.parameter_pane import ParameterPane
 from pipeman_desktop.panes.record_list_pane import RecordListPane
-from pipeman_desktop.panes.station_pane import StationPane
+from pipeman_desktop.panes.platform_pane import PlatformPane
 from pipeman_desktop.panes.map_pane import MapPane
 
 from gcapp.i18n.base import TranslatableError, TranslationManager
@@ -211,7 +211,7 @@ class PipemanDesktop:
         self._panes.append(ErrorPane(self))
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
-        self._panes.append(StationPane(self))
+        self._panes.append(PlatformPane(self))
         self._pane_broadcast('on_init')
 
         # make sure the Exit command is last
