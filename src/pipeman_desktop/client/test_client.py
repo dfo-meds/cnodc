@@ -413,6 +413,18 @@ class TestClient:
                 'user.logout': {
                     'endpoint': 'api/remove-access-token',
                 },
+                "desktop.find_working_record": {
+                    "endpoint": "api/fetch"
+                },
+                "desktop.search_platforms": {
+                    "endpoint": "api/platforms/search"
+                },
+                "desktop.create_platform": {
+                    "endpoint": "api/platforms/create"
+                },
+                "desktop.find_platform": {
+                    "endpoint": "api/platforms"
+                },
                 **self.mock_nodb.batch_qc_endpoints(),
             },
             'username': username,
