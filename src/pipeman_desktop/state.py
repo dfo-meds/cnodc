@@ -7,8 +7,8 @@ from tkinter import messagebox as tkmb
 from gcapp.i18n import base as i18n
 from medsutil import ocproc2 as ocproc2, json
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import RecordAction
-from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult
+from medsutil.ocproc2 import RecordAction, AssignPlatform
+from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult, build_local_record
 
 if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import PipemanDesktop
@@ -27,6 +27,7 @@ class DisplayChange(enum.IntFlag):
     RECORD_SET = enum.auto()
     LANGUAGE = enum.auto()
     PLATFORMS = enum.auto()
+    RECORD_LIST = enum.auto()
 
 
 class SimpleRecordInfo:
@@ -295,15 +296,10 @@ class ApplicationState:
     def _on_qc_batch_open_success(self, result: list[str] | None | bool, on_no_item: t.Callable | None = None):
         if isinstance(result, list):
             self._batch_actions = result
-            self._batch_records = {}
-            with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id FROM records ORDER BY platform_id ASC, datetime ASC")
-                for idx, row in enumerate(cur.fetchall()):
-                    record = SimpleRecordInfo(idx + 1, *row)
-                    self._batch_records[record.record_uuid] = record
+            self.refresh_record_list(False)
             self._batch_state = BatchOpenState.OPEN
             self._has_unsaved_changes = False
-            self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
+            self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING | DisplayChange.RECORD_LIST)
         else:
             self._batch_actions = None
             if result is not False:
@@ -386,6 +382,16 @@ class ApplicationState:
         ReviewResult.CONTINUE,
     }
 
+    def refresh_record_list(self, broadcast: bool = True):
+        self._batch_records = {}
+        with self._app.local_db.cursor() as cur:
+            cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id FROM records ORDER BY platform_id ASC, datetime ASC")
+            for idx, row in enumerate(cur.fetchall()):
+                record = SimpleRecordInfo(idx + 1, *row)
+                self._batch_records[record.record_uuid] = record
+        if broadcast:
+            self.refresh_display(DisplayChange.RECORD_LIST)
+
     def can_close_current_batch(self, batch_action: ReviewResult) -> bool:
         if self.batch_save_in_progress:
             return False
@@ -427,6 +433,28 @@ class ApplicationState:
             return False
         return self._available_services is not None and "desktop.create_platform" in self._available_services
 
+    def update_record_platform(self, record_uuid: str, platform_uuid: str):
+        self.add_action_by_uuid(record_uuid, AssignPlatform(platform_uuid=platform_uuid))
+
+    def add_action_by_uuid(self, record_uuid: str, action: RecordAction):
+        if record_uuid == self.current_working_uuid:
+            self.add_action(action)
+        else:
+            with self._app.local_db.cursor() as cur:
+                cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (record_uuid,))
+                remove_actions = []
+                for rowid, other_action_text in cur.fetchall():
+                    other_action = RecordAction.from_map(json.load_dict(other_action_text))
+                    if other_action.conflicts_with(action):
+                        remove_actions.append(rowid)
+                for rowid in remove_actions:
+                    cur.execute("DELETE FROM actions WHERE rowid = ?", (rowid,))
+                cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?)", (
+                    record_uuid,
+                    json.dumps(action.export())
+                ))
+                cur.commit()
+
     def add_action(self, action: RecordAction):
         from pipeman_desktop import VERSION
         action.source_name = "pipeman_desktop"
@@ -446,7 +474,19 @@ class ApplicationState:
                 json.dumps(action.export())
             ))
             cur.commit()
+            cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", (self._current_working_uuid,))
+            row = cur.fetchone()
+            parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
+            cur.execute("SELECT action_text FROM actions WHERE record_uuid = ?", (self._current_working_uuid,))
+            for row in cur.fetchall():
+                action = RecordAction.from_map(json.load_dict(row[0]))
+                action.apply(parent)
+            info = build_local_record(parent, str(self._current_working_uuid))
+            info["has_errors"] = 1
+            cur.update("records", info, {"record_uuid": self._current_working_uuid})
+            cur.commit()
             self._has_unsaved_changes = True
+        self.refresh_record_list()
         self.update_record(self._current_working_uuid, True)
 
     def delete_action(self, db_id: int):

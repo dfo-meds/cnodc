@@ -32,6 +32,9 @@ class RelationshipsPane(BasePane):
 
     def on_init(self):
         self._panel = ttk.Frame(self.app.middle)
+        self._panel.rowconfigure(0, weight=0)
+        self._panel.rowconfigure(1, weight=1)
+        self._panel.columnconfigure(0, weight=1)
         self.app.middle.add(self._panel, text=i18n.tr("pane.relationships", sticky="NSEW"))
         self._pane_id = self.app.middle.tabs()[-1]
 
@@ -89,7 +92,6 @@ class RelationshipsPane(BasePane):
                             values=tuple(x or "" for x in row[:-1]),
                             text=''
                         )
-
 
     def _on_platform_right_click(self, item_info: dict, e):
         ...

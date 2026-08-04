@@ -70,7 +70,7 @@ class RecordListPane(BasePane):
 
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.BATCH_STATE:
+        if change_type & (DisplayChange.BATCH_STATE | DisplayChange.RECORD_LIST):
             if self._record_list is not None:
                 self._build_record_list()
             if self._subrecord_list is not None:
@@ -98,13 +98,18 @@ class RecordListPane(BasePane):
 
     def _build_record_list(self):
         self._record_list.clear_items()
+        set_selection: str | None = None
         for sr in self.app.state.batch_records.values():
+            if self.app.state.current_working_uuid is not None and self.app.state.current_working_uuid == sr.record_uuid:
+                set_selection = sr.record_uuid
             self._record_list.append_item(
                 parent='',
                 iid=sr.record_uuid,
                 values=(sr.index, self._build_top_record_display(sr)),
                 tags=('has-error' if sr.has_errors else 'no-error',)
             )
+        if set_selection:
+            self._record_list.set_selection([set_selection], _ignore_callback=True)
 
     def _build_top_record_display(self, sr: SimpleRecordInfo):
         if sr.timestamp is not None:
@@ -116,11 +121,14 @@ class RecordListPane(BasePane):
             self._subrecord_list.clear_items()
         if record is None:
             return
+        set_selection: str | None = None
         for srt in record.subrecords:
             srt_text = f'{parent_text}/subrecords/{srt}' if parent_text else f'subrecords/{srt}'
             for rs_idx in record.subrecords[srt]:
                 rs_text = f'{srt_text}/{rs_idx}'
                 # TODO: profile flagging of errors
+                if self.app.state.current_child_path == rs_text:
+                    set_selection = rs_text
                 self._subrecord_list.append_item(
                     iid=rs_text,
                     parent=parent_text,
@@ -129,12 +137,16 @@ class RecordListPane(BasePane):
                 for idx, srecord in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
                     record_text = f"{srt_text}/{rs_idx}/{idx}"
                     # TODO: row flagging of errors
+                    if self.app.state.current_child_path == record_text:
+                        set_selection = record_text
                     self._subrecord_list.append_item(
                         iid=record_text,
                         parent=rs_text,
                         values=(self._build_record_display(srecord, srt, idx, depth + 1), record_text)
                     )
                     self._build_subrecord_list(srecord, record_text, depth + 2)
+        if set_selection is not None:
+            self._subrecord_list.set_selection([set_selection], _ignore_callback=True)
 
     def _build_record_set_display(self, subrecord_set_type: str, record_set_idx: int, depth: int):
         return i18n.tr(

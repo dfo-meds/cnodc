@@ -2,8 +2,11 @@ import tkinter.ttk as ttk
 
 class BorderedControl(ttk.Frame):
 
-    def __init__(self, parent, widget):
+    def __init__(self, parent):
         super().__init__(parent, style='BorderedEntry.TFrame')
+        self.entry = None
+
+    def set_widget(self, widget):
         self.entry = widget
         self.entry.pack(padx=2, pady=2)
 
@@ -18,16 +21,19 @@ class BorderedControl(ttk.Frame):
 class BorderedEntry(BorderedControl):
 
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, ttk.Entry(self, *args, **kwargs))
+        super().__init__(parent)
+        self.set_widget(ttk.Entry(self, *args, **kwargs))
 
 
 class BorderedChoice(BorderedControl):
 
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, ttk.Combobox(self, *args, **kwargs))
+        super().__init__(parent)
+        self.set_widget(ttk.Combobox(self, *args, **kwargs))
 
 
 class BorderedCheckbox(BorderedControl):
 
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, ttk.Checkbutton(self, *args, **kwargs))
+        super().__init__(parent)
+        self.set_widget(ttk.Checkbutton(self, *args, **kwargs))

@@ -204,21 +204,21 @@ class MockNODB:
         }
 
     def create_platform(self,
-                        wmo_id: str | None,
-                        wigos_id: str | None,
-                        platform_name: str | None,
-                        platform_id: str | None,
-                        platform_type: str | None,
-                        start_date: str | None,
-                        end_date: str | None,
-                        status: str,
-                        embargo_data_days: int | None,
-                        map_to_uuid: str | None,
-                        skip_speed_check: bool,
-                        skip_land_check: bool,
-                        dedupe_time_window: float | None,
-                        dedupe_distance_window: float | None,
-                        top_speed: str | None) -> dict:
+                        wmo_id: str | None = None,
+                        wigos_id: str | None = None,
+                        platform_name: str | None = None,
+                        platform_id: str | None = None,
+                        platform_type: str | None = None,
+                        start_date: str | None = None,
+                        end_date: str | None = None,
+                        status: str = "ACTIVE",
+                        embargo_data_days: int | None = None,
+                        map_to_uuid: str | None = None,
+                        skip_speed_check: bool = False,
+                        skip_land_check: bool = False,
+                        dedupe_time_window: float | None = None,
+                        dedupe_distance_window: float | None = None,
+                        top_speed: str | None = None) -> dict:
         pid = str(uuid.uuid4())
         while pid in self._platforms:
             pid = str(uuid.uuid4())

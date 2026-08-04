@@ -1,5 +1,6 @@
 from medsutil import json
 from medsutil.awaretime import AwareDateTime
+from medsutil.ocproc2 import AssignPlatform
 from nodb.observations import PlatformStatus
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.components.bordered_entry import BorderedEntry, BorderedControl, BorderedChoice, BorderedCheckbox
@@ -13,6 +14,9 @@ import tkinter as tk
 import typing as t
 import tkinter.ttk as ttk
 from autoinject import injector
+
+if t.TYPE_CHECKING:
+    from pipeman_desktop.main_app import PipemanDesktop
 
 
 
@@ -31,7 +35,10 @@ class PlatformDialog(tksd.Dialog):
 
     SPEED_UNITS: list[str] = ['m s-1', 'knots']
 
-    def __init__(self, parent, station_info: dict[str, t.Any] | None = None) -> None:
+    def __init__(self,
+                 parent,
+                 station_info: dict[str, t.Any] | None = None,
+                 readonly: bool = False) -> None:
         defaults = station_info or {}
         self._platform_display_options: list[str] = []
         self._platform_actual_options: list[str] = []
@@ -296,7 +303,7 @@ class PlatformPane(BasePane):
         if change_type & (DisplayChange.USER | DisplayChange.SAVING):
             self.app.menus.set_state('qc/reload_platforms', app_state.has_access('desktop.find_platform'))
             self.app.menus.set_state('qc/create_platform', app_state.can_save_platform())
-        elif change_type & (DisplayChange.BATCH_STATE | DisplayChange.PLATFORMS):
+        if change_type & (DisplayChange.BATCH_STATE | DisplayChange.PLATFORMS):
             self._update_platform_list()
         if change_type & DisplayChange.LANGUAGE:
             if self._platform_list is not None:
@@ -363,6 +370,66 @@ class PlatformPane(BasePane):
         self.app.menus.enable_command('qc/reload_platforms')
         self.app.state.refresh_display(DisplayChange.PLATFORMS)
 
-    def _on_right_click(self, item, *args):
-        # TODO: menu options for editing and assigning to the current record, if appropriate
-        pass
+    def _on_right_click(self, item, event):
+        cm = PlatformContextMenu(
+            self.app,
+            item["iid"],
+            self._can_update_platform[item["iid"]] if item["iid"] in self._can_update_platform else False,
+        )
+        cm.handle_popup_click(event)
+
+
+class PlatformContextMenu:
+
+    def __init__(self,
+                 app: PipemanDesktop,
+                 platform_uuid: str,
+                 can_update: bool):
+        self._menu = tk.Menu(app.root, tearoff=0)
+        self._app = app
+        self._platform_uuid = platform_uuid
+        self._menu.add_command(
+            label=i18n.tr("context_menu.platform.view"),
+            command=self._view_platform
+        )
+        if can_update:
+            self._menu.add_command(
+                label=i18n.tr("context_menu.platform.update"),
+                command=self._update_platform,
+            )
+        if self._app.state.current_parent is not None:
+            self._menu.add_command(
+                label=i18n.tr("context_menu.platform.assign_to_record"),
+                command=self._assign_to_record
+            )
+        if self._app.state.batch_state is not None:
+            self._menu.add_command(
+                label=i18n.tr("context_menu.platform.assign_to_all"),
+                command=self._assign_to_all
+            )
+
+    def _platform_info(self) -> dict:
+        ...
+
+    def _view_platform(self):
+        s = PlatformDialog(self._app.root, self._platform_info(), readonly=True)
+
+
+    def _assign_to_record(self):
+        self._app.state.update_record_platform(self._app.state.current_working_uuid, self._platform_uuid)
+
+    def _assign_to_all(self):
+        for idx, record in self._app.state.batch_records.items():
+            self._app.state.update_record_platform(record.record_uuid, self._platform_uuid)
+
+    def _update_platform(self):
+        s = PlatformDialog(self._app.root, self._platform_info())
+        if s.result is not None:
+            ...
+            # TODO: update platform
+
+    def handle_popup_click(self, e):
+        try:
+            self._menu.tk_popup(e.x_root, e.y_root, 0)
+        finally:
+            self._menu.grab_release()

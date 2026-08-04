@@ -67,6 +67,10 @@ history = "History"
 map = "Map"
 qc_errors = "QC Errors"
 platform_list = "Platforms"
+relationships = "Relationships"
+
+[tree.record_platform_list]
+title = "Recommended Platforms"
 
 [tree.platform_list]
 uuid = "Identifier"

@@ -9,6 +9,7 @@ import traceback
 import zrlog
 from gcapp.system import System
 from medsutil.savedata import SaveData
+from pipeman_desktop.panes.relationships_pane import RelationshipsPane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.panes.action_pane import ActionPane
@@ -212,6 +213,7 @@ class PipemanDesktop:
         self._panes.append(ActionPane(self))
         self._panes.append(HistoryPane(self))
         self._panes.append(PlatformPane(self))
+        self._panes.append(RelationshipsPane(self))
         self._pane_broadcast('on_init')
 
         # make sure the Exit command is last

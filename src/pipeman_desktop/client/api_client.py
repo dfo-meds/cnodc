@@ -1,3 +1,4 @@
+import copy
 import json
 import typing as t
 
@@ -7,8 +8,9 @@ from requests import JSONDecodeError, HTTPError
 
 from gcapp.i18n.base import TranslatableError
 from medsutil.awaretime import AwareDateTime
+from medsutil.datadict import DataDictObject
 from medsutil.exceptions import CodedError
-from medsutil.ocproc2 import QCResult
+from medsutil.ocproc2 import QCResult, RecordAction
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.web import request
@@ -18,6 +20,7 @@ from pipeman_desktop.messenger import CrossThreadMessenger
 import zirconium as zr
 import requests
 import medsutil.ocproc2 as ocproc2
+from pipeman_desktop.util import build_local_record, build_default_actions
 
 
 class RemoteAPIError(CodedError):
@@ -291,17 +294,28 @@ class CNODCServerAPI:
                     "GET",
                     _service_list=actions
                 )
-                record = ocproc2.ParentRecord.build_from_mapping(response["data"])
+                record = ocproc2.ParentRecord.build_from_mapping(copy.deepcopy(response["data"]))
+
                 if record.metadata.has_value("CNODCPlatformCandidates"):
                     platform_load_list.update(record.metadata["CNODCPlatformCandidates"].value)
-                local_info, proposed_actions = self._build_local_record(record, row[0])
+
                 is_saved = False
                 if response["proposed_actions"] is not None:
-                    proposed_actions = response["proposed_actions"]
+                    proposed_actions = [RecordAction.from_map(x) for x in response["proposed_actions"]]
                     is_saved = True
+                else:
+                    proposed_actions = build_default_actions(record)
+
+                for action in proposed_actions:
+                    action.apply(record)
+
+                local_info = build_local_record(record, row[0])
+                if proposed_actions:
+                    local_info["has_errors"] = 1
+
                 with self.local_db.cursor() as cur2:
                     cur2.update("records", {
-                        "record_content": json.dumps(record.to_mapping()),
+                        "record_content": json.dumps(response["data"]),
                         **local_info
                     }, {
                         "record_uuid": row[0]
@@ -314,41 +328,6 @@ class CNODCServerAPI:
                         })
         self.load_platforms(platform_load_list)
 
-    def _build_local_record(self, record: ocproc2.ParentRecord, working_uuid: str) -> tuple[dict, list]:
-        lat = record.coordinates.ideal("Latitude")
-        lon = record.coordinates.ideal("Longitude")
-        time = record.coordinates.ideal("Time")
-        info = {
-            "lat": lat.to_string() if lat else None,
-            "lat_qc": lat.quality if lat else None,
-            "lon": lon.to_string() if lon else None,
-            "lon_qc": lon.quality if lon else None,
-            "datetime": time.to_string() if time else None,
-            "datetime_qc": time.quality if time else None,
-            "has_errors": 0,
-            "display": self._build_display(record, working_uuid),
-        }
-        default_actions = []
-        for qcr in record.qc_tests.iterate_with_load():
-            if qcr.result is QCResult.MANUAL_REVIEW:
-                info["has_errors"] = 1
-                default_actions.extend(qcr.proposed_actions)
-        return info, default_actions
-
-    def _build_display(self, record: ocproc2.ParentRecord, working_uuid: str):
-        s = []
-        if record.coordinates.has_value('Time'):
-            s.append(f'T:{record.coordinates.best("Time")}')
-        if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
-            s.append(f'X:{record.coordinates.best("Longitude")}')
-            s.append(f'Y:{record.coordinates.best("Latitude")}')
-        if record.coordinates.has_value('Depth'):
-            s.append(f'Z:{record.coordinates.best("Depth")}')
-        elif record.coordinates.has_value('Pressure'):
-            s.append(f'P:{record.coordinates.best("Pressure")}')
-        if not s:
-            s.append(f"I:{working_uuid}")
-        return '  '.join(s)
 
     def make_batch_json_request(self, action_name, method: str, **kwargs) -> dict:
         if not self._current_queue_item:
