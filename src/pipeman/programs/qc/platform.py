@@ -2,7 +2,7 @@ from medsutil.awaretime import AwareDateTime
 from autoinject import injector
 
 from medsutil.cached import LeastRecentCache
-from medsutil.ocproc2.operations import AssignPlatform, SetPlatformCandidates
+from medsutil.ocproc2.operations import AssignPlatform, SetPlatformCandidates, PlatformBlocker
 from nodb.observations import NODBPlatform
 from medsutil.ocproc2.util import RequiredQuality
 from pipeman.programs.qc.base import DeepDiveChecker
@@ -44,9 +44,11 @@ class NODBPlatformCheck(DeepDiveChecker):
                 self._apply_platform_action(platforms[0])
             case 0:
                 self._set_platform_candidates(None)
+                self.add_record_action(PlatformBlocker(), True)
                 self.report_qc_error("no_platforms_found")
             case _:
                 self._set_platform_candidates(platforms)
+                self.add_record_action(PlatformBlocker(), True)
                 self.report_qc_error("many_platforms_found")
 
     def _apply_platform_action(self, platform_uuid: str, is_reviewable: bool = False):

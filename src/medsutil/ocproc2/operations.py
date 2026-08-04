@@ -1,6 +1,7 @@
 import typing as t
 
 import medsutil.datadict as dd
+from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import ParentRecord, AbstractElement, SingleElement, RecordSet, BaseRecord, MessageType, QCResult
 from medsutil.ocproc2.history import ActionType, Organization
 from medsutil.ocproc2.util import set_working_quality
@@ -15,6 +16,10 @@ class RecordAction(dd.DataDictObject):
     source_instance: str | None = dd.p_str()
     organization: Organization = dd.p_enum(Organization)
     username: str | None = dd.p_str()
+
+    @property
+    def is_blocker(self) -> bool:
+        return False
 
     @property
     def name(self) -> str:
@@ -121,6 +126,34 @@ class AddHistoryEntry(RecordAction):
             self.source_instance or 'unknown',
             self.message_type
         )
+
+
+class Blocker(RecordAction):
+
+    @property
+    def is_blocker(self) -> bool:
+        return True
+
+    def apply(self, record: ParentRecord):
+        pass
+
+
+class PlatformBlocker(Blocker):
+
+    @property
+    def name(self) -> str:
+        return "action.require_platform"
+
+    @property
+    def object(self) -> str:
+        return "record"
+
+    @property
+    def value(self) -> str:
+        return ''
+
+    def conflicts_with(self, action: RecordAction) -> bool:
+        return isinstance(action, AssignPlatform)
 
 
 class SetRelationships(RecordAction):
