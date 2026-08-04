@@ -1,9 +1,12 @@
 import copy
 import datetime
 import typing as t
+import uuid
+
 from medsutil.awaretime import AwareDateTime
 from medsutil.dynamic import dynamic_object
-from nodb.observations import NODBWorkingRecord
+from nodb.observations import NODBWorkingRecord, PlatformStatus
+from pipeman.programs.dmd.metadata import Platform
 # this line is currently necessary to ensure it is properly override
 # I should put in a fix for autoinject to ensure overrides always override
 from pipeman_desktop.client.api_client import WebAPIClient
@@ -13,6 +16,7 @@ class MockNODB:
     PROGRAM_NAME = "pipeman_desktop.client.test_programs.program_1"
 
     def __init__(self):
+        self._platforms: dict[str, dict[str, t.Any]] = {}
         self._records: dict[str, tuple[NODBWorkingRecord, list[dict] | None]] = {}
         self._queue_items: dict[str, dict] = {}
         self._queue_records: dict[str, list[str]] = {}
@@ -145,6 +149,164 @@ class MockNODB:
         self._records[record_uuid] = (self._records[record_uuid][0], copy.deepcopy(actions))
         return {"success": True, "message": "Record updated"}
 
+    def fetch_platform(self, platform_uuid) -> dict:
+        if platform_uuid in self._platforms:
+            return {
+                "success": True,
+                "message": "Success",
+                "data": {
+                    "actions": self._platform_actions(platform_uuid),
+                    **self._platforms[platform_uuid]
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "No such platform",
+                "data": None
+            }
+
+    def search_platforms(self,
+                         wmo_id: str | None,
+                         wigos_id: str | None,
+                         platform_id: str | None,
+                         platform_name: str | None,
+                         time_frame: str | None) -> dict:
+        results = []
+        for pid, platform in self._platforms.items():
+            check = False
+            if wmo_id and platform["wmo_id"] is not None and platform["wmo_id"] == wmo_id:
+                check = True
+            elif wigos_id and platform["wigos_id"] is not None and platform["wigos_id"] == wigos_id:
+                check = True
+            elif platform_id and platform["platform_id"] is not None and platform["platform_id"] == platform_id:
+                check = True
+            elif platform_name and platform["platform_name"] is not None and platform["platform_name"] == platform_name:
+                check = True
+            if not check:
+                continue
+            if time_frame is not None and (platform["service_start_date"] or platform["service_end_date"]):
+                tf = AwareDateTime.fromisoformat(time_frame)
+                sd = AwareDateTime.fromisoformat(platform["service_start_date"]) if platform["service_start_date"] else None
+                if sd is not None and tf < sd:
+                    continue
+                ed = AwareDateTime.fromisoformat(platform["service_end_date"]) if platform["service_end_date"] else None
+                if ed is not None and tf > ed:
+                    continue
+            results.append({
+                "platform_uuid": pid,
+                "actions": self._platform_actions(pid)
+            })
+        return {
+            "success": True,
+            "message": "Success",
+            "data": results,
+        }
+
+
+
+    def create_platform(self,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_name: str | None,
+                        platform_id: str | None,
+                        platform_type: str | None,
+                        start_date: str | None,
+                        end_date: str | None,
+                        status: str,
+                        embargo_data_days: int | None,
+                        map_to_uuid: str | None,
+                        skip_speed_check: bool,
+                        skip_land_check: bool,
+                        dedupe_time_window: float | None,
+                        dedupe_distance_window: float | None,
+                        top_speed: str | None) -> dict:
+        pid = str(uuid.uuid4())
+        while pid in self._platforms:
+            pid = str(uuid.uuid4())
+        self._platforms[pid] = {
+            "platform_uuid": pid,
+            "platform_name": platform_name,
+            "platform_id": platform_id,
+            "wmo_id": wmo_id,
+            "wigos_id": wigos_id,
+            "platform_type": platform_type,
+            "service_start_date": AwareDateTime.fromisoformat(start_date).isoformat() if start_date else None,
+            "service_end_date": AwareDateTime.fromisoformat(end_date).isoformat() if end_date else None,
+            "status": PlatformStatus(status).value,
+            "embargo_data_days": embargo_data_days,
+            "map_to_uuid": map_to_uuid,
+            "metadata": {
+                "skip_speed_check": skip_speed_check,
+                "skip_on_land_check": skip_land_check,
+                "dedupe_time_window": dedupe_time_window,
+                "dedupe_distance_window": dedupe_distance_window,
+                "top_speed": top_speed
+            }
+        }
+        return {
+            "success": True,
+            "message": "Success",
+            "data": {
+                "platform_uuid": pid,
+                "actions": self._platform_actions(pid)
+            }
+        }
+
+    def _platform_actions(self, pid: str) -> dict:
+        return {
+            "view": {"endpoint": f"api/platforms/{pid}"},
+            "update": {"endpoint": f"api/platforms/{pid}"}
+        }
+
+    def update_platform(self,
+                        platform_uuid: str,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_name: str | None,
+                        platform_id: str | None,
+                        platform_type: str | None,
+                        start_date: str | None,
+                        end_date: str | None,
+                        status: str,
+                        embargo_data_days: int | None,
+                        map_to_uuid: str | None,
+                        skip_speed_check: bool,
+                        skip_land_check: bool,
+                        dedupe_time_window: float | None,
+                        dedupe_distance_window: float | None,
+                        top_speed: str | None) -> dict:
+        if platform_uuid not in self._platforms:
+            return {
+                "success": False,
+                "message": "No such platform",
+            }
+        else:
+            self._platforms[platform_uuid] = {
+                "platform_uuid": platform_uuid,
+                "platform_name": platform_name,
+                "platform_id": platform_id,
+                "wmo_id": wmo_id,
+                "wigos_id": wigos_id,
+                "platform_type": platform_type,
+                "service_start_date": AwareDateTime.fromisoformat(start_date).isoformat() if start_date else None,
+                "service_end_date": AwareDateTime.fromisoformat(end_date).isoformat() if end_date else None,
+                "status": PlatformStatus(status).value,
+                "embargo_data_days": embargo_data_days,
+                "map_to_uuid": map_to_uuid,
+                "metadata": {
+                    "skip_speed_check": skip_speed_check,
+                    "skip_on_land_check": skip_land_check,
+                    "dedupe_time_window": dedupe_time_window,
+                    "dedupe_distance_window": dedupe_distance_window,
+                    "top_speed": top_speed
+                }
+            }
+            return {
+                "success": True,
+                "message": "Success",
+            }
+
 
 class TestClient:
 
@@ -157,30 +319,55 @@ class TestClient:
         return self.token is not None
 
     def make_json_request(self, endpoint: str, method: str, **kwargs: str) -> dict:
+        kwargs["app_id"] = "12345"
         if endpoint == 'api/create-access-token' and method == 'POST':
             return self._login(**kwargs)
         elif endpoint == 'api/remove-access-token' and method == 'POST':
-            return self._logout()
+            return self._logout(**kwargs)
         elif endpoint == 'api/renew-access-token' and method == 'POST':
-            return self._renew()
+            return self._renew(**kwargs)
         elif endpoint == "api/open" and method == "POST":
-            return self._open_batch(**kwargs, app_id="12345")
+            return self._open_batch(**kwargs)
         elif endpoint.startswith("api/renew") and method == "POST":
-            return self._renew_batch(endpoint.split("/", maxsplit=2)[2], **kwargs, app_id="12345")
+            return self._renew_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
         elif endpoint.startswith("api/close") and method == "POST":
-            return self._close_batch(endpoint.split("/", maxsplit=2)[2], **kwargs, app_id="12345")
+            return self._close_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
         elif endpoint.startswith("api/stream") and method == "GET":
-            return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs, app_id="12345")
-        elif endpoint.startswith("api/fetch") and method == "GET":
-            return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs, app_id="12345")
+            return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/fetch/") and method == "GET":
+            return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
+        elif endpoint == "api/fetch" and method == "GET":
+            return self._fetch_record(**kwargs)
         elif endpoint.startswith("api/save") and method == "POST":
-            return self._save_record(endpoint.split('/', maxsplit=2)[2], **kwargs, app_id="12345")
+            return self._save_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
+        elif endpoint == "api/platforms" and method == "GET":
+            return self._fetch_platform(**kwargs)
+        elif endpoint == "api/platforms/search" and method == "GET":
+            return self._search_platforms(**kwargs)
+        elif endpoint == "api/platforms/create" and method == "POST":
+            return self._create_platform(**kwargs)
+        elif endpoint.startswith("api/platforms/") and method == "GET":
+            return self._fetch_platform(endpoint.split('/', maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/platforms/") and method == "POST":
+            return self._update_platform(endpoint.split('/', maxsplit=2)[2], **kwargs)
         raise Exception('invalid test request')
 
+    def _fetch_platform(self, platform_uuid: str, app_id: str) -> dict:
+        return self.mock_nodb.fetch_platform(platform_uuid)
+
+    def _search_platforms(self, app_id: str, **kwargs) -> dict:
+        return self.mock_nodb.search_platforms(**kwargs)
+
+    def _create_platform(self, app_id: str, **kwargs) -> dict:
+        return self.mock_nodb.create_platform(**kwargs)
+
+    def _update_platform(self, app_id: str, platform_uuid: str, **kwargs) -> dict:
+        return self.mock_nodb.update_platform(platform_uuid, **kwargs)
+
     def _fetch_record(self,
-                      record_uuid: str,
+                      working_record_uuid: str,
                       app_id: str):
-        return self.mock_nodb.fetch_record(record_uuid)
+        return self.mock_nodb.fetch_record(working_record_uuid)
 
     def _save_record(self,
                     record_uuid: str,
@@ -211,10 +398,10 @@ class TestClient:
                       app_id: str) -> dict:
         return self.mock_nodb.stream_batch(queue_uuid)
 
-    def _logout(self) -> dict:
+    def _logout(self, app_id: str) -> dict:
         return {'success': True}
 
-    def _login(self, username: str, password: str) -> dict:
+    def _login(self, username: str, password: str, app_id: str) -> dict:
         return {
             'success': True,
             'token': 'abc',
@@ -232,15 +419,9 @@ class TestClient:
             'display': username,
         }
 
-    def _renew(self):
+    def _renew(self, app_id: str):
         return {
             'success': True,
             'token': 'abc',
             'expiry': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)).isoformat(),
         }
-
-    def _list_stations(self) -> t.Iterable[dict]:
-        return []
-
-    def _create_station(self, station: dict) -> dict:
-        return {'success': True}
