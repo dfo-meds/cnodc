@@ -296,7 +296,7 @@ class PlatformPane(BasePane):
         if change_type & (DisplayChange.USER | DisplayChange.SAVING):
             self.app.menus.set_state('qc/reload_platforms', app_state.has_access('desktop.find_platform'))
             self.app.menus.set_state('qc/create_platform', app_state.can_save_platform())
-        elif change_type & DisplayChange.BATCH_STATE:
+        elif change_type & (DisplayChange.BATCH_STATE | DisplayChange.PLATFORMS):
             self._update_platform_list()
         if change_type & DisplayChange.LANGUAGE:
             if self._platform_list is not None:
@@ -338,9 +338,9 @@ class PlatformPane(BasePane):
             )
 
     def _on_platform_creation(self, res: str | None):
-        if res:
-            self._update_platform_list()
         self.app.state.update_save_flags(saving_platform=False)
+        if res:
+            self.app.state.refresh_display(DisplayChange.PLATFORMS)
 
     def _on_platform_creation_failure(self, ex):
         self.app.show_user_exception(ex)
@@ -355,12 +355,13 @@ class PlatformPane(BasePane):
         )
 
     def _reload_success(self, res):
-        self._update_platform_list()
         self.app.menus.enable_command('qc/reload_platforms')
+        self.app.state.refresh_display(DisplayChange.PLATFORMS)
 
     def _reload_error(self, ex):
         self.app.show_user_exception(ex)
         self.app.menus.enable_command('qc/reload_platforms')
+        self.app.state.refresh_display(DisplayChange.PLATFORMS)
 
     def _on_right_click(self, item, *args):
         # TODO: menu options for editing and assigning to the current record, if appropriate

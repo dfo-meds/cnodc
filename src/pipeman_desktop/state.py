@@ -26,6 +26,7 @@ class DisplayChange(enum.IntFlag):
     QUEUE_INFO = enum.auto()
     RECORD_SET = enum.auto()
     LANGUAGE = enum.auto()
+    PLATFORMS = enum.auto()
 
 
 class SimpleRecordInfo:
