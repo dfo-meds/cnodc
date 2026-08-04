@@ -154,6 +154,7 @@ def create_platform_record(nodb: NODBController = None):
         dedupe_time_window=json_param("dedupe_time_window", coerce=float, default=None),
         dedupe_distance_window=json_param("dedupe_distance_window", coerce=float, default=None),
         top_speed=json_param("top_speed", coerce=str, default=None),
+        map_to_uuid=json_param("map_to_uuid", coerce=str, default=None),
     )
 
 
@@ -178,6 +179,7 @@ def update_platform_record(platform_uuid: str, nodb: NODBController = None):
         dedupe_time_window=json_param("dedupe_time_window", coerce=float, default=None),
         dedupe_distance_window=json_param("dedupe_distance_window", coerce=float, default=None),
         top_speed=json_param("top_speed", coerce=str, default=None),
+        map_to_uuid=json_param("map_to_uuid", coerce=str, default=None),
     )
 
 @desktop.route("/internal/platforms/search", methods=["GET"])

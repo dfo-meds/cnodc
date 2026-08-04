@@ -241,8 +241,17 @@ class NODBController:
                         skip_land_check: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
-                        top_speed: str | float | None) -> dict:
+                        top_speed: str | float | None,
+                        map_to_uuid: str | None) -> dict:
         with self.nodb as db:
+            if map_to_uuid is not None:
+                other = NODBPlatform.find_by_uuid(db, map_to_uuid)
+                if other is None:
+                    return {
+                        "success": False,
+                        "message": "map_to_uuid set to invalid platform",
+                        "data": None,
+                    }
             platform = NODBPlatform()
             platform.wmo_id = wmo_id
             platform.wigos_id = wigos_id
@@ -252,6 +261,7 @@ class NODBController:
             platform.service_start_date = start_date
             platform.service_end_date = end_date
             platform.status = status
+            platform.map_to_uuid = map_to_uuid
             platform.embargo_data_days = embargo_data_days
             platform.metadata["skip_speed_check"] = bool(skip_speed_check)
             platform.metadata["skip_on_land_check"] = bool(skip_land_check)
@@ -304,7 +314,8 @@ class NODBController:
                         skip_land_check: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
-                        top_speed: str | float | None):
+                        top_speed: str | float | None,
+                        map_to_uuid: str | None):
         with self.nodb as db:
             platform = NODBPlatform.find_by_uuid(db, platform_uuid)
             if platform is None:
@@ -313,6 +324,13 @@ class NODBController:
                     "message": "No such platform",
                 }
             else:
+                if map_to_uuid is not None:
+                    other = NODBPlatform.find_by_uuid(db, map_to_uuid)
+                    if other is None:
+                        return {
+                            "success": False,
+                            "message": "map_to_uuid set to invalid platform"
+                        }
                 platform.wmo_id = wmo_id
                 platform.wigos_id = wigos_id
                 platform.platform_name = platform_name
@@ -321,6 +339,7 @@ class NODBController:
                 platform.service_start_date = start_date
                 platform.service_end_date = end_date
                 platform.status = status
+                platform.map_to_uuid = map_to_uuid
                 platform.embargo_data_days = embargo_data_days
                 platform.metadata["skip_speed_check"] = bool(skip_speed_check)
                 platform.metadata["skip_on_land_check"] = bool(skip_land_check)
