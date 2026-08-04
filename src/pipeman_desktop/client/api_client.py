@@ -12,6 +12,7 @@ from medsutil.ocproc2 import QCResult
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.web import request
+from nodb.observations import PlatformStatus
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.messenger import CrossThreadMessenger
 import zirconium as zr
@@ -372,6 +373,161 @@ class CNODCServerAPI:
         self._current_queue_item = None
         return "success" in response and response["success"]
 
+    def search_platforms(self,
+                         wmo_id: str | None,
+                         wigos_id: str | None,
+                         platform_id: str | None,
+                         platform_name: str | None,
+                         time_frame: AwareDateTime | None) -> list[str]:
+        response = self.make_service_json_request(
+            service_identifier="desktop.search_platforms",
+            method="POST",
+            wmo_id=wmo_id or None,
+            wigos_id=wigos_id or None,
+            platform_id=platform_id or None,
+            platform_name=platform_name or None,
+            time_frame=time_frame.isoformat() if time_frame else None,
+        )
+        return self.load_platforms(
+            x["platform_uuid"] for x in response["data"]
+        )
+
+    def create_platform(self,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_name: str | None,
+                        platform_id: str | None,
+                        platform_type: str | None,
+                        start_date: AwareDateTime | None,
+                        end_date: AwareDateTime | None,
+                        status: PlatformStatus,
+                        embargo_data_days: int | None,
+                        map_to_uuid: str | None,
+                        skip_speed_check: bool,
+                        skip_land_check: bool,
+                        dedupe_time_window: float | None,
+                        dedupe_distance_window: float | None,
+                        top_speed: str | None) -> str | None:
+        response = self.make_service_json_request(
+            service_identifier="desktop.create_platform",
+            method="POST",
+            wmo_id=wmo_id or None,
+            wigos_id=wigos_id or None,
+            platform_name=platform_name or None,
+            platform_id=platform_id or None,
+            platform_type=platform_type or None,
+            embargo_data_days=embargo_data_days or None,
+            map_to_uuid=map_to_uuid or None,
+            skip_speed_check=skip_speed_check,
+            skip_land_check=skip_land_check,
+            dedupe_time_window=dedupe_time_window,
+            dedupe_distance_window=dedupe_distance_window,
+            top_speed=top_speed or None,
+            status=status.value,
+            start_date=start_date.isoformat() if start_date else None,
+            end_date=end_date.isoformat() if end_date else None,
+        )
+        if response["success"]:
+            load_result = self.load_platforms([response["data"]["platform_uuid"]])
+            if load_result:
+                return load_result[0]
+        return None
+
+    def update_platform(self,
+                        platform_uuid: str,
+                        wmo_id: str | None,
+                        wigos_id: str | None,
+                        platform_name: str | None,
+                        platform_id: str | None,
+                        platform_type: str | None,
+                        start_date: AwareDateTime | None,
+                        end_date: AwareDateTime | None,
+                        status: PlatformStatus,
+                        embargo_data_days: int | None,
+                        map_to_uuid: str | None,
+                        skip_speed_check: bool,
+                        skip_land_check: bool,
+                        dedupe_time_window: float | None,
+                        dedupe_distance_window: float | None,
+                        top_speed: str | None) -> bool:
+        response = self.make_service_json_request(
+            service_identifier="update",
+            method="POST",
+            _service_list=self._platform_services(platform_uuid),
+            wmo_id=wmo_id or None,
+            wigos_id=wigos_id or None,
+            platform_name=platform_name or None,
+            platform_id=platform_id or None,
+            platform_type=platform_type or None,
+            embargo_data_days=embargo_data_days or None,
+            map_to_uuid=map_to_uuid or None,
+            skip_speed_check=skip_speed_check,
+            skip_land_check=skip_land_check,
+            dedupe_time_window=dedupe_time_window,
+            dedupe_distance_window=dedupe_distance_window,
+            top_speed=top_speed or None,
+            status=status.value,
+            start_date=start_date.isoformat() if start_date else None,
+            end_date=end_date.isoformat() if end_date else None,
+        )
+        if response["success"]:
+            load_result = self.load_platforms([platform_uuid])
+            return len(load_result) > 0
+        return False
+
+    def _platform_services(self, platform_uuid: str) -> dict:
+        with self.local_db.cursor() as cur:
+            cur.execute("SELECT actions FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
+            result = cur.fetchone()
+            if not result:
+                return {}
+            return json.loads(result[0])
+
+    def reload_platforms(self) -> list[str]:
+        with self.local_db.cursor() as cur:
+            cur.execute("SELECT platform_uuid FROM platforms")
+            platforms = []
+            for res in cur.fetchall():
+                platforms.append(res[0])
+        return self.load_platforms(platforms)
+
+    def load_platforms(self, platform_uuids: t.Iterable[str]) -> list[str]:
+        success = []
+        for pid in platform_uuids:
+            if self._load_platform(pid):
+                success.append(pid)
+        return success
+
+    def _load_platform(self, platform_uuid: str) -> bool:
+        response = self.make_service_json_request(
+            service_identifier="desktop.find_platform",
+            platform_uuid=platform_uuid,
+            method="GET"
+        )
+        with self.local_db.cursor() as cur:
+            cur.execute("DELETE FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
+            if response["success"]:
+                cur.execute("INSERT INTO platforms (platform_uuid, wmo_id, wigos_id, platform_name, platform_id, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+                    platform_uuid,
+                    response["data"].get("wmo_id", None),
+                    response["data"].get("wigos_id", None),
+                    response["data"].get("platform_name", None),
+                    response["data"].get("platform_id", None),
+                    response["data"].get("platform_type", None),
+                    response["data"].get("service_start_date", None),
+                    response["data"].get("service_end_date", None),
+                    json.dumps(response["data"].get("metadata", {})),
+                    response["data"].get("map_to_uuid", None),
+                    response["data"].get("status", None),
+                    response["data"].get("embargo_data_days", None),
+                    json.dumps(response["data"].get("actions", {})),
+                ))
+                cur.commit()
+                return True
+            else:
+                cur.commit()
+                return False
+
     def save_changes(self) -> bool:
         with self.local_db.cursor() as cur:
             cur.execute("SELECT DISTINCT record_uuid FROM actions WHERE is_saved = 0")
@@ -399,203 +555,6 @@ class CNODCServerAPI:
             if response["success"]:
                 cur.execute("UPDATE actions SET is_saved = 1 WHERE record_uuid = ?", (record_uuid,))
 
-
-"""
-    def reload_stations(self) -> bool:
-        self._check_access('queue:station-failure')
-        with self.local_db.cursor() as cur:
-            cur.begin_transaction()
-            cur.truncate_table('stations')
-            for station_def in self._client.make_json_dict_list_request(
-                    endpoint=self._api_endpoint('other:list_stations'),
-                    method='GET'
-            ):
-                cur.insert('stations', station_def)
-            cur.commit()
-        return True
-
-    def create_station(self, station_def: dict) -> bool:
-        self._check_access('queue:station-failure')
-        with self.local_db.cursor() as cur:
-            cur.begin_transaction()
-            cur.insert('stations', station_def)
-            self._client.make_json_request(
-                endpoint=self._api_endpoint('other:create_station'),
-                method='POST',
-                station=station_def
-            )
-            cur.commit()
-            return True
-
-    def _api_endpoint(self, item_name: str):
-        item_names = item_name.split(':')
-        d = self._service_list
-        for x in item_names:
-            d = d[x]
-        return d['url'] if isinstance(d, dict) else d
-
-    def load_next_queue_item(self, service_name: str) -> t.Optional[tuple[list[str], list[str]]]:
-        with self.local_db.cursor() as cur:
-            cur.begin_transaction()
-            response = self._client.make_json_request(self._api_endpoint(service_name), 'POST')
-            if response['item_uuid'] is None:
-                return None
-            else:
-                self._current_queue_item = response
-                self._load_working_records(cur, self._current_queue_item['batch_size'])
-            cur.commit()
-        return list(self._current_queue_item['actions'].keys()), self._current_queue_item['current_tests']
-
-    def _make_item_request(self, action_name: str, **kwargs):
-        if action_name not in self._current_queue_item['actions']:
-            raise RemoteAPIError('Insufficient permissions for the operation')
-        return self._client.make_json_request(
-            self._current_queue_item['actions'][action_name],
-            'POST',
-            app_id=self._current_queue_item['app_id'],
-            **kwargs
-        )
-
-    def escalate_item(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        self._make_item_request('escalate')
-        self._current_queue_item = None
-        return True
-
-    def descalate_item(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        self._make_item_request('descalate')
-        self._current_queue_item = None
-        return True
-
-    def release_lock(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        self._make_item_request('release')
-        self._current_queue_item = None
-        return True
-
-    def mark_item_failed(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        self._make_item_request('fail')
-        self._current_queue_item = None
-        return True
-
-    def complete_item(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        self._make_item_request('complete')
-        self._current_queue_item = None
-        return True
-
-    def save_work(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        with self.local_db.cursor() as cur:
-            actions = {}
-            cur.execute('SELECT a.record_uuid, a.action_text, r.record_hash FROM actions a JOIN records r ON r.record_uuid = a.record_uuid AND is_saved = 0')
-            for record_id, action_text, record_hash in cur.fetchall():
-                if record_id not in actions:
-                    actions[record_id] = {
-                        'hash': record_hash,
-                        'actions': []
-                    }
-                actions[record_id]['actions'].append(
-                    json.loads(action_text)
-                )
-            response = self._make_item_request('apply_working', operations=actions)
-            successful_saves = [wrid for wrid in response if response[wrid][0]]
-            cur.execute("UPDATE actions SET is_saved = 1 WHERE record_uuid IN (" + (','.join('?' for _ in successful_saves)) + ")", successful_saves)
-            cur.commit()
-            return True
-
-    def renew_lock(self) -> bool:
-        if self._current_queue_item is None:
-            return False
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        time_left = (datetime.datetime.fromisoformat(self._current_queue_item['lock_expiry']) - now).total_seconds()
-        if time_left < 0:
-            self._current_queue_item = None
-            return False
-        elif time_left < self._check_time:
-            resp = self._make_item_request('renew')
-            self._current_queue_item.update(resp)
-        return True
-
-    def _load_working_records(self, cur: CursorWrapper, rough_count: int):
-        if 'actions' not in self._current_queue_item or 'download_working' not in self._current_queue_item['actions']:
-            raise ValueError('Missing response information')
-        cur.truncate_table('records')
-        cur.truncate_table('actions')
-        for working_uuid, record_hash, record, actions in self._client.make_working_records_request(
-                endpoint=self._current_queue_item['actions']['download_working'],
-                method='GET',
-                app_id=self._current_queue_item['app_id']
-        ):
-            lat = None
-            lon = None
-            ts = None
-            lat_qc = None
-            lon_qc = None
-            ts_qc = None
-            station_id = None
-            if record.metadata.has_value('CNODCStation'):
-                station_id = record.metadata.best('CNODCStation')
-            elif record.metadata.has_value('CNODCStationString'):
-                station_id = record.metadata.best('CNODCStationString')
-            if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
-                try:
-                    lat = record.coordinates['Latitude'].to_float()
-                    lon = record.coordinates['Longitude'].to_float()
-                    lat_qc = int(record.coordinates['Latitude'].metadata.best('WorkingQuality', 0))
-                    lon_qc = int(record.coordinates['Longitude'].metadata.best('WorkingQuality', 0))
-                except (ValueError, TypeError):
-                    pass
-            if record.coordinates.has_value('Time'):
-                try:
-                    ts = record.coordinates['Time'].to_datetime().isoformat()
-                    ts_qc = int(record.coordinates['Time'].metadata.best('WorkingQuality', 0))
-                except (ValueError, TypeError):
-                    pass
-            cur.insert('records', {
-                'record_uuid': working_uuid,
-                'display': self._build_display(record, working_uuid),
-                'record_hash': record_hash,
-                'station_id': station_id,
-                'lat': lat,
-                'lon': lon,
-                'lat_qc': lat_qc,
-                'lon_qc': lon_qc,
-                'datetime': ts,
-                'datetime_qc': ts_qc,
-                'record_content': json.dumps(record.to_mapping()),
-                'has_errors': 1 if record.qc_tests[-1].result == ocproc2.QCResult.MANUAL_REVIEW else 0
-            })
-            for action in actions:
-                cur.insert('actions', {
-                    'record_uuid': working_uuid,
-                    'action_text': json.dumps(action)
-                })
-        cur.commit()
-
-    def _build_display(self, record: ocproc2.ParentRecord, working_id: str):
-        s = []
-        if record.coordinates.has_value('Time'):
-            s.append(f'T:{record.coordinates.best("Time")}')
-        if record.coordinates.has_value('Latitude') and record.coordinates.has_value('Longitude'):
-            s.append(f'X:{record.coordinates.best("Longitude")}')
-            s.append(f'Y:{record.coordinates.best("Latitude")}')
-        if record.coordinates.has_value('Depth'):
-            s.append(f'Z:{record.coordinates.best("Depth")}')
-        elif record.coordinates.has_value('Pressure'):
-            s.append(f'P:{record.coordinates.best("Pressure")}')
-        if not s:
-            s.append(f"I:{working_id}")
-        return '  '.join(s)
-"""
 
 @injector.inject
 def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str | None, list[str]]:
@@ -633,63 +592,26 @@ def close_batch(close_operation: str, client: CNODCServerAPI = None) -> bool:
     return client.close_batch(close_operation)
 
 
-
-"""
-
+@injector.inject
+def reload_platforms(client: CNODCServerAPI = None) -> list[str]:
+    return client.reload_platforms()
 
 
 @injector.inject
-def renew_lock(client: CNODCServerAPI = None) -> bool:
-    return client.renew_lock()
+def load_platforms(platform_uuids: t.Iterable[str], client: CNODCServerAPI = None) -> list[str]:
+    return client.load_platforms(platform_uuids)
 
 
 @injector.inject
-def complete_item(client: CNODCServerAPI = None) -> bool:
-    return client.complete_item()
+def create_platform(client: CNODCServerAPI = None, **kwargs) -> str | None:
+    return client.create_platform(**kwargs)
 
 
 @injector.inject
-def release_item(client: CNODCServerAPI = None) -> bool:
-    return client.release_lock()
+def update_platform(platform_uuid: str, client: CNODCServerAPI = None, **kwargs) -> bool:
+    return client.update_platform(platform_uuid, **kwargs)
 
 
 @injector.inject
-def fail_item(client: CNODCServerAPI = None) -> bool:
-    return client.mark_item_failed()
-
-
-@injector.inject
-def reload_stations(client: CNODCServerAPI = None) -> bool:
-    return client.reload_stations()
-
-
-@injector.inject
-def create_station(station_def: dict, client: CNODCServerAPI = None) -> bool:
-    return client.create_station(station_def)
-
-
-@injector.inject
-def next_queue_item(service_name: str, client: CNODCServerAPI = None) -> t.Optional[list[str]]:
-    return client.load_next_queue_item(service_name)
-
-
-@injector.inject
-def escalate_item(client: CNODCServerAPI = None) -> bool:
-    return client.escalate_item()
-
-
-@injector.inject
-def descalate_item(client: CNODCServerAPI = None) -> bool:
-    return client.descalate_item()
-
-
-@injector.inject
-def save_work(client: CNODCServerAPI = None) -> bool:
-    return client.save_work()
-
-
-@injector.inject
-def change_password(password: str, client: CNODCServerAPI = None) -> bool:
-    return client.change_password(password)
-
-"""
+def search_platforms(client: CNODCServerAPI = None, **kwargs) -> list[str]:
+    return client.search_platforms(**kwargs)

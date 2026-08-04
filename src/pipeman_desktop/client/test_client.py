@@ -203,8 +203,6 @@ class MockNODB:
             "data": results,
         }
 
-
-
     def create_platform(self,
                         wmo_id: str | None,
                         wigos_id: str | None,

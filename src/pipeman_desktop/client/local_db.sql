@@ -2,23 +2,24 @@
 DROP TABLE IF EXISTS records;
 DROP TABLE IF EXISTS actions;
 DROP TABLE IF EXISTS stations;
+DROP TABLE IF EXISTS platforms;
 
 
-CREATE TABLE IF NOT EXISTS stations (
+CREATE TABLE IF NOT EXISTS platforms (
 
-    station_uuid TEXT,
+    platform_uuid TEXT,
     wmo_id TEXT,
     wigos_id TEXT,
-    station_name TEXT,
-    station_id TEXT,
-    station_type TEXT,
+    platform_name TEXT,
+    platform_id TEXT,
+    platform_type TEXT,
     service_start_date TEXT,
     service_end_date TEXT,
-    instrumentation TEXT,
     metadata TEXT,
     map_to_uuid TEXT,
     status TEXT,
-    embargo_data_days INT
+    embargo_data_days INT,
+    actions TEXT
 
 );
 
