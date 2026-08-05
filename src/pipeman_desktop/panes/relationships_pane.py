@@ -2,6 +2,7 @@ import functools
 import pathlib
 
 import gcapp.i18n as i18n
+from medsutil import json
 from medsutil.ocproc2 import ParentRecord
 from pipeman_desktop.components.scrollable import ScrollableTreeview
 
@@ -29,6 +30,7 @@ class RelationshipsPane(BasePane):
         self._pane_id: str | None = None
         self._platform_list_label: ttk.Label | None = None
         self._platform_list: ScrollableTreeview | None = None
+        self._can_update_platform: dict[str, bool] = {}
 
     def on_init(self):
         self._panel = ttk.Frame(self.app.middle)
@@ -73,6 +75,7 @@ class RelationshipsPane(BasePane):
 
     def _update_platform_options(self, record: ParentRecord | None):
         self._platform_list.clear_items()
+        self._can_update_platform.clear()
         if record is not None:
             platform_uuids: list[str] = record.metadata.best("CNODCPlatformCandidates", default=[], coerce=list)
             if platform_uuids:
@@ -92,7 +95,15 @@ class RelationshipsPane(BasePane):
                             values=tuple(x or "" for x in row[:-1]),
                             text=''
                         )
+                        self._can_update_platform[row[0]] = "update" in json.load_dict(row[-1])
 
     def _on_platform_right_click(self, item_info: dict, e):
-        ...
+        from pipeman_desktop.panes.platform_pane import PlatformContextMenu
+        cm = PlatformContextMenu(
+            self.app,
+            item_info["iid"],
+            self._can_update_platform[item_info["iid"]] if item_info["iid"] in self._can_update_platform else False,
+        )
+        cm.handle_popup_click(e)
+
 

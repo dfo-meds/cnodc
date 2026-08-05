@@ -173,6 +173,13 @@ flag_dubious = "Flag Dubious (3)"
 flag_erroneous = "Flag Erroneous (4)"
 flag_missing = "Flag Missing (9)"
 
+[context_menu.platform]
+view = "Properties"
+update = "Modify"
+assign_to_record = "Assign (Current Record)"
+assign_to_all = "Assign (Entire Batch)"
+
+
 [dialog.platform]
 title = "Platform Information"
 wmo_id = "WMO ID"
