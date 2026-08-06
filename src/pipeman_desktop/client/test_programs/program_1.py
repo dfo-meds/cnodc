@@ -57,7 +57,10 @@ def _build_12345_records(platform_uuids: list[str]) -> t.Iterable[tuple[NODBWork
         for y in range(0, 20):
             srecord = ChildRecord()
             srecord.coordinates["Depth"] = SingleElement(25 + (y * 50), Units="m", Uncertainty=SingleElement(0.5, UncertaintyType="uniform"))
-            srecord.parameters["Temperature"] = SingleElement(287.12 + (0.01 * x) + (0.004 * y), Units = "K", Uncertainty=SingleElement(0.0005, UncertaintyType="uniform"))
+            if y < 14:
+                srecord.parameters["Temperature"] = SingleElement(277.12 + x - (0.05 * (y ** 2)), Units = "K", Uncertainty=SingleElement(0.0005, UncertaintyType="uniform"))
+            else:
+                srecord.parameters["Temperature"] = SingleElement(258.00000, Units="K", Uncertainty=SingleElement(0.0005, UncertaintyType="uniform"))
             rs.records.append(srecord)
         record.subrecords.record_sets["PROFILE"] = {0: rs}
         qc_test = QCTestRunInfo(
