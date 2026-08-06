@@ -1,3 +1,4 @@
+from medsutil.ocproc2 import ElementMap
 from pipeman_desktop.components.ocproc_data_entry import ask_ocproc2, InputType
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
@@ -142,6 +143,16 @@ class ParameterPane(BasePane):
     ontology: ocproc2.OCProc2Ontology = None
     ocproc_translator: OCProc2Translator = None
 
+    HIDE_ELEMENTS = {
+        "WorkingQuality",
+        "Units",
+        "CNODCPlatformCandidates",
+    }
+
+    READ_ONLY_ELEMENTS = {
+        "CNODCPlatform",
+    }
+
     TAG_MAP = {
         -1: 'invalid',
         1: 'good',
@@ -195,7 +206,6 @@ class ParameterPane(BasePane):
         self._parameter_list.table.column('#3', width=75, anchor='w')
         self._parameter_list.table.column('#4', width=25, stretch=tk.NO)
 
-
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.RECORD_CHILD | DisplayChange.RECORD):
             self._rebuild_parameter_list()
@@ -208,6 +218,7 @@ class ParameterPane(BasePane):
                 self._rebuild_parameter_list()
 
     def _rebuild_parameter_list(self):
+        self._value_lookup.clear()
         self._parameter_name_lookup.clear()
         if self._parameter_list is not None:
             self._parameter_list.clear_items()
@@ -217,38 +228,24 @@ class ParameterPane(BasePane):
                 self.show_record(self.app.state.current_record, self.app.state.current_child_path)
 
     def show_record(self, record: ocproc2.BaseRecord, path: str):
-        self._value_lookup = {}
-        if record.coordinates:
-            c_path = self._create_parameter_header(path, 'coordinates')
-            is_alt = False
-            for k in record.coordinates.keys():
-                self._create_parameter_entry(record.coordinates[k], c_path, k, is_alt=is_alt)
-                is_alt = not is_alt
-            self._parameter_list.open_item(c_path)
-        if record.parameters:
-            p_path = self._create_parameter_header(path, 'parameters')
-            is_alt = False
-            for k in record.parameters.keys():
-                self._create_parameter_entry(record.parameters[k], p_path, k, is_alt=is_alt)
-                is_alt = not is_alt
-            self._parameter_list.open_item(p_path)
-        if record.metadata:
-            m_path = self._create_parameter_header(path, 'metadata')
-            is_alt = False
-            for k in record.metadata.keys():
-                self._create_parameter_entry(record.metadata[k], m_path, k, is_alt=is_alt)
-                is_alt = not is_alt
-            self._parameter_list.open_item(m_path)
+        self._build_from_element_map(record.coordinates, path, "coordinates", True)
+        self._build_from_element_map(record.parameters, path, "parameters", True)
+        self._build_from_element_map(record.metadata, path, "metadata", True)
 
     def show_recordset(self, record_set: ocproc2.RecordSet, path: str):
-        self._parameter_list.clear_items()
-        if record_set.metadata:
-            m_path = self._create_parameter_header(path, 'metadata')
+        self._build_from_element_map(record_set.metadata, path, "metadata", True)
+
+    def _build_from_element_map(self, element_map: ElementMap, path: str, map_name: str, open_header: bool = False):
+        if element_map:
+            map_path = self._create_parameter_header(path, map_name)
             is_alt = False
-            for k in record_set.metadata.keys():
-                self._create_parameter_entry(record_set.metadata[k], m_path, k, is_alt=is_alt)
+            for k in element_map.keys():
+                if k in self.HIDE_ELEMENTS:
+                    continue
+                self._create_parameter_entry(element_map[k], map_path, k, is_alt=is_alt)
                 is_alt = not is_alt
-            self._parameter_list.open_item(m_path)
+            if open_header:
+                self._parameter_list.open_item(map_path)
 
     def _create_parameter_header(self, path: str, header_name: str) -> str:
         m_path = f'{path}/{header_name}' if path else header_name
@@ -292,7 +289,7 @@ class ParameterPane(BasePane):
         self._parameter_name_lookup[path] = parameter_name
         is_alt = False
         for m_name, md in v.metadata.items():
-            if m_name not in {"WorkingQuality", "Units"}:
+            if m_name not in self.HIDE_ELEMENTS:
                 self._create_parameter_entry(md, path, m_name, depth + 1, is_alt=is_alt)
                 is_alt = not is_alt
 
@@ -337,10 +334,13 @@ class ParameterPane(BasePane):
     def _on_parameter_right_click(self, item, event):
         if item['iid'] not in self._parameter_name_lookup:
             return
+        parameter_name = self._parameter_name_lookup[item['iid']]
+        if parameter_name in self.READ_ONLY_ELEMENTS:
+            return
         pcm = ParameterContextMenu(
             self.app,
             item['iid'],
-            self._get_element_info(self._parameter_name_lookup[item['iid']]),
+            self._get_element_info(parameter_name),
             self.app.state.username,
             item['values'][3],
             self._value_lookup[item['iid']]
