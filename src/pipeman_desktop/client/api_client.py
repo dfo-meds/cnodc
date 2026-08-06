@@ -389,6 +389,7 @@ class CNODCServerAPI:
                         map_to_uuid: str | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
+                        mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
                         top_speed: str | None) -> str | None:
@@ -404,6 +405,7 @@ class CNODCServerAPI:
             map_to_uuid=map_to_uuid or None,
             skip_speed_check=skip_speed_check,
             skip_land_check=skip_land_check,
+            mandatory_review=mandatory_review,
             dedupe_time_window=dedupe_time_window,
             dedupe_distance_window=dedupe_distance_window,
             top_speed=top_speed or None,
@@ -431,6 +433,7 @@ class CNODCServerAPI:
                         map_to_uuid: str | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
+                        mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
                         top_speed: str | None) -> bool:
@@ -447,6 +450,7 @@ class CNODCServerAPI:
             map_to_uuid=map_to_uuid or None,
             skip_speed_check=skip_speed_check,
             skip_land_check=skip_land_check,
+            mandatory_review=mandatory_review,
             dedupe_time_window=dedupe_time_window,
             dedupe_distance_window=dedupe_distance_window,
             top_speed=top_speed or None,

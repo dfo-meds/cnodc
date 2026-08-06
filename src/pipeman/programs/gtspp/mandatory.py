@@ -15,5 +15,5 @@ class GTSPPMandatoryManualReviewTest(DeepDiveChecker):
 
     def parent_record_check(self, ref: ParentRecordRef):
         nodb_platform = self.get_current_platform(True)
-        if nodb_platform is not None and nodb_platform.metadata.get("require_review", False):
+        if nodb_platform is not None and nodb_platform.mandatory_review:
             self.update_qc_result(QCResult.MANUAL_REVIEW)

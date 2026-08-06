@@ -239,6 +239,7 @@ class NODBController:
                         embargo_data_days: int | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
+                        mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
                         top_speed: str | float | None,
@@ -267,6 +268,7 @@ class NODBController:
             platform.metadata["skip_on_land_check"] = bool(skip_land_check)
             platform.metadata["dedupe_time_window"] = dedupe_time_window
             platform.metadata["dedupe_distance_window"] = dedupe_distance_window
+            platform.metadata["mandatory_review"] = bool(mandatory_review)
             platform.metadata["top_speed"] = top_speed
             db.insert_object(platform)
             db.commit()
@@ -312,6 +314,7 @@ class NODBController:
                         embargo_data_days: int | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
+                        mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
                         top_speed: str | float | None,
@@ -345,6 +348,7 @@ class NODBController:
                 platform.metadata["skip_on_land_check"] = bool(skip_land_check)
                 platform.metadata["dedupe_time_window"] = dedupe_time_window
                 platform.metadata["dedupe_distance_window"] = dedupe_distance_window
+                platform.metadata["mandatory_review"] = bool(mandatory_review)
                 platform.metadata["top_speed"] = top_speed
                 db.update_object(platform)
                 db.commit()

@@ -118,6 +118,11 @@ class PlatformDialog(FormDialog):
             tooltip_name="tooltip.platform.skip_land_check",
             col_offset=1
         ))
+        self.add_field("mandatory_review", CheckboxField(
+            label_name="dialog.platform.mandatory_review",
+            tooltip_name="tooltip.platform.mandatory_review",
+            col_offset=1
+        ))
 
     def custom_validation(self) -> list[str] | None:
         errors = []
@@ -298,6 +303,7 @@ class PlatformContextMenu:
                     "embargo_data_days": row[10],
                     "skip_speed_check": metadata.get("skip_speed_check", False),
                     "skip_land_check": metadata.get("skip_on_land_check", False),
+                    "mandatory_review": metadata.get("mandatory_review", False),
                     "top_speed": metadata.get("top_speed", None),
                     "dedupe_time_window": metadata.get("dedupe_time_window", None),
                     "dedupe_distance_window": metadata.get("dedupe_distance_window", None),

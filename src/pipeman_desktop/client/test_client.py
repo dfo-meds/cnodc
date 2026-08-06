@@ -216,6 +216,7 @@ class MockNODB:
                         map_to_uuid: str | None = None,
                         skip_speed_check: bool = False,
                         skip_land_check: bool = False,
+                        mandatory_review: bool = False,
                         dedupe_time_window: float | None = None,
                         dedupe_distance_window: float | None = None,
                         top_speed: str | None = None) -> dict:
@@ -239,7 +240,8 @@ class MockNODB:
                 "skip_on_land_check": skip_land_check,
                 "dedupe_time_window": dedupe_time_window,
                 "dedupe_distance_window": dedupe_distance_window,
-                "top_speed": top_speed
+                "top_speed": top_speed,
+                "mandatory_review": mandatory_review,
             }
         }
         return {
@@ -271,6 +273,7 @@ class MockNODB:
                         map_to_uuid: str | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
+                        mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
                         top_speed: str | None) -> dict:
@@ -297,7 +300,8 @@ class MockNODB:
                     "skip_on_land_check": skip_land_check,
                     "dedupe_time_window": dedupe_time_window,
                     "dedupe_distance_window": dedupe_distance_window,
-                    "top_speed": top_speed
+                    "top_speed": top_speed,
+                    "mandatory_review": mandatory_review,
                 }
             }
             return {

@@ -293,6 +293,10 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
     embargo_data_days: int | None = s.IntColumn()
 
     @property
+    def mandatory_review(self) -> bool:
+        return bool(self.metadata.get("mandatory_review", False))
+
+    @property
     def skip_speed_check(self) -> bool:
         return bool(self.metadata.get('skip_speed_check', False))
 
