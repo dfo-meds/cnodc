@@ -204,9 +204,9 @@ class _PGCursor:
 class PostgresController:
     """Wrapper around a postgresql connection with NODB support"""
 
-    def __init__(self, conn, cur_cls=_PGCursor):
+    def __init__(self, conn: PGConnectionWrapper, cur_cls=_PGCursor):
         self._cur_cls = cur_cls
-        self._conn = conn
+        self._conn: PGConnectionWrapper = conn
         self._is_closed = False
         self._log = zrlog.get_logger("cnodc.db")
         self._max_in_size = 32767
@@ -1140,31 +1140,37 @@ class PostgresController:
             return str(v)
 
 
-@injector.injectable_global
-class NODBPostgresController(NODB):
-    """Postgresql-linked instance of the controller object."""
+class PGConnectionWrapper:
 
-    config: zr.ApplicationConfig = None
+    def __init__(self, connect_args: dict[str, t.Any]):
+        self._connect_args = connect_args
+        self._conn: pgext.connection | None = None
 
-    @injector.construct
-    def __init__(self, **kwargs):
-        super().__init__()
-        self._conn: t.Optional[pgext.connection] = None
-        self._connect_args: dict[str, t.Any] = kwargs if kwargs else dict(self.config.as_dict(("nodb",), default={}))
-        if 'options' not in self._connect_args:
-            self._connect_args['options'] = "-c search_path=public"
-        self._connect_args['cursor_factory'] = pge.DictCursor
-
-    def __cleanup__(self):
+    def cursor(self):
+        self.connect()
         if self._conn is not None:
-            self._conn.close()
+            return self._conn.cursor()
+        else:
+            raise NODBError("Database connection not present", 9000, is_transient=True, pgcode=None)
 
-    @wrap_nodb_exceptions
-    def _build_controller_instance(self):
+    def commit(self):
+        self._verify_connection()
+        if self._conn is not None:
+            self._conn.commit()
+        else:
+            raise NODBError("Database connection not present", 9001, is_transient=True, pgcode=None)
+
+    def rollback(self):
+        self._verify_connection()
+        if self._conn is not None:
+            self._conn.rollback()
+        else:
+            raise NODBError("Database connection not present", 9002, is_transient=True, pgcode=None)
+
+    def connect(self):
         self._verify_connection()
         if self._conn is None:
             self._conn = pg.connect(**self._connect_args)
-        return PostgresController(self._conn)
 
     def _verify_connection(self):
         if self._conn is not None:
@@ -1179,4 +1185,34 @@ class NODBPostgresController(NODB):
                         self._conn = None
                 except pg.Error:
                     self._conn = None
+
+    def close(self):
+        self._verify_connection()
+        if self._conn is not None:
+            self._conn.close()
+
+
+@injector.injectable_global
+class NODBPostgresController(NODB):
+    """Postgresql-linked instance of the controller object."""
+
+    config: zr.ApplicationConfig = None
+
+    @injector.construct
+    def __init__(self, **kwargs: t.Any):
+        super().__init__()
+        connect_args: dict[str, t.Any] = kwargs if kwargs else t.cast(dict[str, t.Any], self.config.as_dict(("nodb",), default={}))
+        if 'options' not in connect_args:
+            connect_args['options'] = "-c search_path=public"
+        connect_args['cursor_factory'] = pge.DictCursor
+        self._conn: PGConnectionWrapper = PGConnectionWrapper(connect_args)
+
+    def __cleanup__(self):
+        if self._conn is not None:
+            self._conn.close()
+
+    @wrap_nodb_exceptions
+    def _build_controller_instance(self):
+        return PostgresController(self._conn)
+
 
