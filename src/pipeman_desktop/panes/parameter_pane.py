@@ -236,12 +236,11 @@ class ParameterPane(BasePane):
         self._build_from_element_map(record_set.metadata, path, "metadata", True)
 
     def _build_from_element_map(self, element_map: ElementMap, path: str, map_name: str, open_header: bool = False):
-        if element_map:
+        keys = [x for x in element_map.keys() if x not in self.HIDE_ELEMENTS]
+        if keys:
             map_path = self._create_parameter_header(path, map_name)
             is_alt = False
-            for k in element_map.keys():
-                if k in self.HIDE_ELEMENTS:
-                    continue
+            for k in keys:
                 self._create_parameter_entry(element_map[k], map_path, k, is_alt=is_alt)
                 is_alt = not is_alt
             if open_header:
