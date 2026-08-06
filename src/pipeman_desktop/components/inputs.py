@@ -283,7 +283,7 @@ class BorderedControl(ttk.Frame):
 
     def set_widget(self, widget):
         self.entry = widget
-        self.entry.pack(padx=2, pady=2, sticky="EW")
+        self.entry.pack(padx=2, pady=2)
 
     def set_errored(self, is_error: bool):
         if is_error:
