@@ -22,7 +22,11 @@ class NODBIntegrityChecker(DeepDiveChecker):
 
     @injector.construct
     def __init__(self):
-        super().__init__(test_name='nodb_integrity', test_version='1.0')
+        super().__init__(
+            test_protocol="nodb",
+            test_name='integrity_check',
+            test_version='1.0'
+        )
 
     def single_element_check(self, ref: SingleElementRef):
         info = self.ontology.info(ref.element_name)

@@ -82,7 +82,8 @@ class GTSPPSpikeGradientTest(ProfileChecker):
                  run_spike_extrema_test: bool = True,
                  run_gradient_test: bool = True):
         super().__init__(
-            test_name='gtspp_spike',
+            test_protocol='gtspp',
+            test_name='spike_gradient_check',
             test_version='1.0',
             test_tags=[
                 'GTSPP_2.7' if run_spike_test else None,

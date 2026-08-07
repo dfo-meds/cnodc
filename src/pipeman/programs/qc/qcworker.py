@@ -21,6 +21,7 @@ class NODBQCWorker(WorkflowWorker):
             'qc_tests': [],
             'next_queue': "workflow_continue",
             'review_queue': 'nodb_manual_review',
+            'review_test_protocol': None,
             'error_queue': 'nodb_qc_errors',
             'recheck_queue': None,
         })
@@ -55,6 +56,7 @@ class NODBQCWorker(WorkflowWorker):
         if outcome == ResultBatcher.RESULT_NEXT:
             bp.enqueue(db, self.get_config("next_queue"))
         elif outcome == ResultBatcher.RESULT_REVIEW:
+            bp.metadata['review_protocol'] = self.get_config("review_test_protocol", "nodb")
             bp.metadata['recheck_queue'] = self.get_config("recheck_queue", self.get_config("queue_name", None))
             bp.metadata['next_queue'] = self.get_config("next_queue", None)
             bp.metadata['error_queue'] = self.get_config("error_queue", None)

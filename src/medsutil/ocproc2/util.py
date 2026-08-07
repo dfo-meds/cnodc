@@ -59,7 +59,7 @@ class Quality(enum.IntEnum):
     MISSING = 9
 
     @staticmethod
-    def new_quality_allowed(new_quality: int, old_quality: int | None):
+    def new_quality_allowed(new_quality: int | None, old_quality: int | None):
         from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP
         return new_quality in ALLOWED_QUALITY_MAP[old_quality]
 
@@ -219,27 +219,39 @@ def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, req
     return None
 
 
-def can_set_working_quality(element: ObjectWithMetadata, working_quality: int) -> bool:
-    quality = element.metadata.best("Quality", coerce=int, default=None)
-    existing_quality = element.metadata.best("WorkingQuality", coerce=int, default=None)
+def _find_quality_for_protocol(element: ObjectWithMetadata, test_protocol: str) -> tuple[int | None, int | None]:
+    return (
+        _find_quality_helper("Quality", element, test_protocol),
+        _find_quality_helper("WorkingQuality", element, test_protocol)
+    )
+
+def _find_quality_helper(value_name: str, element: ObjectWithMetadata, test_protocol: str) -> int | None:
+    if value_name not in element.metadata:
+        return None
+    for obj in element.metadata[value_name].all_values():
+        if obj.metadata.best("TestProtocol", coerce=str, default="") == test_protocol:
+            return obj.to_int()
+    return None
+
+def can_set_working_quality(element: ObjectWithMetadata, working_quality: int, test_protocol: str) -> bool:
+    quality, existing_quality = _find_quality_for_protocol(element, test_protocol)
     if existing_quality is None:
         existing_quality = quality
     return Quality.new_quality_allowed(working_quality, existing_quality)
 
-
-def set_working_quality(element: ObjectWithMetadata, working_quality: int) -> bool:
-    if can_set_working_quality(element, working_quality):
-        element.metadata["WorkingQuality"] = working_quality
+def set_working_quality(element: ObjectWithMetadata, working_quality: int, test_protocol: str) -> bool:
+    if can_set_working_quality(element, working_quality, test_protocol):
+        from medsutil.ocproc2.elements import SingleElement
+        element.metadata["WorkingQuality"] = SingleElement(working_quality, TestProtocol=test_protocol)
         return True
     return False
 
-
-def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: RequiredQuality) -> bool:
+def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None) -> bool:
     any_passed: bool = False
     exs = []
     for obj in objs:
         try:
-            check_quality(obj, required_quality)
+            check_quality(obj, required_quality, allowed_protocols)
             any_passed = True
         except QualityError as ex:
             exs.append(ex)
@@ -252,23 +264,41 @@ def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: Requi
             raise QualityErrorGroup("Multiple errors", exs)
     return False
 
-def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality) -> bool:
+def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None) -> bool:
     try:
-        check_quality(obj, required_quality)
+        check_quality(obj, required_quality, allowed_protocols)
         return True
     except QualityError:
         return False
 
 
-def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality):
+def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None):
     if obj is None:
         raise QualityError("element_is_none")
 
-    final_quality = obj.metadata.best("Quality", coerce=int, default=0)
+    final_quality, working_quality = 0, 0
+    if allowed_protocols is None:
+        if 'Quality' in obj.metadata:
+            for x in obj.metadata["Quality"].all_values():
+                if Quality.new_quality_allowed(x.to_int(), final_quality):
+                    final_quality = x.to_int()
+        if 'WorkingQuality' in obj.metadata:
+            for x in obj.metadata["WorkingQuality"].all_values():
+                if Quality.new_quality_allowed(x.to_int(), working_quality):
+                    working_quality = x.to_int()
+
+    else:
+        for x in allowed_protocols:
+            check_final, check_working = _find_quality_for_protocol(obj, x)
+            if Quality.new_quality_allowed(check_final, final_quality):
+                final_quality = check_final
+            if Quality.new_quality_allowed(check_working, working_quality):
+                working_quality = check_working
+
+
     if RequiredQuality.NOT_FINAL in required_quality and final_quality != Quality.UNCHECKED:
         raise QualityError("element_has_final_quality")
 
-    working_quality = obj.metadata.best("WorkingQuality", coerce=int, default=final_quality)
     if RequiredQuality.NOT_MISSING in required_quality and working_quality == Quality.MISSING:
         raise QualityError("element_is_flagged_empty")
     if RequiredQuality.NOT_ERRONEOUS in required_quality and working_quality == Quality.ERRONEOUS:

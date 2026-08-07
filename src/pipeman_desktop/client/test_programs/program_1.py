@@ -64,11 +64,11 @@ def _build_12345_records(platform_uuids: list[str]) -> t.Iterable[tuple[NODBWork
             rs.records.append(srecord)
         record.subrecords.record_sets["PROFILE"] = {0: rs}
         qc_test = QCTestRunInfo(
-            "gtspp_full_qc", "1.0", AwareDateTime.utcnow(), QCResult.MANUAL_REVIEW, [
+            "gtspp", "full_qc", "1.0", AwareDateTime.utcnow(), QCResult.MANUAL_REVIEW, [
                 QCMessage("failed_temperature_check", "parameters/Temperature", review_name="spike_check"),
                 QCMessage("too_many_platforms", "", review_name="platform_check")
             ], None, False, None, [
-                ChangeQuality(path="parameters/Temperature", new_flag=4),
+                ChangeQuality(path="parameters/Temperature", new_flag=4, test_protocol="gtspp"),
                 SetManualQCOutcome(qc_index=0, actual_result=QCResult.MANUAL_FAIL),
                 PlatformBlocker()
             ], None

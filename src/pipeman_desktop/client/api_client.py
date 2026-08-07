@@ -253,7 +253,7 @@ class CNODCServerAPI:
         )
         return response["ready"]
 
-    def open_batch(self, batch_service_name: str) -> list[str] | None:
+    def open_batch(self, batch_service_name: str) -> tuple[list[str], str] | None:
         response = self.make_service_json_request(
             service_identifier=f"batch_qc.{batch_service_name}.open",
             method="POST",
@@ -261,7 +261,7 @@ class CNODCServerAPI:
         if "queue_uuid" in response and response["queue_uuid"]:
             self._current_queue_item = response
             self._load_batch()
-            return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", [])
+            return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", []), response.get("test_protocol", "nodb")
 
         else:
             self._current_queue_item = None

@@ -10,7 +10,8 @@ class GTSPPDensityInversionTest(ProfileChecker):
 
     def __init__(self):
         super().__init__(
-            test_name='gtspp_density',
+            test_protocol='gtspp',
+            test_name='density_inversion_check',
             test_verison='1.0',
             test_tags=['GTSPP_2.10']
         )

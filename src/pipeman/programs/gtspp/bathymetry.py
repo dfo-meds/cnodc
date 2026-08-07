@@ -20,7 +20,8 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
                  run_bottom_test: bool = True,
                  searcher_cls: type | None = None):
         super().__init__(
-            test_name='gtspp_bathy_check',
+            test_protocol='gtspp',
+            test_name='bathymetry_check',
             test_version='1.0',
             test_tags=[
                 'GTSPP_1.4' if run_on_land_test else None,

@@ -61,6 +61,7 @@ class ApplicationState:
 
     def __init__(self, app: PipemanDesktop):
         self._app = app
+        self._test_protocol: str | None = None
         self._username: t.Optional[str] = None
         self._available_services: list[str] | None = None
         self._queue_ready_report: list[tuple[str, str | None, int, int]] = []
@@ -83,6 +84,10 @@ class ApplicationState:
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
         self.actions: t.Optional[list[RecordAction]] = None
+
+    @property
+    def test_protocol(self) -> str:
+        return self._test_protocol or 'nodb'
 
     @property
     def batch_save_in_progress(self) -> bool:
@@ -293,15 +298,17 @@ class ApplicationState:
         self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
         self._on_qc_batch_open_success(False, on_no_item)
 
-    def _on_qc_batch_open_success(self, result: list[str] | None | bool, on_no_item: t.Callable | None = None):
-        if isinstance(result, list):
-            self._batch_actions = result
+    def _on_qc_batch_open_success(self, result: tuple[list[str], str] | None | bool, on_no_item: t.Callable | None = None):
+        if isinstance(result, tuple):
+            self._batch_actions = result[0]
+            self._test_protocol = result[1]
             self.refresh_record_list(False)
             self._batch_state = BatchOpenState.OPEN
             self._has_unsaved_changes = False
             self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING | DisplayChange.RECORD_LIST)
         else:
             self._batch_actions = None
+            self._test_protocol = None
             if result is not False:
                 self._app.show_user_info(
                     title=i18n.tr(f'dialog.no_items.title', service=self.batch_service_name),
@@ -434,7 +441,7 @@ class ApplicationState:
         return self._available_services is not None and "desktop.create_platform" in self._available_services
 
     def update_record_platform(self, record_uuid: str, platform_uuid: str):
-        self.add_action_by_uuid(record_uuid, AssignPlatform(platform_uuid=platform_uuid))
+        self.add_action_by_uuid(record_uuid, AssignPlatform(platform_uuid=platform_uuid, test_protocol=self.test_protocol))
 
     def add_action_by_uuid(self, record_uuid: str, action: RecordAction):
         if record_uuid == self.current_working_uuid:
@@ -587,6 +594,7 @@ class ApplicationState:
                 self._batch_records = None
                 self._batch_close_op = None
                 self._batch_actions = None
+                self._test_protocol = None
                 self.refresh_display(DisplayChange.BATCH_STATE)
             self.update_save_flags(False, False)
         elif batch_state is not self._batch_state:

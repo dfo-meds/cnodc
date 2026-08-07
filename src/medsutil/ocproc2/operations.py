@@ -59,6 +59,7 @@ class RecordAction(dd.DataDictObject):
 
 
 class RetestRecord(RecordAction):
+    qc_test_protocol: str
     qc_test_name: str
 
     @property
@@ -71,13 +72,13 @@ class RetestRecord(RecordAction):
 
     @property
     def value(self) -> str:
-        return self.qc_test_name
+        return f"{self.qc_test_protocol}.{self.qc_test_name}"
 
     def apply(self, record: ParentRecord):
-        record.mark_test_results_stale(self.qc_test_name)
+        record.mark_test_results_stale(self.qc_test_protocol, self.qc_test_name)
 
     def conflicts_with(self, action: RecordAction) -> bool:
-        return isinstance(action, RetestRecord) and action.qc_test_name == self.qc_test_name
+        return isinstance(action, RetestRecord) and action.qc_test_name == self.qc_test_name and self.qc_test_protocol == action.qc_test_protocol
 
 
 class RecordProcessed(RecordAction):
@@ -179,6 +180,7 @@ class SetPlatformCandidates(RecordAction):
 
 
 class AssignPlatform(RecordAction):
+    test_protocol: str = dd.p_str()
     platform_uuid: str | None = dd.p_str()
 
     @property
@@ -194,7 +196,7 @@ class AssignPlatform(RecordAction):
         return self.platform_uuid or ''
 
     def apply(self, record: ParentRecord):
-        record.metadata["CNODCPlatform"] = SingleElement(self.platform_uuid, Quality=1 if self.platform_uuid else 9)
+        record.metadata["CNODCPlatform"] = SingleElement(self.platform_uuid, Quality=SingleElement(1 if self.platform_uuid else 9, TestProtoccol=self.test_protocol))
         if 'CNODCPlatformCandidates' in record.metadata:
             del record.metadata["CNODCPlatformCandidates"]
         self.add_history_action(
@@ -251,6 +253,7 @@ class SetToEmpty(PathAction):
         )
 
 class ChangeQualityAtLevelAndDeeper(PathAction):
+    test_protocol: str = dd.p_str()
     other_paths: list[str] = dd.p_list(value_coerce=str)
     new_flag: int = dd.p_int()
 
@@ -272,7 +275,7 @@ class ChangeQualityAtLevelAndDeeper(PathAction):
             element = record.find_child(p)
             if not isinstance(element, (AbstractElement, BaseRecord, RecordSet)):
                 raise ValueError("Invalid element path")
-            if set_working_quality(element, self.new_flag):
+            if set_working_quality(element, self.new_flag, self.test_protocol):
                 self.add_history_action(
                     record,
                     f"Quality flag changed to {self.new_flag}",
@@ -282,6 +285,7 @@ class ChangeQualityAtLevelAndDeeper(PathAction):
                 # TODO: should we change this to a "set at and deeper history action"? I think this is more clear.
 
 class ChangeQuality(PathAction):
+    test_protocol: str = dd.p_str()
     new_flag: int = dd.p_int()
 
     @property
@@ -300,7 +304,7 @@ class ChangeQuality(PathAction):
         element = record.find_child(self.path)
         if not isinstance(element, (AbstractElement, BaseRecord, RecordSet)):
             raise ValueError("Invalid element path")
-        if set_working_quality(element, self.new_flag):
+        if set_working_quality(element, self.new_flag, self.test_protocol):
             self.add_history_action(
                 record,
                 f"Quality flag changed to {self.new_flag}",
@@ -340,6 +344,7 @@ class SetManualQCOutcome(RecordAction):
 
 
 class ChangeValue(PathAction):
+    test_protocol: str = dd.p_str()
     path: str = dd.p_str()
     new_value: SupportedValue = dd.p_any()
 
@@ -362,10 +367,10 @@ class ChangeValue(PathAction):
         if element is not None:
             previous = element.value
             element.value = self.new_value
-            element.metadata["WorkingQuality"] = 5
+            element.metadata["WorkingQuality"] = SingleElement(5, TestProtocol=self.test_protocol)
             element.metadata.append_to("PreviousValue", previous)
         else:
-            record.set(self.path, self.new_value, WorkingQuality=5)
+            record.set(self.path, self.new_value, WorkingQuality=SingleElement(5, TestProtocol=self.test_protocol))
         self.add_history_action(
             record,
             f"Value changed",

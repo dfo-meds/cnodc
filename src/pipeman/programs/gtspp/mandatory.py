@@ -11,7 +11,12 @@ class GTSPPMandatoryManualReviewTest(DeepDiveChecker):
 
     @injector.construct
     def __init__(self):
-        super().__init__('gtspp_mandatory_review', '1.0', test_tags=['GTSPP_5.1'])
+        super().__init__(
+            test_protocol='gtspp',
+            test_name='mandatory_review',
+            test_version='1.0',
+            test_tags=['GTSPP_5.1']
+        )
 
     def parent_record_check(self, ref: ParentRecordRef):
         nodb_platform = self.get_current_platform(True)

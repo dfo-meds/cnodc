@@ -11,7 +11,8 @@ class GTSPPConstantTest(ProfileChecker):
 
     def __init__(self, **kwargs):
         super().__init__(
-            test_name='gtspp_constant_check',
+            test_protocol='gtspp',
+            test_name='constant_check',
             test_version='1.0',
             test_tags=['GTSPP_2.5'],
             **kwargs

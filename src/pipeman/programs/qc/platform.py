@@ -15,8 +15,9 @@ class NODBPlatformCheck(DeepDiveChecker):
     @injector.construct
     def __init__(self, searcher_cls=None):
         super().__init__(
-            'nodb_platform',
-            '1.0',
+            test_protocol='nodb',
+            test_name='platform_check',
+            test_version='1.0',
             searcher_cls=searcher_cls,
             station_invariant=False,
             test_tags=['GTSPP_1.1']
@@ -44,15 +45,14 @@ class NODBPlatformCheck(DeepDiveChecker):
                 self._apply_platform_action(platforms[0])
             case 0:
                 self._set_platform_candidates(None)
-                self.add_record_action(PlatformBlocker(), True)
                 self.report_qc_error("no_platforms_found")
             case _:
                 self._set_platform_candidates(platforms)
-                self.add_record_action(PlatformBlocker(), True)
                 self.report_qc_error("many_platforms_found")
 
     def _apply_platform_action(self, platform_uuid: str, is_reviewable: bool = False):
         self.add_record_action(AssignPlatform(
+            test_protocol=self._test_protocol,
             platform_uuid=platform_uuid,
             source_name=self._test_name,
             source_version=self._test_version,
@@ -60,6 +60,7 @@ class NODBPlatformCheck(DeepDiveChecker):
 
     def _set_platform_candidates(self, platforms: list[str] | None):
         self.add_record_action(SetPlatformCandidates(platform_uuids=platforms), False)
+        self.add_record_action(PlatformBlocker(), True)
 
     def _find_platform_matches(self, record: ocproc2.ParentRecord) -> list[str]:
         search_kwargs: dict[str, str | None | AwareDateTime] = {

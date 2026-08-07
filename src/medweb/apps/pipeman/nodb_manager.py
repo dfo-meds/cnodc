@@ -51,6 +51,7 @@ class NODBController:
                     "queue_name": item.queue_name,
                     "subqueue_name": item.subqueue_name,
                     "queue_uuid": item.queue_uuid,
+                    "test_protocol": item.data.get("metadata", {}).get("review_protocol", "nodb"),
                     "actions": {
                         "renew": {
                             "endpoint": flask.url_for("desktop.renew_queue_item", _external=True, queue_uuid=item.queue_uuid),

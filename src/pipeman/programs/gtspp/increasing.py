@@ -8,7 +8,8 @@ class GTSPPIncreasingChecker(ProfileChecker):
 
     def __init__(self):
         super().__init__(
-            test_name='gtspp_increasing',
+            test_protocol='gtspp',
+            test_name='increasing_depth_check',
             test_version='1.0',
             test_tags=['GTSPP_2.3']
         )

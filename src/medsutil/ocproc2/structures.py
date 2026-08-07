@@ -223,6 +223,7 @@ class ParentRecord(BaseRecord):
             q.update_hash(h)
 
     def record_qc_test_result(self,
+                              test_protocol: str,
                               test_name: str,
                               test_version: str,
                               outcome: QCResult,
@@ -230,8 +231,9 @@ class ParentRecord(BaseRecord):
                               notes: str = None,
                               test_tags: t.Optional[list[str]] = None,
                               test_time: t.Optional[datetime.datetime] = None):
-        self.mark_test_results_stale(test_name)
+        self.mark_test_results_stale(test_protocol, test_name)
         self.qc_tests.append(QCTestRunInfo(
+            test_protocol,
             test_name,
             test_version,
             test_time or awaretime.utc_now(),
@@ -241,9 +243,9 @@ class ParentRecord(BaseRecord):
             test_tags=test_tags,
         ))
 
-    def mark_test_results_stale(self, test_name: str):
+    def mark_test_results_stale(self, test_protocol: str, test_name: str):
         for qct in self.qc_tests:
-            if qct.test_name == test_name:
+            if qct.test_name == test_name and qct.test_protocol == test_protocol:
                 qct.is_stale = True
 
     def add_processed_by(self,

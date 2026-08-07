@@ -45,6 +45,7 @@ class MockNODB:
                        records: t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]],
                        queue_uuid: str,
                        queue_name: str,
+                       test_protocol: str = "gtspp",
                        subqueue_name: str | None = None,
                        escalation_level: int = 0):
         self._queue_items[queue_uuid] = {
@@ -54,6 +55,7 @@ class MockNODB:
             "queue_uuid": queue_uuid,
             "success": True,
             "message": "Success",
+            "test_protocol": test_protocol,
             "actions": {
                 "renew": {
                     "endpoint": f"api/renew/{queue_uuid}",

@@ -74,7 +74,8 @@ class ParameterContextMenu:
             self._app.state.add_action(
                 ocproc2.ChangeValue(
                     path=self._target_path,
-                    new_value=new_value
+                    new_value=new_value,
+                    test_protocol=self._app.state.test_protocol
                 )
             )
 
@@ -129,7 +130,11 @@ class ParameterContextMenu:
         self._set_working_quality_flag(2)
 
     def _set_working_quality_flag(self, flag_no: int):
-        self._app.state.add_action(ocproc2.ChangeQuality(path=self._target_path, new_flag=flag_no))
+        self._app.state.add_action(ocproc2.ChangeQuality(
+            path=self._target_path,
+            new_flag=flag_no,
+            test_protocol=self._app.state.test_protocol
+        ))
 
     def handle_popup_click(self, e):
         try:

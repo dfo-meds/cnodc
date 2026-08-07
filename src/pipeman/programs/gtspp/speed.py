@@ -30,7 +30,8 @@ class GTSPPSpeedCheck(DeepDiveChecker):
                  international_dateline_check_threshold_degrees: int | float | None = 350,
                  searcher_cls=None):
         super().__init__(
-            test_name='gtspp_speed',
+            test_protocol='gtspp',
+            test_name='speed_check',
             test_version='1.0',
             searcher_cls=searcher_cls,
             test_tags=['GTSPP_1.5'],

@@ -185,10 +185,11 @@ class QCMessage:
 class QCTestRunInfo:
     """Records the outcome of a QC test run."""
 
-    __slots__ = ('test_name', 'test_tags', 'test_version', 'test_date',
+    __slots__ = ('test_name', 'test_tags', 'test_version', 'test_date', 'test_protocol',
                  'result', 'messages', 'notes', 'is_stale', 'proposed_actions', 'applied_actions')
 
     def __init__(self,
+                 test_protocol: str,
                  test_name: str,
                  test_version: str,
                  test_date: t.Union[datetime.datetime, str],
@@ -199,6 +200,7 @@ class QCTestRunInfo:
                  test_tags: t.Optional[list[str]] = None,
                  proposed_actions: list[RecordAction] | None = None,
                  applied_actions: list[RecordAction] | None = None):
+        self.test_protocol = test_protocol
         self.test_name = test_name
         self.test_tags = test_tags or []
         self.test_version = test_version
@@ -211,12 +213,13 @@ class QCTestRunInfo:
         self.applied_actions = applied_actions or []
 
     def __str__(self):
-        return f"{self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}"
+        return f"{self.test_protocol} {self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}"
 
     def __repr__(self):
-        return f"<QCTest {self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}>"
+        return f"<QCTest {self.test_protocol} {self.test_name} {self.test_version} [{';'.join(self.test_tags)}]: {self.result}>"
 
     class Export(t.TypedDict, total=False):
+        _protocol: t.Required[str]
         _name: t.Required[str]
         _version: t.Required[str]
         _date: t.Required[str]
@@ -230,6 +233,7 @@ class QCTestRunInfo:
 
     def update_hash(self, h: ct.SupportsHashUpdate):
         """Update a hash with the unique values for this test run."""
+        h.update(self.test_protocol.encode('utf-8', 'replace'))
         h.update(self.test_name.encode('utf-8', 'replace'))
         if self.test_tags:
             h.update(str(self.test_tags).encode('utf-8', 'replace'))
@@ -245,6 +249,7 @@ class QCTestRunInfo:
     def to_mapping(self) -> Export:
         """Convert the QC test run to a map."""
         return {
+            '_protocol': self.test_protocol,
             '_name': self.test_name,
             '_version': self.test_version,
             '_date': self.test_date,
@@ -262,6 +267,7 @@ class QCTestRunInfo:
         """Rebuild the QC test run from a map."""
         from medsutil.ocproc2.operations import RecordAction
         return QCTestRunInfo(
+            map_['_protocol'] if '_protocol' in map_ else 'unknown',
             map_['_name'],
             map_['_version'],
             map_['_date'],

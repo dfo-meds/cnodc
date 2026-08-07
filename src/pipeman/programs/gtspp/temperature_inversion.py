@@ -13,7 +13,8 @@ class GTSPPTemperatureInversionTest(ProfileChecker):
 
     def __init__(self):
         super().__init__(
-            test_name='gtspp_temp_inversion',
+            test_protocol='gtspp',
+            test_name='temperature_inversion_check',
             test_version='1.0',
             test_tags=['GTSPP_2.12']
         )

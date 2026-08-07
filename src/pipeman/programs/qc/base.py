@@ -4,6 +4,7 @@ import contextlib
 import datetime
 import functools
 import typing as t
+from types import EllipsisType
 
 import zrlog
 
@@ -13,12 +14,11 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
 from medsutil.math import _functions
-from medsutil.ocproc2 import RecordAction, MessageType, QCResult
+from medsutil.ocproc2 import RecordAction, MessageType
 from medsutil.ocproc2.operations import ChangeQuality, RecordProcessed, AddHistoryEntry
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
-from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, Quality, \
-    set_working_quality, check_any_of_quality
+from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, check_any_of_quality
 from medsutil.ocproc_math import extract_parameter_value
 from medsutil.units import UnitConverter
 from autoinject import injector
@@ -91,12 +91,15 @@ class QualityController(abc.ABC):
 
     @injector.construct
     def __init__(self,
+                 test_protocol: str,
                  test_name: str,
                  test_version: str,
                  station_invariant: bool = False,
                  working_sort: str | tuple[str, bool] | None = None,
                  test_tags: list[str | None] | None = None,
                  searcher_cls: type | None = None):
+        self._default_allowed_protocols = ["nodb", test_protocol]
+        self._test_protocol = test_protocol
         self._test_name = test_name
         self._station_invariant = station_invariant
         self._test_version = test_version
@@ -122,6 +125,10 @@ class QualityController(abc.ABC):
         self._process_id: str | None = None
         self._reviewable_actions: list[RecordAction] = []
         self._nonreviewable_actions: list[RecordAction] = []
+
+    @property
+    def test_protocol(self) -> str:
+        return self._test_protocol
 
     @property
     def test_name(self) -> str:
@@ -257,6 +264,7 @@ class QualityController(abc.ABC):
             self.add_note(f"error cause: {ex.__class__.__name__}: {str(ex)}")
             self._log.error("test error", exc_info=True)
         test_run_info = ocproc2.QCTestRunInfo(
+            test_protocol=self._test_protocol,
             test_name=self._test_name,
             test_version=self._test_version,
             test_tags=list(self._test_tags),
@@ -309,9 +317,10 @@ class QualityController(abc.ABC):
                    pass_flag: int | None = None,
                    review_passes: bool = False,
                    review_failures: bool = True,
-                   qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW) -> t.Generator[
+                   qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+                   allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.Generator[
         CheckerContext, None, None]:
-        ctx = CheckerContext(self, review_name, refs)
+        ctx = CheckerContext(self, review_name, refs, allowed_protocols)
         try:
             yield ctx
             self._log.debug("review %s passed on [%s]", review_name, refs)
@@ -342,30 +351,39 @@ class QualityController(abc.ABC):
                pass_flag: int | None = None,
                review_passes: bool = False,
                review_failures: bool = True,
-               qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW) -> t.Generator[
+               qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+               allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.Generator[
         CheckerContext, None, None]:
-        with self.review_all(review_name, [ref], fail_flag, pass_flag, review_passes, review_failures, qc_result) as ctx:
+        with self.review_all(review_name, [ref], fail_flag, pass_flag, review_passes, review_failures, qc_result, allowed_protocols) as ctx:
             yield ctx
 
     def check_quality(self,
                       element: ObjectWithMetadata | None,
                       required_quality: RequiredQuality,
-                      msg: str | None = None):
+                      msg: str | None = None,
+                      allowed_protocols: t.Iterable[str] | None | EllipsisType = ...):
         try:
-            check_quality(element, required_quality)
+            check_quality(element, required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
         except QualityError as ex:
             self.skip_review(msg or str(ex))
 
+    def _allowed_protocols(self, allowed: t.Iterable[str] | None | EllipsisType = ...) -> t.Iterable[str] | None:
+        if allowed is ...:
+            return self._default_allowed_protocols
+        else:
+            return t.cast(t.Iterable[str] | None, allowed)
+
     def check_review_already_complete(self,
                                       references: t.List[AnyRef] | AnyRef | ObjectWithMetadata,
-                                      required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE):
+                                      required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE,
+                                      allowed_protocols: t.Iterable[str] | None | EllipsisType = ...):
         try:
             if isinstance(references, list):
-                check_any_of_quality([r.ref_object for r in references], required_quality)
+                check_any_of_quality([r.ref_object for r in references], required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
             elif isinstance(references, AnyRef):
-                check_quality(references.ref_object, required_quality)
+                check_quality(references.ref_object, required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
             else:
-                check_quality(references, required_quality)
+                check_quality(references, required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
         except (QualityError, ExceptionGroup) as ex:
             self.skip_review(str(ex))
 
@@ -400,7 +418,8 @@ class QualityController(abc.ABC):
             path=ref.path if isinstance(ref, AnyRef) else ref,
             new_flag=working_quality,
             source_name=self._test_name,
-            source_version=self._test_version
+            source_version=self._test_version,
+            test_protocol=self._test_protocol,
         )
         self.add_record_action(action, is_reviewable)
 
@@ -442,8 +461,9 @@ class QualityController(abc.ABC):
     def require_quality(self,
                         value: ocproc2.AbstractElement | None,
                         required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
-                        msg: str | None = None) -> t.TypeGuard[ocproc2.AbstractElement]:
-        self.check_quality(value, required_quality, msg)
+                        msg: str | None = None,
+                        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.TypeGuard[ocproc2.AbstractElement]:
+        self.check_quality(value, required_quality, msg, allowed_protocols)
         return True
 
     @staticmethod
@@ -451,11 +471,12 @@ class QualityController(abc.ABC):
                   required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE,
                   fail_flag: int | None = None,
                   pass_flag: int | None = None,
-                  qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW) -> t.Callable[[QCMethodProtocol], QCMethodProtocol]:
+                  qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+                  allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.Callable[[QCMethodProtocol], QCMethodProtocol]:
         def _outer(cb: QCMethodProtocol) -> QCMethodProtocol:
             @functools.wraps(cb)
             def _inner(self: QualityController, ref: AnyRef, *args, **kwargs) -> t.Any:
-                with self.review(test_name, ref, fail_flag=fail_flag, pass_flag=pass_flag, qc_result=qc_result) as ctx:
+                with self.review(test_name, ref, fail_flag=fail_flag, pass_flag=pass_flag, qc_result=qc_result, allowed_protocols=allowed_protocols) as ctx:
                     ctx.check_review_already_complete(required_quality)
                     return cb(self, ref, *args, **kwargs)
             return _inner
@@ -754,7 +775,6 @@ class DeepDiveChecker(QualityController):
         else:
             return self._wrap_callback(cb)
 
-
     def _wrap_record_callback(self, cb):
         if not self.TRACK_COORDINATES:
             return self._wrap_callback(cb)
@@ -791,15 +811,18 @@ class CheckerContext:
     def __init__(self,
                  checker: QualityController,
                  specific_test_name: str,
-                 references: t.Iterable[AnyRef]):
+                 references: t.Iterable[AnyRef],
+                 allowed_protocols: t.Iterable[str] | None | EllipsisType = ...):
         self.checker: QualityController = checker
         self.specific_test_name = specific_test_name
         self.references = list(references)
+        self._protocols = allowed_protocols
 
     def check_review_already_complete(self, required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE):
         self.checker.check_review_already_complete(
             self.references,
-            required_quality
+            required_quality,
+            allowed_protocols=self._protocols
         )
 
     def set_working_quality(self, working_quality: int, is_reviewable: bool = True):

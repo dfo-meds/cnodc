@@ -8,7 +8,8 @@ class GTSPPCoordinateCheck(DeepDiveChecker):
 
     def __init__(self):
         super().__init__(
-            test_name='gtspp_coordinates',
+            test_protocol='gtspp',
+            test_name='coordinate_check',
             test_version='1.0',
             test_tags=['GTSPP_1.2', 'GTSPP_1.3']
         )

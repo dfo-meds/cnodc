@@ -352,13 +352,15 @@ class ParameterGraph(Graph):
         app.state.add_action(ChangeQualityAtLevelAndDeeper(
             path=first,
             other_paths=rest,
-            new_flag=flag
+            new_flag=flag,
+            test_protocol=app.state.test_protocol
         ))
 
     def _flag_next_greater_than(self, app: PipemanDesktop, independent_value: float, parameter: str | tuple[str, int | None], flag: int):
         app.state.add_action(ChangeQuality(
             path=self._find_next_greater_than(independent_value, parameter)[1],
-            new_flag=flag
+            new_flag=flag,
+            test_protocol=app.state.test_protocol
         ))
 
     def translate_recordset_name(self, rs_type: str) -> str:

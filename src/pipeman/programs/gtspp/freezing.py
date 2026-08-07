@@ -17,7 +17,12 @@ class GTSPPFreezingPointTest(DeepDiveChecker):
     TRACK_COORDINATES = True
 
     def __init__(self, aggressive_mode: bool = False):
-        super().__init__('gtspp_freezing', '1.0', test_tags=['GTSPP_2.6'])
+        super().__init__(
+            test_protocol='gtspp',
+            test_name='freezing_check',
+            test_version='1.0',
+            test_tags=['GTSPP_2.6']
+        )
         self._aggressive_mode = aggressive_mode
 
     def record_check(self, ref: RecordRef):

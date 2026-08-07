@@ -29,7 +29,8 @@ class QCForwardWorker(WorkflowWorker):
             ]
             record = working_record.record
             qc_result = QCTestRunInfo(
-                test_name="manual_qc",
+                test_protocol=payload.metadata.get("review_protocol", "nodb"),
+                test_name="manual_review",
                 test_version="1.0",
                 test_date=AwareDateTime.now(),
                 result=QCResult.MANUAL_PASS,
