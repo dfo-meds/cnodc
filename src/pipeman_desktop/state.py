@@ -440,7 +440,11 @@ class ApplicationState:
             return False
         return self._available_services is not None and "desktop.create_platform" in self._available_services
 
-    def update_record_platform(self, record_uuid: str, platform_uuid: str):
+    def update_all_record_platforms(self, platform_uuid: str | None):
+        for record in self.batch_records.values():
+            self.update_record_platform(record.record_uuid, platform_uuid)
+
+    def update_record_platform(self, record_uuid: str, platform_uuid: str | None):
         self.add_action_by_uuid(record_uuid, AssignPlatform(platform_uuid=platform_uuid, test_protocol=self.test_protocol))
 
     def add_action_by_uuid(self, record_uuid: str, action: RecordAction):
@@ -603,7 +607,7 @@ class ApplicationState:
 
     def ordered_simple_records(self) -> list[SimpleRecordInfo]:
         srs = list(self.batch_records.values())
-        srs.sort(key=lambda x: (x.platform_id, x.timestamp))
+        srs.sort(key=lambda x: (x.platform_id or '', x.timestamp))
         return srs
 
     def current_coordinates(self) -> t.Optional[tuple[float, float]]:

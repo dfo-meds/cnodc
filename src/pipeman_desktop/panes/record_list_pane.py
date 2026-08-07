@@ -1,3 +1,6 @@
+import functools
+import tkinter
+
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, SimpleRecordInfo, ApplicationState
@@ -9,7 +12,7 @@ import gcapp.i18n.base as i18n
 import medsutil.ocproc2 as ocproc2
 import tkinter.ttk as ttk
 
-from medsutil.ocproc2 import OCProc2Ontology
+from medsutil.ocproc2 import OCProc2Ontology, AssignPlatform
 
 
 class RecordListPane(BasePane):
@@ -48,6 +51,7 @@ class RecordListPane(BasePane):
             show="",
             columns=["index", "title"],
             on_click=self._on_record_click,
+            on_right_click=self._on_record_right_click,
         )
         self._record_list.set_header_text("index", i18n.tr("tree.record_list.index"))
         self._record_list.set_header_text("title", i18n.tr("tree.record_list.name"))
@@ -171,8 +175,20 @@ class RecordListPane(BasePane):
                     display += f" [{value}]"
         return f'{(" " * (depth * 2))}{display}'
 
+    def _on_record_right_click(self, item_info, event):
+        ctx = tkinter.Menu(self.app.root, tearoff=0)
+        ctx.add_command(label=i18n.tr("context_menu.records.clear_platform"), command=functools.partial(self._clear_platform, record_uuid=item_info['iid']))
+        ctx.add_command(label=i18n.tr("context_menu.records.clear_all_platforms"), command=self._clear_all_platforms)
+        ctx.tk_popup(event.x_root, event.y_root)
+
+    def _clear_platform(self, record_uuid: str):
+        self.app.state.update_record_platform(record_uuid, None)
+
+    def _clear_all_platforms(self):
+        self.app.state.update_all_record_platforms(None)
+
     def _on_subrecord_click(self, item_info, is_change: bool, event):
-        self.app.state.update_child_path(item_info['values'][1])
+        self.app.state.update_child_path(item_info['iid'])
 
     def _on_record_click(self, item_info, is_change: bool, event):
         self.app.state.update_record(item_info['iid'])

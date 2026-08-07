@@ -82,6 +82,7 @@ def build_local_record(record: ParentRecord, working_uuid: str) -> dict:
         "datetime_qc": time.quality if time else None,
         "has_errors": 0,
         "display": _build_display(record, working_uuid),
+        "platform_id": record.metadata.best("CNODCPlatform", coerce=str, default=""),
     })
     return info
 
