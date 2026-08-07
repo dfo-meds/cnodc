@@ -178,7 +178,7 @@ class SpeedGraph(Graph):
             if platform_id not in speeds:
                 speeds[platform_id] = []
                 indexes[platform_id] = []
-            indexes[platform_id].append((idx, 1))
+            indexes[platform_id].append((idx + 1, 1))
             if platform_id not in last_records:
                 speeds[platform_id].append((None, 1))
             else:
