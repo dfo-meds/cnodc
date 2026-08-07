@@ -42,7 +42,7 @@ title = "{rs_type}#{rs_index} - {parameters} by {coordinate}"
 element_and_sensor = "{element} {sensor}"
 
 [derived_parameter]
-Density = "Density"
+# derived parameters aren't a part of OCPROC2, so these are translated here.
 
 [context_menu.graph]
 # these all have {parameter} as the translated name of the parameter
