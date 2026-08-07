@@ -22,9 +22,10 @@ class ErrorPane(BasePane):
             parent=error_frame,
             selectmode='browse',
             show='headings',
-            columns=["name", "review", "time", "error", "element"],
+            columns=["protocol", "name", "review", "time", "error", "element"],
             on_click=self._on_click
         )
+        self._error_list.set_header_text("protocol", i18n.tr("tree.qc_errors.protocol"))
         self._error_list.set_header_text("name", i18n.tr("tree.qc_errors.name"))
         self._error_list.set_header_text("review", i18n.tr("tree.qc_errors.review"))
         self._error_list.set_header_text("time", i18n.tr("tree.qc_errors.time"))
@@ -40,6 +41,7 @@ class ErrorPane(BasePane):
                 self.update_errors()
         if change_type & DisplayChange.LANGUAGE:
             if self._error_list is not None:
+                self._error_list.set_header_text("protocol", i18n.tr("tree.qc_errors.protocol"))
                 self._error_list.set_header_text("name", i18n.tr("tree.qc_errors.name"))
                 self._error_list.set_header_text("review", i18n.tr("tree.qc_errors.review"))
                 self._error_list.set_header_text("time", i18n.tr("tree.qc_errors.time"))
@@ -59,6 +61,7 @@ class ErrorPane(BasePane):
                             parent='',
                             index='end',
                             values=[
+                                i18n.tr(f'qc_protocol.{result.test_protocol.lower()}', default=result.test_protocol),
                                 i18n.tr(f'qc_test.{result.test_name.lower()}', default=result.test_name),
                                 i18n.tr(f"qc_review.{message.review_name}", default=message.review_name),
                                 AwareDateTime.fromisoformat(result.test_date).strftime("%Y-%m-%d %H:%M"),
