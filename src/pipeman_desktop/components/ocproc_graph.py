@@ -145,7 +145,7 @@ class Graph:
             else:
                 actual_color = quality_color(y[1], x[1])
             axes.scatter(
-                x[0], y[0], c=actual_color
+                x[0], y[0], c=actual_color, zorder=1
             )
             x_values.append(x[0])
             y_values.append(y[0])
@@ -154,7 +154,8 @@ class Graph:
             y_values,
             '-',
             c=color,
-            linewidth=linewidth
+            linewidth=linewidth,
+            zorder=0
         )
 
     def build_graph(self, figure, state: ApplicationState) -> tuple[mpla.Axes, list[mpla.Axes] | None]:
@@ -310,9 +311,9 @@ class ParameterGraph(Graph):
         ind, _, dep = self._find_next_greater_than(independent_value, parameter)
         if ind is not None and dep is not None:
             if invert:
-                series.append(axes.scatter(dep, ind, c=[self._highlight_color]))
+                series.append(axes.scatter(dep, ind, c=[self._highlight_color], zorder=2))
             else:
-                series.append(axes.scatter(ind, dep, c=[self._highlight_color]))
+                series.append(axes.scatter(ind, dep, c=[self._highlight_color], zorder=2))
             canvas.draw_idle()
         self._current_series = series
 
@@ -327,9 +328,9 @@ class ParameterGraph(Graph):
         series = []
         for ind, _, dep in self._find_all_greater_than(independent_value, parameter):
             if invert:
-                series.append(axes.scatter(dep, ind, c=[self._highlight_color]))
+                series.append(axes.scatter(dep, ind, c=[self._highlight_color], zorder=2))
             else:
-                series.append(axes.scatter(ind, dep, c=[self._highlight_color]))
+                series.append(axes.scatter(ind, dep, c=[self._highlight_color], zorder=2))
         canvas.draw_idle()
         self._current_series = series
 
