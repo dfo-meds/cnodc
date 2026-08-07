@@ -105,6 +105,7 @@ class DisplayChange(enum.IntFlag):
     LANGUAGE = enum.auto()
     PLATFORMS = enum.auto()
     RECORD_LIST = enum.auto()
+    HISTORY = enum.auto()
 
 
 class SimpleRecordInfo:
@@ -524,16 +525,25 @@ class ApplicationState:
         self._history = self._history[:self._current_item+1]
         self._history.append(history)
         self._current_item += 1
+        self.refresh_display(DisplayChange.HISTORY)
 
     def undo(self, e=None):
-        if self._current_item >= 0:
+        if self.can_undo():
             self._history[self._current_item].undo(self._app)
             self._current_item -= 1
+            self.refresh_display(DisplayChange.HISTORY)
+
+    def can_undo(self) -> bool:
+        return self._current_item >= 0
 
     def redo(self, e=None):
-        if (self._current_item + 1) < len(self._history):
+        if self.can_redo():
             self._history[self._current_item + 1].redo(self._app)
             self._current_item += 1
+            self.refresh_display(DisplayChange.HISTORY)
+
+    def can_redo(self) -> bool:
+        return (self._current_item + 1) < len(self._history)
 
     def add_action_metadata(self, action: RecordAction) -> RecordAction:
         from pipeman_desktop import VERSION

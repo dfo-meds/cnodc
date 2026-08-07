@@ -157,8 +157,8 @@ class PipemanDesktop:
         self.menus: MenuManager = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu.file')
         self.menus.add_sub_menu('qc', 'menu.qc')
-        self.menus.add_command("qc/undo", "menu.undo", self.state.undo, accelerator="Ctrl+Z")
-        self.menus.add_command("qc/redo", "menu.redo", self.state.redo, accelerator="Ctrl+Y")
+        self.menus.add_command("qc/undo", "menu.undo", self.state.undo, False, accelerator="Ctrl+Z")
+        self.menus.add_command("qc/redo", "menu.redo", self.state.redo, False, accelerator="Ctrl+Y")
         self.root.rowconfigure(0, weight=0)
         self.root.rowconfigure(1, weight=1)
         self.root.rowconfigure(2, weight=0)
@@ -228,6 +228,9 @@ class PipemanDesktop:
         if change_type & DisplayChange.LANGUAGE:
             self.root.title(i18n.tr('root.title'))
             self.menus.update_languages()
+        if change_type & DisplayChange.HISTORY:
+            self.menus.set_state("qc/undo", self.state.can_undo())
+            self.menus.set_state("qc/redo", self.state.can_redo())
         self._pane_broadcast('refresh_display', app_state, change_type)
 
     def after(self, delay_ms: int, cb: t.Callable[[], t.Any], *args):
