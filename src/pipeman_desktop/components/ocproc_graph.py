@@ -204,17 +204,24 @@ class SpeedGraph(Graph):
         return axes, None
 
     def _calculate_station_speed(self, r1: SimpleRecordInfo, r2: SimpleRecordInfo) -> tuple[float | None, int]:
-        if r1.latitude is None or r1.longitude is None or r2.latitude is None or r2.longitude is None:
+        if r1.latitude is None or r1.longitude is None or r2.latitude is None or r2.longitude is None or r1.timestamp is None or r2.timestamp is None:
             return None, 9
         qc = 0
         for qc_flag in (9, 4, 3, 2, 5, 1):
-            if r1.latitude_qc == qc_flag or r1.longitude_qc == qc_flag or r2.latitude_qc == qc_flag or r2.longitude_qc == qc_flag:
+            if any(x == qc_flag for x in (r1.latitude_qc, r2.latitude_qc, r1.longitude_qc, r2.longitude_qc, r1.time_qc, r2.time_qc)):
                 qc = qc_flag
                 break
-        return float(geodesic_distance(
+        delta_d = float(geodesic_distance(
             YXPoint(r2.latitude, r2.longitude),
             YXPoint(r1.latitude, r1.longitude)
-        )), qc
+        ))
+        delta_t = (r2.timestamp - r1.timestamp).total_seconds()
+        if delta_t == 0:
+            if math.isclose(delta_d, 0, abs_tol=1e-6):
+                return 0, qc
+            return -1, qc  # indicates inf result
+        return delta_d / delta_t, qc
+
 
 
 class ParameterGraph(Graph):
