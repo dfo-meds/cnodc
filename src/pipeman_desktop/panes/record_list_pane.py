@@ -87,7 +87,7 @@ class RecordListPane(BasePane):
         if change_type & DisplayChange.RECORD_CHILD:
             if self._subrecord_list is not None:
                 if self.app.state.current_child_path is not None:
-                    self._subrecord_list.set_selection([self.app.state.current_child_path])
+                    self._subrecord_list.set_selection([self.app.state.current_child_path], _ignore_callback=True)
                 else:
                     self._subrecord_list.selection_clear()
         if change_type & DisplayChange.LANGUAGE:
@@ -136,7 +136,8 @@ class RecordListPane(BasePane):
                 self._subrecord_list.append_item(
                     iid=rs_text,
                     parent=parent_text,
-                    values=(self._build_record_set_display(srt, rs_idx, depth), rs_text)
+                    values=(self._build_record_set_display(srt, rs_idx, depth), rs_text),
+                    open=(self.app.state.current_child_path is not None and self.app.state.current_child_path.startswith(rs_text))
                 )
                 for idx, srecord in enumerate(record.subrecords[srt][rs_idx].records.iterate_with_load()):
                     record_text = f"{srt_text}/{rs_idx}/{idx}"
@@ -146,7 +147,8 @@ class RecordListPane(BasePane):
                     self._subrecord_list.append_item(
                         iid=record_text,
                         parent=rs_text,
-                        values=(self._build_record_display(srecord, srt, idx, depth + 1), record_text)
+                        values=(self._build_record_display(srecord, srt, idx, depth + 1), record_text),
+                        open=(self.app.state.current_child_path is not None and self.app.state.current_child_path.startswith(record_text))
                     )
                     self._build_subrecord_list(srecord, record_text, depth + 2)
         if set_selection is not None:

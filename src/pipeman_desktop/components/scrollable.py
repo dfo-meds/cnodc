@@ -71,8 +71,8 @@ class ScrollableTreeview(tk.Frame):
     def set_header_text(self, column_id: str, header: str):
         self.table.heading(column_id, text=header)
 
-    def append_item(self, iid: str, values: tuple, parent: str = '', text: str = '', tags: tuple | None = None):
-        self.table.insert(parent, 'end', iid=iid, text=text, values=values, tags=tags or tuple(), open=False)
+    def append_item(self, iid: str, values: tuple, parent: str = '', text: str = '', tags: tuple | None = None, open: bool = False):
+        self.table.insert(parent, 'end', iid=iid, text=text, values=values, tags=tags or tuple(), open=open)
 
     def open_item(self, iid: str):
         self.table.item(iid, open=True)
