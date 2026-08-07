@@ -1,3 +1,5 @@
+import functools
+
 from autoinject import injector
 import math
 import tkinter.ttk as ttk
@@ -7,7 +9,10 @@ import matplotlib.axes as mpla
 import matplotlib.figure as mplf
 import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.style as mpls
-from medsutil.ocproc2 import RecordSet, BaseRecord
+from medsutil.ocproc2 import RecordSet, BaseRecord, AbstractElement, ChangeQuality
+from medsutil import ocproc2
+from medsutil.ocproc2.operations import ChangeQualityAtLevelAndDeeper
+from pipeman_desktop.components.context_menu import ContextMenuWithHover
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.state import SimpleRecordInfo, ApplicationState
 from medsutil.geodesy import YXPoint, geodesic_distance
@@ -15,7 +20,6 @@ from pipeman_desktop.util import quality_color
 
 if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import PipemanDesktop
-    import medsutil.ocproc2 as ocproc2
 
 
 TICK_INTERVALS = [
@@ -47,21 +51,20 @@ class Graph:
     def display_name(self) -> str:
         raise NotImplementedError
 
-    def on_button_press(self, event):
-        print(event)
-        # TODO:
-        # - identify the nearest point (within tolerance)
-        # - open a context menu
-        # - here is where we want the "flag all below" as well
+    def on_button_press(self, app, canvas, event):
+        if event.inaxes:
+            self._on_button_press(app, canvas, event.xdata, event.ydata, event)
 
+    def _on_button_press(self, app, canvas, data_x, data_y, event):
+        ...
 
     def _set_axis_info(self,
                         axes: mpla.Axes,
                         label: str,
                         min_value: t.Optional[float] = None,
                         max_value: t.Optional[float] = None,
-                        min_value_pos: t.Optional[float] = 0.02,
-                        max_value_pos: t.Optional[float] = 0.98,
+                        min_value_pos: float = 0.02,
+                        max_value_pos: float = 0.98,
                         is_integer_data: bool = False,
                         on_y_axis: bool = False,
                         num_ticks: t.Optional[int] = None,
@@ -208,11 +211,24 @@ class ParameterGraph(Graph):
     translator: OCProc2Translator
 
     @injector.construct
-    def __init__(self, rs_path: str, coordinate_name: str, parameter_name: str, second_parameter_name: str | None = None):
+    def __init__(self,
+                 rs_path: str,
+                 coordinate_name: str,
+                 parameter_name: str,
+                 parameter_sensor: int | None = None,
+                 second_parameter_name: str | None = None,
+                 second_parameter_sensor: int | None = None):
         self._rs_path = rs_path
         self._cname = coordinate_name
         self._pname = parameter_name
+        self._psensor = parameter_sensor
         self._p2name = second_parameter_name
+        self._p2sensor = second_parameter_sensor
+        self._element_map: dict[float, dict[str | tuple[str, int | None], tuple[str, float | None]]] = {}
+        self._axes1: mpla.Axes | None = None
+        self._axes2: mpla.Axes | None = None
+        self._current_series = None
+        self._highlight_color = "#FFEB3B"
 
     @property
     def display_name(self) -> str:
@@ -220,29 +236,131 @@ class ParameterGraph(Graph):
         return i18n.tr("graph.parameter_chart.title",
             rs_type=self.translate_recordset_name(pieces[-2]),
             rs_index=pieces[-1],
-            parameters=self.translate_element_name(self._pname) + (f", {self.translate_element_name(self._p2name)}" if self._p2name is not None else ''),
+            parameters=self.translate_element_name(self._pname, self._psensor) + (f", {self.translate_element_name(self._p2name, self._p2sensor)}" if self._p2name is not None else ''),
             coordinate=self.translate_element_name(self._cname)
         )
+
+    def _on_button_press(self, app, canvas, data_x, data_y, event):
+        is_depth_graph = self._should_reverse(self._cname)
+        context_menu = ContextMenuWithHover(app.root)
+        for n in (1,2,3,4,9):
+            context_menu.add_command(
+                i18n.tr(f"context_menu.graph.flag{n}_next_deeper" if is_depth_graph else f"context_menu.graph.flag{n}_next_greater", parameter=self.translate_element_name(self._pname, self._psensor)),
+                command=functools.partial(self._flag_next_greater_than, parameter=(self._pname, self._psensor), independent_value=data_y, app=app, flag=n),
+                on_mouse_in=functools.partial(self._highlight_next_greater_than, parameter=(self._pname, self._psensor), independent_value=data_y, invert=True, canvas=canvas, axes=self._axes1),
+                on_mouse_out=functools.partial(self._clear_highlight, canvas=canvas)
+            )
+            context_menu.add_command(
+                i18n.tr(f"context_menu.graph.flag{n}_all_deeper" if is_depth_graph else f"context_menu.graph.flag{n}_all_greater", parameter=self.translate_element_name(self._pname, self._psensor)),
+                command=functools.partial(self._flag_all_greater_than, parameter=(self._pname, self._psensor), independent_value=data_y, app=app, flag=n),
+                on_mouse_in=functools.partial(self._highlight_all_greater_than, parameter=(self._pname, self._psensor), independent_value=data_y, invert=True, canvas=canvas, axes=self._axes1),
+                on_mouse_out=functools.partial(self._clear_highlight, canvas=canvas)
+            )
+        if self._p2name is not None:
+            context_menu.add_command(
+                i18n.tr(f"context_menu.graph.flag{n}_next_deeper" if is_depth_graph else f"context_menu.graph.flag{n}_next_greater", parameter=self.translate_element_name(self._p2name, self._p2sensor)),
+                command=functools.partial(self._flag_next_greater_than, parameter=(self._p2name, self._p2sensor), independent_value=data_y, app=app, flag=n),
+                on_mouse_in=functools.partial(self._highlight_next_greater_than, parameter=(self._p2name, self._p2sensor), independent_value=data_y, invert=True, canvas=canvas, axes=self._axes2),
+                on_mouse_out=functools.partial(self._clear_highlight, canvas=canvas)
+            )
+            context_menu.add_command(
+                i18n.tr(f"context_menu.graph.flag{n}_all_deeper" if is_depth_graph else f"context_menu.graph.flag{n}_all_greater", parameter=self.translate_element_name(self._p2name, self._p2sensor)),
+                command=functools.partial(self._flag_all_greater_than, parameter=(self._p2name, self._p2sensor), independent_value=data_y, app=app, flag=n),
+                on_mouse_in=functools.partial(self._highlight_all_greater_than, parameter=(self._p2name, self._p2sensor), independent_value=data_y, invert=True, canvas=canvas, axes=self._axes2),
+                on_mouse_out=functools.partial(self._clear_highlight, canvas=canvas)
+            )
+        context_menu.popup_from_event(event.guiEvent)
+
+    def _find_next_greater_than(self, independent_value: float, parameter_name: str | tuple[str, int | None]) -> tuple[float | None, str | None, float | None]:
+        data = sorted(x for x in self._element_map.keys())
+        for x in data:
+            if x > independent_value:
+                return x, self._element_map[x][parameter_name][0], self._element_map[x][parameter_name][1]
+        return None, None, None
+
+    def _highlight_next_greater_than(self, independent_value: float, parameter: str | tuple[str, int | None], invert: bool, axes: mpla.Axes, canvas):
+        self._clear_highlight(canvas=canvas)
+        series = []
+        ind, _, dep = self._find_next_greater_than(independent_value, parameter)
+        if ind is not None and dep is not None:
+            if invert:
+                series.append(axes.scatter(dep, ind, c=[self._highlight_color]))
+            else:
+                series.append(axes.scatter(ind, dep, c=[self._highlight_color]))
+            canvas.draw_idle()
+        self._current_series = series
+
+    def _find_all_greater_than(self, independent_value: float, parameter: str | tuple[str, int | None]) -> t.Iterable[tuple[float | None, str | None, float | None]]:
+        for ind_value, parameters in self._element_map.items():
+            if ind_value is not None and ind_value > independent_value:
+                if parameters[parameter][1] is not None:
+                    yield ind_value, parameters[parameter][0], parameters[parameter][1]
+
+    def _highlight_all_greater_than(self, independent_value: float, parameter: str | tuple[str, int | None], invert: bool, axes: mpla.Axes, canvas):
+        self._clear_highlight(canvas)
+        series = []
+        for ind, _, dep in self._find_all_greater_than(independent_value, parameter):
+            if invert:
+                series.append(axes.scatter(dep, ind, c=[self._highlight_color]))
+            else:
+                series.append(axes.scatter(ind, dep, c=[self._highlight_color]))
+        canvas.draw_idle()
+        self._current_series = series
+
+    def _clear_highlight(self, canvas):
+        if self._current_series:
+            for x in self._current_series:
+                x.remove()
+            self._current_series = None
+        canvas.draw_idle()
+
+    def _flag_all_greater_than(self, app: PipemanDesktop, independent_value: float, parameter: str | tuple[str, int | None], flag: int):
+        first = None
+        rest = []
+        for _, path, _ in self._find_all_greater_than(independent_value, parameter):
+            if first is None:
+                first = path
+            else:
+                rest.append(path)
+        app.state.add_action(ChangeQualityAtLevelAndDeeper(
+            path=first,
+            other_paths=rest,
+            new_flag=flag
+        ))
+
+    def _flag_next_greater_than(self, app: PipemanDesktop, independent_value: float, parameter: str | tuple[str, int | None], flag: int):
+        app.state.add_action(ChangeQuality(
+            path=self._find_next_greater_than(independent_value, parameter)[1],
+            new_flag=flag
+        ))
 
     def translate_recordset_name(self, rs_type: str) -> str:
         return self.translator.translate_recordset_type(rs_type)
 
-    def translate_element_name(self, element_name: str):
-        return self.translator.translate_element_name(element_name)
+    def translate_element_name(self, element_name: str, sensor_rank: int | None = None) -> str:
+        element_tr_name = self.translator.translate_element_name(element_name)
+        if sensor_rank is None:
+            return element_tr_name
+        else:
+            return i18n.tr("graph.parameter_chart.element_and_sensor",
+                           element=element_tr_name,
+                           sensor=f"R{sensor_rank}" if sensor_rank >= 0 else f"U{sensor_rank * -1}")
 
     def build_graph(self, figure, state: ApplicationState) -> tuple[mpla.Axes, list[mpla.Axes] | None]:
+        self._figure = figure
         recordset = state.current_record.find_child(self._rs_path)
         axes = figure.subplots(1, 1)
         if not isinstance(recordset, RecordSet):
             # TODO: should be a warning here
             return axes, None
         if self._p2name is not None:
-            return self._build_two_variable_graph(axes, recordset, self._cname, self._pname, self._p2name)
+            self._axes1, self._axes2 = self._build_two_variable_graph(axes, recordset, self._cname, (self._pname, self._psensor), (self._p2name, self._p2sensor))
         else:
-            return self._build_variable_graph(axes, recordset, self._cname, self._pname)
+            self._axes1, self._axes2 = self._build_variable_graph(axes, recordset, self._cname, (self._pname, self._psensor))
+        return t.cast(mpla.Axes, self._axes1), ([self._axes2] if self._axes2 else None)
 
-    def _build_two_variable_graph(self, axes, rs: ocproc2.RecordSet, ind_var: str, dep1_var: str, dep2_var: str) -> tuple[mpla.Axes, list[mpla.Axes] | None]:
-        values, mins, maxs, units = self._extract_recordset_values(rs, dep1_var, dep2_var, ind_var)
+    def _build_two_variable_graph(self, axes, rs: ocproc2.RecordSet, ind_var: str, dep1_var: str | tuple[str, int | None], dep2_var: str | tuple[str, int | None]) -> tuple[mpla.Axes, mpla.Axes | None]:
+        values, mins, maxs, units = self._extract_recordset_values(rs, ind_var, dep1_var, dep2_var)
         if ind_var in ('Depth', 'Pressure'):
             mins[ind_var] = 0
         reverse_plot = self._should_reverse(ind_var)
@@ -290,10 +408,10 @@ class ParameterGraph(Graph):
             reverse_plot,
             color='#CC6666',
         )
-        return axes, [other_axis]
+        return axes, other_axis
 
-    def _build_variable_graph(self, axes, rs: ocproc2.RecordSet, ind_var: str, dep_var: str) -> tuple[mpla.Axes, list[mpla.Axes] | None]:
-        values, mins, maxs, units = self._extract_recordset_values(rs, dep_var, ind_var)
+    def _build_variable_graph(self, axes, rs: ocproc2.RecordSet, ind_var: str, dep_var: str | tuple[str, int | None]) -> tuple[mpla.Axes, mpla.Axes | None]:
+        values, mins, maxs, units = self._extract_recordset_values(rs, ind_var, dep_var)
         if ind_var in ('Depth', 'Pressure'):
             mins[ind_var] = 0
         reverse_plot = self._should_reverse(ind_var)
@@ -326,8 +444,9 @@ class ParameterGraph(Graph):
         return ind_var in ('Pressure', 'Depth')
 
     def _get_variable_label(self,
-                            var_name: str,
+                            variable: str | tuple[str, int | None],
                             units: str | None = None) -> str:
+        var_name = variable if isinstance(variable, str) else variable[0]
         if var_name == 'PracticalSalinity' and units in ('0.001', '1e-3'):
             units = 'psu'
         return var_name if units is None else f"{var_name} [{units}]"
@@ -340,53 +459,107 @@ class ParameterGraph(Graph):
 
     def _extract_recordset_values(self,
                                   rs: ocproc2.RecordSet,
-                                  *variables: str) -> tuple[
-        dict[str, list[tuple[float | None, int]]],
-        dict[str, float | None],
-        dict[str, float | None],
-        dict[str, str | None]
+                                  ind_variable: str,
+                                  *dep_vars: str | tuple[str, int | None]) -> tuple[
+        dict[str | tuple[str, int | None], list[tuple[float | None, int]]],
+        dict[str | tuple[str, int | None], float | None],
+        dict[str | tuple[str, int | None], float | None],
+        dict[str | tuple[str, int | None], str | None]
     ]:
+        all_variables = [ind_variable, *dep_vars]
         # TODO: better data structure?
-        results: dict[str, list[tuple[float | None, int]]] = {v: [] for v in variables}
-        min_values: dict[str, float | None] = {v: None for v in variables}
-        max_values: dict[str, float | None] = {v: None for v in variables}
-        unit_map: dict[str, str | None] = {
-            'Depth': 'm',
-            'PracticalSalinity': '0.001',
-            'Pressure': 'dbar',
-            'Temperature': '°C',
-            'Density': 'kg m-3',
-        }
+        results: dict[str | tuple[str, int | None], list[tuple[float | None, int]]] = {v: [] for v in all_variables}
+        min_values: dict[str | tuple[str, int | None], float | None] = {v: None for v in all_variables}
+        max_values: dict[str | tuple[str, int | None], float | None] = {v: None for v in all_variables}
+        unit_map: dict[str | tuple[str, int | None], str | None] = {}
         if rs is not None:
-            for record in rs.records:
-                for v in variables:
-                    if v.startswith("_") and v.endswith("_"):
-                        value, value_qc = self._derived_parameter(v, record, unit_map)
-                    else:
-                        value, value_qc = self._observed_parameter(v, record, unit_map)
+            base_path = self._rs_path.rstrip('/')
+            for idx, record in enumerate(rs.records.iterate_with_load()):
+                record_path = f"{base_path}/{idx}"
+                ind_val = None
+                dep_vals = {}
+                for v in all_variables:
+                    value, value_qc, element_path = self._get_value(v, record, unit_map, record_path)
                     results[v].append((value, value_qc))
                     if value is not None:
                         if min_values[v] is None or min_values[v] > value:
                             min_values[v] = value
                         if max_values[v] is None or max_values[v] < value:
                             max_values[v] = value
+                    if v == ind_variable:
+                        ind_val = value
+                    elif element_path:
+                        dep_vals[v] = (element_path, value)
+                if ind_val is not None:
+                    self._element_map[ind_val] = dep_vals
         return results, min_values, max_values, unit_map
 
-    def _observed_parameter(self, parameter_name: str, record: BaseRecord, units: dict[str, str | None]) -> tuple[float | None, int]:
-        # TODO: sensor ranks?
-        y = record.coordinates.ideal(parameter_name)
-        if y is None:
-            y = record.parameters.ideal(parameter_name)
-        if y is not None:
-            if parameter_name not in units:
-                units[parameter_name] = y.units()
-            return y.to_float(units[parameter_name]), (y.quality or 0)
-        return None, 9
+    def _get_value(self,
+                   v: str | tuple[str, int | None],
+                   record: ocproc2.BaseRecord,
+                   unit_map: dict[str | tuple[str, int | None], str | None],
+                   record_path: str) -> tuple[float | None, int, str | None]:
+        var_name = v[0] if isinstance(v, tuple) else v
+        if var_name.startswith("_") and var_name.endswith("_"):
+            return self._derived_parameter(var_name, record, unit_map)
+        else:
+            return self._observed_parameter(v, record, unit_map, record_path)
 
-    def _derived_parameter(self, parameter_name: str, record: BaseRecord, units: dict[str, str | None]) -> tuple[float | None, int]:
+    def get_element(self, element_map: ocproc2.ElementMap, parameter_name: str, sensor_rank: int | None) -> tuple[str | None, ocproc2.SingleElement | None]:
+        for sub_path, element_sensor_rank, element in self._find_elements(element_map.get(parameter_name)):
+            if element.is_empty() or not element.is_numeric():
+                continue
+            if sensor_rank is None or sensor_rank == element_sensor_rank:
+                return (parameter_name if not sub_path else f"{parameter_name}/{sub_path}"), element
+        return None, None
+
+    def _find_elements(self, element: ocproc2.AbstractElement, base_path: str = "", mem: dict | None = None) -> t.Iterable[tuple[str, int, ocproc2.SingleElement]]:
+        # TODO: we should consider making sure this aligns with the sensor ranks in QC testing (or better yet, assign them after the data comes in)
+        if mem is None:
+            mem = {"next": -1}
+        if isinstance(element, ocproc2.SingleElement):
+            sr = element.sensor_rank
+            if sr is None:
+                sr = mem["next"]
+                mem["next"] += 1
+            yield base_path, sr, element
+        else:
+            for idx, sub_element in enumerate(element.value):
+                yield from self._find_elements(sub_element, f"{base_path}/{idx}", mem)
+
+    def _observed_parameter(self,
+                            v: str | tuple[str, int | None],
+                            record: BaseRecord,
+                            units: dict[str | tuple[str, int | None], str | None],
+                            base_path: str) -> tuple[float | None, int, str | None]:
+        if isinstance(v, tuple):
+            parameter_name = v[0]
+            sensor_rank = v[1]
+        else:
+            parameter_name = v
+            sensor_rank = None
+
+        if parameter_name in record.coordinates:
+            map_name = "coordinates"
+            element_map = record.coordinates
+        else:
+            map_name = "parameters"
+            element_map = record.parameters
+
+        subpath, element = self.get_element(element_map, parameter_name, sensor_rank)
+        if element is not None:
+            if parameter_name not in units:
+                units[parameter_name] = element.units()
+            return element.to_float(units[parameter_name]), (element.quality or 0), f"{base_path.rstrip('/')}/{map_name}/{subpath}"
+        return None, 9, None
+
+    def _derived_parameter(self,
+                           parameter_name: str,
+                           record: BaseRecord,
+                           units: dict[str | tuple[str, int | None], str | None]) -> tuple[float | None, int, str | None]:
         #if parameter_name == "_Density_":
         # TODO
-        return None, 9
+        return None, 9, None
 
 
 class OCProc2Graph(ttk.Frame):
@@ -417,7 +590,7 @@ class OCProc2Graph(ttk.Frame):
 
     def _on_button_press(self, event):
         if self._current_graph_name is not None and self._current_graph_name in self._graph_options:
-            self._graph_options[self._current_graph_name].on_button_press(event)
+            self._graph_options[self._current_graph_name].on_button_press(self.app, self._canvas, event)
 
     def update_graph(self):
 
@@ -464,23 +637,45 @@ class OCProc2Graph(ttk.Frame):
                 options.update(self._recordset_graph_options(record.subrecords[srt][rs_idx], f"{path.rstrip('/')}/subrecords/{srt}/{rs_idx}".lstrip('/')))
         return options
 
+    def _sensor_rank_options(self, known_ranks: list[int], max_unlabelled_ranks: int) -> t.Iterable[int]:
+        print(known_ranks, max_unlabelled_ranks)
+        yield from known_ranks
+        yield from range(-1, (-1 * max_unlabelled_ranks) - 1, -1)
+
     def _recordset_graph_options(self, recordset: ocproc2.RecordSet, rs_path: str) -> dict[str, Graph]:
-        coordinates = set()
-        parameters = set()
-        # TODO: sensor ranks
+        coordinates: set[str] = set()
+        parameter_sensor_ranks: dict[str, list[int]] = {}
+        parameter_max_unlabelled: dict[str, int] = {}
         for record in recordset.records:
-            coordinates.update(x for x in record.coordinates.keys() if not record.coordinates[x].is_empty())
-            parameters.update(x for x in record.parameters.keys() if not record.parameters[x].is_empty())
+            coordinates.update(x for x in record.coordinates.keys() if record.coordinates[x].is_numeric() and not record.coordinates[x].is_empty())
+            for x in record.parameters.keys():
+                if record.parameters[x].is_empty() or not record.parameters[x].is_numeric():
+                    continue
+                if x not in parameter_sensor_ranks:
+                    parameter_sensor_ranks[x] = []
+                    parameter_max_unlabelled[x] = 0
+                unlabelled = 0
+                for y in record.parameters[x].all_values():
+                    sr = y.sensor_rank
+                    if sr is not None:
+                        parameter_sensor_ranks[x].append(sr)
+                    else:
+                        unlabelled += 1
+                parameter_max_unlabelled[x] = max(parameter_max_unlabelled[x], unlabelled)
         options = {}
         for c in coordinates:
-            if 'Temperature' in parameters:
-                has_sp = 'PracticalSalinity' in parameters
+            if 'Temperature' in parameter_sensor_ranks:
+                has_sp = 'PracticalSalinity' in parameter_sensor_ranks
                 if has_sp:
-                    options[f'recordset::{rs_path}::{c}::_TnSP'] = ParameterGraph(rs_path, c, "Temperature", "PracticalSalinity")
-                    if 'Depth' in coordinates or 'Pressure' in coordinates:
-                        options[f'recordset::{rs_path}::{c}::_Density'] = ParameterGraph(rs_path, c, "_Density_")
-            for p in parameters:
-                options[f"recordset::{rs_path}::{c}::{p}"] = ParameterGraph(rs_path, c, p)
+                    for t_rank in self._sensor_rank_options(parameter_sensor_ranks["Temperature"], parameter_max_unlabelled["Temperature"]):
+                        for p_rank in self._sensor_rank_options(parameter_sensor_ranks["PracticalSalinity"], parameter_max_unlabelled["PracticalSalinity"]):
+                            options[f'recordset::{rs_path}::{c}::_TnSP'] = ParameterGraph(rs_path, c, "Temperature", t_rank, "PracticalSalinity", p_rank)
+                    # TODO: add back in when Density is working again
+                    #if 'Depth' in coordinates or 'Pressure' in coordinates:
+                    #    options[f'recordset::{rs_path}::{c}::_Density'] = ParameterGraph(rs_path, c, "_Density_")
+            for p in parameter_sensor_ranks.keys():
+                for rank in self._sensor_rank_options(parameter_sensor_ranks[p], parameter_max_unlabelled[p]):
+                    options[f"recordset::{rs_path}::{c}::{p}::{rank}"] = ParameterGraph(rs_path, c, p, rank)
         return options
 
     def update_graph_data(self, e=None, force_redraw: bool = False):

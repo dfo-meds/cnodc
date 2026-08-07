@@ -250,6 +250,37 @@ class SetToEmpty(PathAction):
             self.path
         )
 
+class ChangeQualityAtLevelAndDeeper(PathAction):
+    other_paths: list[str] = dd.p_list(value_coerce=str)
+    new_flag: int = dd.p_int()
+
+    @property
+    def name(self) -> str:
+        return "action.set_quality_at_level_and_deeper"
+
+    @property
+    def object(self) -> str:
+        return self.path
+
+    @property
+    def value(self) -> str:
+        return str(self.new_flag)
+
+    def apply(self, record: ParentRecord):
+        work = [self.path, *self.other_paths]
+        for p in work:
+            element = record.find_child(p)
+            if not isinstance(element, (AbstractElement, BaseRecord, RecordSet)):
+                raise ValueError("Invalid element path")
+            if set_working_quality(element, self.new_flag):
+                self.add_history_action(
+                    record,
+                    f"Quality flag changed to {self.new_flag}",
+                    ActionType.CHANGE_QUALITY,
+                    self.path
+                )
+                # TODO: should we change this to a "set at and deeper history action"? I think this is more clear.
+
 class ChangeQuality(PathAction):
     new_flag: int = dd.p_int()
 
