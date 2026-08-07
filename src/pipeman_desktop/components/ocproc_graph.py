@@ -137,8 +137,14 @@ class Graph:
         y_values = []
         x_qc, y_qc = (dep_v_qc, ind_v_qc) if reverse_axes else (ind_v_qc, dep_v_qc)
         for x, y in zip(x_qc, y_qc):
+            if not use_qc_color:
+                actual_color = color
+            elif reverse_axes:
+                actual_color = quality_color(x[1], y[1])
+            else:
+                actual_color = quality_color(y[1], x[1])
             axes.scatter(
-                x[0], y[0], c=(quality_color(y[1], x[1]) if use_qc_color else color)
+                x[0], y[0], c=actual_color
             )
             x_values.append(x[0])
             y_values.append(y[0])
