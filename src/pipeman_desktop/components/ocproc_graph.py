@@ -464,10 +464,18 @@ class ParameterGraph(Graph):
     def _get_variable_label(self,
                             variable: str | tuple[str, int | None],
                             units: str | None = None) -> str:
-        var_name = variable if isinstance(variable, str) else variable[0]
+        if isinstance(variable, tuple):
+            var_name, sensor = variable
+        else:
+            var_name = variable
+            sensor = None
         if var_name == 'PracticalSalinity' and units in ('0.001', '1e-3'):
             units = 'psu'
-        return var_name if units is None else f"{var_name} [{units}]"
+        if var_name.startswith("_") and var_name.endswith("_"):
+            tr_name = i18n.tr(f"derived_parameter.{var_name.strip("_")}")
+        else:
+            tr_name = self.translate_element_name(var_name, sensor)
+        return tr_name if units is None else f"{tr_name} [{units}]"
 
     def _twin_axis(self, axes: mpla.Axes, twin_y_axis: bool = False) -> mpla.Axes:
         if twin_y_axis:
