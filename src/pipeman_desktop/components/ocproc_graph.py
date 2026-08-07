@@ -170,18 +170,20 @@ class SpeedGraph(Graph):
         speeds = {}
         indexes = {}
         last_records = {}
+        current_platform_id = None
         for idx, record in enumerate(state.ordered_simple_records()):
-            if not record.platform_id:
-                continue
-            if record.platform_id not in speeds:
-                speeds[record.platform_id] = []
-                indexes[record.platform_id] = []
-            indexes[record.platform_id].append((idx, 1))
-            if record.platform_id not in last_records:
-                speeds[record.platform_id].append((None, 1))
+            platform_id = record.platform_id if record.platform_id else "_____"
+            if record.record_uuid == state.current_working_uuid:
+                current_platform_id = platform_id
+            if platform_id not in speeds:
+                speeds[platform_id] = []
+                indexes[platform_id] = []
+            indexes[platform_id].append((idx, 1))
+            if platform_id not in last_records:
+                speeds[platform_id].append((None, 1))
             else:
-                speeds[record.platform_id].append(self._calculate_station_speed(last_records[record.platform_id], record))
-            last_records[record.platform_id] = record
+                speeds[platform_id].append(self._calculate_station_speed(last_records[platform_id], record))
+            last_records[platform_id] = record
         axes = figure.subplots(1, 1)
         self._set_axis_info(
             axes,
@@ -193,11 +195,11 @@ class SpeedGraph(Graph):
             label=i18n.tr("graph.speed_chart.speed"),
             on_y_axis=True
         )
-        for station_id in indexes.keys():
+        if current_platform_id:
             self._plot_points_and_line(
                 axes,
-                indexes[station_id],
-                speeds[station_id]
+                indexes[current_platform_id],
+                speeds[current_platform_id],
             )
         return axes, None
 
@@ -644,7 +646,6 @@ class OCProc2Graph(ttk.Frame):
         return options
 
     def _sensor_rank_options(self, known_ranks: list[int], max_unlabelled_ranks: int) -> t.Iterable[int]:
-        print(known_ranks, max_unlabelled_ranks)
         yield from known_ranks
         yield from range(-1, (-1 * max_unlabelled_ranks) - 1, -1)
 
