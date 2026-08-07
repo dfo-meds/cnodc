@@ -228,6 +228,13 @@ class ParameterGraph(Graph):
 
     translator: OCProc2Translator
 
+    OVERRIDE_DISPLAY_UNITS = {
+        "Temperature": "°C",
+        "Pressure": "dbar",
+        "Depth": "m",
+        "PracticalSalinity": "psu",
+    }
+
     @injector.construct
     def __init__(self,
                  rs_path: str,
@@ -469,8 +476,6 @@ class ParameterGraph(Graph):
         else:
             var_name = variable
             sensor = None
-        if var_name == 'PracticalSalinity' and units in ('0.001', '1e-3'):
-            units = 'psu'
         if var_name.startswith("_") and var_name.endswith("_"):
             tr_name = i18n.tr(f"derived_parameter.{var_name.strip("_")}")
         else:
@@ -574,10 +579,15 @@ class ParameterGraph(Graph):
 
         subpath, element = self.get_element(element_map, parameter_name, sensor_rank)
         if element is not None:
-            if parameter_name not in units:
-                units[parameter_name] = element.units()
-            return element.to_float(units[parameter_name]), (element.quality or 0), f"{base_path.rstrip('/')}/{map_name}/{subpath}"
+            if v not in units:
+                units[v] = self.get_display_units(element, parameter_name)
+            return element.to_float(units[v]), (element.quality or 0), f"{base_path.rstrip('/')}/{map_name}/{subpath}"
         return None, 9, None
+
+    def get_display_units(self, element: AbstractElement, parameter_name: str) -> str | None:
+        if parameter_name in self.OVERRIDE_DISPLAY_UNITS:
+            return self.OVERRIDE_DISPLAY_UNITS[parameter_name]
+        return element.units()
 
     def _derived_parameter(self,
                            parameter_name: str,
@@ -663,9 +673,14 @@ class OCProc2Graph(ttk.Frame):
                 options.update(self._recordset_graph_options(record.subrecords[srt][rs_idx], f"{path.rstrip('/')}/subrecords/{srt}/{rs_idx}".lstrip('/')))
         return options
 
-    def _sensor_rank_options(self, known_ranks: list[int], max_unlabelled_ranks: int) -> t.Iterable[int]:
-        yield from known_ranks
-        yield from range(-1, (-1 * max_unlabelled_ranks) - 1, -1)
+    def _sensor_rank_options(self, known_ranks: list[int], max_unlabelled_ranks: int) -> t.Iterable[int | None]:
+        if len(known_ranks) + max_unlabelled_ranks == 1:
+            # one unranked sensor, we can just display it
+            yield None
+        else:
+            # two or more sensors are present somewhere, we'll do the sensor thing
+            yield from known_ranks
+            yield from range(-1, (-1 * max_unlabelled_ranks) - 1, -1)
 
     def _recordset_graph_options(self, recordset: ocproc2.RecordSet, rs_path: str) -> dict[str, Graph]:
         coordinates: set[str] = set()
@@ -689,15 +704,13 @@ class OCProc2Graph(ttk.Frame):
                 parameter_max_unlabelled[x] = max(parameter_max_unlabelled[x], unlabelled)
         options = {}
         for c in coordinates:
-            if 'Temperature' in parameter_sensor_ranks:
-                has_sp = 'PracticalSalinity' in parameter_sensor_ranks
-                if has_sp:
-                    for t_rank in self._sensor_rank_options(parameter_sensor_ranks["Temperature"], parameter_max_unlabelled["Temperature"]):
-                        for p_rank in self._sensor_rank_options(parameter_sensor_ranks["PracticalSalinity"], parameter_max_unlabelled["PracticalSalinity"]):
-                            options[f'recordset::{rs_path}::{c}::_TnSP'] = ParameterGraph(rs_path, c, "Temperature", t_rank, "PracticalSalinity", p_rank)
-                    # TODO: add back in when Density is working again
-                    #if 'Depth' in coordinates or 'Pressure' in coordinates:
-                    #    options[f'recordset::{rs_path}::{c}::_Density'] = ParameterGraph(rs_path, c, "_Density_")
+            if 'Temperature' in parameter_sensor_ranks and 'PracticalSalinity' in parameter_sensor_ranks:
+                for t_rank in self._sensor_rank_options(parameter_sensor_ranks["Temperature"], parameter_max_unlabelled["Temperature"]):
+                    for p_rank in self._sensor_rank_options(parameter_sensor_ranks["PracticalSalinity"], parameter_max_unlabelled["PracticalSalinity"]):
+                        options[f'recordset::{rs_path}::{c}::_TnSP'] = ParameterGraph(rs_path, c, "Temperature", t_rank, "PracticalSalinity", p_rank)
+                # TODO: add back in when Density is working again
+                #if 'Depth' in coordinates or 'Pressure' in coordinates:
+                #    options[f'recordset::{rs_path}::{c}::_Density'] = ParameterGraph(rs_path, c, "_Density_")
             for p in parameter_sensor_ranks.keys():
                 for rank in self._sensor_rank_options(parameter_sensor_ranks[p], parameter_max_unlabelled[p]):
                     options[f"recordset::{rs_path}::{c}::{p}::{rank}"] = ParameterGraph(rs_path, c, p, rank)
