@@ -146,6 +146,8 @@ class PipemanDesktop:
         self.root.title(i18n.tr('root_title'))
         self.root.geometry('900x500')
         self.root.bind("<Configure>", self.on_configure)
+        self.root.bind("<Control-z>", self.state.undo)
+        self.root.bind("<Control-y>", self.state.redo)
         self.root.protocol('WM_DELETE_WINDOW', self.close)
         self._run_on_startup = True
         s = ttk.Style()
@@ -154,6 +156,9 @@ class PipemanDesktop:
         s.configure('Treeview', indent=5)
         self.menus: MenuManager = MenuManager(self.root)
         self.menus.add_sub_menu('file', 'menu.file')
+        self.menus.add_sub_menu('qc', 'menu.qc')
+        self.menus.add_command("qc/undo", "menu.undo", self.state.undo, accelerator="Ctrl+Z")
+        self.menus.add_command("qc/redo", "menu.redo", self.state.redo, accelerator="Ctrl+Y")
         self.root.rowconfigure(0, weight=0)
         self.root.rowconfigure(1, weight=1)
         self.root.rowconfigure(2, weight=0)

@@ -11,7 +11,7 @@ class LoginPane(BasePane):
         self._user_status_bar = None
 
     def on_init(self):
-        self.app.menus.add_command('file/login', 'menu.login', self.do_login)
+        self.app.menus.add_command('file/login', 'menu.login', self.do_login, accelerator="Ctrl-L")
         self.app.menus.add_command('file/logout', 'menu.logout', self.do_logout, True)
         self.app.root.bind('<Control-l>', self.do_login)
         self._user_status_bar = ttk.Label(self.app.bottom_bar, text="", relief="solid", borderwidth=2, width=15, anchor="e")

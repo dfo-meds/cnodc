@@ -148,7 +148,6 @@ class PlatformPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        self.app.menus.add_sub_menu('qc', 'menu.qc')
         self.app.menus.add_command("qc/reload_platforms", "menu.reload_platforms", self._reload_platforms, start_disabled=True)
         self.app.menus.add_command("qc/create_platform", "menu.create_platform", self._create_platform, start_disabled=True)
         station_frame = ttk.Frame(self.app.middle_bottom)

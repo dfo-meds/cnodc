@@ -342,19 +342,10 @@ class ParameterGraph(Graph):
         canvas.draw_idle()
 
     def _flag_all_greater_than(self, app: PipemanDesktop, independent_value: float, parameter: str | tuple[str, int | None], flag: int):
-        first = None
-        rest = []
-        for _, path, _ in self._find_all_greater_than(independent_value, parameter):
-            if first is None:
-                first = path
-            else:
-                rest.append(path)
-        app.state.add_action(ChangeQualityAtLevelAndDeeper(
-            path=first,
-            other_paths=rest,
-            new_flag=flag,
-            test_protocol=app.state.test_protocol
-        ))
+        app.state.add_actions([
+            ChangeQuality(path=path, new_flag=flag, test_protocol=app.state.test_protocol)
+            for _, path, _ in self._find_all_greater_than(independent_value, parameter)
+        ])
 
     def _flag_next_greater_than(self, app: PipemanDesktop, independent_value: float, parameter: str | tuple[str, int | None], flag: int):
         app.state.add_action(ChangeQuality(

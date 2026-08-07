@@ -14,6 +14,83 @@ if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import PipemanDesktop
 
 
+class HistoryEntry:
+
+    def undo(self, app: PipemanDesktop):
+        raise NotImplementedError
+
+    def redo(self, app: PipemanDesktop):
+        raise NotImplementedError
+
+
+class ActionHistoryEntry(HistoryEntry):
+
+    def __init__(self, actions: list[tuple[str, RecordAction]] | None = None, remove_actions: list[int] | None = None):
+        super().__init__()
+        self._actions = actions or []
+        self._remove_actions = remove_actions or []
+
+        self._removed_actions: list[tuple[str, RecordAction]] | None = None
+        self._inserted_ids: list[int] | None = None
+
+    def undo(self, app: PipemanDesktop):
+        if self._removed_actions is not None:
+            with app.local_db.cursor() as cur:
+                self._apply_actions(cur, self._removed_actions, self._inserted_ids or [])
+            self._refresh_actions(app)
+
+    def redo(self, app: PipemanDesktop):
+        with app.local_db.cursor() as cur:
+            self._removed_actions, self._inserted_ids = self._apply_actions(cur, self._actions, self._remove_actions)
+            self._remove_actions = []
+        self._refresh_actions(app)
+
+    def _refresh_actions(self, app: PipemanDesktop):
+        app.state.update_save_flags(has_unsaved_changes=True)
+        app.state.refresh_record_list()
+        app.state.update_record(app.state.current_working_uuid, True)
+
+    def _apply_actions(self,
+                       cur,
+                       actions: list[tuple[str, RecordAction]],
+                       remove_actions: list[int]) -> tuple[list[tuple[str, RecordAction]], list[tuple[int]]]:
+            unique_uuids = {x[0] for x in actions}
+            for db_index in remove_actions:
+                cur.execute("SELECT record_uuid FROM actions WHERE rowid = ?", (db_index,))
+                unique_uuids.add(cur.fetchone()[0])
+
+            removed_actions = []
+            new_indices = []
+            for record_uuid in unique_uuids:
+                cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", (record_uuid,))
+                row = cur.fetchone()
+                parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
+
+                new_actions = [x[1] for x in actions if x[0] == record_uuid]
+                cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (record_uuid,))
+                removed_indexes = []
+                for rowid, other_action_text in cur.fetchall():
+                    other_action = RecordAction.from_map(json.load_dict(other_action_text))
+                    if rowid in remove_actions or any(other_action.conflicts_with(action) for action in new_actions):
+                        removed_indexes.append(rowid)
+                        removed_actions.append((record_uuid, other_action))
+                    else:
+                        other_action.apply(parent)
+                for rowid in removed_indexes:
+                    cur.execute("DELETE FROM actions WHERE rowid = ?", (rowid,))
+                for action in new_actions:
+                    cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?) RETURNING rowid", (
+                        record_uuid,
+                        json.dumps(action.export())
+                    ))
+                    new_indices.append(cur.fetchone()[0])
+                    action.apply(parent)
+                info = build_local_record(parent, record_uuid)
+                info["has_errors"] = 1
+                cur.update("records", info, {"record_uuid": record_uuid})
+            cur.commit()
+            return removed_actions, new_indices
+
 class DisplayChange(enum.IntFlag):
 
     USER = enum.auto()
@@ -60,6 +137,8 @@ class SimpleRecordInfo:
 class ApplicationState:
 
     def __init__(self, app: PipemanDesktop):
+        self._history: list[HistoryEntry] = []
+        self._current_item: int = -1
         self._app = app
         self._test_protocol: str | None = None
         self._username: t.Optional[str] = None
@@ -440,72 +519,55 @@ class ApplicationState:
             return False
         return self._available_services is not None and "desktop.create_platform" in self._available_services
 
-    def update_all_record_platforms(self, platform_uuid: str | None):
-        for record in self.batch_records.values():
-            self.update_record_platform(record.record_uuid, platform_uuid)
+    def add_history_entry(self, history: HistoryEntry):
+        history.redo(self._app)
+        self._history = self._history[:self._current_item+1]
+        self._history.append(history)
+        self._current_item += 1
 
-    def update_record_platform(self, record_uuid: str, platform_uuid: str | None):
-        self.add_action_by_uuid(record_uuid, AssignPlatform(platform_uuid=platform_uuid, test_protocol=self.test_protocol))
+    def undo(self, e=None):
+        if self._current_item >= 0:
+            self._history[self._current_item].undo(self._app)
+            self._current_item -= 1
 
-    def add_action_by_uuid(self, record_uuid: str, action: RecordAction):
-        if record_uuid == self.current_working_uuid:
-            self.add_action(action)
-        else:
-            with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (record_uuid,))
-                remove_actions = []
-                for rowid, other_action_text in cur.fetchall():
-                    other_action = RecordAction.from_map(json.load_dict(other_action_text))
-                    if other_action.conflicts_with(action):
-                        remove_actions.append(rowid)
-                for rowid in remove_actions:
-                    cur.execute("DELETE FROM actions WHERE rowid = ?", (rowid,))
-                cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?)", (
-                    record_uuid,
-                    json.dumps(action.export())
-                ))
-                cur.commit()
+    def redo(self, e=None):
+        if (self._current_item + 1) < len(self._history):
+            self._history[self._current_item + 1].redo(self._app)
+            self._current_item += 1
 
-    def add_action(self, action: RecordAction):
+    def add_action_metadata(self, action: RecordAction) -> RecordAction:
         from pipeman_desktop import VERSION
         action.source_name = "pipeman_desktop"
         action.source_version = VERSION
         action.source_instance = socket.gethostname()
         action.username = self.username
-        remove_keys = []
-        if self._current_record is not None:
-            for key, other_action in self._current_actions.items():
-                if action.conflicts_with(other_action):
-                    remove_keys.append(key)
-        with self._app.local_db.cursor() as cur:
-            for delete_id in remove_keys:
-                cur.execute("DELETE FROM actions WHERE rowid = ?", (delete_id,))
-            cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?)", (
-                self._current_working_uuid,
-                json.dumps(action.export())
-            ))
-            cur.commit()
-            cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", (self._current_working_uuid,))
-            row = cur.fetchone()
-            parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
-            cur.execute("SELECT action_text FROM actions WHERE record_uuid = ?", (self._current_working_uuid,))
-            for row in cur.fetchall():
-                action = RecordAction.from_map(json.load_dict(row[0]))
-                action.apply(parent)
-            info = build_local_record(parent, str(self._current_working_uuid))
-            info["has_errors"] = 1
-            cur.update("records", info, {"record_uuid": self._current_working_uuid})
-            cur.commit()
-            self._has_unsaved_changes = True
-        self.refresh_record_list()
-        self.update_record(self._current_working_uuid, True)
+        return action
+
+    def update_all_record_platforms(self, platform_uuid: str | None):
+        self.add_history_entry(ActionHistoryEntry([
+            (record.record_uuid, self.add_action_metadata(AssignPlatform(platform_uuid=platform_uuid, test_protocol=self._test_protocol)))
+            for record in self.batch_records.values()
+        ]))
+
+    def update_record_platform(self, record_uuid: str, platform_uuid: str | None, _increment_action: bool = True):
+        self.add_history_entry(ActionHistoryEntry([
+            (record_uuid, self.add_action_metadata(AssignPlatform(platform_uuid=platform_uuid, test_protocol=self._test_protocol)))
+        ]))
+
+    def add_actions(self, actions: t.Iterable[RecordAction]):
+        if self.current_working_uuid is not None:
+            self.add_history_entry(ActionHistoryEntry([
+                (t.cast(str, self.current_working_uuid), self.add_action_metadata(action))
+                for action in actions
+            ]))
+    def add_action(self, action: RecordAction):
+        if self.current_working_uuid is not None:
+            self.add_history_entry(ActionHistoryEntry([
+                (t.cast(str, self.current_working_uuid), self.add_action_metadata(action)),
+            ]))
 
     def delete_action(self, db_id: int):
-        with self._app.local_db.cursor() as cur:
-            cur.execute("DELETE FROM actions WHERE rowid = ?", (db_id,))
-            cur.commit()
-            self._has_unsaved_changes = True
-        self.update_record(self._current_working_uuid, True)
+        self.add_history_entry(ActionHistoryEntry(remove_actions=[db_id]))
 
     def update_record(self, working_uuid: str | None, force_reload: bool = False):
         if working_uuid is None and self._current_record is not None:
