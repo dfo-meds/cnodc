@@ -206,8 +206,11 @@ class SpeedGraph(Graph):
     def _calculate_station_speed(self, r1: SimpleRecordInfo, r2: SimpleRecordInfo) -> tuple[float | None, int]:
         if r1.latitude is None or r1.longitude is None or r2.latitude is None or r2.longitude is None:
             return None, 9
-        # TODO: qc calculation
         qc = 0
+        for qc_flag in (9, 4, 3, 2, 5, 1):
+            if r1.latitude_qc == qc_flag or r1.longitude_qc == qc_flag or r2.latitude_qc == qc_flag or r2.longitude_qc == qc_flag:
+                qc = qc_flag
+                break
         return float(geodesic_distance(
             YXPoint(r2.latitude, r2.longitude),
             YXPoint(r1.latitude, r1.longitude)
