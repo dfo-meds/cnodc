@@ -21,13 +21,14 @@ class GraphPane(BasePane):
         self._pane_id = self.app.middle.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & (DisplayChange.RECORD | DisplayChange.BATCH_STATE):
-            self._oc2graph.clear_graph_data()
+        if change_type & DisplayChange.ACTION:
+            if app_state.batch_state == BatchOpenState.OPEN:
+                self._oc2graph.update_graph(True)
+            else:
+                self._oc2graph.clear_graph_data()
+        elif change_type & (DisplayChange.RECORD | DisplayChange.BATCH_STATE):
             if app_state.batch_state == BatchOpenState.OPEN:
                 self._oc2graph.update_graph()
-        elif change_type & DisplayChange.ACTION:
-            if app_state.batch_state == BatchOpenState.OPEN:
-                self._oc2graph.update_graph_data()
             else:
                 self._oc2graph.clear_graph_data()
         if change_type & DisplayChange.LANGUAGE:

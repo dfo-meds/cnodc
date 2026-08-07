@@ -368,7 +368,7 @@ class ParameterGraph(Graph):
 
     def build_graph(self, figure, state: ApplicationState) -> tuple[mpla.Axes, list[mpla.Axes] | None]:
         self._figure = figure
-        recordset = state.current_record.find_child(self._rs_path)
+        recordset = state.current_parent.find_child(self._rs_path) if state.current_parent else None
         axes = figure.subplots(1, 1)
         if not isinstance(recordset, RecordSet):
             # TODO: should be a warning here
@@ -623,7 +623,7 @@ class OCProc2Graph(ttk.Frame):
         if self._current_graph_name is not None and self._current_graph_name in self._graph_options:
             self._graph_options[self._current_graph_name].on_button_press(self.app, self._canvas, event)
 
-    def update_graph(self):
+    def update_graph(self, changed_actions: bool = False):
 
         # save old selected option
         current_opt = None
@@ -648,7 +648,7 @@ class OCProc2Graph(ttk.Frame):
             self.graph_option_box.current(0)
 
         # refresh graph data
-        self.update_graph_data(force_redraw=self._current_record_uuid != self.app.state.current_working_uuid)
+        self.update_graph_data(force_redraw=changed_actions or self._current_record_uuid != self.app.state.current_working_uuid)
 
         # ensure we are tracking the correct current record
         self._current_record_uuid = self.app.state.current_working_uuid
@@ -736,7 +736,7 @@ class OCProc2Graph(ttk.Frame):
     def _build_graph(self):
         if self._current_graph_name is not None:
             self._axes, self._extra_axes = self._graph_options[self._current_graph_name].build_graph(self._figure, self.app.state)
-        self._canvas.draw()
+        self._canvas.draw_idle()
 
 
 
