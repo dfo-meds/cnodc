@@ -42,15 +42,26 @@ class _BaseInfo:
         self._label = {}
         self._documentation = {}
 
-    def label(self, lang: str = 'en') -> str:
-        return _BaseInfo._get_language_attribute(self._label, lang)
+    def _default_label(self) -> str:
+        x = ''
+        for char in self.name:
+            if x == '':
+                x += char
+            else:
+                if char.isupper() and not x[-1].isupper():
+                    x += ' '
+                x += char
+        return x
+
+    def label(self, lang: str = 'en', default=None) -> str:
+        return _BaseInfo._get_language_attribute(self._label, lang, default if default is not None else self._default_label())
 
     def set_label(self, label: LiteralValue):
         for lang, value in _BaseInfo.build_all_from_multilingual(label):
             self._label[lang] = value
 
-    def documentation(self, lang: str = 'en') -> str:
-        return _BaseInfo._get_language_attribute(self._documentation, lang)
+    def documentation(self, lang: str = 'en', default='') -> str:
+        return _BaseInfo._get_language_attribute(self._documentation, lang, default)
 
     def set_documentation(self, doc: LiteralValue):
         for lang, value in _BaseInfo.build_all_from_multilingual(doc):
