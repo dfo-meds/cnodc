@@ -192,7 +192,7 @@ class SpeedGraph(Graph):
         )
         self._set_axis_info(
             axes,
-            label=i18n.tr("graph.speed_chart.speed"),
+            label=i18n.tr("graph.speed_chart.speed") + " [m s-1]",
             on_y_axis=True
         )
         if current_platform_id:
