@@ -268,7 +268,7 @@ class ParameterGraph(Graph):
     def _on_button_press(self, app, canvas, data_x, data_y, event):
         is_depth_graph = self._should_reverse(self._cname)
         context_menu = ContextMenuWithHover(app.root)
-        for n in (1,2,3,4,9):
+        for n in (0,1,2,3,4,9):
             context_menu.add_command(
                 i18n.tr(f"context_menu.graph.flag{n}_next_deeper" if is_depth_graph else f"context_menu.graph.flag{n}_next_greater", parameter=self.translate_element_name(self._pname, self._psensor)),
                 command=functools.partial(self._flag_next_greater_than, parameter=(self._pname, self._psensor), independent_value=data_y, app=app, flag=n),

@@ -37,6 +37,39 @@ speed = "Speed"
 # {parameters}: either PARAMETER_NAME or PARAM1, PARAM2 (both translateed)
 # {coordinate}: the translated name of the coordinate
 title = "{rs_type}#{rs_index} - {parameters} by {coordinate}"
+# {element} translated name of the lement
+# {sensor} either R1, R2, R3, ... (For assigned sensor ranks) or U1, U2, U3, ... (for unassigned)
+element_and_sensor = "{element} {sensor}"
+
+[derived_parameter]
+Density = "Density"
+
+[context_menu.graph]
+# these all have {parameter} as the translated name of the parameter
+flag0_next_deeper = "Flag Next Deeper {parameter} - Not Checked (0)"
+flag0_all_deeper = "Flag All Deeper {parameter} - Not Checked (0)"
+flag0_next_greater = "Flag Next Greater {parameter} - Not Checked (0)"
+flag0_all_greater = "Flag All Greater {parameter} - Not Checked (0)"
+flag1_next_deeper = "Flag Next Deeper {parameter} - Good (1)"
+flag1_all_deeper = "Flag All Deeper {parameter} - Good (1)"
+flag1_next_greater = "Flag Next Greater {parameter} - Good (1)"
+flag1_all_greater = "Flag All Greater {parameter} - Good (1)"
+flag2_next_deeper = "Flag Next Deeper {parameter} - Probably Good (2)"
+flag2_all_deeper = "Flag All Deeper {parameter} - Probably Good (2)"
+flag2_next_greater = "Flag Next Greater {parameter} - Probably Good (2)"
+flag2_all_greater = "Flag All Greater {parameter} - Probably Good (2)"
+flag3_next_deeper = "Flag Next Deeper {parameter} - Dubious (3)"
+flag3_all_deeper = "Flag All Deeper {parameter} - Dubious (3)"
+flag3_next_greater = "Flag Next Greater {parameter} - Dubious (3)"
+flag3_all_greater = "Flag All Greater {parameter} - Dubious (3)"
+flag4_next_deeper = "Flag Next Deeper {parameter} - Erroneous (4)"
+flag4_all_deeper = "Flag All Deeper {parameter} - Erroneous (4)"
+flag4_next_greater = "Flag Next Greater {parameter} - Erroneous (4)"
+flag4_all_greater = "Flag All Greater {parameter} - Erroneous (4)"
+flag9_next_deeper = "Flag Next Deeper {parameter} - Missing (9)"
+flag9_all_deeper = "Flag All Deeper {parameter} - Missing (9)"
+flag9_next_greater = "Flag Next Greater {parameter} - Missing (9)"
+flag9_all_greater = "Flag All Greater {parameter} - Missing (9)"
 
 [action]
 retest = "Rerun QC Test"
