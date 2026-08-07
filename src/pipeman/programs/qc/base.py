@@ -330,6 +330,7 @@ class QualityController(abc.ABC):
                     self.set_working_quality(pass_flag, ref, review_passes)
         except QCSkipReview as ex:
             self._log.info("review %s skipped: %s on [%s]", review_name, ex, refs)
+            self.add_qc_message(str(ex), "", None, review_name)
             self._reviews_skipped += 1
         except QCAssertionError as ex:
             self._log.info("review [%s] failed: [%s][ref: %s] on [%s]", review_name, ex.error_code, ex.ref_value, refs)

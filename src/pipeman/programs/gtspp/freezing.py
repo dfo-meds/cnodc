@@ -61,4 +61,4 @@ class GTSPPFreezingPointTest(DeepDiveChecker):
             units="degrees_C",
             temperature_scale=TemperatureScale.TS_1990
         )
-        self.assert_greater_or_close(t.cast(amath.AnyNumber, temp), freezing_point)
+        self.assert_greater_or_close(t.cast(amath.AnyNumber, temp), freezing_point, msg="below_freezing")

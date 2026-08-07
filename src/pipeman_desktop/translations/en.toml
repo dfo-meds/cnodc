@@ -84,14 +84,73 @@ set_quality = "Set Quality Flag"
 set_outcome = "Set QC Test Outcome"
 set_value = "Set Value"
 
+[qc_protocol]
+# qc protocol names from QC tests
+gtspp = "GTSPP"
+nodb = "NODB"
+
 [qc_test]
 # qc test names from QC tests can go here for translation
+bathymetry_check = "Bathymetry Check"
+constant_check = "Constant Value Check (2.5)"
+coordinate_check = "Coordinate Check (1.2, 1.3)"
+density_inversion_check = "Density Inversion Check (2.10)"
+envelope_check = "Envelope Check (2.4)"
+freezing_check = "Freezing Check (2.6)"
+impossible_value_check = "Impossible Value Check (2.1, 2.2)"
+increasing_depth_check = "Increasing Depth Check (2.3)"
+mandatory_review = "Mandatory Review (5.1)"
+speed_check = "Speed Check (1.5)"
+spike_gradient_check = "Spike & Gradient Check (2.7, 2.8, 2.9)"
+temperature_inversion_check = "Temperature Inversion Check (2.12)"
 
 [qc_review]
-# sub-test names from QC messages can go here
+# sub-test names from QC messages can go here (these are reviews)
+element_required = "Element Required"
+position_check = "Position Check (1.4)"
+depth_check = "Depth Check (1.6)"
+sea_depth_check = "Sounding Check (2.11)"
+constant_for_inflection_points = "Constant Value (Inflections)"
+constant_for_selected_levels = "Constant Value (Selected)"
+density_inversion = "Density Inversion"
+above_freezing = "Above Freezing"
+is_deeper = "Increasing Depth"
+mandatory_review = "Mandatory Review"
+valid_speed = "Speed Check"
+extrema_spike = "Top/Bottom Spike"
+spike_gradient_check = "Middle Spike & Gradient"
 
 [qc_error_code]
-# error codes from QC messages can go here
+# message codes from QC messages can go here
+invalid_bathymetry_location = "Location is on land, no test possible"
+unknown_digitization_method="Unrecognized digitization method"
+is_on_land="Location is on land"
+too_deep="Sounding is deeper than bathymetry"
+constant_detected = "Constant value detected"
+missing_nearby_value = "Insufficient nearby values for test"
+element_required = "The element is missing when it is required"
+no_density = "Could not calculate density"
+first_level = "Cannot check value on first level"
+density_inversion_detected = "Density inversion detected"
+below_freezing = "The temperature is below the calculated freezing point"
+not_deeper = "The depth increases in this profile"
+review_required = "This observation must be reviewed"
+no_platform = "The platform has not been assigned"
+no_top_speed_test = "The platform is excluded from top speed tests"
+invalid_coordinates = "The geographical or time coordinates are invalid for a speed check"
+too_fast = "The platform is moving faster than its maximum speed"
+no_top_parameters = "There are no parameters for the top test"
+no_bottom_parameters = "There are no parameters for the bottom test"
+no_paired_ref = "Missing a value reference above or below to conduct this test"
+no_min_or_max = "No range for the spike test has been given"
+no_paired_value = "Missing a value above or below to conduct this test"
+spike_too_high = "Value is above the maximum spike threshold"
+spike_too_low = "Value is below the maximum spike threshold"
+missing_before_or_after_value = "Missing a value reference above and/or below to conduct this test"
+missing_nearby_values = "Missing a nearby value to conduct this test"
+gradient_threshold_exceeded = "Value is above the gradient threshold"
+spike_threshold_exceeded = "Value is above the spike threshold"
+
 
 [batch_qc]
 gtspp_qca = "GTSPP (QC-A)"

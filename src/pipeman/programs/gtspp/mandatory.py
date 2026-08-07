@@ -22,3 +22,4 @@ class GTSPPMandatoryManualReviewTest(DeepDiveChecker):
         nodb_platform = self.get_current_platform(True)
         if nodb_platform is not None and nodb_platform.mandatory_review:
             self.update_qc_result(QCResult.MANUAL_REVIEW)
+            self.add_qc_message("review_required", "", None, "mandatory_review")

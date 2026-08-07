@@ -56,7 +56,7 @@ class GTSPPConstantTest(ProfileChecker):
                         continue
                     if all_values[i] is None:
                         continue
-                    self.assert_not_close(all_values[i-1], all_values[i], msg="constant_value_found")
+                    self.assert_not_close(all_values[i-1], all_values[i], msg="constant_detected")
 
 
 

@@ -37,12 +37,12 @@ class GTSPPDensityInversionTest(ProfileChecker):
                     self.require_quality(psal_sref.element, RequiredQuality.GOOD_VALUE_WITH_UNITS)
                     density = omath.get_density(temp_sref.element, psal_sref.element, self.current_pressure, self.current_depth, self.current_latitude, self.current_time)
                     if density is None:
-                        self.skip_review("no density")
+                        self.skip_review("no_density")
                     elif key not in self.profile_memory['last']:
                         self.profile_memory['last'][key] = density
-                        self.skip_review("first level")
+                        self.skip_review("first_level")
                     else:
                         ctx.check_review_already_complete()
                         self.assert_greater_or_close(
-                            density, self.profile_memory['last'][key],
+                            density, self.profile_memory['last'][key], msg="density_inversion_detected"
                         )

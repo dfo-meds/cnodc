@@ -58,7 +58,7 @@ class GTSPPSpeedCheck(DeepDiveChecker):
                     ref_time = check_time
         top_speed = self._get_top_speed(pid)
         if top_speed is None:
-            self.skip_review("no_top_speed")
+            self.skip_review("no_top_speed_test")
         # TODO: exit if all lat, lon, and times have failed the test,
         for previous_position in self._get_previous_positions(pid, ref_time):
             previous_lats = previous_position.coordinate_ref("Latitude")

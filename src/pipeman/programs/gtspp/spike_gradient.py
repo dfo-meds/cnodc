@@ -122,13 +122,13 @@ class GTSPPSpikeGradientTest(ProfileChecker):
     def _top_spike_test(self, top: ChildRecordRef, second_top: ChildRecordRef):
         parameters = self._spike_ref.spike_top_info()
         if not parameters:
-            self.skip_review("no_parameters")
+            self.skip_review("no_top_parameters")
         self._extrema_spike_check(top, second_top, parameters)
 
     def _bottom_spike_test(self, second_bottom: ChildRecordRef, bottom: ChildRecordRef):
         parameters = self._spike_ref.spike_bottom_info()
         if not parameters:
-            self.skip_review("no_parameters")
+            self.skip_review("no_bottom_parameters")
         self._extrema_spike_check(second_bottom, bottom, parameters, True)
 
     def _extrema_spike_check(self, v1: ChildRecordRef, v2: ChildRecordRef, parameters: dict[str, tuple[amath.AnyNumber | None, amath.AnyNumber | None, str | None]], review_v2: bool = False):
@@ -162,9 +162,9 @@ class GTSPPSpikeGradientTest(ProfileChecker):
                 return
             diff = amath.sub(v1, v2)
             if max_value is not None:
-                self.assert_less_or_close(diff, max_value)
+                self.assert_less_or_close(diff, max_value, msg="spike_too_high")
             if min_value is not None:
-                self.assert_greater_or_close(diff, min_value)
+                self.assert_greater_or_close(diff, min_value, msg="spike_too_low")
 
     def _middle_spike_test(self, previous: ChildRecordRef, current: ChildRecordRef, next_: ChildRecordRef, parameters: dict[str, tuple[amath.AnyNumber | None, amath.AnyNumber | None, str | None]]) -> None:
         for previous_ref, current_ref, next_ref in self.extract_all_keyed_parameters(previous, current, next_, include_parameters=parameters.keys()):
