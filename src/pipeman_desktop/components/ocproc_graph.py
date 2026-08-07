@@ -105,15 +105,16 @@ class Graph:
     def _calculate_axis_range(self,
                               xx1: tuple[float, float],
                               xx2: tuple[float, float]) -> tuple[float, float]:
-        m = (xx2[1] - xx1[1]) / (xx2[0] - xx1[0])
-        b = xx1[1] - (xx1[0] * m)
-        return b, m + b
+        graph_range = (xx2[1] - xx1[1]) / (xx2[0] - xx1[0])
+
+        left = xx1[1] - (xx1[0] * graph_range)
+        return left, left + graph_range + ((1-xx2[0]) * graph_range)
 
     def _build_ticks(self, min_val: float, max_val: float, num_ticks: int = 7, is_integer_data: bool = False):
         step_size = self._normalize_tick_size((max_val - min_val) / (num_ticks - 1))
         if is_integer_data:
             step_size = int(math.ceil(step_size))
-        current = int(min_val / step_size) * step_size
+        current = math.floor(min_val / step_size) * step_size
         result = []
         while True:
             result.append(current)
