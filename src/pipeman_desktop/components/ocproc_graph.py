@@ -11,7 +11,6 @@ import matplotlib.backends.backend_tkagg as mpltk
 import matplotlib.style as mpls
 from medsutil.ocproc2 import RecordSet, BaseRecord, AbstractElement, ChangeQuality
 from medsutil import ocproc2
-from medsutil.ocproc2.operations import ChangeQualityAtLevelAndDeeper
 from pipeman_desktop.components.context_menu import ContextMenuWithHover
 from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.state import SimpleRecordInfo, ApplicationState
