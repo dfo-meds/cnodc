@@ -242,9 +242,15 @@ def can_set_working_quality(element: ObjectWithMetadata, working_quality: int, t
 def set_working_quality(element: ObjectWithMetadata, working_quality: int, test_protocol: str) -> bool:
     if can_set_working_quality(element, working_quality, test_protocol):
         from medsutil.ocproc2.elements import SingleElement
-        # TODO: this needs to be fixed, it overwrites all the values. Need to set it if an existing one exists,
-        # otherwise add a new one.
-        element.metadata["WorkingQuality"] = SingleElement(working_quality, TestProtocol=test_protocol)
+        if "WorkingQuality" not in element.metadata:
+            element.metadata["WorkingQuality"] = SingleElement(working_quality, TestProtocol=test_protocol)
+        else:
+            for subelement in element.metadata['WorkingQuality'].all_values():
+                if subelement.metadata.best("TestProtocol", coerce=str, default=None) == test_protocol:
+                    subelement.value = working_quality
+                    break
+            else:
+                element.metadata.append_element_to("WorkingQuality", SingleElement(working_quality, TestProtocol=test_protocol))
         return True
     return False
 
