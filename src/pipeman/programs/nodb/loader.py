@@ -38,6 +38,8 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             'decode_kwargs': {},
             'allow_reprocessing': False,
             'autocomplete_records': False,
+            'default_data_mode': '??',
+            'default_quality_flags': 0,
         })
         self.add_events(['before_message', 'before_record', 'after_record', 'after_message_success', 'after_decode_error'])
         self._memory = None
@@ -120,7 +122,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         with NODBRecordManager(self.db) as rm:
             with open(temp_file, "rb") as h:
                 for result in self._decode_records(h):
-                    success, skipped, had_error = self._create_nodb_record_from_result(rm, source_file, result)
+                    success, skipped, had_error = self._create_nodb_record_from_result(rm, source_file, payload, result)
                     total_created += success
                     total_skipped += skipped
                     had_any_errors = had_any_errors or had_error
@@ -178,6 +180,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
     def _create_nodb_record_from_result(self,
                                         rm: NODBRecordManager,
                                         source_file: NODBSourceFile,
+                                        payload: WorkflowPayload,
                                         result: DecodeResult) -> tuple[int, int, bool]:
         success = 0
         skipped = 0
@@ -189,7 +192,16 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             try:
                 for record_idx, record in enumerate(result.records):
                     self.before_record(source_file, record)
-                    record_result = self._create_nodb_record(rm, source_file, result.message_idx, record_idx, record, make_completed_records)
+                    record_result = self._create_nodb_record(
+                        rm,
+                        source_file,
+                        result.message_idx,
+                        record_idx,
+                        record,
+                        DataMode(str(payload.get_metadata("data-mode", self.get_config("default_data_mode")))),
+                        int(payload.get_metadata("quality-flags", self.get_config("default_quality_flags"))),
+                        make_completed_records
+                    )
                     if record_result:
                         success += 1
                     else:
