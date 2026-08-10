@@ -1,4 +1,6 @@
 import datetime
+import pathlib
+import tempfile
 import typing as t
 
 import flask
@@ -119,6 +121,21 @@ class NODBController:
         if item.locked_by != app_id:
             raise NODBAPIError("Queue item is locked by another user")
         return item
+
+    def download_file(self, queue_uuid: str):
+        with tempfile.TemporaryDirectory() as tempdir:
+            with self.nodb as db:
+                item = NODBQueueItem.find_by_uuid(db, queue_uuid)
+                if item is None:
+                    raise NODBAPIError("no such queue item")
+                payload = Payload.from_queue_item(item)
+                if isinstance(payload, SourceFilePayload):
+                    local_file = payload.download_from_db(db, pathlib.Path(tempdir))
+                elif isinstance(payload, FilePayload):
+                    local_file = payload.download(pathlib.Path(tempdir))
+                else:
+                    raise NODBAPIError("Invalid file to download")
+                return flask.send_file(local_file, as_attachment=True)
 
     def close_qc_item(self,
                       queue_uuid: str,
