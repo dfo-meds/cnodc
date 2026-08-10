@@ -141,6 +141,7 @@ class ApplicationState:
         self._history: list[HistoryEntry] = []
         self._current_item: int = -1
         self._app = app
+        self._error_mode: str | None = None
         self._test_protocol: str | None = None
         self._username: t.Optional[str] = None
         self._available_services: list[str] | None = None
@@ -164,6 +165,10 @@ class ApplicationState:
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
         self.actions: t.Optional[list[RecordAction]] = None
+
+    @property
+    def error_mode(self) -> str | None:
+        return self._error_mode
 
     @property
     def test_protocol(self) -> str:
@@ -378,10 +383,11 @@ class ApplicationState:
         self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
         self._on_qc_batch_open_success(False, on_no_item)
 
-    def _on_qc_batch_open_success(self, result: tuple[list[str], str] | None | bool, on_no_item: t.Callable | None = None):
+    def _on_qc_batch_open_success(self, result: tuple[list[str], str, str] | None | bool, on_no_item: t.Callable | None = None):
         if isinstance(result, tuple):
             self._batch_actions = result[0]
             self._test_protocol = result[1]
+            self._error_mode = result[2]
             self.refresh_record_list(False)
             self._batch_state = BatchOpenState.OPEN
             self._has_unsaved_changes = False
