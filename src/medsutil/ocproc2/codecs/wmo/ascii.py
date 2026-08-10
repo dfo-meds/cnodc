@@ -462,10 +462,10 @@ class BuoyZZYY(AsciiDecoder):
             q_pos = self.parse_quality_flag(six_group[1], parameter="location")
             q_time = self.parse_quality_flag(six_group[2], parameter="time")
             if q_pos is not None:
-                record.coordinates["Latitude"].metadata["Quality"] = q_pos
-                record.coordinates["Longitude"].metadata["Quality"] = q_pos
+                record.coordinates["Latitude"].metadata["Quality"] = SingleElement(q_pos, TestProtocol="other")
+                record.coordinates["Longitude"].metadata["Quality"] = SingleElement(q_pos, TestProtocol="other")
             if q_time is not None:
-                record.coordinates["Time"].metadata["Quality"] = q_time
+                record.coordinates["Time"].metadata["Quality"] = SingleElement(q_time, TestProtocol="other")
             record.metadata["WMOQualityLocationClass"] = self.parse_quality_location_class(six_group[3])
 
         return o, wind_source
@@ -475,7 +475,8 @@ class BuoyZZYY(AsciiDecoder):
         # 1 1 1 Qd Qx
         if self.next_message_startswith(ascii_message, o, "111"):
             self.require_length(ascii_message[o], 5, "1 1 1 Qd Qx")
-            quality: str | int | None = self.parse_quality_flag(ascii_message[o][3], "section 1")
+            quality_value: str | int | None = self.parse_quality_flag(ascii_message[o][3], "section 1")
+            quality: SingleElement | None = SingleElement(quality_value, TestProtocol="other") if quality_value is not None else None
             apply_to: bool | int = self.parse_quality_applies_to(ascii_message[o][4], 5)
             o += 1
             # 0 d d f f
@@ -536,7 +537,8 @@ class BuoyZZYY(AsciiDecoder):
         if self.next_message_startswith(ascii_message, o, "222"):
             self.require_length(ascii_message[o], 5, "2 2 2 Qd Qx")
             apply_to: bool | int = self.parse_quality_applies_to(ascii_message[o][4], 2)
-            quality: str | int | None = self.parse_quality_flag(ascii_message[o][3], "second2")
+            quality_value: str | int | None = self.parse_quality_flag(ascii_message[o][3], "section 1")
+            quality: SingleElement | None = SingleElement(quality_value, TestProtocol="other") if quality_value is not None else None
             o += 1
 
             # 0 sn Tw Tw Tw
@@ -579,8 +581,10 @@ class BuoyZZYY(AsciiDecoder):
         # 3 3 3 Qd1 Qd2
         if self.next_message_startswith(ascii_message, o, "333"):
             self.require_length(ascii_message[o], 5, "3 3 3 Qd1 Qd2")
-            ts_quality = self.parse_quality_flag(ascii_message[o][3], "temperature/salinity")
-            cur_quality = self.parse_quality_flag(ascii_message[o][4], "current")
+            ts_quality_value = self.parse_quality_flag(ascii_message[o][3], "temperature/salinity")
+            ts_quality = SingleElement(ts_quality_value, TestProtocol="other") if ts_quality_value is not None else None
+            cur_quality_value = self.parse_quality_flag(ascii_message[o][4], "current")
+            cur_quality = SingleElement(cur_quality_value, TestProtocol="other") if cur_quality_value is not None else None
             o += 1
 
             # 8 8 8 7 k2

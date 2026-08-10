@@ -702,7 +702,7 @@ class _Bufr4Decoder:
         if nxt and nxt.descriptor.id == 33050:
             context.extras["skip"] += 1
             v = self._get_node_value(None, t.cast(ValueDataNode, nxt), context)
-            flag_value = ocproc2.SingleElement(v) if v is not None else v
+            flag_value = ocproc2.SingleElement(v, TestProtocol="other") if v is not None else v
         if applies_to == 20:
             context.set_element("coordinates/Latitude/metadata/Quality", flag_value)
             context.set_element("coordinates/Longitude/metadata/Quality", flag_value)
