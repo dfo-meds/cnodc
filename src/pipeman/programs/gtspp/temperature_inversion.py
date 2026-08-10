@@ -26,7 +26,7 @@ class GTSPPTemperatureInversionTest(ProfileChecker):
 
     def profile_check(self, profile: list[ChildRecordRef], recordset_ref: RecordSetRef):
         if len(profile) < 4:
-            self.skip_review("four or more records required")
+            self.skip_review("four_records_required")
         for temperatures in self.extract_all_keyed_parameters(*profile, include_parameters=("Temperature",)):
             self._inversion_check(temperatures, profile)
 
