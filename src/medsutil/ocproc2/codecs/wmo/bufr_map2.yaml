@@ -774,16 +774,16 @@
         instructions:
           - "7062"
           - "8080:13"
-          - "33050:coordinates/Depth/metadata/Quality"
+          - "33050:coordinates/Depth/metadata/Quality[TestProtocol=gtspp]"
           - "7065"
           - "8080:10"
-          - "33050:coordinates/Pressure/metadata/Quality"
+          - "33050:coordinates/Pressure/metadata/Quality[TestProtocol=gtspp]"
           - "22031"
           - "8080:11"
-          - "33050:parameters/Temperature/metadata/Quality"
+          - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
           - "22004"
           - "8080:12"
-          - "33050:parameters/PracticalSalinity/metadata/Quality"
+          - "33050:parameters/PracticalSalinity/metadata/Quality[TestProtocol=gtspp]"
 306036:
   decode:
     instruction: noop
@@ -795,16 +795,16 @@
         instructions:
           - "7062"
           - "8080:13"
-          - "33050:coordinates/Depth/metadata/Quality"
+          - "33050:coordinates/Depth/metadata/Quality[TestProtocol=gtspp]"
           - "7065"
           - "8080:10"
-          - "33050:coordinates/Pressure/metadata/Quality"
+          - "33050:coordinates/Pressure/metadata/Quality[TestProtocol=gtspp]"
           - "22031"
           - "8080:14"
-          - "33050:parameters/CurrentSpeed/metadata/Quality"
+          - "33050:parameters/CurrentSpeed/metadata/Quality[TestProtocol=gtspp]"
           - "22004"
           - "8080:15"
-          - "33050:parameters/CurrentDirection/metadata/Quality"
+          - "33050:parameters/CurrentDirection/metadata/Quality[TestProtocol=gtspp]"
 306037:
   decode:
     instruction: noop
@@ -816,13 +816,13 @@
         instructions:
           - "7062"
           - "8080:13"
-          - "33050:coordinates/Depth/metadata/Quality"
+          - "33050:coordinates/Depth/metadata/Quality[TestProtocol=gtspp]"
           - "7065"
           - "8080:10"
-          - "33050:coordinates/Pressure/metadata/Quality"
+          - "33050:coordinates/Pressure/metadata/Quality[TestProtocol=gtspp]"
           - "22031"
           - "8080:16"
-          - "33050:parameters/DissolvedOxygen/metadata/Quality"
+          - "33050:parameters/DissolvedOxygen/metadata/Quality[TestProtocol=gtspp]"
 306038:
   decode:
     instruction: noop
@@ -975,19 +975,19 @@
           - "301012"
           - "301021"
           - "8080:20"
-          - "33050:coordinates/Latitude/metadata/Quality"
+          - "33050:coordinates/Latitude/metadata/Quality[TestProtocol=gtspp]"
           - repeats: -1
             size_descriptor: 31002
             instructions:
               - "7065"
               - "8080:10"
-              - "33050:coordinates/Pressure/metadata/Quality"
+              - "33050:coordinates/Pressure/metadata/Quality[TestProtocol=gtspp]"
               - "22045"
               - "8080:11"
-              - "33050:parameters/Temperature/metadata/Quality"
+              - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
               - "22064"
               - "8080:12"
-              - "33050:parameters/Temperature/metadata/Quality"
+              - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
 
 315004:
   decode:
@@ -1051,7 +1051,7 @@
       - "22032"
       - "22063"
       - "8080:4"
-      - "33050:parameters/SeaDepth/metadata/Quality"
+      - "33050:parameters/SeaDepth/metadata/Quality[TestProtocol=gtspp]"
       - "22178"
       - "22177"
       - recordset_type: PROFILE
@@ -1089,10 +1089,10 @@
         group:
         - "7063"
         - "8080:13"
-        - "33050:coordinates/Depth/metadata/Quality"
+        - "33050:coordinates/Depth/metadata/Quality[TestProtocol=gtspp]"
         - "22043"
         - "8080:11"
-        - "33050:parameters/Temperature/metadata/Quality"
+        - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
 
 
 315007:
@@ -1462,19 +1462,20 @@
                   - coordinates/Longitude
               - "7062"
               - "8080:13"
-              - "33050:coordinates/Depth/metadata/Quality"
+              - "33050:coordinates/Depth/metadata/[TestProtocol=gtspp]"
               - "22065"
               - "8080:10"
-              - "33050:coordinates/Pressure/metadata/Quality"
+              - "33050:coordinates/Pressure/metadata/Quality[TestProtocol=gtspp]"
               - "22045"
               - "8080:11"
-              - "33050:parameters/Temperature/metadata/Quality"
+              - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
               - "22066"
               - "8080:25"
-              - "33050:parameters/Conductivity/metadata/Quality"
+              - "33050:parameters/Conductivity/metadata/Quality[TestProtocol=gtspp]"
               - "22064"
               - "8080:12"
-              - "33050:parameters/PracticalSalinity/metadata/Quality"
+              - "33050:parameters/PracticalSalinity/metadata/Quality[TestProtocol=gtspp]"
               - "42016"
               - "8080:26"
-              - "33050:parameters/PotentialDensity/metadata/Quality"
+              - "33050:parameters/PotentialDensity/metadata/Quality[TestProtocol=gtspp]"
+              # TODO: should we also include NODB test outcomes? But remap -1 to 4?
