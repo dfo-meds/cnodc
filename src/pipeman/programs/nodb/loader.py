@@ -1,7 +1,6 @@
 import uuid
 
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
-from medsutil.ocproc2.history import ActionType
 from nodb.interface import LockType
 import medsutil.ocproc2 as ocproc2
 import typing as t
@@ -9,12 +8,12 @@ import typing as t
 from pipeman.processing.payload_worker import WorkflowWorker
 from medsutil.storage import StorageController, FilePath
 from pipeman.exceptions import CNODCError
-from nodb.observations import SourceFileStatus, NODBSourceFile, ProcessingLevel
+from nodb.observations import SourceFileStatus, NODBSourceFile, DataMode
 from medsutil.dynamic import dynamic_object
 
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, SourceFilePayload
 from pipeman.processing.queue_worker import QueueItemResult
-from pipeman.programs.nodb.record_manager import NODBRecordManager
+from pipeman.programs.nodb.record_manager import NODBRecordManager, CreationResultType
 from medsutil.awaretime import AwareDateTime
 
 
@@ -167,7 +166,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 source_file.status = SourceFileStatus.NEW
                 source_file.file_name = payload.filename
                 source_file.source_name = payload.get_metadata('source-name', '')
-                source_file.processing_level = payload.get_metadata('processing-level', 'UNKNOWN')
                 source_file.program_name = payload.get_metadata('program-name', '')
                 self.db.insert_object(source_file)
                 self.db.commit()
@@ -196,7 +194,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                         success += 1
                     else:
                         skipped += 1
-                    self.after_record(source_file, record, record_result)
+                    self.after_record(source_file, record, record_result is not None )
                     self.breakpoint()
                 self.after_message_success(source_file, result)
                 self.renew_item()
@@ -237,24 +235,35 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             message_idx: int,
                             record_idx: int,
                             record: ocproc2.ParentRecord,
-                            make_completed_records):
+                            data_mode: DataMode,
+                            quality_flags: int,
+                            make_completed_records: bool) -> bool:
         try:
             if make_completed_records:
                 res = rm.create_completed_entry_from_source_file(
                     record=record,
                     message_idx=message_idx,
                     record_idx=record_idx,
-                    source_file=source_file
+                    source_file=source_file,
+                    data_mode=data_mode,
+                    quality_flags=quality_flags,
                 )
+                skipped = res.action != CreationResultType.COPY_EXISTS
             else:
                 res = rm.create_working_entry_from_source_file(
                     record=record,
                     source_file=source_file,
                     message_idx=message_idx,
-                    record_idx=record_idx
+                    record_idx=record_idx,
+                    data_mode=data_mode,
+                    quality_flags=quality_flags,
                 )
-            self.count("records_loaded_total", outcome="success")
-            return res
+                skipped = res is not None
+            if skipped:
+                self.count("records_loaded_total", outcome="skipped")
+            else:
+                self.count("records_loaded_total", outcome="success")
+            return not skipped
         except Exception:
             self.count("records_loaded_total", outcome="error")
             raise
