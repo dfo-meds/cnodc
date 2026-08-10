@@ -1,10 +1,12 @@
 import copy
 import json
+import pathlib
 import typing as t
 
 import zrlog
 from autoinject import injector
 from requests import JSONDecodeError, HTTPError
+from zirconium import ApplicationConfig
 
 from gcapp.i18n.base import TranslatableError
 from medsutil.awaretime import AwareDateTime
@@ -72,6 +74,20 @@ class WebAPIClient:
         return request(method, full_url, session=self._session, json=kwargs, headers=headers, check_for_response_error=False)
 
     @with_remote_api_error_handling
+    def make_file_request(self, *args, save_path: pathlib.Path, **kwargs) -> dict:
+        kwargs["app_id"] = self._app_id
+        response = self._make_raw_request(*args, **kwargs)
+        if not response.headers.get('Content-Type', '').startswith('application/json'):
+            response.raise_for_status()
+            with open(save_path, "wb") as h:
+                h.write(response.content)
+        else:
+            json_body = response.json()
+            if 'error' in json_body:
+                raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
+            raise LocalAPIError("Expected raw file, got JSON", 1300)
+
+    @with_remote_api_error_handling
     def make_json_request(self, *args, **kwargs) -> dict:
         kwargs["app_id"] = self._app_id
         response = self._make_raw_request(*args, **kwargs)
@@ -82,52 +98,6 @@ class WebAPIClient:
             raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
         return json_body
 
-    # deprecated?
-    def make_working_records_request(self, *args, **kwargs) -> t.Iterable[tuple[str, str, ocproc2.ParentRecord, list[dict]]]:
-        response = self._make_raw_request(*args, **kwargs)
-        response.raise_for_status()
-        codec = OCProc2BinCodec()
-        stream = ByteSequenceReader(response.iter_content(10240, False))
-        while not stream.at_eof():
-            record_id = stream.consume(stream.consume_vlq_int()).decode('ascii')
-            record_hash = stream.consume(stream.consume_vlq_int()).decode('ascii')
-            record_content = stream.consume(stream.consume_vlq_int())
-            action_content = stream.consume(stream.consume_vlq_int())
-            actions = []
-            if action_content != b'':
-                actions = json.loads(action_content.decode('utf-8'))
-            yield record_id, record_hash, next(codec.decode_messages([record_content])), actions
-
-    # deprecated?
-    def make_json_dict_list_request(self, *args, **kwargs) -> t.Iterable[dict]:
-        response = self._make_raw_request(*args, **kwargs)
-        buffer = ''
-        check_idx = 1
-        depth = 1
-        for chunk in response.iter_content(10240, True):
-            buffer += chunk
-            if buffer == '':
-                break
-            if not buffer[0] == '{':
-                raise ValueError('invalid stream')
-            while True:
-                next_end = buffer.find('}', check_idx)
-                next_start = buffer.find('{', check_idx)
-                if next_end == -1 and next_start == -1:
-                    break
-                elif next_end == -1 or next_start < next_end:
-                    depth += 1
-                    check_idx = next_start + 1
-                elif depth > 1:
-                    depth -= 1
-                    check_idx = next_end + 1
-                else:
-                    yield json.loads(buffer[0:next_end+1])
-                    buffer = buffer[next_end+1:]
-                    check_idx = 1
-                    depth = 1
-
-
 
 @injector.injectable
 class CNODCServerAPI:
@@ -135,6 +105,7 @@ class CNODCServerAPI:
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
     web_client: WebAPIClient = None
+    config: ApplicationConfig = None
 
     @injector.construct
     def __init__(self):
@@ -173,7 +144,21 @@ class CNODCServerAPI:
             **kwargs,
             **extra_kwargs
         )
-
+    def make_service_file_request(self,
+                                  service_identifier: str,
+                                  method: str,
+                                  _service_list: dict[str, dict[str, t.Any]] | None = None,
+                                  **kwargs):
+        endpoint, extra_kwargs = self.service_info(
+            service_list=_service_list if _service_list is not None else self._service_list,
+            service_identifier=service_identifier
+        )
+        return self.web_client.make_file_request(
+            endpoint=endpoint,
+            method=method,
+            **kwargs,
+            **extra_kwargs
+        )
     @staticmethod
     def service_info(service_list: dict[str, dict[str, t.Any]] | None, service_identifier: str) -> tuple[str, dict[str, t.Any]]:
         if service_list is not None and service_identifier in service_list:
@@ -253,7 +238,7 @@ class CNODCServerAPI:
         )
         return response["ready"]
 
-    def open_batch(self, batch_service_name: str) -> tuple[list[str], str, str] | None:
+    def open_batch(self, batch_service_name: str) -> tuple[list[str], str, str, t.Any] | None:
         response = self.make_service_json_request(
             service_identifier=f"batch_qc.{batch_service_name}.open",
             method="POST",
@@ -262,16 +247,26 @@ class CNODCServerAPI:
             self._current_queue_item = response
             error_mode = response.get("error_mode", "batch")
             if error_mode == "decode":
-                self._load_file()
+                custom = self._load_file()
             else:
                 self._load_batch()
-            return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", []), response.get("test_protocol", "nodb"), error_mode
+                custom = None
+            return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", []), response.get("test_protocol", "nodb"), error_mode, custom
         else:
             self._current_queue_item = None
             return None
 
-    def _load_file(self):
-        ...
+    def _load_file(self) -> str:
+        destination = pathlib.Path(str(self.config.as_str(("pipeman", "downloads"), default="~/pipeman_downloads"))).expanduser().absolute()
+        if not destination.exists():
+            destination.mkdir(parents=True)
+        file_path = destination / self._current_queue_item["queue_uuid"]
+        self.make_batch_file_request(
+            action_name="stream",
+            method="GET",
+            save_path=file_path,
+        )
+        return str(file_path)
 
     def _load_batch(self):
         platform_load_list = set()
@@ -347,6 +342,17 @@ class CNODCServerAPI:
             **kwargs
         )
 
+    def make_batch_file_request(self, action_name, method: str, **kwargs) -> dict:
+        if not self._current_queue_item:
+            err = LocalAPIError("error.no_open_batch", 1200)
+            err.add_note(f"action: {action_name}")
+            raise err
+        return self.make_service_file_request(
+            action_name,
+            method,
+            _service_list=self._current_queue_item.get("actions", None),
+            **kwargs
+        )
     def renew_batch(self) -> bool:
         response = self.make_batch_json_request(
             action_name="renew",
@@ -577,7 +583,7 @@ def save_changes(client: CNODCServerAPI = None) -> bool:
 
 
 @injector.inject
-def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> list[str] | None:
+def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> tuple[list[str], str, str, t.Any] | None:
     return client.open_batch(batch_service_name)
 
 

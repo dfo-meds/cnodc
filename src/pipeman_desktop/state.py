@@ -1,5 +1,6 @@
 import enum
 import functools
+import pathlib
 import socket
 import typing as t
 from tkinter import messagebox as tkmb
@@ -141,6 +142,7 @@ class ApplicationState:
         self._history: list[HistoryEntry] = []
         self._current_item: int = -1
         self._app = app
+        self._custom_by_error_mode: t.Any = None
         self._error_mode: str | None = None
         self._test_protocol: str | None = None
         self._username: t.Optional[str] = None
@@ -173,6 +175,12 @@ class ApplicationState:
     @property
     def test_protocol(self) -> str:
         return self._test_protocol or 'nodb'
+
+    @property
+    def qc_file_path(self) -> pathlib.Path | None:
+        if self.error_mode == "decode" and self._custom_by_error_mode:
+            return pathlib.Path(self._custom_by_error_mode)
+        return None
 
     @property
     def batch_save_in_progress(self) -> bool:
@@ -388,6 +396,7 @@ class ApplicationState:
             self._batch_actions = result[0]
             self._test_protocol = result[1]
             self._error_mode = result[2]
+            self._custom_by_error_mode = result[3]
             self.refresh_record_list(False)
             self._batch_state = BatchOpenState.OPEN
             self._has_unsaved_changes = False
