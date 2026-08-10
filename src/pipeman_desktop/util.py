@@ -30,6 +30,7 @@ class ReviewResult(enum.Enum):
     ERROR = 'error'
     ESCALATE = 'escalate'
     DESCALATE = 'descalate'
+    STOP = 'stop'
 
     RELEASE = 'release'
     LOAD_ERROR = '_error'

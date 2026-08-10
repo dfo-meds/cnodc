@@ -7,12 +7,12 @@ from autoinject import injector
 from gcflask.user import current_user
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
-from medsutil.ocproc2 import QCTestRunInfo, QCResult, RecordAction
+from medsutil.ocproc2 import RecordAction
 from nodb.interface import NODB, LOCK_EXPIRY_TIME, NODBInstance
 from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus
 from nodb.queue import NODBQueueItem
 from pipeman.processing.payloads import Payload, BatchPayload, SourceFilePayload, WorkingRecordPayload, \
-    stream_payload_working_records, WorkflowPayload
+    stream_payload_working_records, WorkflowPayload, FilePayload
 
 
 class NODBAPIError(CodedError): CODE_SPACE = "NODB-API"
@@ -44,9 +44,26 @@ class NODBController:
             item = db.fetch_next_queue_item(queue_name, app_id, subqueue_name, escalation_level)
             if item is not None:
                 db.commit()
+                actions = {}
+                error_mode = None
+                try:
+                    payload = Payload.from_queue_item(item)
+                    error_mode = payload.metadata.get("error-mode", "batch")
+                    if isinstance(payload, (BatchPayload, SourceFilePayload, WorkingRecordPayload)):
+                        actions["stream"] = {
+                            "endpoint": flask.url_for("desktop.stream_queue_item_records", _external=True, queue_uuid=item.queue_uuid),
+                        }
+                    if isinstance(payload, (SourceFilePayload, FilePayload)):
+                        actions["download"] = {
+                            "endpoint": flask.url_for("desktop.download_file", _external=True, queue_uuid=item.queue_uuid),
+                        }
+                except (ValueError, TypeError):
+                    pass
+
                 return {
                     "success": True,
                     "message": "Success",
+                    "error_mode": error_mode,
                     "escalation_level": item.escalation_level,
                     "queue_name": item.queue_name,
                     "subqueue_name": item.subqueue_name,
@@ -59,9 +76,7 @@ class NODBController:
                         "close": {
                             "endpoint": flask.url_for("desktop.close_qc_queue_item", _external=True, queue_uuid=item.queue_uuid),
                         },
-                        "stream": {
-                            "endpoint": flask.url_for("desktop.stream_queue_item_records", _external=True, queue_uuid=item.queue_uuid),
-                        }
+                        **actions
                     },
                     "locked_until": (item.locked_since + datetime.timedelta(seconds=LOCK_EXPIRY_TIME)).isoformat() if item.locked_since is not None else None,
                 }
@@ -69,6 +84,7 @@ class NODBController:
                 return {
                     "success": False,
                     "message": "No queue items available",
+                    "error_mode": None,
                     "actions": {},
                     "queue_uuid": None,
                     "locked_until": None,
@@ -112,15 +128,17 @@ class NODBController:
             item = self._find_queue_item(db, queue_uuid, app_id)
             payload = WorkflowPayload.from_queue_item(item)
             if review_result is ReviewResult.RECHECK:
-                payload.followup_queue = payload.metadata.get("recheck_queue", "missing_next_queue")
+                payload.followup_queue = payload.metadata.get("recheck-queue", "missing_next_queue")
                 payload.enqueue(db, "qc_forward")
                 item.mark_complete(db)
             elif review_result is ReviewResult.CONTINUE:
-                payload.followup_queue = payload.metadata.get("next_queue", "missing_next_queue")
+                payload.followup_queue = payload.metadata.get("next-queue", "missing_next_queue")
                 payload.enqueue(db, "qc_forward")
                 item.mark_complete(db)
+            elif review_result is ReviewResult.STOP:
+                item.mark_complete(db)
             elif review_result is ReviewResult.ERROR:
-                payload.enqueue(db, payload.metadata.get("error_queue", "missing_next_queue"))
+                payload.enqueue(db, payload.metadata.get("error-queue", "missing_next_queue"))
                 item.mark_failed(db)
             elif review_result is ReviewResult.ESCALATE:
                 item.release(db, escalation_level=(item.escalation_level or 0) + 1)

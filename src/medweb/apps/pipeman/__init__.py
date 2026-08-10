@@ -33,6 +33,7 @@ def get_qc_actions() -> dict[str, APIOperation]:
             for qc_name, item in qc.items():
                 queue_name = item.get("queue_name")
                 escalation_level = item.get("escalation_level", 0)
+                supported_results = item.get("supported_results", [])
                 permissions = [
                     "pipeman.handle_queue_items",
                     f"pipeman.handle_queue_items.all | pipeman.handle_queue_items.{queue_name}",
@@ -46,6 +47,9 @@ def get_qc_actions() -> dict[str, APIOperation]:
                         "queue_name": queue_name,
                         "subqueue_name": item.get("subqueue_name", None),
                         "escalation_level": escalation_level
+                    },
+                    "metadata": {
+                        "allowed_qc_results": supported_results or []
                     }
                 }
             return actions

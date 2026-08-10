@@ -329,7 +329,8 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         if failure_queue is not None:
             payload = self.source_payload_from_nodb(child_file)
             payload.metadata['decoder-class'] = self.decoder.__class__.__name__
-            payload.followup_queue = self.get_config('next_queue')
+            payload.metadata['error-mode'] = "decode"
+            payload.metadata['recheck_queue'] = self.get_config('queue')
             self.progress_payload(payload, failure_queue, prevent_default_progression=True)
         mode(child_file)
         self.after_decode_error(source_file, result, additional_exception)

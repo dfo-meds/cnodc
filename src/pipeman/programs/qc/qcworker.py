@@ -50,16 +50,16 @@ class NODBQCWorker(WorkflowWorker):
                          new_batch_uuid: str,
                          outcome: int):
         bp = self.batch_payload_from_uuid(new_batch_uuid)
-        bp.metadata['recheck_queue'] = None
-        bp.metadata['next_queue'] = None
-        bp.metadata['error_queue'] = None
+        bp.metadata['recheck-queue'] = None
+        bp.metadata['next-queue'] = None
+        bp.metadata['error-queue'] = None
         if outcome == ResultBatcher.RESULT_NEXT:
             bp.enqueue(db, self.get_config("next_queue"))
         elif outcome == ResultBatcher.RESULT_REVIEW:
-            bp.metadata['review_protocol'] = self.get_config("review_test_protocol", "nodb")
-            bp.metadata['recheck_queue'] = self.get_config("recheck_queue", self.get_config("queue_name", None))
-            bp.metadata['next_queue'] = self.get_config("next_queue", None)
-            bp.metadata['error_queue'] = self.get_config("error_queue", None)
+            bp.metadata['review-protocol'] = self.get_config("review_test_protocol", "nodb")
+            bp.metadata['recheck-queue'] = self.get_config("recheck_queue", self.get_config("queue_name", None))
+            bp.metadata['next-queue'] = self.get_config("next_queue", None)
+            bp.metadata['error-queue'] = self.get_config("error_queue", None)
             bp.enqueue(db, self.get_config("review_queue"))
         else:
             bp.enqueue(db, self.get_config("error_queue"))

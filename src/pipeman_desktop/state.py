@@ -467,6 +467,7 @@ class ApplicationState:
         ReviewResult.DESCALATE,
         ReviewResult.ESCALATE,
         ReviewResult.CONTINUE,
+        ReviewResult.STOP,
     }
 
     def refresh_record_list(self, broadcast: bool = True):
