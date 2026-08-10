@@ -30,15 +30,22 @@ class MapPane(BasePane):
         self._error_image = ImageTk.PhotoImage(Image.open(str(base_path / 'red_dot.png')).resize((15, 15)))
         self._good_image = ImageTk.PhotoImage(Image.open(str(base_path / 'green_dot.png')).resize((15, 15)))
         self._pane_id: str | None = None
+        self._last_width = None
+        self._last_height = None
 
     def on_init(self):
-        self._map_frame = ttk.Frame(self.app.middle)
-        self.app.middle.add(self._map_frame, text=i18n.tr("pane.map"), sticky="NSEW")
-        self._pane_id = self.app.middle.tabs()[-1]
+        self._map_frame = ttk.Frame(self.app.batch_middle)
+        self._map_frame.bind("<Configure>", self._rebuild_map_indirect)
+        self.app.batch_middle.add(self._map_frame, text=i18n.tr("pane.map"), sticky="NSEW")
+        self._pane_id = self.app.batch_middle.tabs()[-1]
         width = self.app.root.winfo_screenwidth() / 2.5
         self._rebuild_map(width, width)
 
     def _rebuild_map(self, width: int, height: int):
+        if self._last_width == width and self._last_height == height:
+            return
+        self._last_width = width
+        self._last_height = height
         if self._map is not None:
             self._current_position = self._map.get_position()
             self._current_zoom = int(self._map.last_zoom)
@@ -60,19 +67,20 @@ class MapPane(BasePane):
             self._map.set_zoom(self._current_zoom)
             self._map.set_position(*self._current_position)
 
+    def _rebuild_map_indirect(self, e=None):
+        self._rebuild_map(self.app.batch_middle.winfo_width(), self.app.batch_middle.winfo_height())
+        if self._map is not None:
+            self._rebuild_markers()
+
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & DisplayChange.SCREEN_SIZE:
-            if self._map is not None:
-                self._rebuild_map(self.app.middle.winfo_width(), self.app.middle.winfo_height())
-        if self._map is not None and (change_type & DisplayChange.BATCH_STATE):
-            if self._map is not None:
-                self._rebuild_markers()
+        if change_type & (DisplayChange.SCREEN_SIZE | DisplayChange.BATCH_STATE):
+            self._rebuild_map_indirect()
         if change_type & DisplayChange.RECORD:
             if self._map is not None:
                 self._update_map_position()
         if change_type & DisplayChange.LANGUAGE:
             if self._pane_id is not None:
-                self.app.middle.tab(self._pane_id, text=i18n.tr("pane.map"))
+                self.app.batch_middle.tab(self._pane_id, text=i18n.tr("pane.map"))
 
     def _update_map_position(self):
         coordinates = self.app.state.current_coordinates()

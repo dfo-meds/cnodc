@@ -16,9 +16,9 @@ class GraphPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        self._oc2graph = OCProc2Graph(self.app.middle, self.app)
-        self.app.middle.add(self._oc2graph, text=i18n.tr("pane.graph"), sticky='NSEW')
-        self._pane_id = self.app.middle.tabs()[-1]
+        self._oc2graph = OCProc2Graph(self.app.batch_middle, self.app)
+        self.app.batch_middle.add(self._oc2graph, text=i18n.tr("pane.graph"), sticky='NSEW')
+        self._pane_id = self.app.batch_middle.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.ACTION:
@@ -33,4 +33,4 @@ class GraphPane(BasePane):
                 self._oc2graph.clear_graph_data()
         if change_type & DisplayChange.LANGUAGE:
             if self._pane_id is not None:
-                self.app.middle.tab(self._pane_id, text=i18n.tr("pane.graph"))
+                self.app.batch_middle.tab(self._pane_id, text=i18n.tr("pane.graph"))

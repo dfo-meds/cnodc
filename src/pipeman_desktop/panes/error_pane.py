@@ -15,7 +15,7 @@ class ErrorPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        error_frame = ttk.Frame(self.app.middle_bottom)
+        error_frame = ttk.Frame(self.app.batch_bottom)
         error_frame.rowconfigure(0, weight=1)
         error_frame.columnconfigure(0, weight=1)
         self._error_list = ScrollableTreeview(
@@ -32,8 +32,8 @@ class ErrorPane(BasePane):
         self._error_list.set_header_text("error", i18n.tr("tree.qc_errors.error"))
         self._error_list.set_header_text("element", i18n.tr("tree.qc_errors.element"))
         self._error_list.grid(row=0, column=0, sticky='NSEW')
-        self.app.middle_bottom.add(error_frame, text=i18n.tr("pane.qc_errors"), sticky='NSEW')
-        self._pane_id = self.app.middle_bottom.tabs()[-1]
+        self.app.batch_bottom.add(error_frame, text=i18n.tr("pane.qc_errors"), sticky='NSEW')
+        self._pane_id = self.app.batch_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.RECORD:
@@ -49,7 +49,7 @@ class ErrorPane(BasePane):
                 self._error_list.set_header_text("element", i18n.tr("tree.qc_errors.element"))
                 self.update_errors()
             if self._pane_id is not None:
-                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane.qc_errors"))
+                self.app.batch_bottom.tab(self._pane_id, text=i18n.tr("pane.qc_errors"))
 
     def update_errors(self):
         if self._error_list is not None:

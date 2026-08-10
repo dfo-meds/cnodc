@@ -176,7 +176,7 @@ class ParameterPane(BasePane):
         self._parameter_name_lookup: dict[str, str] = {}
 
     def on_init(self):
-        param_frame = ttk.Frame(self.app.right)
+        param_frame = ttk.Frame(self.app.batch_right)
         param_frame.rowconfigure(0, weight=1)
         param_frame.columnconfigure(0, weight=1)
         param_frame.grid(row=0, column=0, sticky='NSEW')

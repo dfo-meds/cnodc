@@ -1,3 +1,4 @@
+import functools
 import pathlib
 import queue
 import time
@@ -159,42 +160,25 @@ class PipemanDesktop:
         self.menus.add_sub_menu('qc', 'menu.qc')
         self.menus.add_command("qc/undo", "menu.undo", self.state.undo, False, accelerator="Ctrl+Z")
         self.menus.add_command("qc/redo", "menu.redo", self.state.redo, False, accelerator="Ctrl+Y")
+        self._display_modes: dict[str, tk.Frame] = {}
+
         self.root.rowconfigure(0, weight=0)
         self.root.rowconfigure(1, weight=1)
         self.root.rowconfigure(2, weight=0)
-        self.root.rowconfigure(3, weight=0)
         self.root.columnconfigure(0, weight=1)
-        self.root.columnconfigure(1, weight=4)
-        self.root.columnconfigure(2, weight=1)
 
         # top bar
         self.top = ttk.Frame(self.root)
         self.top.grid(row=0, column=0, sticky='NSEW', columnspan=3)
         self.top.rowconfigure(0, weight=1)
 
-        # entire left-hand side
-        self.left = ttk.Frame(self.root)
-        self.left.grid(row=1, column=0, sticky='NSEW', rowspan=2)
-        self.left.rowconfigure(0, weight=1)
-        self.left.columnconfigure(0, weight=1)
-
-        # middle
-        self.middle = ttk.Notebook(self.root)
-        self.middle.grid(row=1, column=1, sticky='NSEW')
-
-        # right
-        self.right = ttk.Frame(self.root)
-        self.right.grid(row=1, column=2, sticky='NSEW')
-        self.right.rowconfigure(0, weight=1)
-        self.right.columnconfigure(0, weight=1)
-
-        # below middle and right
-        self.middle_bottom = ttk.Notebook(self.root)
-        self.middle_bottom.grid(row=2, column=1, sticky='NSEW', columnspan=2)
+        # default
+        self._display_modes["empty"] = self._empty_qc = tk.Frame(self.root)
+        self._empty_qc.grid(row=1, column=0, sticky='NSEW')
 
         # bottom bar
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=3, column=0, sticky='EWNS', columnspan=3)
+        self.bottom_bar.grid(row=2, column=0, sticky='EWNS', columnspan=3)
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
@@ -204,6 +188,36 @@ class PipemanDesktop:
         self.loading_wheel.grid(row=0, column=0, sticky='W')
         self.status_info = ttk.Label(self.bottom_bar, text="W", relief="solid", borderwidth=2)
         self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
+
+        # batch qc
+        self._display_modes["batch"] = self._batch_qc_mode = tk.Frame(self.root)
+        self._batch_qc_mode.rowconfigure(0, weight=1)
+        self._batch_qc_mode.rowconfigure(1, weight=0)
+        self._batch_qc_mode.columnconfigure(0, weight=1)
+        self._batch_qc_mode.columnconfigure(1, weight=3)
+        self._batch_qc_mode.columnconfigure(2, weight=1)
+
+        # entire left-hand side
+        self.batch_left = ttk.Frame(self._batch_qc_mode)
+        self.batch_left.grid(row=0, column=0, sticky='NSEW', rowspan=2)
+        self.batch_left.rowconfigure(0, weight=1)
+        self.batch_left.columnconfigure(0, weight=1)
+
+        # middle
+        self.batch_middle = ttk.Notebook(self._batch_qc_mode)
+        self.batch_middle.grid(row=0, column=1, sticky='NSEW')
+
+        # right
+        self.batch_right = ttk.Frame(self._batch_qc_mode)
+        self.batch_right.grid(row=0, column=2, sticky='NSEW')
+        self.batch_right.rowconfigure(0, weight=1)
+        self.batch_right.columnconfigure(0, weight=1)
+
+        # below middle and right
+        self.batch_bottom = ttk.Notebook(self._batch_qc_mode)
+        self.batch_bottom.grid(row=1, column=1, sticky='NSEW', columnspan=2)
+
+        self._current_state = "empty"
 
         self.dispatcher = PipemanDispatcher(self.loading_wheel)
 
@@ -231,9 +245,14 @@ class PipemanDesktop:
         if change_type & DisplayChange.HISTORY:
             self.menus.set_state("qc/undo", self.state.can_undo())
             self.menus.set_state("qc/redo", self.state.can_redo())
+        if change_type & DisplayChange.QC_MODE:
+            if self._current_state != self.state.qc_mode:
+                self._display_modes[self._current_state].grid_forget()
+                self._display_modes[self.state.qc_mode].grid(row=1, column=0, sticky='NSEW')
+                self._current_state = self.state.qc_mode
         self._pane_broadcast('refresh_display', app_state, change_type)
 
-    def after(self, delay_ms: int, cb: t.Callable[[], t.Any], *args):
+    def after(self, delay_ms: int, cb: t.Callable[..., t.Any], *args):
         self.root.after(delay_ms, cb, *args)  # note: this is an error in tkinter's typing not mine
 
     def launch(self):

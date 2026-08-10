@@ -107,6 +107,7 @@ class DisplayChange(enum.IntFlag):
     PLATFORMS = enum.auto()
     RECORD_LIST = enum.auto()
     HISTORY = enum.auto()
+    QC_MODE = enum.auto()
 
 
 class SimpleRecordInfo:
@@ -139,6 +140,7 @@ class SimpleRecordInfo:
 class ApplicationState:
 
     def __init__(self, app: PipemanDesktop):
+        self._qc_mode = "empty"
         self._history: list[HistoryEntry] = []
         self._current_item: int = -1
         self._app = app
@@ -167,6 +169,10 @@ class ApplicationState:
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
         self.actions: t.Optional[list[RecordAction]] = None
+
+    @property
+    def qc_mode(self) -> str:
+        return self._qc_mode
 
     @property
     def error_mode(self) -> str | None:
@@ -391,15 +397,15 @@ class ApplicationState:
         self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
         self._on_qc_batch_open_success(False, on_no_item)
 
-    def _on_qc_batch_open_success(self, result: tuple[list[str], str, str] | None | bool, on_no_item: t.Callable | None = None):
+    def _on_qc_batch_open_success(self, result: tuple[list[str], str, str, t.Any] | None | bool, on_no_item: t.Callable | None = None):
         if isinstance(result, tuple):
             self._batch_actions = result[0]
             self._test_protocol = result[1]
-            self._error_mode = result[2]
             self._custom_by_error_mode = result[3]
             self.refresh_record_list(False)
             self._batch_state = BatchOpenState.OPEN
             self._has_unsaved_changes = False
+            self.update_qc_state(result[2])
             self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING | DisplayChange.RECORD_LIST)
         else:
             self._batch_actions = None
@@ -411,6 +417,8 @@ class ApplicationState:
                 )
             if on_no_item is not None:
                 on_no_item()
+            else:
+                self.update_qc_state("empty")
             self.update_batch_state(None)
 
     def can_open_qc_batch(self) -> bool:
@@ -586,6 +594,7 @@ class ApplicationState:
                 (t.cast(str, self.current_working_uuid), self.add_action_metadata(action))
                 for action in actions
             ]))
+
     def add_action(self, action: RecordAction):
         if self.current_working_uuid is not None:
             self.add_history_entry(ActionHistoryEntry([
@@ -594,6 +603,10 @@ class ApplicationState:
 
     def delete_action(self, db_id: int):
         self.add_history_entry(ActionHistoryEntry(remove_actions=[db_id]))
+
+    def update_qc_state(self, new_qc_mode: str):
+        self._qc_mode = new_qc_mode
+        self.refresh_display(DisplayChange.QC_MODE)
 
     def update_record(self, working_uuid: str | None, force_reload: bool = False):
         if working_uuid is None and self._current_record is not None:

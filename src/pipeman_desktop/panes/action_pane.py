@@ -23,7 +23,7 @@ class ActionPane(BasePane):
         self._pane_id: str | None = None
 
     def on_init(self):
-        action_frame = ttk.Frame(self.app.middle_bottom)
+        action_frame = ttk.Frame(self.app.batch_bottom)
         action_frame.rowconfigure(0, weight=1)
         action_frame.columnconfigure(0, weight=1)
         self._action_list = ScrollableTreeview(
@@ -40,8 +40,8 @@ class ActionPane(BasePane):
         self._action_list.table.column('#1', width=50, anchor='w', stretch=tk.NO)
         self._action_list.table.column('#2', width=250, anchor='w')
         self._action_list.table.column('#3', width=150, anchor='w')
-        self.app.middle_bottom.add(action_frame, text=i18n.tr("pane.action_items"), sticky='NSEW')
-        self._pane_id = self.app.middle_bottom.tabs()[-1]
+        self.app.batch_bottom.add(action_frame, text=i18n.tr("pane.action_items"), sticky='NSEW')
+        self._pane_id = self.app.batch_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.ACTION:
@@ -54,7 +54,7 @@ class ActionPane(BasePane):
                 self._action_list.set_header_text("value", i18n.tr("tree.action_items.value"))
                 self._rebuild_action_list()
             if self._pane_id is not None:
-                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane.action_items"))
+                self.app.batch_bottom.tab(self._pane_id, text=i18n.tr("pane.action_items"))
 
     def _rebuild_action_list(self):
         self._action_list.clear_items()

@@ -170,6 +170,9 @@ class QCPane(BasePane):
             choice = None
         if choice is not None:
             self.app.state.open_qc_batch(choice)
+        else:
+            self.app.state.update_qc_state("empty")
+
 
     def recheck_item(self, e=None, load_next: bool | None = None):
         if load_next is None:

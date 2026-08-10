@@ -176,6 +176,7 @@ class TkinterMapView(tkinter.Frame):
         self.draw_rounded_corners()
 
     def destroy(self):
+        print("destroy")
         self.running = False
         super().destroy()
 

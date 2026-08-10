@@ -150,7 +150,7 @@ class PlatformPane(BasePane):
     def on_init(self):
         self.app.menus.add_command("qc/reload_platforms", "menu.reload_platforms", self._reload_platforms, start_disabled=True)
         self.app.menus.add_command("qc/create_platform", "menu.create_platform", self._create_platform, start_disabled=True)
-        station_frame = ttk.Frame(self.app.middle_bottom)
+        station_frame = ttk.Frame(self.app.batch_bottom)
         station_frame.rowconfigure(0, weight=1)
         station_frame.columnconfigure(0, weight=1)
         self._platform_list = ScrollableTreeview(
@@ -168,8 +168,8 @@ class PlatformPane(BasePane):
         self._platform_list.set_header_text("start", i18n.tr("tree.platform_list.start"))
         self._platform_list.set_header_text("end", i18n.tr("tree.platform_list.end"))
         self._platform_list.grid(row=0, column=0, sticky='NSEW')
-        self.app.middle_bottom.add(station_frame, text=i18n.tr('pane.platform_list'), sticky='NSEW')
-        self._pane_id = self.app.middle_bottom.tabs()[-1]
+        self.app.batch_bottom.add(station_frame, text=i18n.tr('pane.platform_list'), sticky='NSEW')
+        self._pane_id = self.app.batch_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & (DisplayChange.USER | DisplayChange.SAVING):
@@ -187,7 +187,7 @@ class PlatformPane(BasePane):
                 self._platform_list.set_header_text("start", i18n.tr("tree.platform_list.start"))
                 self._platform_list.set_header_text("end", i18n.tr("tree.platform_list.end"))
             if self._pane_id is not None:
-                self.app.middle_bottom.tab(self._pane_id, text=i18n.tr("pane.platform_list"))
+                self.app.batch_bottom.tab(self._pane_id, text=i18n.tr("pane.platform_list"))
 
     def _update_platform_list(self):
         self._platform_list.clear_items()
