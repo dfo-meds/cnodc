@@ -9,10 +9,11 @@ from collections import defaultdict
 from autoinject import injector
 
 from medsutil import ocproc2 as ocproc2
+from medsutil.ocproc2.util import Quality
 from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, \
     NODBMission, DataMode, NODBObservationRelationship, ObservationRelationshipType
 from nodb.interface import NODBInstance, LockType
-from medsutil.ocproc2 import OCProc2Ontology
+from medsutil.ocproc2 import OCProc2Ontology, MultiElement, SingleElement
 from medsutil.units import UnitConverter
 from pipeman.programs.dedupe.dedupe import RelationshipAction
 
@@ -253,8 +254,16 @@ class NODBRecordManager:
 
     def _finalize_value(self, value: ocproc2.AbstractElement):
         if 'WorkingQuality' in value.metadata:
-            value.metadata['Quality'] = value.metadata['WorkingQuality'].best()
-            del value.metadata['WorkingQuality']
+            wq_map: dict[str, int] = {}
+            for wq in value.metadata["WorkingQuality"].all_values():
+                if wq.is_empty():
+                    continue
+                protocol = wq.metadata.best("TestProtocol", coerce=str, default="")
+                wq_value: int = wq.to_int()
+                if protocol not in wq_map or Quality.new_quality_allowed(wq_value, wq_map[protocol]):
+                    wq_map[protocol] = wq_value
+            for protocol, val in wq_map.items():
+                value.metadata.append_element_to("Quality", SingleElement(val, TestProtocol=protocol))
         if isinstance(value, ocproc2.MultiElement):
             for v in value.values():
                 self._finalize_value(v)
