@@ -219,7 +219,7 @@ def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, req
     return None
 
 
-def _find_quality_for_protocol(element: ObjectWithMetadata, test_protocol: str) -> tuple[int | None, int | None]:
+def find_quality_for_protocol(element: ObjectWithMetadata, test_protocol: str) -> tuple[int | None, int | None]:
     return (
         _find_quality_helper("Quality", element, test_protocol),
         _find_quality_helper("WorkingQuality", element, test_protocol)
@@ -234,7 +234,7 @@ def _find_quality_helper(value_name: str, element: ObjectWithMetadata, test_prot
     return None
 
 def can_set_working_quality(element: ObjectWithMetadata, working_quality: int, test_protocol: str) -> bool:
-    quality, existing_quality = _find_quality_for_protocol(element, test_protocol)
+    quality, existing_quality = find_quality_for_protocol(element, test_protocol)
     if existing_quality is None:
         existing_quality = quality
     return Quality.new_quality_allowed(working_quality, existing_quality)
@@ -266,12 +266,26 @@ def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: Requi
             raise QualityErrorGroup("Multiple errors", exs)
     return False
 
+
 def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None) -> bool:
     try:
         check_quality(obj, required_quality, allowed_protocols)
         return True
     except QualityError:
         return False
+
+
+def combine_quality_scores(*qc_scores: int | t.Iterable[int | None] | None) -> int:
+    """Converts a set of quality scores into a single score representing the worst value."""
+    def _compress(y) -> t.Iterable[int | None]:
+        if y is None: yield None
+        elif isinstance(y, int): yield y
+        else: yield from y
+    qc_score = None
+    for x in _compress(qc_scores):
+        if Quality.new_quality_allowed(x, qc_score):
+            qc_score = x
+    return qc_score or 0
 
 
 def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None):
@@ -281,17 +295,14 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
     final_quality, working_quality = 0, 0
     if allowed_protocols is None:
         if 'Quality' in obj.metadata:
-            for x in obj.metadata["Quality"].all_values():
-                if Quality.new_quality_allowed(x.to_int(), final_quality):
-                    final_quality = x.to_int()
+            final_quality = combine_quality_scores(x.to_int() for x in obj.metadata["Quality"].all_values())
+
         if 'WorkingQuality' in obj.metadata:
-            for x in obj.metadata["WorkingQuality"].all_values():
-                if Quality.new_quality_allowed(x.to_int(), working_quality):
-                    working_quality = x.to_int()
+            working_quality = combine_quality_scores(x.to_int() for x in obj.metadata["WorkingQuality"].all_values())
 
     else:
         for x in allowed_protocols:
-            check_final, check_working = _find_quality_for_protocol(obj, x)
+            check_final, check_working = find_quality_for_protocol(obj, x)
             if Quality.new_quality_allowed(check_final, final_quality):
                 final_quality = check_final
             if Quality.new_quality_allowed(check_working, working_quality):
