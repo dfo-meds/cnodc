@@ -9,38 +9,73 @@ import typing as t
 
 from pipeman_desktop.state import ApplicationState, DisplayChange
 
-CONTROL_DISPLAY_START = 9216
 
-def _ascii_display(c: int) -> str:
-    # unicode display codes for control characters (except newline, which we will use)
-    if 0 <= c <= 31 and c != 10:
-        return chr(CONTROL_DISPLAY_START + c)
-    if c == 127:
-        return "\u2421"
+class FileContentCodec(t.Protocol):
+    def decode(self, b: bytes) -> str:
+        ...
 
-    # normal ascii
-    if 32 <= c <= 126:
-        return chr(c)
+    def encode(self, b: str) -> bytes:
+        ...
 
-    # unknown
-    return "\uFFFD"
+class HexConverter:
 
-def convert_to_hex(b: bytes) -> str:
-    return b.hex(" ")
+    def decode(self, b: bytes) -> str:
+        return b.hex(" ")
 
-def convert_to_ascii(b: bytes) -> str:
-    return "".join(_ascii_display(x) for x in b)
+    def encode(self, b: str) -> bytes:
+        return bytes.fromhex(b.replace(" ", "").replace("\n", "").replace("\r", "").replace("\t", ""))
 
-def convert_to_utf8(b: bytes) -> str:
-    return b.decode("utf-8", errors="replace")
+
+class AsciiConverter:
+
+    CONTROL_DISPLAY_START = 9216
+    CONTROL_DELETE = 9249
+
+    def _ascii_decode(self, c: int) -> str:
+        # unicode display codes for control characters (except newline, which we will use)
+        if 0 <= c <= 31 and c != 10:
+            return chr(self.CONTROL_DISPLAY_START + c)
+        if c == 127:
+            return "\u2421"
+
+        # normal ascii
+        if 32 <= c <= 126:
+            return chr(c)
+
+        # unknown
+        return "\uFFFD"
+
+    def _ascii_encode(self, c: int) -> int | None:
+        if self.CONTROL_DISPLAY_START <= c <= (self.CONTROL_DISPLAY_START + 32):
+            return c - self.CONTROL_DISPLAY_START
+        if self.CONTROL_DELETE == c:
+            return 127
+        if 32 <= c <= 126:
+            return c
+        return None
+
+    def decode(self, b: bytes) -> str:
+        return "".join(self._ascii_decode(x) for x in b)
+
+    def encode(self, b: str) -> bytes:
+        raise NotImplementedError
+
+
+class Utf8Converter:
+
+    def decode(self, b: bytes) -> str:
+        return b.decode("utf-8", errors="replace")
+
+    def encode(self, b: str) -> bytes:
+        return b.encode("utf-8", errors="ignore")
 
 
 class FileContentPane(BasePane):
 
-    OUTPUT_MODES: dict[str, t.Callable[[bytes], str]] = {
-        "output.hex": convert_to_hex,
-        "output.ascii": convert_to_ascii,
-        "output.utf8": convert_to_utf8,
+    OUTPUT_MODES: dict[str, FileContentCodec] = {
+        "output.hex": HexConverter,
+        "output.ascii": AsciiConverter,
+        "output.utf8": Utf8Converter,
     }
 
     def __init__(self, *args, **kwargs):
@@ -48,11 +83,11 @@ class FileContentPane(BasePane):
         self._frame: ttk.Frame | None = None
         self._output_mode: ttk.Combobox | None = None
         self._output_view: tk.Text | None = None
-        self._options_map: dict[str, t.Callable[[bytes], str]] = {}
+        self._options_map: dict[str, FileContentCodec] = {}
         self._options_text_var = tk.StringVar()
         self._options_text_var.trace("w", self._load_content)
         self._current_file_path: str | None = None
-        self._current_output_mode: t.Callable[[bytes], str] | None = None
+        self._current_output_mode: FileContentCodec | None = None
 
     def on_init(self):
         self._frame = ttk.Frame(self.app.decode_qc_mode)
@@ -99,12 +134,17 @@ class FileContentPane(BasePane):
                     self._current_file_path = self.app.state.qc_file_path
             else:
                 self._current_file_path = None
-                self._output_view.configure()
+                self._clear_text()
 
-    def _update_text(self, file_path: pathlib.Path, output_mode: t.Callable[[bytes], str]):
-        with open(file_path, "rb") as h:
+    def _update_text(self, file_path: pathlib.Path, output_mode: FileContentCodec):
+        if self._output_view is not None:
+            with open(file_path, "rb") as h:
+                self._clear_text()
+                self._output_view.insert(tk.END, output_mode.decode(h.read()))
+
+    def _clear_text(self):
+        if self._output_view is not None:
             self._output_view.delete("1.0", tk.END)
-            self._output_view.insert(tk.END, output_mode(h.read()))
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.LANGUAGE:
