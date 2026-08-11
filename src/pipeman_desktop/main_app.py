@@ -189,6 +189,12 @@ class PipemanDesktop:
         self.status_info = ttk.Label(self.bottom_bar, text="W", relief="solid", borderwidth=2)
         self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
 
+        # decode qc
+        self._display_modes["decode"] = self.decode_qc_mode = tk.Frame(self.root)
+
+        # merge qc
+        self._display_modes["merge"] = self._merge_qc_mode = tk.Frame(self.root)
+
         # batch qc
         self._display_modes["batch"] = self._batch_qc_mode = tk.Frame(self.root)
         self._batch_qc_mode.rowconfigure(0, weight=1)
