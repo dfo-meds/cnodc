@@ -1,5 +1,6 @@
 import copy
 import datetime
+import pathlib
 import typing as t
 import uuid
 
@@ -9,7 +10,8 @@ from nodb.observations import NODBWorkingRecord, PlatformStatus
 from pipeman.programs.dmd.metadata import Platform
 # this line is currently necessary to ensure it is properly override
 # I should put in a fix for autoinject to ensure overrides always override
-from pipeman_desktop.client.api_client import WebAPIClient
+from pipeman_desktop.client.api_client import WebAPIClient, RemoteAPIError
+
 
 class MockNODB:
 
@@ -18,9 +20,11 @@ class MockNODB:
     def __init__(self):
         self._platforms: dict[str, dict[str, t.Any]] = {}
         self._records: dict[str, tuple[NODBWorkingRecord, list[dict] | None]] = {}
+        self._source_files: dict[str, list[dict]] = {}
         self._queue_items: dict[str, dict] = {}
         self._queue_records: dict[str, list[str]] = {}
         self._batch_qc_queues: list[tuple[str, int, str | None]] = []
+        self._source_download: dict[str, dict] = {}
         setup = dynamic_object(f"{self.PROGRAM_NAME}.setup")
         setup(self)
 
@@ -40,14 +44,15 @@ class MockNODB:
     def add_batch_qc_endpoint(self, queue_name: str, escalation_level: int = 0, subqueue_name: str | None = None):
         self._batch_qc_queues.append((queue_name, escalation_level, subqueue_name))
 
-
     def add_queue_item(self,
                        records: t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]],
                        queue_uuid: str,
                        queue_name: str,
                        test_protocol: str = "gtspp",
                        subqueue_name: str | None = None,
-                       escalation_level: int = 0):
+                       escalation_level: int = 0,
+                       error_mode: str = "batch",
+                       source_files: list[dict] | None = None):
         self._queue_items[queue_uuid] = {
             "queue_name": queue_name,
             "subqueue_name": subqueue_name,
@@ -56,6 +61,7 @@ class MockNODB:
             "success": True,
             "message": "Success",
             "test_protocol": test_protocol,
+            "error_mode": error_mode,
             "actions": {
                 "renew": {
                     "endpoint": f"api/renew/{queue_uuid}",
@@ -63,17 +69,45 @@ class MockNODB:
                 "close": {
                     "endpoint": f"api/close/{queue_uuid}",
                 },
-                "stream": {
-                    "endpoint": f"api/stream/{queue_uuid}",
-                },
             }
         }
+        if error_mode == "batch":
+            self._queue_items[queue_uuid]["actions"]["stream"] = {
+                "endpoint": f"api/stream/{queue_uuid}"
+            }
+
+        if source_files:
+            self._source_files[queue_uuid] = source_files
+            self._queue_items[queue_uuid]["actions"]["file-info"] = {
+                "endpoint": f"api/file-info/{queue_uuid}"
+            }
+            if "__real_download_path" in source_files[0] and source_files[0]["__real_download_path"]:
+                self._source_download[queue_uuid] = source_files[0]
+                if error_mode in ("merge", "decode"):
+                    self._queue_items[queue_uuid]["actions"]["download"] = {
+                        "endpoint": f"api/download/{queue_uuid}"
+                    }
+
         self._queue_records[queue_uuid] = []
         for record, actions in records:
             wuuid = str(record.working_uuid)
             self._queue_records[queue_uuid].append(wuuid)
             self._records[wuuid] = (record, actions)
 
+    def download_file_contents(self, queue_uuid: str) -> bytes:
+        if queue_uuid in self._source_download:
+            with open(self._source_download[queue_uuid]["__real_download_path"], "rb") as h:
+                return h.read()
+        raise RemoteAPIError("invalid file for download")
+
+    def get_source_file_info(self, queue_uuid: str) -> dict:
+        if queue_uuid in self._source_files:
+            return {
+                "success": True,
+                "message": "Success",
+                "data": self._source_files[queue_uuid]
+            }
+        return {"success": True, "message": "Success", "data": []}
 
     def get_queue_item(self,
                        queue_name: str,
@@ -322,6 +356,15 @@ class TestClient:
     def is_logged_in(self):
         return self.token is not None
 
+    def make_file_request(self, endpoint: str, method: str, save_path: pathlib.Path, **kwargs):
+        kwargs["app_id"] = "12345"
+        if endpoint.startswith("api/download/") and method == "GET":
+            content = self.mock_nodb.download_file_contents(str(kwargs.get("queue_uuid", "")))
+            with open(save_path, "wb") as f:
+                f.write(content)
+        else:
+            raise Exception('invalid test request')
+
     def make_json_request(self, endpoint: str, method: str, **kwargs: str) -> dict:
         kwargs["app_id"] = "12345"
         if endpoint == 'api/create-access-token' and method == 'POST':
@@ -332,12 +375,15 @@ class TestClient:
             return self._renew(**kwargs)
         elif endpoint == "api/open" and method == "POST":
             return self._open_batch(**kwargs)
-        elif endpoint.startswith("api/renew") and method == "POST":
+        elif endpoint.startswith("api/renew/") and method == "POST":
             return self._renew_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
-        elif endpoint.startswith("api/close") and method == "POST":
+        elif endpoint.startswith("api/close/") and method == "POST":
             return self._close_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
-        elif endpoint.startswith("api/stream") and method == "GET":
+        elif endpoint.startswith("api/stream/") and method == "GET":
             return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/file-info") and method == "GET":
+            return self._stream_file_info(endpoint.split("/", maxsplit=2)[2], **kwargs)
+
         elif endpoint.startswith("api/fetch/") and method == "GET":
             return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
         elif endpoint == "api/fetch" and method == "GET":
@@ -355,6 +401,9 @@ class TestClient:
         elif endpoint.startswith("api/platforms/") and method == "POST":
             return self._update_platform(endpoint.split('/', maxsplit=2)[2], **kwargs)
         raise Exception('invalid test request')
+
+    def _stream_file_info(self, queue_uuid: str, app_id: str) -> dict:
+        return self.mock_nodb.get_source_file_info(queue_uuid)
 
     def _fetch_platform(self, platform_uuid: str, app_id: str) -> dict:
         return self.mock_nodb.fetch_platform(platform_uuid)
