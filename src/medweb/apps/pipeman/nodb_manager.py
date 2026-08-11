@@ -11,7 +11,7 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import RecordAction
 from nodb.interface import NODB, LOCK_EXPIRY_TIME, NODBInstance
-from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus
+from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus, NODBSourceFile
 from nodb.queue import NODBQueueItem
 from pipeman.processing.payloads import Payload, BatchPayload, SourceFilePayload, WorkingRecordPayload, \
     stream_payload_working_records, WorkflowPayload, FilePayload
@@ -37,6 +37,65 @@ class NODBController:
                 "ready": [x for x in db.fetch_queue_ready_summary()]
             }
 
+    def stream_file_information(self, queue_uuid: str, app_id: str):
+        with self.nodb as db:
+            item = self._find_queue_item(db, queue_uuid, app_id)
+            payload = Payload.from_queue_item(item)
+            data = []
+            if isinstance(payload, SourceFilePayload):
+                data.append(self._build_source_file_info(payload.load_source_file(db)))
+            elif isinstance(payload, FilePayload):
+                data.append(self._build_file_info(payload))
+            elif isinstance(payload, WorkingRecordPayload):
+                wr = payload.load_working_record(db, limit_fields=("source_file_uuid", "received_date"))
+                if wr is not None and wr.source_file_uuid is not None and wr.received_date is not None:
+                    data.append(self._build_source_file_info(
+                        NODBSourceFile.find_by_uuid(db, wr.source_file_uuid, wr.received_date)
+                    ))
+            elif isinstance(payload, BatchPayload):
+                sf_ids: set[tuple[str, datetime.date]]
+                for record in payload.load_batch(db).stream_working_records(db, limit_fields=("source_file_uuid", "received_date")):
+                    if record.source_file_uuid is not None and record.received_date is not None:
+                        sf_ids.add((record.source_file_uuid, record.received_date))
+                for sf_uuid, sf_date in sf_ids:
+                    data.append(self._build_source_file_info(
+                        NODBSourceFile.find_by_uuid(db, sf_uuid, sf_date)
+                    ))
+            return {
+                "success": True,
+                "message": "Success",
+                "data": [x for x in data if x is not None],
+            }
+
+    def _build_file_info(self, file: FilePayload) -> dict | None:
+        return {
+            "source_uuid": None,
+            "filename": file.filename,
+            "file_path": file.file_path,
+            "source": None,
+            "program": None,
+            "history": [],
+            "received_date": None,
+            "metadata": file.metadata,
+            "is_payload": True,
+        }
+
+    def _build_source_file_info(self, sf: NODBSourceFile | None) -> dict | None:
+        if sf is not None:
+            return {
+                "source_uuid": sf.source_uuid,
+                "filename": sf.file_name,
+                "file_path": sf.source_path,
+                "source": sf.source_name,
+                "program": sf.program_name,
+                "history": sf.history,
+                "received_date": sf.received_date,
+                "metadata": sf.metadata,
+                "is_payload": False,
+            }
+        else:
+            return None
+
     def fetch_next_queue_item(self,
                               queue_name: str,
                               escalation_level: int,
@@ -58,6 +117,10 @@ class NODBController:
                     if isinstance(payload, (SourceFilePayload, FilePayload)):
                         actions["download"] = {
                             "endpoint": flask.url_for("desktop.download_file", _external=True, queue_uuid=item.queue_uuid),
+                        }
+                    if isinstance(payload, (SourceFilePayload, FilePayload, WorkingRecordPayload, BatchPayload)):
+                        actions["file-info"] = {
+                            "endpoint": flask.url_for("desktop.stream_file_information", _external=True, queue_uuid=item.queue_uuid),
                         }
                 except (ValueError, TypeError):
                     pass

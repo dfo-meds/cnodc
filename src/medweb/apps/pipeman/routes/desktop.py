@@ -90,6 +90,13 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
 def download_file(queue_uuid: str, nodb: NODBController = None):
     return nodb.download_file(queue_uuid)
 
+@desktop.route("/internal/queues/<queue_uuid>/file-info", methods=["POST"])
+@security_check("pipeman.view_file_info")
+@api_error_handling
+@injector.inject
+def stream_file_information(queue_uuid: str, nodb: NODBController = None):
+    return nodb.stream_file_information(queue_uuid, json_param("app_id", str))
+
 
 @desktop.route("/internal/queues/<queue_uuid>/stream", methods=["POST"])
 @security_check("pipeman.view_working_records")
