@@ -124,7 +124,9 @@ class SimpleRecordInfo:
                  lat_qc: t.Optional[int] = None,
                  lon_qc: t.Optional[int] = None,
                  time_qc: t.Optional[int] = None,
-                 platform_id: t.Optional[str] = None):
+                 platform_id: t.Optional[str] = None,
+                 source_uuid: str | None = None,
+                 received_date: str | None = None):
         self.index: int = idx
         self.rowid: int = rowid
         self.record_uuid: str = record_uuid
@@ -136,6 +138,8 @@ class SimpleRecordInfo:
         self.latitude_qc: int = int(lat_qc) if lat_qc is not None else 0
         self.longitude_qc: int = int(lon_qc) if lon_qc is not None else 0
         self.time_qc: int = int(time_qc) if time_qc is not None else 0
+        self.source_uuid: str | None = source_uuid
+        self.received_date: str | None = received_date
 
 
 class ApplicationState:
@@ -501,7 +505,7 @@ class ApplicationState:
     def refresh_record_list(self, broadcast: bool = True):
         self._batch_records = {}
         with self._app.local_db.cursor() as cur:
-            cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id FROM records ORDER BY platform_id ASC, datetime ASC")
+            cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id, source_uuid, received_date FROM records ORDER BY platform_id ASC, datetime ASC")
             for idx, row in enumerate(cur.fetchall()):
                 record = SimpleRecordInfo(idx + 1, *row)
                 self._batch_records[record.record_uuid] = record
@@ -582,12 +586,12 @@ class ApplicationState:
         action.username = self.username
         return action
 
-    def update_file_uuid(self, new_file_uuid: str | None):
-        if new_file_uuid is None:
+    def update_file_uuid(self, new_file_uuid: str | None, received_date: str | None):
+        if new_file_uuid is None or received_date is None:
             self.update_file_id(None)
         else:
             with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT rowid FROM files WHERE source_uuid = ?", (new_file_uuid,))
+                cur.execute("SELECT rowid FROM files WHERE source_uuid = ? AND received_date = ?", (new_file_uuid, received_date))
                 row = cur.fetchone()
                 if row:
                     self.update_file_id(row[0])
@@ -638,9 +642,10 @@ class ApplicationState:
             self._current_recordset = None
             self._current_child_path = None
             self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+            self.update_file_uuid(None, None)
         elif force_reload or working_uuid != self._current_working_uuid:
             with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", (working_uuid,))
+                cur.execute("SELECT record_content, source_uuid, received_date FROM records WHERE record_uuid = ?", (working_uuid,))
                 row = cur.fetchone()
                 if row is None:
                     raise ValueError("Invalid record ID")
@@ -654,6 +659,7 @@ class ApplicationState:
                     self._current_child_path = None
                 self._current_working_uuid = working_uuid
                 self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+                self.update_file_uuid(row[1], row[2])
 
     def _update_actions(self, working_uuid: str | None = None):
         if working_uuid is None: working_uuid = self._current_working_uuid
