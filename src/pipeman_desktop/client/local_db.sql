@@ -54,7 +54,9 @@ CREATE TABLE IF NOT EXISTS records (
     actions TEXT,
     record_uuid TEXT,
     downloaded INT,
-    platform_id TEXT
+    platform_id TEXT,
+    source_uuid TEXT,
+    received_date TEXT
 
 );
 

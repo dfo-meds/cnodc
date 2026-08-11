@@ -312,6 +312,8 @@ class CNODCServerAPI:
                     'record_uuid': working_info["working_uuid"],
                     'downloaded': 0,
                     'platform_id': working_info["platform_uuid"],
+                    "source_uuid": working_info["source_file_uuid"],
+                    "received_date": working_info["received_date"],
                     'actions': json.dumps(working_info["actions"]),
                 })
                 platform_load_list.add(working_info["platform_uuid"])
