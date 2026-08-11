@@ -191,9 +191,16 @@ class PipemanDesktop:
 
         # decode qc
         self._display_modes["decode"] = self.decode_qc_mode = tk.Frame(self.root)
+        self.decode_qc_mode.rowconfigure(0, weight=3)
+        self.decode_qc_mode.rowconfigure(1, weight=1)
+        self.decode_qc_mode.columnconfigure(0, weight=1)
+
 
         # merge qc
-        self._display_modes["merge"] = self._merge_qc_mode = tk.Frame(self.root)
+        self._display_modes["merge"] = self.merge_qc_mode = tk.Frame(self.root)
+        self.decode_qc_mode.rowconfigure(0, weight=3)
+        self.decode_qc_mode.rowconfigure(1, weight=1)
+        self.decode_qc_mode.columnconfigure(0, weight=1)
 
         # batch qc
         self._display_modes["batch"] = self._batch_qc_mode = tk.Frame(self.root)

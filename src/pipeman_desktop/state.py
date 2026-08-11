@@ -108,6 +108,7 @@ class DisplayChange(enum.IntFlag):
     RECORD_LIST = enum.auto()
     HISTORY = enum.auto()
     QC_MODE = enum.auto()
+    SOURCE_FILE = enum.auto()
 
 
 class SimpleRecordInfo:

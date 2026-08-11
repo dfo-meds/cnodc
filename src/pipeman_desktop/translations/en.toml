@@ -191,6 +191,11 @@ no_platforms_found = "No platform matches found"
 many_platforms_found = "Multiple platform matches found"
 outside_reference_range = "Outside of reference range"
 
+[source_message]
+info = "Information"
+error = "Error"
+warning = "Warning"
+
 [batch_qc]
 gtspp_qca = "GTSPP (QC-A)"
 
@@ -202,6 +207,16 @@ map = "Map"
 qc_errors = "QC Errors"
 platform_list = "Platforms"
 relationships = "Relationships"
+
+[tree.source_messages]
+time = "Time"
+message = "Message"
+source = "Source"
+type = "Type"
+
+[tree.source_info]
+property = "Property"
+value = "Value"
 
 [tree.record_platform_list]
 title = "Recommended Platforms"
