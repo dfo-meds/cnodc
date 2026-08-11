@@ -208,6 +208,14 @@ qc_errors = "QC Errors"
 platform_list = "Platforms"
 relationships = "Relationships"
 
+[file_property]
+source_uuid = "UUID"
+received_date = "Recieved"
+file_name = "Original Name"
+file_path = "Path"
+source = "Source"
+program = "Program"
+
 [tree.source_messages]
 time = "Time"
 message = "Message"
