@@ -251,10 +251,40 @@ class CNODCServerAPI:
             else:
                 self._load_batch()
                 custom = None
+            if "file-info" in response["actions"]:
+                self._load_files()
+            else:
+                self._clear_files()
             return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", []), response.get("test_protocol", "nodb"), error_mode, custom
         else:
             self._current_queue_item = None
             return None
+
+    def _clear_files(self):
+        with self.local_db.cursor() as cur:
+            cur.execute("TRUNCATE files")
+            cur.commit()
+
+    def _load_files(self):
+        with self.local_db.cursor() as cur:
+            cur.execute("TRUNCATE files")
+            response = self.make_batch_json_request(
+                action_name="file-info",
+                method="GET",
+            )
+            for file_data in response["data"]:
+                cur.execute("INSERT INTO files (source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+                    file_data.get("source_uuid", ""),
+                    file_data.get("filename", ""),
+                    file_data.get("file_path", ""),
+                    file_data.get("source", ""),
+                    file_data.get("program", ""),
+                    json.dumps(file_data.get("history", [])),
+                    file_data.get("received_date", ""),
+                    json.dumps(file_data.get("metadata", {})),
+                    bool(file_data.get("is_payload", True)),
+                ))
+            cur.commit()
 
     def _load_file(self) -> str:
         destination = pathlib.Path(str(self.config.as_str(("pipeman", "downloads"), default="~/pipeman_downloads"))).expanduser().absolute()

@@ -3,7 +3,21 @@ DROP TABLE IF EXISTS records;
 DROP TABLE IF EXISTS actions;
 DROP TABLE IF EXISTS stations;
 DROP TABLE IF EXISTS platforms;
+DROP TABLE IF EXISTS files;
 
+CREATE TABLE IF NOT EXISTS files (
+
+    source_uuid TEXT,
+    filename TEXT,
+    file_path TEXT,
+    source: TEXT,
+    program: TEXT,
+    history: TEXT,
+    received_date: TEXT,
+    metadata: TEXT,
+    is_payload: INT
+
+);
 
 CREATE TABLE IF NOT EXISTS platforms (
 
