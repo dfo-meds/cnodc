@@ -586,6 +586,15 @@ class ApplicationState:
         action.username = self.username
         return action
 
+    def update_file_to_first(self):
+        with self._app.local_db.cursor() as cur:
+            cur.execute("SELECT rowid FROM files")
+            row = cur.fetchone()
+            if row:
+                self.update_file_id(row[0])
+            else:
+                self.update_file_id(None)
+
     def update_file_uuid(self, new_file_uuid: str | None, received_date: str | None):
         if new_file_uuid is None or received_date is None:
             self.update_file_id(None)
@@ -633,6 +642,10 @@ class ApplicationState:
     def update_qc_state(self, new_qc_mode: str):
         self._qc_mode = new_qc_mode
         self.refresh_display(DisplayChange.QC_MODE)
+        if new_qc_mode in ("decode", "merge"):
+            self.update_file_to_first()
+        else:
+            self.update_file_id(None)
 
     def update_record(self, working_uuid: str | None, force_reload: bool = False):
         if working_uuid is None and self._current_record is not None:
