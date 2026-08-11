@@ -1,16 +1,22 @@
 from gcapp import i18n
 from medsutil.awaretime import AwareDateTime
+from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.components.scrollable import ScrollableTreeview
 from pipeman_desktop.panes.base_pane import BasePane
 import typing as t
 import tkinter as tk
 import tkinter.ttk as ttk
 
+from autoinject import injector
+
 from pipeman_desktop.state import ApplicationState, DisplayChange
 
 
 class SourceInfoPane(BasePane):
 
+    local_db: LocalDatabase = None
+
+    @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._frames: dict[str, ttk.Frame] = {}
@@ -86,4 +92,20 @@ class SourceInfoPane(BasePane):
             treeview.clear_items()
         for _, info in self._info.items():
             info.clear_items()
+        if self.app.state.current_file_id is not None:
+            with self.local_db.cursor() as cur:
+                cur.execute("SELECT source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload from files WHERE rowid = ?", (self.app.state.current_file_id,))
+                row = cur.fetchone()
+                if row:
+                    history = json.loads(row[5])
+                    for idx, history_entry in enumerate(history):
+                        self._add_message(idx, history_entry)
+                    self._add_property(i18n.tr("file_property.source_uuid"), row[0])
+                    self._add_property(i18n.tr("file_property.received_date"), row[6])
+                    self._add_property(i18n.tr("file_property.file_name"), row[1])
+                    self._add_property(i18n.tr("file_property.file_path"), row[2])
+                    self._add_property(i18n.tr("file_property.source"), row[3])
+                    self._add_property(i18n.tr("file_property.program"), row[4])
+
+
 

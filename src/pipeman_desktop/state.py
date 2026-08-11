@@ -165,11 +165,15 @@ class ApplicationState:
         self._current_recordset: ocproc2.RecordSet | None = None
         self._current_record: ocproc2.BaseRecord | None = None
         self._current_child_path: str | None = None
-
+        self._current_file_id: int | None = None
         self.subrecord_path: t.Optional[str] = None
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
         self.actions: t.Optional[list[RecordAction]] = None
+
+    @property
+    def current_file_id(self) -> int | None:
+        return self._current_file_id
 
     @property
     def qc_mode(self) -> str:
