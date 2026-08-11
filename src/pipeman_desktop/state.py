@@ -582,6 +582,23 @@ class ApplicationState:
         action.username = self.username
         return action
 
+    def update_file_uuid(self, new_file_uuid: str | None):
+        if new_file_uuid is None:
+            self.update_file_id(None)
+        else:
+            with self._app.local_db.cursor() as cur:
+                cur.execute("SELECT rowid FROM files WHERE source_uuid = ?", (new_file_uuid,))
+                row = cur.fetchone()
+                if row:
+                    self.update_file_id(row[0])
+                else:
+                    self.update_file_id(None)
+
+    def update_file_id(self, file_rowid: int | None):
+        if file_rowid != self._current_file_id:
+            self._current_file_id = file_rowid
+            self.refresh_display(DisplayChange.SOURCE_FILE)
+
     def update_all_record_platforms(self, platform_uuid: str | None):
         self.add_history_entry(ActionHistoryEntry([
             (record.record_uuid, self.add_action_metadata(AssignPlatform(platform_uuid=platform_uuid, test_protocol=self._test_protocol)))
