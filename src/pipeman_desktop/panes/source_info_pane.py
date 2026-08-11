@@ -20,12 +20,18 @@ class SourceInfoPane(BasePane):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._frames: dict[str, ttk.Frame] = {}
+        self._tab_frame: ttk.Frame | None = None
         self._messages: dict[str, ScrollableTreeview] = {}
         self._info: dict[str, ScrollableTreeview] = {}
+        self._pane_id: str | None = None
 
     def on_init(self):
         self._build_frame(self.app.decode_qc_mode, "decode")
         self._build_frame(self.app.merge_qc_mode, "merge")
+        self._tab_frame = ttk.Frame(self.app.batch_bottom)
+        self._build_frame(self._tab_frame, "batch")
+        self.app.batch_bottom.add(self._tab_frame, text=i18n.tr("pane.source_file"))
+        self._pane_id = self.app.batch_bottom.tabs()[-1]
 
     def _build_frame(self, parent, stream: str):
         frame = ttk.Frame(parent)
@@ -69,6 +75,8 @@ class SourceInfoPane(BasePane):
             for _, info in self._info.items():
                 info.set_header_text("property", i18n.tr("tree.source_info.property"))
                 info.set_header_text("value", i18n.tr("tree.source_info.value"))
+            if self._pane_id is not None:
+                self.app.batch_bottom.tab(self._pane_id, text=i18n.tr("pane.source_file"))
             self._rebuild_source_info()
         if change_type & DisplayChange.SOURCE_FILE:
             self._rebuild_source_info()

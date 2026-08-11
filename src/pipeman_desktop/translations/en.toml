@@ -207,6 +207,7 @@ map = "Map"
 qc_errors = "QC Errors"
 platform_list = "Platforms"
 relationships = "Relationships"
+source_file = "Source File"
 
 [file_property]
 source_uuid = "UUID"
