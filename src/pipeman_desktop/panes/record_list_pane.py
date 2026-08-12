@@ -56,6 +56,7 @@ class RecordListPane(BasePane):
         self._record_list.set_header_text("index", i18n.tr("tree.record_list.index"))
         self._record_list.set_header_text("title", i18n.tr("tree.record_list.name"))
         self._record_list.tag_configure('has-error', foreground='red')
+        self._record_list.tag_configure('has-blocker', background="#CC0000", foreground="#FFFFFF")
         self._record_list.grid(row=1, column=0, sticky='EWNS')
         self._record_list.table.column('#1', anchor='w', stretch=False, width=45)
         self._record_list.table.column('#2', anchor='w')
@@ -106,6 +107,11 @@ class RecordListPane(BasePane):
         for sr in self.app.state.batch_records.values():
             if self.app.state.current_working_uuid is not None and self.app.state.current_working_uuid == sr.record_uuid:
                 set_selection = sr.record_uuid
+            tag = 'no-error'
+            if sr.has_errors == 1:
+                tag = 'has-error'
+            elif sr.has_errors == 2:
+                tag = 'has-blocker'
             self._record_list.append_item(
                 parent='',
                 iid=sr.record_uuid,
