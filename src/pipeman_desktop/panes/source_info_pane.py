@@ -1,4 +1,5 @@
 from gcapp import i18n
+from medsutil import json
 from medsutil.awaretime import AwareDateTime
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.components.scrollable import ScrollableTreeview
@@ -105,7 +106,7 @@ class SourceInfoPane(BasePane):
                 cur.execute("SELECT source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload from files WHERE rowid = ?", (self.app.state.current_file_id,))
                 row = cur.fetchone()
                 if row:
-                    history = json.loads(row[5])
+                    history: list[dict[str, str]] = t.cast(list[dict[str, str]], json.load_list(row[5]))
                     for idx, history_entry in enumerate(history):
                         self._add_message(idx, history_entry)
                     self._add_property(i18n.tr("file_property.source_uuid"), row[0])
