@@ -178,6 +178,7 @@ def create_platform_record(nodb: NODBController = None):
         platform_type=json_param("platform_type", coerce=str, default=None),
         start_date=json_param("start_date", coerce=AwareDateTime.fromisoformat, default=None),
         end_date=json_param("end_date", coerce=AwareDateTime.fromisoformat, default=None),
+        ship_code=json_param("ship_code", coerce=str, default=None),
         status=json_param("status", coerce=PlatformStatus),
         embargo_data_days=json_param("embargo_data_days", coerce=int, default=None),
         skip_speed_check=json_param("skip_speed_check", coerce=bool, default=False),
@@ -205,6 +206,7 @@ def update_platform_record(platform_uuid: str, nodb: NODBController = None):
         start_date=json_param("start_date", coerce=AwareDateTime.fromisoformat, default=None),
         end_date=json_param("end_date", coerce=AwareDateTime.fromisoformat, default=None),
         status=json_param("status", coerce=PlatformStatus),
+        ship_code=json_param("ship_code", coerce=str, default=None),
         embargo_data_days=json_param("embargo_data_days", coerce=int, default=None),
         skip_speed_check=json_param("skip_speed_check", coerce=bool, default=False),
         skip_land_check=json_param("skip_land_check", coerce=bool, default=False),
@@ -226,4 +228,5 @@ def search_platforms(nodb: NODBController = None):
         platform_id=json_param("platform_id", coerce=str, default=None),
         platform_name=json_param("platform_name", coerce=str, default=None),
         time_frame=json_param("time_frame", coerce=AwareDateTime.fromisoformat, default=None),
+        ship_code=json_param("ship_code", coerce=str, default=None),
     )

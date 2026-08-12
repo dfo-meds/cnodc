@@ -382,6 +382,7 @@ class NODBController:
                         platform_name: str | None,
                         platform_id: str | None,
                         platform_type: str | None,
+                        ship_code: str | None,
                         start_date: AwareDateTime | None,
                         end_date: AwareDateTime | None,
                         status: PlatformStatus,
@@ -413,6 +414,7 @@ class NODBController:
             platform.status = status
             platform.map_to_uuid = map_to_uuid
             platform.embargo_data_days = embargo_data_days
+            platform.ship_code = ship_code
             platform.metadata["skip_speed_check"] = bool(skip_speed_check)
             platform.metadata["skip_on_land_check"] = bool(skip_land_check)
             platform.metadata["dedupe_time_window"] = dedupe_time_window
@@ -457,6 +459,7 @@ class NODBController:
                         platform_name: str | None,
                         platform_id: str | None,
                         platform_type: str | None,
+                        ship_code: str | None,
                         start_date: AwareDateTime | None,
                         end_date: AwareDateTime | None,
                         status: PlatformStatus,
@@ -491,6 +494,7 @@ class NODBController:
                 platform.service_start_date = start_date
                 platform.service_end_date = end_date
                 platform.status = status
+                platform.ship_code = ship_code
                 platform.map_to_uuid = map_to_uuid
                 platform.embargo_data_days = embargo_data_days
                 platform.metadata["skip_speed_check"] = bool(skip_speed_check)
@@ -511,10 +515,18 @@ class NODBController:
                         wmo_id: str | None,
                         wigos_id: str | None,
                         platform_id: str | None,
-                        platform_name: str | None) -> dict:
+                        platform_name: str | None,
+                        ship_code: str | None) -> dict:
         with self.nodb as db:
             results = []
-            for x in NODBPlatform.search(db, time_frame, wmo_id, wigos_id, platform_id, platform_name, key_only=True):
+            for x in NODBPlatform.search(db,
+                                         in_service_time=time_frame,
+                                         wmo_id=wmo_id,
+                                         wigos_id=wigos_id,
+                                         platform_id=platform_id,
+                                         platform_name=platform_name,
+                                         ship_code=ship_code,
+                                         key_only=True):
                 results.append({
                     "platform_uuid": x.platform_uuid,
                     "actions": self._platform_actions(x.platform_uuid),
