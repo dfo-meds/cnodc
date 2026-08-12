@@ -115,6 +115,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
             payload.workflow_name = workflow_name
 
             if should_review:
+                payload.set_metadata('error-mode', 'merge')
                 payload.set_metadata('next-queue', self.get_config("finish_queue"))
                 payload.set_metadata('error-queue', self.get_config("error_queue"))
                 payload.enqueue(self.db, self.get_config("review_queue"))
