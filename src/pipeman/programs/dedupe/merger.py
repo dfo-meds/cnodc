@@ -96,34 +96,27 @@ class NODBDuplicateMergeWorker(QueueWorker):
 
             file_handle.upload(json_codec.encode_records([new_record]))
 
+            sf = obs_datas_to_merge[0].find_source_file(self.db)
+            payload = FilePayload(
+                file_path=str(file_handle.path()),
+                filename=sf.file_name if sf is not None else 'merged.json',
+                is_gzipped=False,
+                last_modified_date=AwareDateTime.now()
+            )
+            payload.correlation_id = item.correlation_id
+            payload._tag = item.tag
+            payload.metadata.update({
+                'source-name': sf.source_name if sf is not None else 'merge',
+                'program-name': sf.program_name if sf is not None else 'merge',
+                'data-mode': obs_datas_to_merge[0].data_mode,
+                'quality-checks': obs_datas_to_merge[0].quality_checks,
+            })
+            payload.workflow_name = workflow_name
+
             if should_review:
-                self.db.create_queue_item(
-                    self.get_config("review_queue"),
-                    data={
-                        'merged_file': str(file_handle.path()),
-                        'workflow_name': workflow_name,
-                        'finish_queue': self.get_config('finish_queue'),
-                        'data_mode': obs_datas_to_merge[0].data_mode,
-                        'quality_checks': obs_datas_to_merge[0].quality_checks,
-                    },
-                    correlation_id=item.correlation_id,
-                    tag=item.tag
-                )
+                payload.followup_queue = self.get_config("finish_queue")
+                payload.enqueue(self.db, self.get_config("review_queue"))
             else:
-                sf = obs_datas_to_merge[0].find_source_file(self.db)
-                payload = FilePayload(
-                    file_path=str(file_handle.path()),
-                    filename=sf.file_name if sf is not None else 'merged.json',
-                    is_gzipped=False,
-                    last_modified_date=AwareDateTime.now()
-                )
-                payload.metadata.update({
-                    'source-name': sf.source_name if sf is not None else 'merge',
-                    'program-name': sf.program_name if sf is not None else 'merge',
-                    'data-mode': obs_datas_to_merge[0].data_mode,
-                    'quality-checks': obs_datas_to_merge[0].quality_checks,
-                })
-                payload.workflow_name = workflow_name
                 payload.enqueue(self.db, self.get_config('finish_queue'))
 
     def load_observation_data(self, items: tuple[str, str] | list[str]) -> t.Iterable[NODBObservationData]:
