@@ -1,5 +1,8 @@
 import functools
 import tkinter as tk
+
+from gcapp import i18n
+from pipeman_desktop.i18n import OCProc2Translator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.util import ReviewResult
 from pipeman_desktop.state import DisplayChange, ApplicationState
@@ -12,11 +15,14 @@ import PIL.ImageTk as ImageTk
 import pathlib
 import numpy as np
 
-
+from autoinject import injector
 
 
 class QCPane(BasePane):
 
+    ocproc_tr: OCProc2Translator = None
+
+    @injector.construct
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._buttons: dict[str, ttk.Button] = {}
@@ -42,8 +48,10 @@ class QCPane(BasePane):
                 self.set_button_state(bn, app_state.can_close_current_batch(close_op))
         if change_type & DisplayChange.RECORD:
             if app_state.current_parent is not None:
-                if app_state.current_parent.metadata.has_value('WMOID'):
-                    self._label.configure(text=f'WMO ID: {app_state.current_parent.metadata.best("WMOID")}')
+                for property in ["WMOID", "WIGOSID", "ShipCode", "PlatformName", "PlatformID"]:
+                    if app_state.current_parent.metadata.has_value(property):
+                        self._label.configure(text=f'{self.ocproc_tr.translate_element_name(property)} {app_state.current_parent.metadata.best(property, coerce=str)}')
+                        break
                 else:
                     self._label.configure(text=app_state.current_working_uuid or '')
 
