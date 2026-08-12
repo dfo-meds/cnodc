@@ -450,7 +450,8 @@ class CNODCServerAPI:
                          wigos_id: str | None,
                          platform_id: str | None,
                          platform_name: str | None,
-                         time_frame: AwareDateTime | None) -> list[str]:
+                         time_frame: AwareDateTime | None,
+                         ship_code: str | None) -> list[str]:
         response = self.make_service_json_request(
             service_identifier="desktop.search_platforms",
             method="POST",
@@ -458,6 +459,7 @@ class CNODCServerAPI:
             wigos_id=wigos_id or None,
             platform_id=platform_id or None,
             platform_name=platform_name or None,
+            ship_code=ship_code or None,
             time_frame=time_frame.isoformat() if time_frame else None,
         )
         return self.load_platforms(
@@ -480,7 +482,8 @@ class CNODCServerAPI:
                         mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
-                        top_speed: str | None) -> str | None:
+                        top_speed: str | None,
+                        ship_code: str | None) -> str | None:
         response = self.make_service_json_request(
             service_identifier="desktop.create_platform",
             method="POST",
@@ -491,6 +494,7 @@ class CNODCServerAPI:
             platform_type=platform_type or None,
             embargo_data_days=embargo_data_days or None,
             map_to_uuid=map_to_uuid or None,
+            ship_code=ship_code or None,
             skip_speed_check=skip_speed_check,
             skip_land_check=skip_land_check,
             mandatory_review=mandatory_review,
@@ -513,6 +517,7 @@ class CNODCServerAPI:
                         wigos_id: str | None,
                         platform_name: str | None,
                         platform_id: str | None,
+                        ship_code: str | None,
                         platform_type: str | None,
                         start_date: AwareDateTime | None,
                         end_date: AwareDateTime | None,
@@ -537,6 +542,7 @@ class CNODCServerAPI:
             embargo_data_days=embargo_data_days or None,
             map_to_uuid=map_to_uuid or None,
             skip_speed_check=skip_speed_check,
+            ship_code=ship_code or None,
             skip_land_check=skip_land_check,
             mandatory_review=mandatory_review,
             dedupe_time_window=dedupe_time_window,
@@ -583,12 +589,13 @@ class CNODCServerAPI:
         with self.local_db.cursor() as cur:
             cur.execute("DELETE FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
             if response["success"]:
-                cur.execute("INSERT INTO platforms (platform_uuid, wmo_id, wigos_id, platform_name, platform_id, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+                cur.execute("INSERT INTO platforms (platform_uuid, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
                     platform_uuid,
                     response["data"].get("wmo_id", None),
                     response["data"].get("wigos_id", None),
                     response["data"].get("platform_name", None),
                     response["data"].get("platform_id", None),
+                    response["data"].get("ship_code", None),
                     response["data"].get("platform_type", None),
                     response["data"].get("service_start_date", None),
                     response["data"].get("service_end_date", None),

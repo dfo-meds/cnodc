@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS platforms (
     platform_uuid TEXT,
     wmo_id TEXT,
     wigos_id TEXT,
+    ship_code TEXT,
     platform_name TEXT,
     platform_id TEXT,
     platform_type TEXT,

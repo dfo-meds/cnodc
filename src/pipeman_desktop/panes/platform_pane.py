@@ -69,6 +69,11 @@ class PlatformDialog(FormDialog):
             tooltip_name="tooltip.platform.platform_name",
             validators=[LengthValidator(max_length=126)]
         ))
+        self.add_field("ship_code", StringField(
+            label_name="dialog.platform.ship_code",
+            tooltip_name="tooltip.platform.ship_code",
+            validators=[LengthValidator(max_length=126)]
+        ))
         self.add_field("start_date", DateTimeField(
             label_name="dialog.platform.start_date",
             tooltip_name="tooltip.platform.start_date",
@@ -157,12 +162,13 @@ class PlatformPane(BasePane):
             parent=station_frame,
             selectmode="browse",
             show="headings",
-            columns=["uuid", "wmo_id", "wigos_id", "name", "id", "start", "end"],
+            columns=["uuid", "wmo_id", "wigos_id", "ship_code", "name", "id", "start", "end"],
             on_right_click=self._on_right_click
         )
         self._platform_list.set_header_text("uuid", i18n.tr("tree.platform_list.uuid"))
         self._platform_list.set_header_text("wmo_id", i18n.tr("tree.platform_list.wmo_id"))
         self._platform_list.set_header_text("wigos_id", i18n.tr("tree.platform_list.wigos_id"))
+        self._platform_list.set_header_text("ship_code", i18n.tr("tree.platform_list.ship_code"))
         self._platform_list.set_header_text("name", i18n.tr("tree.platform_list.name"))
         self._platform_list.set_header_text("id", i18n.tr("tree.platform_list.id"))
         self._platform_list.set_header_text("start", i18n.tr("tree.platform_list.start"))
@@ -182,6 +188,7 @@ class PlatformPane(BasePane):
                 self._platform_list.set_header_text("uuid", i18n.tr("tree.platform_list.uuid"))
                 self._platform_list.set_header_text("wmo_id", i18n.tr("tree.platform_list.wmo_id"))
                 self._platform_list.set_header_text("wigos_id", i18n.tr("tree.platform_list.wigos_id"))
+                self._platform_list.set_header_text("ship_code", i18n.tr("tree.platform_list.ship_code"))
                 self._platform_list.set_header_text("name", i18n.tr("tree.platform_list.name"))
                 self._platform_list.set_header_text("id", i18n.tr("tree.platform_list.id"))
                 self._platform_list.set_header_text("start", i18n.tr("tree.platform_list.start"))
@@ -194,7 +201,7 @@ class PlatformPane(BasePane):
         self._can_update_platform.clear()
         with self.local_db.cursor() as cur:
             cur.execute("""
-                SELECT platform_uuid, wmo_id, wigos_id, platform_name, platform_id, service_start_date, service_end_date, actions FROM platforms
+                SELECT platform_uuid, wmo_id, wigos_id, ship_code, platform_name, platform_id, service_start_date, service_end_date, actions FROM platforms
             """)
             for row in cur.fetchall():
                 self._platform_list.append_item(
@@ -285,13 +292,14 @@ class PlatformContextMenu:
 
     def _platform_info(self) -> dict:
         with self.local_db.cursor() as cur:
-            cur.execute("SELECT wmo_id, wigos_id, platform_name, platform_id, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days FROM platforms WHERE platform_uuid = ?", (self._platform_uuid,))
+            cur.execute("SELECT wmo_id, wigos_id, platform_name, platform_id, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, ship_code FROM platforms WHERE platform_uuid = ?", (self._platform_uuid,))
             row = cur.fetchone()
             if row:
                 metadata = json.load_dict(row[7]) if row[7] else {}
                 return {
                     "wmo_id": row[0],
                     "wigos_id": row[1],
+                    "ship_code": row[11],
                     "platform_name": row[2],
                     "platform_id": row[3],
                     "platform_type": row[4],

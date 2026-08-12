@@ -253,7 +253,8 @@ class MockNODB:
                          wigos_id: str | None,
                          platform_id: str | None,
                          platform_name: str | None,
-                         time_frame: str | None) -> dict:
+                         time_frame: str | None,
+                         ship_code: str | None) -> dict:
         results = []
         for pid, platform in self._platforms.items():
             check = False
@@ -264,6 +265,8 @@ class MockNODB:
             elif platform_id and platform["platform_id"] is not None and platform["platform_id"] == platform_id:
                 check = True
             elif platform_name and platform["platform_name"] is not None and platform["platform_name"] == platform_name:
+                check = True
+            elif ship_code and platform["ship_code"] is not None and platform["ship_code"] == ship_code:
                 check = True
             if not check:
                 continue
@@ -301,7 +304,8 @@ class MockNODB:
                         mandatory_review: bool = False,
                         dedupe_time_window: float | None = None,
                         dedupe_distance_window: float | None = None,
-                        top_speed: str | None = None) -> dict:
+                        top_speed: str | None = None,
+                        ship_code: str | None = None) -> dict:
         pid = str(uuid.uuid4())
         while pid in self._platforms:
             pid = str(uuid.uuid4())
@@ -310,6 +314,7 @@ class MockNODB:
             "platform_name": platform_name,
             "platform_id": platform_id,
             "wmo_id": wmo_id,
+            "ship_code": ship_code,
             "wigos_id": wigos_id,
             "platform_type": platform_type,
             "service_start_date": AwareDateTime.fromisoformat(start_date).isoformat() if start_date else None,
@@ -350,6 +355,7 @@ class MockNODB:
                         platform_type: str | None,
                         start_date: str | None,
                         end_date: str | None,
+                        ship_code: str | None,
                         status: str,
                         embargo_data_days: int | None,
                         map_to_uuid: str | None,
@@ -370,6 +376,7 @@ class MockNODB:
                 "platform_name": platform_name,
                 "platform_id": platform_id,
                 "wmo_id": wmo_id,
+                "ship_code": ship_code,
                 "wigos_id": wigos_id,
                 "platform_type": platform_type,
                 "service_start_date": AwareDateTime.fromisoformat(start_date).isoformat() if start_date else None,
