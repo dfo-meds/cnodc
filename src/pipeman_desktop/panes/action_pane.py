@@ -33,6 +33,7 @@ class ActionPane(BasePane):
             columns=["name", "object", "value"],
             on_right_click=self._on_action_right_click,
         )
+        self._action_list.tag_configure('blocker', background="#CC0000", foreground="#FFFFFF")
         self._action_list.set_header_text("name", i18n.tr("tree.action_items.name"))
         self._action_list.set_header_text("object", i18n.tr("tree.action_items.object"))
         self._action_list.set_header_text("value", i18n.tr("tree.action_items.value"))
@@ -63,12 +64,12 @@ class ActionPane(BasePane):
             self._add_action_item(action_id, actions[action_id])
 
     def _add_action_item(self, action_id: int, action: RecordAction):
-        self._action_list.table.insert(
+        self._action_list.append_item(
             parent='',
-            index='end',
             # TODO: better format action names?
-            values=[i18n.tr(action.name), action.object, action.value, action_id],
-            iid=str(action_id)
+            values=(i18n.tr(action.name), action.object, action.value, action_id),
+            iid=str(action_id),
+            tags=('blocker' if action.is_blocker else 'normal',),
         )
 
     def _on_action_right_click(self, item, e):
