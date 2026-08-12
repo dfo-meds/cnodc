@@ -5,6 +5,8 @@ import socket
 import typing as t
 from tkinter import messagebox as tkmb
 
+import zrlog
+
 from gcapp.i18n import base as i18n
 from medsutil import ocproc2 as ocproc2, json
 from medsutil.awaretime import AwareDateTime
@@ -150,6 +152,7 @@ class SimpleRecordInfo:
 class ApplicationState:
 
     def __init__(self, app: PipemanDesktop):
+        self._log = zrlog.get_logger("pipeman_desktop.state")
         self._qc_mode = "empty"
         self._history: list[HistoryEntry] = []
         self._current_item: int = -1
@@ -519,16 +522,22 @@ class ApplicationState:
 
     def can_close_current_batch(self, batch_action: ReviewResult) -> bool:
         if self.batch_save_in_progress:
+            self._log.debug("Cannot close batch to [%s] because save is in progress", batch_action)
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:
+            self._log.debug("Cannot close batch to [%s] because batch is not in an open state", batch_action)
             return False
-        # has errors
         if batch_action is ReviewResult.CONTINUE and any(x.has_errors == 2 for x in self.batch_records.values()):
+            self._log.debug("Cannot close batch to [%s] because there are blocking errors", batch_action)
             return False
         if batch_action.value.startswith("_"):
             return True
         if batch_action in self.BATCH_VARIABLE_AVAILABILITY:
-            return self._batch_actions is not None and batch_action.value in self._batch_actions
+            if self._batch_actions is not None and batch_action.value in self._batch_actions:
+                return True
+            else:
+                self._log.debug("Cannot close batch to [%s] because the state is not available", batch_action)
+                return False
         else:
             return True
 
