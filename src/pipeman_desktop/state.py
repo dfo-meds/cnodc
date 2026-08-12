@@ -79,7 +79,12 @@ class ActionHistoryEntry(HistoryEntry):
                         other_action.apply(parent)
                 for rowid in removed_indexes:
                     cur.execute("DELETE FROM actions WHERE rowid = ?", (rowid,))
+                has_errors = 0
                 for action in new_actions:
+                    if has_errors == 0:
+                        has_errors = 1
+                    if action.is_blocker:
+                        has_errors = 2
                     cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?) RETURNING rowid", (
                         record_uuid,
                         json.dumps(action.export())
@@ -87,7 +92,7 @@ class ActionHistoryEntry(HistoryEntry):
                     new_indices.append(cur.fetchone()[0])
                     action.apply(parent)
                 info = build_local_record(parent, record_uuid)
-                info["has_errors"] = 1
+                info["has_errors"] = has_errors
                 cur.update("records", info, {"record_uuid": record_uuid})
             cur.commit()
             return removed_actions, new_indices
