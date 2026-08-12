@@ -35,7 +35,7 @@ class QCPane(BasePane):
             self.set_button_state('load_new', app_state.can_open_qc_batch())
         if change_type & DisplayChange.ACTION:
             self.set_button_state('save', app_state.can_save_changes())
-        if change_type & (DisplayChange.SAVING | DisplayChange.BATCH_STATE):
+        if change_type & (DisplayChange.SAVING | DisplayChange.BATCH_STATE | DisplayChange.ACTION):
             self.set_button_state('load_new', app_state.can_open_qc_batch())
             self.set_button_state('save', app_state.can_save_changes())
             for bn, close_op in self._button_close_state.items():

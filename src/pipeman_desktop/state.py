@@ -522,6 +522,9 @@ class ApplicationState:
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:
             return False
+        # has errors
+        if batch_action is ReviewResult.CONTINUE and any(x.has_errors == 2 for x in self.batch_records.values()):
+            return False
         if batch_action.value.startswith("_"):
             return True
         if batch_action in self.BATCH_VARIABLE_AVAILABILITY:
