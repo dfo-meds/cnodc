@@ -38,6 +38,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
             'queue_name': 'nodb_merge',
             'review_queue': 'nodb_merge_review',
             'finish_queue': 'workflow_continue',
+            'error_queue': 'nodb_merge_errors',
             'merge_directory': None,
             'review_all': False,
         })
@@ -114,7 +115,8 @@ class NODBDuplicateMergeWorker(QueueWorker):
             payload.workflow_name = workflow_name
 
             if should_review:
-                payload.followup_queue = self.get_config("finish_queue")
+                payload.set_metadata('next-queue', self.get_config("finish_queue"))
+                payload.set_metadata('error-queue', self.get_config("error_queue"))
                 payload.enqueue(self.db, self.get_config("review_queue"))
             else:
                 payload.enqueue(self.db, self.get_config('finish_queue'))
