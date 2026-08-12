@@ -6,7 +6,7 @@ import uuid
 
 from medsutil.awaretime import AwareDateTime
 from medsutil.dynamic import dynamic_object
-from nodb.observations import NODBWorkingRecord, PlatformStatus
+from nodb.observations import NODBWorkingRecord, PlatformStatus, NODBObservationData
 from pipeman.programs.dmd.metadata import Platform
 # this line is currently necessary to ensure it is properly override
 # I should put in a fix for autoinject to ensure overrides always override
@@ -25,6 +25,8 @@ class MockNODB:
         self._queue_records: dict[str, list[str]] = {}
         self._batch_qc_queues: list[tuple[str, int, str | None]] = []
         self._source_download: dict[str, dict] = {}
+        self._queue_observations: dict[str, list[dict]] = {}
+        self._observations: dict[tuple[str, str], dict] = {}
         setup = dynamic_object(f"{self.PROGRAM_NAME}.setup")
         setup(self)
 
@@ -44,6 +46,9 @@ class MockNODB:
     def add_batch_qc_endpoint(self, queue_name: str, escalation_level: int = 0, subqueue_name: str | None = None):
         self._batch_qc_queues.append((queue_name, escalation_level, subqueue_name))
 
+    def add_merge_queue_item(self):
+        ...
+
     def add_queue_item(self,
                        records: t.Iterable[tuple[NODBWorkingRecord, list[dict] | None]],
                        queue_uuid: str,
@@ -52,6 +57,7 @@ class MockNODB:
                        subqueue_name: str | None = None,
                        escalation_level: int = 0,
                        error_mode: str = "batch",
+                       observations: list[NODBObservationData] | None = None,
                        source_files: list[dict] | None = None):
         self._queue_items[queue_uuid] = {
             "queue_name": queue_name,
@@ -75,7 +81,29 @@ class MockNODB:
             self._queue_items[queue_uuid]["actions"]["stream"] = {
                 "endpoint": f"api/stream/{queue_uuid}"
             }
+        if observations and error_mode == "merge":
+            self._queue_items[queue_uuid]["actions"]["observations"] = {
+                "endpoint": f"api/observations/{queue_uuid}"
+            }
+            self._queue_observations[queue_uuid] = []
 
+            for observation in observations:
+                self._queue_observations[queue_uuid].append({
+                    "obs_uuid": observation.obs_uuid,
+                    "received_date": observation.received_date.isoformat(),
+                    "data_mode": observation.data_mode.value,
+                    "quality_checks": observation.quality_checks,
+                    "actions": {
+                        "fetch": {
+                            "endpoint": f"api/observation/{observation.obs_uuid}/{observation.received_date.isoformat()}",
+                        }
+                    }
+                })
+                self._observations[(observation.obs_uuid, observation.received_date.isoformat())] = {
+                    "success": True,
+                    "message": "Success",
+                    "data": observation.record.to_mapping()
+                }
         if source_files:
             self._source_files[queue_uuid] = source_files
             self._queue_items[queue_uuid]["actions"]["file-info"] = {
@@ -93,6 +121,24 @@ class MockNODB:
             wuuid = str(record.working_uuid)
             self._queue_records[queue_uuid].append(wuuid)
             self._records[wuuid] = (record, actions)
+
+    def get_observations(self, queue_uuid: str) -> dict:
+        if queue_uuid in self._queue_observations:
+            return {
+                "success": True,
+                "message": "Success",
+                "data": self._queue_observations[queue_uuid]
+            }
+        return {
+            "success": False,
+            "message": "no such record",
+            "data": None
+        }
+
+    def get_observation(self, obs_uuid: str, obs_date: str) -> dict:
+        if (obs_uuid, obs_date) in self._observations:
+            return self._observations[(obs_uuid, obs_date)]
+        return {"success": False, "message": "no such record", "data": None}
 
     def download_file_contents(self, queue_uuid: str) -> bytes:
         if queue_uuid in self._source_download:
@@ -383,7 +429,10 @@ class TestClient:
             return self._stream_batch(endpoint.split("/", maxsplit=2)[2], **kwargs)
         elif endpoint.startswith("api/file-info") and method == "GET":
             return self._stream_file_info(endpoint.split("/", maxsplit=2)[2], **kwargs)
-
+        elif endpoint.startswith("api/observations/") and method == "GET":
+            return self._stream_observation_info(endpoint.split("/", maxsplit=2)[2], **kwargs)
+        elif endpoint.startswith("api/observation/") and method == "GET":
+            return self._fetch_observation(*endpoint.split("/", maxsplit=2)[2:], **kwargs)
         elif endpoint.startswith("api/fetch/") and method == "GET":
             return self._fetch_record(endpoint.split('/', maxsplit=2)[2], **kwargs)
         elif endpoint == "api/fetch" and method == "GET":
@@ -401,6 +450,12 @@ class TestClient:
         elif endpoint.startswith("api/platforms/") and method == "POST":
             return self._update_platform(endpoint.split('/', maxsplit=2)[2], **kwargs)
         raise Exception('invalid test request')
+
+    def _stream_observation_info(self, queue_uuid, app_id: str) -> dict:
+        return self.mock_nodb.get_observations(queue_uuid)
+
+    def _fetch_observation(self, record_uuid: str, record_date: str, app_id: str):
+        return self.mock_nodb.get_observation(record_uuid, record_date)
 
     def _stream_file_info(self, queue_uuid: str, app_id: str) -> dict:
         return self.mock_nodb.get_source_file_info(queue_uuid)

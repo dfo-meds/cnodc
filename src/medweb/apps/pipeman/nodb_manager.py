@@ -249,7 +249,6 @@ class NODBController:
     SEND_OBSERVATION_KEYS = {
         'obs_uuid',
         'received_date',
-        'platform_uuid',
         'data_mode',
         'quality_checks',
     }
