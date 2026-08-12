@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS actions;
 DROP TABLE IF EXISTS stations;
 DROP TABLE IF EXISTS platforms;
 DROP TABLE IF EXISTS files;
+DROP TABLE IF EXISTS observations;
 
 CREATE TABLE IF NOT EXISTS files (
 
@@ -58,6 +59,18 @@ CREATE TABLE IF NOT EXISTS records (
     source_uuid TEXT,
     received_date TEXT
 
+);
+
+
+CREATE TABLE IF NOT EXISTS observations (
+
+    record_content TEXT,
+    display TEXT,
+
+    actions TEXT,
+    received_date TEXT,
+    downloaded INT,
+    record_uuid TEXT
 );
 
 

@@ -82,12 +82,12 @@ def build_local_record(record: ParentRecord, working_uuid: str) -> dict:
         "datetime": time.to_string() if time else None,
         "datetime_qc": time.quality if time else None,
         "has_errors": 0,
-        "display": _build_display(record, working_uuid),
+        "display": build_display(record, working_uuid),
         "platform_id": record.metadata.best("CNODCPlatform", coerce=str, default=""),
     })
     return info
 
-def _build_display(record: ParentRecord, working_uuid: str):
+def build_display(record: ParentRecord, working_uuid: str):
     s = []
     if record.coordinates.has_value('Time'):
         s.append(f'T:{record.coordinates.best("Time")}')

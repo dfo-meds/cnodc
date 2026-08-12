@@ -22,7 +22,7 @@ from pipeman_desktop.messenger import CrossThreadMessenger
 import zirconium as zr
 import requests
 import medsutil.ocproc2 as ocproc2
-from pipeman_desktop.util import build_local_record, build_default_actions
+from pipeman_desktop.util import build_local_record, build_default_actions, build_display
 
 
 class RemoteAPIError(CodedError):
@@ -246,7 +246,7 @@ class CNODCServerAPI:
         if "queue_uuid" in response and response["queue_uuid"]:
             self._current_queue_item = response
             error_mode = response.get("error_mode", "batch")
-            if error_mode == "decode":
+            if error_mode in ("decode", "merge"):
                 custom = self._load_file()
             else:
                 self._load_batch()
@@ -255,10 +255,54 @@ class CNODCServerAPI:
                 self._load_files()
             else:
                 self._clear_files()
+            if "observations" in response["actions"]:
+                self._load_observations()
+            else:
+                self._clear_observations()
             return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", []), response.get("test_protocol", "nodb"), error_mode, custom
         else:
             self._current_queue_item = None
             return None
+
+    def _clear_observations(self):
+        with self.local_db.cursor() as cur:
+            cur.execute("TRUNCATE observations")
+            cur.commit()
+
+    def _load_observations(self):
+        with self.local_db.cursor() as cur:
+            cur.execute("TRUNCATE observations")
+            response = self.make_batch_json_request(
+                action_name="observations",
+                method="GET",
+            )
+            for working_info in response["data"]:
+                cur.insert('observations', {
+                    'record_uuid': working_info["obs_uuid"],
+                    'downloaded': 0,
+                    "received_date": working_info["received_date"],
+                    "actions": json.dumps(working_info["actions"]),
+                })
+            cur.commit()
+        with self.local_db.cursor() as cur:
+            cur.execute("SELECT record_uuid, actions FROM observations WHERE downloaded = 0")
+            while row := cur.fetchone():
+                actions = json.loads(row[1])
+                response = self.make_service_json_request(
+                    "fetch",
+                    "GET",
+                    _service_list=actions
+                )
+                record = ocproc2.ParentRecord.build_from_mapping(copy.deepcopy(response["data"]))
+
+                with self.local_db.cursor() as cur2:
+                    cur2.update("records", {
+                        "record_content": json.dumps(response["data"]),
+                        "display": build_display(record, row[0])
+                    }, {
+                        "record_uuid": row[0]
+                    })
+
 
     def _clear_files(self):
         with self.local_db.cursor() as cur:
