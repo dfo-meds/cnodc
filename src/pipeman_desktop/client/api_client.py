@@ -388,7 +388,10 @@ class CNODCServerAPI:
 
                 local_info = build_local_record(record, row[0])
                 if proposed_actions:
-                    local_info["has_errors"] = 1
+                    if any(x.is_blocker for x in proposed_actions):
+                        local_info["has_errors"] = 2
+                    else:
+                        local_info["has_errors"] = 1
 
                 with self.local_db.cursor() as cur2:
                     cur2.update("records", {
