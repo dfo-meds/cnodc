@@ -68,6 +68,7 @@ class NODBPlatformCheck(DeepDiveChecker):
             "platform_name": record.metadata.best("PlatformName", coerce=str, default=None),
             "wmo_id": record.metadata.best("WMOID", coerce=str, default=None),
             "wigos_id": record.metadata.best("WIGOSID", coerce=str, default=None),
+            "ship_code": record.metadata.best("ShipCode", coerce=str, default=None),
         }
         self.assert_true(any(x is not None for x in search_kwargs.values()), msg="no_platform_ids")
         best_time = record.coordinates.ideal("Time")

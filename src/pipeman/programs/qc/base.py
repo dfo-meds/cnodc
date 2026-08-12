@@ -896,7 +896,8 @@ class SearchEngine(t.Protocol):
                platform_name: str | None = None,
                wigos_id: str | None = None,
                wmo_id: str | None = None,
-               in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
+               in_service_time: AwareDateTime | None = None,
+               ship_code: str | None = None) -> t.Iterable[NODBPlatform]:
         ...
 
     def geosearch_working_records(self, *,

@@ -282,6 +282,7 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
     platform_uuid: str = s.UUIDColumn()
     wmo_id: str | None = s.StringColumn()
     wigos_id: str | None = s.StringColumn()
+    ship_code: str | None = s.StringColumn()
     platform_name: str | None = s.StringColumn()
     platform_id: str | None = s.StringColumn()
     platform_type: str | None = s.StringColumn()
@@ -350,17 +351,22 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
                wigos_id: t.Optional[str] = None,
                platform_id: t.Optional[str] = None,
                platform_name: t.Optional[str] = None,
+               ship_code: t.Optional[str] = None,
                **kwargs) -> t.Iterable[NODBPlatform]:
         """Search for a platform by various identifiers."""
         filters = {}
+        # TODO: we should standardize these
         if wmo_id is not None and wmo_id != '':
             filters['wmo_id'] = wmo_id
         if wigos_id is not None and wigos_id != '':
             filters['wigos_id'] = wigos_id
+        # TODO: we should do case-insensitive comparisons for these
         if platform_id is not None and platform_id != '':
             filters['platform_id'] = platform_id
         if platform_name is not None and platform_name != '':
             filters['platform_name'] = platform_name
+        if ship_code is not None and ship_code != '':
+            filters['ship_code'] = ship_code
         if filters:
             res = db.stream_objects(cls, filters=filters, join_str='OR', **kwargs)
             if in_service_time is None:
