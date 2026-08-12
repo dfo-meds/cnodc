@@ -264,6 +264,11 @@ class FilePayload(WorkflowPayload):
         )
 
 
+class MergedFilePayload(FilePayload):
+
+    merged_from: list[tuple[str, str]] = p_list()
+
+
 class SourceFilePayload(WorkflowPayload):
     """Represent a source file in the database."""
 
@@ -459,5 +464,14 @@ def stream_payload_working_records(db: interface.NODBInstance, payload: Payload)
         yield from sf.stream_working_records(db)
     elif isinstance(payload, WorkingRecordPayload):
         yield payload.load_working_record(db)
+    else:
+        raise ValueError("invalid payload type for streamer")
+
+def stream_payload_observations(db: interface.NODBInstance, payload: Payload) -> t.Generator[NODBObservationData, None, None]:
+    if isinstance(payload, MergedFilePayload):
+        for obs_uuid, r_date in payload.merged_from:
+            obs = NODBObservationData.find_by_uuid(db, obs_uuid, r_date)
+            if obs is not None:
+                yield obs
     else:
         raise ValueError("invalid payload type for streamer")

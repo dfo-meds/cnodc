@@ -14,7 +14,7 @@ from medsutil.ocproc2.refs import ParentRecordRef, RecordRef, ElementRef, Record
 from medsutil.ocproc2.util import pair_up_records, pair_up_recordsets, pair_up_single_elements
 from medsutil.storage import StorageController, FilePath
 from nodb.queue import NODBQueueItem
-from pipeman.processing.payloads import FilePayload
+from pipeman.processing.payloads import FilePayload, MergedFilePayload
 from pipeman.processing.queue_worker import QueueItemResult, QueueWorker
 
 from nodb.observations import NODBObservation, NODBObservationData
@@ -68,7 +68,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
                     current_uuid: str,
                     current_date: str,
                     workflow_name: str,
-                    others: list[str],
+                    others: list[tuple[str, str]],
                     item: NODBQueueItem):
         with self.merge_directory() as merge_dir:
             merge_dir.mkdir(0o664, parents=True)
@@ -98,19 +98,22 @@ class NODBDuplicateMergeWorker(QueueWorker):
             file_handle.upload(json_codec.encode_records([new_record]))
 
             sf = obs_datas_to_merge[0].find_source_file(self.db)
-            payload = FilePayload(
+            payload = MergedFilePayload(
                 file_path=str(file_handle.path()),
                 filename=sf.file_name if sf is not None else 'merged.json',
                 is_gzipped=False,
-                last_modified_date=AwareDateTime.now()
+                last_modified_date=AwareDateTime.now(),
+                merged_from=[
+                    (x.obs_uuid, x.received_date)
+                    for x in obs_datas_to_merge
+                ]
             )
             payload.correlation_id = item.correlation_id
             payload._tag = item.tag
             payload.metadata.update({
                 'source-name': sf.source_name if sf is not None else 'merge',
                 'program-name': sf.program_name if sf is not None else 'merge',
-                'data-mode': obs_datas_to_merge[0].data_mode,
-                'quality-checks': obs_datas_to_merge[0].quality_checks,
+
             })
             payload.workflow_name = workflow_name
 
@@ -122,7 +125,7 @@ class NODBDuplicateMergeWorker(QueueWorker):
             else:
                 payload.enqueue(self.db, self.get_config('finish_queue'))
 
-    def load_observation_data(self, items: tuple[str, str] | list[str]) -> t.Iterable[NODBObservationData]:
+    def load_observation_data(self, *items: tuple[str, str]) -> t.Iterable[NODBObservationData]:
         for obs_uuid, obs_date in items:
             obs = NODBObservation.find_by_uuid(self.db, obs_uuid, obs_date, key_only=True)
             if obs is None:

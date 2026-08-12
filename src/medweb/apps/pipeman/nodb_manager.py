@@ -11,10 +11,10 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import RecordAction
 from nodb.interface import NODB, LOCK_EXPIRY_TIME, NODBInstance
-from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus, NODBSourceFile
+from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus, NODBSourceFile, NODBObservationData
 from nodb.queue import NODBQueueItem
 from pipeman.processing.payloads import Payload, BatchPayload, SourceFilePayload, WorkingRecordPayload, \
-    stream_payload_working_records, WorkflowPayload, FilePayload
+    stream_payload_working_records, WorkflowPayload, FilePayload, MergedFilePayload, stream_payload_observations
 
 
 class NODBAPIError(CodedError): CODE_SPACE = "NODB-API"
@@ -114,11 +114,15 @@ class NODBController:
                         actions["stream"] = {
                             "endpoint": flask.url_for("desktop.stream_queue_item_records", _external=True, queue_uuid=item.queue_uuid),
                         }
-                    if isinstance(payload, (SourceFilePayload, FilePayload)):
+                    if isinstance(payload, (MergedFilePayload,)):
+                        actions["observations"] = {
+                            "endpoint": flask.url_for("desktop.stream_observations", _external=True, queue_uuid=item.queue_uuid),
+                        }
+                    if isinstance(payload, (SourceFilePayload, FilePayload, MergedFilePayload)):
                         actions["download"] = {
                             "endpoint": flask.url_for("desktop.download_file", _external=True, queue_uuid=item.queue_uuid),
                         }
-                    if isinstance(payload, (SourceFilePayload, FilePayload, WorkingRecordPayload, BatchPayload)):
+                    if isinstance(payload, (SourceFilePayload, FilePayload, WorkingRecordPayload, BatchPayload, MergedFilePayload)):
                         actions["file-info"] = {
                             "endpoint": flask.url_for("desktop.stream_file_information", _external=True, queue_uuid=item.queue_uuid),
                         }
@@ -231,7 +235,7 @@ class NODBController:
                 "message": "Success"
             }
 
-    SEND_KEYS = {
+    SEND_WORKING_KEYS = {
         'working_uuid',
         'received_date',
         'source_file_uuid',
@@ -242,6 +246,36 @@ class NODBController:
         'quality_checks',
     }
 
+    SEND_OBSERVATION_KEYS = {
+        'obs_uuid',
+        'received_date',
+        'platform_uuid',
+        'data_mode',
+        'quality_checks',
+    }
+
+    def stream_queue_observations(self, queue_uuid: str, app_id: str) -> dict:
+        with self.nodb as db:
+            item = self._find_queue_item(db, queue_uuid, app_id)
+            payload = Payload.from_queue_item(item)
+            content = []
+            for record in stream_payload_observations(db, payload):
+                record_data = {
+                    key: getattr(record, key)
+                    for key in self.SEND_OBSERVATION_KEYS
+                }
+                record_data["actions"] = {
+                    "fetch": {
+                        "endpoint": flask.url_for("desktop.fetch_observation", record_uuid=record.obs_uuid, record_date=record.received_date.isoformat(), _external=True),
+                    },
+                }
+                content.append(record_data)
+            return {
+                "success": True,
+                "message": "Success",
+                "data": content,
+            }
+
     def stream_queue_working_records(self, queue_uuid: str, app_id: str) -> dict:
         with self.nodb as db:
             item = self._find_queue_item(db, queue_uuid, app_id)
@@ -250,7 +284,7 @@ class NODBController:
             for record in stream_payload_working_records(db, payload):
                 record_data = {
                     key: getattr(record, key)
-                    for key in self.SEND_KEYS
+                    for key in self.SEND_WORKING_KEYS
                 }
                 record_data["actions"] = {
                     "fetch": {
@@ -288,10 +322,27 @@ class NODBController:
                     "message": "Record updated"
                 }
 
+    def stream_observation(self, record_uuid: str, received_date: str):
+        with self.nodb as db:
+            record = NODBObservationData.find_by_uuid(db, record_uuid, received_date)
+            ocproc_record = record.record if record is not None else None
+            if record is None or ocproc_record is None:
+                return {
+                    "success": False,
+                    "message": "No such record",
+                    "data": None,
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": "Success",
+                    "data": ocproc_record.to_mapping(),
+                }
+
     def stream_working_record(self, record_uuid: str):
         with self.nodb as db:
             record = NODBWorkingRecord.find_by_uuid(db, record_uuid)
-            ocproc_record = record.record
+            ocproc_record = record.record if record is not None else None
             if record is None or ocproc_record is None:
                 return {
                     "success": False,

@@ -133,6 +133,22 @@ def save_working_record(record_uuid: str, nodb: NODBController = None):
     )
 
 
+@desktop.route("/internal/queues/<queue_uuid>/observations", methods=["GET"])
+@security_check("pipeman.view_observations")
+@api_error_handling
+@injector.inject
+def stream_queue_observations(queue_uuid: str, nodb: NODBController):
+    return nodb.stream_queue_observations(queue_uuid, json_param("app_id", str))
+
+
+@desktop.route("/internal/observations/<record_date>/<record_uuid>", methods=["GET"])
+@security_check("pipeman.view_observations")
+@api_error_handling
+@injector.inject
+def fetch_observation(record_uuid: str, record_date: str, nodb: NODBController = None):
+    return nodb.stream_observation(record_uuid, record_date)
+
+
 @desktop.route("/internal/platforms", methods=["GET"])
 @security_check("pipeman.view_platforms")
 @api_error_handling
