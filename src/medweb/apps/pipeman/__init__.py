@@ -17,6 +17,7 @@ def init_plugin(s: System):
         s.register_api_operation("desktop.search_platforms", "desktop.search_platforms", ["pipeman.view_platforms"])
         s.register_api_operation("desktop.create_platform", "desktop.create_platform_record", ["pipeman.create_platforms"])
         s.register_api_operation("desktop.find_platform", "desktop.find_platform_by_uuid", ["pipeman.view_platforms"])
+        s.register_api_operation("intake.list_available_workflows", "intake.list_available_workflows", ["pipeman.submit_files"])
         s.register_dynamic_api_operation_builder("desktop", get_qc_actions)
 
 

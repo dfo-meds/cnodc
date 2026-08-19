@@ -1,0 +1,18 @@
+
+sender:
+  api: "https://.../"
+  username: ""
+  password: ""
+  max_bandwidth_kbps: 1024.0
+  request_time_guess_ms: 1000.0
+  overhead_guess_bytes: 250
+  window_ms: 10000.0
+scanners:
+  scanner_name:
+    target_directory: "C:/..."
+    workflow_name: "my_workflow"
+    recursive: false
+    last_modified_threshold_seconds: 60
+    gzip_files: true
+    metadata:
+      # ...

@@ -45,6 +45,7 @@ class IntakeManager:
 
     def _properties(self, workflow: NODBUploadWorkflow):
         info = {
+            'labels': workflow.configuration.label,
             'max_chunk_size': flask.current_app.config["MAX_CONTENT_LENGTH"],
             'actions': {
                 'submit': {
@@ -84,7 +85,8 @@ class IntakeManager:
             workflow = self._load_workflow(workflow_name, db)
             handler = RequestHandler(workflow, request_id)
             result = handler.submit(data, metadata)
-            if result is RequestResult.CONTINUE:
+            if result is RequestResult.COMPLETE:
+                # TODO: can we give the client a unique identifier for the file? or accept one from them?
                 try:
                     wfc = WorkflowController(workflow.workflow_name or '', t.cast(WorkflowConfiguration, workflow.configuration))
                     wfc.handle_incoming_file(
@@ -104,7 +106,18 @@ class IntakeManager:
                     'message': 'File has been saved, waiting for more data',
                     'data': {
                         'actions': {
-                            'submit-followup': {
+                            'cancel': {
+                                'endpoint': flask.url_for(
+                                    'intake.cancel_upload',
+                                    _external=True,
+                                    workflow_name=workflow_name,
+                                    request_id=handler.request_id,
+                                ),
+                                'headers': {
+                                    'x-cnodc-token': handler.create_token()
+                                }
+                            },
+                            'submit': {
                                 'endpoint': flask.url_for(
                                     'intake.submit_followup_file',
                                     _external=True,
@@ -141,6 +154,7 @@ class RequestHandler:
         'x-cnodc-token',
         'x-cnodc-checksum',
         'x-cnodc-more-data',
+        'x-cnodc-chunk-number',
     }
 
     def __init__(self, workflow: NODBUploadWorkflow, request_id: str | None = None):
@@ -290,6 +304,9 @@ class RequestHandler:
                 h.write(AwareDateTime.utcnow().isoformat())
 
     def cleanup(self):
+        # TODO: when we complete an upload, we should keep a record of it
+        # briefly so that we can inform a client that failed that the action
+        # was actually complete
         ...
 
     def submit(self, data: bytes, metadata: dict[str, str]) -> RequestResult:
@@ -298,6 +315,7 @@ class RequestHandler:
         md5_expected = metadata.get('x-cnodc-checksum', '').strip()
         if md5_expected:
             self._check_data_integrity(data, md5_expected)
+        # TODO: allow client to set index with x-cnodc-chunk-number
         self._save_data(data)
         self._update_metadata(metadata)
         more_data = str(metadata.get('x-cnodc-more-data', '0')).strip()
