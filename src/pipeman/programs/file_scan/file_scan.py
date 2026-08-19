@@ -216,13 +216,15 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
     def _update_payload_metadata(self, metadata: dict, handle: FilePath):
         if 'source' not in metadata:
             metadata['source'] = self.process_full_id
-        metadata['filename'] = handle.name
-        md = handle.modified_datetime()
-        if md is None:  # pragma: no coverage (fallback for weird edge cases when the modified time can't be determined)
-            if 'scanned-time' in metadata:
-                metadata['last-modified-date'] = metadata['scanned-time']
+        if 'filename' not in metadata:
+            metadata['filename'] = handle.name
+        if 'last-modified-date' not in metadata:
+            md = handle.modified_datetime()
+            if md is None:  # pragma: no coverage (fallback for weird edge cases when the modified time can't be determined)
+                if 'scanned-time' in metadata:
+                    metadata['last-modified-date'] = metadata['scanned-time']
+                else:
+                    metadata['last-modified-date'] = awaretime.utc_now()
             else:
-                metadata['last-modified-date'] = awaretime.utc_now()
-        else:
-            metadata['last-modified-date'] = md.isoformat()
+                metadata['last-modified-date'] = md.isoformat()
 
