@@ -9,9 +9,8 @@ from gcapp.i18n.base import TString
 from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import security_check, api_error_handling, web_error_handling
 from gcflask.user import current_user
-from gcflask.util import flasht
+from gcflask.util import flasht, json_param
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
-from medweb.apps.pipeman.routes.desktop import json_param
 
 user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
 

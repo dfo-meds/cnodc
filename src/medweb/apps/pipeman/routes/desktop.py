@@ -1,33 +1,13 @@
-from types import EllipsisType
-
-import flask
-import typing as t
-
 from gcflask.i18n_url import MultiLanguageBlueprint
-from gcflask.security import security_check, web_error_handling, require_permission, api_error_handling
+from gcflask.security import security_check, require_permission, api_error_handling
 from autoinject import injector
 
+from gcflask.util import json_param
 from medsutil.awaretime import AwareDateTime
 from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
 from nodb.observations import PlatformStatus
 
 desktop = MultiLanguageBlueprint("desktop", __name__)
-
-
-def json_param[T](param_name: str, coerce: t.Callable[[t.Any], T] | None = None, default: T | EllipsisType = ...) -> T:
-    if not flask.request.is_json:
-        return flask.abort(400, "Request must be JSON formatted")
-    if not isinstance(flask.request.json, dict):
-        flask.abort(400, "Request must contain a JSON mapping payload")
-    if param_name not in flask.request.json and default is ...:
-        flask.abort(400, "Missing mandatory parameter")
-    try:
-        x = flask.request.json.get(param_name, default)
-        if x is not None and coerce is not None:
-            x = coerce(x)
-        return x
-    except (ValueError, TypeError, IndexError) as e:
-        flask.abort(400, f"Invalid parameter for [{param_name}]: {e}")
 
 
 @desktop.route("/internal/queues/ready", methods=["GET"])
@@ -63,7 +43,7 @@ def lock_next_queue_item(nodb: NODBController = None):
     )
 
 
-@desktop.route("/internal/queues/queue_uuid>/renew", methods=["POST"])
+@desktop.route("/internal/queues/<queue_uuid>/renew", methods=["POST"])
 @security_check("pipeman.handle_queue_items")
 @api_error_handling
 @injector.inject
