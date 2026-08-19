@@ -55,4 +55,7 @@ def submit_followup_file(workflow_name: str, request_id: str, im: IntakeManager 
 @api_error_handling
 @injector.inject
 def cancel_upload(workflow_name: str, request_id: str, im: IntakeManager = None):
-    return im.cancel_upload(workflow_name, request_id)
+    return im.cancel_upload(workflow_name, request_id, {
+        x.lower(): flask.request.headers.get(x) or ''
+        for x in flask.request.headers.keys()
+    })

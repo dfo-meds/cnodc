@@ -133,6 +133,10 @@ class AnonymousUser(fl.AnonymousUserMixin, BaseUserMixin):
             permissions=[ANONYMOUS_PRIVILEGE]
         )
 
+    def get_username(self) -> str:
+        return '__anonymous__'
+
+
 def current_user() -> AuthenticatedUser | AnonymousUser:
     import flask, flask_login
     if flask.has_request_context():
