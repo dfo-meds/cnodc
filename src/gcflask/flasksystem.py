@@ -175,6 +175,12 @@ class FlaskSystemMixin(System):
         self._configure_health_endpoint()
         self._configure_resource_endpoint()
         self.events.fire("init.flask.after", self.flask_app)
+        if self._with_prometheus:
+            from gcapp.metrics import PromMetrics
+            @injector.inject
+            def _run_me(prom_metrics: PromMetrics = None):
+                prom_metrics.init_app(self._is_multiprocess_app)
+            _run_me()
 
     def _load_config(self):
         self.flask_app.config.update(self.config.get("flask", default={}))

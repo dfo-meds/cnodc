@@ -39,8 +39,8 @@ class PromMetrics:
             elif for_mp and not self.disable_metrics:
                 self.log.warning("PROMETHEUS_MULTIPROC_DIR not set, Prometheus metrics may be corrupt if using a multi-process WSGI server")
 
-    def init_app(self, app):
-        self.init_metrics(True)
+    def init_app(self, app, for_mp: bool = True):
+        self.init_metrics(for_mp=for_mp)
         if self.metric_flask is None:
             from prometheus_flask_exporter import PrometheusMetrics
             if "medsutil" not in app.extensions:
@@ -57,6 +57,7 @@ class PromMetrics:
                 if name not in self._metrics:
                     self._metrics[name] = _metric_cls(name, documentation, registry=self._reg if self._collector is None else None, **kwargs)
         return self._metrics[name]
+
 
 class BaseMetric[X]:
 

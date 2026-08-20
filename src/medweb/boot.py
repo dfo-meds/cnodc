@@ -12,6 +12,8 @@ def boot_medweb(app_type: str) -> MedWebSystem:
         app_name='medweb',
         app_components=[app_type],
         system_cls="medweb.system.MedWebSystem",
+        enable_metrics=True,
+        is_multiprocessing=True,
         init_hooks=[
             _init_system
         ],

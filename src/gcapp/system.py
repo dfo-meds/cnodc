@@ -21,6 +21,8 @@ class System:
     def __init__(self):
         self._log = zrlog.get_logger('gcflask.system')
         self._lock = threading.RLock()
+        self._with_prometheus: bool = False
+        self._is_multiprocess_app: bool = False
         self._click_commands: list[tuple[str, str, str]] = []
 
     def init(self, *args, **kwargs):
@@ -30,6 +32,19 @@ class System:
         self.events.fire("init", self)
         self.events.fire("init.after", self)
         self._subclass_init()
+        if self._with_prometheus:
+            from gcapp.metrics import PromMetrics
+            @injector.inject
+            def _run_me(prom_metrics: PromMetrics = None):
+                prom_metrics.init_metrics(self._is_multiprocess_app)
+            _run_me()
+
+    def enable_metrics(self, is_mp: bool = True):
+        self._with_prometheus = True
+        self._is_multiprocess_app = is_mp
+
+    def disable_metrics(self):
+        self._with_prometheus = False
 
     def _subclass_init(self): ...
 

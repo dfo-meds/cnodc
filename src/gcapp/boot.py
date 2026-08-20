@@ -108,6 +108,8 @@ def boot_system(
         manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
         init_hooks: t.Sequence[str | t.Callable] | None = None,
         system_cls: type | str | None = None,
+        enable_metrics: bool = False,
+        is_multiprocessing: bool = False,
         **kwargs
 ):
 
@@ -128,6 +130,10 @@ def boot_system(
 
     @injector.inject
     def _boot_system(system: System = auto()):
+        if enable_metrics:
+            system.enable_metrics(is_multiprocessing)
+        else:
+            system.disable_metrics()
         if init_hooks:
             for hook in init_hooks:
                 system.before_load(hook)
