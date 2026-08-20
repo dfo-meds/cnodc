@@ -3,6 +3,10 @@ import zrlog
 
 from autoinject import injector, auto
 
+from gcapp import i18n
+from gcflask.action_list import ActionList
+from gcflask.datatables import DataTable, DataQuery, ObjectProperty
+from gcflask.datatables.table import ActionListColumn
 from gcflask.forms import GCFlaskForm, StringField, SubmitField, PasswordField, SelectField, InputRequired, \
     NoControlCharacters, BooleanField
 from gcapp.i18n.base import TString
@@ -12,6 +16,7 @@ from gcflask.user import current_user
 from gcflask.util import flasht, json_param
 from medsutil.secure import generate_secure_random_password
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
+from nodb.access import NODBUser
 
 user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
 
@@ -124,7 +129,24 @@ def change_password(ac: AccessController = auto()):
 @security_check("medsid.user_management.view")
 @web_error_handling
 def list_users():
-    return flask.abort(404)
+    links = []
+    if current_user().require_all(["medsid.user_management.edit"]):
+        links.append((
+            flask.url_for("user.create_user"),
+            i18n.tr("medsid.page.create_user.link")
+        ))
+    return flask.render_template(
+        "data_table.html",
+        table=_users_table(),
+        side_links=links,
+    )
+
+
+@user.route('/ajax/users')
+@security_check("medsid.user_management.view")
+@api_error_handling
+def list_users_ajax():
+    return _users_table().build_ajax()
 
 
 @user.route('/users/<username>')
@@ -135,7 +157,12 @@ def view_user(username: str, ac: AccessController = auto()):
     c_user = ac.load_user_by_name(username)
     if c_user is None:
         return flask.abort(404)
-    return flask.render_template("user.html", user=c_user, title=c_user.display)
+    return flask.render_template(
+        "user.html",
+        user=c_user,
+        title=c_user.display,
+        sidebar=_user_actions(c_user, False)
+    )
 
 
 @user.route('/users/create', methods=['GET', 'POST'])
@@ -274,3 +301,52 @@ class EditUserForm(GCFlaskForm):
         ("fr", TString("gcflask.common.fr")),
     ])
     submit = SubmitField()
+
+
+def _users_table() -> DataTable:
+    table = DataTable(
+        table_id="user_list",
+        query=DataQuery(NODBUser),
+        ajax_route=flask.url_for("user.list_users_ajax"),
+        default_order=[("username", False)],
+        page_size=25
+    )
+    table.add_column(ObjectProperty(
+        name="identifier",
+        header_text=i18n.tr("medsid.user.identifier"),
+        allow_order=True,
+    ))
+    table.add_column(ObjectProperty(
+        name="username",
+        header_text=i18n.tr("medsid.user.username"),
+        allow_order=True,
+        allow_search=True,
+    ))
+    table.add_column(ObjectProperty(
+        name="display",
+        header_text=i18n.tr("medsid.user.display_name"),
+        allow_order=True,
+        allow_search=True,
+    ))
+    table.add_column(ObjectProperty(
+        name="email",
+        header_text=i18n.tr("medsid.user.email"),
+        allow_order=True,
+        allow_search=True,
+    ))
+    table.add_column(ActionListColumn(_user_actions))
+    return table
+
+
+def _user_actions(user: NODBUser, for_action_table: bool = False) -> ActionList:
+    actions = ActionList()
+    kwargs = {
+        "username": user.username
+    }
+    if for_action_table:
+        if current_user().require_all(["medsid.user_management.view"]):
+            actions.add_action("medsid.page.view_user.link", "user.view_user", **kwargs)
+    if current_user().require_all(["medsid.user_management.edit"]):
+        actions.add_action("medsid.page.edit_user.link", "user.edit_user", **kwargs)
+        actions.add_action("medsid.page.reset_password.link", "user.reset_password", **kwargs)
+    return actions

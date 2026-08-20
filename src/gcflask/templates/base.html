@@ -89,7 +89,16 @@
                         </div>
                         <div class="sidebar">
                             {% block sidebar %}
-                              {{sidebar}}
+                            {{sidebar}}
+                            {% if side_links %}
+                            <div class="subnav">
+                                <ul class="action_list">
+                                    {% for link, txt in side_links %}
+                                    <li><a href="{{link}}">{{txt}}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
                             {% endblock %}
                         </div>
                     </div>

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block customScripts %}
+{{ super() }}
+{{ table.build_javascript() }}
+{% endblock %}
+
+{% block content %}
+{{ table.build_html() }}
+{% endblock %}
+
