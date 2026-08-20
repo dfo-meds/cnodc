@@ -22,6 +22,7 @@ from gcflask.nav import NavMenu, NavItem
 from gcflask.trustedproxy import TrustedProxyFix
 from medsutil.dynamic import dynamic_object
 from medsutil.exceptions import CodedError
+import gcapp.i18n as i18n
 
 class GCFlaskError(CodedError): CODE_SPACE='GCFLASK'
 
