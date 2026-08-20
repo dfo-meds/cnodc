@@ -15,8 +15,10 @@ from autoinject import injector
 
 from medsutil.exceptions import CodedError
 from nodb.interface import (
-    wrap_nodb_exceptions, NODBObjectType, NODBObject, POSTGRES_ALLOWED_CHARACTERS, FilterDict, LockType, JoinString, SupportsPostgres, ScannedFileStatus, QueueStatus,
-    LOCK_EXPIRY_TIME, COMPLETED_QUEUE_ITEM_LIFETIME, ERRORED_QUEUE_ITEM_LIFETIME, PROCESS_EXPIRY_TIME, NODBError, NODB
+    wrap_nodb_exceptions, NODBObjectType, NODBObject, POSTGRES_ALLOWED_CHARACTERS, FilterDict, LockType, JoinString,
+    SupportsPostgres, ScannedFileStatus, QueueStatus,
+    LOCK_EXPIRY_TIME, COMPLETED_QUEUE_ITEM_LIFETIME, ERRORED_QUEUE_ITEM_LIFETIME, PROCESS_EXPIRY_TIME, NODBError, NODB,
+    SqlCondition, And, Or, Equals, In, IsNull, IsNotNull, Between, InEnvelope, Like
 )
 from nodb.queue import NODBQueueItem
 from pipeman.exceptions import CNODCError
@@ -421,7 +423,9 @@ class PostgresController:
                    lock_type: LockType = LockType.NONE,
                    limit_fields: t.Optional[list[str]] = None,
                    key_only: bool = False,
-                   order_by: t.Optional[list[str]] = None) -> t.Iterable[dict[str, SupportsPostgres]]:
+                   order_by: t.Optional[list[str]] = None,
+                   offset: int | None = None,
+                   limit: int | None = None) -> t.Iterable[dict[str, SupportsPostgres]]:
         """Load an object."""
         query = self.assemble_query(
             self.build_select_clause(
@@ -446,7 +450,9 @@ class PostgresController:
                        lock_type: LockType = LockType.NONE,
                        limit_fields: t.Optional[list[str]] = None,
                        key_only: bool = False,
-                       order_by: t.Optional[list[str]] = None) -> t.Iterable[NODBObject]:
+                       order_by: t.Optional[list[str]] = None,
+                       offset: int | None = None,
+                       limit: int | None = None) -> t.Iterable[NODBObject]:
         for row in self.stream_raw(
             obj_cls=obj_cls,
             filters=filters,
@@ -454,7 +460,9 @@ class PostgresController:
             lock_type=lock_type,
             limit_fields=limit_fields,
             key_only=key_only,
-            order_by=order_by
+            order_by=order_by,
+            offset=offset,
+            limit=limit
         ):
             yield obj_cls(is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)})
 
@@ -1041,52 +1049,159 @@ class PostgresController:
             yield pgs.Identifier(alias)
 
     @staticmethod
-    def build_where_clause(filters=None, join_str = None) -> t.Iterable[pgs.Composable]:
+    def build_where_clause(filters: FilterDict | None = None, join_str: str | None = None) -> t.Iterable[pgs.Composable]:
         if filters:
             yield pgs.SQL('WHERE')
-            first = True
-            join_str = pgs.SQL('AND' if join_str is None else (join_str.strip() or 'AND'))
-            for key in filters:
-                if first:
-                    first = False
-                else:
-                    yield join_str
-                if filters[key] is None:
-                    yield pgs.Identifier(key)
-                    yield pgs.SQL('IS NULL')
-                elif isinstance(filters[key], tuple):
-                    # (value, operation[, allow_null])
-                    suffix = None
-                    if len(filters[key]) > 2 and filters[key][2]:
-                        yield pgs.SQL('(')
-                        yield pgs.Composed((pgs.Identifier(key), pgs.SQL('IS NULL OR')))
-                        suffix = pgs.SQL(')')
-                    op = filters[key][1].strip().upper()
-                    val = filters[key][0]
-                    if op == 'IN':
-                        yield pgs.Identifier(key)
-                        yield pgs.SQL('IN (')
-                        yield pgs.SQL(',').join(pgs.Literal(v) for v in val)
-                        yield pgs.SQL(')')
-                    elif op == "BETWEEN":
-                        yield pgs.Identifier(key)
-                        yield pgs.SQL("BETWEEN")
-                        yield pgs.Literal(val[0])
-                        yield pgs.SQL("AND")
-                        yield pgs.Literal(val[1])
-                    elif op == "IN_ENVELOPE":
-                        yield pgs.Identifier(key)
-                        yield pgs.SQL("&& ST_MakeEnvelope(")
-                        yield pgs.SQL(",").join(pgs.Literal(v) for v in val)
-                        yield pgs.SQL(", 4326)")
+            if isinstance(filters, dict):
+                first = True
+                join_str_sql = pgs.SQL('AND' if join_str is None else (join_str.strip() or 'AND'))
+                for key in filters:
+                    if first:
+                        first = False
                     else:
-                        yield pgs.Identifier(key)
-                        yield pgs.SQL(op)
-                        yield pgs.Literal(val)
-                    if suffix is not None:
-                        yield suffix
-                else:
-                    yield pgs.Identifier(key) + pgs.SQL('=') + pgs.Literal(filters[key])
+                        yield join_str_sql
+                    yield from PostgresController._build_where_component(key, filters[key])
+            elif isinstance(filters, SqlCondition):
+                yield from PostgresController._build_sql_condition(filters)
+            else:
+                first = True
+                join_str_sql = pgs.SQL('AND' if join_str is None else (join_str.strip() or 'AND'))
+                for condition in filters:
+                    if first:
+                        first = False
+                    else:
+                        yield join_str_sql
+                    yield from PostgresController._build_sql_condition(condition)
+                
+    @staticmethod
+    def _build_sql_condition(condition: SqlCondition) -> t.Iterable[pgs.Composable]:
+        if isinstance(condition, And):
+            yield pgs.SQL("(")
+            first = True
+            for part in condition.all_conditions():
+                if first: first = False
+                else: yield pgs.SQL('AND')
+                yield from PostgresController._build_sql_condition(part)
+            yield pgs.SQL(")")
+        elif isinstance(condition, Or):
+            yield pgs.SQL("(")
+            first = True
+            for part in condition.all_conditions():
+                if first: first = False
+                else: yield pgs.SQL('OR')
+                yield from PostgresController._build_sql_condition(part)
+            yield pgs.SQL(")")
+        elif isinstance(condition, Equals):
+            if condition.or_null:
+                yield pgs.SQL("(")
+            yield pgs.Identifier(condition.column_name)
+            yield pgs.SQL('=')
+            yield pgs.Literal(condition.value)
+            if condition.or_null:
+                yield pgs.SQL("OR")
+                yield pgs.Identifier(condition.column_name)
+                yield pgs.SQL("IS NULL")
+                yield pgs.SQL(")")
+        elif isinstance(condition, In):
+            if condition.or_null:
+                yield pgs.SQL("(")
+            yield pgs.Identifier(condition.column_name)
+            yield pgs.SQL('IN (')
+            yield pgs.SQL(',').join(pgs.Literal(v) for v in condition.values)
+            yield pgs.SQL(")")
+            if condition.or_null:
+                yield pgs.SQL("OR")
+                yield pgs.Identifier(condition.column_name)
+                yield pgs.SQL("IS NULL")
+                yield pgs.SQL(")")
+        elif isinstance(condition, IsNull):
+            yield pgs.Identifier(condition.column_name)
+            yield pgs.SQL("IS NULL")
+        elif isinstance(condition, IsNotNull):
+            yield pgs.Identifier(condition.column_name)
+            yield pgs.SQL("IS NOT NULL")
+        elif isinstance(condition, Between):
+            if condition.or_null:
+                yield pgs.SQL("(")
+            yield pgs.Identifier(condition.column_name)
+            yield pgs.SQL("BETWEEN")
+            yield pgs.Literal(condition.lower_bound)
+            yield pgs.SQL("AND")
+            yield pgs.Literal(condition.upper_bound)
+            if condition.or_null:
+                yield pgs.SQL("OR")
+                yield pgs.Identifier(condition.column_name)
+                yield pgs.SQL("IS NULL")
+                yield pgs.SQL(")")
+        elif isinstance(condition, InEnvelope):
+            if condition.or_null:
+                yield pgs.SQL("(")
+            yield pgs.Identifier(condition.column_name)
+            yield pgs.SQL("&& ST_MakeEnvelope(")
+            yield pgs.SQL(",").join(pgs.Literal(v) for v in condition.points)
+            yield pgs.SQL(f", {int(condition.datum)})")
+            if condition.or_null:
+                yield pgs.SQL("OR")
+                yield pgs.Identifier(condition.column_name)
+                yield pgs.SQL("IS NULL")
+                yield pgs.SQL(")")
+        elif isinstance(condition, Like):
+            if condition.or_null:
+                yield pgs.SQL("(")
+            yield pgs.Identifier(condition.column_name)
+            if condition.case_sensitive:
+                yield pgs.SQL("LIKE")
+            else:
+                yield pgs.SQL("ILIKE")
+            yield pgs.Literal(condition.pattern)
+            if condition.or_null:
+                yield pgs.SQL("OR")
+                yield pgs.Identifier(condition.column_name)
+                yield pgs.SQL("IS NULL")
+                yield pgs.SQL(")")
+
+        else:
+            raise TypeError(f"Unknown condition type {condition.__class__}")
+
+
+    @staticmethod
+    def _build_where_component(column, component) -> t.Iterable[pgs.Composable]:
+        if component is None:
+            yield pgs.Identifier(column)
+            yield pgs.SQL('IS NULL')
+        elif isinstance(component, tuple):
+            # (value, operation[, allow_null])
+            suffix = None
+            if len(component) > 2 and component[2]:
+                yield pgs.SQL('(')
+                yield pgs.Composed((pgs.Identifier(column), pgs.SQL('IS NULL OR')))
+                suffix = pgs.SQL(')')
+            op = component[1].strip().upper()
+            val = component[0]
+            if op == 'IN':
+                yield pgs.Identifier(column)
+                yield pgs.SQL('IN (')
+                yield pgs.SQL(',').join(pgs.Literal(v) for v in val)
+                yield pgs.SQL(')')
+            elif op == "BETWEEN":
+                yield pgs.Identifier(column)
+                yield pgs.SQL("BETWEEN")
+                yield pgs.Literal(val[0])
+                yield pgs.SQL("AND")
+                yield pgs.Literal(val[1])
+            elif op == "IN_ENVELOPE":
+                yield pgs.Identifier(column)
+                yield pgs.SQL("&& ST_MakeEnvelope(")
+                yield pgs.SQL(",").join(pgs.Literal(v) for v in val)
+                yield pgs.SQL(", 4326)")
+            else:
+                yield pgs.Identifier(column)
+                yield pgs.SQL(op)
+                yield pgs.Literal(val)
+            if suffix is not None:
+                yield suffix
+        else:
+            yield pgs.Identifier(column) + pgs.SQL('=') + pgs.Literal(component)
 
     @staticmethod
     def build_order_by_clause(order_by: t.Optional[t.Sequence[t.Union[str,tuple[str, bool]]]] = None) -> t.Iterable[pgs.Composable]:

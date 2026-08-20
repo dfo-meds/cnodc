@@ -17,6 +17,11 @@ from medsutil.exceptions import CodedError
 
 POSTGRES_ALLOWED_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
+
+class SqlCondition:
+    ...
+
+
 type SupportsPostgres = None | bool | float | int | decimal.Decimal | str | collections.abc.Buffer | datetime.date | datetime.time | datetime.timedelta | uuid.UUID | tuple
 type DatabaseIdentifier = str
 type FilterDict = dict[
@@ -24,8 +29,9 @@ type FilterDict = dict[
     SupportsPostgres
     | tuple[SupportsPostgres | str]
     | tuple[SupportsPostgres | str | bool]
-]
+] | SqlCondition | list[SqlCondition] | tuple[SqlCondition]
 type JoinString = t.Literal["AND", "OR"]
+
 
 if t.TYPE_CHECKING:
     from nodb.queue import NODBQueueItem
@@ -152,6 +158,86 @@ class SqlState(enum.Enum):
     DUPLICATE_FILE = '58P02', EType.RECOVERABLE
     FILENAME_TOO_LONG = '58P03', EType.RECOVERABLE
 
+
+class And(SqlCondition):
+
+    def __init__(self, *conditions: SqlCondition | t.Iterable[SqlCondition]):
+        self.conditions = conditions
+
+    def all_conditions(self) -> t.Iterable[SqlCondition]:
+        for condition in self.conditions:
+            if isinstance(condition, SqlCondition):
+                yield condition
+            else:
+                yield from condition
+
+
+class Or(SqlCondition):
+
+    def __init__(self, *conditions: SqlCondition | t.Iterable[SqlCondition]):
+        self.conditions = conditions
+
+    def all_conditions(self) -> t.Iterable[SqlCondition]:
+        for condition in self.conditions:
+            if isinstance(condition, SqlCondition):
+                yield condition
+            else:
+                yield from condition
+
+
+class Equals(SqlCondition):
+
+    def __init__(self, column_name: str, value: SupportsPostgres, or_null: bool = False):
+        self.column_name = column_name
+        self.value = value
+        self.or_null = or_null
+
+
+class IsNull(SqlCondition):
+
+    def __init__(self, column_name: str):
+        self.column_name = column_name
+
+
+class IsNotNull(SqlCondition):
+
+    def __init__(self, column_name: str):
+        self.column_name = column_name
+
+
+class In(SqlCondition):
+
+    def __init__(self, column_name: str, values: t.Iterable, or_null: bool = False):
+        self.column_name = column_name
+        self.values = values
+        self.or_null = or_null
+
+
+class Between(SqlCondition):
+
+    def __init__(self, column_name: str, lower_bound: float, upper_bound: float, or_null: bool = False):
+        self.column_name = column_name
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.or_null = or_null
+
+
+class InEnvelope(SqlCondition):
+
+    def __init__(self, column_name: str, points: list[str], datum: int = 4326, or_null: bool = False):
+        self.column_name = column_name
+        self.points = points
+        self.datum = datum
+        self.or_null = or_null
+
+
+class Like(SqlCondition):
+
+    def __init__(self, column_name: str, pattern: str, or_null: bool = False, case_sensitive: bool = True):
+        self.column_name = column_name
+        self.pattern = pattern
+        self.or_null = or_null
+        self.case_sensitive = case_sensitive
 
 
 
@@ -336,7 +422,9 @@ class NODBInstance(t.Protocol):
                        lock_type: LockType = LockType.NONE,
                        limit_fields: list[str] = None,
                        key_only: bool = False,
-                       order_by: list[str | tuple[str, bool]] = None) -> t.Iterable[ConcreteNODBObject]: ...
+                       order_by: list[str | tuple[str, bool]] = None,
+                       offset: int | None = None,
+                       limit: int | None = None) -> t.Iterable[ConcreteNODBObject]: ...
     def stream_raw(self,
                        obj_cls: NODBObjectType,
                        filters: FilterDict = None,
@@ -344,7 +432,9 @@ class NODBInstance(t.Protocol):
                        lock_type: LockType = LockType.NONE,
                        limit_fields: list[str] = None,
                        key_only: bool = False,
-                       order_by: list[str] = None) -> t.Iterable[dict[str, SupportsPostgres]]: ...
+                       order_by: list[str] = None,
+                       offset: int | None = None,
+                       limit: int | None = None) -> t.Iterable[dict[str, SupportsPostgres]]: ...
     def bulk_update_objects(self,
                             obj_cls: NODBObjectType,
                             updates: dict[str, SupportsPostgres],
