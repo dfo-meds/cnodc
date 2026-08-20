@@ -6,7 +6,7 @@ from autoinject import injector
 import enum
 import typing as t
 
-from medsutil.metrics import Counter
+from gcapp.metrics import Counter
 from pipeman.exceptions import CNODCError
 from medsutil.web import request
 

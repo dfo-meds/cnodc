@@ -1,4 +1,3 @@
-import contextlib
 import logging
 import tempfile
 import uuid
@@ -7,7 +6,7 @@ import psutil
 import zrlog
 from autoinject import injector
 
-import medsutil.metrics as mum
+import gcapp.metrics as mum
 from medsutil.exceptions import CodedError
 import nodb.interface as interface
 

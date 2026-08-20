@@ -10,7 +10,7 @@ from medsutil.cached import CachedObjectMixin, cached_method
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.exceptions import HaltInterrupt
 from medsutil.halts import HaltFlag, gzip_with_halt, ungzip_with_halt
-from medsutil.metrics import Gauge, Histogram
+from gcapp.metrics import Gauge, Histogram
 from medsutil.savedata import SaveData
 
 from medsutil.storage import StorageController, FilePath

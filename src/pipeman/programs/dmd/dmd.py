@@ -2,7 +2,7 @@ import zrlog
 import zirconium as zr
 from autoinject import injector
 
-from medsutil.metrics import Counter
+from gcapp.metrics import Counter
 from medsutil.web import request
 
 @injector.injectable

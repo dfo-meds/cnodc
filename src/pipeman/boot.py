@@ -42,7 +42,7 @@ def init_for_tests(with_long_tests: bool = False,
 
     # Prevent metrics from being loaded
     if not with_metrics:
-        import medsutil.metrics as metrics
+        import gcapp.metrics as metrics
         metrics.DISABLE_METRICS.set()
 
     # speed up password hashing for tests only!
