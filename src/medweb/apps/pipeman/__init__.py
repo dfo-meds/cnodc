@@ -2,16 +2,21 @@ import typing as t
 
 from gcflask.flasksystem import APIOperation
 from gcflask.user import PermissionType
+import pathlib
+
 
 if t.TYPE_CHECKING:
     from gcapp.system import System
 
+BASE_DIR = pathlib.Path(__file__).resolve().absolute().parent
 
 def init_plugin(s: System):
     from gcflask.flasksystem import FlaskSystemMixin
     if isinstance(s, FlaskSystemMixin):
         s.register_blueprint("medweb.apps.pipeman.routes.vocabularies", "vocabularies")
         s.register_blueprint("medweb.apps.pipeman.routes.desktop", "desktop")
+        s.register_blueprint("medweb.apps.pipeman.routes.intake", "intake")
+        s.register_blueprint("medweb.apps.pipeman.routes.status", "status")
         s.register_api_operation("desktop.queue_items_ready", "desktop.get_queue_report", ["pipeman.lock_queue_items"])
         s.register_api_operation("desktop.find_working_record", "desktop.find_working_record", ["pipeman.view_working_records"])
         s.register_api_operation("desktop.search_platforms", "desktop.search_platforms", ["pipeman.view_platforms"])
@@ -19,6 +24,7 @@ def init_plugin(s: System):
         s.register_api_operation("desktop.find_platform", "desktop.find_platform_by_uuid", ["pipeman.view_platforms"])
         s.register_api_operation("intake.list_available_workflows", "intake.list_available_workflows", ["pipeman.submit_files"])
         s.register_dynamic_api_operation_builder("desktop", get_qc_actions)
+        s.register_template_directory(BASE_DIR / 'templates')
 
 
 def get_qc_actions() -> dict[str, APIOperation]:

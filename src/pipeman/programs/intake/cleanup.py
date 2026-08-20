@@ -3,7 +3,7 @@ import pathlib
 
 import zirconium as zr
 import medsutil.awaretime as awaretime
-from pipeman.processing.workers import ScheduledTask
+from pipeman.processing.scheduled_task import ScheduledTask
 
 
 class RequestCleanupTask(ScheduledTask):
@@ -11,7 +11,7 @@ class RequestCleanupTask(ScheduledTask):
     app_config: zr.ApplicationConfig = None
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, log_name="cnodc.cleanup", **kwargs)
+        super().__init__(*args, log_name="medweb.intake.cleanup", **kwargs)
         self._requests_dir = None
         self._request_dir_failed = False
         self.set_defaults({
@@ -26,7 +26,7 @@ class RequestCleanupTask(ScheduledTask):
             if not self._requests_dir:
                 self._request_dir_failed = True
                 self._log.error(f"Requests directory is not configured, cannot run cleanup")
-            if self._requests_dir.exists() and not self._requests_dir.is_dir():
+            if not (self._requests_dir.exists() and self._requests_dir.is_dir()):
                 self._request_dir_failed = True
                 self._log.error(f"Requests directory is not a directory, cannot run cleanup")
             self._requests_dir = self._requests_dir / "requests"
