@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Processes</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Process ID</th>
+            <th>Server Name</th>
+            <th>Status</th>
+            <th>Activity</th>
+            <th>Start Time</th>
+            <th>Last Report</th>
+            <th>CPU</th>
+            <th>CPU (U/I/S) [ms]</th>
+            <th>Memory</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for process in processes %}
+        <tr>
+            <th>{{ process["process_id"] if "process_id" in process else "n/a" }}</th>
+            <td>{{ process["server_name"] if "server_name" in process else "n/a" }}</td>
+            <td>{{ process["status"] if "status" in process else "n/a" }}</td>
+            <td>{{ process["activity"] if "activity" in process else "n/a" }}</td>
+            <td>{{ process["db_created_date"].strftime("%Y-%m-%d %H:%M:%S) if "db_created_date" in process else "n/a" }}</td>
+            <td>{{ process["db_modified_date"].strftime("%Y-%m-%d %H:%M:%S") if "db_modified_date" in process else "n/a" }}</td>
+            <td>
+                {% if "cpu_percent" in process %}
+                {{ ".2f" % process["cpu_percent"] }}%
+                {% else %}
+                n/a
+                {% endif %}
+            </td>
+            <td>
+                {% if "cpu_user" in process %}
+                {{ ".1f" % (1000 * process["cpu_user"]) }}
+                {% else %}
+                n/a
+                {% endif %}
+                /
+                {% if "cpu_system" in process %}
+                {{ ".1f" % (1000 * process["cpu_system"]) }}
+                {% else %}
+                n/a
+                {% endif %}
+                /
+                {% if "io_wait" in process %}
+                {{ ".1f" % (1000 * process["io_wait"]) }}
+                {% else %}
+                n/a
+                {% endif %}
+            </td>
+            <td>
+                {% if "memory_total" in process %}
+                {{ ".2f" % (process["memory_total"] / (1024 * 1024)) }} MiB
+                {% else %}
+                n/a
+                {% endif %}
+            </td>
+            <td>
+                {% if "executions" in process %}
+                    Executions: {{ process["exections"] }}<br/>
+                {% endif %}
+                {% if "next_execution" in process %}
+                    Executions: {{ process["next_execution"].strftime("%Y-%m-%d %H:%M:%S }}<br/>
+                {% endif %}
+                {% if "items_processed" in process %}
+                    Processed: {{ process["items_processed"] }} (
+                    {% if "items_success" in process %}
+                        process["items_success"]
+                    {% else %}
+                    0
+                    {% endif %}
+                    /
+                    {% if "items_error" in process %}
+                        process["items_error"]
+                    {% else %}
+                    0
+                    {% endif %}
+                    {% if "items_retry" in process %}
+                        process["items_retry"]
+                    {% else %}
+                    0
+                    {% endif %}
+                    <br />
+                {% endif %}
+                {% if "fetch_errors" in process %}
+                    Fetch Errors: {{ process["fetch_errors"] }}<br/>
+                {% endif %}
+                {% if "temp_free" in process %}
+                    Temp Space: {{ ".3f" % (process["temp_free"] / (1024 * 1024) }}
+                    {% if "temp_total" in process %}
+                    / {{ ".1f" % (process["temp_total"] / (1024 * 1024)) }}
+                    {% endif %} MiB
+                    <br/>
+                {% endif %}
+                {% if "executions" in process %}
+                    Executions: {{ process["exections"] }}<br/>
+                {% endif %}
+                {% if "executions" in process %}
+                    Executions: {{ process["exections"] }}<br/>
+                {% endif %}
+                {% if "executions" in process %}
+                    Executions: {{ process["exections"] }}<br/>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Queues</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Queue Name</th>
+            <th>Unlocked</th>
+            <th>Locked</th>
+            <th>Complete</th>
+            <th>Delayed</th>
+            <th>Error</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for queue_name in item_keys %}
+        <tr>
+            <th>{{ queue_name }}}</th>
+            {% for status in ["UNLOCKED", "LOCKED", "COMPLETE", "DELAYED_RELEASE", "ERROR"] %}
+            <td>
+                {% if status in items[queue_name] %}
+                {{items[queue_name][status]}}
+                {% else %}
+                0
+                {% end if %}
+            </td>
+            {% endfor %}
+        </tr>
+    </tbody>
+</table>
+
+<h2>Queue Tags</h2>
+<ul>
+    {% for name, link in workflow_links %}
+    <li><a href="{{ link }}">{{name}}</a></li>
+    {% endfor %}
+</ul>
+{% endblock %}

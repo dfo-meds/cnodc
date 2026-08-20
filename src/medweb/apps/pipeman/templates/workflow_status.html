@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Queues</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Queue Name</th>
+            <th>Unlocked</th>
+            <th>Locked</th>
+            <th>Complete</th>
+            <th>Delayed</th>
+            <th>Error</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for queue_name in item_keys %}
+        <tr>
+            <th>{{ queue_name }}}</th>
+            {% for status in ["UNLOCKED", "LOCKED", "COMPLETE", "DELAYED_RELEASE", "ERROR"] %}
+            <td>
+                {% if status in items[queue_name] %}
+                {{items[queue_name][status]}}
+                {% else %}
+                0
+                {% end if %}
+            </td>
+            {% endfor %}
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

@@ -577,6 +577,12 @@ class PostgresController:
             return dt
 
     @wrap_nodb_exceptions
+    def fetch_queue_tags(self) -> list[str]:
+        with self.cursor() as cur:
+            cur.execute("SELECT DISTINCT tag FROM nodb_queues")
+            return [row[0] for row in cur.fetch_stream(25)]
+
+    @wrap_nodb_exceptions
     def fetch_queue_summary(self, tag_name: str | None = None) -> dict[str, dict[str, int]]:
         res = {}
         with self.cursor() as cur:
