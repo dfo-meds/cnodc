@@ -64,6 +64,9 @@ CREATE INDEX IF NOT EXISTS ix_nodb_temp_finalize_results ON nodb_temporary_final
 -- Add the ICES code
 ALTER TABLE nodb_platforms ADD COLUMN ship_code VARCHAR(126) DEFAULT NULL;
 
+-- Add a list of instrument types
+ALTER TABLE nodb_obs ADD COLUMN instrument_types JSONB DEFAULT NULL;
+
 -- Product def table
 --CREATE TABLE IF NOT EXISTS nodb_product_definitions(
 

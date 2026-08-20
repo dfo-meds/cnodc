@@ -436,6 +436,7 @@ class SubrecordInfo:
     max_depth: t.Optional[float] = None
     profile_parameters: set[str] = dataclasses.field(default_factory=set)
     surface_parameters: set[str] = dataclasses.field(default_factory=set)
+    instruments: set[str] = dataclasses.field(default_factory=set)
 
 
 class NODBObservation(s.NODBBaseObject):
@@ -463,6 +464,7 @@ class NODBObservation(s.NODBBaseObject):
     data_mode: DataMode = s.EnumColumn(DataMode, default=DataMode.UNKNOWN)
     quality_checks: int = s.IntColumn(default=0)
     embargo_date: t.Optional[AwareDateTime] = s.DateTimeColumn()
+    instrument_types: set[str] = s.JsonSetColumn()
 
     @classmethod
     def search(cls,
@@ -509,9 +511,11 @@ class NODBObservation(s.NODBBaseObject):
             'max_depth': 'FLOAT',
             'location': 'geography',
             'observation_type': 'obs_type',
-            'surface_parameters': 'JSON',
-            'profile_parameters': 'JSON',
-            'processing_level': 'processing_level',
+            'surface_parameters': 'JSONB',
+            'profile_parameters': 'JSONB',
+            'instruments': 'JSONB',
+            'data_mode': 'VARCHAR',
+            'quality_checks': 'INT',
             'embargo_date': 'TIMESTAMPTZ',
         }, name=name)
 
@@ -530,6 +534,7 @@ class NODBObservation(s.NODBBaseObject):
         NODBObservation._extract_subrecord_info(record, ref_info)
         self.profile_parameters = ref_info.profile_parameters
         self.surface_parameters = ref_info.surface_parameters
+        self.instrument_types = ref_info.instruments
         self.min_depth = ref_info.min_depth
         self.max_depth = ref_info.max_depth
         if self.location is None or self.obs_time is None:
@@ -577,6 +582,16 @@ class NODBObservation(s.NODBBaseObject):
 
     @staticmethod
     def _extract_subrecord_info(record: ocproc2.BaseRecord, ref_info: SubrecordInfo, position: dict = None):
+
+        for key in record.coordinates:
+            for sv in record.coordinates[key].all_values():
+                if sv.metadata.has_value('SensorType'):
+                    ref_info.instruments.add(sv.metadata["SensorType"].to_string())
+        for key in record.parameters:
+            for sv in record.parameters[key].all_values():
+                if sv.metadata.has_value('SensorType'):
+                    ref_info.instruments.add(sv.metadata["SensorType"].to_string())
+
         if position is None:
             position = {}
         else:
