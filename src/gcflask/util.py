@@ -12,6 +12,11 @@ def flasht(st: str | BaseDString, msg_type: str):
         flask.flash(TString(st) if isinstance(st, str) else st, msg_type)
 
 
+def flash(st: str, msg_type: str):
+    if flask.has_request_context():
+        flask.flash(st, msg_type)
+
+
 def caps_to_snake(txt: str, separator: str = "_") -> str:
     new_s = txt[0].lower()
     for x in txt[1:]:

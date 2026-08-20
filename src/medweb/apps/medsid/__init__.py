@@ -58,6 +58,11 @@ def init_plugin(s: System):
             "auth.login",
             require_permissions=["__anonymous__"],
         ))
+        s.register_menu_item("topnav", "reset", NavItem(
+            TString("medsid.menu.topnav.reset"),
+            "user.reset_my_password",
+            require_permissions=["__anonymous__"],
+        ))
         s.register_menu_item("topnav", "logout", NavItem(
             TString("medsid.menu.topnav.logout"),
             "auth.logout",

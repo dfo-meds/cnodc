@@ -10,12 +10,12 @@ import typing as t
 import zrlog
 from urllib.parse import urlparse
 
+from gcapp.i18n import TranslatableError
 from gcflask.auth import AuthResult, AuthenticationManager
 from gcflask.user import AuthenticatedUser, ANONYMOUS_PRIVILEGE, ADMIN_PRIVILEGE, ANYONE_PRIVILEGE, \
     AUTHENTICATED_PRIVILEGE, PermissionType, AnyPermission
-from medsutil.exceptions import CodedError
-
-
+from gcflask.util import flasht, flash
+from medsutil.exceptions import CodedError, ex_pretty
 
 
 @injector.injectable_global
@@ -236,6 +236,15 @@ def web_error_handling(func: t.Callable) -> t.Callable:
         try:
             return func(*args, **kwargs)
         except Exception as ex:
-            # TODO: better error messages
+            # TODO: better error messages when you're not an admin
+            if isinstance(ex, TranslatableError):
+                flasht(ex.message_key, "error")
+                zrlog.get_logger("gcflask").exception(ex.pretty())
+            elif isinstance(ex, CodedError):
+                flash(ex.pretty(), "error")
+                zrlog.get_logger("gcflask").exception(ex.pretty())
+            else:
+                flash(ex_pretty(ex), "error")
+                zrlog.get_logger("gcflask").exception(ex_pretty(ex))
             return flask.abort(500)
     return _inner

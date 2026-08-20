@@ -10,17 +10,10 @@ from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import security_check, api_error_handling, web_error_handling
 from gcflask.user import current_user
 from gcflask.util import flasht, json_param
+from medsutil.secure import generate_secure_random_password
 from medweb.apps.medsid.controller import AccessController, AccessManagementError
 
 user = MultiLanguageBlueprint('user', __name__, url_prefix="/medsid")
-
-
-@user.route('/me')
-@security_check(authenticated_only=True)
-@injector.inject
-def me(ac: AccessController = auto()):
-    c_user = ac.load_user_by_id(current_user().get_id())
-    return flask.render_template("myself.html", user=c_user, title=c_user.display)
 
 
 @user.route('/api/create-access-token', methods=['POST'])
@@ -67,6 +60,14 @@ def remove_access_token(ac: AccessController = auto()):
     return flask.jsonify({
         'success': True,
     })
+
+
+@user.route('/me')
+@security_check(authenticated_only=True)
+@injector.inject
+def me(ac: AccessController = auto()):
+    c_user = ac.load_user_by_id(current_user().get_id())
+    return flask.render_template("myself.html", user=c_user, title=c_user.display)
 
 
 @user.route('/me/edit', methods=['GET', 'POST'])
@@ -117,6 +118,13 @@ def change_password(ac: AccessController = auto()):
             flasht(e.message_key, "error")
             zrlog.get_logger("medsid.web").exception(f"Error when a user tried to change their password")
     return flask.render_template("form.html", form=form)
+
+
+@user.route('/users')
+@security_check("medsid.user_management.view")
+@web_error_handling
+def list_users():
+    return flask.abort(404)
 
 
 @user.route('/users/<username>')
@@ -188,18 +196,51 @@ def edit_user(username: str, ac: AccessController = auto()):
     return flask.render_template("form.html", form=form)
 
 
-@user.route('/api/users')
-@security_check("medsid.user_management.view", is_api=True)
-@api_error_handling
-def api_list_users():
-    return flask.abort(404)
-
-
-@user.route('/users')
-@security_check("medsid.user_management.view")
+@user.route("/users/<username>/reset")
+@security_check("medsid.user_management.edit")
 @web_error_handling
-def list_users():
-    return flask.abort(404)
+def reset_password(username: str, ac: AccessController = auto()):
+    form = ConfirmResetForm()
+    if form.validate_on_submit():
+        try:
+            ac.update_user(
+                username=username,
+                password=generate_secure_random_password()
+            )
+            flasht("medsid.forms.reset_password.success", "success")
+            return flask.redirect(flask.url_for("user.view_user", username=username))
+        except AccessManagementError as ex:
+            flasht(ex.message_key, "error")
+            zrlog.get_logger("medsid.web").exception("Error when a user tried to reset another user's password")
+    return flask.render_template("form.html", form=form)
+
+
+@user.route("/reset-password")
+@security_check(anonymous_only=True)
+@web_error_handling
+def reset_my_password(ac: AccessController = auto()):
+    form = ResetMyPasswordForm()
+    if form.validate_on_submit():
+        try:
+            ac.update_user(
+                username=form.username.data or '',
+                password=generate_secure_random_password()
+            )
+            flasht("medsid.forms.reset_password.success", "success")
+            return flask.redirect(flask.url_for("auth.login"))
+        except AccessManagementError as ex:
+            flasht(ex.message_key, "error")
+            zrlog.get_logger("medsid.web").exception("Eerror when a user tried to reset their own password")
+    return flask.render_template("form.html", form=form)
+
+
+class ConfirmResetForm(GCFlaskForm):
+    submit = SubmitField()
+
+
+class ResetMyPasswordForm(GCFlaskForm):
+    username = StringField(delayed_label="medsid.user.username", validators=[InputRequired(), NoControlCharacters()])
+    submit = SubmitField()
 
 
 class EditMyselfForm(GCFlaskForm):
