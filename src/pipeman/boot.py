@@ -31,6 +31,13 @@ def init_pipeman(app_type: str,
     if not logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
 
+    from gcapp.metrics import PromMetrics
+    from autoinject import injector
+    @injector.inject
+
+    def _run_me(metrics: PromMetrics = None):
+        metrics.init_metrics(with_mp_prometheus_default if not no_mp else False)
+
 def init_for_tests(with_long_tests: bool = False,
                    with_metrics: bool = False,
                    with_fast_passwords: bool = True,
