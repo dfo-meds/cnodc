@@ -9,6 +9,7 @@ import multiprocessing as mp
 import zirconium as zr
 from prometheus_client.multiprocess import mark_process_dead
 
+from medsutil.types import SupportsEvent
 from nodb.interface import NODB
 from pipeman_service.controller import BaseController, BaseProcess
 
@@ -49,6 +50,22 @@ class _MultiProcessRunner(BaseProcess, mp.Process):
         super().teardown()
 
 
+class PrometheusMultiProcessServer(mp.Process):
+
+    def __init__(self, *args, halt: SupportsEvent, **kwargs):
+        self._halt = halt
+        super().__init__(*args, **kwargs)
+
+    def run(self):
+        from prometheus_client import start_http_server
+        import time
+        wsgi, thread = start_http_server(80)
+        while not self._halt.is_set():
+            time.sleep(4)
+        wsgi.shutdown()
+        wsgi.server_close()
+        thread.join()
+
 
 class MultiProcessController(BaseController):
     """Controller for running multiple workers based on the multiprocessing library.
@@ -86,10 +103,15 @@ class MultiProcessController(BaseController):
             _no_report=False,
             **kwargs
         )
+        self._mp_process: PrometheusMultiProcessServer | None = None
 
     def startup(self):
         super().startup()
+        self._mp_process = mp_process = PrometheusMultiProcessServer(halt=self._halt_flag)
+        mp_process.start()
 
     def cleanup(self):
         super().cleanup()
         self._logging_subprocess.stop()
+        if self._mp_process is not None:
+            self._mp_process.join()
