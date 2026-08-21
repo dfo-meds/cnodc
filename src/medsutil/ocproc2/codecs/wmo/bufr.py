@@ -684,7 +684,10 @@ class _Bufr4Decoder:
                 node, context
             )
         elif isinstance(instruction, SingleValueInstruction):
-            instruction.set_value(self._get_node_value(instruction, node, context), {}, context)
+            instruction.set_value(
+                context,
+                self._get_node_value(instruction, node, context)
+            )
         elif isinstance(instruction, NoopInstruction):
             ...
         elif isinstance(instruction, ScaleFactorInstruction):
@@ -699,7 +702,11 @@ class _Bufr4Decoder:
 
     def _get_node_value(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext) -> str | None | int | float:
         if instruction is not None and "override_get_node_value" in instruction.extras:
-            value = dynamic_object(instruction.extras["override_get_node_value"])(instruction, node, context)
+            override = instruction.extras["override_get_node_value"]
+            if "." in override:
+                value = dynamic_object(override)(instruction, node, context)
+            else:
+                value = getattr(self, override)(instruction, node, context)
         elif isinstance(node, SequenceNode):
             value = None
         else:
