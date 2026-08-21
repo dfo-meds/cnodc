@@ -151,7 +151,22 @@ class ISODuration(dd.DataDictObject):
 
     @classmethod
     def from_duration(cls, duration: float | int, units: DurationUnit):
-        ...
+        if units is DurationUnit.YEAR:
+            return ISODuration(years=duration)
+        elif units is DurationUnit.MONTH:
+            return ISODuration(months=duration)
+        elif units is DurationUnit.WEEKS:
+            return ISODuration(days=duration * 7)
+        elif units is DurationUnit.DAYS:
+            return ISODuration(days=duration)
+        elif units is DurationUnit.HOURS:
+            return ISODuration(hours=duration)
+        elif units is DurationUnit.MINUTES:
+            return ISODuration(minutes=duration)
+        elif units is DurationUnit.SECONDS:
+            return ISODuration(seconds=duration)
+        else:
+            raise ValueError(f"Invalid duration: {units}")
 
     @classmethod
     def from_iso_format(cls, iso_duration: str) -> t.Self:
