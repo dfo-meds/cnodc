@@ -95,9 +95,7 @@ class BufrCodeMap:
         """ Rewrite incoming instructions to make sure they're compatible with OPS. """
         if isinstance(instruction, Instruction):
             return instruction
-        print(instruction)
         instruction = self.prestandardize_instruction(instruction)
-        print(instruction)
         if isinstance(instruction, dict):
             if instruction.get("dynamic_lookup", False):
                 instruction = self.lookup(int(instruction["descriptor"]), table_group, helper, common_kwargs)
@@ -105,9 +103,6 @@ class BufrCodeMap:
                 for k, v in self.get_table_group_arguments(int(instruction["descriptor"]), table_group).items():
                     if k not in instruction:
                         instruction[k] = v
-        print(instruction)
-        print(common_kwargs)
-        print("====")
         return instruction
 
     def get_table_group_arguments(self, descriptor_id: int, table_group: BufrTableGroup) -> dict[str, t.Any]:
