@@ -146,7 +146,20 @@ class Instruction:
     def parse_element_for_tags(element: str) -> dict:
         if "[" not in element:
             return {"element": element}
-        raise NotImplementedError
+        element, tag = element.split("]")
+        tag = tag[:-1]
+        if "=" in tag:
+            k,v = tag.split("=", maxsplit=1)
+            return {
+                "element": element,
+                "filters": {k.strip(): v.strip()},
+                "metadata": {k.strip(): v.strip()},
+            }
+        else:
+            return {
+                "element": element,
+                "component": tag
+            }
 
 
 class SkipDecodeInstruction(Instruction):

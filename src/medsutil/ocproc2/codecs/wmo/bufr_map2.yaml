@@ -1274,7 +1274,7 @@
             - PracticalSalinity
         instructions:
           - descriptor: 2005
-            element: common/Temperature[uncertainty]
+            element: "common/Temperature[uncertainty]"
             use_current_record: false
             iterate_into_recordset: true
           - "306004:recordset"
