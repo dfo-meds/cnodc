@@ -260,9 +260,10 @@
   element: "coordinates/Depth"
   begin_subrecord_type: "PROFILE"
 7063:
-  element: "coordinates/Depth"
-  begin_subrecord_type: "PROFILE"
   context:
+    _:
+      element: "coordinates/Depth"
+      begin_subrecord_type: "PROFILE"
     306038:
       element: "common/SensorDepth"
       restrict_elements:
@@ -289,21 +290,22 @@
 7070: "metadata/DrogueDepth"
 
 8021:
-  instruction_map:
-    "":
-      element: "common/AggregationMethod"
-      value: null
-    2:
-      element: "common/AggregationMethod"
-      value: "AVERAGE"
-    25:
-      # TODO: Gliders have two of these, we will need to handle
-      element: "coordinates/Time"
-      override_get_node_value: "parse_following_datetime_sequence"
-    26:
-      element: "metadata/LastKnownPositionTime"
-      override_get_node_value: "parse_following_datetime_sequence"
   context:
+    _:
+      instruction_map:
+        "":
+          element: "common/AggregationMethod"
+          value: null
+        2:
+          element: "common/AggregationMethod"
+          value: "AVERAGE"
+        25:
+          # TODO: Gliders have two of these, we will need to handle
+          element: "coordinates/Time"
+          override_get_node_value: "parse_following_datetime_sequence"
+        26:
+          element: "metadata/LastKnownPositionTime"
+          override_get_node_value: "parse_following_datetime_sequence"
     306038:
       instruction: "noop"
 8029: "metadata/WMOSurfaceType"
@@ -314,6 +316,8 @@
     - PracticalSalinity
 8041:
   instruction_map:
+    _:
+      instruction: noop
     "":
       instruction: noop
       override_get_node_value: "parse_following_datetime_sequence"
@@ -522,8 +526,9 @@
 
 301011:
   decode:
-    element: coordinates/Time
+    element: "coordinates/Time"
     override_get_node_value: "parse_datetime_sequence"
+    data_type: "string"
   encode:
     instructions:
       - "4001"
@@ -952,6 +957,7 @@
 315003:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: profiler
     iterate_after: true
   encode:
@@ -992,6 +998,7 @@
 315004:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: xbt
     iterate_after: true
   encode:
@@ -1098,6 +1105,7 @@
 315007:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: ship
     iterate_after: true
   encode:
@@ -1176,6 +1184,7 @@
 315008:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: moored
     iterate_after: true
   encode:
@@ -1226,6 +1235,7 @@
 315009:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: drifting
     iterate_after: true
   encode:
@@ -1291,6 +1301,7 @@
 315011:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: asc
     iterate_after: true
   encode:
@@ -1387,6 +1398,7 @@
 315012:
   decode:
     element: metadata/BUFRPlatformType
+    data_type: "string"
     value: glider
     iterate_after: true
   encode:
