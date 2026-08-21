@@ -130,6 +130,8 @@ class Instruction:
                         instructions=instruction_list,
                         **kwargs
                     )
+            if "value" in instruction:
+                return StaticInstruction(**instruction)
 
         if builder is not None:
             res = builder(instruction, builder, standardizer)
