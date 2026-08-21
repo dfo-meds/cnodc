@@ -165,7 +165,7 @@ class BufrCodeMap:
                 common_kwargs=_common_kwargs
             )
             return instruction
-        raise ValueError("No bufr instruction defined")
+        raise ValueError(f"No bufr instruction defined for [{key}]")
 
     def standardize_units(self, unit: str):
         if unit.upper() in ('NUMERIC', 'CCITT IA5', 'CODE TABLE'):
