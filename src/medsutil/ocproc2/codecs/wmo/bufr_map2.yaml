@@ -481,7 +481,6 @@
     - WavePrincipalDirection      # 306040
     - SpectralWaveFourier1        # 306040
     - SpectralWaveFourier2        # 306040
-
 22080:
   element: "coordinates/CentralFrequency"
   begin_subrecord_type: "SPECTRAL_WAVE"
@@ -1101,6 +1100,32 @@
         - "8080:11"
         - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
 
+
+315010:
+  decode:
+    iterate_after: true
+    instruction: noop
+  encode:
+    instructions:
+      - recordset_type: SPEC_WAVE
+        required_elements:
+          - CentralFrequency
+        optional_elements:
+          - SpectralWaveBandWidth
+          - SpectralWaveDensity
+          - FourierA1
+          - FourierB1
+          - FourierA2
+          - FourierB2
+        instructions:
+        - "22080"
+        - "22096"
+        - "22069"
+        - "42011"
+        - "42012"
+        - "42013"
+        - "42014"
+        - "42015"
 
 315007:
   decode:
