@@ -24,7 +24,7 @@ import medsutil.ocproc2 as ocproc2
 import medsutil.awaretime as awaretime
 from medsutil.ocproc2.codecs.ops import Instruction, EncodeDecodeGroup, OPSContext, DataType, \
     SingleValueInstruction, InstructionGroup, RepeatGroup, NoopInstruction, \
-    ContextInstruction, ValueMappedInstruction, ScaleFactorInstruction, SkipDecodeInstruction
+    ContextInstruction, ValueMappedInstruction, ScaleFactorInstruction, SkipDecodeInstruction, SkipDecodeInterrupt
 from medsutil.sanitize import clean_wmo_id
 from medsutil.units import UnitConverter
 from pipeman.exceptions import CNODCError
@@ -86,11 +86,11 @@ class BufrCodeMap:
     def parse_ops_element(self,
                           x: dict | str,
                           c: t.Callable | None,
-                          table_group: BufrTableGroup) -> Instruction:
+                          table_group: BufrTableGroup) -> Instruction | None:
         if isinstance(x, dict):
             if "dynamic_load" in x and x["dynamic_load"]:
                 return self.lookup(x["descriptor"], table_group=table_group)
-        raise ValueError("Unrecognized BUFR instruction")
+        return None
 
     def get_table_group_arguments(self, descriptor_id: int, table_group: BufrTableGroup) -> dict[str, t.Any]:
         kwargs = {}
@@ -174,7 +174,7 @@ class Bufr4Decoder(GtsSubDecoder):
                 records=[x for x in instance.convert_to_records()],
                 original=original_data,
             )
-        except SkipDecodeInstruction:
+        except SkipDecodeInterrupt:
             return DecodeResult(skipped=True, original=header.encode('ascii') + b"\n" + content)
         except Exception as ex:
             return DecodeResult(

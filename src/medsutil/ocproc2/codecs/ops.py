@@ -43,7 +43,7 @@ class Instruction:
         return built
 
     @staticmethod
-    def parse_instruction(instruction: dict | str, builder: t.Callable[[dict | str, t.Callable | None], Instruction] = None) -> Instruction:
+    def parse_instruction(instruction: dict | str, builder: t.Callable[[dict | str, t.Callable | None], Instruction | None] = None) -> Instruction:
 
         if isinstance(instruction, dict):
             if "context" in instruction and instruction["context"]:
@@ -101,7 +101,7 @@ class Instruction:
                 )
 
             if "instructions" in instruction:
-                instruction_list = Instruction.parse_instructions(instruction["instructions"])
+                instruction_list = Instruction.parse_instructions(instruction["instructions"], builder=builder)
                 kwargs = {k: v for k, v in instruction.items() if k != "instructions"}
                 if "recordset_type" in instruction:
                     if "repeats" in instruction:
@@ -126,9 +126,13 @@ class Instruction:
                     )
 
         if builder is not None:
-            return builder(instruction, builder)
+            res = builder(instruction, builder)
+            if res is not None:
+                return res
 
-        raise OceanProcessingSchemaError("Unrecognized instruction", 3000)
+        ex = OceanProcessingSchemaError("Unrecognized instruction", 3000)
+        ex.add_note(str(instruction))
+        raise ex
 
     @staticmethod
     def parse_element_for_tags(element: str) -> dict:
