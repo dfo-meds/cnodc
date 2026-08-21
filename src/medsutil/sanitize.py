@@ -36,7 +36,7 @@ def clean_wmo_id(wmo_id: str):
     elif len(wmo_id) == 7:
         return wmo_id
     elif len(wmo_id) > 7:
-        raise ValueError("Invalid WMO ID")
+        raise ValueError(f"Invalid WMO ID: {wmo_id}")
     else:
         return wmo_id.zfill(7)
 

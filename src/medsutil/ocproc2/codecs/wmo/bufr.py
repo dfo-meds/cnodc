@@ -608,33 +608,37 @@ class _Bufr4Decoder:
                 self._parse_node(node, ctx)
 
     def _parse_node(self, node: DataNode, context: OPSContext):
-        with context.subcontext() as ctx:
-            context.extras["hierarchy"].append(node.descriptor.id)
-            test_name = "_parse_node_" + str(node.descriptor.id)
+        try:
+            with context.subcontext() as ctx:
+                context.extras["hierarchy"].append(node.descriptor.id)
+                test_name = "_parse_node_" + str(node.descriptor.id)
 
-            # Custom handling
-            if hasattr(self, test_name):
-                getattr(self, test_name)(node, context)
+                # Custom handling
+                if hasattr(self, test_name):
+                    getattr(self, test_name)(node, context)
 
-            # Basic instructions
-            elif isinstance(node, (SequenceNode, ValueDataNode)):
-                self._apply_instruction(
-                    self.bufr_tables.lookup(node.descriptor.id, self.pybufr_tables),
-                    node,
-                    context
-                )
+                # Basic instructions
+                elif isinstance(node, (SequenceNode, ValueDataNode)):
+                    self._apply_instruction(
+                        self.bufr_tables.lookup(node.descriptor.id, self.pybufr_tables),
+                        node,
+                        context
+                    )
 
-            # Replication
-            elif isinstance(node, (DelayedReplicationNode, FixedReplicationNode)):
-                if node.members:
-                    self._parse_replication_node(node, context)
+                # Replication
+                elif isinstance(node, (DelayedReplicationNode, FixedReplicationNode)):
+                    if node.members:
+                        self._parse_replication_node(node, context)
 
-            # Other nodes (usually instructions)
-            else:
-                descriptor_id = node.descriptor.id
-                if 200000 <= descriptor_id < 210000:
-                    return
-                self.warn(f"Unhandled node type: [{node.__class__}]", context)
+                # Other nodes (usually instructions)
+                else:
+                    descriptor_id = node.descriptor.id
+                    if 200000 <= descriptor_id < 210000:
+                        return
+                    self.warn(f"Unhandled node type: [{node.__class__}]", context)
+        except Exception as ex:
+            ex.add_note(f"Node: {node.__class__}: {node}: {node.descriptor.id}")
+            raise
 
     def _parse_replication_node(self, node: DelayedReplicationNode | FixedReplicationNode, ctx: OPSContext):
         n_total, n_elements, n_repeats = self._parse_repetition_info(node, ctx)
@@ -710,8 +714,9 @@ class _Bufr4Decoder:
             )
         elif isinstance(instruction, SingleValueInstruction):
             instruction.set_value(
-                context,
-                self._get_node_value(instruction, node, context)
+                self._get_node_value(instruction, node, context),
+                None,
+                context
             )
         elif isinstance(instruction, NoopInstruction):
             ...
@@ -746,10 +751,10 @@ class _Bufr4Decoder:
 
     @staticmethod
     def peek(n: int, context: OPSContext) -> DataNode | None:
-        if 'node_list' in context.extras:
+        if 'nodes' in context.extras:
             new_idx = context.extras["current_index"] + n
-            if 0 <= new_idx < len(context.extras["node_list"]):
-                return context.extras["node_list"][new_idx]
+            if 0 <= new_idx < len(context.extras["nodes"]):
+                return context.extras["nodes"][new_idx]
         return None
 
     def _parse_node_8080(self, node, context: OPSContext):
@@ -825,7 +830,10 @@ class _Bufr4Decoder:
             "data_type": "duration"
         })
         self._apply_instruction(
-            Instruction.parse_instruction(kwargs, functools.partial(self.bufr_tables.parse_ops_element, table_group=self.pybufr_tables)),
+            Instruction.parse_instruction(
+                kwargs,
+                functools.partial(self.bufr_tables.standardize_instruction, table_group=self.pybufr_tables)
+            ),
             node, ctx
         )
 
@@ -845,11 +853,12 @@ class _Bufr4Decoder:
     def parse_wmo_id(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext):
         peek1 = self.peek(1, context)
         if not (peek1 and peek1.descriptor.id in (1002, 1020, 1004)):
-            raise ValueError("Expecting 1002, 1020, or 1004")
+            raise ValueError(f"Expecting 1002, 1020, or 1004, found {peek1}")
         if peek1.descriptor != 1002:
             peek2 = self.peek(2, context)
             if not (peek2 and peek2.descriptor.id == 1005):
-                raise ValueError("Expecting 1005")
+                raise ValueError(f"Expecting 1005, found {peek2}")
+            pads = []
             elements = [
                 self._get_node_value(None, node, context),
                 self._get_node_value(None, t.cast(ValueDataNode, peek1), context),
@@ -869,7 +878,7 @@ class _Bufr4Decoder:
             value = clean_wmo_id("".join((
                 str(elements[0]).zfill(2),
                 str(elements[1]).zfill(2),
-                str(elements[2]).zfill(5)
+                str(elements[2]).zfill(3)
             )))
         return value
 

@@ -284,7 +284,7 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
 
 class SingleValueInstruction(Instruction):
 
-    def set_value(self, value: RawValue | AbstractElement, metadata: dict, context: OPSContext, **kwargs):
+    def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
         ...
 
     def get_value(self, context: OPSContext) -> RawValue:
@@ -302,7 +302,7 @@ class StaticInstruction(SingleValueInstruction):
     def get_value(self, context: OPSContext) -> RawValue:
         return self._value
 
-    def set_value(self, value: RawValue | AbstractElement, metadata: dict, context: OPSContext, **kwargs):
+    def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
         ...
 
     @classmethod
@@ -462,9 +462,9 @@ class WorstQualityInstruction(SingleValueInstruction):
         super().__init__(**kwargs)
 
     def set_value(self,
-                  context: OPSContext,
                   value: RawValue | AbstractElement,
-                  metadata: dict | None = None,
+                  metadata: dict | None,
+                  context: OPSContext,
                   **kwargs):
         raise NotImplementedError  # TODO: set all the qualities on elements
 
@@ -583,9 +583,9 @@ class ElementInstruction(SingleValueInstruction):
         return e
 
     def set_value(self,
-                  context: OPSContext,
                   value: RawValue | AbstractElement,
-                  metadata: dict | None = None,
+                  metadata: dict | None,
+                  context: OPSContext,
                   **kwargs):
         e = self.assemble_element(value, metadata, kwargs)
         if self.element_path.startswith((

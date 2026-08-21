@@ -10,6 +10,8 @@
   remove_metadata:
     - Units
     - Uncertainty
+1004: "noop"
+1005: "noop"
 1007: "metadata/SatelliteIdentifier"
 1011:
   element: "metadata/PlatformID"
@@ -21,6 +23,7 @@
 1014: "metadata/PlatformSpeed"
 1015: "metadata/PlatformName"
 1019: "metadata/PlatformName"
+1020: "noop"
 1023: "metadata/ShipObservationNumber"
 1036: "metadata/WMOAgencyCode"
 1051: "metadata/TransmitterID"
@@ -485,6 +488,7 @@
   element: "coordinates/CentralFrequency"
   begin_subrecord_type: "SPECTRAL_WAVE"
 22082: "parameters/SpectralWaveMaximumDensity"
+22083: "parameters/SpectralWaveMaximumWaveNumber"
 22084: "parameters/SpectralWaveMaximumDensityBand"
 22086: "parameters/WaveMeanDirection"
 22087: "parameters/WavePrincipalDirection"
@@ -918,7 +922,7 @@
       - "2032"
       - repeats: -1
         size_descriptor: 31001
-        group:
+        instructions:
           - "7062"
           - "22043"
 306042:
@@ -1092,7 +1096,7 @@
     instructions:
       - repeats: -1
         size_descriptor: 31002
-        group:
+        instructions:
         - "7063"
         - "8080:13"
         - "33050:coordinates/Depth/metadata/Quality[TestProtocol=gtspp]"
@@ -1487,7 +1491,7 @@
           - "22056"
           - repeats: -1
             size_descriptor: 31002
-            group:
+            instructions:
               - "301011"
               - "301013"
               - "301021"
