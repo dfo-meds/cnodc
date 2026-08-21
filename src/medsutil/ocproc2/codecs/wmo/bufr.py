@@ -609,33 +609,32 @@ class _Bufr4Decoder:
 
     def _parse_node(self, node: DataNode, context: OPSContext):
         try:
-            with context.subcontext() as ctx:
-                context.extras["hierarchy"].append(node.descriptor.id)
-                test_name = "_parse_node_" + str(node.descriptor.id)
+            context.extras["hierarchy"].append(node.descriptor.id)
+            test_name = "_parse_node_" + str(node.descriptor.id)
 
-                # Custom handling
-                if hasattr(self, test_name):
-                    getattr(self, test_name)(node, context)
+            # Custom handling
+            if hasattr(self, test_name):
+                getattr(self, test_name)(node, context)
 
-                # Basic instructions
-                elif isinstance(node, (SequenceNode, ValueDataNode)):
-                    self._apply_instruction(
-                        self.bufr_tables.lookup(node.descriptor.id, self.pybufr_tables),
-                        node,
-                        context
-                    )
+            # Basic instructions
+            elif isinstance(node, (SequenceNode, ValueDataNode)):
+                self._apply_instruction(
+                    self.bufr_tables.lookup(node.descriptor.id, self.pybufr_tables),
+                    node,
+                    context
+                )
 
-                # Replication
-                elif isinstance(node, (DelayedReplicationNode, FixedReplicationNode)):
-                    if node.members:
-                        self._parse_replication_node(node, context)
+            # Replication
+            elif isinstance(node, (DelayedReplicationNode, FixedReplicationNode)):
+                if node.members:
+                    self._parse_replication_node(node, context)
 
-                # Other nodes (usually instructions)
-                else:
-                    descriptor_id = node.descriptor.id
-                    if 200000 <= descriptor_id < 210000:
-                        return
-                    self.warn(f"Unhandled node type: [{node.__class__}]", context)
+            # Other nodes (usually instructions)
+            else:
+                descriptor_id = node.descriptor.id
+                if 200000 <= descriptor_id < 210000:
+                    return
+                self.warn(f"Unhandled node type: [{node.__class__}]", context)
         except Exception as ex:
             ex.add_note(f"Node: {node.__class__}: {node}: {node.descriptor.id}")
             raise
