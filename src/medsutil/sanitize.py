@@ -27,11 +27,23 @@ UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u
 
 
 def clean_wmo_id(wmo_id: str):
-    ...
+    if not wmo_id:
+        return None
+    wmo_id = str(wmo_id)
+    if len(wmo_id) <= 5:
+        wmo_id = wmo_id.zfill(5)
+        return f"{wmo_id[0:2]}00{wmo_id[2:]}"
+    elif len(wmo_id) == 7:
+        return wmo_id
+    elif len(wmo_id) > 7:
+        raise ValueError("Invalid WMO ID")
+    else:
+        return wmo_id.zfill(7)
+
 
 
 def clean_wigos_id(wigos_id: str):
-    ...
+    return wigos_id
 
 
 def netcdf_bytes_to_string(byte_sequence: str | t.ByteString, encoding='utf-8') -> str:

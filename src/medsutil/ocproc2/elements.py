@@ -668,7 +668,10 @@ class ElementMap(LazyLoadDict[AbstractElement]):
     def best[T,Y](self, item: str, default=None, coerce=None):
         """Find the best value for the given element name, or the default if it is not set."""
         try:
-            return self._load(item).best(coerce=coerce)
+            x = self._load(item).best(coerce=coerce)
+            if x is not None:
+                return x
+            return default
         except KeyError:
             return default
 

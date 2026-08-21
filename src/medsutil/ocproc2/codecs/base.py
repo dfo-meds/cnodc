@@ -165,22 +165,25 @@ class BaseCodec:
              file: t.Union[ct.SupportsBinaryRead, t.ByteString, ct.ByteStrings, ct.PathLike],
              chunk_size: int = None,
              **kwargs) -> t.Iterable[ParentRecord]:
-        if ct.is_binary_readable(file):
-            yield from self.decode_messages(
-                self._read_in_chunks(file, chunk_size),
-                **kwargs
-            )
-        elif isinstance(file, (bytes, bytearray, memoryview)):
+        # most common use case, for database loading
+        if isinstance(file, (bytes, bytearray, memoryview)):
             yield from self.decode_messages(
                 BaseCodec._yield_bytes(file),
                 **kwargs
             )
+        # next more common use case, for file loading
         elif isinstance(file, (str, os.PathLike, pathlib.Path)):
             with open(file, "rb") as h:
                 yield from self.decode_messages(
                     self._read_in_chunks(h, chunk_size),
                     **kwargs
                 )
+        # binary readable files
+        elif ct.is_binary_readable(file):
+            yield from self.decode_messages(
+                self._read_in_chunks(file, chunk_size),
+                **kwargs
+            )
         else:
             yield from self.decode_messages(file, **kwargs)
 

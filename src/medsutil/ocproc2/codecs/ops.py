@@ -99,7 +99,7 @@ class Instruction:
 
             raise OceanProcessingSchemaError("Unrecognized instruction", 3000)
         except Exception as ex:
-            ex.add_note(f"Instruction: {str(instruction)}")
+            ex.add_note("Instruction: " + str(instruction))
             raise
 
     @staticmethod
@@ -508,7 +508,7 @@ class ElementInstruction(SingleValueInstruction):
         try:
             self.data_type = DataType(data_type) if not isinstance(data_type, DataType) else data_type
         except ValueError as ex:
-            raise OceanProcessingSchemaError(f"Invalid data type", 1300) from ex
+            raise OceanProcessingSchemaError("Invalid data type", 1300) from ex
         self.metadata = metadata
         self.remove_metadata = remove_metadata
         self.component = component
@@ -656,14 +656,16 @@ class ElementInstruction(SingleValueInstruction):
 
     def _get_common_element(self, context: OPSContext) -> RawValue:
         values = set()
+        n_values = 0
         _, metadata_name = self.element_path.split('/', maxsplit=1)
         for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.use_current_record):
             v = self._process_element(element.metadata.get(metadata_name, None), context)
             if v is not None:
                 values.add(v)
-        if len(values) == 0:
+                n_values += 1
+        if n_values == 0:
             return None
-        elif len(values) == 1:
+        elif n_values == 1:
             return list(values)[0]
         else:
             raise OceanProcessingSchemaError("Multiple common elements detected", 1000)
@@ -701,12 +703,14 @@ class ElementInstruction(SingleValueInstruction):
     def _find_best_value(self, v: AbstractElement) -> SingleElement | None:
         if self.filters is not None and self.filters:
             passed_values = []
+            n_passed = 0
             for s in v.all_values():
                 if all(s.metadata.best(x) == y for x, y in self.filters.items()):
                     passed_values.append(s)
-            if len(passed_values) == 0:
+                    n_passed += 1
+            if n_passed == 0:
                 return None
-            elif len(passed_values) == 1:
+            elif n_passed == 1:
                 v = passed_values[0]
             else:
                 v = MultiElement(passed_values, _skip_normalization=True)
@@ -784,7 +788,7 @@ class OPSContext:
             self.names = names
             self.iterate_into_recordset = iterate_into_recordset
 
-        def __deepcopy__(self, memo):
+        def __copy__(self):
             return OPSContext.FutureMetadata(
                 element=self.element,
                 rs_types=self.rs_types,
@@ -808,9 +812,21 @@ class OPSContext:
         old_futures = self._future_metadata
         old_futures_rs = self._future_rs_metadata
         try:
-            self.extras = copy.deepcopy(self.extras)
-            self._future_metadata = copy.deepcopy(self._future_metadata)
-            self._future_rs_metadata = copy.deepcopy(self._future_rs_metadata)
+            self.extras = {x: copy.copy(y) for x, y in self.extras.items()}
+            self._future_metadata = {
+                k: {
+                    sk: copy.copy(sd)
+                    for sk, sd in d.items()
+                }
+                for k, d in self._future_metadata.items()
+            }
+            self._future_rs_metadata = {
+                k: {
+                    sk: copy.copy(sd)
+                    for sk, sd in d.items()
+                }
+                for k, d in self._future_rs_metadata.items()
+            }
             yield self
         finally:
             self.extras = old_extras

@@ -44,6 +44,8 @@ class BufrCodeMap:
                 str(x): self.prestandardize_instruction(raw[x], descriptor=int(x))
                 for x in raw
             }
+        self._instruction_cache: dict[str, Instruction] = {}
+        self._table_id: tuple | None = None
 
     def prestandardize_instruction(self,
                                    instruction: str | dict,
@@ -127,13 +129,33 @@ class BufrCodeMap:
                table_group: BufrTableGroup,
                _helper: t.Callable | None = None,
                _common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
+
+        # handle lookup cache
+        table_group_id = table_group.B.table_group_key
+        if table_group_id != self._table_id:
+            self._instruction_cache.clear()
+            self._table_id = table_group_id
+
         key = str(int(descriptor_id))
+
+        if not _common_kwargs:
+            if key not in self._instruction_cache:
+                self._instruction_cache[key] = self._lookup(key, table_group, _helper)
+            return self._instruction_cache[key]
+        else:
+            return self._lookup(key, table_group, _helper, _common_kwargs)
+
+    def _lookup(self,
+               key: str,
+               table_group: BufrTableGroup,
+               _helper: t.Callable | None = None,
+               _common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
         if key in self._bufr_map:
             if isinstance(self._bufr_map[key], dict):
                 base_map = {
                     '__looked_up': True
                 }
-                base_map.update(self.get_table_group_arguments(int(descriptor_id), table_group))
+                base_map.update(self.get_table_group_arguments(int(key), table_group))
                 base_map.update(t.cast(dict, self._bufr_map[key]))
             else:
                 base_map = self._bufr_map[key]
@@ -486,6 +508,7 @@ class _Bufr4Encoder:
 
     def _build_from_repeat_group(self, instruction: RepeatGroup, context: OPSContext) -> t.Generator[EncodeElement, None, None]:
         groups = []
+        l_groups = 0
         for instruction_list in instruction.iterate_repeats(context):
             group: list[EncodeElement] = []
             for x in instruction_list:
@@ -494,10 +517,11 @@ class _Bufr4Encoder:
             if all(x.can_omit() for x in group):
                 continue
             groups.append(group)
-            if instruction.repeats is not None and 0 < instruction.repeats <= len(groups):
+            l_groups += 1
+            if instruction.repeats is not None and 0 < instruction.repeats <= l_groups:
                 break
         if "size_descriptor" in instruction.extras:
-            yield EncodeElement(int(instruction.extras["size_descriptor"]), len(groups), len(groups) == 0)
+            yield EncodeElement(int(instruction.extras["size_descriptor"]), l_groups, l_groups == 0)
         for group in groups:
             yield from group
 
@@ -530,8 +554,11 @@ class _Bufr4Decoder:
 
     def convert_to_records(self) -> t.Iterable[ocproc2.ParentRecord]:
         pieces = self.header.split(' ')
-        if len(pieces) > 3 and pieces[3][0] in ('C', 'A', 'P'):
-            raise CNODCError("BUFR decoder not configured to properly handle CCx AAx or Pxx messages", "BUFR_DECODE", 1000)
+        try:
+            if pieces[3][0] in ('C', 'A', 'P'):
+                raise CNODCError("BUFR decoder not configured to properly handle CCx AAx or Pxx messages", "BUFR_DECODE", 1000)
+        except IndexError:
+            pass
         descriptors = list(x for x in self.message.unexpanded_descriptors.value)
         common_metadata = {
             'GTSHeader': self.header,
@@ -558,7 +585,7 @@ class _Bufr4Decoder:
     def _convert_subset_to_record(self, subset_number: int, common_metadata: dict) -> ocproc2.ParentRecord:
         context = OPSContext(ocproc2.ParentRecord())
         context.extras["subset"] = subset_number
-        context.extras["hierarchy"] = [f"SN{subset_number}"]
+        context.extras["hierarchy"] = [str(subset_number)]
         context.parent.metadata.update(common_metadata)
         context.parent.metadata["BUFRSubsetIndex"] = subset_number
         self._iterate_on_nodes(
@@ -583,7 +610,7 @@ class _Bufr4Decoder:
     def _parse_node(self, node: DataNode, context: OPSContext):
         with context.subcontext() as ctx:
             context.extras["hierarchy"].append(node.descriptor.id)
-            test_name = f"_parse_node_{node.descriptor.id}"
+            test_name = "_parse_node_" + str(node.descriptor.id)
 
             # Custom handling
             if hasattr(self, test_name):
@@ -839,7 +866,7 @@ class _Bufr4Decoder:
             value = clean_wmo_id("".join((
                 str(elements[0]).zfill(2),
                 str(elements[1]).zfill(2),
-                str(elements[0]).zfill(5)
+                str(elements[2]).zfill(5)
             )))
         return value
 
