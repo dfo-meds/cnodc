@@ -15,6 +15,7 @@ dmd_metadata:
       en: NetCDF File (OpenGlider)
       fr: Ficher NetCDF (OpenGlider)
       guid: distribute_openglider
+      gzip: True
     - url_prefix: "https://cnodc-cndoc.azure.cloud-nuage.dfo-mpo.gc.ca/public/data-donnees/gliders/ego"
       en: NetCDF File (EGO)
       fr: Ficher NetCDF (EGO)

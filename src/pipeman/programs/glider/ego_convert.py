@@ -248,7 +248,7 @@ class OpenGliderConverter:
         if 'public_paths' in metadata_config and metadata_config['public_paths']:
             for pp_info in metadata_config['public_paths']:
                 dmd.add_file_direct_link(
-                    f"{pp_info['url_prefix'].rstrip('/')}/{file_name}",
+                    f"{pp_info['url_prefix'].rstrip('/')}/{file_name}{".gz" if pp_info.get("gzip", False) else ""}",
                     {
                         "en": pp_info['en'],
                         "fr": pp_info['fr'],
