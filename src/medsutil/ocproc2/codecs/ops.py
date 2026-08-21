@@ -36,37 +36,43 @@ class Instruction:
 
     @staticmethod
     def parse_instructions(instructions: list[dict | str],
-                           builder: t.Callable[[dict | str, t.Callable | None], Instruction] | None = None) -> list[Instruction]:
+                           builder: t.Callable[[dict | str, t.Callable | None, t.Callable | None], Instruction | None] | None = None,
+                           standardizer: t.Callable[[dict | str], dict | str] | None = None) -> list[Instruction]:
         built = []
         for instruction in instructions:
-            built.append(Instruction.parse_instruction(instruction, builder))
+            built.append(Instruction.parse_instruction(instruction, builder, standardizer))
         return built
 
     @staticmethod
-    def parse_instruction(instruction: dict | str, builder: t.Callable[[dict | str, t.Callable | None], Instruction | None] = None) -> Instruction:
+    def parse_instruction(instruction: dict | str,
+                          builder: t.Callable[[dict | str, t.Callable | None, t.Callable | None], Instruction | None] = None,
+                          standardizer: t.Callable[[dict | str], dict | str] | None = None) -> Instruction:
+
+        if standardizer is not None:
+            instruction = standardizer(instruction)
 
         if isinstance(instruction, dict):
             if "context" in instruction and instruction["context"]:
                 return ContextInstruction(
                     context={
-                        k: Instruction.parse_instruction(d, builder)
+                        k: Instruction.parse_instruction(d, builder, standardizer)
                         for k, d in instruction["context"].items()
                     },
                     default_instruction=Instruction.parse_instruction(
                         {k: v for k, v in instruction.items() if k != "context"},
-                        builder
+                        builder, standardizer
                     )
                 )
 
             if "instruction_map" in instruction and instruction["instruction_map"]:
                 return ValueMappedInstruction(
                     instruction_map={
-                        k: Instruction.parse_instruction(v, builder)
+                        k: Instruction.parse_instruction(v, builder, standardizer)
                         for k, v in instruction["instruction_map"].items()
                     },
                     default_instruction=Instruction.parse_instruction(
                         {k: v for k, v in instruction.items() if k != "instruction_map"},
-                        builder
+                        builder, standardizer
                     )
                 )
 
@@ -83,12 +89,12 @@ class Instruction:
             if "encode" in instruction or "decode" in instruction:
                 return EncodeDecodeGroup(
                     encode_instruction=(
-                        Instruction.parse_instruction(instruction["encode"], builder)
+                        Instruction.parse_instruction(instruction["encode"], builder, standardizer)
                         if "encode" in instruction and instruction["encode"]
                         else NoopInstruction()
                     ),
                     decode_instruction=(
-                        Instruction.parse_instruction(instruction["decode"], builder)
+                        Instruction.parse_instruction(instruction["decode"], builder, standardizer)
                         if "decode" in instruction and instruction["decode"]
                         else NoopInstruction()
                     )
@@ -101,7 +107,7 @@ class Instruction:
                 )
 
             if "instructions" in instruction:
-                instruction_list = Instruction.parse_instructions(instruction["instructions"], builder=builder)
+                instruction_list = Instruction.parse_instructions(instruction["instructions"], builder, standardizer)
                 kwargs = {k: v for k, v in instruction.items() if k != "instructions"}
                 if "recordset_type" in instruction:
                     if "repeats" in instruction:
@@ -126,7 +132,7 @@ class Instruction:
                     )
 
         if builder is not None:
-            res = builder(instruction, builder)
+            res = builder(instruction, builder, standardizer)
             if res is not None:
                 return res
 

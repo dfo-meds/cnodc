@@ -41,11 +41,13 @@ class BufrCodeMap:
         with open(root / "bufr_map2.yaml", "r") as h:
             raw = yaml.safe_load(h.read()) or {}
             self._bufr_map: dict[str, dict] = {
-                str(x): self.standardize_instruction(raw[x], int(x))
+                str(x): self.standardize_instruction(raw[x], descriptor=int(x))
                 for x in raw
             }
 
-    def standardize_instruction(self, instruction: str | dict, descriptor: int | None = None) -> dict:
+    def standardize_instruction(self,
+                                instruction: str | dict,
+                                descriptor: int | None = None) -> dict:
         """ Rewrite incoming instructions to make sure they're compatible with OPS. """
         if isinstance(instruction, str):
             extras = {}
@@ -85,7 +87,8 @@ class BufrCodeMap:
 
     def parse_ops_element(self,
                           x: dict | str,
-                          c: t.Callable | None,
+                          builder: t.Callable | None,
+                          standardizer: t.Callable | None,
                           table_group: BufrTableGroup) -> Instruction | None:
         if isinstance(x, dict):
             if "dynamic_load" in x and x["dynamic_load"]:
@@ -98,7 +101,7 @@ class BufrCodeMap:
         if hasattr(lookup, 'unit'):
             if lookup.unit.upper() in ('CCITT IA5',):
                 kwargs["data_type"] = DataType.STRING
-            elif lookup.unit.upper() in ("CODE TABLE"):
+            elif lookup.unit.upper() in ("CODE TABLE",):
                 kwargs["data_type"] = DataType.INTEGER
             elif lookup.unit.upper() in ("NUMERIC",):
                 kwargs["data_type"] = DataType.FLOAT
@@ -115,12 +118,13 @@ class BufrCodeMap:
         key = str(int(descriptor_id))
         if key in self._bufr_map:
             base_map = {
-                x: y for x, y in self.get_table_group_arguments(int(descriptor_id), table_group)
+                x: y for x, y in self.get_table_group_arguments(int(descriptor_id), table_group).items()
             }
             base_map.update(self._bufr_map[key])
             instruction = Instruction.parse_instruction(
                 base_map,
-                functools.partial(self.parse_ops_element, table_group=table_group)
+                functools.partial(self.parse_ops_element, table_group=table_group),
+                self.standardize_instruction
             )
             return instruction
         raise ValueError("No bufr instruction defined")
