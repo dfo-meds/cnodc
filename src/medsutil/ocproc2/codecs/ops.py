@@ -31,116 +31,76 @@ class DataType(enum.Enum):
 
 class Instruction:
 
+    _factories: t.ClassVar[list[type[Instruction]] | None] = None
+
     def __init__(self, **kwargs):
         self.extras: dict[str, t.Any] = kwargs
 
     @staticmethod
+    def register_factory(factory: type[Instruction]):
+        if Instruction._factories is None:
+            Instruction._factories = []
+        Instruction._factories.append(factory)
+
+    @staticmethod
+    def factories() -> list[type[Instruction]]:
+        return Instruction._factories or []
+
+    @classmethod
+    def build(cls,
+              instruction: dict[str, t.Any] | None = None,
+              my_extras: dict[str, t.Any] | None = None,
+              parent_extras: dict[str, t.Any] | None = None,
+              omit_keys: t.Container[str] | None = None):
+        kwargs = {}
+        if parent_extras:
+            kwargs.update(parent_extras)
+        if my_extras:
+            kwargs.update(my_extras)
+        if instruction:
+            kwargs.update(instruction)
+        if omit_keys:
+            return cls(**{k: v for k, v in kwargs.items() if k not in omit_keys})
+        else:
+            return cls(**kwargs)
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        raise NotImplementedError
+
+    @staticmethod
     def parse_instructions(instructions: list[dict | str],
-                           builder: t.Callable[[dict | str, t.Callable | None, t.Callable | None], Instruction | None] | None = None,
-                           standardizer: t.Callable[[dict | str], dict | str] | None = None) -> list[Instruction]:
+                          helper: t.Callable[[dict | str, dict | None, t.Callable | None], dict | str | Instruction] | None = None) -> list[Instruction]:
         built = []
         for instruction in instructions:
-            built.append(Instruction.parse_instruction(instruction, builder, standardizer))
+            built.append(Instruction.parse_instruction(instruction, helper))
         return built
 
     @staticmethod
-    def parse_instruction(instruction: dict | str,
-                          builder: t.Callable[[dict | str, t.Callable | None, t.Callable | None], Instruction | None] = None,
-                          standardizer: t.Callable[[dict | str], dict | str] | None = None) -> Instruction:
+    def parse_instruction(instruction: dict | str | Instruction,
+                          helper: t.Callable[[dict | str, dict | None, t.Callable | None], dict | str | Instruction] | None = None,
+                          common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
+        try:
+            if helper is not None and not isinstance(instruction, Instruction):
+                instruction = helper(instruction, common_kwargs, helper)
 
-        if standardizer is not None:
-            instruction = standardizer(instruction)
+            if not isinstance(instruction, Instruction):
+                for instruction_type in Instruction.factories():
+                    res = instruction_type.factory(instruction, common_kwargs, helper)
+                    if res is not None:
+                        instruction = res
+                        break
 
-        if isinstance(instruction, dict):
-            if "context" in instruction and instruction["context"]:
-                return ContextInstruction(
-                    context={
-                        k: Instruction.parse_instruction(d, builder, standardizer)
-                        for k, d in instruction["context"].items()
-                    },
-                    default_instruction=Instruction.parse_instruction(
-                        {k: v for k, v in instruction.items() if k != "context"},
-                        builder, standardizer
-                    )
-                )
+            if isinstance(instruction, Instruction):
+                return instruction
 
-            if "instruction_map" in instruction and instruction["instruction_map"]:
-                return ValueMappedInstruction(
-                    instruction_map={
-                        k: Instruction.parse_instruction(v, builder, standardizer)
-                        for k, v in instruction["instruction_map"].items()
-                    },
-                    default_instruction=Instruction.parse_instruction(
-                        {k: v for k, v in instruction.items() if k != "instruction_map"},
-                        builder, standardizer
-                    )
-                )
-
-            if "instruction" in instruction and instruction["instruction"]:
-                kwargs = {k: v for k, v in instruction.items() if k != "instruction"}
-                match instruction["instruction"]:
-                    case "noop":
-                        return NoopInstruction(**kwargs)
-                    case "scale_factor":
-                        return ScaleFactorInstruction(**kwargs)
-                    case "skip":
-                        return SkipDecodeInstruction(**kwargs)
-
-            if "encode" in instruction or "decode" in instruction:
-                return EncodeDecodeGroup(
-                    encode_instruction=(
-                        Instruction.parse_instruction(instruction["encode"], builder, standardizer)
-                        if "encode" in instruction and instruction["encode"]
-                        else NoopInstruction()
-                    ),
-                    decode_instruction=(
-                        Instruction.parse_instruction(instruction["decode"], builder, standardizer)
-                        if "decode" in instruction and instruction["decode"]
-                        else NoopInstruction()
-                    )
-                )
-
-            if "element" in instruction:
-                return ElementInstruction(
-                    **Instruction.parse_element_for_tags(instruction["element"]),
-                    **{k: v for k, v in instruction.items() if k != "element"}
-                )
-
-            if "instructions" in instruction:
-                instruction_list = Instruction.parse_instructions(instruction["instructions"], builder, standardizer)
-                kwargs = {k: v for k, v in instruction.items() if k != "instructions"}
-                if "recordset_type" in instruction:
-                    if "repeats" in instruction:
-                        return RecordSetRepeatInstructionGroup(
-                            instructions=instruction_list,
-                            **kwargs
-                        )
-                    else:
-                        return RecordSetInstructionGroup(
-                            instructions=instruction_list,
-                            **kwargs
-                        )
-                elif "repeats" in instruction:
-                    return RecordRepeatInstructionGroup(
-                        instructions=instruction_list,
-                        **kwargs
-                    )
-                else:
-                    return InstructionGroup(
-                        instructions=instruction_list,
-                        **kwargs
-                    )
-            if "value" in instruction:
-                return StaticInstruction(**instruction)
-
-        if builder is not None:
-            res = builder(instruction, builder, standardizer)
-            if res is not None:
-                return res
-
-        ex = OceanProcessingSchemaError("Unrecognized instruction", 3000)
-        ex.add_note(str(instruction))
-        raise ex
+            raise OceanProcessingSchemaError("Unrecognized instruction", 3000)
+        except Exception as ex:
+            ex.add_note(f"Instruction: {str(instruction)}")
+            raise
 
     @staticmethod
     def parse_element_for_tags(element: str) -> dict:
@@ -167,6 +127,18 @@ class SkipDecodeInstruction(Instruction):
     def raise_exception(self):
         raise SkipDecodeInterrupt
 
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if instruction.get("instruction", "") == "skip":
+                return cls.build(instruction, extras, omit_keys={"instruction"})
+        elif instruction == "skip":
+            return cls.build(None, extras, omit_keys={"instruction"})
+        return None
+
 
 class InstructionGroup(Instruction):
 
@@ -176,6 +148,19 @@ class InstructionGroup(Instruction):
 
     def iterate_instructions(self, context: OPSContext) -> t.Iterable[Instruction]:
         yield from self.instructions
+
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "instructions" in instruction and "recordset_type" not in instruction and "repeats" not in instruction:
+                return cls.build({
+                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
+                }, instruction, extras)
+        return None
 
 
 class RecordSetInstructionGroup(InstructionGroup):
@@ -206,6 +191,17 @@ class RecordSetInstructionGroup(InstructionGroup):
             with context.recordset_context(rs, self.recordset_type):
                 yield from self.instructions
 
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "instructions" in instruction and "recordset_type" in instruction and "repeats" not in instruction:
+                return cls.build({
+                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
+                }, instruction, extras)
+        return None
 
 class RepeatGroup(Instruction):
 
@@ -217,6 +213,7 @@ class RepeatGroup(Instruction):
 
     def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
         ...
+
 
 class RecordRepeatInstructionGroup(RepeatGroup):
 
@@ -231,6 +228,18 @@ class RecordRepeatInstructionGroup(RepeatGroup):
             for record in context.recordset.records.iterate_with_load():
                 with context.record_context(record):
                     yield self.instructions
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "instructions" in instruction and "recordset_type" not in instruction and "repeats" in instruction:
+                return cls.build({
+                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
+                }, instruction, extras)
+        return None
 
 class RecordSetRepeatInstructionGroup(RepeatGroup):
 
@@ -260,6 +269,19 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
                 with context.recordset_context(rs, self.recordset_type):
                     yield self.instructions
 
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "instructions" in instruction and "recordset_type" in instruction and "repeats" in instruction:
+                return cls.build({
+                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
+                }, instruction, extras)
+        return None
+
+
 class SingleValueInstruction(Instruction):
 
     def set_value(self, value: RawValue | AbstractElement, metadata: dict, context: OPSContext, **kwargs):
@@ -283,13 +305,46 @@ class StaticInstruction(SingleValueInstruction):
     def set_value(self, value: RawValue | AbstractElement, metadata: dict, context: OPSContext, **kwargs):
         ...
 
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "value" in instruction:
+                return cls.build(instruction, extras)
+        return None
+
 
 class NoopInstruction(Instruction):
-    ...
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if instruction.get("instruction", "") == "noop":
+                return cls.build(instruction, extras, omit_keys={"instruction"})
+        elif instruction == "noop":
+            return cls.build(None, extras, omit_keys={"instruction"})
+        return None
+
 
 
 class ScaleFactorInstruction(Instruction):
-    ...
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if instruction.get("instruction", "") == "scale_factor":
+                return cls.build(instruction, extras, omit_keys={"instruction"})
+        elif instruction == "scale_factor":
+            return cls.build(None, extras, omit_keys={"instruction"})
+        return None
 
 
 class ContextInstruction(Instruction):
@@ -308,6 +363,22 @@ class ContextInstruction(Instruction):
                 return self._context[x]
         return self._default
 
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "context" in instruction and instruction["context"]:
+                kwargs = {k: d for k, d in instruction.items() if k != "context"}
+                return cls.build({
+                    "context": {
+                        k: Instruction.parse_instruction(d, helper, kwargs)
+                        for k, d in instruction["context"].items()
+                    }
+                })
+        return None
+
 
 class EncodeDecodeGroup(Instruction):
 
@@ -321,6 +392,30 @@ class EncodeDecodeGroup(Instruction):
             return self.encode
         else:
             return self.decode
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            encode_group: str | dict | None = instruction.get("encode", None)
+            decode_group: str | dict | None = instruction.get("decode", None)
+            if encode_group or decode_group:
+                kwargs = {k: d for k, d in instruction.items() if k not in ("encode", "decode",)}
+                return cls.build({
+                    "encode_instruction": (
+                        Instruction.parse_instruction(encode_group, helper, kwargs)
+                        if encode_group else
+                        NoopInstruction()
+                    ),
+                    "decode_instruction": (
+                        Instruction.parse_instruction(decode_group, helper, kwargs)
+                        if decode_group else
+                        NoopInstruction()
+                    )
+                })
+        return None
 
 
 class ValueMappedInstruction(Instruction):
@@ -337,6 +432,25 @@ class ValueMappedInstruction(Instruction):
         if value in self._instruction_map:
             return self._instruction_map[value]
         return self._default
+
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "instruction_map" in instruction and instruction["instruction_map"]:
+                kwargs = {}
+                if extras:
+                    kwargs.update(extras)
+                kwargs.update({k: d for k, d in instruction.items() if k != "instruction_map"})
+                return cls.build({
+                    "instruction_map": {
+                        k: Instruction.parse_instruction(d, helper, kwargs)
+                        for k, d in instruction["instruction_map"].items()
+                    }
+                })
+        return None
 
 
 class WorstQualityInstruction(SingleValueInstruction):
@@ -616,6 +730,20 @@ class ElementInstruction(SingleValueInstruction):
         else:
             return value
 
+    @classmethod
+    def factory(cls,
+                instruction: dict[str, t.Any] | str,
+                extras: dict[str, t.Any] | None = None,
+                helper: t.Callable | None = None) -> Instruction | None:
+        if isinstance(instruction, dict):
+            if "element" in instruction:
+                return cls.build(
+                    Instruction.parse_element_for_tags(instruction["element"]),
+                    instruction,
+                    extras,
+                )
+        return None
+
     @staticmethod
     def convert_duration(duration: str, output_units: str) -> float:
         from medsutil.iso_duration import ISODuration, DurationUnit
@@ -625,6 +753,22 @@ class ElementInstruction(SingleValueInstruction):
         except ValueError:
             raise OceanProcessingSchemaError("Invalid output units", 1900)
         return isod.to_duration(ou)
+
+Instruction.register_factory(ElementInstruction)
+Instruction.register_factory(StaticInstruction)
+
+Instruction.register_factory(InstructionGroup)
+Instruction.register_factory(RecordSetInstructionGroup)
+Instruction.register_factory(RecordRepeatInstructionGroup)
+Instruction.register_factory(RecordSetRepeatInstructionGroup)
+
+Instruction.register_factory(ContextInstruction)
+Instruction.register_factory(ValueMappedInstruction)
+Instruction.register_factory(EncodeDecodeGroup)
+
+Instruction.register_factory(NoopInstruction)
+Instruction.register_factory(SkipDecodeInstruction)
+Instruction.register_factory(ScaleFactorInstruction)
 
 
 class OPSContext:

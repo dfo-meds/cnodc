@@ -40,16 +40,20 @@ class BufrCodeMap:
         root = pathlib.Path(__file__).absolute().parent
         with open(root / "bufr_map2.yaml", "r") as h:
             raw = yaml.safe_load(h.read()) or {}
-            self._bufr_map: dict[str, dict] = {
-                str(x): self.standardize_instruction(raw[x], descriptor=int(x))
+            self._bufr_map: dict[str, dict | str | Instruction] = {
+                str(x): self.prestandardize_instruction(raw[x], descriptor=int(x))
                 for x in raw
             }
 
-    def standardize_instruction(self,
-                                instruction: str | dict,
-                                descriptor: int | None = None) -> dict:
-        """ Rewrite incoming instructions to make sure they're compatible with OPS. """
-        if isinstance(instruction, str):
+    def prestandardize_instruction(self,
+                                   instruction: str | dict,
+                                   descriptor: int | None = None) -> dict | str:
+        if isinstance(instruction, int):
+            instruction = {
+                "descriptor": instruction,
+                "dynamic_lookup": True,
+            }
+        elif isinstance(instruction, str):
             extras = {}
             if instruction.endswith("[optional]"):
                 extras['is_optional'] = True
@@ -58,42 +62,53 @@ class BufrCodeMap:
                 extras['can_omit'] = True
                 instruction = instruction[:-7]
             if instruction.isdigit():
-                return {
-                    "descriptor": int(instruction),
-                    "dynamic_load": True,
-                    **extras
-                }
-            if instruction == "noop":
-                return {"instruction": "noop"}
-            if ":" in instruction:
-                d, instruction = instruction.split(":", maxsplit=1)
-                descriptor = int(d)
-            if "/" in instruction:
-                return {
-                    "element": instruction,
-                    "descriptor": descriptor,
+                instruction = {
+                    "descriptor": int(str(instruction)),
+                    "dynamic_lookup": True,
                     **extras
                 }
             else:
-                return {
-                    "value": instruction,
-                    "descriptor": descriptor,
-                    **extras
-                }
-        else:
-            if descriptor is not None:
-                instruction["descriptor"] = descriptor
+                if ":" in instruction:
+                    d, instruction = instruction.split(":", maxsplit=1)
+                    descriptor = int(d)
+                if "/" in instruction:
+                    instruction = {
+                        "element": instruction,
+                        "descriptor": descriptor,
+                        **extras
+                    }
+                else:
+                    instruction = {
+                        "value": instruction,
+                        "descriptor": descriptor,
+                        **extras
+                    }
+        elif descriptor is not None:
+            instruction["descriptor"] = descriptor
         return instruction
 
-    def parse_ops_element(self,
-                          x: dict | str,
-                          builder: t.Callable | None,
-                          standardizer: t.Callable | None,
-                          table_group: BufrTableGroup) -> Instruction | None:
-        if isinstance(x, dict):
-            if "dynamic_load" in x and x["dynamic_load"]:
-                return self.lookup(x["descriptor"], table_group=table_group)
-        return None
+    def standardize_instruction(self,
+                                instruction: str | dict | Instruction,
+                                common_kwargs: dict | None,
+                                helper: t.Callable | None,
+                                table_group: BufrTableGroup) -> dict | str | Instruction:
+        """ Rewrite incoming instructions to make sure they're compatible with OPS. """
+        if isinstance(instruction, Instruction):
+            return instruction
+        print(instruction)
+        instruction = self.prestandardize_instruction(instruction)
+        print(instruction)
+        if isinstance(instruction, dict):
+            if instruction.get("dynamic_lookup", False):
+                instruction = self.lookup(int(instruction["descriptor"]), table_group, helper, common_kwargs)
+            elif "__looked_up" not in instruction and "descriptor" in instruction:
+                for k, v in self.get_table_group_arguments(int(instruction["descriptor"]), table_group).items():
+                    if k not in instruction:
+                        instruction[k] = v
+        print(instruction)
+        print(common_kwargs)
+        print("====")
+        return instruction
 
     def get_table_group_arguments(self, descriptor_id: int, table_group: BufrTableGroup) -> dict[str, t.Any]:
         kwargs = {}
@@ -114,17 +129,23 @@ class BufrCodeMap:
 
     def lookup(self,
                descriptor_id : int | str,
-               table_group: BufrTableGroup) -> Instruction:
+               table_group: BufrTableGroup,
+               _helper: t.Callable | None = None,
+               _common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
         key = str(int(descriptor_id))
         if key in self._bufr_map:
-            base_map = {
-                x: y for x, y in self.get_table_group_arguments(int(descriptor_id), table_group).items()
-            }
-            base_map.update(self._bufr_map[key])
+            if isinstance(self._bufr_map[key], dict):
+                base_map = {
+                    '__looked_up': True
+                }
+                base_map.update(self.get_table_group_arguments(int(descriptor_id), table_group))
+                base_map.update(t.cast(dict, self._bufr_map[key]))
+            else:
+                base_map = self._bufr_map[key]
             instruction = Instruction.parse_instruction(
                 base_map,
-                functools.partial(self.parse_ops_element, table_group=table_group),
-                self.standardize_instruction
+                helper=_helper or functools.partial(self.standardize_instruction, table_group=table_group),
+                common_kwargs=_common_kwargs
             )
             return instruction
         raise ValueError("No bufr instruction defined")
