@@ -50,7 +50,7 @@ class GliderEGOMapper(NetCDFCommonMapper):
                 'SensorType': info['type'].lower(),
                 'SensorMake': info['make'],
                 'SensorModel': info['model'],
-                'SensorSerial': info['serial'],
+                'SensorSerial': info['serial'].lstrip("0") if info["serial"] else None,
                 'SensorLocation': info['location'] if 'location' in info else None
             })
         for key in extra_metadata.keys():
