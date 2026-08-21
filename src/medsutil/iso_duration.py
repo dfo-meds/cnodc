@@ -18,12 +18,12 @@ class DurationUnit(MultiValuedEnum):
 
 class ISODuration(dd.DataDictObject):
 
-    years: int = dd.p_int()
-    months: int = dd.p_int()
-    days: int = dd.p_int()
-    hours: int = dd.p_int()
-    minutes: int = dd.p_int()
-    seconds: int = dd.p_int()
+    years: int = dd.p_int(default=0)
+    months: int = dd.p_int(default=0)
+    days: int = dd.p_int(default=0)
+    hours: int = dd.p_int(default=0)
+    minutes: int = dd.p_int(default=0)
+    seconds: int = dd.p_int(default=0)
 
     def isoformat(self) -> str:
         s = "P"
