@@ -645,12 +645,15 @@ class _Bufr4Decoder:
         map_to = None
         coord_name = None
         for x in descriptors:
-            instruction = self.bufr_tables.lookup(x, self.pybufr_tables)
-            if 'begin_subrecord_type' in instruction.extras:
-                if map_to is not None and instruction.extras["begin_subrecord_type"] != map_to:
-                    self.warn(f"Overriding subrecord type {map_to}", ctx)
-                map_to = instruction.extras["begin_subrecord_type"]
-                coord_name = (x,)
+            try:
+                instruction = self.bufr_tables.lookup(x, self.pybufr_tables)
+                if 'begin_subrecord_type' in instruction.extras:
+                    if map_to is not None and instruction.extras["begin_subrecord_type"] != map_to:
+                        self.warn(f"Overriding subrecord type {map_to}", ctx)
+                    map_to = instruction.extras["begin_subrecord_type"]
+                    coord_name = (x,)
+            except ValueError:
+                continue
         if map_to is None and n_repeats > 1 and any(x in descriptors for x in (4021, 4022, 4023, 4024, 4025, 4026)):
             map_to = "TIME_SERIES"
             coord_name = (4021, 4022, 4023, 4024, 4025, 4026)
