@@ -39,15 +39,18 @@ ALTER TABLE nodb_source_files ADD CONSTRAINT fk_replaces FOREIGN KEY (replaces_u
 DROP INDEX IF EXISTS ix_nodb_working_source_info;
 ALTER TABLE nodb_working ADD COLUMN data_mode CHAR(2) DEFAULT '??';
 ALTER TABLE nodb_working ADD COLUMN quality_checks BIGINT DEFAULT 0;
+ALTER TABLE nodb_working ADD COLUMN observation_identifier VARCHAR(255) DEFAULT NULL;
 
 DROP INDEX IF EXISTS ix_nodb_obs_data_source_info;
 ALTER TABLE nodb_obs_data DROP COLUMN processing_level;
 ALTER TABLE nodb_obs_data ADD COLUMN data_mode CHAR(2) DEFAULT '??';
 ALTER TABLE nodb_obs_data ADD COLUMN quality_checks BIGINT DEFAULT 0;
+ALTER TABLE nodb_obs_data ADD COLUMN observation_identifier VARCHAR(255) DEFAULT NULL;
 
 ALTER TABLE nodb_obs DROP COLUMN processing_level;
 ALTER TABLE nodb_obs ADD COLUMN data_mode CHAR(2) DEFAULT '??';
 ALTER TABLE nodb_obs ADD COLUMN quality_checks BIGINT DEFAULT 0;
+ALTER TABLE nodb_obs ADD COLUMN observation_identifier VARCHAR(255) DEFAULT NULL;
 
 
 -- Finalizer result table

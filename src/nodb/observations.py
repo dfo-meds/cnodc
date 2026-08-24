@@ -465,6 +465,7 @@ class NODBObservation(s.NODBBaseObject):
     quality_checks: int = s.IntColumn(default=0)
     embargo_date: t.Optional[AwareDateTime] = s.DateTimeColumn()
     instrument_types: set[str] = s.JsonSetColumn()
+    observation_identifier: str | None = s.StringColumn()
 
     @classmethod
     def search(cls,
@@ -641,6 +642,7 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     data_mode: DataMode = s.EnumColumn(DataMode, default=DataMode.UNKNOWN)
     quality_checks: int = s.IntColumn(default=0)
     status: ObservationStatus = s.EnumColumn(ObservationStatus, default=ObservationStatus.UNVERIFIED)
+    observation_identifier: str | None = s.StringColumn()
 
     @classmethod
     def prepare_insert(cls, db: interface.NODBInstance, name: str) -> interface.PreparedStatementProtocol:
@@ -766,6 +768,7 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     location: str | None = s.WKTColumn()
     data_mode: DataMode = s.EnumColumn(DataMode, default=DataMode.UNKNOWN)
     quality_checks: int = s.IntColumn(default=0)
+    observation_identifier: str | None = s.StringColumn()
 
     db_created_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
