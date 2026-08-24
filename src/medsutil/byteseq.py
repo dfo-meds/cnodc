@@ -118,7 +118,7 @@ class ByteSequenceReader:
 
     def consume_line(self, exclude_line_endings: bool = True) -> t.ByteString:
         res = self.consume_until([b"\n", b"\r"], include_target=True)
-        if res[-1] == 13 and self[0] == b"\n":
+        if res and res[-1] == 13 and (not self.at_eof()) and self[0] == b"\n":
             self._discard_leading(1)
             if not exclude_line_endings:
                 res += b"\n"
