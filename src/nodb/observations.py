@@ -582,10 +582,9 @@ class NODBObservation(s.NODBBaseObject):
         }, **kwargs)
 
     @classmethod
-    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Optional[
-        NODBWorkingRecord]:
+    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Iterable[NODBObservation]:
         """Find a working record by its identifier"""
-        return db.load_object(cls, {
+        yield from db.stream_objects(cls, {
             "observation_identifier": identifier,
         }, **kwargs)
 
@@ -713,10 +712,9 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         }, **kwargs)
 
     @classmethod
-    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Optional[
-        NODBWorkingRecord]:
+    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Iterable[NODBObservationData]:
         """Find a working record by its identifier"""
-        return db.load_object(cls, {
+        yield from db.stream_objects(cls, {
             "observation_identifier": identifier,
         }, **kwargs)
 
@@ -790,9 +788,9 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
 
     @classmethod
-    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Optional[NODBWorkingRecord]:
+    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Iterable[NODBWorkingRecord]:
         """Find a working record by its identifier"""
-        return db.load_object(cls, {
+        yield from db.stream_objects(cls, {
             "observation_identifier": identifier,
         }, **kwargs)
 
