@@ -571,6 +571,7 @@ class _Bufr4Decoder:
             'BUFRMasterTable': self.message.master_table_number.value,
             'BUFRIsObservation': 1 if self.message.is_observation.value else 0,
             'CNODCIsBroadcast': 1,
+            'CNODCDataMode': 'RT',
             'BUFRMessageTime': awaretime.utc_awaretime(
                 year=self.message.year.value,
                 month=self.message.month.value,
