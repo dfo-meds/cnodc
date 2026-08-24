@@ -44,6 +44,7 @@ class AsciiDecoder(GtsSubDecoder):
         record = ParentRecord()
         record.metadata['GTSHeader'] = header
         record.metadata['WMOAsciiCodeForm'] = ascii_message[0:4]
+        record.metadata['CNODCIsBroadcast'] = 1
         self._decode_message(record, ascii_message[4:].strip().split(" "), received_date or AwareDateTime.now())
         return [record]
 
