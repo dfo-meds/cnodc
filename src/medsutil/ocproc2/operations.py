@@ -158,7 +158,7 @@ class PlatformBlocker(Blocker):
 
 
 class SetRelationships(RecordAction):
-    relationships: dict[str, list[list[str]]]
+    relationships: dict[str, list[list[str | bool]]] = dd.p_dict()
 
     def apply(self, record: ParentRecord):
         if not self.relationships:
@@ -166,6 +166,14 @@ class SetRelationships(RecordAction):
                 del record.metadata["CNODCRelationships"]
         else:
             record.metadata["CNODCRelationships"] = self.relationships
+
+
+class SetQualityCheck(RecordAction):
+    check_no: int = dd.p_int()
+
+    def apply(self, record: ParentRecord):
+        check = record.metadata.best("CNODCQualityFlags", default=0, coerce=int)
+        record.metadata["CNODCQualityFlags"] = check | self.check_no
 
 
 class SetPlatformCandidates(RecordAction):

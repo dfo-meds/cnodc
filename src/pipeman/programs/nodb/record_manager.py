@@ -13,7 +13,7 @@ from medsutil.ocproc2.util import Quality
 from nodb.observations import NODBSourceFile, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBPlatform, \
     NODBMission, DataMode, NODBObservationRelationship, ObservationRelationshipType
 from nodb.interface import NODBInstance, LockType
-from medsutil.ocproc2 import OCProc2Ontology, MultiElement, SingleElement
+from medsutil.ocproc2 import OCProc2Ontology, SingleElement
 from medsutil.units import UnitConverter
 from pipeman.programs.dedupe.dedupe import RelationshipAction
 
@@ -38,12 +38,10 @@ class NODBCreationResult:
         self.merge_with = set()
         if RelationshipAction.MERGE in other_items:
             self.merge_with.update(other_items[RelationshipAction.MERGE])
-        if RelationshipAction.REVIEW_MERGE in other_items:
-            self.merge_with.update(other_items[RelationshipAction.REVIEW_MERGE])
         self.relationships = {
             k: v
             for k, v in other_items.items()
-            if k not in (RelationshipAction.REVIEW_MERGE, RelationshipAction.MERGE)
+            if k is not RelationshipAction.MERGE
         }
 
 
@@ -75,29 +73,23 @@ class NODBRecordManager:
                                                 record: ocproc2.ParentRecord,
                                                 message_idx: int,
                                                 record_idx: int,
-                                                source_file: NODBSourceFile,
-                                                data_mode: DataMode,
-                                                quality_flags: int = 0) -> NODBCreationResult:
+                                                source_file: NODBSourceFile) -> NODBCreationResult:
         return self.create_completed_entry(
             record=record,
             message_idx=message_idx,
             record_idx=record_idx,
             source_file_uuid=source_file.source_uuid,
             received_date=source_file.received_date,
-            data_mode=data_mode,
-            quality_flags=quality_flags
         )
 
     def create_completed_entry_from_working_record(self, working: NODBWorkingRecord) -> NODBCreationResult:
         return self.create_completed_entry(
-            record=working.record,
-            message_idx=working.message_idx,
-            record_idx=working.record_idx,
-            source_file_uuid=working.source_file_uuid,
-            received_date=working.received_date,
+            record=t.cast(ocproc2.ParentRecord, working.record),
+            message_idx=t.cast(int, working.message_idx),
+            record_idx=t.cast(int, working.record_idx),
+            source_file_uuid=t.cast(str, working.source_file_uuid),
+            received_date=t.cast(datetime.date, working.received_date),
             original_uuid=working.working_uuid,
-            data_mode=working.data_mode,
-            quality_flags=working.quality_checks
         )
 
     def _check_completed_entry(self,
@@ -128,9 +120,9 @@ class NODBRecordManager:
                                received_date: datetime.date,
                                message_idx: int,
                                record_idx: int,
-                               data_mode: DataMode,
-                               quality_flags: int = 0,
                                original_uuid: str = None,) -> NODBCreationResult:
+        data_mode = DataMode(record.metadata.best("CNODCDataMode", default="??", coerce=str))
+        quality_flags = record.metadata.best("CNODCQualityFlags", default=0, coerce=int)
         check_result = self._check_completed_entry(
             source_file_uuid,
             received_date,
@@ -143,7 +135,7 @@ class NODBRecordManager:
             return NODBCreationResult(check_result[0], datetime.date.fromisoformat(check_result[1]), CreationResultType.COPY_EXISTS)
         self._prune_platform_metadata(record)
         self._prune_mission_metadata(record)
-        obs, obs_data, result = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, data_mode, quality_flags, original_uuid)
+        obs, obs_data, result = self.build_nodb_entry(record, source_file_uuid, received_date, message_idx, record_idx, original_uuid)
         self._prep_obs.execute(obs)
         self._prep_obs_data.execute(obs_data)
         if result.relationships:
@@ -152,45 +144,43 @@ class NODBRecordManager:
                     self.insert_relationship(obs, obs_uuid, obs_date, key)
         return result
 
+    LEFT_STATE_MAPS = {
+        RelationshipAction.A_IS_DUPLICATE: ObservationRelationshipType.IS_DUPLICATE,
+        RelationshipAction.A_IS_DELAYED_MODE: ObservationRelationshipType.IS_BETTER,
+        RelationshipAction.A_IS_BROADCAST: ObservationRelationshipType.IS_BROADCAST,
+        RelationshipAction.A_IS_CORRECTION: ObservationRelationshipType.IS_CORRECTION,
+        RelationshipAction.SUPPLEMENTAL: ObservationRelationshipType.IS_SUPPLEMENTAL,
+    }
+
+    RIGHT_STATE_MAPS = {
+        RelationshipAction.B_IS_DUPLICATE: ObservationRelationshipType.IS_DUPLICATE,
+        RelationshipAction.B_IS_DELAYED_MODE: ObservationRelationshipType.IS_BETTER,
+        RelationshipAction.B_IS_CORRECTION: ObservationRelationshipType.IS_CORRECTION,
+        RelationshipAction.B_IS_BROADCAST: ObservationRelationshipType.IS_BROADCAST,
+    }
+
     def insert_relationship(self,
                             obs: NODBObservation,
                             other_obs_uuid: str,
                             other_obs_date: datetime.date | str,
                             action: RelationshipAction):
         relationship = None
-        match action:
-            case RelationshipAction.MARK_DUPLICATE:
-                relationship = NODBObservationRelationship(
-                    left_obs_uuid=obs.obs_uuid,
-                    left_received_date=obs.received_date,
-                    right_obs_uuid=other_obs_uuid,
-                    right_received_date=other_obs_date,
-                    relationship_type=ObservationRelationshipType.IS_DUPLICATE
-                )
-            case RelationshipAction.MARK_OTHER_DUPLICATE:
-                relationship = NODBObservationRelationship(
-                    left_obs_uuid=other_obs_uuid,
-                    left_received_date=other_obs_date,
-                    right_obs_uuid=obs.obs_uuid,
-                    right_received_date=obs.received_date,
-                    relationship_type=ObservationRelationshipType.IS_DUPLICATE
-                )
-            case RelationshipAction.MARK_THIS_BETTER:
-                relationship = NODBObservationRelationship(
-                    left_obs_uuid=obs.obs_uuid,
-                    left_received_date=obs.received_date,
-                    right_obs_uuid=other_obs_uuid,
-                    right_received_date=other_obs_date,
-                    relationship_type=ObservationRelationshipType.BETTER_QUALITY
-                )
-            case RelationshipAction.MARK_OTHER_BETTER:
-                relationship = NODBObservationRelationship(
-                    left_obs_uuid=other_obs_uuid,
-                    left_received_date=other_obs_date,
-                    right_obs_uuid=obs.obs_uuid,
-                    right_received_date=obs.received_date,
-                    relationship_type=ObservationRelationshipType.BETTER_QUALITY
-                )
+        if action in self.LEFT_STATE_MAPS:
+            relationship = NODBObservationRelationship(
+                left_obs_uuid=obs.obs_uuid,
+                left_received_date=obs.received_date,
+                right_obs_uuid=other_obs_uuid,
+                right_received_date=other_obs_date,
+                relationship_type=self.LEFT_STATE_MAPS[action]
+            )
+        elif action in self.RIGHT_STATE_MAPS:
+            relationship = NODBObservationRelationship(
+                left_obs_uuid=other_obs_uuid,
+                left_received_date=other_obs_date,
+                right_obs_uuid=obs.obs_uuid,
+                right_received_date=obs.received_date,
+                relationship_type=self.RIGHT_STATE_MAPS[action]
+            )
         if relationship is not None and not relationship.exists(self._db):
             self._db.insert_object(relationship)
 
@@ -200,8 +190,6 @@ class NODBRecordManager:
                          received_date: datetime.date,
                          message_idx: int,
                          record_idx: int,
-                         data_mode: DataMode,
-                         quality_flags: int = 0,
                          original_uuid: str = None) -> tuple[
             NODBObservation, NODBObservationData, NODBCreationResult
         ]:
@@ -213,15 +201,11 @@ class NODBRecordManager:
         obs_data.message_idx = message_idx
         obs_data.record_idx = record_idx
         obs_data.source_file_uuid = source_file_uuid
-        obs_data.data_mode = data_mode
-        obs_data.quality_checks = quality_flags
         obs_data.record = record
 
         obs = NODBObservation()
         obs.obs_uuid = obs_data.obs_uuid
         obs.received_date = obs_data.received_date
-        obs.data_mode = data_mode
-        obs.quality_checks = quality_flags
         obs.update_from_record(record)
 
         return obs, obs_data, self.check_for_relationships(record, obs_data)
@@ -231,14 +215,20 @@ class NODBRecordManager:
                                 obs_data: NODBObservationData) -> NODBCreationResult:
 
         result = CreationResultType.NEW
-        relationships = {}
+        relationships: dict[RelationshipAction, set[tuple[str, datetime.date]]] = {}
+
         if record.metadata.has_value("CNODCRelationships"):
-            relationships = RelationshipAction.decode_action_list(record.metadata["CNODCRelationships"].value)
-            if RelationshipAction.MARK_DUPLICATE in relationships:
+            relationships_list = RelationshipAction.decode_actions(record.metadata["CNODCRelationships"].value)
+            for obs_uuid, obs_date, rel_type, _ in relationships_list:
+                if rel_type not in relationships:
+                    relationships[rel_type] = set()
+                relationships[rel_type].add((obs_uuid, obs_date))
+
+            if any(x.is_duplicate() for x in relationships.keys()):
                 result = CreationResultType.DUPLICATE
-            elif RelationshipAction.MARK_OTHER_DUPLICATE in relationships:
+            elif any(x.is_update() for x in relationships.keys()):
                 result = CreationResultType.UPDATE
-            elif RelationshipAction.MERGE in relationships or RelationshipAction.REVIEW_MERGE in relationships:
+            elif RelationshipAction.MERGE in relationships:
                 result = CreationResultType.MERGE
         return NODBCreationResult(obs_data.obs_uuid, obs_data.received_date, result, relationships)
 
@@ -322,17 +312,13 @@ class NODBRecordManager:
                                               record: ocproc2.ParentRecord,
                                               message_idx: int,
                                               record_idx: int,
-                                              source_file: NODBSourceFile,
-                                              data_mode: DataMode,
-                                              quality_flags: int = 0) -> str | None:
+                                              source_file: NODBSourceFile) -> str | None:
         return self.create_working_entry(
             record=record,
             message_idx=message_idx,
             record_idx=record_idx,
             source_file_uuid=source_file.source_uuid,
             received_date=source_file.received_date,
-            data_mode=data_mode,
-            quality_flags=quality_flags
         )
 
     def create_working_entry(self,
@@ -340,9 +326,9 @@ class NODBRecordManager:
                              source_file_uuid: str,
                              received_date: datetime.date,
                              message_idx: int,
-                             record_idx: int,
-                             data_mode: DataMode,
-                             quality_flags: int = 0) -> str | None:
+                             record_idx: int,) -> str | None:
+        data_mode = DataMode(record.metadata.best("CNODCDataMode", default="??", coerce=str))
+        quality_flags = record.metadata.best("CNODCQualityFlags", default=0, coerce=int)
         check = NODBWorkingRecord.find_by_source_info(
             self._db,
             source_file_uuid=source_file_uuid,
@@ -361,8 +347,6 @@ class NODBRecordManager:
             received_date=received_date,
             message_idx=message_idx,
             record_idx=record_idx,
-            data_mode=data_mode,
-            quality_flags=quality_flags
         )
         self._db.insert_object(working_record)
         return working_record.working_uuid
@@ -372,12 +356,8 @@ class NODBRecordManager:
                                  source_file_uuid: str,
                                  received_date: datetime.date,
                                  message_idx: int,
-                                 record_idx: int,
-                                 data_mode: DataMode,
-                                 quality_flags: int = 0) -> NODBWorkingRecord:
+                                 record_idx: int,) -> NODBWorkingRecord:
         working_record = NODBWorkingRecord()
-        working_record.quality_flags = quality_flags
-        working_record.data_mode = data_mode
         working_record.working_uuid = str(uuid.uuid4())
         working_record.received_date = received_date
         working_record.message_idx = message_idx

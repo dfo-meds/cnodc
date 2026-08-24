@@ -900,6 +900,16 @@ class SearchEngine(t.Protocol):
                ship_code: str | None = None) -> t.Iterable[NODBPlatform]:
         ...
 
+    def related_working_records(self,
+                                *,
+                                observation_identifier: str) -> t.Iterable[NODBWorkingRecord]:
+        ...
+
+    def related_observations(self,
+                                *,
+                                observation_identifier: str) -> t.Iterable[NODBObservationData]:
+        ...
+
     def geosearch_working_records(self, *,
                                   platform_uuid: str | None = None,
                                   start_time: AwareDateTime | None = None,
@@ -927,12 +937,6 @@ class SearchEngine(t.Protocol):
     def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
         ...
 
-    def is_source_file_replacement(self,
-                                   old_uuid: str | None,
-                                   old_date: datetime.date | str | None,
-                                   new_uuid: str | None,
-                                   new_date: datetime.date | str | None) -> bool:
-        ...
 
 class RealSearchEngine(CachedObjectMixin):
 
@@ -952,6 +956,12 @@ class RealSearchEngine(CachedObjectMixin):
             if obs_data is not None:
                 yield obs_data
 
+    def related_working_records(self, *, observation_identifier: str) -> t.Iterable[NODBWorkingRecord]:
+        yield from NODBWorkingRecord.find_by_observation_identifier(self._db, observation_identifier)
+
+    def related_observations(self, *, observation_identifier: str) -> t.Iterable[NODBObservationData]:
+        yield from NODBObservationData.find_by_observation_identifier(self._db, observation_identifier)
+
     def load_platform(self, platform_uuid: str) -> NODBPlatform | None:
         return NODBPlatform.find_by_uuid(self._db, platform_uuid)
 
@@ -962,32 +972,3 @@ class RealSearchEngine(CachedObjectMixin):
             return True
         return False
 
-    def is_source_file_replacement(self,
-                                   old_uuid: str | None,
-                                   old_date: datetime.date | str | None,
-                                   new_uuid: str | None,
-                                   new_date: datetime.date | str | None) -> bool:
-
-        if old_uuid is None or old_date is None or new_uuid is None or new_date is None:
-            return False
-        return self._with_cache(
-            'is_replacement',
-            self._is_source_file_replacement,
-            old_uuid, old_date, new_uuid, new_date,
-            cache_parameters=[old_uuid, old_date, new_uuid, new_date]
-        )
-
-    def _is_source_file_replacement(self,
-                                   old_uuid: str,
-                                   old_date: datetime.date | str,
-                                   new_uuid: str,
-                                   new_date: datetime.date | str) -> bool:
-        file = NODBSourceFile.find_by_uuid(self._db, new_uuid, new_date)
-        if file is None:
-            return False
-        replacement = file.replaces_file(self._db)
-        while replacement is not None:
-            if replacement.replaces_uuid == old_uuid and replacement.replaces_received_date == old_date:
-                return True
-            replacement = replacement.replaces_file(self._db)
-        return False

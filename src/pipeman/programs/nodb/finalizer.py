@@ -66,6 +66,7 @@ class NODBFinalizeWorker(WorkflowWorker):
                 )
                 self.db.delete_object(working)
                 self.db.commit()
+                self.breakpoint()
         next_payload = self.new_observations_payload_from_uuids(
             self.db.stream_temp_finalize_results(object_type, object_uuid)
         )

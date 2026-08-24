@@ -63,7 +63,6 @@ class NODBDuplicateMergeWorker(QueueWorker):
             item
         )
 
-
     def merge_items(self,
                     current_uuid: str,
                     current_date: str,
@@ -76,14 +75,6 @@ class NODBDuplicateMergeWorker(QueueWorker):
             obs_datas_to_merge = [x for x in self.load_observation_data((current_uuid, current_date), *others)]
             merger = ObservationDataMerger(obs_datas_to_merge, bool(self.get_config('review_all', False)))
             new_record, should_review = merger.merge()
-
-            new_record.add_history_action(
-                f"Created by merge processor",
-                self.process_name,
-                self.process_version,
-                self.process_uuid,
-                ActionType.CREATED_BY_DEDUPE
-            )
 
             json_codec = OCProc2JsonCodec()
             now_ = AwareDateTime.now()

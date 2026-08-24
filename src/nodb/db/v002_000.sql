@@ -30,9 +30,8 @@ ALTER TABLE nodb_obs_data DROP COLUMN duplicate_received_date;
 
 
 -- "Replaces" relationship for source files
-ALTER TABLE nodb_source_files ADD COLUMN replaces_uuid UUID DEFAULT NULL;
-ALTER TABLE nodb_source_files ADD COLUMN replaces_received_date DATE DEFAULT NULL;
-ALTER TABLE nodb_source_files ADD CONSTRAINT fk_replaces FOREIGN KEY (replaces_uuid, replaces_received_date) REFERENCES nodb_source_files(source_uuid, received_date);
+ALTER TABLE nodb_source_files ADD COLUMN source_file_identifier VARCHAR(256) DEFAULT NULL;
+ALTER TABLE nodb_source_files ADD COLUMN source_file_version INT DEFAULT NULL;
 
 
 -- Data Mode and QC flags to replace processing level

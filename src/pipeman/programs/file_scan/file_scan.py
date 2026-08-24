@@ -38,6 +38,8 @@ class FileScanTask(ScheduledTask):
             'queue_name': 'file_download',
             'pattern': '*',
             'recursive': False,
+            'source_file_prefix': None,
+            'add_file_name_to_source': False,
             'remove_downloaded_files': False,
             'reprocess_updated_files': False,
             'metadata': None,
@@ -90,6 +92,8 @@ class FileScanTask(ScheduledTask):
         batch_id = str(uuid.uuid4())
         full_path = None
         mod_time = None
+        sf_identifier_prefix = self.get_config("source_file_prefix", "")
+        sf_identifier_add_filename = self.get_config("add_file_name_to_source", False)
         self._log.info(f'Scanning [%s]', scan_target.path())
         with scan_target:
             for file in scan_target.search(self._pattern, self._recursive):
@@ -112,6 +116,13 @@ class FileScanTask(ScheduledTask):
                             'scan-target': scan_target.path(),
                             'scanned-time': awaretime.utc_now().isoformat(),
                         })
+                        sf_identifier = ""
+                        if sf_identifier_add_filename:
+                            sf_identifier = file.name
+                        if sf_identifier_prefix:
+                            sf_identifier = f"{sf_identifier_prefix}{sf_identifier}"
+                        if sf_identifier:
+                            payload.metadata["source-file-identifier"] = sf_identifier
                         payload.set_worker_config('file_downloader', self.get_config('downloader_config', {}))
                         payload.enqueue(db, self._queue_name)
                         db.commit()

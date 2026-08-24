@@ -169,6 +169,15 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                 source_file.file_name = payload.filename
                 source_file.source_name = payload.get_metadata('source-name', '')
                 source_file.program_name = payload.get_metadata('program-name', '')
+                source_file.source_file_identifier = payload.get_metadata('source-file-identifier', None) or None
+                if source_file.source_file_identifier:
+                    version = 0
+                    for x in NODBSourceFile.find_by_identifier(self.db, source_file.source_file_identifier):
+                        if x.source_file_version and x.source_file_version > version:
+                            version = x.source_file_version
+                    source_file.source_file_version = version + 1
+                else:
+                    source_file.source_file_version = None
                 self.db.insert_object(source_file)
                 self.db.commit()
             return source_file
@@ -188,9 +197,17 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         had_error = False
         make_completed_records = self.get_config('autocomplete_records', False)
         self.before_message(source_file, result)
+        dm = DataMode(str(payload.get_metadata("data-mode", self.get_config("default_data_mode"))))
+        qf = int(payload.get_metadata("quality-flags", self.get_config("default_quality_flags")))
         if result.success and result.records:
             try:
                 for record_idx, record in enumerate(result.records):
+                    if not record.metadata.get("CNODCDataMode", default=None):
+                        record.metadata["CNODCDataMode"] = dm.value
+                    if record.metadata.get("CNODCQualityFlags", default=None) is None:
+                        record.metadata["CNODCQualityFlags"] = qf
+                    record.metadata["CNODCSourceFileIdentifier"] = source_file.source_file_identifier
+                    record.metadata["CNODCSourceFileVersion"] = source_file.source_file_version
                     self.before_record(source_file, record)
                     record_result = self._create_nodb_record(
                         rm,
@@ -198,8 +215,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                         result.message_idx,
                         record_idx,
                         record,
-                        DataMode(str(payload.get_metadata("data-mode", self.get_config("default_data_mode")))),
-                        int(payload.get_metadata("quality-flags", self.get_config("default_quality_flags"))),
                         make_completed_records
                     )
                     if record_result:
@@ -247,8 +262,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                             message_idx: int,
                             record_idx: int,
                             record: ocproc2.ParentRecord,
-                            data_mode: DataMode,
-                            quality_flags: int,
                             make_completed_records: bool) -> bool:
         try:
             if make_completed_records:
@@ -257,8 +270,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                     message_idx=message_idx,
                     record_idx=record_idx,
                     source_file=source_file,
-                    data_mode=data_mode,
-                    quality_flags=quality_flags,
                 )
                 skipped = res.action != CreationResultType.COPY_EXISTS
             else:
@@ -267,8 +278,6 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                     source_file=source_file,
                     message_idx=message_idx,
                     record_idx=record_idx,
-                    data_mode=data_mode,
-                    quality_flags=quality_flags,
                 )
                 skipped = res is not None
             if skipped:

@@ -93,7 +93,14 @@ class ObservationRelationshipType(enum.Enum):
 
     # A (relationship types) B
     IS_DUPLICATE = 'is_duplicate_of'
-    BETTER_QUALITY = 'is_better_than'
+    IS_BETTER = 'is_better_than'
+    IS_CORRECTION = "is_correction_to"
+    IS_BROADCAST = "is_broadcast_of"
+    IS_SUPPLEMENTAL = "is_supplemental_to"
+    IS_MERGE = "was_merged_from"
+
+
+
 
 
 
@@ -167,8 +174,8 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
     source_uuid: str = s.UUIDColumn()
     received_date: datetime.date = s.DateColumn()
 
-    replaces_uuid: str | None = s.UUIDColumn()
-    replaces_received_date: datetime.date | None = s.DateColumn()
+    source_file_identifier: str | None = s.StringColumn()
+    source_file_version: int | None = s.IntColumn()
 
     source_path: str = s.StringColumn()
     file_name: str = s.StringColumn()
@@ -202,14 +209,6 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
         })
         self._modified_values.add('history')
 
-    def replaces_file(self, db: interface.NODBInstance, **kwargs) -> NODBSourceFile | None:
-        if self.replaces_uuid is None or self.replaces_received_date is None:
-            return None
-        return db.load_object(self.__class__, filters={
-            'source_uuid': self.replaces_uuid,
-            'received_date': self.replaces_received_date,
-        }, **kwargs)
-
     def stream_observation_data(self, db: interface.NODBInstance, **kwargs) -> t.Iterable[NODBObservationData]:
         """Find all observations associated with this source file."""
         yield from db.stream_objects(
@@ -237,6 +236,13 @@ class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
         """Locate a source file by the source path."""
         return db.load_object(cls, filters={
             'source_path': source_path
+        }, **kwargs)
+
+    @classmethod
+    def find_by_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Iterable[NODBSourceFile]:
+        """Locate a source file by the source path."""
+        return db.stream_objects(cls, filters={
+            'source_file_identifier': identifier
         }, **kwargs)
 
     @classmethod
@@ -908,7 +914,7 @@ class NODBObservationRelationship(s.NODBBaseObject):
         yield from db.stream_objects(cls, filters={
             'left_obs_uuid': obs_uuid,
             'left_received_date': s.parse_received_date(received_date),
-            'relationship_type': ObservationRelationshipType.BETTER_QUALITY.value
+            'relationship_type': ObservationRelationshipType.IS_BETTER.value
         }, **kwargs)
         yield from db.stream_object(cls, filters={
             'left_obs_uuid': obs_uuid,
