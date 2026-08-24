@@ -144,6 +144,13 @@ def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
         obj.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
     if hasattr(obj, 'platform_uuid') and data_record.metadata.has_value('CNODCPlatform'):
         obj.platform_uuid = data_record.metadata.best('CNODCPlatform', None)
+    if hasattr(obj, 'observation_identifier') and data_record.metadata.has_value('CNODCObservationID'):
+        obj.observation_identifier = data_record.metadata.best('CNODCObservationID', default=None, coerce=str)
+    if hasattr(obj, "data_mode") and data_record.metadata.has_value("CNODCDataMode"):
+        obj.data_mode = data_record.metadata.best("CNODCDataMode", default=None, coerce=str)
+    if hasattr(obj, "quality_checks") and data_record.metadata.has_value("CNODCQualityFlags"):
+        obj.quality_checks = data_record.metadata.best("CNODCQualityFlags", default=None, coerce=int)
+
 
 
 class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
