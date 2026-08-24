@@ -581,6 +581,14 @@ class NODBObservation(s.NODBBaseObject):
             "received_date": coerce.as_date(received_date)
         }, **kwargs)
 
+    @classmethod
+    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Optional[
+        NODBWorkingRecord]:
+        """Find a working record by its identifier"""
+        return db.load_object(cls, {
+            "observation_identifier": identifier,
+        }, **kwargs)
+
     @staticmethod
     def _extract_subrecord_info(record: ocproc2.BaseRecord, ref_info: SubrecordInfo, position: dict = None):
 
@@ -705,6 +713,14 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         }, **kwargs)
 
     @classmethod
+    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Optional[
+        NODBWorkingRecord]:
+        """Find a working record by its identifier"""
+        return db.load_object(cls, {
+            "observation_identifier": identifier,
+        }, **kwargs)
+
+    @classmethod
     def find_all_by_source_file_raw(cls,
                             db: interface.NODBInstance,
                             source_file_uuid: str,
@@ -773,6 +789,12 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     db_created_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
     db_modified_date: AwareDateTime | None = s.DateTimeColumn(readonly=True)
 
+    @classmethod
+    def find_by_observation_identifier(cls, db: interface.NODBInstance, identifier: str, **kwargs) -> t.Optional[NODBWorkingRecord]:
+        """Find a working record by its identifier"""
+        return db.load_object(cls, {
+            "observation_identifier": identifier,
+        }, **kwargs)
 
     @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, obs_uuid: str, **kwargs) -> t.Optional[NODBWorkingRecord]:
