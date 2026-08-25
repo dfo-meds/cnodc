@@ -51,6 +51,12 @@ ALTER TABLE nodb_obs ADD COLUMN data_mode CHAR(2) DEFAULT '??';
 ALTER TABLE nodb_obs ADD COLUMN quality_checks BIGINT DEFAULT 0;
 ALTER TABLE nodb_obs ADD COLUMN observation_identifier VARCHAR(255) DEFAULT NULL;
 
+-- Min and max time ranges
+ALTER TABLE nodb_obs ADD COLUMN min_time TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE nodb_obs ADD COLUMN max_time TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE nodb_working ADD COLUMN min_time TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE nodb_working ADD COLUMN max_time TIMESTAMPTZ DEFAULT NULL;
+
 
 -- Finalizer result table
 CREATE TABLE IF NOT EXISTS nodb_temporary_finalize_results(
