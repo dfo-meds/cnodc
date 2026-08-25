@@ -150,6 +150,7 @@ class NODBRecordManager:
         RelationshipAction.A_IS_BROADCAST: ObservationRelationshipType.IS_BROADCAST,
         RelationshipAction.A_IS_CORRECTION: ObservationRelationshipType.IS_CORRECTION,
         RelationshipAction.SUPPLEMENTAL: ObservationRelationshipType.IS_SUPPLEMENTAL,
+        RelationshipAction.A_WAS_MERGED_FROM: ObservationRelationshipType.IS_MERGE,
     }
 
     RIGHT_STATE_MAPS = {
