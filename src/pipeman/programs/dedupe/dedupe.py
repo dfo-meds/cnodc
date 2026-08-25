@@ -34,6 +34,7 @@ class RelationshipAction(enum.Enum):
     A_IS_CORRECTION = "A_IS_CORRECTION"
     B_IS_CORRECTION = "B_IS_CORRECTION"
     MERGE = "MERGE"
+    A_WAS_MERGED_FROM = "A_WAS_MERGED"
 
     def is_duplicate(self) -> bool:
         return self in {
@@ -131,7 +132,24 @@ class NODBDuplicateCheck(QualityController):
             "source_version": self.current_record.record.metadata.best("CNODCSourceFileVersion", default=None, coerce=int),
             "source_file": self.current_record.record.metadata.best("CNODCSourceFile", default=None, coerce=str),
         }
-        for candidate in self.find_relationship_candidates():
+
+        merged_from = self.current_record.record.metadata.best("CNODCMergedFrom", default=None)
+        omit_records: set[tuple[str, datetime.date]] = set()
+        if merged_from and isinstance(merged_from, list):
+            for item in merged_from:
+                if isinstance(item, list) and len(item) >= 2:
+                    key: tuple[str, datetime.date] = str(item[0]), datetime.date.fromisoformat(str(item[1]))
+                    if key in omit_records:
+                        continue
+                    omit_records.add(key)
+                    results.append((
+                        key[0],
+                        key[1],
+                        RelationshipAction.A_WAS_MERGED_FROM,
+                        False
+                    ))
+
+        for candidate in self.find_relationship_candidates(omit_records):
             obs_id_match: bool = False
             if cached["obs_id"] is not None:
                 candidate_obs_id = candidate.record.metadata.best("CNODCObservationID", default=None)
@@ -395,14 +413,18 @@ class NODBDuplicateCheck(QualityController):
             kwargs["min_time"], kwargs["max_time"] = time.range()
         return kwargs
 
-    def find_relationship_candidates(self) -> t.Iterable[RelationshipCandidate]:
+    def find_relationship_candidates(self, handled: t.Iterable[tuple[str, datetime.date]] | None = None) -> t.Iterable[RelationshipCandidate]:
         search_parameters = self.search_kwargs()
         observation_identifier: str | None = self.current_record.record.metadata.best("CNODCObservationID", default=None, coerce=str)
 
         seen: set[tuple[str, datetime.date]] = set()
+        if handled is not None:
+            seen.update(handled)
         if observation_identifier:
             for working in self.searcher.related_working_records(observation_identifier=observation_identifier):
-                seen.add((str(working.working_uuid), t.cast(datetime.date, working.received_date)))
+                key = str(working.working_uuid), t.cast(datetime.date, working.received_date)
+                if key in seen:
+                    continue
                 yield RelationshipCandidate(
                     str(working.working_uuid),
                     t.cast(datetime.date, working.received_date),
