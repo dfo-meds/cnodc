@@ -28,6 +28,12 @@ def upgrade(config: zr.ApplicationConfig = None):
             from pipeman_cli.workflow import _update_from_config_directory
             _update_from_config_directory(wf_config_dir)
 
+        # Install default products
+        pd_config_dir = config.get("pipeman", "products", "config_directory", default=None)
+        if pd_config_dir:
+            from pipeman_cli.products import _update_from_product_file
+            _update_from_product_file(pd_config_dir)
+
     except Exception as ex:
         zrlog.get_logger("upgrade").exception("exception during upgrade")
         raise SystemExit(1) from ex
