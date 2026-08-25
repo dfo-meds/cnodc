@@ -38,7 +38,7 @@ class NOAAOutputBuildWorker(ScheduledTask):
                 raise ValueError("Invalid directory handle")
             with self.nodb as db:
                 product = self.load_product(db)
-                observations = [x for x in product.observations(db, True)]
+                observations = [x for x in product.observations(db, True, limit=999999)]
                 if observations:
                     next_file_name = product.get_metadata("next_file_name", None)
                     if next_file_name is None:
