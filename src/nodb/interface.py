@@ -388,7 +388,9 @@ class NODBInstance(t.Protocol):
                                 join_str: JoinString = None,
                                 filters: FilterDict | None = None,
                                 order_by: list[str] | None = None,
-                                lock_type: LockType = LockType.NONE) -> t.Iterable[NODBObject]: ...
+                                lock_type: LockType = LockType.NONE,
+                                offset: int | None = None,
+                                limit: int | None = None) -> t.Iterable[NODBObject]: ...
     def stream_relation_raw(self,
                         obj_cls: NODBObjectType,
                         relation_table: str,
@@ -398,7 +400,9 @@ class NODBInstance(t.Protocol):
                         join_str: JoinString = None,
                         filters: FilterDict | None = None,
                         order_by: list[str] | None = None,
-                        lock_type: LockType = LockType.NONE) -> t.Iterable[dict[str, SupportsPostgres]]: ...
+                        lock_type: LockType = LockType.NONE,
+                        offset: int | None = None,
+                        limit: int | None = None) -> t.Iterable[dict[str, SupportsPostgres]]: ...
 
     def count_objects(self,
                       obj_cls: NODBObjectType,

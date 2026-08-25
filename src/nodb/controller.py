@@ -358,7 +358,9 @@ class PostgresController:
                         join_str: JoinString = None,
                         filters: FilterDict | None = None,
                         order_by: list[str] | None = None,
-                        lock_type: LockType = LockType.NONE) -> t.Iterable[dict[str, SupportsPostgres]]:
+                        lock_type: LockType = LockType.NONE,
+                            limit: int | None = None,
+                            offset: int | None = None) -> t.Iterable[dict[str, SupportsPostgres]]:
         query = self.assemble_query(
             self.build_select_clause(
                 obj_cls.get_table_name(),
@@ -371,6 +373,7 @@ class PostgresController:
             ),
             self.build_where_clause(filters, join_str),
             self.build_order_by_clause(order_by),
+            self.build_limit_offset_clause(limit, offset),
             self.build_lock_type_clause(lock_type)
         )
         with self.cursor() as cur:
@@ -388,7 +391,9 @@ class PostgresController:
                         join_str: JoinString = None,
                         filters: FilterDict | None = None,
                         order_by: list[str] | None = None,
-                        lock_type: LockType = LockType.NONE) -> t.Iterable[NODBObject]:
+                        lock_type: LockType = LockType.NONE,
+                                limit: int | None = None,
+                                offset: int | None = None) -> t.Iterable[NODBObject]:
         for row in self.stream_relation_raw(
             obj_cls=obj_cls,
             relation_table=relation_table,
@@ -398,7 +403,9 @@ class PostgresController:
             join_str=join_str,
             filters=filters,
             order_by=order_by,
-            lock_type=lock_type
+            lock_type=lock_type,
+            limit=limit,
+            offset=offset
         ):
             yield obj_cls(is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)})
 
@@ -434,9 +441,10 @@ class PostgresController:
                 self._stable_sort_columns
             ),
             self.build_where_clause(filters, join_str),
+            # group by, having
             self.build_order_by_clause(order_by),
+            self.build_limit_offset_clause(limit, offset),
             self.build_lock_type_clause(lock_type)
-            # TODO: offsetand limit
         )
         with self.cursor() as cur:
             cur.execute(query)
@@ -1031,6 +1039,16 @@ class PostgresController:
             if stable_sort:
                 primary_keys.sort()
             yield pgs.SQL('RETURNING ') + pgs.SQL(',').join(pgs.Identifier(x) for x in primary_keys)
+
+    @staticmethod
+    def build_limit_offset_clause(limit: int | None = None,
+                                  offset: int | None = None) -> t.Iterable[pgs.Composable]:
+        if limit is not None:
+            yield pgs.SQL("LIMIT")
+            yield pgs.Literal(limit)
+        if offset is not None:
+            yield pgs.SQL("OFFSET")
+            yield pgs.Literal(offset)
 
     @staticmethod
     def build_select_clause(table_name, fields, stable_sort, alias: str | None = None) -> t.Iterable[pgs.Composable]:
