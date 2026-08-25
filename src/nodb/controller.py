@@ -436,6 +436,7 @@ class PostgresController:
             self.build_where_clause(filters, join_str),
             self.build_order_by_clause(order_by),
             self.build_lock_type_clause(lock_type)
+            # TODO: offsetand limit
         )
         with self.cursor() as cur:
             cur.execute(query)

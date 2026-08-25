@@ -78,6 +78,13 @@ class ProductDefinition(s.MetadataMixin, s.NODBBaseObject):
     product_name: str | None = s.StringColumn()
     _product_rule: dict = s.JsonDictColumn(managed_name="product_rule")
 
+    def update_from_config(self, config: dict[str, t.Any]):
+        if "product_rule" in config:
+            rule = config.pop("product_rule")
+            if rule:
+                self.product_rule = ProductRule.from_map(rule)
+        self.metadata.update(config)
+
     @property
     def product_rule(self) -> ProductRule | None:
         if self._product_rule is None:
