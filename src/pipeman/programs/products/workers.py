@@ -36,7 +36,8 @@ class ProductTriggerWorker(NewObservationsWorkflowWorker):
                 continue
             successes.append((obs_uuid, obs_date, crt.value))
             for product in products:
-                if product.product_rule.check(obs_data, t.cast(ParentRecord, obs_data.record), crt):
+                rule = product.product_rule
+                if rule and rule.check(obs_data, t.cast(ParentRecord, obs_data.record), crt):
                     starter.start_product_build(product, obs_uuid, datetime.date.fromisoformat(obs_date), payload)
         if failures:
             self.prevent_default_progression()

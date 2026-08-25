@@ -123,10 +123,14 @@ class ProductObservation(s.NODBBaseObject):
     TABLE_NAME = "nodb_product_observation"
     PRIMARY_KEYS = ("product_name", "obs_uuid", "received_date",)
 
-    product_name: str | None = s.StringColumn()
-    obs_uuid: str | None = s.StringColumn()
-    received_date: datetime.date | None = s.DateColumn()
+    product_name: str = s.StringColumn()
+    obs_uuid: str = s.StringColumn()
+    received_date: datetime.date = s.DateColumn()
     processed: int = s.IntColumn(default=0)
+
+    def load_observation_data(self, db: NODBInstance, **kwargs):
+        from nodb.observations import NODBObservationData
+        return NODBObservationData.find_by_uuid(db, self.obs_uuid, self.received_date, **kwargs)
 
     @classmethod
     def find_by_uuid(cls,
