@@ -8,8 +8,7 @@ import medsutil.math as amath
 from medsutil.ocproc2 import SingleElement, ElementMap, AbstractElement, OCProc2Ontology, BaseRecord, \
     RecordMap, RecordSet, ParentRecord, ChildRecord
 from medsutil.ocproc2.operations import SetRelationships, SetQualityCheck
-from medsutil.ocproc2.util import pair_up_records, dates_overlap, pair_up_recordsets, \
-    pair_up_single_elements
+from medsutil.ocproc2.util import pair_up_records, pair_up_recordsets, pair_up_single_elements
 from medsutil.units.structures import UnitError
 from nodb.observations import QualityCheckFlags, DataMode
 from pipeman.programs.qc.base import QualityController
