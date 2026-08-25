@@ -1,4 +1,3 @@
-import dataclasses
 import datetime
 import enum
 import typing as t
@@ -7,11 +6,11 @@ import medsutil.ocproc2 as ocproc2
 import nodb.base as s
 import medsutil.types as ct
 import nodb.interface as interface
+from medsutil.math import is_science_number, ScienceNumber
 from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 from medsutil.awaretime import AwareDateTime
 from medsutil.sanitize import coerce
-from nodb.interface import NODBInstance
 
 
 class SourceFileStatus(enum.Enum):
@@ -100,8 +99,139 @@ class ObservationRelationshipType(enum.Enum):
     IS_MERGE = "was_merged_from"
 
 
+class SubrecordInfo:
 
+    POSITION_COMMON_UNITS = {
+        "Latitude": "degrees_north",
+        "Longitude": "degrees_east",
+        "Depth": "m",
+        "Pressure": "dbar",
+    }
 
+    def __init__(self):
+        self.min_latitude: float | None = None
+        self.max_latitude: float | None = None
+        self.min_longitude: float | None = None
+        self.max_longitude: float | None = None
+        self.min_depth: float | None = None
+        self.max_depth: float | None = None
+        self.min_time: AwareDateTime | None = None
+        self.max_time: AwareDateTime | None = None
+        self.depths: list[float] = []
+        self.profile_parameters: set[str] = set()
+        self.surface_parameters: set[str] = set()
+        self.instruments: set[str] = set()
+
+    def build_info(self, record: ocproc2.BaseRecord):
+        self._extract_subrecord_info(record, {})
+
+    @property
+    def time(self) -> AwareDateTime | None:
+        if self.min_time is None and self.max_time is None:
+            return None
+        elif self.min_time is None:
+            return self.max_time
+        elif self.max_time is None:
+            return self.min_time
+        else:
+            diff = (self.max_time - self.min_time).total_seconds()
+            return self.min_time + datetime.timedelta(seconds=diff)
+
+    @property
+    def obs_type(self) -> ObservationType:
+        if self.min_latitude is None or self.min_longitude is None or self.min_time is None:
+            return ObservationType.OTHER
+        if not self.depths:
+            return ObservationType.SURFACE
+        max_depth = max(self.depths)
+        if max_depth <= 0:
+            return ObservationType.SURFACE
+        elif len(self.depths) == 1:
+            return ObservationType.AT_DEPTH
+        else:
+            return ObservationType.PROFILE
+
+    @property
+    def wkt(self) -> str | None:
+        if self.min_latitude is not None and self.max_latitude is not None and self.min_longitude is not None and self.max_longitude is not None:
+            if self.min_latitude == self.max_latitude and self.min_longitude == self.max_longitude:
+                return f"POINT ({self.min_longitude:.6f} {self.min_latitude:.6f})"
+            elif self.min_latitude == self.max_latitude or self.min_longitude == self.max_longitude:
+                return f"LINESTRING ({self.min_longitude:.6f} {self.min_latitude:.6f}, {self.max_longitude:.6f} {self.max_latitude:.6f})"
+            else:
+                coords = [
+                    (self.min_longitude, self.min_latitude),
+                    (self.max_longitude, self.min_latitude),
+                    (self.max_longitude, self.max_latitude),
+                    (self.min_longitude, self.max_latitude),
+                    (self.min_longitude, self.min_latitude),
+                ]
+                return f"POLYGON(({",".join(f"{x:.6f} {y:.6f}" for x, y in (coords))}))"
+        return None
+
+    def _extract_subrecord_info(self, record: ocproc2.BaseRecord, position: dict[str, ScienceNumber]):
+        for key in record.coordinates:
+            for sv in record.coordinates[key].all_values():
+                if sv.metadata.has_value('SensorType'):
+                    self.instruments.add(sv.metadata["SensorType"].to_string())
+        for key in record.parameters:
+            for sv in record.parameters[key].all_values():
+                if sv.metadata.has_value('SensorType'):
+                    self.instruments.add(sv.metadata["SensorType"].to_string())
+
+        position = {x: position[x] for x in position if position[x] is not None}
+        for key, units in self.POSITION_COMMON_UNITS.items():
+            if record.coordinates.has_value(key) and record.coordinates[key].is_numeric():
+                position[key] = record.coordinates[key].to_scinum().convert(units)
+
+        if record.coordinates.has_value("Time") and record.coordinates["Time"].is_iso_datetime():
+            time = record.coordinates["Time"].to_scidate()
+            min_t, max_t = time.range()
+            if self.min_time is None or self.min_time > min_t:
+                self.min_time = min_t
+            if self.max_time is None or self.max_time < min_t:
+                self.max_time = max_t
+
+        if record.coordinates.has_value("Latitude") and record.coordinates.has_value("Longitude") and position["Latitude"] and position["Longitude"]:
+            min_lat, max_lat = position["Latitude"].range()
+            min_lon, max_lon = position["Longitude"].range()
+            if self.min_latitude is None or self.min_latitude > min_lat:
+                self.min_latitude = coerce.as_float(min_lat)
+            if self.max_latitude is None or self.max_latitude < max_lat:
+                self.max_latitude = coerce.as_float(max_lat)
+            if self.min_longitude is None or self.min_longitude > max_lon:
+                self.min_longitude = coerce.as_float(min_lon)
+            if self.max_longitude is None or self.max_longitude < min_lon:
+                self.max_longitude = coerce.as_float(max_lon)
+
+        if record.coordinates.has_value("Depth") or record.coordinates.has_value("Pressure"):
+            depth = None
+            if 'Depth' in position and position["Depth"]:
+                depth = position['Depth']
+            elif 'Pressure' in position and position['Pressure'] and 'Latitude' in position:
+                from medsutil.seawater import eos80_depth
+                depth = eos80_depth(position['Pressure'], position['Latitude'])
+            if depth is not None:
+                min_d, max_d = depth.range() if is_science_number(depth) else (depth, depth)
+                if self.min_depth is None or min_d < self.min_depth:
+                    self.min_depth = coerce.as_float(min_d)
+                if self.max_depth is None or self.max_depth < max_d:
+                    self.max_depth = coerce.as_float(max_d)
+                self.depths.append(coerce.as_float(min_d))
+
+        is_surface = True
+        if "Depth" in position:
+            is_surface = position["Depth"] > 0
+        elif "Pressure" in position:
+            is_surface = position["Pressure"] > 0
+
+        if is_surface:
+            self.surface_parameters.update(x for x in record.parameters.keys())
+        else:
+            self.profile_parameters.update(x for x in record.parameters.keys())
+
+        for subrecord in record.iter_subrecords():
+            self._extract_subrecord_info(subrecord, position)
 
 
 class _RecordMixin(s.NODBBaseObject):
@@ -143,21 +273,86 @@ class _RecordMixin(s.NODBBaseObject):
 
 
 def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
-    if hasattr(obj, 'obs_time') and data_record.coordinates.has_value('Time') and data_record.coordinates['Time'].is_iso_datetime():
-        obj.obs_time = data_record.coordinates['Time'].to_datetime()
-    if hasattr(obj, 'location') and data_record.coordinates.has_value('Latitude') and data_record.coordinates['Latitude'].is_numeric() and data_record.coordinates.has_value('Longitude') and data_record.coordinates['Longitude'].is_numeric():
-        lat = data_record.coordinates['Latitude'].to_float()
-        lon = data_record.coordinates['Longitude'].to_float()
-        obj.location = f"POINT ({round(lon, 5)} {round(lat, 5)})"
+    info = SubrecordInfo()
+    info.build_info(data_record)
+    
+    # Time
+    if hasattr(obj, 'obs_time'):
+        obj.obs_time = info.time
+        
+    # Location
+    if hasattr(obj, 'location'):
+        obj.location = info.wkt
+
+    # Parameters collected
+    if hasattr(obj, "profile_parameters"):
+        obj.profile_parameters = info.profile_parameters
+    if hasattr(obj, "surface_parameters"):
+        obj.surface_parameters = info.surface_parameters
+
+    # Instrument types used in data collection
+    if hasattr(obj, "instrument_types"):
+        obj.instrument_types = info.instruments
+
+    # Depth range
+    if hasattr(obj, "min_depth"):
+        obj.min_depth = info.min_depth
+    if hasattr(obj, "max_depth"):
+        obj.max_depth = info.max_depth
+
+    # Time range
+    if hasattr(obj, "min_time"):
+        obj.min_time = info.min_time
+    if hasattr(obj, "max_time"):
+        obj.max_time = info.max_time
+
+    # Observation type
+    if hasattr(obj, "observation_type"):
+        obj.observation_type = info.obs_type
+
+    # Platform Identifier
     if hasattr(obj, 'platform_uuid') and data_record.metadata.has_value('CNODCPlatform'):
         obj.platform_uuid = data_record.metadata.best('CNODCPlatform', None)
+        
+    # Observation Identifier
     if hasattr(obj, 'observation_identifier') and data_record.metadata.has_value('CNODCObservationID'):
         obj.observation_identifier = data_record.metadata.best('CNODCObservationID', default=None, coerce=str)
+        
+    # Data Mode
     if hasattr(obj, "data_mode") and data_record.metadata.has_value("CNODCDataMode"):
         obj.data_mode = data_record.metadata.best("CNODCDataMode", default=None, coerce=str)
+
+    # Quality Flags (these indicate if broad QC tests has been run
     if hasattr(obj, "quality_checks") and data_record.metadata.has_value("CNODCQualityFlags"):
         obj.quality_checks = data_record.metadata.best("CNODCQualityFlags", default=None, coerce=int)
 
+    # Mission identifier
+    if hasattr(obj, "mission_uuid"):
+        obj.mission_uuid = data_record.metadata.best('CNODCMission', default=None, coerce=str)
+
+    # Embargo date
+    if hasattr(obj, "embargo_date"):
+        obj.embargo_date = obj.metadata.best('CNODCEmbargoUntil', default=None, coerce=AwareDateTime.fromisoformat)
+
+    # Quality Control Test Results
+    if hasattr(obj, "qc_tests"):
+        qc_test_names = set(x.test_name for x in data_record.qc_tests)
+        qc_test_info = {}
+        for x in qc_test_names:
+            best_result = data_record.latest_test_result(x, True)
+            if best_result is not None:
+                qc_test_info[x] = {
+                    'version': best_result.test_version,
+                    'date_run': best_result.test_date,
+                    'result': best_result.result.value,
+                }
+        obj.qc_tests = qc_test_info
+
+    # Observation Status
+    if hasattr(obj, "status"):
+        new_status = data_record.metadata.best('CNODCStatus', coerce=str, default=None)
+        if new_status is not None and hasattr(ObservationStatus, new_status):
+            obj.status = getattr(ObservationStatus, new_status)
 
 
 class NODBSourceFile(s.MetadataMixin, s.NODBBaseObject):
@@ -443,15 +638,6 @@ class NODBBatch(s.MetadataMixin, s.NODBBaseObject):
         )
 
 
-@dataclasses.dataclass
-class SubrecordInfo:
-    min_depth: t.Optional[float] = None
-    max_depth: t.Optional[float] = None
-    profile_parameters: set[str] = dataclasses.field(default_factory=set)
-    surface_parameters: set[str] = dataclasses.field(default_factory=set)
-    instruments: set[str] = dataclasses.field(default_factory=set)
-
-
 class NODBObservation(s.NODBBaseObject):
     """Represents an archived observation in the database.
 
@@ -541,24 +727,6 @@ class NODBObservation(s.NODBBaseObject):
 
     def update_from_record(self, record: ocproc2.ParentRecord):
         update_common_from_data_record(self, record)
-        self.mission_uuid = record.metadata.best('CNODCMission', default=None, coerce=str)
-        if record.metadata.has_value('CNODCEmbargoUntil'):
-            self.embargo_date = record.metadata['CNODCEmbargoUntil'].to_datetime()
-        ref_info = SubrecordInfo()
-        NODBObservation._extract_subrecord_info(record, ref_info)
-        self.profile_parameters = ref_info.profile_parameters
-        self.surface_parameters = ref_info.surface_parameters
-        self.instrument_types = ref_info.instruments
-        self.min_depth = ref_info.min_depth
-        self.max_depth = ref_info.max_depth
-        if self.location is None or self.obs_time is None:
-            self.observation_type = ObservationType.OTHER
-        elif self.min_depth is not None and self.min_depth > 0:
-            self.observation_type = ObservationType.AT_DEPTH
-        elif (self.min_depth is None or self.min_depth == 0) and (self.max_depth is None or self.max_depth == 0):
-            self.observation_type = ObservationType.SURFACE
-        else:
-            self.observation_type = ObservationType.PROFILE
 
     @classmethod
     def find_best_copy(cls, db: interface.NODBInstance, obs_uuid: str, received_date: ct.AcceptAsDateTime, known_better_than: t.Iterable[tuple[str, ct.AcceptAsDateTime]] | None = None) -> set[tuple[str, datetime.date]]:
@@ -600,51 +768,6 @@ class NODBObservation(s.NODBBaseObject):
         yield from db.stream_objects(cls, {
             "observation_identifier": identifier,
         }, **kwargs)
-
-    @staticmethod
-    def _extract_subrecord_info(record: ocproc2.BaseRecord, ref_info: SubrecordInfo, position: dict = None):
-
-        for key in record.coordinates:
-            for sv in record.coordinates[key].all_values():
-                if sv.metadata.has_value('SensorType'):
-                    ref_info.instruments.add(sv.metadata["SensorType"].to_string())
-        for key in record.parameters:
-            for sv in record.parameters[key].all_values():
-                if sv.metadata.has_value('SensorType'):
-                    ref_info.instruments.add(sv.metadata["SensorType"].to_string())
-
-        if position is None:
-            position = {}
-        else:
-            position = { x: position[x] for x in position  if position[x] is not None}
-        for key in ('Latitude', 'Longitude', 'Depth', 'Pressure'):
-            if record.coordinates.has_value(key):
-                if key == 'Depth':
-                    position[key] = record.coordinates['Depth'].to_float('m')
-                elif key == 'Pressure':
-                    position[key] = record.coordinates['Pressure'].to_float('dbar')
-                else:
-                    position[key] = record.coordinates[key].to_float('degree')
-
-        depth = None
-        if 'Depth' in position:
-            depth = position['Depth']
-        elif 'Pressure' in position and 'Depth' not in position and 'Latitude' in position:
-            from medsutil.seawater import eos80_depth
-            depth = eos80_depth(position['Pressure'], position['Latitude'])
-        if depth is not None:
-            if ref_info.min_depth is None or ref_info.min_depth > depth:
-                ref_info.min_depth = coerce.as_float(depth)
-            if ref_info.max_depth is None or ref_info.max_depth < depth:
-                ref_info.max_depth = coerce.as_float(depth)
-
-        if ('Depth' in position and position['Depth'] != 0) or ('Pressure' in position and position['Pressure'] != 0):
-            ref_info.profile_parameters.update(x for x in record.parameters.keys())
-        else:
-            ref_info.surface_parameters.update(x for x in record.parameters.keys())
-
-        for subrecord in record.iter_subrecords():
-            NODBObservation._extract_subrecord_info(subrecord, ref_info, position)
 
 
 class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
@@ -691,27 +814,6 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
 
     def find_observation(self, db: interface.NODBInstance):
         return NODBObservation.find_by_uuid(db, self.obs_uuid, self.received_date)
-
-    def _update_from_data_record(self, data_record: ocproc2.ParentRecord):
-        super()._update_from_data_record(data_record)
-        qc_test_names = set(x.test_name for x in data_record.qc_tests)
-        qc_test_info = {}
-        for x in qc_test_names:
-            best_result = data_record.latest_test_result(x, True)
-            if best_result is not None:
-                qc_test_info[x] = {
-                    'version': best_result.test_version,
-                    'date_run': best_result.test_date,
-                    'result': best_result.result.value,
-                }
-        self.qc_tests = qc_test_info
-        if data_record.metadata.has_value('CNODCDuplicateId') and data_record.metadata.has_value('CNODCDuplicateDate'):
-            self.duplicate_received_date = data_record.metadata['CNODCDuplicateDate'].to_date()
-            self.duplicate_uuid = data_record.metadata.best('CNODCDuplicateId', coerce=str)
-        if data_record.metadata.has_value('CNODCStatus'):
-            new_status = data_record.metadata.best('CNODCStatus', coerce=str)
-            if hasattr(ObservationStatus, new_status):
-                self.status = getattr(ObservationStatus, new_status)
 
     def find_relationships(self, db, **kwargs) -> t.Iterable[NODBObservationRelationship]:
         yield from NODBObservationRelationship.find_by_observation(db, self.obs_uuid, self.received_date, **kwargs)
@@ -770,8 +872,6 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         if quality_checks:
             filters['quality_checks'] = (quality_checks, '&', False)
         return db.load_object(cls, filters, **kwargs)
-
-
 
 
 class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
