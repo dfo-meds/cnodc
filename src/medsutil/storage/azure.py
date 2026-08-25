@@ -126,6 +126,10 @@ class _AzureBaseHandle(UrlBaseHandle):
             raise StorageError(f"Missing share name", 4002)
         return account_name, path_parts[0]
 
+    @property
+    def account_name(self) -> str:
+        return self._parse_url_for_account_info()[0]
+
     def _get_full_path(self):
         url_parts = self.parse_url()
         path_parts = [x.strip() for x in url_parts.path.lstrip('/').split('/') if x.strip()]

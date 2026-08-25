@@ -321,6 +321,31 @@ class AzureBlobHandle(_AzureBaseHandle):
         # never need to worry about making directories here.
         pass
 
+    def _local_fast_copy(self, destination: AzureBlobHandle, allow_overwrite: bool = False) -> AzureBlobHandle:
+        if destination.account_name == self.account_name:
+            with destination.client() as client:
+                if hasattr(client, "start_copy_from_url"):
+                    result = client.start_copy_from_url(
+                        self.path(),
+                        requires_sync=True
+                    )
+                    if result["copy_status"] == "success":
+                        return destination
+        return self._copy(destination, allow_overwrite)
+
+    def _local_fast_move(self, destination: AzureBlobHandle, allow_overwrite: bool = False) -> AzureBlobHandle:
+        if destination.account_name == self.account_name:
+            with destination.client() as client:
+                if hasattr(client, "start_copy_from_url"):
+                    result = client.start_copy_from_url(
+                        self.path(),
+                        requires_sync=True
+                    )
+                    if result["copy_status"] == "success":
+                        self.remove()
+                        return destination
+        return self._move(destination, allow_overwrite)
+
     @wrap_azure_errors
     def _set_tier(self, tier: StorageTier):
         if tier is None:
