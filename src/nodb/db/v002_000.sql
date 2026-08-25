@@ -76,7 +76,20 @@ ALTER TABLE nodb_platforms ADD COLUMN ship_code VARCHAR(126) DEFAULT NULL;
 ALTER TABLE nodb_obs ADD COLUMN instrument_types JSONB DEFAULT NULL;
 
 -- Product def table
---CREATE TABLE IF NOT EXISTS nodb_product_definitions(
+CREATE TABLE IF NOT EXISTS nodb_product_definitions (
+    product_name        VARCHAR(125)    NOT NULL    PRIMARY KEY,
+    product_rule        JSON            DEFAULT NULL,
+    metadata            JSON            DEFAULT NULL
+);
 
---    product_rule    JSON            DEFAULT NULL
---);
+-- Product processed table
+CREATE TABLE IF NOT EXISTS nodb_product_observation (
+    product_name    VARCHAR(125)    NOT NULL    REFERENCES nodb_product_definitions(product_name),
+    obs_uuid        UUID            NOT NULL,
+    received_date   DATE            NOT NULL,
+    processed       INT             NOT NULL    DEFAULT 0,
+
+    PRIMARY KEY (product_name, obs_uuid, received_date),
+    FOREIGN KEY (obs_uuid, received_date) REFERENCES nodb_obs(obs_uuid, received_date)
+);
+
