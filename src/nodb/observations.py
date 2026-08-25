@@ -692,9 +692,9 @@ class NODBObservation(s.NODBBaseObject):
         if platform_uuid is not None:
             filters['platform_uuid'] = platform_uuid
         if start_time is not None:
-            filters['obs_time'] = (start_time, '>=', False)
+            filters['max_time'] = (start_time, '>=', False)
         if end_time is not None:
-            filters['obs_time'] = (end_time, '<=', False)
+            filters['min_time'] = (end_time, '<=', False)
         if data_mode is not None:
             filters['data_mode'] = data_mode.value
         if quality_checks:
@@ -942,9 +942,9 @@ class NODBWorkingRecord(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
         if platform_uuid is not None:
             filters['platform_uuid'] = platform_uuid
         if start_time is not None:
-            filters['obs_time'] = (start_time, '>=', False)
+            filters['max_time'] = (start_time, '>=', False)
         if end_time is not None:
-            filters['obs_time'] = (end_time, '<=', False)
+            filters['min_time'] = (end_time, '<=', False)
         if qc_flag:
             filters['quality_checks'] = (qc_flag, '&', False)
         if data_mode is not None:
