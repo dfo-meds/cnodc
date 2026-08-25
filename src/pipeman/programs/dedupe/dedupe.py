@@ -124,6 +124,9 @@ class NODBDuplicateCheck(QualityController):
     def build_relationship_candidate_list(self) -> list[tuple[str, datetime.date, RelationshipAction, bool]]:
         results: list[tuple[str, datetime.date, RelationshipAction, bool]] = []
         cached = {
+            "latitude": self.current_record.record.coordinates.ideal("Latitude"),
+            "longitude": self.current_record.record.coordinates.ideal("Longitude"),
+            "time": self.current_record.record.coordinates.ideal("Time"),
             "obs_id": self.current_record.record.metadata.best("CNODCObservationID", default=None, coerce=str),
             "sub_id": self.current_record.record.metadata.best("CNODCObservationSubID", default=None, coerce=str),
             "data_mode": self.current_record.record.metadata.best("CNODCDataMode", default=None, coerce=str),
@@ -132,7 +135,6 @@ class NODBDuplicateCheck(QualityController):
             "source_version": self.current_record.record.metadata.best("CNODCSourceFileVersion", default=None, coerce=int),
             "source_file": self.current_record.record.metadata.best("CNODCSourceFile", default=None, coerce=str),
         }
-
         merged_from = self.current_record.record.metadata.best("CNODCMergedFrom", default=None)
         omit_records: set[tuple[str, datetime.date]] = set()
         if merged_from and isinstance(merged_from, list):
@@ -150,6 +152,8 @@ class NODBDuplicateCheck(QualityController):
                     ))
 
         for candidate in self.find_relationship_candidates(omit_records):
+            if not self._candidate_position_compatible(candidate, cached):
+                continue
             obs_id_match: bool = False
             if cached["obs_id"] is not None:
                 candidate_obs_id = candidate.record.metadata.best("CNODCObservationID", default=None)
@@ -158,6 +162,33 @@ class NODBDuplicateCheck(QualityController):
             result = self._compare_candidate(candidate, cached)
             results.append((candidate.observation_uuid, candidate.received_date, result, obs_id_match or result.is_reviewable()))
         return results
+
+    def _candidate_position_compatible(self, candidate: RelationshipCandidate, cached: dict[str, t.Any]) -> bool:
+        other_lat: SingleElement | None = candidate.record.coordinates.ideal("Latitude")
+        my_lat: SingleElement | None = cached["latitude"]
+        if my_lat is not None and other_lat is not None and my_lat.is_numeric() and other_lat.is_numeric():
+            other_lat_num = other_lat.to_scinum()
+            my_lat_num = my_lat.to_scinum()
+            if not other_lat_num.is_compatible(my_lat_num):
+                return False
+            
+        other_lon: SingleElement | None = candidate.record.coordinates.ideal("Longitude")
+        my_lon: SingleElement | None = cached["longitude"]
+        if my_lon is not None and other_lon is not None and my_lon.is_numeric() and other_lon.is_numeric():
+            other_lon_num = other_lon.to_scinum()
+            my_lon_num = my_lon.to_scinum()
+            if not other_lon_num.is_compatible(my_lon_num):
+                return False
+
+        other_time: SingleElement | None = candidate.record.coordinates.ideal("Time")
+        my_time: SingleElement | None = cached["time"]
+        if my_time is not None and other_time is not None and my_time.is_iso_datetime() and other_time.is_iso_datetime():
+            other_time_dtr = other_time.to_scidate()
+            my_time_dtr = my_time.to_scidate()
+            if not my_time_dtr.is_compatible(other_time_dtr):
+                return False
+
+        return True
 
     def _compare_candidate(self, candidate: RelationshipCandidate, cached: dict[str, t.Any]) -> RelationshipAction:
 
@@ -262,14 +293,13 @@ class NODBDuplicateCheck(QualityController):
             return CompareResult.DIFFERENT
 
     def compare_datetimes(self, a: SingleElement, b: SingleElement) -> CompareResult:
-        range_a = a.to_scidate().range()
-        range_b = b.to_scidate().range()
-        if not dates_overlap(
-            *range_a,
-            *range_b
-        ):
+        a_date = a.to_scidate()
+        b_date = b.to_scidate()
+        if not a_date.is_compatible(b_date):
             return CompareResult.DIFFERENT
         else:
+            range_a = a_date.range()
+            range_b = b_date.range()
             diff_a = (range_a[1] - range_a[0]).total_seconds()
             diff_b = (range_b[1] - range_b[0]).total_seconds()
             if diff_a > diff_b:
