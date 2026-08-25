@@ -171,6 +171,14 @@ class ScienceDateTime(AwareDateTime):
         super().__init__()
         self.uncertainty = uncertainty
 
+    def is_compatible(self, dt: AwareDateTime) -> bool:
+        my_min, my_max = self.range()
+        if isinstance(dt, ScienceDateTime):
+            other_min, other_max = dt.range()
+            return other_min <= my_max and other_max >= my_min
+        else:
+            return my_min <= dt <= my_max
+
     def range(self) -> tuple[t.Self, t.Self]:
         if self.uncertainty is not None:
             return self - self.uncertainty, self + self.uncertainty
