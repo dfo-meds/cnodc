@@ -1,0 +1,235 @@
+ATMP:
+  element: "parameters/AirPressure"
+  units: "hPa"
+ATMS:
+  element: "parameters/AirPressureAtSeaLevel"
+  units: "hPa"
+BATH:
+  element: "parameters/SeaDepth"
+  units: "m"
+CCLL: "metadata/PlatformID"
+CLN$:
+  element: "metadata/ThermistorCableLength"
+  units: "m"
+CNDC:
+  element: "parameters/Conductivity"
+  units: "mho m-1"
+DEPT:
+  element: "coordinates/Depth"
+  units: "m"
+DEWT:
+  element: "parameters/DewPointTemperature"
+  units: "degrees_C"
+DRDP:
+  element: "metadata/DrogueDepth"
+  units: "m"
+DRYT:
+  element: "parameters/AirTemperature"
+  units: "degrees_C"
+GDIR:
+  element: "parameters/WindGustMaxDirection"
+  units: "degrees"
+GGLC:
+  element: "metadata/WMOQualityLocation"
+HCDT:
+  element: "parameters/CurrentDirection"
+  units: "degrees"
+HCSP:
+  element: "parameters/CurrentSpeed"
+  units: "degrees"
+HEAD:
+  element: "parameters/PlatformDirection"
+  units: "degrees"
+ICT$:
+  element: "parameters/IceThickness"
+  units: "m"
+LN2$:
+  element: "metadata/AlternativeSolutionLongitude"
+  units: "degrees_east"
+LT2$:
+  element: "metadata/AlternativeSolutionLatitude"
+  units: "degrees_north"
+PHPH:
+  element: "parameters/PH"
+  units: "1"
+PNM1:
+  element: "metadata/PlatformName"
+PRES:
+  element: "coordinates/Pressure"
+  units: "dbar"
+PSAL:
+  element: "parameters/PracticalSalinity"
+  units: "1e-3"
+RELH:
+  element: "parameters/RelativeHumidity"
+  units: "1e-2"
+SCDT:
+  element: "parameters/CurrentDirection"
+  units: "degrees"
+  location: "surface"
+SCSP:
+  element: "parameters/CurrentSpeed"
+  units: "m s-1"
+  location: "surface"
+SSPS:
+  element: "parameters/PracticalSalinity"
+  units: "1e-2"
+  location: "surface"
+VISB:
+  element: "parameters/HorizontalVisibility"
+  units: "m"
+WDIR:
+  element: "parameters/WindDirection"
+  units: "degrees"
+WETT:
+  element: "parameters/WetBulbTemperature"
+  units: "degrees_C"
+WSP#:
+  element: "parameters/WindSpeed"
+  units: "knots"
+WSPD:
+  element: "parameters/WindSpeed"
+  units: "m s-1"
+CALK:
+  element: "parameters/CarbonateAlkalinityMolar"
+  units: "mmol m-3"
+CPHL:
+  element: "parameters/ChlorophyllA"
+  units: "mg m-3"
+CHB$:
+  element: "parameters/ChlorophyllB"
+  units: "mg m-3"
+CHC$:
+  element: "parameters/ChlorophyllC"
+  units: "mg m-3"
+DOXY:
+  element: "parameters/DissolvedOxygenMolar"
+  units: "mmol m-3"
+EWCT:
+  element: "parameters/CurrentSpeedEast"
+  units: "m s-1"
+HTL$:
+  element: "metadata/XBTHeight"
+  units: "m"
+NH3$:
+  element: "parameters/AmmoniaMolar"
+  units: "mmol m-3"
+NSCT:
+  element: "parameters/CurrentSpeedNorth"
+  units: "m s-1"
+NTOT:
+  element: "parameters/TotalNitrogenMolar"
+  units: "mmol m-3"
+NTRA:
+  element: "parameters/NitrateMolar"
+  units: "mmol m-3"
+NTRI:
+  element: "parameters/NitriteMolar"
+  units: "mmol m-3"
+PHO$:
+  element: "parameters/PhosphateMolar"
+  units: "mmol m-3"
+SVEL:
+  element: "parameters/SoundVelocity"
+  units: "m s-1"
+TPHS:
+  element: "parameters/TotalPhosphorousMolar"
+  units: "mmol m-3"
+SHP#:
+  element: "metadata/PlatformName"
+
+
+DRT$:
+  element: "metadata/WMODrogueDepth"
+  # TODO: this is ASCII code 4780, needs to be converted to BUFR format
+ANT$:
+  element: "common/WMOAnemometerType"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - WindDirection
+    - WindSpeed
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+BCI$:
+  element: "common/WMOCurrentMeasurementMethod"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+    - CurrentSpeedEast
+    - CurrentSpeedNorth
+BQA$:
+  element: "metadata/WMOQualityLocationClass"
+  # TODO: ascii to BUFR mapping
+BTP$:
+  element: "metadata/WMODataBuoyType"
+  # TODO: ascii to BUFR mapping
+GGCD:
+  element: "common/WMOCurrentMeasurementDuration"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+    - CurrentSpeedEast
+    - CurrentSpeedNorth
+GGCM:
+  element: "common/WMOCurrentMeasurementMethod"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+    - CurrentSpeedEast
+    - CurrentSpeedNorth
+GGEC:
+  element: "common/WMOCurrentMeasurementDuration"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+    - CurrentSpeedEast
+    - CurrentSpeedNorth
+GGK6:
+  element: "common/WMOPlatformMotionRemovalMethod"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+    - CurrentSpeedEast
+    - CurrentSpeedNorth
+GGSL:
+  element: "common/WMOSalinityDepthMeasurementMethod"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - PracticalSalinity
+GGST:
+  element: "metadata/WMOQualitySatellite"
+  # TODO: ascii to BUFR mapping
+GGWI:
+  element: "common/WMOWindInstrumentType"
+  # TODO: ascii to BUFR mapping
+  restrict_elements:
+    - WindSpeed
+    - WindDirection
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+GPT$:
+  element: "metadata/WMOAirPressureCharacteristic"
+  # TODO: ascii to BUFR mapping
+SSTP:
+  element: "parameters/Temperature"
+  units: "degrees_C"
+  location: "surface"
+  # TODO: need to check if IPTS-68 or ITS-90 is a good default
+TEMP:
+  element: "parameters/Temperature"
+  units: "degrees_C"
+  # TODO: need to check if IPTS-68 or ITS-90 is a good default
+GGDI:
+  element: "recordset/DigitizationMethod"
+  # TODO: internal mapping
+WMO$:
+  element: "parameters/WMOID"
+  # TODO: normalization
+PDR$:
+  element: "recordset/ProfileDirection"
+  # TODO: internal mapping

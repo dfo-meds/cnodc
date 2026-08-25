@@ -684,31 +684,31 @@ class StationRecord(_MedsEncodable):
         self.raw_values[11] = val
 
     @property
-    def _latitude(self) -> float:
+    def latitude(self) -> float:
         return self.raw_values[12]
 
-    @_latitude.setter
-    def _latitude(self, val: float):
+    @latitude.setter
+    def latitude(self, val: float):
         self.raw_values[12] = float(val)
 
     @property
-    def _longitude(self) -> float:
+    def longitude(self) -> float:
         return self.raw_values[13]
 
-    @_longitude.setter
-    def _longitude(self, val: float):
+    @longitude.setter
+    def longitude(self, val: float):
         self.raw_values[13] = float(val)
 
     @property
     def coordinates(self) -> tuple[float, float]:
-        return self._longitude, self._latitude
+        return self.longitude, self.latitude
 
     @coordinates.setter
     def coordinates(self, long_lat: tuple):
         long, lat = long_lat
         self._meds_1d_sqr = f"{int(math.ceil(long))}{str(int(math.ceil(lat))).zfill(3)}"
-        self._latitude = lat
-        self._longitude = long
+        self.latitude = lat
+        self.longitude = long
 
     @property
     def quality_position(self) -> str:
@@ -856,7 +856,7 @@ class StationRecord(_MedsEncodable):
 
     def encode(self, fmt: MedsEncoding, record_no: int = 1) -> t.Iterable[bytes]:
         self.validate_record(record_no, fmt)
-        self._meds_1d_sqr = f"{int(math.ceil(self._longitude+180))}{str(int(math.ceil(self._latitude+90))).zfill(3)}"
+        self._meds_1d_sqr = f"{int(math.ceil(self.longitude + 180))}{str(int(math.ceil(self.latitude + 90))).zfill(3)}"
         max_sizes = StationRecord.OCPROC_MAX_SIZES if fmt == MedsEncoding.OCPROC else StationRecord.MEDSASC_MAX_SIZES
         self._no_prof = min(max_sizes[0], len(self.profile_info_groups))
         self._nparms = min(max_sizes[1], len(self.surface_parameter_groups))
@@ -918,6 +918,6 @@ def unpack(data: ByteSequenceReader, enc: MedsEncoding) -> t.Iterable[StationRec
             data.lstrip(b"\r\n")
 
 
-def pack(station_records: t.Iterable[StationRecord], enc: MedsEncoding) -> t.Iterable[bytes]:
-    for idx, station_record in enumerate(station_records, start=1):
+def pack(station_records: t.Iterable[StationRecord], enc: MedsEncoding, start_idx: int = 1) -> t.Iterable[bytes]:
+    for idx, station_record in enumerate(station_records, start=start_idx):
         yield from station_record.encode(enc, idx)
