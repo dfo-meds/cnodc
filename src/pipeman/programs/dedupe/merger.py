@@ -139,6 +139,10 @@ class ObservationDataMerger:
 
     def _attempt_automerge(self) -> ParentRecord:
         new_record = ParentRecord()
+        new_record.metadata["CNODCMergedFrom"] = [
+            [x.obs_uuid, x.received_date.isoformat()]
+            for x in self._items
+        ]
         new_record_ref = ParentRecordRef(new_record)
         refs = [
             ParentRecordRef(t.cast(ParentRecord, x.record))
