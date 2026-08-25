@@ -402,12 +402,10 @@ class NODBDuplicateCheck(QualityController):
         }
         if "Latitude" in self.current_record.record.coordinates:
             lat = self.current_record.record.coordinates["Latitude"].to_scinum()
-            kwargs["min_latitude"] = float(lat.nominal_value - (2 * lat.std_dev))
-            kwargs["max_latitude"] = float(lat.nominal_value + (2 * lat.std_dev))
+            kwargs["min_latitude"], kwargs["max_latitude"] = lat.range()
         if "Longitude" in self.current_record.record.coordinates:
             lon = self.current_record.record.coordinates["Longitude"].to_scinum()
-            kwargs["min_longitude"] = float(lon.nominal_value - (2 * lon.std_dev))
-            kwargs["max_longitude"] = float(lon.nominal_value + (2 * lon.std_dev))
+            kwargs["min_longitude"], kwargs["max_longitude"] = lon.range()
         if "Time" in self.current_record.record.coordinates:
             time = self.current_record.record.coordinates["Time"].to_scidate()
             kwargs["min_time"], kwargs["max_time"] = time.range()
