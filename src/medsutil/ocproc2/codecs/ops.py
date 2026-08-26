@@ -10,8 +10,9 @@ from medsutil.ocproc2 import ParentRecord, BaseRecord, RecordSet, AbstractElemen
     MultiElement, ChildRecord
 import typing as t
 
-from medsutil.ocproc2.util import Quality
+from medsutil.ocproc2.util import Quality, find_quality_for_protocol, combine_quality_scores
 from medsutil.seawater import TemperatureScale
+from medsutil import math as amath
 
 
 class OceanProcessingSchemaError(CodedError): CODE_SPACE = 'OPS'
@@ -287,20 +288,29 @@ class SingleValueInstruction(Instruction):
     def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
         ...
 
+    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
+        raise NotImplementedError
+
+    def get_quality(self, context: OPSContext) -> int | None:
+        return self.get_value_with_quality(context)[1]
+
     def get_value(self, context: OPSContext) -> RawValue:
-        ...
+        return self.get_value_with_quality(context)[0]
+
 
 
 class StaticInstruction(SingleValueInstruction):
 
     def __init__(self,
                  value: RawValue,
+                 quality: int | None = None,
                  **kwargs):
         self._value = value
+        self._quality = quality
         super().__init__(**kwargs)
 
-    def get_value(self, context: OPSContext) -> RawValue:
-        return self._value
+    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
+        return self._value, self._quality
 
     def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
         ...
@@ -468,18 +478,16 @@ class WorstQualityInstruction(SingleValueInstruction):
                   **kwargs):
         raise NotImplementedError  # TODO: set all the qualities on elements
 
-    def get_value(self, context: OPSContext) -> RawValue:
-        q = None
-        for element_name in self.elements:
-            element = context.record.find_child(element_name)
-            if element is None:
-                continue
-            if not isinstance(element, AbstractElement):
-                raise OceanProcessingSchemaError("Invalid element path", 2000)
-            if Quality.new_quality_allowed(element.quality, q):
-                q = element.quality
-        return q
-
+    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
+        def _elements() -> t.Iterable[SingleElement]:
+            for element_name in self.elements:
+                element = context.record.find_child(element_name)
+                if element is None:
+                    continue
+                if not isinstance(element, AbstractElement):
+                    raise OceanProcessingSchemaError("Invalid element path", 2000)
+                yield from element.all_values()
+        return context.get_quality(*_elements()), None
 
 
 class ElementInstruction(SingleValueInstruction):
@@ -609,22 +617,22 @@ class ElementInstruction(SingleValueInstruction):
         else:
             raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
 
-    def get_value(self, context: OPSContext) -> RawValue:
+    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
         if self.element_path.startswith((
             "parameters/",
             "metadata/",
             "coordinates/"
         )):
-            v = self._get_record_child_element(context)
+            v, q = self._get_record_child_element(context)
         elif self.element_path.startswith("parent/"):
-            v = self._get_parent_child_element(context)
+            v, q = self._get_parent_child_element(context)
         elif self.element_path.startswith((
             "recordset/",
             "common-recordset/"
         )):
-            v = self._get_recordset_child_element(context)
+            v, q = self._get_recordset_child_element(context)
         elif self.element_path.startswith("common/"):
-            v = self._get_common_element(context)
+            v, q = self._get_common_element(context)
         else:
             raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
         exp_p = self.export_processor
@@ -632,21 +640,21 @@ class ElementInstruction(SingleValueInstruction):
             v = exp_p(v)
         if self.export_map is not None and v in self.export_map:
             v = self.export_map[v]
-        return v
+        return v, q
 
-    def _get_record_child_element(self, context: OPSContext) -> RawValue:
+    def _get_record_child_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
         return self._process_element(
             context.record.find_child(self.element_path),
             context
         )
 
-    def _get_parent_child_element(self, context: OPSContext) -> RawValue:
+    def _get_parent_child_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
         return self._process_element(
             context.parent.find_child(self.element_path.split('/')[1:]),
             context
         )
 
-    def _get_recordset_child_element(self, context: OPSContext) -> RawValue:
+    def _get_recordset_child_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
         if context.recordset is None:
             return self._process_element(None, context)
         return self._process_element(
@@ -654,49 +662,55 @@ class ElementInstruction(SingleValueInstruction):
             context
         )
 
-    def _get_common_element(self, context: OPSContext) -> RawValue:
-        values = set()
+    def _get_common_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
+        values: set[tuple[RawValue, int | None]] = set()
         n_values = 0
         _, metadata_name = self.element_path.split('/', maxsplit=1)
         for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.use_current_record):
             v = self._process_element(element.metadata.get(metadata_name, None), context)
-            if v is not None:
+            if v[0] is not None:
                 values.add(v)
                 n_values += 1
         if n_values == 0:
-            return None
+            return None, None
         elif n_values == 1:
             return list(values)[0]
         else:
             raise OceanProcessingSchemaError("Multiple common elements detected", 1000)
 
-    def _process_element(self, v: t.Any, context: OPSContext) -> RawValue:
+    def _extract_quality(self, element: SingleElement, context: OPSContext) -> int | None:
+        return context.get_quality(element)
+
+    def _process_element(self, v: t.Any, context: OPSContext) -> tuple[RawValue, int | None]:
         if v is None:
-            return None
+            return None, None
         if not isinstance(v, AbstractElement):
             raise OceanProcessingSchemaError("Invalid path for an element instruction", 1100)
         best_value = self._find_best_value(v)
         if best_value is None:
-            return None
+            return None, None
+        quality = self._extract_quality(best_value, context)
         if self.data_type is DataType.STRING:
-            return best_value.to_string()
+            return best_value.to_string(), quality
         elif self.data_type is DataType.INTEGER:
-            return best_value.to_int()
+            return best_value.to_int(), quality
         elif self.data_type is DataType.FLOAT:
             if self.export_temperature_scale is not None:
                 from medsutil import ocproc_math
-                v = ocproc_math.get_temperature(
+                val = ocproc_math.get_temperature(
                     temperature=best_value,
                     obs_date=context.parent.coordinates.ideal("Time"),
                     units=self.units or "",
                     temperature_scale=TemperatureScale(self.export_temperature_scale)
                 )
             else:
-                v = best_value.to_float(self.units)
+                val = best_value.to_float(self.units)
+            if val is None:
+                return None, quality
             if self.places is not None:
-                return round(v)
+                return float(amath.round_to_place(val, self.places)), quality
             else:
-                return v
+                return float(val), quality
         else:
             raise OceanProcessingSchemaError("Invalid data type", 1101)
 
@@ -796,12 +810,15 @@ class OPSContext:
                 iterate_into_recordset=self.iterate_into_recordset
             )
 
-    def __init__(self, record: ParentRecord):
+    def __init__(self,
+                 record: ParentRecord,
+                 test_protocols: list[str] | set[str] | tuple[str] | None = None):
         self.parent: ParentRecord = record
         self.record: BaseRecord = record
         self.recordset_type: str | None = None
         self.recordset: RecordSet | None = None
         self.extras = {}
+        self.test_protocols: t.Iterable[str] | None = test_protocols
         self._future_rs_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._future_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._ignore_rsids: list[int] = []
@@ -886,6 +903,29 @@ class OPSContext:
         record = ChildRecord()
         with self.record_context(record):
             yield self
+
+    def get_quality(self,
+                    *elements: SingleElement):
+        def _qualities() -> t.Iterable[int | None]:
+            if self.test_protocols:
+                for element in elements:
+                    for protocol_name in self.test_protocols:
+                        yield from find_quality_for_protocol(element, protocol_name)
+            else:
+                for element in elements:
+                    if "Quality" in element.metadata:
+                        for qual in element.metadata["Quality"].all_values():
+                            if qual.is_integer():
+                                yield qual.to_int()
+                            else:
+                                yield None
+                    if "WorkingQuality" in element.metadata:
+                        for qual in element.metadata["WorkingQuality"].all_values():
+                            if qual.is_integer():
+                                yield qual.to_int()
+                            else:
+                                yield None
+        return combine_quality_scores(_qualities())
 
     def set_element(self,
                     path: str,

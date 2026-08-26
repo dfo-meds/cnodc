@@ -2,9 +2,9 @@ import typing as t
 
 from medsutil import types as ct
 from medsutil.ocproc2 import ParentRecord
-from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
-from medsutil.ocproc2.codecs.meds.convert import ocproc2_to_station, station_to_ocproc2
-from medsutil.ocproc2.codecs.meds.structs import MedsEncoding, unpack, StationRecord
+from medsutil.ocproc2.codecs.base import BaseCodec
+from medsutil.ocproc2.codecs.meds.convert import MedsConverter
+from medsutil.ocproc2.codecs.meds.structs import MedsEncoding, unpack
 
 
 class _MedsCodec(BaseCodec):
@@ -17,20 +17,21 @@ class _MedsCodec(BaseCodec):
             force_single_mode=True,
             **kwargs
         )
+        self.converter = MedsConverter()
 
     def encoding(self) -> MedsEncoding:
         raise NotImplementedError
 
     def _decode_single_message(self, data: t.ByteString, options: dict) -> t.Iterable[ParentRecord]:
         for station in unpack(self._as_byte_sequence([data]), self.encoding()):
-            yield station_to_ocproc2(station)
+            yield self.converter.station_to_ocproc2(station, self.encoding())
 
     def _encode_single_record(self, record: ParentRecord, options: dict) -> ct.ByteStrings:
         if "__index" not in options:
             options["__index"] = 1
         else:
             options["__index"] += 1
-        yield from ocproc2_to_station(record).encode(self.encoding(), options["__index"])
+        yield from self.converter.ocproc2_to_station(record).encode(self.encoding(), options["__index"])
 
 
 class OCPROCCodec(_MedsCodec):

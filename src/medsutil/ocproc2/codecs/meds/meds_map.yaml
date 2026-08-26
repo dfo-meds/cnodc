@@ -7,7 +7,9 @@ ATMS:
 BATH:
   element: "parameters/SeaDepth"
   units: "m"
-CCLL: "metadata/PlatformID"
+CCLL:
+  element: "metadata/PlatformID"
+  meds_group: "code"
 CLN$:
   element: "metadata/ThermistorCableLength"
   units: "m"
@@ -31,12 +33,16 @@ GDIR:
   units: "degrees"
 GGLC:
   element: "metadata/WMOQualityLocation"
+  meds_group: "code"
+  data_type: "integer"
 HCDT:
   element: "parameters/CurrentDirection"
   units: "degrees"
+  location: "subsurface"
 HCSP:
   element: "parameters/CurrentSpeed"
   units: "degrees"
+  location: "subsurface"
 HEAD:
   element: "parameters/PlatformDirection"
   units: "degrees"
@@ -54,6 +60,7 @@ PHPH:
   units: "1"
 PNM1:
   element: "metadata/PlatformName"
+  meds_group: "code"
 PRES:
   element: "coordinates/Pressure"
   units: "dbar"
@@ -87,6 +94,7 @@ WETT:
 WSP#:
   element: "parameters/WindSpeed"
   units: "knots"
+  deprecated: true
 WSPD:
   element: "parameters/WindSpeed"
   units: "m s-1"
@@ -137,6 +145,7 @@ TPHS:
   units: "mmol m-3"
 SHP#:
   element: "metadata/PlatformName"
+  meds_group: "code"
 SSAL:
   element: "parameters/Salinity"
   units: "g kg-1"
@@ -146,33 +155,50 @@ SSSL:
   location: "surface"
 APC1:
   element: "common/WMOAveragingPeriod"
+  meds_group: "code"
+  data_type: "integer"
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
 APC2:
   element: "common/WMOAveragingPeriod"
+  meds_group: "code"
+  data_type: "integer"
   restrict_elements:
     - PracticalSalinity
 APC3:
   element: "common/WMOAveragingPeriod"
+  meds_group: "code"
+  data_type: "integer"
   restrict_elements:
     - Temperature
-DKT$:
-  element: "metadata/WMOProfileRecorderType"
-  deprecated: true
 TRAN:
   element: "parameters/LightTransmission"
+  meds_group: "code"
+  data_type: "integer"
   units: "1e-2"
 
 
+DKT$:
+  element: "metadata/WMOProfileRecorderType"
+  meds_group: "code"
+  data_type: "integer"
+  # TODO: ascii to BUFR
+  deprecated: true
 RCT$:
   element: "metadata/WMOProfileRecorderType"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR
 DRT$:
   element: "metadata/WMODrogueDepth"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: this is ASCII code 4780, needs to be converted to BUFR format
 ANT$:
   element: "common/WMOAnemometerType"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - WindDirection
@@ -181,20 +207,29 @@ ANT$:
     - WindGustMaxDirection
 BCI$:
   element: "common/WMOCurrentMeasurementMethod"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
     - CurrentSpeedEast
     - CurrentSpeedNorth
+  deprecated: true
 BQA$:
   element: "metadata/WMOQualityLocationClass"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
 BTP$:
   element: "metadata/WMODataBuoyType"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
 GGCD:
   element: "common/WMOCurrentMeasurementDuration"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - CurrentDirection
@@ -203,6 +238,8 @@ GGCD:
     - CurrentSpeedNorth
 GGCM:
   element: "common/WMOCurrentMeasurementMethod"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - CurrentDirection
@@ -211,14 +248,19 @@ GGCM:
     - CurrentSpeedNorth
 GGEC:
   element: "common/WMOCurrentMeasurementDuration"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
     - CurrentSpeedEast
     - CurrentSpeedNorth
+  deprecated: true
 GGK6:
   element: "common/WMOPlatformMotionRemovalMethod"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - CurrentDirection
@@ -227,14 +269,20 @@ GGK6:
     - CurrentSpeedNorth
 GGSL:
   element: "common/WMOSalinityDepthMeasurementMethod"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - PracticalSalinity
 GGST:
   element: "metadata/WMOQualitySatellite"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
 GGWI:
   element: "common/WMOWindInstrumentType"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
   restrict_elements:
     - WindSpeed
@@ -243,6 +291,8 @@ GGWI:
     - WindGustMaxDirection
 GPT$:
   element: "metadata/WMOAirPressureCharacteristic"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: ascii to BUFR mapping
 SSTP:
   element: "parameters/Temperature"
@@ -252,13 +302,20 @@ SSTP:
 TEMP:
   element: "parameters/Temperature"
   units: "degrees_C"
+  location: "subsurface"
   # TODO: need to check if IPTS-68 or ITS-90 is a good default
 GGDI:
   element: "recordset/DigitizationMethod"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: internal mapping
 WMO$:
   element: "parameters/WMOID"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: normalization
 PDR$:
   element: "recordset/ProfileDirection"
+  meds_group: "code"
+  data_type: "integer"
   # TODO: internal mapping
