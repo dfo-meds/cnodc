@@ -137,8 +137,37 @@ TPHS:
   units: "mmol m-3"
 SHP#:
   element: "metadata/PlatformName"
+SSAL:
+  element: "parameters/Salinity"
+  units: "g kg-1"
+SSSL:
+  element: "parameters/Salinity"
+  units: "g kg-1"
+  location: "surface"
+APC1:
+  element: "common/WMOAveragingPeriod"
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+APC2:
+  element: "common/WMOAveragingPeriod"
+  restrict_elements:
+    - PracticalSalinity
+APC3:
+  element: "common/WMOAveragingPeriod"
+  restrict_elements:
+    - Temperature
+DKT$:
+  element: "metadata/WMOProfileRecorderType"
+  deprecated: true
+TRAN:
+  element: "parameters/LightTransmission"
+  units: "1e-2"
 
 
+RCT$:
+  element: "metadata/WMOProfileRecorderType"
+  # TODO: ascii to BUFR
 DRT$:
   element: "metadata/WMODrogueDepth"
   # TODO: this is ASCII code 4780, needs to be converted to BUFR format
