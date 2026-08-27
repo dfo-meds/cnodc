@@ -2,6 +2,7 @@ import copy
 import datetime
 import enum
 from contextlib import contextmanager
+from types import EllipsisType
 
 from medsutil.dynamic import dynamic_name, dynamic_object
 from medsutil.exceptions import CodedError
@@ -499,6 +500,7 @@ class ElementInstruction(SingleValueInstruction):
                  filters: dict[str, RawValue] | None = None,
                  metadata: dict[str, RawValue] | None = None,
                  remove_metadata: list[str] | None = None,
+                 override_value: RawValue | EllipsisType = ...,
                  iterate_into_recordset: bool = False,
                  use_current_record: bool = True,
                  restrict_recordsets: list[str] | None = None,
@@ -525,6 +527,7 @@ class ElementInstruction(SingleValueInstruction):
         self.places = places
         self.filters = filters
         self.element_path = element
+        self.override_value = override_value
         self.restrict_names = restrict_elements
         self.restrict_recordsets = restrict_recordsets
         self.use_current_record = use_current_record
@@ -644,6 +647,8 @@ class ElementInstruction(SingleValueInstruction):
             v, q = self._get_common_element(context)
         else:
             raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
+        if self.override_value is not ...:
+            v = t.cast(RawValue, self.override_value)
         exp_p = self.export_processor
         if exp_p is not None:
             v = exp_p(v)
