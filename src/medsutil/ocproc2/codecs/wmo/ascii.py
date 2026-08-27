@@ -248,9 +248,9 @@ class AsciiDecoder(GtsSubDecoder):
     @with_exception_note("Error while parsing anemometer height")
     def parse_anemometer_height(self, ah: str, **kwargs) -> SingleElement | None:
         if ah == "999":
-            return SingleElement(-10, Units="m", SensorDepthReference="local_ground_corrected", **kwargs)
+            return SingleElement(10, Units="m", SensorHeightReference="local_ground_corrected", **kwargs)
         else:
-            return self.parse_scinum(f"-{ah}/", 3, "m", SensorDepthReference="local_ground", **kwargs)
+            return self.parse_scinum(f"{ah}/", 3, "m", SensorHeightReference="local_ground", **kwargs)
 
     @with_exception_note("Error while parsing hydrostatic pressure")
     def parse_hydrostatic_pressure(self, zh: str, **kwargs) -> SingleElement | None:
