@@ -136,7 +136,6 @@ class MedsConverter:
                 with context.recordset_context(rs, "PROFILE"):
                     for pcode in self.code_map.pcode_list_for_encode(False, True):
                         prof_values, d_values, prof_priority, d_type = self._get_profile_values(pcode, context)
-
                         if prof_values:
                             self._encode_profile_info_group(pcode, prof_values, prof_priority, d_values, d_type, sr, context)
 
