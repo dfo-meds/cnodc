@@ -511,6 +511,7 @@ class ElementInstruction(SingleValueInstruction):
                  future_context: str | int | None = None,
                  import_processor: str | None = None,
                  export_processor: str | None = None,
+                 ocproc2_export_processor: str | None = None,
                  append: bool = False,
                  **kwargs):
         try:
@@ -532,12 +533,20 @@ class ElementInstruction(SingleValueInstruction):
         self.export_temperature_scale = export_temperature_scale
         self.export_map = export_map
         self.import_map = import_map
+        self._ocproc2_export_processor_name = ocproc2_export_processor
         self._import_processor_name = import_processor
         self._export_processor_name = export_processor
+        self._ocproc2_export_processor = ...
         self._import_processor = ...
         self._export_processor = ...
         self.append_mode: bool = append
         super().__init__(**kwargs)
+
+    @property
+    def ocproc2_export_processor(self) -> t.Callable[[SingleElement], RawValue] | None:
+        if self._ocproc2_export_processor is ...:
+            self._ocproc2_export_processor = None if self._ocproc2_export_processor_name is None else dynamic_object(self._ocproc2_export_processor_name)
+        return self._ocproc2_export_processor
 
     @property
     def import_processor(self) -> t.Callable | None:
@@ -690,6 +699,8 @@ class ElementInstruction(SingleValueInstruction):
         if best_value is None:
             return None, None
         quality = self._extract_quality(best_value, context)
+        if self.ocproc2_export_processor is not None:
+            return self.ocproc2_export_processor(best_value), quality
         if self.data_type is DataType.STRING:
             return best_value.to_string(), quality
         elif self.data_type is DataType.INTEGER:
