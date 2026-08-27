@@ -4,13 +4,26 @@ import typing as t
 import yaml
 from autoinject import injector
 
-from medsutil.ocproc2.codecs.ops import Instruction, SingleValueInstruction, OPSContext, EncodeDecodeGroup
+from medsutil.ocproc2.codecs.ops import Instruction, SingleValueInstruction, OPSContext, EncodeDecodeGroup, \
+    NoopInstruction
 from medsutil.ocproc2.elements import SingleElement
 from medsutil.ocproc2.structures import ParentRecord
 from medsutil.ocproc2.codecs.meds.structs import StationRecord, MedsEncoding, SurfaceCodeGroup, SurfaceParameterGroup, \
     ProfileInfoGroup, ProfileRecord, ProfileLevelGroup
 from medsutil.ocproc2.util import combine_quality_scores, find_quality_for_protocol
 from medsutil.units import UnitConverter
+
+
+def extract_anemometer_height(e: SingleElement) -> int | None:
+    if not e.is_numeric():
+        return None
+    v = e.to_int(no_loss=False)
+    if e.metadata.best("SensorHeightReference", "") == "local_ground_corrected" and v == 10:
+        return 999
+    elif v < 999:
+        return v
+    else:
+        return None
 
 
 @injector.injectable_global
@@ -55,11 +68,17 @@ class MedsCodeMap:
             inst["meds_group"] = "parameter"
         if "priority" not in inst:
             inst["priority"] = 0
+        for key in ("ocproc2_export_processor", "import_processor", "export_processor"):
+            if key in inst and inst[key].startswith("[MODULE]"):
+                inst[key] = f"{__name__}{inst[key][8:]}"
         return inst
 
     def pcode_list_for_encode(self, is_surface: bool = False, parameters_only: bool = False) -> t.Iterable[str]:
         codes: list[tuple[str, int]] = []
         for pcode, entry in self._meds_map.items():
+            # exclude any fake elements we built to help with decoding
+            if len(pcode) != 4:
+                continue
             if entry.get("deprecated", False):
                 continue
             if parameters_only and entry.get("meds_group", "parameter") != "parameter":
@@ -128,7 +147,25 @@ class MedsConverter:
         self._encode_surface_groups(sr, context)
         self._encode_profile_info_groups(sr, context)
 
+        self._handle_buoy_eng_status(sr, context)
+
         return sr
+
+    def _handle_buoy_eng_status(self, sr: StationRecord, context: OPSContext):
+        if context.record.metadata.has_value("BuoyEngineeringStatus"):
+            val = context.record.metadata["BuoyEngineeringStatus"].to_string()
+            idx = 1
+            while idx < 4 and val:
+                status_group = val[0:4]
+                val = val[4:] if len(val) > 4 else ""
+                val.ljust(4, "/")
+                scg = SurfaceCodeGroup()
+                scg.priority = 0
+                scg.quality = 0
+                scg.value = status_group
+                scg.pcode = f"GE{idx}$"
+                sr.surface_code_groups.append(scg)
+                idx += 1
 
     def _encode_profile_info_groups(self, sr: StationRecord, context: OPSContext):
         if "PROFILE" in context.record.subrecords:
@@ -175,45 +212,50 @@ class MedsConverter:
         pressures = []
         n_with_pressure = 0
         values = []
-        for record in context.recordset.records.iterate_with_load():
-            with context.record_context(record):
-                value, quality = instruction.get_value_with_quality(context)
-                if value is None:
-                    continue
-                depth = None
-                depth_q = None
-                pressure = None
-                pressure_q = None
-                if record.coordinates.has_value("Depth") and not instruction.extras.get("skip_depth", False):
-                    d = record.coordinates["Depth"].ideal()
-                    depth = d.to_float("meters")
-                    depth_q = context.get_quality(d)
-                    n_with_depth += 1
-                if record.coordinates.has_value("Pressure") and not instruction.extras.get("skip_pressure", False):
-                    p = record.coordinates["Pressure"].ideal()
-                    pressure = p.to_float("dbar")
-                    pressure_q = context.get_quality(p)
-                    n_with_pressure += 1
-                if depth is not None or pressure is not None:
-                    depths.append((depth, depth_q))
-                    pressures.append((pressure, pressure_q))
-                    values.append((value, quality))
+        if instruction is not None:
+            for record in context.recordset.records.iterate_with_load():
+                with context.record_context(record):
+                    value, quality = instruction.get_value_with_quality(context)
+                    if value is None:
+                        continue
+                    depth = None
+                    depth_q = None
+                    pressure = None
+                    pressure_q = None
+                    if record.coordinates.has_value("Depth") and not instruction.extras.get("skip_depth", False):
+                        d = record.coordinates["Depth"].ideal()
+                        depth = d.to_float("meters")
+                        depth_q = context.get_quality(d)
+                        n_with_depth += 1
+                    if record.coordinates.has_value("Pressure") and not instruction.extras.get("skip_pressure", False):
+                        p = record.coordinates["Pressure"].ideal()
+                        pressure = p.to_float("dbar")
+                        pressure_q = context.get_quality(p)
+                        n_with_pressure += 1
+                    if depth is not None or pressure is not None:
+                        depths.append((depth, depth_q))
+                        pressures.append((pressure, pressure_q))
+                        values.append((value, quality))
         if n_with_depth >= n_with_pressure:
             return values, depths, instruction.extras.get("priority", 0), "D"
         else:
             return values, pressures, instruction.extras.get("priority", 0), "P"
 
-    def _get_encode_instruction(self, pcode: str) -> SingleValueInstruction:
+    def _get_encode_instruction(self, pcode: str) -> SingleValueInstruction | None:
         instruction = self.code_map.lookup(pcode)
         if isinstance(instruction, EncodeDecodeGroup):
             instruction = instruction.get_instruction(True)
         if isinstance(instruction, SingleValueInstruction):
             return instruction
+        if isinstance(instruction, NoopInstruction):
+            return None
         raise ValueError(f"Unrecognized instruction: [{instruction.__class__}]")
 
     def _encode_surface_groups(self, sr: StationRecord, context: OPSContext):
         for pcode in self.code_map.pcode_list_for_encode(True):
             instruction = self._get_encode_instruction(pcode)
+            if instruction is None:
+                continue
             priority = instruction.extras.get("priority", 0)
             group = instruction.extras.get("meds_group", "parameter")
             value, quality = instruction.get_value_with_quality(context)
@@ -276,4 +318,50 @@ class MedsConverter:
         # TODO: surface group decode
         # TODO: profile decode
 
+        # TODO: custom import for GE1$ through GE3$
+
         return pr
+
+    SPLIT_CODES: dict[str, list[tuple[int, int, str]]] = {
+        # TESAC 66...
+        "GGC$": [
+            (2, 3, "GGK6"),
+            (3, 4, "GGEC"),
+            (4, 5, "GGCD"),
+        ],
+        # DRIBU 1 Qpressure Qhousekeeping Qwatertemp Qairtemp
+        "GIN$": [
+            (1, 2, "_GIN$1"),
+            (2, 3, "_GIN$2"),
+            (3, 4, "_GIN$3"),
+            (4, 5, "_GIN$4"),
+        ],
+        # 1770 / 4770
+        "PFR$": [
+            (0, 3, ""),  # TODO, when we figure out what code this is
+            (3, 5, "RCT$")
+        ]
+
+    }
+
+    def _handle_ggi(self, value: str, context: OPSContext):
+        # BATHY/TESAC 88...
+        value = value.ljust(5, "/")
+
+        # bathy this is 8 8 8 8 k1 (k1 is digitization method 7 8)
+        if value and value[-1] in ("7", "8") and value[-2] == "8":
+            self._handle_split_code(value, codes=[(4, 5, "GGDI")], context=context)
+
+        # tesac this is 8 8 8 k1 k2 (k2 is salinity depth which is 0-3)
+        else:
+            self._handle_split_code(value, codes=[
+                (3, 4, "GGDI"),
+                (4, 5, "GGSL"),
+            ], context=context)
+
+    def _handle_split_code(self, value: str, codes: list[tuple[int, int, str]], context: OPSContext):
+        value = value.ljust(5, "/")
+        for start_idx, end_idx, pcode in codes:
+            instruction = self._get_encode_instruction(pcode)
+            if instruction is not None:
+                instruction.set_value(value[start_idx:end_idx], None, context)

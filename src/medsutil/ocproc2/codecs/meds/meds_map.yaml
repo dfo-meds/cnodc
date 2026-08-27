@@ -180,7 +180,20 @@ TRAN:
   meds_group: "code"
   data_type: "integer"
   units: "1e-2"
-
+ATPT:
+  element: "parameters/AirPressureChange"
+  units: "hPa"
+  meds_group: "parameters"
+  metadata:
+    ObservationPeriod: "PT1H"
+BQZ$:
+  element: "common/WMOHSPCorrected"
+  meds_group: "code"
+  data_type: "integer"
+  restrict_elements:
+    - Depth
+  import_map:
+    "/": null
 
 DKT$:
   element: "metadata/WMOProfileRecorderType"
@@ -194,25 +207,54 @@ RCT$:
   data_type: "integer"
   # TODO: ascii to BUFR
 DRT$:
-  element: "metadata/WMODrogueDepth"
+  element: "metadata/WMODrogueType"
   meds_group: "code"
   data_type: "integer"
-  # TODO: this is ASCII code 4780, needs to be converted to BUFR format
-ANT$:
-  element: "common/WMOAnemometerType"
+  import_map:
+    "/": 31
+  export_map:
+    31: "/"
+ANH$:
+  element: "common/SensorHeight"
+  units: "m"
   meds_group: "code"
-  data_type: "integer"
-  # TODO: ascii to BUFR mapping
   restrict_elements:
     - WindDirection
     - WindSpeed
     - WindGustMaxSpeed
     - WindGustMaxDirection
+  metadata:
+    SensorHeightReference: "local_ground"
+ANT$:
+  element: "common/SensorHeight"
+  units: "m"
+  meds_group: "code"
+  restrict_elements:
+    - WindDirection
+    - WindSpeed
+    - WindGustMaxSpeed
+    - WindGustMaxDirection
+  decode:
+    instruction_map:
+      999:
+        override_value: 10
+        metadata:
+          SensorHeightReference: "local_ground_corrected"
+      _:
+        metadata:
+          SensorHeightReference: "local_ground"
+  encode:
+    ocproc2_export_processor: "[MODULE].extract_anemometer_height"
+
 BCI$:
   element: "common/WMOCurrentMeasurementMethod"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 7
+    1: 6
+  export_map:
+    7: "/"
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
@@ -223,48 +265,98 @@ BQA$:
   element: "metadata/WMOQualityLocationClass"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 7
+  export_map:
+    7: "/"
 BTP$:
   element: "metadata/WMODataBuoyType"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
-GGCD:
-  element: "common/WMOCurrentMeasurementDuration"
-  meds_group: "code"
-  data_type: "integer"
-  # TODO: ascii to BUFR mapping
-  restrict_elements:
-    - CurrentDirection
-    - CurrentSpeed
-    - CurrentSpeedEast
-    - CurrentSpeedNorth
+  import_map:
+    "/": 63
+  export_map:
+    63: "/"
 GGCM:
   element: "common/WMOCurrentMeasurementMethod"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    1: 6
+    /: 7
+  export_map:
+    7: /
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
     - CurrentSpeedEast
     - CurrentSpeedNorth
-GGEC:
+GGCD: # note this is code table 2265 decoding
   element: "common/WMOCurrentMeasurementDuration"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    1: 11
+    2: 12
+    3: 13
+    4: 14
+    5: 15
+    6: 16
+    7: 17
+    9: 19
+    /: null
+  export_map:
+    11: 1
+    12: 2
+    13: 3
+    14: 4
+    15: 5
+    16: 6
+    17: 7
+    19: 9
+    31: /
+    1: null
+    2: null
+    3: null
+    4: null
+    5: null
+    6: null
+    7: null
+    8: null
+    9: null
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
     - CurrentSpeedEast
     - CurrentSpeedNorth
-  deprecated: true
+GGEC:  # note this is code table 2264 decoding
+  element: "common/WMOCurrentMeasurementDuration"
+  meds_group: "code"
+  data_type: "integer"
+  import_map:
+    /: null
+  export_map:
+    11: null
+    12: null
+    13: null
+    14: null
+    15: null
+    16: null
+    17: null
+    19: null
+  restrict_elements:
+    - CurrentDirection
+    - CurrentSpeed
+    - CurrentSpeedEast
+    - CurrentSpeedNorth
 GGK6:
   element: "common/WMOPlatformMotionRemovalMethod"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 15
+  export_map:
+    15: "/"
   restrict_elements:
     - CurrentDirection
     - CurrentSpeed
@@ -274,19 +366,44 @@ GGSL:
   element: "common/WMOSalinityDepthMeasurementMethod"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 7
+    "0": 0
+    "1": 1
+    "2": 2
+    "3": 3
+  export_map:
+    7: "/"
+    3: "3"
+    0: "0"
+    1: "1"
+    2: "2"
   restrict_elements:
     - PracticalSalinity
 GGST:
   element: "metadata/WMOQualitySatellite"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 3
+    "0": 0
+    "1": 1
+  export_map:
+    3: "/"
+    0: "0"
+    1: "1"
 GGWI:
   element: "common/WMOWindInstrumentType"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 3
+    "0": 0
+    "1": 1
+  export_map:
+    3: "/"
+    0: "0"
+    1: "1"
   restrict_elements:
     - WindSpeed
     - WindDirection
@@ -296,7 +413,10 @@ GPT$:
   element: "metadata/WMOAirPressureCharacteristic"
   meds_group: "code"
   data_type: "integer"
-  # TODO: ascii to BUFR mapping
+  import_map:
+    "/": 15
+  export_map:
+    15: "/"
 SSTP:
   element: "parameters/Temperature"
   units: "degrees_C"
@@ -311,14 +431,48 @@ GGDI:
   element: "recordset/DigitizationMethod"
   meds_group: "code"
   data_type: "integer"
-  # TODO: internal mapping
+  import_map:
+    7: "selected_depths"
+    8: "inflection_points"
+    0: "selected_depths"
+    1: "inflection_points"
+  export_map:
+    selected_depths: 7
+    inflection_points: 8
 WMO$:
   element: "parameters/WMOID"
   meds_group: "code"
   data_type: "integer"
-  # TODO: normalization
+  import_processor: "medsutil.sanitize.clean_wmo_id"
 PDR$:
   element: "recordset/ProfileDirection"
   meds_group: "code"
   data_type: "integer"
-  # TODO: internal mapping
+  import_map:
+    A: up
+    D: down
+  export_map:
+    up: A
+    down: D
+    horizontal: null
+
+_GIN$1:
+  element: "metadata/WMOQualityPressure"
+  data_type: "integer"
+  import_map:
+    "/": null
+_GIN$2:
+  element: "metadata/WMOQualityHousekeeping"
+  data_type: "integer"
+  import_map:
+    "/": null
+_GIN$3:
+  element: "metadata/WMOQualityWaterTemperature"
+  data_type: "integer"
+  import_map:
+    "/": null
+_GIN$4:
+  element: "metadata/WMOQualityAirTemperature"
+  data_type: "integer"
+  import_map:
+    "/": null
