@@ -135,8 +135,8 @@ class MedsConverter:
             for rs_idx, rs in context.record.subrecords["PROFILE"].items():
                 with context.recordset_context(rs, "PROFILE"):
                     for pcode in self.code_map.pcode_list_for_encode(False, True):
-                        # TODO: skip DEPH?
                         prof_values, d_values, prof_priority, d_type = self._get_profile_values(pcode, context)
+
                         if prof_values:
                             self._encode_profile_info_group(pcode, prof_values, prof_priority, d_values, d_type, sr, context)
 
@@ -185,12 +185,12 @@ class MedsConverter:
                 depth_q = None
                 pressure = None
                 pressure_q = None
-                if record.coordinates.has_value("Depth"):
+                if record.coordinates.has_value("Depth") and not instruction.extras.get("skip_depth", False):
                     d = record.coordinates["Depth"].ideal()
                     depth = d.to_float("meters")
                     depth_q = context.get_quality(d)
                     n_with_depth += 1
-                if record.coordinates.has_value("Pressure"):
+                if record.coordinates.has_value("Pressure") and not instruction.extras.get("skip_pressure", False):
                     p = record.coordinates["Pressure"].ideal()
                     pressure = p.to_float("dbar")
                     pressure_q = context.get_quality(p)

@@ -19,6 +19,7 @@ CNDC:
 DEPT:
   element: "coordinates/Depth"
   units: "m"
+  skip_depth: true
 DEWT:
   element: "parameters/DewPointTemperature"
   units: "degrees_C"
@@ -64,6 +65,8 @@ PNM1:
 PRES:
   element: "coordinates/Pressure"
   units: "dbar"
+  skip_pressure: true
+  skip_depth: true
 PSAL:
   element: "parameters/PracticalSalinity"
   units: "1e-3"
