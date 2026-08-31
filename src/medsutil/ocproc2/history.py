@@ -26,6 +26,7 @@ class ActionType(enum.Enum):
     CHANGE_VALUE = 'ChangeValue'
     PROCESS = 'Process'
     MERGE = 'Merge'
+    CREATE = "Create"
 
     ASSIGN_CRUISE = "ChangeCruise"
     CHANGE_PLATFORM = 'ChangePlatform'

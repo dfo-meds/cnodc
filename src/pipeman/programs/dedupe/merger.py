@@ -75,6 +75,13 @@ class NODBDuplicateMergeWorker(QueueWorker):
             obs_datas_to_merge = [x for x in self.load_observation_data((current_uuid, current_date), *others)]
             merger = ObservationDataMerger(obs_datas_to_merge, bool(self.get_config('review_all', False)))
             new_record, should_review = merger.merge()
+            new_record.add_history_action(
+                message="created",
+                source_name=self.process_name,
+                source_version=self.process_version,
+                source_instance=self.process_uuid,
+                action_type=ActionType.MERGE,
+            )
 
             json_codec = OCProc2JsonCodec()
             now_ = AwareDateTime.now()
@@ -102,8 +109,8 @@ class NODBDuplicateMergeWorker(QueueWorker):
             payload.correlation_id = item.correlation_id
             payload._tag = item.tag
             payload.metadata.update({
-                'source-name': sf.source_name if sf is not None else 'merge',
-                'program-name': sf.program_name if sf is not None else 'merge',
+                'source-name': sf.source_name if sf is not None else '',
+                'program-name': sf.program_name if sf is not None else '',
 
             })
             payload.workflow_name = workflow_name

@@ -25,6 +25,7 @@ import medsutil.awaretime as awaretime
 from medsutil.ocproc2.codecs.ops import Instruction, EncodeDecodeGroup, OPSContext, DataType, \
     SingleValueInstruction, InstructionGroup, RepeatGroup, NoopInstruction, \
     ContextInstruction, ValueMappedInstruction, ScaleFactorInstruction, SkipDecodeInstruction, SkipDecodeInterrupt
+from medsutil.ocproc2.history import ActionType
 from medsutil.sanitize import clean_wmo_id
 from medsutil.units import UnitConverter
 from pipeman.exceptions import CNODCError
@@ -543,6 +544,8 @@ class _Bufr4Decoder:
         self.message = decoder.process(self.raw_content)
         self.raw_data: TemplateData = self.message.template_data.value
         self.pybufr_tables = TableGroupCacheManager.get_table_group_by_key(self.message.table_group_key)
+        self.source_name = "bufr_decode"
+        self.source_version = "1.0"
 
     def warn(self, message, ctx: OPSContext):
         message = "{txt} [{hierarchy}] [{header}]".format(
@@ -551,7 +554,12 @@ class _Bufr4Decoder:
             hierarchy=ctx.extras["hierarchy"]
         )
         self._log.warning(message)
-        ctx.parent.add_history_entry(message, "bufr_decode", "1.0", "", MessageType.WARNING)
+        ctx.parent.add_history_entry(
+            message=message,
+            source_name=self.source_name,
+            source_version=self.source_version,
+            source_instance="",
+            message_type=MessageType.WARNING)
 
     def convert_to_records(self, full_date: str) -> t.Iterable[ocproc2.ParentRecord]:
         pieces = self.header.split(' ')
@@ -595,6 +603,13 @@ class _Bufr4Decoder:
         self._iterate_on_nodes(
             self.raw_data.decoded_nodes_all_subsets[subset_number],
             context
+        )
+        context.parent.add_history_action(
+            message="record created",
+            source_name=self.source_name,
+            source_version=self.source_version,
+            source_instance="",
+            action_type=ActionType.CREATE
         )
         return context.parent
 

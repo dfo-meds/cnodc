@@ -153,10 +153,15 @@ class MedsCodeMap:
         return None
 
     SOURCE_MAP = {
+
+        "pipeman_desktop": "PDSK",
+        
+        "finalizer": "PNFN",
+        "merger": "PMER",
+
         "integrity_check": "PNIN",
         "platform_check": "PNPL",
         "duplicate_check": "PNDP",
-        "finalizer": "PNFN",
 
         "decoder": "PDEC",
         "temperature_inversion_check": "PGTI",
@@ -171,6 +176,13 @@ class MedsCodeMap:
         "coordinate_check": "PGCO",
         "constant_check": "PGCN",
         "bathymetry_check": "PGBA",
+
+        "bufr_decode": "PDBF",
+        "ascii_trackob": "PDAO",
+        "ascii_tesac": "PDAT",
+        "ascii_waveob": "PDAW",
+        "ascii_buoy": "PDAB",
+        "ascii_bathy": "PDAY",
 
 
     }

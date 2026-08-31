@@ -6,12 +6,17 @@ from medsutil.ocproc2 import ParentRecord, SingleElement, ChildRecord, RecordSet
 from medsutil.ocproc2.codecs.gts import GtsSubDecoder
 from medsutil.ocproc2.codecs.base import DecodeResult
 from medsutil.byteseq import ByteSequenceReader
+from medsutil.ocproc2.history import ActionType
 
 
 class AsciiDecodeError(CodedError): CODE_SPACE = "WMO-ASCII"
 
 
 class AsciiDecoder(GtsSubDecoder):
+
+    def __init__(self, source_name: str, source_version: str):
+        self.source_name = source_name
+        self.source_version = source_version
 
     def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool, received_date: AwareDateTime | None = None) -> DecodeResult:
         body = reader.consume_until(b'=', include_target=True)
@@ -51,6 +56,13 @@ class AsciiDecoder(GtsSubDecoder):
         record.metadata['CNODCIsBroadcast'] = 1
         record.metadata['CNODCDataMode'] = 'RT'
         self._decode_message(record, ascii_message[4:].strip().split(" "), rdate)
+        record.add_history_action(
+            message="record created",
+            source_name=self.source_name,
+            source_version=self.source_version,
+            source_instance="",
+            action_type=ActionType.CREATE
+        )
         return [record]
 
     def _decode_message(self, record: ParentRecord, ascii_message: list[str], received_date: AwareDateTime):
@@ -435,6 +447,9 @@ class AsciiDecoder(GtsSubDecoder):
 
 class BuoyZZYY(AsciiDecoder):
 
+    def __init__(self):
+        super().__init__("ascii_buoy", "1.0")
+
     @with_exception_note("Error while parsing ZZYY")
     def _decode_message(self, record: ParentRecord, ascii_message: list[str], received_date: AwareDateTime):
         o, wind_units = self._decode_section_0(record, ascii_message, received_date)
@@ -770,6 +785,9 @@ class BuoyZZYY(AsciiDecoder):
 
 class BathyJJVV(AsciiDecoder):
 
+    def __init__(self):
+        super().__init__("ascii_bathy", "1.0")
+
     @with_exception_note("Error while parsing JJVV")
     def _decode_message(self, record: ParentRecord, ascii_message: list[str], received_date: AwareDateTime):
         o = self._decode_section_1(record, ascii_message, received_date)
@@ -910,6 +928,9 @@ class BathyJJVV(AsciiDecoder):
 
 
 class TesacKKYY(AsciiDecoder):
+
+    def __init__(self):
+        super().__init__("ascii_tesac", "1.0")
 
     @with_exception_note("Error while parsing KKYY")
     def _decode_message(self, record: ParentRecord, ascii_message: list[str], received_date: AwareDateTime):
@@ -1095,9 +1116,13 @@ class TesacKKYY(AsciiDecoder):
 
 class TrackObNNXX(AsciiDecoder):
     # Not needed for GTSPP
-    pass
+
+    def __init__(self):
+        super().__init__("ascii_trackob", "1.0")
 
 
 class WaveObMMXX(AsciiDecoder):
     # Not needed for GTSPP
-    pass
+
+    def __init__(self):
+        super().__init__("ascii_waveob", "1.0")
