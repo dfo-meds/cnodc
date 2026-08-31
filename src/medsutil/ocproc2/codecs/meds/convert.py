@@ -146,7 +146,7 @@ class MedsConverter:
         # TODO: station number
         # TODO: stream identifier
         # TODO: qc version
-        # TODO: data availability
+        sr.data_availability = 'A'
         # TODO: history
 
         self._encode_surface_groups(sr, context)
