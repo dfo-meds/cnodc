@@ -48,7 +48,15 @@ class QCResult(enum.Enum):
 
 
 class Organization(enum.Enum):
-    CNODC = 'CNODC'
+    CNODC = 'CA-CNODC'
+    BSH = "DE-BSH"
+    JMA = "JP-JMA"
+    CSIRO = "AU-CSIRO"
+    AODC = "AU-AODC"
+    SIO = "US-SIO"
+    FNMOC = "US-FNMOC"
+    AOML = "US-AOML"
+    NODC = "US-NODC"
 
 
 class HistoryEntry:

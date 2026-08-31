@@ -663,21 +663,21 @@ class ElementInstruction(SingleValueInstruction):
         return v, q, p, se
 
     def _get_record_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
-        return self._process_element(
+        return self.process_element(
             context.record.find_child(self.element_path),
             context
         )
 
     def _get_parent_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
-        return self._process_element(
+        return self.process_element(
             context.parent.find_child(self.element_path.split('/')[1:]),
             context
         )
 
     def _get_recordset_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
         if context.recordset is None:
-            return self._process_element(None, context)
-        return self._process_element(
+            return self.process_element(None, context)
+        return self.process_element(
             context.recordset.find_child(self.element_path.split('/')[1:]),
             context
         )
@@ -687,7 +687,7 @@ class ElementInstruction(SingleValueInstruction):
         n_values = 0
         _, metadata_name = self.element_path.split('/', maxsplit=1)
         for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.use_current_record):
-            v = self._process_element(element.metadata.get(metadata_name, None), context)
+            v = self.process_element(element.metadata.get(metadata_name, None), context)
             if v[0] is not None:
                 values[v[0]] = v
                 n_values += 1
@@ -701,7 +701,7 @@ class ElementInstruction(SingleValueInstruction):
     def _extract_quality(self, element: SingleElement, context: OPSContext) -> int | None:
         return context.get_quality(element)
 
-    def _process_element(self, v: t.Any, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def process_element(self, v: t.Any, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
         if v is None:
             return None, None, None, None
         if not isinstance(v, AbstractElement):

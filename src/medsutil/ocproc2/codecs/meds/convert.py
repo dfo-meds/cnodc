@@ -6,14 +6,17 @@ import typing as t
 import yaml
 from autoinject import injector
 
+from medsutil.awaretime import AwareDateTime
+from medsutil.ocproc2 import BaseRecord, AbstractElement
 from medsutil.ocproc2.codecs.ops import Instruction, SingleValueInstruction, OPSContext, EncodeDecodeGroup, \
-    NoopInstruction
+    NoopInstruction, ElementInstruction
 from medsutil.ocproc2.elements import SingleElement
 from medsutil.ocproc2.structures import ParentRecord
 from medsutil.ocproc2.codecs.meds.structs import StationRecord, MedsEncoding, SurfaceCodeGroup, SurfaceParameterGroup, \
-    ProfileInfoGroup, ProfileRecord, ProfileLevelGroup
+    ProfileInfoGroup, ProfileRecord, ProfileLevelGroup, HistoryGroup
 from medsutil.ocproc2.util import combine_quality_scores, find_quality_for_protocol
 from medsutil.units import UnitConverter
+from medsutil.ocproc2.history import HistoryEntry, ActionType
 
 
 def extract_anemometer_height(e: SingleElement) -> int | None:
@@ -43,6 +46,33 @@ class MedsCodeMap:
                 for x in raw
             }
         self._instruction_cache: dict[str, Instruction] = {}
+
+    def convert_source_code(self, source: str) -> str:
+        if source.startswith("CA"):
+            return "ME"
+
+        if source.startswith("DE"):
+            return "GE"
+
+        if source.startswith("JP"):
+            return "JA"
+
+        if source == "AU-CSIRO":
+            return "CS"
+        if source.startswith("AU"):
+            return "AD"
+
+        if source == "US-SIO":
+            return "SI"
+        if source == "US-FNMOC":
+            return "FN"
+        if source == "US-AOML":
+            return "AO"
+        if source.startswith("US"):
+            return "NO"
+
+        return "  "
+
 
     def prestandardize_instruction(self,
                                    instruction: str | dict,
@@ -101,6 +131,15 @@ class MedsCodeMap:
                 raise ValueError(f"No meds pcode instruction defined for [{pcode}]")
             self._instruction_cache[pcode] = Instruction.parse_instruction(self._meds_map[pcode])
         return self._instruction_cache[pcode]
+
+    def find_instruction(self, element_name: str) -> Instruction | None:
+        ...
+
+    def convert_activity_code(self, action_type: ActionType | None) -> str | None:
+        ...
+
+    def convert_program_code(self, program_code: str) -> str:
+        ...
 
 
 class MedsConverter:
@@ -268,20 +307,85 @@ class MedsConverter:
 
         sr.data_availability = 'A'
 
-        # TODO: cruise ID
-        # TODO: station number
-        # TODO: stream identifier
-        # TODO: qc version
-        # TODO: history
+        if record.metadata.has_value("MEDSCruiseID"):
+            sr.cruise_id = record.metadata["MEDSCruiseID"].to_string()
+
+        if record.metadata.has_value("MEDSStationNumber"):
+            sr.station_id = record.metadata["MEDSStationNumber"].to_int()
 
         self._encode_surface_groups(sr, context)
         depth_pcodes = self._encode_profile_info_groups(sr, context)
         data_type = self.identify_data_type(record, depth_pcodes)
         sr.data_type = data_type
+        source_name = self.code_map.convert_source_code(record.metadata.best("CNODCSource", coerce=str, default=""))
+        sr.stream_identifier = f"{source_name}{data_type}"
+        # note: maybe best to update this?
+        sr.qc_version = "1.3"
 
         self._handle_buoy_eng_status(sr, context)
 
+        for x in record.history.iterate_with_load():
+            self.add_history(sr, x, record, context)
+
         return sr
+
+    def add_history(self, sr: StationRecord, x: HistoryEntry, record: ParentRecord, context: OPSContext):
+        code = self.code_map.convert_activity_code(x.action_type)
+        if code is not None:
+            hg = HistoryGroup()
+            hg.organization = self.code_map.convert_source_code(x.organization.value)
+            hg.program_code = self.code_map.convert_program_code(x.source_name)
+            hg.program_version = x.source_version
+            hg.action_date = AwareDateTime.fromisoformat(x.timestamp).strftime("%Y%m%d")
+            hg.action_code = x.action_type
+            hg.action_pcode = "RCRD"
+            hg.previous_value = 9999.999
+            hg.action_locator = 9999.999
+            if x.affected_path:
+                pcode, locator, previous = self.extract_history_location(record, x.affected_path, context)
+                if pcode is not None:
+                    hg.action_pcode = pcode
+                if locator is not None:
+                    hg.action_locator = locator
+                if previous is not None:
+                    hg.previous_value = previous
+            sr.history_groups.append(hg)
+
+    def extract_history_location(self, record: ParentRecord, path: str, context: OPSContext) -> tuple[str | None, float | None, float | None]:
+        obj = record
+        depth_or_pressure = None
+        path_parts = path.split("/")
+        element_names: list[tuple[str, float | None, AbstractElement | None]] = []
+        previous_names: list[str] = []
+        while obj is not None and path_parts:
+            if isinstance(obj, BaseRecord):
+                if obj.coordinates.has_value("Depth") and obj.coordinates["Depth"].is_numeric():
+                    depth_or_pressure = obj.coordinates["Depth"].to_float("m")
+                elif obj.coordinates.has_value("Pressure") and obj.coordinates["Pressure"].is_numeric():
+                    depth_or_pressure = obj.coordinates["Pressure"].to_float("dbar")
+            if isinstance(obj, AbstractElement):
+                if len(previous_names) >= 2 and previous_names[-2] in ("coordinates", "parameters"):
+                    element_names.append(("/".join(previous_names[-2:]), depth_or_pressure, obj.metadata.get("Unadjusted", default=None)))
+            next_name = path_parts.pop(0)
+            obj = obj.find_child([next_name])
+            previous_names.append(next_name)
+        if element_names:
+            return self.correct_element_value(*element_names[-1], context=context)
+        return None, None, None
+
+    def correct_element_value(self, element_name: str, depth_or_pressure: float | None, element: AbstractElement | None, context: OPSContext) -> tuple[str | None, float | None, float | None]:
+        instruction = self._normalize_encode_instruction(self.code_map.find_instruction(element_name), none_on_missing=True)
+        if instruction is None:
+            return None, None, None
+        if "pcode" not in instruction.extras:
+            return None, None, None
+        previous = None
+        if element is not None:
+            if isinstance(instruction, ElementInstruction):
+                previous, _, _, _ = instruction.process_element(element, context)
+                if not isinstance(previous, float):
+                    previous = None
+        return instruction.extras["pcode"], depth_or_pressure, previous
 
     def identify_data_type(self, record: ParentRecord, depth_pcodes: set[str]) -> str:
         data_mode = record.metadata.best("CNODCDataMode", coerce=str, default="??")
@@ -304,7 +408,6 @@ class MedsConverter:
             if platform_type == "drifting_buoy":
                 return "DD"
         return "??"
-
 
     def _handle_buoy_eng_status(self, sr: StationRecord, context: OPSContext):
         if context.record.metadata.has_value("BuoyEngineeringStatus"):
@@ -458,12 +561,16 @@ class MedsConverter:
             return values, pressures, instruction.extras.get("priority", 0), "P"
 
     def _get_encode_instruction(self, pcode: str) -> SingleValueInstruction | None:
-        instruction = self.code_map.lookup(pcode)
+        return self._normalize_encode_instruction(self.code_map.lookup(pcode))
+
+    def _normalize_encode_instruction(self, instruction, none_on_missing: bool = False) -> SingleValueInstruction | None:
         if isinstance(instruction, EncodeDecodeGroup):
             instruction = instruction.get_instruction(True)
         if isinstance(instruction, SingleValueInstruction):
             return instruction
         if isinstance(instruction, NoopInstruction):
+            return None
+        if none_on_missing:
             return None
         raise ValueError(f"Unrecognized instruction: [{instruction.__class__}]")
 
