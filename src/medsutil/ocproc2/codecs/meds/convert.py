@@ -132,8 +132,10 @@ class MedsConverter:
             pieces = header.to_string().split(" ")
             sr.gts_header_info = pieces[0]
             sr.gts_source_node = pieces[1]
-            # TODO: we need to add information here or decode this better
-            # sr.gts_bulletin_time = ...
+            if record.metadata.has_value("GTSHeaderFullDate"):
+                if record.metadata["GTSHeaderFullDate"].is_iso_datetime():
+                    sr.gts_bulletin_time = record.metadata["GTSHeaderFullDate"].to_datetime().strftime("%Y%m%d%H%M")
+
 
         sr.iumsgno = 0
 
