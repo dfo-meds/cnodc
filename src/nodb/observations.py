@@ -154,19 +154,24 @@ class SubrecordInfo:
     @property
     def wkt(self) -> str | None:
         if self.min_latitude is not None and self.max_latitude is not None and self.min_longitude is not None and self.max_longitude is not None:
-            if self.min_latitude == self.max_latitude and self.min_longitude == self.max_longitude:
-                return f"POINT ({self.min_longitude:.6f} {self.min_latitude:.6f})"
-            elif self.min_latitude == self.max_latitude or self.min_longitude == self.max_longitude:
-                return f"LINESTRING ({self.min_longitude:.6f} {self.min_latitude:.6f}, {self.max_longitude:.6f} {self.max_latitude:.6f})"
+            # this is approximately 0.1 m resolution or better
+            min_lat = f"{self.min_latitude:.6f}"
+            max_lat = f"{self.max_latitude:.6f}"
+            min_lon = f"{self.min_longitude:.6f}"
+            max_lon = f"{self.max_longitude:.6f}"
+            if min_lat == max_lat and min_lon == max_lon:
+                return f"POINT ({min_lon} {min_lat})"
+            elif min_lat == max_lat or min_lon == max_lon:
+                return f"LINESTRING ({min_lon} {min_lat}, {max_lon} {max_lat})"
             else:
                 coords = [
-                    (self.min_longitude, self.min_latitude),
-                    (self.max_longitude, self.min_latitude),
-                    (self.max_longitude, self.max_latitude),
-                    (self.min_longitude, self.max_latitude),
-                    (self.min_longitude, self.min_latitude),
+                    (min_lon, min_lat),
+                    (max_lon, min_lat),
+                    (max_lon, max_lat),
+                    (min_lon, max_lat),
+                    (min_lon, min_lat),
                 ]
-                return f"POLYGON(({",".join(f"{x:.6f} {y:.6f}" for x, y in (coords))}))"
+                return f"POLYGON(({",".join(f"{x} {y}" for x, y in (coords))}))"
         return None
 
     def _extract_subrecord_info(self, record: ocproc2.BaseRecord, position: dict[str, ScienceNumber]):
