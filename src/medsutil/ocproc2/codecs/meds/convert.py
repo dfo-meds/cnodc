@@ -135,9 +135,10 @@ class MedsConverter:
             # TODO: we need to add information here or decode this better
             # sr.gts_bulletin_time = ...
 
+        sr.iumsgno = 0
+
         # TODO: cruise ID
         # TODO: data type
-        # TODO: iumsgno
         # TODO: stream source
         # TODO: update action
         # TODO: station number
