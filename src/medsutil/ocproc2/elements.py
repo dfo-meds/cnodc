@@ -274,7 +274,7 @@ class AbstractElement[X]:
         if bv.value is None or isinstance(bv.value, (list, dict, bool)):
             raise ValueError("Invalid value")
         else:
-            adjust, std_dev = bv._std_dev()
+            adjust, std_dev = bv.standard_deviation()
             actual = bv.to_float() + adjust
             kwargs: dict[str, t.Any] = {
                 'units': bv.units(),
@@ -287,9 +287,9 @@ class AbstractElement[X]:
                 **kwargs
             )
 
-    def _std_dev(self) -> tuple[float, float | None]:
+    def standard_deviation(self) -> tuple[float, float | None]:
         adjustment = 0
-        worst = None
+        worst: None | float = None
         if self.metadata.has_value('Uncertainty'):
             for x in self.metadata['Uncertainty'].all_values():
                 if not x.is_numeric():

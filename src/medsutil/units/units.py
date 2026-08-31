@@ -376,11 +376,14 @@ class UnitConverter:
         else:
             return self._get_converter(expr).scale(factor), self.get_dimensions(expr)
 
-
 def convert(v, from_units: str | None, to_units: str | None):
     if from_units is None or to_units is None or from_units == to_units or v is None:
         return v
     return _convert(v, from_units, to_units)
+
+
+def is_compatible(units_x: str, units_y: str) -> bool:
+    return _convert.compatible(units_x, units_y)
 
 
 class _Convert:
@@ -392,6 +395,11 @@ class _Convert:
         if self._converter is None:
             self._converter = self._build_converter()
         return self._converter.convert(*args, **kwargs)
+
+    def compatible(self, x: str, y: str) -> bool:
+        if self._converter is None:
+            self._converter = self._build_converter()
+        return self._converter.compatible(x, y)
 
     @injector.inject
     def _build_converter(self, c: UnitConverter = None):

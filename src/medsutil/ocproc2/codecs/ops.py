@@ -14,6 +14,7 @@ import typing as t
 from medsutil.ocproc2.util import Quality, find_quality_for_protocol, combine_quality_scores
 from medsutil.seawater import TemperatureScale
 from medsutil import math as amath
+from medsutil.units.units import convert, is_compatible
 
 
 class OceanProcessingSchemaError(CodedError): CODE_SPACE = 'OPS'
@@ -289,14 +290,17 @@ class SingleValueInstruction(Instruction):
     def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
         ...
 
-    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
+    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         raise NotImplementedError
 
     def get_quality(self, context: OPSContext) -> int | None:
-        return self.get_value_with_quality(context)[1]
+        return self.get_value_with_details(context)[1]
 
     def get_value(self, context: OPSContext) -> RawValue:
-        return self.get_value_with_quality(context)[0]
+        return self.get_value_with_details(context)[0]
+
+    def get_uncertainty(self, context: OPSContext) -> float | None:
+        return self.get_value_with_details(context)[2]
 
 
 
@@ -305,13 +309,15 @@ class StaticInstruction(SingleValueInstruction):
     def __init__(self,
                  value: RawValue,
                  quality: int | None = None,
+                 precision: float | None = None,
                  **kwargs):
         self._value = value
         self._quality = quality
+        self._precision = precision
         super().__init__(**kwargs)
 
-    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
-        return self._value, self._quality
+    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
+        return self._value, self._quality, self._precision
 
     def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
         ...
@@ -479,7 +485,7 @@ class WorstQualityInstruction(SingleValueInstruction):
                   **kwargs):
         raise NotImplementedError  # TODO: set all the qualities on elements
 
-    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
+    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         def _elements() -> t.Iterable[SingleElement]:
             for element_name in self.elements:
                 element = context.record.find_child(element_name)
@@ -488,7 +494,7 @@ class WorstQualityInstruction(SingleValueInstruction):
                 if not isinstance(element, AbstractElement):
                     raise OceanProcessingSchemaError("Invalid element path", 2000)
                 yield from element.all_values()
-        return context.get_quality(*_elements()), None
+        return context.get_quality(*_elements()), None, None
 
 
 class ElementInstruction(SingleValueInstruction):
@@ -629,22 +635,22 @@ class ElementInstruction(SingleValueInstruction):
         else:
             raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
 
-    def get_value_with_quality(self, context: OPSContext) -> tuple[RawValue, int | None]:
+    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         if self.element_path.startswith((
             "parameters/",
             "metadata/",
             "coordinates/"
         )):
-            v, q = self._get_record_child_element(context)
+            v, q, p = self._get_record_child_element(context)
         elif self.element_path.startswith("parent/"):
-            v, q = self._get_parent_child_element(context)
+            v, q, p = self._get_parent_child_element(context)
         elif self.element_path.startswith((
             "recordset/",
             "common-recordset/"
         )):
-            v, q = self._get_recordset_child_element(context)
+            v, q, p = self._get_recordset_child_element(context)
         elif self.element_path.startswith("common/"):
-            v, q = self._get_common_element(context)
+            v, q, p = self._get_common_element(context)
         else:
             raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
         if self.override_value is not ...:
@@ -654,21 +660,21 @@ class ElementInstruction(SingleValueInstruction):
             v = exp_p(v)
         if self.export_map is not None and v in self.export_map:
             v = self.export_map[v]
-        return v, q
+        return v, q, p
 
-    def _get_record_child_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
+    def _get_record_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         return self._process_element(
             context.record.find_child(self.element_path),
             context
         )
 
-    def _get_parent_child_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
+    def _get_parent_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         return self._process_element(
             context.parent.find_child(self.element_path.split('/')[1:]),
             context
         )
 
-    def _get_recordset_child_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
+    def _get_recordset_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         if context.recordset is None:
             return self._process_element(None, context)
         return self._process_element(
@@ -676,8 +682,8 @@ class ElementInstruction(SingleValueInstruction):
             context
         )
 
-    def _get_common_element(self, context: OPSContext) -> tuple[RawValue, int | None]:
-        values: set[tuple[RawValue, int | None]] = set()
+    def _get_common_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
+        values: set[tuple[RawValue, int | None, float | None]] = set()
         n_values = 0
         _, metadata_name = self.element_path.split('/', maxsplit=1)
         for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.use_current_record):
@@ -686,7 +692,7 @@ class ElementInstruction(SingleValueInstruction):
                 values.add(v)
                 n_values += 1
         if n_values == 0:
-            return None, None
+            return None, None, None
         elif n_values == 1:
             return list(values)[0]
         else:
@@ -695,21 +701,22 @@ class ElementInstruction(SingleValueInstruction):
     def _extract_quality(self, element: SingleElement, context: OPSContext) -> int | None:
         return context.get_quality(element)
 
-    def _process_element(self, v: t.Any, context: OPSContext) -> tuple[RawValue, int | None]:
+    def _process_element(self, v: t.Any, context: OPSContext) -> tuple[RawValue, int | None, float | None]:
         if v is None:
-            return None, None
+            return None, None, None
         if not isinstance(v, AbstractElement):
             raise OceanProcessingSchemaError("Invalid path for an element instruction", 1100)
         best_value = self._find_best_value(v)
         if best_value is None:
-            return None, None
+            return None, None, None
         quality = self._extract_quality(best_value, context)
+        precision = best_value.standard_deviation()[1]
         if self.ocproc2_export_processor is not None:
-            return self.ocproc2_export_processor(best_value), quality
+            return self.ocproc2_export_processor(best_value), quality, precision
         if self.data_type is DataType.STRING:
-            return best_value.to_string(), quality
+            return best_value.to_string(), quality, precision
         elif self.data_type is DataType.INTEGER:
-            return best_value.to_int(), quality
+            return best_value.to_int(), quality, precision
         elif self.data_type is DataType.FLOAT:
             if self.export_temperature_scale is not None:
                 from medsutil import ocproc_math
@@ -719,14 +726,36 @@ class ElementInstruction(SingleValueInstruction):
                     units=self.units or "",
                     temperature_scale=TemperatureScale(self.export_temperature_scale)
                 )
+
+                # note that precision conversion is easier to handle in K/R than C/F, so we convert the precision appropriately
+                # also note that a change of x degrees C is still x degrees K, thus no conversion necessary
+                out_units = self.units or ""
+                if is_compatible(out_units, "K") or is_compatible(out_units, "degrees_C"):
+                    precision_out_units = "degrees_K"
+                elif is_compatible(out_units, "degrees_R") or is_compatible(out_units, "degrees_F"):
+                    precision_out_units = "degrees_R"
+                else:
+                    precision_out_units = None
+
+                bv_units = best_value.units() or ""
+                if is_compatible(bv_units, "degrees_C") or is_compatible(bv_units, "K"):
+                    precision_in_units = "degrees_K"
+                elif is_compatible(bv_units, "degrees_R") or is_compatible(bv_units, "degrees_F"):
+                    precision_in_units = "degrees_R"
+                else:
+                    precision_in_units = None
+
+                precision = convert(precision, precision_in_units, precision_out_units)
             else:
-                val = best_value.to_float(self.units)
+                x = best_value.to_scinum().convert(self.units)
+                val = float(x.nominal_value)
+                precision = float(x.std_dev) if x.std_dev else None
             if val is None:
-                return None, quality
+                return None, quality, None
             if self.places is not None:
-                return float(amath.round_to_place(val, self.places)), quality
+                return float(amath.round_to_place(val, self.places)), quality, precision
             else:
-                return float(val), quality
+                return float(val), quality, precision
         else:
             raise OceanProcessingSchemaError("Invalid data type", 1101)
 
