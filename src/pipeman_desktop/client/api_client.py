@@ -479,6 +479,7 @@ class CNODCServerAPI:
                         end_date: AwareDateTime | None,
                         status: PlatformStatus,
                         embargo_data_days: int | None,
+                        meds_id: str | None,
                         map_to_uuid: str | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
@@ -496,6 +497,7 @@ class CNODCServerAPI:
             platform_id=platform_id or None,
             platform_type=platform_type or None,
             embargo_data_days=embargo_data_days or None,
+            meds_id=meds_id or None,
             map_to_uuid=map_to_uuid or None,
             ship_code=ship_code or None,
             skip_speed_check=skip_speed_check,
@@ -520,6 +522,7 @@ class CNODCServerAPI:
                         wigos_id: str | None,
                         platform_name: str | None,
                         platform_id: str | None,
+                        meds_id: str | None,
                         ship_code: str | None,
                         platform_type: str | None,
                         start_date: AwareDateTime | None,
@@ -545,6 +548,7 @@ class CNODCServerAPI:
             embargo_data_days=embargo_data_days or None,
             map_to_uuid=map_to_uuid or None,
             skip_speed_check=skip_speed_check,
+            meds_id=meds_id or None,
             ship_code=ship_code or None,
             skip_land_check=skip_land_check,
             mandatory_review=mandatory_review,
@@ -592,8 +596,9 @@ class CNODCServerAPI:
         with self.local_db.cursor() as cur:
             cur.execute("DELETE FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
             if response["success"]:
-                cur.execute("INSERT INTO platforms (platform_uuid, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+                cur.execute("INSERT INTO platforms (platform_uuid, meds_id, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
                     platform_uuid,
+                    response["data"].get("meds_id", None),
                     response["data"].get("wmo_id", None),
                     response["data"].get("wigos_id", None),
                     response["data"].get("platform_name", None),

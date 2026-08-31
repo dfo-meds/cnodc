@@ -1,7 +1,8 @@
 from medsutil import json
 from pipeman_desktop.client.local_db import LocalDatabase
-from pipeman_desktop.components.inputs import FormDialog, StringField, CheckboxField, SelectField, LengthValidator, IntegerField, DateTimeField, FloatField, \
-    RangeValidator, Required
+from pipeman_desktop.components.inputs import FormDialog, StringField, CheckboxField, SelectField, LengthValidator, \
+    IntegerField, DateTimeField, FloatField, \
+    RangeValidator, Required, Validator
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.state import DisplayChange, ApplicationState
 from pipeman_desktop.components.scrollable import ScrollableTreeview
@@ -15,10 +16,40 @@ if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import PipemanDesktop
 
 
+class WSIValidator(Validator):
+
+    WIGOS_CHARS = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
+
+    def __call__(self, value: t.Any) -> str | None:
+        pieces = str(value).split("-")
+        if len(pieces) != 4:
+            return i18n.tr("error.validation.wigos.four_parts")
+        if pieces[0] != "0":
+            return i18n.tr("error.validation.wigos.series_must_be_zero")
+        if not pieces[1].isdigit():
+            return i18n.tr("error.validation.wigos.issuer_must_be_digits")
+        issuer = int(pieces[1])
+        if not 0 <= issuer <= 65534:
+            return i18n.tr("error.validation.wigos.issuer_out_of_range")
+        if not pieces[2].isdigit():
+            return i18n.tr("error.validation.wigos.issue_must_be_digits")
+        issue = int(pieces[2])
+        if not 0 <= issue <= 65534:
+            return i18n.tr("error.validation.wigos.issue_out_of_range")
+        if not pieces[3]:
+           return i18n.tr("error.validation.wigos.no_identifier")
+        if any(x not in self.WIGOS_CHARS for x in pieces[3]):
+            return i18n.tr("error.validation.wigos.invalid_identifier_character")
+        if len(pieces[3]) > 16:
+            return i18n.tr("error.validation.wigos.identifier_too_long")
+        return None
+
+
+
 
 class PlatformDialog(FormDialog):
 
-    PLATFORM_IDS = ("wmo_id", "wigos_id", "platform_name", "platform_id")
+    PLATFORM_IDS = ("wmo_id", "wigos_id", "platform_name", "platform_id", "ship_code")
 
     PLATFORM_STATUS: dict[str, str] = {
         "ACTIVE": "platform_status.active",
@@ -57,7 +88,12 @@ class PlatformDialog(FormDialog):
         self.add_field("wigos_id", StringField(
             label_name="dialog.platform.wigos_id",
             tooltip_name="tooltip.platform.wigos_id",
-            validators=[LengthValidator(max_length=126)]
+            validators=[LengthValidator(max_length=30), WSIValidator()]
+        ))
+        self.add_field("meds_id", StringField(
+            label_name="dialog.platform.meds_id",
+            tooltip_name="tooltip.platform.meds_id",
+            validators=[LengthValidator(max_length=8)]
         ))
         self.add_field("platform_id", StringField(
             label_name="dialog.platform.platform_id",
@@ -292,7 +328,7 @@ class PlatformContextMenu:
 
     def _platform_info(self) -> dict:
         with self.local_db.cursor() as cur:
-            cur.execute("SELECT wmo_id, wigos_id, platform_name, platform_id, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, ship_code FROM platforms WHERE platform_uuid = ?", (self._platform_uuid,))
+            cur.execute("SELECT wmo_id, wigos_id, platform_name, platform_id, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, ship_code, meds_id FROM platforms WHERE platform_uuid = ?", (self._platform_uuid,))
             row = cur.fetchone()
             if row:
                 metadata = json.load_dict(row[7]) if row[7] else {}
@@ -300,6 +336,7 @@ class PlatformContextMenu:
                     "wmo_id": row[0],
                     "wigos_id": row[1],
                     "ship_code": row[11],
+                    "meds_id": row[12],
                     "platform_name": row[2],
                     "platform_id": row[3],
                     "platform_type": row[4],

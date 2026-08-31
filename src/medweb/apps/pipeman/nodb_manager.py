@@ -387,6 +387,7 @@ class NODBController:
                         end_date: AwareDateTime | None,
                         status: PlatformStatus,
                         embargo_data_days: int | None,
+                        meds_id: str | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
                         mandatory_review: bool,
@@ -412,6 +413,7 @@ class NODBController:
             platform.service_start_date = start_date
             platform.service_end_date = end_date
             platform.status = status
+            platform.meds_id = meds_id
             platform.map_to_uuid = map_to_uuid
             platform.embargo_data_days = embargo_data_days
             platform.ship_code = ship_code
@@ -421,6 +423,7 @@ class NODBController:
             platform.metadata["dedupe_distance_window"] = dedupe_distance_window
             platform.metadata["mandatory_review"] = bool(mandatory_review)
             platform.metadata["top_speed"] = top_speed
+            platform.ensure_meds_id()
             db.insert_object(platform)
             db.commit()
             return {
@@ -466,6 +469,7 @@ class NODBController:
                         embargo_data_days: int | None,
                         skip_speed_check: bool,
                         skip_land_check: bool,
+                        meds_id: str | None,
                         mandatory_review: bool,
                         dedupe_time_window: float | None,
                         dedupe_distance_window: float | None,
@@ -496,6 +500,7 @@ class NODBController:
                 platform.status = status
                 platform.ship_code = ship_code
                 platform.map_to_uuid = map_to_uuid
+                platform.meds_id = meds_id
                 platform.embargo_data_days = embargo_data_days
                 platform.metadata["skip_speed_check"] = bool(skip_speed_check)
                 platform.metadata["skip_on_land_check"] = bool(skip_land_check)
@@ -503,6 +508,7 @@ class NODBController:
                 platform.metadata["dedupe_distance_window"] = dedupe_distance_window
                 platform.metadata["mandatory_review"] = bool(mandatory_review)
                 platform.metadata["top_speed"] = top_speed
+                platform.ensure_meds_id()
                 db.update_object(platform)
                 db.commit()
                 return {

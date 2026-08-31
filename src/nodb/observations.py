@@ -519,7 +519,6 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
         else:
             self._wigos_id = None
 
-
     @property
     def wmo_id(self) -> str | None:
         return self._wmo_id
@@ -581,6 +580,15 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
                         return element.to_float()
             except KeyError: ...
         return None
+
+    def ensure_meds_id(self):
+        if not self.meds_id:
+            if self.wmo_id and len(str(self.wmo_id)) <= 8:
+                self.meds_id = self.wmo_id
+            elif self.platform_id and len(self.platform_id) <= 8:
+                self.meds_id = self.platform_id
+            elif self.ship_code and len(self.ship_code) <= 8:
+                self.meds_id = self.ship_code
 
     @classmethod
     def search(cls,

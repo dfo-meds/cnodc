@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS platforms (
     platform_name TEXT,
     platform_id TEXT,
     platform_type TEXT,
+    meds_id TEXT,
     service_start_date TEXT,
     service_end_date TEXT,
     metadata TEXT,
