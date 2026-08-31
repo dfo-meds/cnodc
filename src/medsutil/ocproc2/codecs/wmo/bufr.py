@@ -211,9 +211,10 @@ class Bufr4Decoder(GtsSubDecoder):
                 return DecodeResult(skipped=True, original=original_data)
             if bufr_version != 4:
                 raise CNODCError("Only BUFR4 is supported", "BUFR_DECODE", 2000)
+            rdate = AwareDateTime.utcnow() if received_date is None else received_date
             instance = _Bufr4Decoder(self.bufr_tables, header, content)
             return DecodeResult(
-                records=[x for x in instance.convert_to_records()],
+                records=[x for x in instance.convert_to_records(self.calculate_gts_header_date(header, rdate))],
                 original=original_data,
             )
         except SkipDecodeInterrupt:
@@ -552,7 +553,7 @@ class _Bufr4Decoder:
         self._log.warning(message)
         ctx.parent.add_history_entry(message, "bufr_decode", "1.0", "", MessageType.WARNING)
 
-    def convert_to_records(self) -> t.Iterable[ocproc2.ParentRecord]:
+    def convert_to_records(self, full_date: str) -> t.Iterable[ocproc2.ParentRecord]:
         pieces = self.header.split(' ')
         try:
             if pieces[3][0] in ('C', 'A', 'P'):
@@ -562,6 +563,7 @@ class _Bufr4Decoder:
         descriptors = list(x for x in self.message.unexpanded_descriptors.value)
         common_metadata = {
             'GTSHeader': self.header,
+            'GTSHeaderFullDate': full_date,
             'BUFRDescriptors': ocproc2.SingleElement(descriptors),
             'BUFROriginCentre': self.message.originating_centre.value,
             'BUFROriginSubcentre': self.message.originating_subcentre.value,

@@ -1,3 +1,5 @@
+import datetime
+
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs.base import BaseCodec, DecodeResult
@@ -22,6 +24,26 @@ class GtsSubDecoder:
 
     def encode_from_record(self, record: ParentRecord, **kwargs) -> t.Iterable[bytes | bytearray]:
         raise NotImplementedError
+
+    def calculate_gts_header_date(self, header: str, rdate: AwareDateTime) -> str:
+        pieces = header.split(' ', maxsplit=3)
+        if len(pieces) < 3:
+            raise ValueError("Invalid GTS header")
+        yygggg = pieces[2]
+        if len(yygggg) != 6:
+            raise ValueError("GTS date component is invalid length")
+        if not yygggg.isdigit():
+            raise ValueError("GTS date component has invalid characters")
+        day, hour, minute = int(yygggg[0:2]), int(yygggg[2:4]), int(yygggg[4:])
+        dt_check = rdate.replace(day=day, hour=hour, minute=minute, second=0)
+        # if in the future compared to rdate, then we need to go to the previous month
+        if dt_check > rdate:
+            if rdate.month == 1:
+                dt_check = rdate.replace(year=rdate.year-1, month=12, day=day, hour=hour, minute=minute, second=0)
+            else:
+                dt_check = rdate.replace(month=rdate.month-1, day=day, hour=hour, minute=minute, second=0)
+        return dt_check.isoformat()
+
 
 class GtsCodec(BaseCodec):
 

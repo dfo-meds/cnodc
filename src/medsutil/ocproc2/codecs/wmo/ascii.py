@@ -40,13 +40,17 @@ class AsciiDecoder(GtsSubDecoder):
         while "  " in ascii_message:
             ascii_message = ascii_message.replace("  ", " ")
 
+        rdate = AwareDateTime.utcnow() if received_date is None else received_date
+
+
         # Build and return the record
         record = ParentRecord()
+        record.metadata['GTSHeaderFullDate'] = self.calculate_gts_header_date(header, rdate)
         record.metadata['GTSHeader'] = header
         record.metadata['WMOAsciiCodeForm'] = ascii_message[0:4]
         record.metadata['CNODCIsBroadcast'] = 1
         record.metadata['CNODCDataMode'] = 'RT'
-        self._decode_message(record, ascii_message[4:].strip().split(" "), received_date or AwareDateTime.now())
+        self._decode_message(record, ascii_message[4:].strip().split(" "), rdate)
         return [record]
 
     def _decode_message(self, record: ParentRecord, ascii_message: list[str], received_date: AwareDateTime):
