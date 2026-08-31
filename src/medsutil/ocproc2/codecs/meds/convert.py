@@ -133,13 +133,52 @@ class MedsCodeMap:
         return self._instruction_cache[pcode]
 
     def find_instruction(self, element_name: str) -> Instruction | None:
-        ...
+        for pcode in self.pcode_list_for_encode(False, True):
+            content = self._meds_map[pcode]
+            if "element" in content and content["element"] == element_name:
+                return self.lookup(pcode)
+        return None
 
-    def convert_activity_code(self, action_type: ActionType | None) -> str | None:
-        ...
+    def convert_action_type(self, action_type: ActionType | None) -> str | None:
+        if action_type is ActionType.CHANGE_QUALITY:
+            return "CF"
+        if action_type is ActionType.PROCESS:
+            return "CR"
+        if action_type is ActionType.CHANGE_VALUE:
+            return "CV"
+        if action_type is ActionType.MERGE:
+            return "MD"
+        if action_type is ActionType.ASSIGN_CRUISE:
+            return "AC"
+        return None
 
-    def convert_program_code(self, program_code: str) -> str:
-        ...
+    SOURCE_MAP = {
+        "integrity_check": "PNIN",
+        "platform_check": "PNPL",
+        "duplicate_check": "PNDP",
+        "finalizer": "PNFN",
+
+        "decoder": "PDEC",
+        "temperature_inversion_check": "PGTI",
+        "spike_gradient_check": "PGSG",
+        "speed_check": "PGSP",
+        "mandatory_review": "PGMR",
+        "increasing_depth_check": "PGID",
+        "impossible_value_check": "PGIV",
+        "freezing_check": "PGFP",
+        "envelope_check": "PGEN",
+        "density_inversion_check": "PGDI",
+        "coordinate_check": "PGCO",
+        "constant_check": "PGCN",
+        "bathymetry_check": "PGBA",
+
+
+    }
+
+    def convert_source_name(self, source_name: str) -> str:
+        if source_name in self.SOURCE_MAP:
+            return self.SOURCE_MAP[source_name]
+        return "    "
 
 
 class MedsConverter:
@@ -330,11 +369,11 @@ class MedsConverter:
         return sr
 
     def add_history(self, sr: StationRecord, x: HistoryEntry, record: ParentRecord, context: OPSContext):
-        code = self.code_map.convert_activity_code(x.action_type)
+        code = self.code_map.convert_action_type(x.action_type)
         if code is not None:
             hg = HistoryGroup()
             hg.organization = self.code_map.convert_source_code(x.organization.value)
-            hg.program_code = self.code_map.convert_program_code(x.source_name)
+            hg.program_code = self.code_map.convert_source_name(x.source_name)
             hg.program_version = x.source_version
             hg.action_date = AwareDateTime.fromisoformat(x.timestamp).strftime("%Y%m%d")
             hg.action_code = x.action_type

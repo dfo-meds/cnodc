@@ -27,6 +27,7 @@ class ActionType(enum.Enum):
     PROCESS = 'Process'
     MERGE = 'Merge'
 
+    ASSIGN_CRUISE = "ChangeCruise"
     CHANGE_PLATFORM = 'ChangePlatform'
     UPDATE_QC_RESULT = 'UpdateQCResult'
 
