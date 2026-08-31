@@ -103,126 +103,7 @@ class MedsCodeMap:
         return self._instruction_cache[pcode]
 
 
-class RecordAction(enum.Enum):
-
-    SKIP = "S"
-    DELETE = "D"
-    HISTORICAL = "H"
-    REWRITE = "R"
-    UPDATE = "U"
-
-
 class MedsConverter:
-
-    code_map: MedsCodeMap = None
-
-    @injector.construct
-    def __init__(self):
-        ...
-
-    def ocproc2_to_station(self, record: ParentRecord, record_action: RecordAction = RecordAction.UPDATE) -> StationRecord:
-        sr = StationRecord()
-
-        context = OPSContext(record, test_protocols=["gtspp", "nodb"])
-
-        time = record.coordinates.ideal("Time")
-        if time and time.is_iso_datetime():
-            sr.observation_time = time.to_datetime()
-            sr.quality_datetime = context.get_quality(time)
-
-        lat = record.coordinates.ideal("Latitude")
-        lon = record.coordinates.ideal("Longitude")
-        if lat and lon and lat.is_numeric() and lon.is_numeric():
-            sr.coordinates = (lon.to_float("degrees_east"), lat.to_float("degrees_north"))
-            sr.quality_position = context.get_quality(lat, lon)
-
-        header = record.metadata.ideal("GTSHeader")
-
-        if header:
-            pieces = header.to_string().split(" ")
-            sr.gts_header_info = pieces[0]
-            sr.gts_source_node = pieces[1]
-            if record.metadata.has_value("GTSHeaderFullDate"):
-                if record.metadata["GTSHeaderFullDate"].is_iso_datetime():
-                    sr.gts_bulletin_time = record.metadata["GTSHeaderFullDate"].to_datetime().strftime("%Y%m%d%H%M")
-
-
-        sr.iumsgno = 0
-
-        # TODO: cruise ID
-        # TODO: data type
-        # TODO: stream source
-        sr.update_action = record_action.value
-        # TODO: station number
-        # TODO: stream identifier
-        # TODO: qc version
-        sr.data_availability = 'A'
-        # TODO: history
-
-        self._encode_surface_groups(sr, context)
-        self._encode_profile_info_groups(sr, context)
-
-        self._handle_buoy_eng_status(sr, context)
-
-        return sr
-
-    def _handle_buoy_eng_status(self, sr: StationRecord, context: OPSContext):
-        if context.record.metadata.has_value("BuoyEngineeringStatus"):
-            val = context.record.metadata["BuoyEngineeringStatus"].to_string()
-            idx = 1
-            while idx < 4 and val:
-                status_group = val[0:4]
-                val = val[4:] if len(val) > 4 else ""
-                val.ljust(4, "/")
-                scg = SurfaceCodeGroup()
-                scg.priority = 0
-                scg.quality = 0
-                scg.value = status_group
-                scg.pcode = f"GE{idx}$"
-                sr.surface_code_groups.append(scg)
-                idx += 1
-
-    def _encode_profile_info_groups(self, sr: StationRecord, context: OPSContext):
-        if "PROFILE" in context.record.subrecords:
-            for rs_idx, rs in context.record.subrecords["PROFILE"].items():
-                with context.recordset_context(rs, "PROFILE"):
-                    for pcode in self.code_map.pcode_list_for_encode(False, True):
-                        prof_values, d_values, prof_priority, d_type = self._get_profile_values(pcode, context)
-                        if prof_values:
-                            self._encode_profile_info_group(pcode, prof_values, prof_priority, d_values, d_type, sr, context)
-
-    def _encode_profile_info_group(self,
-                                   pcode: str,
-                                   prof_values: list[tuple[t.SupportsFloat, int | None, float | None, float | None]],
-                                   prof_priority: int,
-                                   depth_values: list[tuple[float, int | None, float | None, float | None]],
-                                   depth_type: str,
-                                   sr: StationRecord,
-                                   context: OPSContext):
-        pig = ProfileInfoGroup()
-        pig.profile_type = pcode
-        pig.is_duplicate = False    #  I don't think we ever get a duplicate profile in the current system, but maybe we should consider?
-        digit_indicator = context.recordset.metadata.best("DigitizationMethod", default=None, coerce=str)
-        if digit_indicator == "inflection_points":
-            pig.digitization_code = "8"
-        else:
-            pig.digitization_code = "7"
-        pig.precision_code = self._get_precision_code(pcode, prof_values)
-        pig.priority = prof_priority
-        sr.profile_info_groups.append(pig)
-
-        pr = ProfileRecord()
-        pr.uses_pressure_levels = depth_type == "P"
-        pig.profiles.append(pr)
-
-        for idx in range(0, min(len(prof_values), len(depth_values))):
-            if depth_values[idx][0] is not None:
-                level = ProfileLevelGroup()
-                level.depth_pressure = depth_values[idx][0]
-                level.depth_quality = str(depth_values[idx][1] or 0)
-                level.parameter_value = float(prof_values[idx][0])
-                level.parameter_quality = str(prof_values[idx][1] or 0)
-                pr.level_groups.append(level)
 
     PRECISION_BOUNDS = {
         # NB: I is explicitly stated as "greater than 0.2"
@@ -339,6 +220,152 @@ class MedsConverter:
         "PRP$": [],
         "PRQ$": [],
     }
+
+    code_map: MedsCodeMap = None
+
+    @injector.construct
+    def __init__(self):
+        ...
+
+    def ocproc2_to_station(self, record: ParentRecord) -> StationRecord:
+        sr = StationRecord()
+
+        context = OPSContext(record, test_protocols=["gtspp", "nodb"])
+
+        time = record.coordinates.ideal("Time")
+        if time and time.is_iso_datetime():
+            sr.observation_time = time.to_datetime()
+            sr.quality_datetime = context.get_quality(time)
+
+        lat = record.coordinates.ideal("Latitude")
+        lon = record.coordinates.ideal("Longitude")
+        if lat and lon and lat.is_numeric() and lon.is_numeric():
+            sr.coordinates = (lon.to_float("degrees_east"), lat.to_float("degrees_north"))
+            sr.quality_position = context.get_quality(lat, lon)
+
+        header = record.metadata.ideal("GTSHeader")
+
+        if header:
+            pieces = header.to_string().split(" ")
+            sr.gts_header_info = pieces[0]
+            sr.gts_source_node = pieces[1]
+            if record.metadata.has_value("GTSHeaderFullDate"):
+                if record.metadata["GTSHeaderFullDate"].is_iso_datetime():
+                    sr.gts_bulletin_time = record.metadata["GTSHeaderFullDate"].to_datetime().strftime("%Y%m%d%H%M")
+
+
+        sr.iumsgno = 0
+
+        if record.metadata.has_value("MEDBArchiveAction"):
+            sr.update_action = record.metadata["MEDBArchiveAction"].to_string()
+        else:
+            sr.update_action = "U"
+
+        if record.metadata.has_value("MEDBArchiveSource"):
+            sr.stream_source = record.metadata["MEDBArchiveSource"].to_string()
+        else:
+            sr.stream_source = "I"
+
+        sr.data_availability = 'A'
+
+        # TODO: cruise ID
+        # TODO: station number
+        # TODO: stream identifier
+        # TODO: qc version
+        # TODO: history
+
+        self._encode_surface_groups(sr, context)
+        depth_pcodes = self._encode_profile_info_groups(sr, context)
+        data_type = self.identify_data_type(record, depth_pcodes)
+        sr.data_type = data_type
+
+        self._handle_buoy_eng_status(sr, context)
+
+        return sr
+
+    def identify_data_type(self, record: ParentRecord, depth_pcodes: set[str]) -> str:
+        data_mode = record.metadata.best("CNODCDataMode", coerce=str, default="??")
+        platform_type = record.metadata.best("CNODCPlatformType", coerce=str, default=None)
+        if record.metadata.has_value("CNODCInstrumentTypes"):
+            instrument_types = record.metadata["CNODCInstrumentTypes"].value
+        else:
+            instrument_types = []
+        no_instruments = len(instrument_types)
+
+        # TODO: More types? this should be good enough for NOAA output
+        if data_mode == "RT":
+            if platform_type == "drifting_buoy":
+                return "DB"
+            if "PSAL" in depth_pcodes:
+                return "TE"
+            if "TEMP" in depth_pcodes:
+                return "BA"
+        elif data_mode == "DM":
+            if platform_type == "drifting_buoy":
+                return "DD"
+        return "??"
+
+
+    def _handle_buoy_eng_status(self, sr: StationRecord, context: OPSContext):
+        if context.record.metadata.has_value("BuoyEngineeringStatus"):
+            val = context.record.metadata["BuoyEngineeringStatus"].to_string()
+            idx = 1
+            while idx < 4 and val:
+                status_group = val[0:4]
+                val = val[4:] if len(val) > 4 else ""
+                val.ljust(4, "/")
+                scg = SurfaceCodeGroup()
+                scg.priority = 0
+                scg.quality = 0
+                scg.value = status_group
+                scg.pcode = f"GE{idx}$"
+                sr.surface_code_groups.append(scg)
+                idx += 1
+
+    def _encode_profile_info_groups(self, sr: StationRecord, context: OPSContext) -> set[str]:
+        pcodes = set()
+        if "PROFILE" in context.record.subrecords:
+            for rs_idx, rs in context.record.subrecords["PROFILE"].items():
+                with context.recordset_context(rs, "PROFILE"):
+                    for pcode in self.code_map.pcode_list_for_encode(False, True):
+                        prof_values, d_values, prof_priority, d_type = self._get_profile_values(pcode, context)
+                        if prof_values:
+                            pcodes.add(pcode)
+                            self._encode_profile_info_group(pcode, prof_values, prof_priority, d_values, d_type, sr, context)
+        return pcodes
+
+    def _encode_profile_info_group(self,
+                                   pcode: str,
+                                   prof_values: list[tuple[t.SupportsFloat, int | None, float | None, float | None]],
+                                   prof_priority: int,
+                                   depth_values: list[tuple[float, int | None, float | None, float | None]],
+                                   depth_type: str,
+                                   sr: StationRecord,
+                                   context: OPSContext):
+        pig = ProfileInfoGroup()
+        pig.profile_type = pcode
+        pig.is_duplicate = False    #  I don't think we ever get a duplicate profile in the current system, but maybe we should consider?
+        digit_indicator = context.recordset.metadata.best("DigitizationMethod", default=None, coerce=str)
+        if digit_indicator == "inflection_points":
+            pig.digitization_code = "8"
+        else:
+            pig.digitization_code = "7"
+        pig.precision_code = self._get_precision_code(pcode, prof_values)
+        pig.priority = prof_priority
+        sr.profile_info_groups.append(pig)
+
+        pr = ProfileRecord()
+        pr.uses_pressure_levels = depth_type == "P"
+        pig.profiles.append(pr)
+
+        for idx in range(0, min(len(prof_values), len(depth_values))):
+            if depth_values[idx][0] is not None:
+                level = ProfileLevelGroup()
+                level.depth_pressure = depth_values[idx][0]
+                level.depth_quality = str(depth_values[idx][1] or 0)
+                level.parameter_value = float(prof_values[idx][0])
+                level.parameter_quality = str(prof_values[idx][1] or 0)
+                pr.level_groups.append(level)
 
     def _get_precision_code(self,
                             pcode: str,

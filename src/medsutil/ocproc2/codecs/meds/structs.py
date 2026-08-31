@@ -665,7 +665,8 @@ class StationRecord(_MedsEncodable):
 
     @stream_source.setter
     def stream_source(self, val: str):
-        self.raw_values[9] = val
+        if val:
+            self.raw_values[9] = val[0]
 
     @property
     def update_action(self) -> str:
@@ -673,7 +674,8 @@ class StationRecord(_MedsEncodable):
 
     @update_action.setter
     def update_action(self, val: str):
-        self.raw_values[10] = val
+        if val:
+            self.raw_values[10] = val[0]
 
     @property
     def station_number(self):
@@ -802,7 +804,8 @@ class StationRecord(_MedsEncodable):
 
     @data_availability.setter
     def data_availability(self, val: str):
-        self.raw_values[23] = str(val)
+        if val:
+            self.raw_values[23] = str(val)[0]
 
     @property
     def _no_prof(self) -> int:

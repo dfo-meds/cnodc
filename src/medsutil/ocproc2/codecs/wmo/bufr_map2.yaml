@@ -959,9 +959,9 @@
 
 315003:
   decode:
-    element: metadata/BUFRPlatformType
+    element: metadata/CNODCPlatformType
     data_type: "string"
-    value: profiler
+    value: profiling_float
     iterate_after: true
   encode:
     instructions:
@@ -1000,9 +1000,12 @@
 
 315004:
   decode:
-    element: metadata/BUFRPlatformType
-    data_type: "string"
+    element: "common/SensorType"
+    restrict_elements:
+      - Temperature
+      - Depth
     value: xbt
+    data_type: string
     iterate_after: true
   encode:
     instructions:
@@ -1133,7 +1136,7 @@
 
 315007:
   decode:
-    element: metadata/BUFRPlatformType
+    element: metadata/CNODCPlatformType
     data_type: "string"
     value: ship
     iterate_after: true
@@ -1212,9 +1215,9 @@
 
 315008:
   decode:
-    element: metadata/BUFRPlatformType
+    element: metadata/CNODCPlatformType
     data_type: "string"
-    value: moored
+    value: moored_buoy
     iterate_after: true
   encode:
     instructions:
@@ -1263,9 +1266,9 @@
           - "306005[optional]"
 315009:
   decode:
-    element: metadata/BUFRPlatformType
+    element: metadata/CNODCPlatformType
     data_type: "string"
-    value: drifting
+    value: drifting_buoy
     iterate_after: true
   encode:
     instructions:
@@ -1329,9 +1332,9 @@
 
 315011:
   decode:
-    element: metadata/BUFRPlatformType
+    element: metadata/CNODCPlatformType
     data_type: "string"
-    value: asc
+    value: animal
     iterate_after: true
   encode:
     instructions:
@@ -1426,7 +1429,7 @@
 
 315012:
   decode:
-    element: metadata/BUFRPlatformType
+    element: metadata/CNODCPlatformType
     data_type: "string"
     value: glider
     iterate_after: true
