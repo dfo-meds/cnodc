@@ -1,3 +1,4 @@
+import math
 import pathlib
 import typing as t
 
@@ -179,9 +180,9 @@ class MedsConverter:
 
     def _encode_profile_info_group(self,
                                    pcode: str,
-                                   prof_values: list[tuple[t.SupportsFloat, int | None, float | None]],
+                                   prof_values: list[tuple[t.SupportsFloat, int | None, float | None, float | None]],
                                    prof_priority: int,
-                                   depth_values: list[tuple[float, int | None, float | None]],
+                                   depth_values: list[tuple[float, int | None, float | None, float | None]],
                                    depth_type: str,
                                    sr: StationRecord,
                                    context: OPSContext):
@@ -189,10 +190,7 @@ class MedsConverter:
         pig.profile_type = pcode
         # TODO: is duplicate
         # TODO: digitization indicator
-        # TODO: precision code
-        pig.precision_code = self._get_precision_code(pcode, t.cast(list[float], [
-            x[2] for x in prof_values if x[2] is not None
-        ]))
+        pig.precision_code = self._get_precision_code(pcode, prof_values)
         pig.priority = prof_priority
         sr.profile_info_groups.append(pig)
 
@@ -209,12 +207,171 @@ class MedsConverter:
                 level.parameter_quality = str(prof_values[idx][1] or 0)
                 pr.level_groups.append(level)
 
-    def _get_precision_code(self, pcode: str, precisions: list[float]) -> str:
-        if not precisions:
-            return "0"
-            
+    PRECISION_BOUNDS = {
+        # NB: I is explicitly stated as "greater than 0.2"
+        # therefore I'm assuming that the ranges are (min, max]
+        # i.e the minimum is excluded and the maximum is included
+    #   PARAM   CODE    MIN     MAX     TYPE
+        "PSAL": [
+            (   "5",    0.001,  0.001,  'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
 
-    def _get_profile_values(self, pcode: str, context: OPSContext) -> tuple[list[tuple[t.SupportsFloat, int | None, float | None]], list[tuple[float, int | None, float | None]], int, str]:
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+
+            (   "1",    None,   0.02,   'U'),
+            (   "2",    0.02,   None,   'U'),
+        ],
+        "HCDT": [
+            (   "1",    1,      1,      'E'),
+            (   "2",    10,     10,     'E'),
+            (   "5",    0.1,    0.1,    'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
+
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+        ],
+        "CNDC": [
+            (   "2",    0.1,    0.1,    'E'),
+            (   "5",    0.001,  0.001,  'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
+
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+        ],
+        "TRAN": [
+            (   "2",    0.1,    0.1,    'E'),
+            (   "3",    1,      1,      'E'),
+            (   "5",    0.001,  0.001,  'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
+
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+        ],
+        "HCSP": [
+            (   "1",    1,      1,      'E'),
+            (   "2",    0.1,    0.1,    'E'),
+            (   "5",    0.001,  0.001,  'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
+
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+        ],
+        "TEMP": [
+            (   "2",    0.1,    0.1,    'E'),
+            (   "5",    0.001,  0.001,  'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+            (   "1",    None,   0.01,   'U'),
+        ],
+        "_":    [
+            (   "5",    0.001,  0.001,  'E'),
+            (   "6",    0.0001, 0.0001, 'E'),
+
+            (   "B",    0.001,  0.002,  'K'),
+            (   "C",    0.002,  0.005,  'K'),
+            (   "D",    0.005,  0.01,   'K'),
+            (   "E",    0.01,   0.02,   'K'),
+            (   "F",    0.02,   0.05,   'K'),
+            (   "G",    0.05,   0.1,    'K'),
+            (   "H",    0.1,    0.2,    'K'),
+            (   "I",    0.2,    None,   'K'),
+
+            (   "1",    None,   0.01,   'U'),
+            (   "2",    0.01,   None,   'U'),
+        ],
+
+        "OSI$": [],
+        "PRP$": [],
+        "PRQ$": [],
+    }
+
+    def _get_precision_code(self,
+                            pcode: str,
+                            prof_values: list[tuple[t.SupportsFloat, int | None, float | None, float | None]]):
+        if pcode not in self.PRECISION_BOUNDS:
+            pcode = "_"
+        worst_sigma, best_sigma = self._get_precision_bounds(prof_values)
+        if worst_sigma is not None:
+            worst_uniform = worst_sigma * math.sqrt(3) * 2
+            best_uniform = None
+            if best_sigma is not None:
+                best_uniform = best_sigma * math.sqrt(3) * 2
+            for code, min_val, max_val, code_type in self.PRECISION_BOUNDS[pcode]:
+                if code_type == "E":
+                    if best_uniform is not None and math.isclose(min_val, worst_uniform) and math.isclose(min_val, best_uniform):
+                        return code
+                else:
+                    if code_type == "K" and best_uniform is None:
+                        continue
+                    # TODO: maybe should consider best_uniform here too? IDK. To revisit later.
+                    # it should work for GTS reports at least.
+                    if min_val is not None:
+                        if worst_uniform < min_val:
+                            continue
+                    if max_val is not None:
+                        if worst_uniform > max_val and not math.isclose(worst_uniform, max_val):
+                            continue
+                    return code
+        return "4"
+
+    def _get_precision_bounds(self, prof_values: list[tuple[t.Any, t.Any, float | None, float | None]]) -> tuple[float | None, float | None]:
+        worst_sigmas = []
+        best_sigmas = []
+        for _, _, worst_sigma, best_sigma in prof_values:
+            if worst_sigma is not None:
+                worst_sigmas.append(worst_sigma)
+            if best_sigma is not None:
+                best_sigmas.append(best_sigma)
+        if worst_sigmas:
+            worst_sigma = max(worst_sigmas)
+            best_sigmas = [x for x in best_sigmas if x < worst_sigma]
+        else:
+            worst_sigma = None
+        if best_sigmas:
+            best_sigma = min(best_sigmas)
+        else:
+            best_sigma = None
+        return worst_sigma, best_sigma
+
+    def _get_profile_values(self, pcode: str, context: OPSContext) -> tuple[list[tuple[t.SupportsFloat, int | None, float | None, float | None]], list[tuple[float, int | None, float | None, float | None]], int, str]:
         instruction = self._get_encode_instruction(pcode)
         depths = []
         n_with_depth = 0
@@ -224,31 +381,33 @@ class MedsConverter:
         if instruction is not None:
             for record in context.recordset.records.iterate_with_load():
                 with context.record_context(record):
-                    value, quality, one_sigma = instruction.get_value_with_details(context)
+                    value, quality, one_sigma, se = instruction.get_value_with_details(context)
                     if value is None:
                         continue
                     depth = None
                     depth_q = None
-                    depth_s = None
+                    depth_s_worst = None
+                    depth_s_best = None
                     pressure = None
                     pressure_q = None
-                    pressure_s = None
+                    pressure_s_worst = None
+                    pressure_s_best = None
                     if record.coordinates.has_value("Depth") and not instruction.extras.get("skip_depth", False):
                         d = record.coordinates["Depth"].ideal()
                         depth = d.to_float("meters")
                         depth_q = context.get_quality(d)
-                        depth_s = d.standard_deviation()
+                        _, depth_s_worst, depth_s_best = d.precision_information()
                         n_with_depth += 1
                     if record.coordinates.has_value("Pressure") and not instruction.extras.get("skip_pressure", False):
                         p = record.coordinates["Pressure"].ideal()
                         pressure = p.to_float("dbar")
                         pressure_q = context.get_quality(p)
-                        pressure_s = p.standard_deviation()
+                        _, pressure_s_worst, pressure_s_best = d.precision_information()
                         n_with_pressure += 1
                     if depth is not None or pressure is not None:
-                        depths.append((depth, depth_q, depth_s))
-                        pressures.append((pressure, pressure_q, pressure_s))
-                        values.append((value, quality, one_sigma))
+                        depths.append((depth, depth_q, depth_s_worst, depth_s_best))
+                        pressures.append((pressure, pressure_q, pressure_s_worst, pressure_s_best))
+                        values.append((value, quality, one_sigma, se))
         if n_with_depth >= n_with_pressure:
             return values, depths, instruction.extras.get("priority", 0), "D"
         else:
@@ -271,7 +430,7 @@ class MedsConverter:
                 continue
             priority = instruction.extras.get("priority", 0)
             group = instruction.extras.get("meds_group", "parameter")
-            value, quality, _ = instruction.get_value_with_details(context)
+            value, quality, _, _ = instruction.get_value_with_details(context)
             if value is None:
                 continue
             if group == "code":

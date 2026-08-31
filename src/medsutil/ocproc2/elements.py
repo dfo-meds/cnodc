@@ -274,7 +274,7 @@ class AbstractElement[X]:
         if bv.value is None or isinstance(bv.value, (list, dict, bool)):
             raise ValueError("Invalid value")
         else:
-            adjust, std_dev = bv.standard_deviation()
+            adjust, std_dev, _ = bv.precision_information()
             actual = bv.to_float() + adjust
             kwargs: dict[str, t.Any] = {
                 'units': bv.units(),
@@ -287,15 +287,16 @@ class AbstractElement[X]:
                 **kwargs
             )
 
-    def standard_deviation(self) -> tuple[float, float | None]:
-        adjustment = 0
-        worst: None | float = None
+    def precision_information(self) -> tuple[float | None, float | None, float | None]:
+        worst_options: list[tuple[float, float]] = []
+        best_options: list[tuple[float, float]] = []
         if self.metadata.has_value('Uncertainty'):
             for x in self.metadata['Uncertainty'].all_values():
                 if not x.is_numeric():
                     continue
                 uval = x.to_float()
                 utype = x.metadata.best("UncertaintyType", default="", coerce=str)
+                adjustment = 0
                 if utype == "uniform":
                     sigma = uval / sqrt(3)
                 elif utype == "chopped":
@@ -308,9 +309,27 @@ class AbstractElement[X]:
                     adjustment = uval / 2
                 else:
                     continue
-                if worst is None or sigma > worst:
-                    worst = sigma
-        return adjustment, worst
+                ubound = x.metadata.best("UncertaintyBound", default="maximum", coerce=str)
+                if ubound == "minimum":
+                    best_options.append((sigma, adjustment))
+                elif ubound == "actual":
+                    best_options.append((sigma, adjustment))
+                    worst_options.append((sigma, adjustment))
+                else:
+                    worst_options.append((sigma, adjustment))
+        if worst_options:
+            worst_options.sort(key=lambda x: x[0], reverse=True)
+            worst, adjustment = worst_options[0]
+            best_options = [x for x in best_options if x[0] >= worst]
+        else:
+            worst, adjustment = None, None
+        if best_options:
+            best_options.sort(key=lambda x: x[0])
+            best, _ = best_options[0]
+        else:
+            best = None
+        return adjustment, worst, best
+
 
     def to_numeric(self, units: t.Optional[str] = None) -> float:
         """ This will be the type that tests use. """
