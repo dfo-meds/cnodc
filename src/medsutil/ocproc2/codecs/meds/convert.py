@@ -188,8 +188,12 @@ class MedsConverter:
                                    context: OPSContext):
         pig = ProfileInfoGroup()
         pig.profile_type = pcode
-        # TODO: is duplicate
-        # TODO: digitization indicator
+        pig.is_duplicate = False    #  I don't think we ever get a duplicate profile in the current system, but maybe we should consider?
+        digit_indicator = context.recordset.metadata.best("DigitizationMethod", default=None, coerce=str)
+        if digit_indicator == "inflection_points":
+            pig.digitization_code = "8"
+        else:
+            pig.digitization_code = "7"
         pig.precision_code = self._get_precision_code(pcode, prof_values)
         pig.priority = prof_priority
         sr.profile_info_groups.append(pig)
