@@ -1,3 +1,4 @@
+import enum
 import math
 import pathlib
 import typing as t
@@ -102,6 +103,15 @@ class MedsCodeMap:
         return self._instruction_cache[pcode]
 
 
+class RecordAction(enum.Enum):
+
+    SKIP = "S"
+    DELETE = "D"
+    HISTORICAL = "H"
+    REWRITE = "R"
+    UPDATE = "U"
+
+
 class MedsConverter:
 
     code_map: MedsCodeMap = None
@@ -110,7 +120,7 @@ class MedsConverter:
     def __init__(self):
         ...
 
-    def ocproc2_to_station(self, record: ParentRecord) -> StationRecord:
+    def ocproc2_to_station(self, record: ParentRecord, record_action: RecordAction = RecordAction.UPDATE) -> StationRecord:
         sr = StationRecord()
 
         context = OPSContext(record, test_protocols=["gtspp", "nodb"])
@@ -142,7 +152,7 @@ class MedsConverter:
         # TODO: cruise ID
         # TODO: data type
         # TODO: stream source
-        # TODO: update action
+        sr.update_action = record_action.value
         # TODO: station number
         # TODO: stream identifier
         # TODO: qc version
