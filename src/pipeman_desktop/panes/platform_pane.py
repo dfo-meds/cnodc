@@ -321,11 +321,10 @@ class PlatformContextMenu:
         s = PlatformDialog(self._app.root, defaults=self._platform_info(), readonly=True)
 
     def _assign_to_record(self):
-        self._app.state.update_record_platform(self._app.state.current_working_uuid, self._platform_uuid)
+        self._app.state.update_record_platform(self._app.state.current_working_uuid, self._platform_uuid, self._platform_info().get("platform_type", None))
 
     def _assign_to_all(self):
-        for idx, record in self._app.state.batch_records.items():
-            self._app.state.update_record_platform(record.record_uuid, self._platform_uuid)
+        self._app.state.update_all_record_platforms(self._platform_uuid, self._platform_info().get("platform_type", None))
 
     def _update_platform(self):
         s = PlatformDialog(self._app.root, self._platform_info())

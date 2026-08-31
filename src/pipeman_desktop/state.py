@@ -629,15 +629,26 @@ class ApplicationState:
             self._current_file_id = file_rowid
             self.refresh_display(DisplayChange.SOURCE_FILE)
 
-    def update_all_record_platforms(self, platform_uuid: str | None):
+    def update_all_record_platforms(self, platform_uuid: str | None, platform_type: str | None = None):
         self.add_history_entry(ActionHistoryEntry([
-            (record.record_uuid, self.add_action_metadata(AssignPlatform(platform_uuid=platform_uuid, test_protocol=self._test_protocol)))
+            (record.record_uuid, self.add_action_metadata(AssignPlatform(
+                platform_uuid=platform_uuid,
+                platform_type=platform_type,
+                test_protocol=self._test_protocol
+            )))
             for record in self.batch_records.values()
         ]))
 
-    def update_record_platform(self, record_uuid: str, platform_uuid: str | None, _increment_action: bool = True):
+    def update_record_platform(self,
+                               record_uuid: str,
+                               platform_uuid: str | None,
+                               platform_type: str | None = None):
         self.add_history_entry(ActionHistoryEntry([
-            (record_uuid, self.add_action_metadata(AssignPlatform(platform_uuid=platform_uuid, test_protocol=self._test_protocol)))
+            (record_uuid, self.add_action_metadata(AssignPlatform(
+                platform_uuid=platform_uuid,
+                platform_type=platform_type,
+                test_protocol=self._test_protocol
+            )))
         ]))
 
     def add_actions(self, actions: t.Iterable[RecordAction]):

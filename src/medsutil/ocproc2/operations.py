@@ -190,6 +190,7 @@ class SetPlatformCandidates(RecordAction):
 class AssignPlatform(RecordAction):
     test_protocol: str = dd.p_str()
     platform_uuid: str | None = dd.p_str()
+    platform_type: str | None = dd.p_str()
 
     @property
     def name(self) -> str:
@@ -207,6 +208,8 @@ class AssignPlatform(RecordAction):
         record.metadata["CNODCPlatform"] = SingleElement(self.platform_uuid, Quality=SingleElement(1 if self.platform_uuid else 9, TestProtoccol=self.test_protocol))
         if 'CNODCPlatformCandidates' in record.metadata:
             del record.metadata["CNODCPlatformCandidates"]
+        if self.platform_type is not None:
+            record.metadata["CNODCPlatformType"] = self.platform_type
         self.add_history_action(
             record,
             f"Platform assigned",
