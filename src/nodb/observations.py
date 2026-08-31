@@ -493,18 +493,44 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
     PRIMARY_KEYS = ('platform_uuid',)
 
     platform_uuid: str = s.UUIDColumn()
-    wmo_id: str | None = s.StringColumn()
-    wigos_id: str | None = s.StringColumn()
+    _wmo_id: str | None = s.StringColumn(managed_name="wmo_id")
+    _wigos_id: str | None = s.StringColumn(managed_name="wigos_id")
     ship_code: str | None = s.StringColumn()
     platform_name: str | None = s.StringColumn()
     platform_id: str | None = s.StringColumn()
     platform_type: str | None = s.StringColumn()
+    meds_id: str | None = s.StringColumn()
     service_start_date: AwareDateTime | None = s.DateTimeColumn()
     service_end_date: AwareDateTime | None = s.DateTimeColumn()
     instrumentation: dict = s.JsonDictColumn()
     map_to_uuid: str | None = s.UUIDColumn()
     status: PlatformStatus = s.EnumColumn(PlatformStatus)
     embargo_data_days: int | None = s.IntColumn()
+
+    @property
+    def wigos_id(self) -> str | None:
+        return self._wigos_id
+
+    @wigos_id.setter
+    def wigos_id(self, wigos_id: str | None):
+        from medsutil.sanitize import clean_wigos_id
+        if wigos_id is not None:
+            self._wigos_id = clean_wigos_id(wigos_id)
+        else:
+            self._wigos_id = None
+
+
+    @property
+    def wmo_id(self) -> str | None:
+        return self._wmo_id
+
+    @wmo_id.setter
+    def wmo_id(self, wmo_id: str | None):
+        from medsutil.sanitize import clean_wmo_id
+        if wmo_id is not None:
+            self._wmo_id = clean_wmo_id(wmo_id)
+        else:
+            self._wmo_id = None
 
     @property
     def mandatory_review(self) -> bool:
@@ -568,11 +594,12 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
                **kwargs) -> t.Iterable[NODBPlatform]:
         """Search for a platform by various identifiers."""
         filters = {}
-        # TODO: we should standardize these
         if wmo_id is not None and wmo_id != '':
-            filters['wmo_id'] = wmo_id
+            from medsutil.sanitize import clean_wmo_id
+            filters['wmo_id'] = clean_wmo_id(wmo_id)
         if wigos_id is not None and wigos_id != '':
-            filters['wigos_id'] = wigos_id
+            from medsutil.sanitize import clean_wigos_id
+            filters['wigos_id'] = clean_wigos_id(wigos_id)
         # TODO: we should do case-insensitive comparisons for these
         if platform_id is not None and platform_id != '':
             filters['platform_id'] = platform_id

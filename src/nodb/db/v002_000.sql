@@ -72,6 +72,9 @@ CREATE INDEX IF NOT EXISTS ix_nodb_temp_finalize_results ON nodb_temporary_final
 -- Add the ICES code
 ALTER TABLE nodb_platforms ADD COLUMN ship_code VARCHAR(126) DEFAULT NULL;
 
+-- Add the MEDS ID (what will be used to generate cruise IDs)
+ALTER TABLE nodb_platforms ADD COLUMN meds_id VARCHAR(126) DEFAULT NULL;
+
 -- Add a list of instrument types
 ALTER TABLE nodb_obs ADD COLUMN instrument_types JSONB DEFAULT NULL;
 

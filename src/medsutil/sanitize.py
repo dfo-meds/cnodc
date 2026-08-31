@@ -26,7 +26,7 @@ UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u
 """ All dash characters in Unicode. """
 
 
-def clean_wmo_id(wmo_id: str):
+def clean_wmo_id(wmo_id: str) -> str | None:
     if not wmo_id:
         return None
     wmo_id = str(wmo_id)
@@ -41,9 +41,16 @@ def clean_wmo_id(wmo_id: str):
         return wmo_id.zfill(7)
 
 
-
-def clean_wigos_id(wigos_id: str):
-    return wigos_id
+def clean_wigos_id(wigos_id: str) -> str | None:
+    if not wigos_id:
+        return None
+    pieces = [x.strip() for x in wigos_id.split("-")]
+    if len(pieces) != 4:
+        raise ValueError(f"Invalid WIGOS ID: {wigos_id}")
+    for idx in range(0, 3):
+        # don't strip from 4, leading zeros are allowed as per WMO
+        pieces[idx] = pieces[idx].lstrip("0") or "0"
+    return "-".join(pieces)
 
 
 def netcdf_bytes_to_string(byte_sequence: str | t.ByteString, encoding='utf-8') -> str:
