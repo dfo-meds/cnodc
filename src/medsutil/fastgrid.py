@@ -6,6 +6,49 @@ from medsutil.cached import LeastRecentCache
 
 
 class FastGeoGrid:
+    """
+
+        The fastgrid format stores binary data for a given gridded data file with consistent
+        x and y coordinate spacing, and variable z coordinate spacing. It was designed to support
+        fast access to the World Ocean Atlas, but can also be used for other gridded data.
+
+        To work with a fastgrid file, you need to know the following:
+
+        * The range of x-coordinates [x_start, x_end] and the increment x_increment
+        * The range of y-coordinates [y_start, y_end] and the increment y_increment
+        * The ordered list of z-coordinates that are the start of the depth ranges, and the end of the last range
+        * The size of data stored in the file (a consistent number of bytes)
+
+        Grid cell numbers are assigned from smallest coordinate to largest coordinate.
+
+
+        A fastgrid file stores a packet of binary data at each grid cell location. This
+        data is a fixed width for every cell. The cells are stored in the following order:
+
+        * x=0, y=0, z=0
+        * x=0, y=0, z=1
+        * ...
+        * x=0, y=0, z=max_z
+        * x=0, y=1, z=0
+        * ...
+        * x=0, y=1, z=max_z
+        * ...
+        * x=0, y=max_y, z=max_z
+        * ...
+        * x=max_x,y=max_y,z=max_z
+
+        In essence, the cells are sorted by increasing x coordinate, then increasing y coordinate (where x1=x2),
+        then finally by increasing z coordinate (where x1=x2 and y1=y2).
+
+        With the fixed width data storage format, it is very fast to find the data for any given cell by
+        calculating (x * max_y * max_z + y * max_z + z) * data_width  to find the start of the data in the binary
+        file, then reading the next data_width bytes to obtain the value for that cell.
+        
+        Interpretation of those bytes is left up to the implementation - for example WOA stores two 
+        doubles (16 bytes) corresponding to the mean and standard deviation of the parameter at that location.
+
+
+    """
 
     def __init__(self,
                  file: pathlib.Path,
@@ -16,6 +59,7 @@ class FastGeoGrid:
                  x_increment: float,
                  y_increment: float,
                  z_values: list[float],
+                 end_z: float,
                  data_size_bytes: int,
                  cache_size: int = 250):
         self._file = file
@@ -25,6 +69,7 @@ class FastGeoGrid:
         self._increment_y = y_increment
         self._end_x = end_x
         self._end_y = end_y
+        self._end_z = end_z
         self._z_values = z_values
         self._data_size_bytes = data_size_bytes
         self._cache = LeastRecentCache(cache_size)
@@ -47,13 +92,11 @@ class FastGeoGrid:
         return math.floor((lat - self._start_y) / self._increment_y)
 
     def get_depth_coordinate(self, depth: float) -> int | None:
-        if self._max_z == 0:
-            if math.isclose(depth, self._z_values[0], abs_tol=1e-6):
-                return 0
-        else:
-            for x in range(0, self._max_z):
-                if self._z_values[x] <= depth < self._z_values[x + 1]:
-                    return x
+        for x in range(0, self._max_z):
+            if self._z_values[x] <= depth < self._z_values[x + 1]:
+                return x
+        if self._z_values[-1] <= depth <= self._end_z:
+            return self._max_z
         return None
 
     def get_grid_coordinates(self, lon: float, lat: float, depth: float) -> tuple[int, int, int] | None:
