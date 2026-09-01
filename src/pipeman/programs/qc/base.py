@@ -450,13 +450,13 @@ class QualityController(abc.ABC):
             message_type=message_type
         ), is_reviewable)
 
-    def skip_entire_test(self, reason: str):
+    def skip_entire_test(self, reason: str) -> t.NoReturn:
         raise QCSkipTest(reason)
 
-    def skip_review(self, reason: str):
+    def skip_review(self, reason: str) -> t.NoReturn:
         raise QCSkipReview(reason)
 
-    def qc_pass(self):
+    def qc_pass(self) -> t.NoReturn:
         raise QCPassTest()
 
     def require_quality(self,
@@ -729,6 +729,12 @@ class QualityController(abc.ABC):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_equal", **kwargs)
+
+    def assert_compatible(self, a: amath.AnyNumber, b: amath.ScienceNumber, k: int = 2, msg: str | None = None, **kwargs):
+        if not b.is_compatible(a, k):
+            if not kwargs.get("ref_value", None):
+                kwargs["ref_value"] = str(b)
+            self.report_qc_error(msg or "not_compatible", **kwargs)
 
 
 class DeepDiveChecker(QualityController):
