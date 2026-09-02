@@ -26,3 +26,12 @@ def woa(output_directory, temp_prefix, salinity_prefix):
             error_file = pathlib.Path(var_prefix.replace("\\", "/") + f"{file_part}sd01.csv.gz")
             print(f"Building {output_file}")
             WorldOceanAtlasOneDegree.build_atlas_file(output_file, mean_file, error_file)
+
+@fastgrid.command()
+@click.argument("output_file")
+@click.argument("input_files", nargs=-1)
+def glb(output_file, input_files):
+    from pipeman.programs.glb.glb import GreatLakesBathymetry
+    output_file = pathlib.Path(output_file)
+    input_files = [pathlib.Path(x) for x in input_files]
+    GreatLakesBathymetry.build_from_glb(output_file, input_files)

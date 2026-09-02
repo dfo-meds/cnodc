@@ -56,8 +56,8 @@ class FastGeoGrid:
                  start_y: float,
                  end_x: float,
                  end_y: float,
-                 x_increment: float,
-                 y_increment: float,
+                 x_increment: float | tuple[int, int],
+                 y_increment: float | tuple[int, int],
                  z_values: list[float],
                  end_z: float,
                  data_size_bytes: int,
@@ -73,23 +73,59 @@ class FastGeoGrid:
         self._z_values = z_values
         self._data_size_bytes = data_size_bytes
         self._cache = LeastRecentCache(cache_size)
-        self._max_x = math.floor((end_x - start_x - (self._increment_x / 2)) / self._increment_x)
-        self._max_y = math.floor((end_y - start_y - (self._increment_y / 2)) / self._increment_y)
+        try:
+            self._d_x = (self._increment_x[0] / self._increment_x[1]) / 2
+        except TypeError:
+            self._d_x = self._increment_x / 2
+        try:
+            self._d_y = (self._increment_y[0] / self._increment_y[1]) / 2
+        except TypeError:
+            self._d_y = self._increment_y / 2
+        self._max_x = self.calculate_cell_number(end_x - self._d_x, start_x, self._increment_x)
+        self._max_y = self.calculate_cell_number(end_y - self._d_y, start_y, self._increment_y)
         self._max_z = len(z_values) - 1
+
+    @staticmethod
+    def calculate_cell_number(position: float, start: float, increment: float | tuple):
+        try:
+            return math.floor(((position - start) * increment[1]) / increment[0])
+        except TypeError:
+            return math.floor((position - start) * increment)
+
+    @staticmethod
+    def calculate_coordinate(grid_coordinate, start: float, increment: float | tuple, delta: float):
+        try:
+            return ((grid_coordinate * increment[0]) / increment[1]) + start + delta
+        except TypeError:
+            return (grid_coordinate * increment) + start + delta
 
     def get_longitude_coordinate(self, lon: float) -> int | None:
         if lon < self._start_x:
             return None
         if lon >= self._end_x:
             return None
-        return math.floor((lon - self._start_x) / self._increment_x)
+        return self.calculate_cell_number(lon, self._start_x, self._increment_x)
+
+    def get_longitude(self, grid_x: int, centre: bool = True) -> float | None:
+        if grid_x < 0:
+            return None
+        if grid_x > self._max_x:
+            return None
+        return self.calculate_coordinate(grid_x, self._start_x, self._increment_x, self._d_x if centre else 0)
 
     def get_latitude_coordinate(self, lat: float) -> int | None:
         if lat < self._start_y:
             return None
         if lat >= self._end_y:
             return None
-        return math.floor((lat - self._start_y) / self._increment_y)
+        return self.calculate_cell_number(lat, self._start_y, self._increment_y)
+
+    def get_latitude(self, grid_y: int, centre: bool = True) -> float | None:
+        if grid_y < 0:
+            return None
+        if grid_y > self._max_y:
+            return None
+        return self.calculate_coordinate(grid_y, self._start_y, self._increment_y, self._d_y if centre else 0)
 
     def get_depth_coordinate(self, depth: float) -> int | None:
         for x in range(0, self._max_z):
@@ -98,6 +134,32 @@ class FastGeoGrid:
         if self._z_values[-1] <= depth <= self._end_z:
             return self._max_z
         return None
+
+    def get_depth(self, grid_z: int, centre: bool = True) -> float | None:
+        if grid_z < 0:
+            return None
+        if grid_z > self._max_z:
+            return None
+        if grid_z < self._max_z:
+            min_z, max_z = self._z_values[grid_z], self._z_values[grid_z]
+        else:
+            min_z, max_z = self._z_values[grid_z] = self._max_z
+        if centre:
+            return min_z + (max_z - min_z) / 2.0
+        else:
+            return min_z
+
+    def get_position(self, x: int, y: int, z: int, centre: bool = True) -> tuple[float, float, float] | None:
+        longitude = self.get_longitude(x, centre)
+        if longitude is None:
+            return None
+        latitude = self.get_latitude(y, centre)
+        if latitude is None:
+            return None
+        depth = self.get_depth(z, centre)
+        if depth is None:
+            return None
+        return longitude, latitude, depth
 
     def get_grid_coordinates(self, lon: float, lat: float, depth: float) -> tuple[int, int, int] | None:
         x_coord = self.get_longitude_coordinate(lon)
@@ -133,14 +195,16 @@ class FastGeoGrid:
 
     def build_file(self, cb: t.Callable[[tuple[int, int, int]], bytes], file: pathlib.Path | None = None):
         with open(file or self._file, "wb") as f:
-            for x in range(0, self._max_x):
-                for y in range(0, self._max_y):
-                    for z in range(0, self._max_z):
+            for x in range(0, self._max_x + 1):
+                for y in range(0, self._max_y + 1):
+                    for z in range(0, self._max_z + 1):
                         data = cb((x, y, z))
                         if len(data) > self._data_size_bytes:
                             raise ValueError("Too long data")
                         while len(data) < self._data_size_bytes:
                             data = b"\x00" + data
+                        print(f"{x},{y},{z}", end="\r")
                         f.write(data)
+        print("\n")
 
 
