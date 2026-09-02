@@ -2,6 +2,7 @@ import functools
 import pathlib
 
 import gcapp.i18n as i18n
+from gcapp.i18n import LanguageDetector
 
 from pipeman_desktop.panes.base_pane import BasePane
 from pipeman_desktop.util import BatchOpenState
@@ -18,6 +19,7 @@ import PIL.ImageTk as ImageTk
 class MapPane(BasePane):
 
     local_db: LocalDatabase = None
+    language: LanguageDetector = None
 
     @injector.construct
     def __init__(self, *args, **kwargs):
@@ -32,6 +34,7 @@ class MapPane(BasePane):
         self._pane_id: str | None = None
         self._last_width = None
         self._last_height = None
+        self._last_language = None
 
     def on_init(self):
         self._map_frame = ttk.Frame(self.app.batch_middle)
@@ -42,10 +45,11 @@ class MapPane(BasePane):
         self._rebuild_map(width, width)
 
     def _rebuild_map(self, width: int, height: int):
-        if self._last_width == width and self._last_height == height:
+        lang = self.language.detect_language(["en" ,"fr"])
+        if lang == "und":
+            lang = "en"
+        if self._last_width == width and self._last_height == height and self._last_language == lang:
             return
-        self._last_width = width
-        self._last_height = height
         if self._map is not None:
             self._current_position = self._map.get_position()
             self._current_zoom = int(self._map.last_zoom)
@@ -53,6 +57,9 @@ class MapPane(BasePane):
             self._map.destroy()
             self._map = None
         if width > 1 and height > 1:
+            self._last_width = width
+            self._last_height = height
+            self._last_language = lang
             # 25 workers seems to set off Google's rate limiting
             # 2-3 works fine.
             self._map = tkmv.TkinterMapView(
@@ -63,7 +70,7 @@ class MapPane(BasePane):
                 background_load_workers=3,
                 cache_tile_radius=2,)
             self._map.grid(row=0, column=0, sticky='NSEW')
-            self._map.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)
+            self._map.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga&region=CA&language=" + lang, max_zoom=22)
             self._map.set_zoom(self._current_zoom)
             self._map.set_position(*self._current_position)
 
@@ -81,6 +88,7 @@ class MapPane(BasePane):
         if change_type & DisplayChange.LANGUAGE:
             if self._pane_id is not None:
                 self.app.batch_middle.tab(self._pane_id, text=i18n.tr("pane.map"))
+            self._rebuild_map_indirect()
 
     def _update_map_position(self):
         coordinates = self.app.state.current_coordinates()
