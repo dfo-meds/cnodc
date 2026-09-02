@@ -11,12 +11,12 @@ CREATE TABLE IF NOT EXISTS files (
     source_uuid TEXT,
     filename TEXT,
     file_path TEXT,
-    source: TEXT,
-    program: TEXT,
-    history: TEXT,
-    received_date: TEXT,
-    metadata: TEXT,
-    is_payload: INT
+    source TEXT,
+    program TEXT,
+    history TEXT,
+    received_date TEXT,
+    metadata TEXT,
+    is_payload INT
 
 );
 
