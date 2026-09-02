@@ -266,12 +266,12 @@ class CNODCServerAPI:
 
     def _clear_observations(self):
         with self.local_db.cursor() as cur:
-            cur.execute("TRUNCATE observations")
+            cur.truncate_table("observations")
             cur.commit()
 
     def _load_observations(self):
         with self.local_db.cursor() as cur:
-            cur.execute("TRUNCATE observations")
+            cur.truncate_table("observations")
             response = self.make_batch_json_request(
                 action_name="observations",
                 method="GET",
