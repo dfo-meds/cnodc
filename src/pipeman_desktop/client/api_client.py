@@ -306,12 +306,12 @@ class CNODCServerAPI:
 
     def _clear_files(self):
         with self.local_db.cursor() as cur:
-            cur.execute("TRUNCATE files")
+            cur.truncate_table("files")
             cur.commit()
 
     def _load_files(self):
         with self.local_db.cursor() as cur:
-            cur.execute("TRUNCATE files")
+            cur.truncate_table("files")
             response = self.make_batch_json_request(
                 action_name="file-info",
                 method="GET",
@@ -596,7 +596,7 @@ class CNODCServerAPI:
         with self.local_db.cursor() as cur:
             cur.execute("DELETE FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
             if response["success"]:
-                cur.execute("INSERT INTO platforms (platform_uuid, meds_id, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+                cur.execute("INSERT INTO platforms (platform_uuid, meds_id, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
                     platform_uuid,
                     response["data"].get("meds_id", None),
                     response["data"].get("wmo_id", None),
