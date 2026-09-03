@@ -98,7 +98,7 @@ class WorldOceanAtlasOneDegree(FastGeoGrid):
     @staticmethod
     @injector.inject
     def build_from_file(variable: str, time_period: str, config: ApplicationConfig = auto()):
-        base_dir = config.as_path("world_ocean_atlas", "root_directory")
+        base_dir = config.as_path("references", "world_ocean_atlas")
         if base_dir is None:
             raise ValueError("World Ocean Atlas directory not configured")
         units = None
