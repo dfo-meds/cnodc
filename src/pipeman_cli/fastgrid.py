@@ -31,7 +31,9 @@ def woa(output_directory, temp_prefix, salinity_prefix):
 @click.argument("output_file")
 @click.argument("input_files", nargs=-1)
 def glb(output_file, input_files):
-    from pipeman.programs.glb.glb import GreatLakesBathymetry
+    from pipeman.programs.bathymetry.glb import GreatLakesBathymetry
     output_file = pathlib.Path(output_file)
     input_files = [pathlib.Path(x) for x in input_files]
     GreatLakesBathymetry.build_from_glb(output_file, input_files)
+
+
