@@ -80,6 +80,13 @@ class StringField(wtf.StringField):
         super().__init__(**kwargs)
 
 
+class TextAreaField(wtf.TextAreaField):
+
+    def __init__(self, **kwargs):
+        _delayed_string_item(kwargs, _field="label")
+        super().__init__(**kwargs)
+
+
 class BooleanField(wtf.BooleanField):
 
     def __init__(self, **kwargs):
@@ -106,6 +113,25 @@ class SubmitField(wtf.SubmitField):
     def __init__(self, **kwargs):
         _delayed_string_item(kwargs, _default="gcflask.common.submit", _field="label")
         super().__init__(**kwargs)
+
+
+class HtmlWidget:
+
+    def __call__(self, field, **kwargs):
+        return field.html_content
+
+
+class HtmlField(wtf.Field):
+
+    def __init__(self, html_content=None, **kwargs):
+        super().__init__(widget=HtmlWidget(), **kwargs)
+        self.html_content = html_content
+
+    def validate(self, *args, **kwargs):
+        return True
+
+    def process(self, *args, **kwargs):
+        return None
 
 
 class DynamicFormField(wtf.FormField):

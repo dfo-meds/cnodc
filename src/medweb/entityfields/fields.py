@@ -2,9 +2,12 @@ import decimal
 import typing as t
 import datetime
 
+import markupsafe
 import wtforms
 from markupsafe import Markup, escape
 
+import gcflask.forms
+from gcapp import i18n
 from gcapp.i18n.base import TString, MLString, tr, format_date
 from gcflask.widgets import FlatPickrWidget, Select2Widget
 from medweb.entityfields.base import Field, NumberMixin, StringMixin
@@ -209,3 +212,100 @@ class ChoiceField[X](Field):
         return self._find_choice(value)[0]
 
 
+class HtmlDisplayBaseField(Field):
+
+    CONTROL_CLASS = gcflask.forms.HtmlField
+
+    def _field_level_control_kwargs(self) -> dict[str, t.Any]:
+        kwargs = super()._field_level_control_kwargs()
+        kwargs["html_content"] = self.__html__()
+        return kwargs
+
+    def __html__(self) -> Markup:
+        raise NotImplementedError
+
+
+class KeyValueField(Field):
+
+    DATA_TYPE = "key_value"
+    CONTROL_CLASS = wtforms.FormField
+
+    def _field_level_control_kwargs(self) -> dict[str, t.Any]:
+        kwargs = super()._field_level_control_kwargs()
+        kwargs["form_class"] = _KeyValueForm
+        return kwargs
+
+    def _sanitize_value(self, value: dict | None) -> dict[str, str | float | int] | None:
+        if not value:
+            return None
+        if not value.get("key", None):
+            return None
+        if not value.get("data_type", None):
+            raw_value = value.get("value", "")
+            if raw_value is None:
+                raw_value = ""
+            suffix = ""
+            if isinstance(raw_value, (list, tuple, set)):
+                suffix = "_list"
+                if raw_value:
+                    raw_value = list(raw_value)[0]
+                    value["value"] = ",".join(raw_value)
+                else:
+                    raw_value = ""
+                    value["value"] = ""
+            if isinstance(raw_value, (float | int)):
+                value["data_type"] = f"number{suffix}"
+            else:
+                value["data_type"] = f"text{suffix}"
+        return value
+
+    def _data_value(self, value: dict[str, str | float | int], **kwargs) -> tuple[str, float | int | str | list[str] | list[float | int]] | None:
+        if not value:
+            return None
+        dtype = value.get("data_type", "text")
+        val = value.get("value", "")
+        key = str(value.get("key", ""))
+        if dtype == "number":
+            return key, float(val)
+        elif dtype == "text_list":
+            return key, [x.strip() for x in str(val).split(",")]
+        elif dtype == "number_list":
+            return key, [float(x.strip()) for x in str(val).split(",")]
+        else:
+            return key, val
+
+    def _display(self, v: t.Any) -> Markup:
+        kv = self._data_value(v)
+        if kv is None:
+            return markupsafe.escape('')
+        else:
+            return markupsafe.escape(f"{kv[0]} = {kv[1]}")
+
+
+class _KeyValueForm(wtforms.Form):
+
+    key = gcflask.forms.StringField(
+        label="entityfields.key_value.key",
+    )
+
+    value = gcflask.forms.TextAreaField(
+        label="entityfields.key_value.value",
+    )
+
+    data_type = gcflask.forms.SelectField(
+        label="entityfields.key_value.data_type",
+        choices=[
+            ("text", i18n.tr("entityfields.key_value.text_type")),
+            ("text_list", i18n.tr("entityfields.key_value.text_list_type")),
+            ("number", i18n.tr("entityfields.key_value.number_type")),
+            ("number_list", i18n.tr("entityfields.key_value.number_list_type")),
+        ],
+        default="str"
+    )
+
+    # TODO: validation based on data_type for value?
+
+# these are plugins for this module
+# DatasetReference
+# VocabularyReference
+# EntityReference

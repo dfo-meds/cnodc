@@ -16,19 +16,19 @@ if t.TYPE_CHECKING:
 class Container:
 
     def data(self, field_name: str):
-        ...
+        raise NotImplementedError
 
     @property
     def container_id(self) -> int:
-        ...
+        raise NotImplementedError
 
     @property
     def container_type(self) -> str:
-        ...
+        raise NotImplementedError
 
     @property
     def supports_select2(self) -> bool:
-        ...
+        raise NotImplementedError
 
 
 class Field[AcceptType, ActualType]:
