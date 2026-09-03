@@ -1,0 +1,306 @@
+goc_subjects:
+  display:
+    en: GC - Subjects
+    fr: GC - Sujets
+  uri: "https://canada.multites.net/cst/default.asp?op=SRCHSCAT&searchString=SC&lang=ENG"
+goc_places:
+  display:
+    en: GC - Places
+    fr: GC - Lieux
+  uri:
+goc_audiences:
+  display:
+    en: GC - Audiences
+    fr: GC - Audiences
+  uri:
+  terms:
+    aboriginal_peoples:
+      display:
+        en: Aboriginal peoples
+        fr: Peuples autochtones
+    business:
+      display:
+        en: Business
+        fr: Entreprises
+    children:
+      display:
+        en: Children
+        fr: Enfants
+    educators:
+      display:
+        en: Educators
+        fr: Éducateurs
+    employers:
+      display:
+        en: Employers
+        fr: Employeurs
+    funding_applicants:
+      display:
+        en: Funding applicants
+        fr: Demandeurs de financement
+    general_public:
+      display:
+        en: General public
+        fr: Grand public
+    government:
+      display:
+        en: Government
+        fr: Gouvernement
+    immigrants:
+      display:
+        en: Immigrants
+        fr: Immigrants
+    job_seekers:
+      display:
+        en: Job Seekers
+        fr: Chercheurs d'emploi
+    media:
+      display:
+        en: Media
+        fr: Médias
+    noncanadians:
+      display:
+        en: Non-Canadians
+        fr: Non-canadiens
+    nongovernmental_organizations:
+      display:
+        en: Non-governmental organizations
+        fr: Organisations non governementales
+    parents:
+      display:
+        en: Parents
+        fr: Parents
+    persons_with_disabilities:
+      display:
+        en: Persons with disabilities
+        fr: Personnes handicapées
+    rural_community:
+      display:
+        en: Rural community
+        fr: Communauté rurale
+    seniors:
+      display:
+        en: Seniors
+        fr: Aînés
+    scientists:
+      display:
+        en: Scientists
+        fr: Scientifiques
+    students:
+      display:
+        en: Students
+        fr: Étudiants
+    travellers:
+      display:
+        en: Travellers
+        fr: Voyageurs
+    veterans:
+      display:
+        en: Veterans
+        fr: Anciens combattants
+    visitors_to_canada:
+      display:
+        en: Visitors to Canada
+        fr: Visiteurs au Canada
+    women:
+      display:
+        en: Women
+        fr: Femmes
+    youth:
+      display:
+        en: Youth
+        fr: Jeunesse
+goc_collection_types:
+  display:
+    en: GC - Collection Types
+    fr: GC - Types de collections
+  uri:
+  terms:
+    primary:
+      display:
+        en: Non-Spatial
+        fr: Non spatiales
+    geogratis:
+      display:
+        en: Geospatial
+        fr: Géospatiales
+    fgp:
+      display:
+        en: Open Maps
+        fr: Cartes ouvertes
+    publication:
+      display:
+        en: Publications
+        fr: Publication
+goc_content_types:
+  display:
+    en: GC - Content Types
+    fr: GC - Types de contenu
+  uri:
+  terms:
+    dataset:
+      display:
+        en: Dataset
+        fr: Données
+    web_service:
+      display:
+        en: Web Service
+        fr: Service Web
+    api:
+      display:
+        en: API
+        fr: API
+    support_doc:
+      display:
+        en: Supporting Document
+        fr: Document de soutien
+    application:
+      display:
+        en: Application
+        fr: Application
+goc_content_formats:
+  display:
+    en: GC - Formats
+    fr: GC - Formats de contenu
+  uri: http://www.gcpedia.gc.ca/wiki/Federal_Geospatial_Platform/Policies_and_Standards/Catalogue/Release/Appendix_B_Guidelines_and_Best_Practices/Guide_to_Harmonized_ISO_19115:2003_NAP/Format
+  terms:
+    AAC:
+    AIFF:
+    APK:
+    ASCII:
+    "ASCII Grid":
+    AVI:
+    BAG:
+    BMP:
+    BWF:
+    CCT:
+    CDF:
+    CDR:
+    COD:
+    CSV:
+    DBD:
+    DBF:
+    DICOM:
+    DNG:
+    DOC:
+    DOCX:
+    DXF:
+    E00:
+    ECW:
+    EDI:
+    EMF:
+    EPS:
+    EPUB2:
+    EPUB3:
+    "ESRI REST":
+    EXE:
+    "FGDB/GDB":
+    "Flat raster binary":
+    GeoJSON:
+    GPKG:
+    GeoPDF:
+    GeoRSS:
+    GDB:
+    GRD:
+    GeoTIF:
+    GIF:
+    GML:
+    GRIB1:
+    GRIB2:
+    HDF:
+    HTML:
+    IATI:
+    IPA:
+    JAR:
+    JFIF:
+    JP2:
+    JPG:
+    JSON:
+    JSONL:
+    JSON-LD:
+    KML:
+    KMZ:
+    LAS:
+    LYR:
+    MXF:
+    MOV:
+    MP3:
+    MPEG:
+    MPEG-1:
+    MXD:
+    NetCDF:
+    ODP:
+    ODS:
+    ODT:
+    PDF:
+    PDF/A-1:
+    PDF/A-2:
+    PDF/UA:
+    PNG:
+    PPT:
+    PPTX:
+    RDF:
+    NT:
+    TTL:
+    RDFa:
+    RSS:
+    RTF:
+    SAR:
+    SAV:
+    SEGY:
+    SHP:
+    SQL:
+    SQLITE:
+    SQLITE3:
+    SVG:
+    TAB:
+    TIFF:
+    TFW:
+    TRiG:
+    TRiX:
+    TXT:
+    VPF:
+    WAV:
+    "Web App":
+    WCG:
+    WFS:
+    WMS:
+    WMTS:
+    WMV:
+    WPS:
+    XLS:
+    XLSX:
+    XLSM:
+    XML:
+    ZIP:
+    TAR:
+    GZIP:
+    "TAR.GZ":
+    "SHP.ZIP":
+    "SHZ":
+    "DBF3":
+    "GRIB":
+    "WMS Layer":
+    "WFS Layer":
+    "WMTS Layer":
+    "ESRI Map Tile":
+    "ESRI Feature Layer":
+    "ESRI Dynamic Layer":
+    "ESRI Table":
+    "ESRI KML":
+    "ESRI JSON":
+    "ESRI Raster Catalog":
+    "ESRI Raster Image":
+    "ESRI Network Layer":
+    "Annotation Layer":
+    "MODFLOW":
+    "PDF 3D":
+    "Leapfrog Hydro":
+    "Leapfrog Mining":
+    "FEFLOW":
+    "Leapfrog Viewer":
+    "MapInfo Grid":
+    "GOCAD Model":
+    "GOCAD Object":
+    "WATFLOAT":
+

@@ -1,0 +1,80 @@
+iso19115:
+  display:
+    und: ISO-19115
+  extends: core
+  validation:
+    required:
+      - title
+      - abstract
+      - creation_date
+      - default_locale
+      - licenses
+    custom:
+      - pipeman.builtins.iso19115.util.validate_dataset
+  fields:
+    metadata_owner:
+    point_of_contact:
+    canon_urls:
+    alt_metadata:
+    metadata_standards:
+    metadata_profiles:
+    dataset_id_code:
+    dataset_id_desc:
+    dataset_id_system:
+    responsibles:
+    title:
+    supplemental:
+    environment_desc:
+    processing_system:
+    processing_desc:
+    processing_code:
+    graphics:
+    abstract:
+    purpose:
+    credit:
+    info_link:
+    publication_date:
+    revision_date:
+    creation_date:
+    topic_category:
+    parent_metadata:
+    additional_docs:
+    bbox_west:
+    bbox_east:
+    bbox_north:
+    bbox_south:
+    wkt_polygon:
+    vertical_min:
+    vertical_max:
+    start_time:
+    end_time:
+    is_ongoing:
+    spatial_resolution:
+    temporal_resolution:
+    horizontal_ref_system:
+    temporal_ref_system:
+    vertical_ref_system:
+    default_locale:
+    other_locales:
+    status:
+    spatial_representation_type:
+    resource_maintenance_frequency:
+    metadata_maintenance_frequency:
+    variables:
+    iso_maintenance:
+    custom_keywords:
+    licenses:
+    dataset_locale:
+    dataset_other_locales:
+    distributors:
+    meta_licenses:
+    missions:
+    platforms:
+    instruments:
+  formatters:
+    iso19115xml:
+      label:
+        und: ISO 19115-3 XML
+      template: iso19115.xml
+      content_type: text/xml
+      preprocess: pipeman.builtins.iso19115.util.preprocess_metadata

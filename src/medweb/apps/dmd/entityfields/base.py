@@ -8,7 +8,7 @@ from wtforms.validators import Optional
 from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length, NoControlCharacters
 from gcapp.i18n.base import MLString
 from gcflask.widgets import HtmlList, MultilingualList
-from medweb.entityfields.keywords import Keyword
+from medweb.apps.dmd.entityfields.keywords import Keyword
 
 if t.TYPE_CHECKING:
     import wtforms as wtf

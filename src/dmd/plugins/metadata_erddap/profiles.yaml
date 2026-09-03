@@ -1,0 +1,37 @@
+erddap:
+  display:
+    und: ERDDAP
+  extends: cf1_10
+  validation:
+    required:
+      - erddap_dataset_id
+      - cdm_data_type
+      - publication_date
+      - info_link
+      - short_institution
+      - responsibles
+      - spatial_representation_type
+      - variables
+      - erddap_data_file_path
+      - erddap_dataset_type
+      - licenses
+      - erddap_data_file_pattern
+  fields:
+    erddap_dataset_id:
+    erddap_dataset_type:
+    erddap_data_file_path:
+    erddap_data_file_pattern:
+    info_link:
+    topic_category:
+    iso_maintenance:
+    spatial_representation_type:
+    erddap_servers:
+  preprocess:
+    - pipeman.builtins.erddap.util.preprocess_metadata_all
+  formatters:
+    erddapxml:
+      label:
+        en: ERDDAP XML
+      template: erddap.xml
+      content_type: text/xml
+      preprocess: pipeman.builtins.erddap.util.preprocess_dataset

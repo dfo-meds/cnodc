@@ -1,0 +1,28 @@
+gociso19115:
+  display:
+    en: GC ISO-19115
+    fr: ISO-19115 du GC
+  extends: iso19115
+  validation:
+    required:
+      - publication_date
+      - topic_category
+      - resource_maintenance_frequency
+      - metadata_maintenance_frequency
+      - status
+      - goc_collection_type
+      - goc_publisher
+      - goc_subject
+  fields:
+    goc_collection_type:
+    goc_publisher:
+    goc_publication_place:
+    goc_subject:
+    goc_audience:
+  formatters:
+    iso19139_nap:
+      label:
+        en: ISO 19139 NAP XML
+      template: iso19139nap.xml
+      content_type: text/xml
+      preprocess: pipeman.builtins.metadata_goc.util.preprocess_for_nap
