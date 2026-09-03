@@ -1,19 +1,26 @@
-from uncertainties import UFloat, ufloat
-
-from medsutil.bathymetry import BathymetryModel
 import medsutil.ocproc2 as ocproc2
-from medsutil.dynamic import dynamic_object
-from medsutil.ocproc2.refs import RecordRef, SingleElementRef, ParentRecordRef
+
+from medsutil.fastgrid import FastGeoGrid
+from medsutil.math import ScienceNumber
+from medsutil.ocproc2.refs import RecordRef, SingleElementRef
 from medsutil.ocproc2.util import RequiredQuality
+from pipeman.programs.bathymetry.glb import GreatLakesBathymetry
+
+from pipeman.programs.bathymetry.base import BathymetryModel
 from pipeman.programs.qc.base import DeepDiveChecker
 import medsutil.math as amath
 
+from zirconium import ApplicationConfig
+from autoinject import injector
+import typing as t
+import pathlib
 
 class GTSPPBathymetryCheck(DeepDiveChecker):
 
+    config: ApplicationConfig = None
+
+    @injector.construct
     def __init__(self,
-                 bathymetry_model_class: str,
-                 bathymetry_model_kwargs: dict = None,
                  absolute_bottom_tolerance: float = 50,
                  run_on_land_test: bool = True,
                  run_sounding_test: bool = True,
@@ -30,18 +37,14 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
             ],
             searcher_cls=searcher_cls
         )
-        if bathymetry_model_kwargs:
-            self._bathymetry_model: BathymetryModel = dynamic_object(bathymetry_model_class)(**bathymetry_model_kwargs)
-        else:
-            self._bathymetry_model: BathymetryModel = dynamic_object(bathymetry_model_class)()
+        self._bathymetry_models: list[tuple[str, BathymetryModel]] = [
+            ("ncei_great_lakes", GreatLakesBathymetry(t.cast(pathlib.Path, self.config.as_path("references", "great_lakes_bathymetry")))),
+            # TODO: GEBCO
+        ]
         self.run_on_land_test = run_on_land_test
         self.run_sounding_test = run_sounding_test
         self.run_bottom_test = run_bottom_test
         self._absolute_bottom_tolerance = absolute_bottom_tolerance
-
-    def parent_record_check(self, ref: ParentRecordRef):
-        if self.run_bottom_test or self.run_sounding_test or self.run_on_land_test:
-            self.add_note(f"Bathymetry checked against: {self._bathymetry_model.ref_name}")
 
     def check_should_skip_on_land(self) -> bool:
         if 'should_skip_on_land' not in self.record_memory:
@@ -66,33 +69,47 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
         if self.run_bottom_test or self.run_sounding_test:
             self._update_coordinates(ref)
 
+    def get_water_depth(self, lat: float, lon: float) -> ScienceNumber | None:
+        for bathy_model_name, bathy_model in self._bathymetry_models:
+            water_depth = bathy_model.get_bathymetry(lon, lat)
+            if water_depth is not None:
+                if "bathy_models" not in self.record_memory:
+                    self.record_memory["bathy_models"] = set()
+                if bathy_model_name not in self.record_memory["bathy_models"]:
+                    self.record_memory["bathy_models"].add(bathy_model_name)
+                    self.add_note(f"Bathymetry model used: {bathy_model_name} at x={lon} y={lat}")
+                return water_depth
+        return None
+
     def single_element_check(self, ref: SingleElementRef):
 
         lat, lon = self.current_latitude, self.current_longitude
         if lat is None or lon is None: return
 
+        water_depth = self.get_water_depth(float(lat), float(lon))
+
         # require valid element name
         if self.run_bottom_test and ref.element_name == "Depth":
             with self.review("depth_check", ref, pass_flag=1, fail_flag=3) as ctx:
                 ctx.check_review_already_complete(RequiredQuality.QC_INCOMPLETE | RequiredQuality.GOOD_NUMERIC | RequiredQuality.HAS_UNITS)
-                self.check_not_too_deep(ref.element, lat, lon)
+                self.check_not_too_deep(ref.element, water_depth)
+
         elif self.run_sounding_test and ref.element_name == "SeaDepth":
             with self.review("sea_depth_check", ref, pass_flag=1, fail_flag=3) as ctx:
                 ctx.check_review_already_complete(RequiredQuality.QC_INCOMPLETE | RequiredQuality.GOOD_NUMERIC | RequiredQuality.HAS_UNITS)
-                self.check_not_too_deep(ref.element, lat, lon)
+                self.check_not_too_deep(ref.element, water_depth)
 
-    def check_not_too_deep(self, element: ocproc2.SingleElement, lat: amath.AnyNumber, lon: amath.AnyNumber):
-        max_depth_m = self._bathymetry_model.water_depth(lat, lon)
+    def check_not_too_deep(self, element: ocproc2.SingleElement, max_depth_m: ScienceNumber | None):
         if max_depth_m is None:
             self.skip_review("invalid_bathymetry_location")
         else:
-            depth_value = element.to_numeric("m")
+            depth_value = element.to_scinum().convert("m")
             self.assert_less_or_close(depth_value, amath.add(max_depth_m, self._absolute_bottom_tolerance), msg="too_deep")
 
     def check_not_on_land(self, lat: ocproc2.SingleElement, lon: ocproc2.SingleElement):
         lat_value = lat.to_numeric("degrees_north")
         lon_value = lon.to_numeric("degrees_east")
-        max_depth = self._bathymetry_model.water_depth(lat_value, lon_value)
+        max_depth = self.get_water_depth(lat_value, lon_value)
         if max_depth is None:
             self.skip_review("invalid_bathymetry_location")
         else:
