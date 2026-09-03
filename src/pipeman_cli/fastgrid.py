@@ -37,3 +37,11 @@ def glb(output_file, input_files):
     GreatLakesBathymetry.build_from_glb(output_file, input_files)
 
 
+@fastgrid.command()
+@click.argument("output_file")
+@click.argument("input_files", nargs=-1)
+def gebco(output_file, input_files):
+    from pipeman.programs.bathymetry.gebco import GEBCOBathymetry
+    output_file = pathlib.Path(output_file)
+    input_files = [pathlib.Path(x) for x in input_files]
+    GEBCOBathymetry.build_from_gebco(output_file, input_files)
