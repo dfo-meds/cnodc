@@ -12,13 +12,17 @@ class TestBufr315003(BaseTestCase):
     def test_decode(self):
         with open(self.data_file_path("bufr/315003.bufr"), "rb") as h:
             bufr_content = h.read()
-        decoder = _Bufr4Decoder("test", bufr_content, BufrCodeMap())
-        records = [x for x in decoder.convert_to_records()]
+        decoder = _Bufr4Decoder(BufrCodeMap(), "IAAAAA AAAA 041123", bufr_content)
+        records = [x for x in decoder.convert_to_records("2026-04-04T13:04:00+00:00")]
 
         self.assertEqual(1, len(records))
         record = records[0]
 
         self.assertIsInstance(record, ParentRecord)
+        self.assertEqual(records[0].metadata["CNODCDataMode"].value, "RT")
+        self.assertEqual(records[0].metadata["CNODCIsBroadcast"].value, 1)
+        self.assertEqual(records[0].metadata["GTSHeader"].value, "IAAAAA AAAA 041123")
+        self.assertEqual(records[0].metadata["GTSHeaderFullDate"].value, "2026-09-04T13:04:00+00:00")
         self.assert_element_equals(record.metadata, "WMOID", "1200345")
         self.assert_element_equals(record.metadata, "PlatformModel", "HelloWorld")
         self.assert_element_equals(record.metadata, "PlatformSerial", "123456")

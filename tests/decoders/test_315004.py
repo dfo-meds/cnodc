@@ -1,6 +1,7 @@
 import itertools
 import json
 
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ParentRecord, BaseRecord, ElementMap
 from tests.helpers.base_test_case import BaseTestCase
 from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCodeMap
@@ -9,13 +10,16 @@ from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCodeMap
 class TestBufr315004(BaseTestCase):
 
     def test_decode(self):
-        with open(self.data_file_path("ocproc2/315004_2.json"), "r") as h:
-            good_version = ParentRecord.build_from_mapping(json.load(h))
         with open(self.data_file_path("bufr/315004_2.bufr"), "rb") as h:
             bufr_content = h.read()
-        decoder = _Bufr4Decoder("test", bufr_content, BufrCodeMap())
-        records = [x for x in decoder.convert_to_records()]
+        full_date = AwareDateTime(2026, 9, 4, 11, 23, 0, tzinfo="Etc/UTC")
+        decoder = _Bufr4Decoder(BufrCodeMap(), "IAAAAA AAAA 041123", bufr_content)
+        records = [x for x in decoder.convert_to_records(full_date.isoformat())]
         self.assertEqual(1, len(records))
+        self.assertEqual(records[0].metadata["CNODCDataMode"].value, "RT")
+        self.assertEqual(records[0].metadata["CNODCIsBroadcast"].value, 1)
+        self.assertEqual(records[0].metadata["GTSHeader"].value, "IAAAAA AAAA 041123")
+        self.assertEqual(records[0].metadata["GTSHeaderFullDate"].value, "2026-09-04T11:23:00+00:00")
         self.assertEqual(records[0].metadata["ProfileID"].value, "1")
         self.assertEqual(records[0].metadata["PlatformID"].value, "12")
         self.assertEqual(records[0].metadata["IMONumber"].value, 123)

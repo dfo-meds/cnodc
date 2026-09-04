@@ -13,11 +13,14 @@ class TestFM18XII(BaseTestCase):
         decoder = GtsCodec()
         with open(self.data_file_path("ascii/fm18_xii.txt"), "rb") as h:
             ascii_content = h.read()
-        records = [x for x in decoder.load(ascii_content, received_date=AwareDateTime(2026, 7, 8, 10, 28, 0, tzinfo="Etc/UTC"))]
+        records = [x for x in decoder.load(ascii_content, received_date=AwareDateTime(2026, 7, 10, 10, 28, 0, tzinfo="Etc/UTC"))]
         self.assertEqual(1, len(records))
         record = records[0]
         self.assertIsInstance(record, ParentRecord)
         self.assert_element_equals(record.metadata, "GTSHeader", "SSVX06 LFVW 092258")
+        self.assert_element_equals(record.metadata, "GTSHeaderFullDate", "2026-07-09T22:58:00+00:00")
+        self.assert_element_equals(record.metadata, "CNODCDataMode", "RT")
+        self.assert_element_equals(record.metadata, "CNODCIsBroadcast", 1)
         self.assert_element_equals(record.metadata, "WMOAsciiCodeForm", "ZZYY")
         self.assert_element_equals(record.metadata, "WMOID", "1200345")
         self.assert_element_equals(record.coordinates, "Time", "2025-02-01T12:23:00+00:00", DatePrecision="minute", Quality="2")

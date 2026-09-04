@@ -532,9 +532,8 @@ class _Bufr4Encoder:
 class _Bufr4Decoder:
 
     def __init__(self,
-                 bufr_tables:
-                 BufrCodeMap,
-                 header,
+                 bufr_tables: BufrCodeMap,
+                 header: str,
                  content: t.Union[bytearray, bytes]):
         self.bufr_tables = bufr_tables
         self.header = header
