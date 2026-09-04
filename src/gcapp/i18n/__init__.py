@@ -6,6 +6,7 @@ from gcapp.i18n.base import (
     MLLink,
     TranslatableError,
     tr,
+    dtr,
     format_date,
     i18n_sort
 )

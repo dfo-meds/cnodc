@@ -260,8 +260,16 @@ class TranslatableError(CodedError):
         super().__init__(TString(key), code_number, code_space=code_space, is_transient=is_transient)
 
 
-def tr(key: str, default: str | None = None, *args, **kwargs) -> str:
-    return str(TString(key, default, *args, **kwargs))
+def tr(key: str, default: str | None = None, *args, _delay: bool = False, **kwargs) -> str:
+    tstr = TString(key, default, *args, **kwargs)
+    if _delay:
+        return tstr
+    else:
+        return str(tstr)
+
+
+def dtr(key: str, default: str | None = None, *args, **kwargs) -> str:
+    return tr(key, default, *args, **kwargs, _delay=True)
 
 
 def format_date(dt: datetime.date | None) -> str:

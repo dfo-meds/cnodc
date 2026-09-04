@@ -1,11 +1,13 @@
 import enum
 import gcapp.i18n as i18n
+import typing as t
 
 from autoinject import injector, auto
 import zirconium as zr
 
-from dmd.entityfields.base import Container, Field
+from dmd.entityfields.base import Container
 from dmd.metadata.metadata import MetadataRegistry
+from dmd.metadata.workflows import WorkflowRegistry
 from gcapp.i18n import MLString
 from medsutil.awaretime import AwareDateTime
 from pipeman.programs.dmd.metadata import Keyword
@@ -20,11 +22,13 @@ class DatasetStatus(enum.Enum):
 class Dataset(Container):
 
     metadata_registry: MetadataRegistry = auto()
+    workflow_registry: WorkflowRegistry = auto()
     config: zr.ApplicationConfig = auto()
 
     @injector.construct
     def __init__(self,
-                 fields: dict[str, Field],
+                 fields: dict[str, dict[str, t.Any]],
+                 field_values: dict[str, t.Any],
                  base_profiles: list[str] | set[str] | tuple[str],
                  display_names: dict[str, str],
                  database_identifier: int | None = None,
@@ -41,7 +45,7 @@ class Dataset(Container):
                  status: DatasetStatus = DatasetStatus.DRAFT,
                  security_label: str | None = None,
                  authority: str | None = None):
-        super().__init__("dataset", fields, display_names)
+        super().__init__("dataset", display_names, fields, field_values)
         self.database_identifier = database_identifier
         self.version_identifier = version_identifier
         self.revision_no = revision_no
@@ -63,27 +67,26 @@ class Dataset(Container):
     def container_id(self) -> int | None:
         return self.database_identifier
 
-    def display_properties(self) -> list[tuple[str, str | MLString]]:
-        properties = [
-            ("dmd.dataset.status", self.status_display()),
-            ("dmd.dataset.activation_workflow", ""), # TODO
-            ("dmd.dataset.publication_workflow", ""),  # TODO
-            ("dmd.dataset.security_label", self.security_label_display()),
-            ("dmd.dataset.naming_authority", self.naming_authority),
-            ("dmd.dataset.guid", self.guid or ""),
-        ]
-        return properties
-
     @property
     def naming_authority(self) -> str:
         if self._authority:
             return self._authority
         return str(self.config.as_str(("dmd", "metadata", "naming_authority"), default="pipeman"))
 
-    def status_display(self):
+    def activation_workflow_display(self) -> MLString | str:
+        if self.activation_workflow:
+            return self.workflow_registry.workflow_display("dataset_activation", self.activation_workflow)
+        return i18n.tr("gcapp.common.unknown")
+
+    def publication_workflow_display(self) -> MLString | str:
+        if self.publication_workflow:
+            return self.workflow_registry.workflow_display("dataset_publication", self.publication_workflow)
+        return i18n.tr("gcapp.common.unknown")
+
+    def status_display(self) -> str:
         return i18n.tr(f"dmd.dataset.status.{self.status.value.lower()}")
 
-    def security_label_display(self):
+    def security_label_display(self) -> str | MLString:
         if self.security_label:
             return self.metadata_registry.security_label_display(self.security_label)
         return i18n.tr("gcapp.common.unknown")

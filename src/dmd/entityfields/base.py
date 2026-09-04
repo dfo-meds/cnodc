@@ -1,17 +1,42 @@
 import itertools
 import typing as t
 
+from autoinject import injector
 from markupsafe import Markup, escape
 from wtforms.fields.core import UnboundField
 from wtforms.validators import Optional
 
+from gcapp import i18n as i18n
 from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length, NoControlCharacters
 from gcapp.i18n.base import MLString
-from gcflask.widgets import HtmlList, MultilingualList
+from gcflask.widgets import HtmlList, MultilingualList, InfoTable, HtmlContent
 from medweb.apps.dmd.entityfields.keywords import Keyword
 
 if t.TYPE_CHECKING:
     import wtforms as wtf
+
+
+class FieldValidator:
+
+    def __call__(self,
+                 obj_path: list[str | MLString],
+                 field: Field,
+                 memo: set[tuple[str, int | None]]) -> t.Iterable[ValidationResult]:
+        raise NotImplementedError
+
+
+class ContainerValidator:
+
+    def __call__(self,
+                 obj_path: list[str | MLString],
+                 container: Container,
+                 memo: set[tuple[str, int | None]]) -> t.Iterable[ValidationResult]:
+        raise NotImplementedError
+
+
+class ValidationResult:
+    ...
+
 
 class Container:
 
@@ -19,25 +44,127 @@ class Container:
 
     def __init__(self,
                  container_type: str,
-                 fields: dict[str, Field],
-                 display_names: dict[str, str]):
+                 display_names: dict[str, str],
+                 fields: dict[str, dict[str, t.Any]],
+                 field_values: dict[str, t.Any]):
         self._container_type = container_type
-        self._fields: dict[str, Field] = fields
+        self._fields: dict[str, Field] = {}
+        self._load_fields(fields, field_values)
         self._display_names = display_names
+        self._field_validators: dict[str, list[FieldValidator]] = {}
+        self._container_validators: list[ContainerValidator] = []
 
-    def display_name(self):
+    def container_link(self) -> Markup:
+        raise NotImplementedError
+
+    def _load_fields(self, fields: dict[str, dict[str, t.Any]], values: dict[str, t.Any]):
+        for field_name, field_config in fields.items():
+            self._fields[field_name] = self.build_field(
+                field_name,
+                field_config,
+                self
+            )
+            self._fields[field_name].value = values.get(field_name, None)
+
+    def add_field_validator(self, field_name: str, validator: FieldValidator):
+        if field_name not in self._field_validators:
+            self._field_validators[field_name] = []
+        self._field_validators[field_name].append(validator)
+
+    def add_container_validator(self, validator: ContainerValidator):
+        self._container_validators.append(validator)
+
+    def validate_metadata(self,
+                          parent_path: list[str] | None = None,
+                          _memo: set[tuple[str, int | None]] | None = None) -> list[ValidationResult]:
+        memo = set() if _memo is None else _memo
+
+        my_id = (self.container_type, self.container_id)
+        if my_id in memo:
+            return []
+        memo.add(my_id)
+
+        pp = [] if parent_path is None else parent_path
+        my_name = self.display()
+
+        results = []
+        for fn in sorted(self._fields.keys()):
+            field = self._fields[fn]
+            obj_path = [*pp, my_name, field.label(True)]
+            for validator in self._field_validators.get(fn, []):
+                results.extend(validator(obj_path, field, memo))
+            results.extend(field.validate_metadata(obj_path, memo))
+
+        for validator in self._container_validators:
+            results.extend(validator([*pp, my_name], self, memo))
+
+        return results
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._fields
+
+    def __getitem__(self, name: str) -> t.Any:
+        return self.data(name) or ""
+
+    def info_table(self, display_group: str | None = None) -> InfoTable:
+        return InfoTable(
+            rows=[x for x in self.display_values(display_group)],
+            table_classes=["field-list-table"]
+        )
+
+    def display_values(self,
+                       display_group: str | None = None) -> t.Generator[tuple[list[str] | None, str | MLString | Markup | HtmlContent, str | MLString | Markup | HtmlContent], None, None]:
+        for field_name in self.ordered_field_names(display_group):
+            field = self._fields[field_name]
+            label = field.label()
+            content = field.display()
+            classes: list[str] = []
+            yield classes, label, content
+
+    def all_empty(self) -> bool:
+        for field in self._fields.values():
+            if not field.is_empty():
+                return False
+        return True
+
+    def serialize(self) -> dict[str, t.Any]:
+        return {
+            fn: field.serialize()
+            for fn, field in self._fields.items()
+        }
+
+    def unserialize(self, data: dict[str, t.Any]):
+        for key, value in data.items():
+            if key in self._fields:
+                self._fields[key].value = value
+
+    def field_label(self, field_name: str, clean: bool = True) -> MLString:
+        return self._fields[field_name].label(clean)
+
+    def display(self):
         return MLString(self._display_names)
 
-    def data(self, field_name: str):
-        raise NotImplementedError
+    def data(self, field_name: str, **kwargs) -> t.Any:
+        if field_name in self._fields:
+            return self._fields[field_name].data(**kwargs)
+        return None
+
+    def controls(self, display_group: str | None = None):
+        return {
+            field_name: field.form_control()
+            for field_name, field in self._fields.items()
+            if display_group is None or display_group == field.display_group
+        }
 
     def ordered_field_names(self, display_group: str | None = None):
         field_names = [
-            (fn, field.order)
+            (field.order, fn)
             for fn, field in self._fields.items()
             if display_group is None or field.display_group == display_group
         ]
-
+        field_names.sort()
+        for _, field_name in field_names:
+            yield field_name
 
     @property
     def container_id(self) -> int | None:
@@ -57,8 +184,8 @@ class Container:
         return field_type
 
     @staticmethod
-    def build_field(field_name: str, data_type: str, config: dict[str, t.Any], container: Container) -> Field:
-        return Container.FIELD_TYPE_REGISTRY[data_type](field_name, config, container)
+    def build_field(field_name: str, config: dict[str, t.Any], container: Container) -> Field:
+        return Container.FIELD_TYPE_REGISTRY[config["data_type"]](field_name, config, container)
 
 
 class Field[AcceptType, ActualType]:
@@ -123,25 +250,39 @@ class Field[AcceptType, ActualType]:
         elif isinstance(value, list) and value and isinstance(value[0], list):
             value = value[0]
         if self.is_multilingual:
-            return [
-                self._sanitize_multilingual_value(v, idx)
-                for idx, v in enumerate((value if isinstance(value, (list, tuple, set)) else [value]))
-            ]
+            values = []
+            for idx, v in enumerate((value if isinstance(value, (list, tuple, set)) else [value])):
+                value = self._sanitize_multilingual_value(v, idx)
+                if value is not None:
+                    values.append(value)
+            return values or None
         else:
-            return [
-                self._sanitize_value(v)
-                for v in (value if isinstance(value, (list, tuple, set)) else [value])
-            ]
+            values = []
+            for v in (value if isinstance(value, (list, tuple, set)) else [value]):
+                value = self._sanitize_value(v)
+                if value is not None:
+                    values.append(value)
+            return values or None
 
     def _sanitize_multilingual_value(self, value: ACCEPT_TYPES, idx: int | None = None) -> dict[str, ActualType] | None:
         if value is None:
             return None
+        values = {}
         if isinstance(value, dict):
             if '_translation_request' in value and value['_translation_request']:
                 self._file_translation_request(value, idx)
-            return {k: self._sanitize_value(v) for k, v in value.items()}
+            for k, v in value.items():
+                value = self._sanitize_value(v)
+                if value is not None:
+                    values[k] = value
         else:
-            return {'und': self._sanitize_value(value)}
+            value = self._sanitize_value(value)
+            if value is not None:
+                values["und"] = value
+        return values or None
+
+    def is_empty(self) -> bool:
+        return not self._value
 
     def _file_translation_request(self, value: dict[str, t.Any], index: int | None = None):
         # TODO: return to this
@@ -151,6 +292,11 @@ class Field[AcceptType, ActualType]:
     def _complete_translation_request(self, translations: dict[str, t.Any], index: int | None = None):
         # TODO
         ...
+
+    def validate_metadata(self,
+                          obj_path: list[str | MLString],
+                          memo: set[tuple[str, int | None]]) -> t.Iterable[ValidationResult]:
+        return []
 
     def serialize(self):
         if self.is_repeatable:
@@ -224,7 +370,7 @@ class Field[AcceptType, ActualType]:
     def description(self) -> MLString:
         return MLString(self._config.get("description" ,""))
 
-    def display(self) -> HtmlList | MultilingualList | Markup:
+    def display(self) -> Markup | HtmlContent:
         if self.is_repeatable:
             return HtmlList([
                 self._display_multilingual_check(x)
@@ -233,7 +379,7 @@ class Field[AcceptType, ActualType]:
         else:
             return self._display_multilingual_check(self._value)
 
-    def _display_multilingual_check(self, v: t.Any):
+    def _display_multilingual_check(self, v: t.Any) -> Markup | HtmlContent:
         if self.is_multilingual:
             return MultilingualList({
                 k: self._display(v) for k, v in v.items()
@@ -287,10 +433,13 @@ class Field[AcceptType, ActualType]:
         yield Keyword(
             str(value),
             str(value),
-            self._display(value),
+            self._keyword_value(value),
             self._build_thesaurus(),
             self._keyword_mode()
         )
+
+    def _keyword_value(self, value: t.Any) -> str:
+        return str(value) if value else ""
 
     def _keyword_mode(self) -> str:
         method = "value"
@@ -347,7 +496,7 @@ class Field[AcceptType, ActualType]:
     def _control_class(self) -> t.Callable[[...], wtf.Field | UnboundField]:
         return getattr(self, 'CONTROL_CLASS')
 
-    def _display(self, v: t.Any) -> Markup:
+    def _display(self, v: t.Any) -> Markup | HtmlContent:
         if v is None:
             return escape('')
         return escape(v)
@@ -386,8 +535,29 @@ class StringMixin(Field):
             value = self._config.get("separator", ",").join(value)
         return str(value)
 
-    def _display(self, v: t.Any) -> Markup:
+    def _display(self, v: t.Any) -> Markup | HtmlContent:
         if v is None:
             v = ""
         return escape(v.replace("\n", "<br />"))
 
+
+@injector.injectable
+class ContainerLoader:
+
+    def build_container(self, container_type: str, values: dict[str, t.Any] | None = None) -> Container:
+        raise NotImplementedError
+
+    def list_containers(self, container_type: str) -> t.Iterable[tuple[int | str, i18n.MLString]]:
+        raise NotImplementedError
+
+    def load_container(self, container_type: str, container_id: int) -> Container | None:
+        raise NotImplementedError
+
+    def search_containers(self,
+                          container_type: str,
+                          filter_ids: list[int] | None = None,
+                          name_like: str | None = None) -> t.Iterable[Container]:
+        raise NotImplementedError
+
+    def search_for_select_callback(self, container_type: str) -> str:
+        raise NotImplementedError

@@ -1,11 +1,12 @@
 import typing as t
 
+import markupsafe
 from autoinject import injector
 from markupsafe import Markup, escape
 from wtforms.widgets import html_params
 
 from gcflask.csp import csp_nonce
-from gcapp.i18n.base import TranslationManager, TString, tr, LanguageDetector
+from gcapp.i18n.base import TranslationManager, TString, tr, LanguageDetector, BaseDString
 
 
 class BetterTableWidget:
@@ -113,9 +114,14 @@ class TabbedFieldFormWidget:
         return Markup(html)
 
 
-class HtmlList:
+class HtmlContent:
+    def ___html__(self) -> markupsafe.Markup | str:
+        raise NotImplementedError
 
-    def __init__(self, items):
+
+class HtmlList(HtmlContent):
+
+    def __init__(self, items: list[str | Markup | HtmlContent]):
         self.items = items
 
     def __str__(self):
@@ -130,9 +136,9 @@ class HtmlList:
 
 
 
-class MultilingualList:
+class MultilingualList(HtmlContent):
 
-    def __init__(self, items: dict[str, str | Markup]):
+    def __init__(self, items: dict[str, str | Markup | HtmlContent]):
         self.items = items
 
     def __html__(self):
@@ -140,7 +146,7 @@ class MultilingualList:
         if len(valid_keys) == 0:
             return ''
         elif len(valid_keys) == 1:
-            return list(self.items.values())[0]
+            return escape(list(self.items.values())[0])
         else:
             html = '<dl>'
             for key in valid_keys:
@@ -154,6 +160,79 @@ class MultilingualList:
             html += '</dl>'
             return Markup(html)
 
+
+class InfoTable(HtmlContent):
+
+    def __init__(self,
+                 rows: list[tuple[list[str] | None, str | Markup | HtmlContent | BaseDString, str | Markup | HtmlContent | BaseDString]],
+                 table_classes: list[str] | None = None):
+        self.table_classes = table_classes or []
+        self._rows = rows
+
+    def __html__(self):
+        html = "<table cellpadding='0' cellspacing='0' border='0'"
+        if self.table_classes:
+            html += " class='"
+            html += " ".join(markupsafe.escape(x) for x in self.table_classes)
+            html += "'"
+        html += ">"
+        for row_classes, header, value in self._rows:
+            html += '<tr'
+            if row_classes:
+                html += " class='"
+                html += " ".join(markupsafe.escape(x) for x in row_classes)
+                html += "'"
+            html += '><th>'
+            html += markupsafe.escape(header)
+            html += '</th><td>'
+            html += markupsafe.escape(value)
+            html += '</td></tr>'
+        html += "</table>"
+        return html
+
+
+class Select2Widget:
+
+    def __init__(self, ajax_callback=None, allow_multiple=False, query_delay=None, placeholder=None, min_input=None):
+        self.ajax_callback = ajax_callback
+        self.allow_multiple = allow_multiple
+        self.query_delay = query_delay or 0
+        self.placeholder = placeholder
+        self.min_input = min_input
+
+    def __call__(self, field, **kwargs):
+        markup = f'<select class="form-control-select2" id="{field.id}" name="{field.name}"'
+        if self.allow_multiple:
+            markup += 'multiple="multiple"'
+        markup += '>\n'
+        for opts in field.iter_choices():
+            markup += self.render_option(*opts) + "\n"
+        markup += f'</select>\n<script language="javascript" type="text/javascript" nonce="{csp_nonce("script-src")}">'
+        markup += '$(document).ready(function() {\n'
+        markup += f"  $('#{field.id}').select2(" + "{\n"
+        if self.ajax_callback:
+            markup += "    ajax: {\n"
+            markup += f"      url: '{self.ajax_callback}',\n"
+            markup += "      dataType: 'json'\n"
+            markup += "    },\n"
+            if self.min_input:
+                markup += f"    minimumInputLength: {int(self.min_input)},\n"
+        if self.placeholder:
+            markup += "    allowClear: true,\n"
+            markup += f"    placeholder: '{self.placeholder}',\n"
+        markup += f"    delay: {int(self.query_delay)}\n"
+        markup += "  });\n"
+        markup += "});\n"
+        markup += '</script>\n'
+        return markupsafe.Markup(markup)
+
+    def render_option(self, val, label, selected, render_kw = None, **kwargs):
+        if val is True or val is False:
+            val = str(val)
+        if val is None:
+            val = ""
+        sel_text = " selected=\"selected\"" if selected else ""
+        return f'<option{sel_text} value="{val}">{markupsafe.escape(label)}</option>'
 
 
 class FlatPickrWidget:
