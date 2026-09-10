@@ -241,6 +241,15 @@ class EncodeElement:
         self.value = value
         self.optional = optional
 
+    def __str__(self):
+        if isinstance(self.value, list):
+            return f"<{self.descriptor}=[{','.join(str(x) for x in self.value)}]>"
+        else:
+            return f"<{self.descriptor}={self.value}>"
+
+    def __repr__(self):
+        return f'<EncodeElement {self.descriptor}={self.value}>'
+
     def can_omit(self) -> bool:
         if self.optional:
             return True
