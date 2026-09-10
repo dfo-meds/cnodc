@@ -294,6 +294,7 @@ class _Bufr4Encoder:
         self._default_master_table_version = 42
         self._default_local_table_version = 0
         self._table_group: BufrTableGroup | None = None
+        self._log = zrlog.get_logger("medsutil.bufr_encoder")
 
     @property
     def table_group(self) -> BufrTableGroup:
