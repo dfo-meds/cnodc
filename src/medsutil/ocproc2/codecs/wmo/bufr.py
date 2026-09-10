@@ -466,9 +466,9 @@ class _Bufr4Encoder:
                 if 'is_optional' in instruction.extras and instruction.extras['is_optional']:
                     output: list[EncodeElement] = [x for x in self._build_from_instruction_group(instruction, context, null_values=True)]
                     if all(x.can_omit() for x in output):
-                        yield EncodeElement(0, int(instruction.extras.get("size_descriptor", 31000)))
+                        yield EncodeElement(int(instruction.extras.get("size_descriptor", 31000)), 0)
                     else:
-                        yield EncodeElement(1, int(instruction.extras.get("size_descriptor", 31000)))
+                        yield EncodeElement(int(instruction.extras.get("size_descriptor", 31000)), 1)
                         yield from output
                 else:
                     yield from self._build_from_instruction_group(instruction, context, null_values=null_values)
