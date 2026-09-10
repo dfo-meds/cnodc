@@ -697,7 +697,7 @@ class ElementInstruction(SingleValueInstruction):
         elif n_values == 1:
             return values[list(values.keys())[0]]
         else:
-            raise OceanProcessingSchemaError("Multiple common elements detected", 1000)
+            raise OceanProcessingSchemaError(f"Multiple common elements detected: {';'.join(str(x) for x in values.keys())}", 1000)
 
     def _extract_quality(self, element: SingleElement, context: OPSContext) -> int | None:
         return context.get_quality(element)
