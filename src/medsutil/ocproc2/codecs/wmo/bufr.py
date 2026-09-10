@@ -176,7 +176,7 @@ class BufrCodeMap:
         raise ValueError(f"No bufr instruction defined for [{key}]")
 
     def standardize_units(self, unit: str):
-        if unit.upper() in ('NUMERIC', 'CCITT IA5', 'CODE TABLE'):
+        if unit.upper() in ('NUMERIC', 'CCITT IA5', 'CODE TABLE', 'FLAG TABLE'):
             return None
         if unit == "degree true" or unit == "degrees true":
             unit = "degrees"
