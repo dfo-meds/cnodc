@@ -121,7 +121,7 @@ class BufrCodeMap:
         if hasattr(lookup, 'unit'):
             if lookup.unit.upper() in ('CCITT IA5',):
                 kwargs["data_type"] = DataType.STRING
-            elif lookup.unit.upper() in ("CODE TABLE",):
+            elif lookup.unit.upper() in ("CODE TABLE", 'FLAG TABLE'):
                 kwargs["data_type"] = DataType.INTEGER
             elif lookup.unit.upper() in ("NUMERIC",):
                 kwargs["data_type"] = DataType.FLOAT
