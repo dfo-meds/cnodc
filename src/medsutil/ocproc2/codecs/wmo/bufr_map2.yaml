@@ -774,6 +774,15 @@
           - "7062"
           - "22043"
           - "22062"
+306033:
+  decode:
+    instruction: noop
+    iterate_after: true
+  encode:
+    instructions:
+      - "2033:parameters/PracticalSalinity/metadata/WMOSalinityDepthMeasurementMethod"
+      - "7063:parameters/PracticalSalinity/metadata/SensorDepth"
+      - "22064"
 306034:
   decode:
     instruction: noop
