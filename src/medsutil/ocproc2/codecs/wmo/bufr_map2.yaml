@@ -12,7 +12,11 @@
     - Uncertainty
 1004: "noop"
 1005: "noop"
-1007: "metadata/SatelliteIdentifier"
+1007:
+  element: "metadata/SatelliteIdentifier"
+  remove_metadata:
+    - Units
+    - Uncertainty
 1011:
   element: "metadata/PlatformID"
   remove_metadata:
