@@ -531,6 +531,16 @@
 42015: "parameters/FourierK"
 42016: "parameters/PotentialDensity"
 
+301003:
+  decode:
+    instruction: "noop"
+    iterate_after: true
+  encode:
+    instructions:
+      - "1011"
+      - "1012"
+      - "1013"
+
 301011:
   decode:
     element: "coordinates/Time"
