@@ -1,0 +1,661 @@
+{
+  "_metadata": {
+    "WMOID": "12345",
+    "PlatformModel": "HelloWorld",
+    "PlatformSerial": "123456",
+    "WMOBuoyType": "1",
+    "WMOCommunicationSystem": "2",
+    "WMODataBuoyType": "3",
+    "ProfileNumber": "5"
+  },
+  "_coordinates": {
+    "Time": "2026-06-19T13:40:05+00:00",
+    "Latitude": {
+      "_value": 45.123412315,
+      "_metadata": {
+        "Units": "degrees_north",
+        "Quality": 1
+      }
+    },
+    "Longitude": {
+      "_value": 91.312151241,
+      "_metadata": {
+        "Units": "degrees_east",
+        "Quality": 1
+      }
+    }
+  },
+  "_subrecords": {
+    "PROFILE": {
+      "0": {
+        "_records": [
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 305.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 13.4,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 250,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 304.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 13.5,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 500,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": [
+                {
+                  "_value": 304.12,
+                  "_metadata": {
+                    "Units": "K",
+                    "Quality": 1,
+                    "Uncertainty": {
+                      "_value": 0.005,
+                      "_metadata": {
+                        "UncertaintyType": "standard"
+                      }
+                    },
+                    "SensorRank": 1,
+                    "SensorSerial": "12345"
+                  }
+                },
+                {
+                  "_value": 304.1,
+                  "_metadata": {
+                    "Units": "K",
+                    "Quality": 1,
+                    "SensorRank": 2,
+                    "SensorSerial": "23456",
+                    "Uncertainty": {
+                      "_value": 0.05,
+                      "_metadata": {
+                        "UncertaintyType": "standard"
+                      }
+                  }
+                }
+              ],
+              "PracticalSalinity": {
+                "_value": 13.6,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 750,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 303.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 13.7,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 1000,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 303.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 13.799999999999999,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 1250,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 302.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 13.899999999999999,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 1500,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 302.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 13.999999999999998,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 1750,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 301.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.099999999999998,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 2000,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 301.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.199999999999998,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 2250,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 300.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.299999999999997,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 2500,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 300.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.399999999999997,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 2750,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 299.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.499999999999996,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 3000,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 299.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.599999999999996,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 3250,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 298.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.699999999999996,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 3500,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 298.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.799999999999995,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 3750,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 297.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.899999999999995,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 4000,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 297.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 14.999999999999995,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 4250,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 296.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 15.099999999999994,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 4500,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 296.12,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 15.199999999999994,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 4750,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          },
+          {
+            "_parameters": {
+              "Temperature": {
+                "_value": 295.62,
+                "_metadata": {
+                  "Units": "K",
+                  "TemperatureScale": "ITS-90",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              },
+              "PracticalSalinity": {
+                "_value": 15.299999999999994,
+                "_metadata": {
+                  "Units": "1e-3",
+                  "Quality": 1,
+                  "WMOProfileInstrumentType": 4
+                }
+              }
+            },
+            "_coordinates": {
+              "Pressure": {
+                "_value": 5000,
+                "_metadata": {
+                  "Units": "dbar",
+                  "Quality": 1
+                }
+              }
+            }
+          }
+        ],
+        "_metadata": {
+          "ProfileDirection": "up"
+        }
+      }
+    }
+  }
+}
