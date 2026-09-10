@@ -593,7 +593,7 @@ class ElementInstruction(SingleValueInstruction):
         value = self.clean_input_value(value)
         e = ElementMap.ensure_element(value, metadata, **kwargs)
         additional_kwargs = {}
-        if self.places is not None:
+        if self.data_type is DataType.FLOAT and self.places is not None:
             additional_kwargs["Uncertainty"] = SingleElement(
                 (10 ** (-1 * self.places)) / 2,
                 UncertaintyType="uniform"
