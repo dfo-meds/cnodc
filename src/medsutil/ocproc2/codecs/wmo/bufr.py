@@ -101,7 +101,14 @@ class BufrCodeMap:
         instruction = self.prestandardize_instruction(instruction)
         if isinstance(instruction, dict):
             if instruction.get("dynamic_lookup", False):
-                instruction = self.lookup(int(instruction["descriptor"]), table_group, helper, common_kwargs)
+                extras = {
+                    x: y
+                    for x, y in instruction.items()
+                    if x not in ("dynamic_lookup", "descriptor")
+                }
+                if common_kwargs:
+                    extras.update(common_kwargs)
+                instruction = self.lookup(int(instruction["descriptor"]), table_group, helper, extras)
             elif "__looked_up" not in instruction and "descriptor" in instruction:
                 for k, v in self.get_table_group_arguments(int(instruction["descriptor"]), table_group).items():
                     if k not in instruction:
