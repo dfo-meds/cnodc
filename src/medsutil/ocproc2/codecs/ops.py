@@ -303,7 +303,6 @@ class SingleValueInstruction(Instruction):
         return self.get_value_with_details(context)[2]
 
 
-
 class StaticInstruction(SingleValueInstruction):
 
     def __init__(self,
@@ -311,7 +310,7 @@ class StaticInstruction(SingleValueInstruction):
                  quality: int | None = None,
                  precision: float | None = None,
                  **kwargs):
-        self._value = value
+        self._value = value if value != "NULL" else None
         self._quality = quality
         self._precision = precision
         super().__init__(**kwargs)
