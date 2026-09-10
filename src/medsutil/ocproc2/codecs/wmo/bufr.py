@@ -510,23 +510,34 @@ class _Bufr4Encoder:
                 raise
 
     def _filter_results(self, descriptor: SequenceDescriptor, results: t.Generator[EncodeElement, None, None]) -> t.Iterable[EncodeElement]:
+        def _next_element():
+            value = next(results)
+            self._log.debug("Sequence for [%s], found value [%s]", descriptor.id, value)
+            return value
         for x in descriptor.members:
-            if 100000 <= x.id < 200000:
-                repeats = x.id % 100
-                if repeats == 0:
-                    result_next = next(results)
-                    if result_next.descriptor in (31000, 31001, 31002):
-                        repeats = result_next.value
-                        yield result_next
-                    else:
-                        raise TypeError("expecting repeat flag")
-                for i in range(0, repeats):
-                    yield from self._filter_results(x, results)
-            else:
-                result_next = next(results)
-                while x.id != result_next.descriptor:
-                    result_next = next(results)
-                yield result_next
+            searching_for = x.id
+            try:
+                if 100000 <= x.id < 200000:
+                    repeats = x.id % 100
+                    if repeats == 0:
+                        result_next = _next_element()
+                        searching_for = "31000 | 31001 | 31002"
+                        if result_next.descriptor in (31000, 31001, 31002):
+                            repeats = result_next.value
+                            yield result_next
+                        else:
+                            raise TypeError(f"expecting repeat flag, found: {result_next.descriptor} for {x.id}")
+                    for i in range(0, repeats):
+                        searching_for = 'subelements'
+                        yield from self._filter_results(x, results)
+                else:
+                    result_next = _next_element()
+                    while x.id != result_next.descriptor:
+                        result_next = _next_element()
+                    yield result_next
+            except StopIteration as ex:
+                ex.add_note(f"looking for descriptor [{searching_for}], but iteration ended early")
+                raise
 
     def _build_from_repeat_group(self, instruction: RepeatGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
         groups = []
