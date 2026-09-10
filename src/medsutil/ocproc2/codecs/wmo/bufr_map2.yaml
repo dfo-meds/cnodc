@@ -809,10 +809,10 @@
           - "7065"
           - "8080:10"
           - "33050:coordinates/Pressure/metadata/Quality[TestProtocol=gtspp]"
-          - "22031"
+          - "22043"
           - "8080:11"
           - "33050:parameters/Temperature/metadata/Quality[TestProtocol=gtspp]"
-          - "22004"
+          - "22064"
           - "8080:12"
           - "33050:parameters/PracticalSalinity/metadata/Quality[TestProtocol=gtspp]"
 306036:
