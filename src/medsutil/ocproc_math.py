@@ -69,10 +69,9 @@ def get_temperature(temperature: ocproc2.SingleElement | None,
     if temperature is None or temperature.is_empty():
         return None
 
-    temp_val = temperature.to_numeric(units)
+    temp_val = temperature.to_numeric()
     temp_units = temperature.metadata.best("Units", '', coerce=str)
     temp_scale_str = temperature.metadata.best('TemperatureScale', None, coerce=str)
-
     if isinstance(obs_date, ocproc2.AbstractElement):
         obs_date_val = obs_date.to_datetime() if obs_date.is_iso_datetime() else None
     else:
