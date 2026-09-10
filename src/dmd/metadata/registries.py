@@ -8,14 +8,7 @@ import typing as t
 import time
 import zrlog
 
-from medsutil.awaretime import AwareDateTime
-
-
-@injector.injectable
-class SetupChecker:
-
-    def last_setup_run(self) -> AwareDateTime | None:
-        return None
+from dmd.db import DataManagementDatabase
 
 
 @injector.injectable
@@ -23,7 +16,7 @@ class GlobalRegistry:
 
     REFRESH_FREQUENCY = 15  # seconds
 
-    setup_checker: SetupChecker = auto()
+    setup_checker: DataManagementDatabase = auto()
 
     @injector.construct
     def __init__(self):
@@ -59,29 +52,10 @@ class GlobalRegistry:
         self._last_setup_run = setup_last_run
 
 
-@injector.injectable
-class RegistryStorage:
-
-    def load_registry_map(self, registry_name: str) -> t.Iterable[tuple[str, dict]]:
-        raise NotImplementedError
-
-    def delete_registry_map(self, registry_name: str):
-        raise NotImplementedError
-
-    def upsert_registry_entry(self,
-                              registry_name: str,
-                              entry_name: str,
-                              entry_value: dict):
-        raise NotImplementedError
-
-    def bulk_update_registry_map(self, registry_name: str, entry_map: dict[str, dict]):
-        raise NotImplementedError
-
-
 class BaseRegistry:
 
     gor: GlobalRegistry = auto()
-    storage: RegistryStorage = auto()
+    storage: DataManagementDatabase = auto()
 
     @injector.construct
     def __init__(self, registry_name: str, ensure_fields=None):

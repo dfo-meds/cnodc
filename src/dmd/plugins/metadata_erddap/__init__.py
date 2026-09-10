@@ -1,0 +1,23 @@
+import pathlib
+from autoinject import auto, injector
+
+from dmd.metadata.vocabularies import VocabularyRegistry
+from gcapp.system import System
+
+PLUGIN_DIR = pathlib.Path(__file__).parent.absolute()
+
+@injector.inject
+def init_plugin(system: System = auto()):
+
+    from dmd.metadata.metadata import MetadataRegistry
+
+    @system.on_setup
+    @injector.inject
+    def on_setup(mreg: MetadataRegistry = auto(),
+                 vreg: VocabularyRegistry = auto()):
+        mreg.register_metadata_fields_from_yaml(PLUGIN_DIR / "metadata.yaml")
+        mreg.register_profiles_from_yaml(PLUGIN_DIR / "profiles.yaml")
+        vreg.register_from_yaml(PLUGIN_DIR / "vocabs.yaml")
+
+
+
