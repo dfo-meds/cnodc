@@ -27,19 +27,19 @@ class ISODuration(dd.DataDictObject):
 
     def isoformat(self) -> str:
         s = "P"
-        if self.years > 0:
+        if self.years != 0:
             s += f"{self.years}Y"
-        if self.months > 0:
+        if self.months != 0:
             s += f"{self.months}M"
-        if self.days > 0:
+        if self.days != 0:
             s += f"{self.days}D"
-        if self.hours > 0 or self.minutes > 0 or self.seconds > 0:
+        if self.hours != 0 or self.minutes != 0 or self.seconds != 0:
             s += "T"
-            if self.hours > 0:
+            if self.hours != 0:
                 s += f"{self.hours}H"
-            if self.minutes > 0:
+            if self.minutes != 0:
                 s += f"{self.hours}M"
-            if self.seconds > 0:
+            if self.seconds != 0:
                 s += f"{self.hours}S"
         return s
 
@@ -57,7 +57,7 @@ class ISODuration(dd.DataDictObject):
             case y, m, 0, 0, 0, 0:
                 return self.convert_duration_units((y * 12) + m, DurationUnit.MONTH, output_units)
             case _:
-                raise ValueError(f"Cannot combine months/years and days/hours/minutes/seconds when converting to a single duration")
+                raise ValueError(f"Cannot combine months/years and days/hours/minutes/seconds when converting to a single duration: [{self.isoformat()}]")
 
     def _adjust_year_month(self, dt: AwareDateTime, d_months: int) -> AwareDateTime:
         if d_months == 0:
@@ -226,4 +226,4 @@ class ISODuration(dd.DataDictObject):
                     raise ValueError('Cannot specify weeks and other time parts')
                 return cls(days=weeks*7)
             else:
-                return cls(years=parts[0] or None, months=parts[1] or None, days=parts[2] or None, hours=parts[3] or None, minutes=parts[4] or None, seconds=int(parts[5]) or None)
+                return cls(years=parts[0], months=parts[1], days=parts[2], hours=parts[3], minutes=parts[4], seconds=parts[5])
