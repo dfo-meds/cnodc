@@ -448,29 +448,32 @@ class _Bufr4Encoder:
     def _build_section_five(self) -> list:
         return ["7777"]
 
-    def _build_from_instruction(self, instruction: Instruction, context: OPSContext) -> t.Generator[EncodeElement, None, None]:
+    def _build_from_instruction(self, instruction: Instruction, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
         try:
             if isinstance(instruction, EncodeDecodeGroup):
                 instruction = instruction.get_instruction(True)
 
             if isinstance(instruction, SingleValueInstruction):
-                yield EncodeElement(
-                    int(instruction.extras["descriptor"]),
-                    instruction.get_value(context),
-                    "can_omit" in instruction.extras and instruction.extras["can_omit"]
-                )
+                if null_values:
+                    yield EncodeElement(int(instruction.extras["descriptor"]), None, True)
+                else:
+                    yield EncodeElement(
+                        int(instruction.extras["descriptor"]),
+                        instruction.get_value(context),
+                        "can_omit" in instruction.extras and instruction.extras["can_omit"]
+                    )
             elif isinstance(instruction, InstructionGroup):
                 if 'is_optional' in instruction.extras and instruction.extras['is_optional']:
-                    output: list[EncodeElement] = [x for x in self._build_from_instruction_group(instruction, context)]
+                    output: list[EncodeElement] = [x for x in self._build_from_instruction_group(instruction, context, null_values=True)]
                     if all(x.can_omit() for x in output):
                         yield EncodeElement(0, int(instruction.extras.get("size_descriptor", 31000)))
                     else:
                         yield EncodeElement(1, int(instruction.extras.get("size_descriptor", 31000)))
                         yield from output
                 else:
-                    yield from self._build_from_instruction_group(instruction, context)
+                    yield from self._build_from_instruction_group(instruction, context, null_values=null_values)
             elif isinstance(instruction, RepeatGroup):
-                yield from self._build_from_repeat_group(instruction, context)
+                yield from self._build_from_repeat_group(instruction, context, null_values=null_values)
             # note: ValueMappedInstruction and ContextInstruction not supported
             elif not isinstance(instruction, NoopInstruction):
                 raise ValueError("Invalid instruction")
@@ -482,13 +485,13 @@ class _Bufr4Encoder:
                 e.add_note(f"Error while handling instruction: [{instruction}]")
             raise
 
-    def _build_raw_from_instruction_group(self, instruction: InstructionGroup, context: OPSContext) -> t.Generator[EncodeElement, None, None]:
+    def _build_raw_from_instruction_group(self, instruction: InstructionGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
         for i in instruction.iterate_instructions(context):
-            yield from self._build_from_instruction(i, context)
+            yield from self._build_from_instruction(i, context, null_values=null_values)
 
-    def _build_from_instruction_group(self, instruction: InstructionGroup, context: OPSContext) -> t.Generator[EncodeElement, None, None]:
+    def _build_from_instruction_group(self, instruction: InstructionGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
         if "descriptor" not in instruction.extras:
-            yield from self._build_raw_from_instruction_group(instruction, context)
+            yield from self._build_raw_from_instruction_group(instruction, context, null_values=null_values)
         else:
             descriptor_id = int(instruction.extras["descriptor"])
             try:
@@ -497,7 +500,7 @@ class _Bufr4Encoder:
                     yield EncodeElement(descriptor.id, [
                         x
                         for x in
-                        self._filter_results(descriptor, self._build_raw_from_instruction_group(instruction, context))
+                        self._filter_results(descriptor, self._build_raw_from_instruction_group(instruction, context, null_values=null_values))
                     ])
                 else:
                     raise ValueError("Invalid descriptor")
@@ -525,20 +528,29 @@ class _Bufr4Encoder:
                     result_next = next(results)
                 yield result_next
 
-    def _build_from_repeat_group(self, instruction: RepeatGroup, context: OPSContext) -> t.Generator[EncodeElement, None, None]:
+    def _build_from_repeat_group(self, instruction: RepeatGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
         groups = []
         l_groups = 0
-        for instruction_list in instruction.iterate_repeats(context):
-            group: list[EncodeElement] = []
-            for x in instruction_list:
-                group.extend(self._build_from_instruction(x, context))
-            # skip empty groups
-            if all(x.can_omit() for x in group):
-                continue
-            groups.append(group)
-            l_groups += 1
-            if instruction.repeats is not None and 0 < instruction.repeats <= l_groups:
-                break
+        if not null_values:
+            for instruction_list in instruction.iterate_repeats(context):
+                group: list[EncodeElement] = []
+                for x in instruction_list:
+                    group.extend(self._build_from_instruction(x, context))
+                # skip empty groups
+                if all(x.can_omit() for x in group):
+                    continue
+                groups.append(group)
+                l_groups += 1
+                if instruction.repeats is not None and 0 < instruction.repeats <= l_groups:
+                    break
+        if instruction.repeats is not None:
+            no_context_instructions = instruction.no_context_instructions()
+            while l_groups < instruction.repeats:
+                group = []
+                for x in no_context_instructions:
+                    group.extend(self._build_from_instruction(x, context, null_values=True))
+                groups.append(group)
+                l_groups += 1
         if "size_descriptor" in instruction.extras:
             yield EncodeElement(int(instruction.extras["size_descriptor"]), l_groups, l_groups == 0)
         for group in groups:

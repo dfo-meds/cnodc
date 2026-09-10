@@ -209,10 +209,15 @@ class RecordSetInstructionGroup(InstructionGroup):
 class RepeatGroup(Instruction):
 
     def __init__(self,
+                 instructions: list[Instruction],
                  repeats: int | None = None,
                  **kwargs):
         self.repeats = repeats
+        self.instructions = instructions
         super().__init__(**kwargs)
+
+    def no_context_instructions(self) -> list[Instruction]:
+        return self.instructions
 
     def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
         ...
@@ -220,10 +225,7 @@ class RepeatGroup(Instruction):
 
 class RecordRepeatInstructionGroup(RepeatGroup):
 
-    def __init__(self,
-                 instructions: list[Instruction],
-                 **kwargs):
-        self.instructions = instructions
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
@@ -248,7 +250,6 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
 
     def __init__(self,
                  recordset_type: str,
-                 instructions: list[Instruction],
                  required_elements: RSElementList = None,
                  forbidden_elements: RSElementList = None,
                  optional_elements: RSElementList = None,
@@ -257,7 +258,6 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
         self.forbidden_elements = forbidden_elements
         self.optional_elements = optional_elements
         self.recordset_type = recordset_type
-        self.instructions = instructions
         super().__init__(**kwargs)
 
     def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
