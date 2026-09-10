@@ -687,7 +687,7 @@ class ElementInstruction(SingleValueInstruction):
         values: dict[RawValue, tuple[RawValue, int | None, float | None, float | None]] = {}
         n_values = 0
         _, metadata_name = self.element_path.split('/', maxsplit=1)
-        for element in context.iterate_elements(self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.use_current_record):
+        for element in context.iterate_elements(self.restrict_names, self.restrict_recordsets, self.iterate_into_recordset, self.use_current_record):
             v = self.process_element(element.metadata.get(metadata_name, None), context)
             if v[0] is not None:
                 values[v[0]] = v
