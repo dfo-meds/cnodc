@@ -419,6 +419,8 @@ class EncodeDecodeGroup(Instruction):
             decode_group: str | dict | None = instruction.get("decode", None)
             if encode_group or decode_group:
                 kwargs = {k: d for k, d in instruction.items() if k not in ("encode", "decode",)}
+                if extras:
+                    kwargs.update(extras)
                 return cls.build({
                     "encode_instruction": (
                         Instruction.parse_instruction(encode_group, helper, kwargs)
