@@ -708,7 +708,7 @@ class ElementInstruction(SingleValueInstruction):
         if not isinstance(v, AbstractElement):
             raise OceanProcessingSchemaError("Invalid path for an element instruction", 1100)
         best_value = self._find_best_value(v)
-        if best_value is None:
+        if best_value is None or best_value.is_empty():
             return None, None, None, None
         quality = self._extract_quality(best_value, context)
         _, precision_worst, precision_best = best_value.precision_information()
