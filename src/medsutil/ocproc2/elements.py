@@ -514,7 +514,7 @@ class SingleElement(AbstractElement):
         return h.digest()
 
     def to_mapping(self) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
-        if self._metadata is None:
+        if not self._metadata:
             if not isinstance(self._value, (list, dict)):
                 return self._value
             return {'_value': self._value}
@@ -637,7 +637,7 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
         self._value.append(value)
 
     def to_mapping(self) -> ExportMultipleWithMetadata:
-        if self._metadata is None:
+        if not self._metadata:
             return {
                 '_values': [v.to_mapping() for v in self._value],
             }
