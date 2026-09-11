@@ -1,4 +1,6 @@
 import enum
+import re
+
 import gcapp.i18n as i18n
 import typing as t
 
@@ -7,9 +9,10 @@ import zirconium as zr
 
 from dmd.containers.base import Container
 from dmd.containers.keywords import Keyword
+from dmd.linker import DataManagementLinker
 from dmd.metadata.metadata import MetadataRegistry
 from dmd.metadata.workflows import WorkflowRegistry
-from gcapp.i18n import MLString
+from gcapp.i18n import MLString, MLLink
 from medsutil.awaretime import AwareDateTime
 
 
@@ -24,14 +27,14 @@ class Dataset(Container):
 
     metadata_registry: MetadataRegistry = auto()
     workflow_registry: WorkflowRegistry = auto()
+    linker: DataManagementLinker = auto()
     config: zr.ApplicationConfig = auto()
 
     @injector.construct
     def __init__(self,
-                 fields: dict[str, dict[str, t.Any]],
-                 field_values: dict[str, t.Any],
-                 base_profiles: list[str] | set[str] | tuple[str],
-                 display_names: dict[str, str],
+                 base_profiles: list[str] | set[str] | tuple[str] | None = None,
+                 display_names: dict[str, str] | None = None,
+                 field_values: dict[str, t.Any] | None = None,
                  database_identifier: int | None = None,
                  version_identifier: int | None = None,
                  revision_no: int | None = None,
@@ -46,12 +49,12 @@ class Dataset(Container):
                  status: DatasetStatus = DatasetStatus.DRAFT,
                  security_label: str | None = None,
                  authority: str | None = None):
-        super().__init__("dataset", display_names, fields, field_values)
+        self.base_profiles = base_profiles
+        self.profiles = self.metadata_registry.extend_profile_list(base_profiles or [])
+        super().__init__("dataset", display_names or {}, self.metadata_registry.build_field_list(self.profiles), field_values or {})
         self.database_identifier = database_identifier
         self.version_identifier = version_identifier
         self.revision_no = revision_no
-        self.profiles = self.metadata_registry.extend_profile_list(base_profiles)
-        self.base_profiles = base_profiles
         self.guid = guid
         self.publication_date = publication_date
         self.created_date = created_date
@@ -63,6 +66,10 @@ class Dataset(Container):
         self.activation_workflow = activation_workflow
         self.activation_item_id = activation_item_id
         self.publication_workflow = publication_workflow
+        for field_name, validator in self.metadata_registry.field_validators(self.profiles):
+            self.add_field_validator(field_name, validator)
+        for validator in self.metadata_registry.container_validators(self.profiles):
+            self.add_container_validator(validator)
 
     @property
     def container_id(self) -> int | None:
@@ -98,4 +105,47 @@ class Dataset(Container):
             keywords.update(field.get_keywords())
         return keywords
 
+    def formatter_exists(self, profile_name: str, format_name: str) -> bool:
+        if profile_name not in self.profiles:
+            return False
+        return self.metadata_registry.formatter_exists(profile_name, format_name)
 
+    def metadata_links(self) -> t.Iterable[MLLink]:
+        for profile_name, format_name in self.metadata_registry.formatter_options(self.profiles):
+            link = self.metadata_link(profile_name, format_name)
+            if link:
+                yield link
+
+    def metadata_link(self,
+                      profile_name: str,
+                      format_name: str) -> MLLink | None:
+        if self.database_identifier is None or self.revision_no is None:
+            return None
+
+        return MLLink(self.linker.metadata_link(
+            profile_name=profile_name,
+            format_name=format_name,
+            dataset_id=self.database_identifier,
+            revision_no=self.revision_no,
+        ), self.metadata_registry.formatter_display(profile_name, format_name))
+
+    def generate_metadata_content(self,
+                                  profile_name: str,
+                                  format_name: str,
+                                  environment: str = "live"):
+        kwargs = {
+            "dataset": self,
+            "environment": environment,
+            "authority": self.naming_authority,
+        }
+        content = self.metadata_registry.render_template(self.profiles, profile_name, format_name, kwargs)
+        return re.sub(
+            "\n[ \t\n]{0,}\n",
+            "\n",
+            content.replace("\r", "\n")
+        ).strip("\r\n\t ")
+
+    def metadata_content_type(self,
+                              profile_name: str,
+                              format_name: str) -> tuple[str, str, str]:
+        return self.metadata_registry.formatter_content_type(profile_name, format_name)

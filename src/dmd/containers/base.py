@@ -11,12 +11,19 @@ from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length,
 from gcapp.i18n.base import MLString
 from gcflask.widgets import HtmlList, MultilingualList, InfoTable, HtmlContent
 from dmd.containers.keywords import Keyword
+from medsutil.dynamic import dynamic_object
 
 if t.TYPE_CHECKING:
     import wtforms as wtf
 
 
-class FieldValidator:
+class BaseValidator:
+
+    def __init__(self, profile_name: str):
+        self.profile_name = profile_name
+
+
+class FieldValidator(BaseValidator):
 
     def __call__(self,
                  obj_path: list[str | MLString],
@@ -25,7 +32,27 @@ class FieldValidator:
         raise NotImplementedError
 
 
-class ContainerValidator:
+class RequiredFieldValidator(FieldValidator):
+
+    def __call__(self,
+                 obj_path: list[str | MLString],
+                 field: Field,
+                 memo: set[tuple[str, int | None]]) -> t.Iterable[ValidationResult]:
+        if field.is_empty():
+            yield ValidationResult(self.profile_name, obj_path, "base.required_field")
+
+
+class RecommendedFieldValidator(FieldValidator):
+
+    def __call__(self,
+                 obj_path: list[str | MLString],
+                 field: Field,
+                 memo: set[tuple[str, int | None]]) -> t.Iterable[ValidationResult]:
+        if field.is_empty():
+            yield ValidationResult(self.profile_name, obj_path, "base.recommended_field", "warning")
+
+
+class ContainerValidator(BaseValidator):
 
     def __call__(self,
                  obj_path: list[str | MLString],
@@ -34,12 +61,27 @@ class ContainerValidator:
         raise NotImplementedError
 
 
+class CustomContainerValidator(ContainerValidator):
+
+    def __init__(self, profile_name: str, cb: str):
+        super().__init__(profile_name)
+        self.cb = cb
+
+    def __call__(self,
+                 obj_path: list[str | MLString],
+                 container: Container,
+                 memo: set[tuple[str, int | None]]) -> t.Iterable[ValidationResult]:
+        yield from dynamic_object(self.cb)(self.profile_name, obj_path, container, memo)
+
+
 class ValidationResult:
 
     def __init__(self,
+                 profile: str,
                  obj_path: list[str | MLString],
                  message: str,
                  level: str = "error"):
+        self.profile = profile
         self.object_path = obj_path
         self.message = message
         self.level = level

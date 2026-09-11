@@ -8,58 +8,62 @@ from dmd.metadata.datasets import Dataset
 from gcapp.i18n import MLString
 
 
-def validate_citation(obj_path: list[str | MLString],
+def validate_citation(profile_name: str,
+                      obj_path: list[str | MLString],
                       citation: Container,
                       memo) -> t.Iterable[ValidationResult]:
     if (citation["id_system"] or citation["id_description"]) and not citation["id_code"]:
-        yield ValidationResult(obj_path, "iso19115.citation_without_id_code", "warning")
+        yield ValidationResult(profile_name, obj_path, "iso19115.citation_without_id_code", "warning")
 
 
-def validate_use_constraint(obj_path: list[str | MLString],
+def validate_use_constraint(profile_name: str,
+                            obj_path: list[str | MLString],
                             use_constraint: Container,
                             memo) -> t.Iterable[ValidationResult]:
     if use_constraint["classification"]:
         if any(use_constraint[x] for x in ("access_constraints", "use_constraints", "other_constraints")):
-            yield ValidationResult(obj_path, "iso19115.security_constraint_has_legal_property")
+            yield ValidationResult(profile_name, obj_path, "iso19115.security_constraint_has_legal_property")
     elif any(use_constraint[x] for x in ("user_notes", "classification_system", "handling_description")):
-        yield ValidationResult(obj_path, "iso19115.security_constraint_missing_classification")
+        yield ValidationResult(profile_name, obj_path, "iso19115.security_constraint_missing_classification")
     else:
         if not use_constraint["other_constraints"]:
             if any(x["short_name"] == "otherRestrictions" for x in use_constraint.data("use_constraints", default=[])):
-                yield ValidationResult(obj_path, "iso19115.legal_constraint_missing_other_for_use")
+                yield ValidationResult(profile_name, obj_path, "iso19115.legal_constraint_missing_other_for_use")
             if any(x["short_name"] == "otherRestrictions" for x in use_constraint.data("access_constraints", default=[])):
-                yield ValidationResult(obj_path, "iso19115.legal_constraint_missing_other_for_access")
+                yield ValidationResult(profile_name, obj_path, "iso19115.legal_constraint_missing_other_for_access")
 
 
-def validate_contact(obj_path: list[str | MLString],
+def validate_contact(profile_name: str,
+                     obj_path: list[str | MLString],
                      contact: Container,
                      memo) -> t.Iterable[ValidationResult]:
     if (contact["id_system"] or contact["id_description"]) and not contact["id_code"]:
-        yield ValidationResult(obj_path, "iso19115.contact_without_id_code", "warning")
+        yield ValidationResult(profile_name, obj_path, "iso19115.contact_without_id_code", "warning")
     if contact["organization_name"]:
         if contact["individual_name"]:
-            yield ValidationResult(obj_path, "iso19115.organization_with_individual_name")
+            yield ValidationResult(profile_name, obj_path, "iso19115.organization_with_individual_name")
         if contact["position_name"]:
-            yield ValidationResult(obj_path, "iso19115.organization_with_position_name")
+            yield ValidationResult(profile_name, obj_path, "iso19115.organization_with_position_name")
         for individual in contact.data("individuals", default=[]):
             if individual["organization_name"]:
-                yield ValidationResult(obj_path, "iso19115.related_individual_with_organization_name")
+                yield ValidationResult(profile_name, obj_path, "iso19115.related_individual_with_organization_name")
             if individual["logo"]:
-                yield ValidationResult(obj_path, "iso19115.related_individual_with_logo")
+                yield ValidationResult(profile_name, obj_path, "iso19115.related_individual_with_logo")
     else:
         if contact["logo"]:
-            yield ValidationResult(obj_path, "iso19115.individual_with_logo")
+            yield ValidationResult(profile_name, obj_path, "iso19115.individual_with_logo")
         if contact["individuals"]:
-            yield ValidationResult(obj_path, "iso19115.individual_with_individuals")
+            yield ValidationResult(profile_name, obj_path, "iso19115.individual_with_individuals")
 
 
-def validate_dataset(obj_path: list[str | MLString],
+def validate_dataset(profile_name: str,
+                     obj_path: list[str | MLString],
                      dataset: Dataset,
                      memo) -> t.Iterable[ValidationResult]:
     if (dataset["processing_system"] or dataset["processing_desc"]) and not dataset["processing_code"]:
-        yield ValidationResult(obj_path, "iso19115.processing_system_without_code", "warning")
+        yield ValidationResult(profile_name, obj_path, "iso19115.processing_system_without_code", "warning")
     if (dataset["dataset_id_desc"] or dataset["dataset_id_system"]) and not dataset["dataset_id_code"]:
-        yield ValidationResult(obj_path, "iso19115.dataset_system_without_code", "warning")
+        yield ValidationResult(profile_name, obj_path, "iso19115.dataset_system_without_code", "warning")
 
 
 def preprocess_for_iso19115(dataset: Dataset, **kwargs):
