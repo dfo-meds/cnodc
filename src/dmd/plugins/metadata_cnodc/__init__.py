@@ -21,6 +21,7 @@ def init_plugin(system: System = auto()):
         mreg.register_profiles_from_yaml(PLUGIN_DIR / "profiles.yaml")
         vreg.register_from_yaml(PLUGIN_DIR / "vocabs.yaml")
         ereg.register_from_yaml(PLUGIN_DIR / "entities.yaml")
+        mreg.register_security_labels_from_yaml(PLUGIN_DIR / "security.yaml")
 
 
 

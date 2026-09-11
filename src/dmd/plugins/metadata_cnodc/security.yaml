@@ -1,0 +1,18 @@
+protected_a:
+  en: Protected A
+  fr: Protégé A
+protected_b:
+  en: Protected B
+  fr: Protégé B
+protected_c:
+  en: Protected C
+  fr: Protégé C
+confidential:
+  en: Confidential
+  fr: Confidentiel
+secret:
+  en: Secret
+  fr: Secret
+top_secret:
+  en: Top Secret
+  fr: Très secret
