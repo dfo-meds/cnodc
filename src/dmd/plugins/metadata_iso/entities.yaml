@@ -414,9 +414,6 @@ thesaurus:
       data_type: vocabulary
       vocabulary_name: iso19115_md_keyword_type_code
 locale:
-  display:
-    en: Locale
-    fr: Paramètres régionaux
   fields:
     language:
       data_type: text
@@ -427,10 +424,6 @@ locale:
         en: Enter the 3-letter language code from ISO 639 (e.g. 'eng', 'fra')
         fr: Entrez le code de langue à 3 lettres de la norme ISO 639 (par exemple, "eng", "fra")
       order: 10
-      unique:
-        - a2_language
-        - country
-        - encoding
       json_api:
         mapping: language
     a2_language:

@@ -61,6 +61,8 @@ variable:
       order: 105
       json_api:
         mapping: ioos_category
+      netcdf:
+        attribute_name: ioos_category
     time_precision:
       data_type: vocabulary
       vocabulary_name: erddap_time_precisions
@@ -73,6 +75,9 @@ variable:
       order: 3000
       json_api:
         mapping: time_precision
+      netcdf:
+        attribute_name: time_precision
+        processor: dmd.plugins.metadata_erddap.util.export_time_precision
     time_zone:
       data_type: vocabulary
       vocabulary_name: timezones
@@ -85,6 +90,8 @@ variable:
       order: 3010
       json_api:
         mapping: time_zone
+      netcdf:
+        attribute_name: time_zone
     erddap_role:
       data_type: vocabulary
       vocabulary_name: erddap_extra_roles

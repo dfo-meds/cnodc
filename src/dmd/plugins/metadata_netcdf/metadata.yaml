@@ -19,6 +19,8 @@ data_more_info:
         fr: Entrez un nom abrégé de l'institution qui est ultimement responsable de l'ensemble de données.
       json_api:
         mapping: institution
+      netcdf:
+        attribute_name: institution
     project:
       data_type: text
       label:
@@ -29,6 +31,8 @@ data_more_info:
         fr: Si cet ensemble de données fait partie d'un projet, entrez le nom ici
       json_api:
         mapping: project
+      netcdf:
+        attribute_name: project
     program:
       data_type: text
       label:
@@ -39,6 +43,8 @@ data_more_info:
         fr: Si cet ensemble de données fait partie d'un programme, entrez le nom ici.
       json_api:
         mapping: program
+      netcdf:
+        attribute_name: program
     standard_name_vocab:
       data_type: text
       label:
@@ -49,6 +55,8 @@ data_more_info:
         fr: Entrez le nom du vocabulaire de nom standard utilisé pour les noms de variables (par exemple CF 1.10).
       json_api:
         mapping: standard_name_vocab
+      netcdf:
+        attribute_name: standard_name_vocab
 technical:
   fields:
     cdm_data_type:
@@ -62,6 +70,8 @@ technical:
       vocabulary_name: cdm_data_types
       json_api:
         mapping: feature_type
+      netcdf:
+        attribute_name: featureType
     conventions:
       data_type: text
       separator: ","
@@ -73,6 +83,8 @@ technical:
         fr: Entrez une liste séparée par des virgules des conventions utilisées dans cet ensemble de données.
       json_api:
         mapping: conventions
+      netcdf:
+        attribute_name: Conventions
 references:
   fields:
     source:
@@ -86,6 +98,8 @@ references:
         fr: Entrez les informations sur la source des données dans cet ensemble de données au format texte brut
       json_api:
         mapping: source
+      netcdf:
+        attribute_name: source
     references:
       data_type: multitext
       multilingual: yes
@@ -97,6 +111,8 @@ references:
         fr: Entrez toute information de référence appropriée sur cet ensemble de données
       json_api:
         mapping: references
+      netcdf:
+        attribute_name: references
 custom:
   fields:
     custom_metadata:
@@ -111,6 +127,8 @@ custom:
         fr: Entrez ici des informations supplémentaires pour la sortie NetCDF.
       json_api:
         mapping: custom_metadata
+      netcdf:
+        processor: key_value
 keywords:
   fields:
     cf_standard_names:

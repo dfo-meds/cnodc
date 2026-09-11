@@ -6,11 +6,12 @@ from autoinject import injector, auto
 import zirconium as zr
 
 from dmd.containers.base import Container
+from dmd.containers.keywords import Keyword
 from dmd.metadata.metadata import MetadataRegistry
 from dmd.metadata.workflows import WorkflowRegistry
 from gcapp.i18n import MLString
 from medsutil.awaretime import AwareDateTime
-from pipeman.programs.dmd.metadata import Keyword
+
 
 
 class DatasetStatus(enum.Enum):

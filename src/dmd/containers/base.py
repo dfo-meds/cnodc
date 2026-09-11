@@ -144,10 +144,18 @@ class Container:
     def display(self):
         return MLString(self._display_names)
 
-    def data(self, field_name: str, **kwargs) -> t.Any:
+    def field(self, field_name: str) -> Field | None:
         if field_name in self._fields:
-            return self._fields[field_name].data(**kwargs)
+            return self._fields[field_name]
         return None
+
+    def data(self, field_name: str, *, default: t.Any = None, **kwargs) -> t.Any:
+        value = None
+        if field_name in self._fields:
+            value = self._fields[field_name].data(**kwargs)
+        if value is None:
+            return default
+        return value
 
     def controls(self, display_group: str | None = None):
         return {
@@ -230,6 +238,9 @@ class Field[AcceptType, ActualType]:
     @value.setter
     def value(self, value: ACCEPT_TYPES) -> None:
         self._value = self._sanitize_value_entry(value)
+
+    def get_config(self, config_key: str, default=None) -> t.Any:
+        return self._config.get(config_key, default)
 
     def _sanitize_value_entry(self, value: ACCEPT_TYPES) -> ACTUAL_TYPES:
         if self.is_repeatable:

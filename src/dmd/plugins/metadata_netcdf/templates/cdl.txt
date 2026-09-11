@@ -12,13 +12,9 @@
         {%- elif "und" in text -%}
 {{render_attribute(prefix, attr_name, text["und"])}}
         {%- endif -%}
-        {% if check_alt_langs(text, default_locale) %}
-            {% for a2l in locale_mapping %}
-                {% if a2l in text and (not a2l == "und") and (not a2l == default_locale) %}
-{{render_attribute(prefix, attr_name + "_" + a2l, text[a2l])}}
-                {% endif %}
-            {% endfor %}
-        {% endif %}
+        {% for suffix, value in get_alternative_languages(text) %}
+{{render_attribute(prefix, attr_name + suffix, value)}}
+        {% endfor %}
     {%- endif %}
 {%- endmacro -%}
 

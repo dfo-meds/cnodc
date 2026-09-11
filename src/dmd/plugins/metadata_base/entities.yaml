@@ -107,3 +107,31 @@ keyword:
         en: Select a thesaurus that this keyword belongs to.
         fr: Sélectionnez un thésaurus auquel ce mot-clé appartient.
       order: 10
+locale:
+  display:
+    en: Locale
+    fr: Paramètres régionaux
+  fields:
+    internal:
+      label:
+        en: Internal Code
+        fr: Code interne
+      description:
+        en: # TODO
+        fr: # TODO
+      data_type: text
+      order: 35
+      json_api:
+        mapping: internal
+      unique: true
+    ietf_bcp47:
+      label:
+        en: BCP-47 Code
+        fr: Code BCP-47
+      description:
+        en: Enter the most appropriate IETF BCP 47 language code.
+        fr: Entrez le code de langue le plus approprié de la norme IETF BCP 47.
+      data_type: text
+      order: 35
+      json_api:
+        mapping: ietf_bcp47

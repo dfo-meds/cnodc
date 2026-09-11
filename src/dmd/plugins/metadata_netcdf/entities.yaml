@@ -37,6 +37,8 @@ variable:
       order: 41
       json_api:
         mapping: encoding
+      netcdf:
+        attribute_name: _Encoding
     source_name:
       data_type: text
       label:
@@ -84,6 +86,8 @@ variable:
       order: 20
       json_api:
         mapping: long_name
+      netcdf:
+        attribute_name: long_name
     standard_name:
       data_type: vocabulary
       vocabulary_name: cf_standard_names
@@ -96,6 +100,8 @@ variable:
       order: 30
       json_api:
         mapping: standard_name
+      netcdf:
+        attribute_name: standard_name
     units:
       data_type: text
       label:
@@ -107,6 +113,8 @@ variable:
       order: 40
       json_api:
         mapping: units
+      netcdf:
+        attribute_name: units
     calendar:
       data_type: vocabulary
       vocabulary_name: cf_calendars
@@ -119,6 +127,8 @@ variable:
       order: 50
       json_api:
         mapping: calendar
+      netcdf:
+        attribute_name: calendar
     positive:
       data_type: vocabulary
       vocabulary_name: cf_directions
@@ -131,6 +141,8 @@ variable:
       order: 60
       json_api:
         mapping: positive
+      netcdf:
+        attribute_name: positive
     missing_value:
       data_type: text
       label:
@@ -142,6 +154,8 @@ variable:
       order: 70
       json_api:
         mapping: missing_value
+      netcdf:
+        attribute_name: missing_value
     scale_factor:
       data_type: float
       label:
@@ -153,6 +167,8 @@ variable:
       order: 80
       json_api:
         mapping: scale_factor
+      netcdf:
+        attribute_name: scale_factor
     add_offset:
       data_type: float
       label:
@@ -163,6 +179,8 @@ variable:
       order: 90
       json_api:
         mapping: add_offset
+      netcdf:
+        attribute_name: add_offset
     destination_data_type:
       data_type: vocabulary
       vocabulary_name: netcdf_data_types
@@ -186,6 +204,8 @@ variable:
       order: 110
       json_api:
         mapping: actual_min
+      netcdf:
+        attribute_name: actual_min
     actual_max:
       data_type: decimal
       label:
@@ -197,6 +217,8 @@ variable:
       order: 120
       json_api:
         mapping: actual_max
+      netcdf:
+        attribute_name: actual_max
     valid_min:
       data_type: decimal
       label:
@@ -208,6 +230,8 @@ variable:
       order: 130
       json_api:
         mapping: valid_min
+      netcdf:
+        attribute_name: valid_min
     valid_max:
       data_type: decimal
       label:
@@ -219,6 +243,8 @@ variable:
       order: 140
       json_api:
         mapping: valid_max
+      netcdf:
+        attribute_name: valid_max
     cf_role:
       data_type: vocabulary
       vocabulary_name: cf_roles
@@ -231,6 +257,8 @@ variable:
       order: 150
       json_api:
         mapping: cf_role
+      netcdf:
+        attribute_name: cf_role
     comment:
       data_type: multitext
       label:
@@ -242,6 +270,8 @@ variable:
       order: 160
       json_api:
         mapping: comment
+      netcdf:
+        attribute_name: comment
     references:
       data_type: multitext
       label:
@@ -253,6 +283,8 @@ variable:
       order: 170
       json_api:
         mapping: references
+      netcdf:
+        attribute_name: references
     source:
       data_type: multitext
       label:
@@ -264,6 +296,8 @@ variable:
       order: 180
       json_api:
         mapping: source
+      netcdf:
+        attribute_name: source
     coverage_content_type:
       data_type: vocabulary
       vocabulary_name: iso19115_md_coverage_content_type_code
@@ -275,6 +309,8 @@ variable:
         fr: Type de contenu de couverture pour la variable.
       json_api:
         mapping: coverage_content_type
+      netcdf:
+        attribute_name: coverage_content_type
     axis:
       data_type: vocabulary
       vocabulary_name: cf_axes
@@ -282,6 +318,8 @@ variable:
         en: Axis
       json_api:
         mapping: axis
+      netcdf:
+        attribute_name: axis
     custom_metadata:
       data_type: key_value
       repeatable: true
@@ -294,16 +332,18 @@ variable:
       order: 500
       json_api:
         mapping: custom_metadata
+      netcdf:
+        processor: key_value
 locale:
   fields:
-    ietf_bcp47:
+    netcdf_suffix:
       label:
-        en: BCP47 Code
-        fr: Code BC47
+        en: NetCDF Suffix
+        fr: # TODO
       description:
-        en: Enter the most appropriate IETF BCP 47 language code.
-        fr: Entrez le code de langue le plus approprié de la norme IETF BCP 47.
+        en: # TODO
+        fr: # TODO
       data_type: text
       order: 35
       json_api:
-        mapping: ietf_bcp47
+        mapping: netcdf_suffix

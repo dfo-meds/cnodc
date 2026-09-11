@@ -127,6 +127,8 @@ class VocabularyTerm:
 @injector.construct
 class VocabularySelectField(ChoiceField):
 
+    DATA_TYPE = "vocabulary"
+
     registry: VocabularyRegistry = auto()
 
     def _build_choices(self) -> list[tuple[str, MLString]]:

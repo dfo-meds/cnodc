@@ -139,7 +139,7 @@ class FloatField(NumberMixin, Field):
 
 @Container.register_type
 class IntegerField(NumberMixin, Field):
-    DATA_TYPE = "float"
+    DATA_TYPE = "integer"
     CONTROL_CLASS = wtforms.IntegerField
 
 

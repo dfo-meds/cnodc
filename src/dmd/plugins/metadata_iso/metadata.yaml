@@ -156,6 +156,8 @@ data_info:
       multilingual: true
       json_api:
         mapping: title
+      netcdf:
+        attribute_name: title
     dataset_id_code:
       data_type: text
       label:
@@ -202,6 +204,8 @@ data_info:
       order: 30
       json_api:
         mapping: date_issued
+      netcdf:
+        attribute_name: date_issued
     revision_date:
       data_type: date
       label:
@@ -213,6 +217,8 @@ data_info:
       order: 40
       json_api:
         mapping: date_modified
+      netcdf:
+        attribute_name: date_modified
     creation_date:
       data_type: date
       label:
@@ -224,6 +230,8 @@ data_info:
       order: 20
       json_api:
         mapping: date_created
+      netcdf:
+        attribute_name: date_created
     abstract:
       data_type: multitext
       label:
@@ -236,6 +244,8 @@ data_info:
       multilingual: true
       json_api:
         mapping: summary
+      netcdf:
+        attribute_name: summary
     responsibles:
       data_type: inline_entity_ref
       entity_type: responsibility
@@ -249,6 +259,14 @@ data_info:
       order: 10000000
       json_api:
         mapping: responsibles
+      netcdf:
+        processor: contacts_by_role
+        role_map:
+          contributor:
+            prefix: contributor
+            allow_many: true
+          creator:
+            prefix: creator
     licenses:
       data_type: entity_ref
       entity_type: use_constraint
@@ -260,6 +278,9 @@ data_info:
         fr: Sélectionnez les contraintes d'utilisation qui s'appliquent à l'ensemble de données.
       order: 50
       repeatable: true
+      netcdf:
+        attribute_name: license
+        processor: licenses
       json_api:
         mapping: licenses
 data_more_info:
@@ -288,6 +309,8 @@ data_more_info:
       multilingual: true
       json_api:
         mapping: acknowledgement
+      netcdf:
+        attribute_name: acknowledgement
     info_link:
       data_type: inline_entity_ref
       entity_type: quick_web_page
@@ -311,6 +334,8 @@ data_more_info:
       order: 1000
       json_api:
         mapping: processing_level
+      netcdf:
+        attribute_name: processing_level
     processing_desc:
       data_type: multitext
       label:
@@ -359,6 +384,8 @@ data_more_info:
       order: 2010
       json_api:
         mapping: comment
+      netcdf:
+        attribute_name: comment
 keywords:
   fields:
     topic_category:
@@ -390,6 +417,8 @@ extent:
       max: 180
       json_api:
         mapping: geospatial_lon_min
+      netcdf:
+        attribute_name: geospatial_lon_min
     bbox_east:
       data_type: decimal
       order: 20
@@ -404,6 +433,8 @@ extent:
       max: 180
       json_api:
         mapping: geospatial_lon_max
+      netcdf:
+        attribute_name: geospatial_lon_max
     bbox_north:
       data_type: decimal
       order: 30
@@ -418,6 +449,8 @@ extent:
       max: 90
       json_api:
         mapping: geospatial_lat_max
+      netcdf:
+        attribute_name: geospatial_lat_max
     bbox_south:
       data_type: decimal
       order: 40
@@ -432,6 +465,8 @@ extent:
       max: 90
       json_api:
         mapping: geospatial_lat_min
+      netcdf:
+        attribute_name: geospatial_lat_min
     wkt_polygon:
       data_type: multitext
       order: 50
@@ -443,6 +478,8 @@ extent:
         fr: Si disponible, entrez la limite des données à l'aide d'un polygone de texte connu (WKT).
       json_api:
         mapping: geospatial_bounds
+      netcdf:
+        attribute_name: geospatial_bounds
     vertical_min:
       data_type: decimal
       order: 150
@@ -455,6 +492,8 @@ extent:
         fr: Entrez la plus petite valeur sur l'axe vertical.
       json_api:
         mapping: geospatial_vertical_min
+      netcdf:
+        attribute_name: geospatial_vertical_min
     vertical_max:
       data_type: decimal
       order: 160
@@ -467,6 +506,8 @@ extent:
         fr: Entrez la plus grande valeur sur l'axe vertical.
       json_api:
         mapping: geospatial_vertical_max
+      netcdf:
+        attribute_name: geospatial_vertical_max
     vertical_ref_system:
       data_type: entity_ref
       entity_type: ref_system
@@ -479,6 +520,9 @@ extent:
       order: 170
       json_api:
         mapping: geospatial_bounds_vertical_crs
+      netcdf:
+        attribute_name: geospatial_bounds_vertical_crs
+        processor: ref_system
     start_time:
       data_type: datetime
       order: 200
@@ -490,6 +534,8 @@ extent:
         fr: Entrez l'heure la plus ancienne dans l'ensemble de données.
       json_api:
         mapping: time_coverage_start
+      netcdf:
+        attribute_name: time_coverage_start
     end_time:
       data_type: datetime
       order: 210
@@ -501,6 +547,8 @@ extent:
         fr: Entrez la dernière heure dans le jeu de données ou laissez-le vide si le jeu de données n'est pas encore terminé.
       json_api:
         mapping: time_coverage_end
+      netcdf:
+        attribute_name: time_coverage_end
     is_ongoing:
       data_type: boolean
       order: 220
@@ -548,6 +596,9 @@ extent:
         fr: Spécifiez le système de coordonnées horizontales utilisé.
       json_api:
         mapping: geospatial_bounds_crs
+      netcdf:
+        attribute_name: geospatial_bounds_crs
+        processor: ref_system
     temporal_ref_system:
       data_type: entity_ref
       order: 230

@@ -13,14 +13,9 @@
     <attribute type="String" name="{{xml_quote(attr_name)}}" value="{{xml_quote(text['und'])}}" />
         {%- elif "und" in text -%}
     <attribute type="String" name="{{xml_quote(attr_name)}}" value="{{xml_quote(text['und'])}}" />
-        {%- endif -%}
-        {% if check_alt_langs(text, default_locale) %}
-            {% for a2l in locale_mapping %}
-                {% if a2l in text and (not a2l == "und") and (not a2l == default_locale) %}
-    <attribute type="String" name="{{xml_quote(attr_name)}}_{{xml_quote(a2l)}}" value="{{xml_quote(text[a2l])}}" />
-                {% endif %}
-            {% endfor %}
-        {% endif %}
+        {% for suffix, value in get_alternative_languages(text) %}
+    <attribute type="String" name="{{xml_quote(attr_name)}}{{xml_quote(suffix)}}" value="{{xml_quote(value)}}" />
+        {% endfor %}
     {%- endif %}
 {%- endmacro -%}
 
