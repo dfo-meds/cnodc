@@ -35,7 +35,14 @@ class ContainerValidator:
 
 
 class ValidationResult:
-    ...
+
+    def __init__(self,
+                 obj_path: list[str | MLString],
+                 message: str,
+                 level: str = "error"):
+        self.object_path = obj_path
+        self.message = message
+        self.level = level
 
 
 class Container:
@@ -562,6 +569,9 @@ class ContainerLoader:
         raise NotImplementedError
 
     def load_container(self, container_type: str, container_id: int) -> Container | None:
+        raise NotImplementedError
+
+    def stream_containers(self, container_type: str) -> t.Iterable[Container]:
         raise NotImplementedError
 
     def search_containers(self,
