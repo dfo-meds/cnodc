@@ -18,7 +18,6 @@ def init_plugin(system: System = auto()):
                  vreg: VocabularyRegistry = auto(),
                  ereg: EntityRegistry = auto()):
         mreg.register_metadata_fields_from_yaml(PLUGIN_DIR / "metadata.yaml")
-        mreg.register_profiles_from_yaml(PLUGIN_DIR / "profiles.yaml")
         vreg.register_from_yaml(PLUGIN_DIR / "vocabs.yaml")
         ereg.register_from_yaml(PLUGIN_DIR / "entities.yaml")
 

@@ -659,7 +659,7 @@ citation:
     required:
       - title
     custom:
-      - pipeman.builtins.iso19115.util.validate_citation
+      - dmd.plugins.metadata_iso.util.validate_citation
 graphic:
   display:
     en: Graphic
@@ -1050,7 +1050,7 @@ use_constraint:
     fr: Contrainte d'utilisation
   validation:
     custom:
-      - pipeman.builtins.iso19115.util.validate_use_constraint
+      - dmd.plugins.metadata_iso.util.validate_use_constraint
   fields:
     description:
       data_type: multitext
@@ -1475,7 +1475,7 @@ contact:
     fr: Contacte
   validation:
     custom:
-      - pipeman.builtins.iso19115.util.validate_contact
+      - dmd.plugins.metadata_iso.util.validate_contact
   fields:
     individual_name:
       data_type: text

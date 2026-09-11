@@ -21,6 +21,8 @@ def init_plugin(system: System = auto()):
         mreg.register_profiles_from_yaml(PLUGIN_DIR / "profiles.yaml")
         vreg.register_from_yaml(PLUGIN_DIR / "vocabs.yaml")
         ereg.register_from_yaml(PLUGIN_DIR / "entities.yaml")
+        vreg.register_terms_from_csv("goc_places", PLUGIN_DIR / "places.csv")
+        vreg.register_terms_from_csv("goc_subjects", PLUGIN_DIR / "subjects.csv")
 
 
 

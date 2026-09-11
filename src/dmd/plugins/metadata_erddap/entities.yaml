@@ -59,9 +59,6 @@ variable:
         en: Select the IOOS category that best describes this variable.
         fr: Sélectionnez la catégorie IOOS qui décrit le mieux cette variable.
       order: 105
-      netcdf:
-        mapping: ioos_category
-        processor: vocabulary
       json_api:
         mapping: ioos_category
     time_precision:
@@ -74,13 +71,8 @@ variable:
         en: If this variable represents time, select the appropriate precision.
         fr: Si cette variable représente le temps, sélectionnez la précision appropriée.
       order: 3000
-      netcdf:
-        mapping: time_precision
-        processor: pipeman.builtins.erddap.util.time_precision_output
-        importer: pipeman.builtins.erddap.util.time_precision_input
       json_api:
         mapping: time_precision
-        processor: pipeman.builtins.erddap.util.time_precision_output
     time_zone:
       data_type: vocabulary
       vocabulary_name: timezones
@@ -91,9 +83,6 @@ variable:
         en: If this variable represents time, select the appropriate time zone.
         fr: Si cette variable représente l'heure, sélectionnez le fuseau horaire approprié.
       order: 3010
-      netcdf:
-        mapping: time_zone
-        processor: vocabulary
       json_api:
         mapping: time_zone
     erddap_role:

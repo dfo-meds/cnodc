@@ -35,8 +35,6 @@ variable:
         en: For string fields, select the character encoding.
         fr: Pour les champs de chaîne, sélectionnez l'encodage des caractères.
       order: 41
-      netcdf:
-        mapping: _Encoding
       json_api:
         mapping: encoding
     source_name:
@@ -84,9 +82,6 @@ variable:
         fr: Entrez une description plus longue de la variable.
       multilingual: yes
       order: 20
-      netcdf:
-        mapping: long_name
-        processor: text
       json_api:
         mapping: long_name
     standard_name:
@@ -99,9 +94,6 @@ variable:
         en: Select the standard name of the variable.
         fr: Sélectionnez le nom standard de la variable.
       order: 30
-      netcdf:
-        mapping: standard_name
-        processor: vocabulary
       json_api:
         mapping: standard_name
     units:
@@ -113,9 +105,6 @@ variable:
         en: Specify the units of the variable when unpacked using UDUnit-compatible symbols.
         fr: Spécifiez les unités de la variable lorsqu'elle est décompressée à l'aide de symboles compatibles UDUnit.
       order: 40
-      netcdf:
-        mapping: units
-        processor: text
       json_api:
         mapping: units
     calendar:
@@ -128,9 +117,6 @@ variable:
         en: If the variable contains date/time values, select the calendar used.
         fr: Si la variable contient des valeurs de date/heure, sélectionnez le calendrier utilisé.
       order: 50
-      netcdf:
-        mapping: calendar
-        processor: vocabulary
       json_api:
         mapping: calendar
     positive:
@@ -143,9 +129,6 @@ variable:
         en: If the variable describes a vertical coordinate system, specify the direction of positive values.
         fr: Si la variable décrit un système de coordonnées verticales, spécifiez la direction des valeurs positives.
       order: 60
-      netcdf:
-        mapping: positive
-        processor: vocabulary
       json_api:
         mapping: positive
     missing_value:
@@ -157,9 +140,6 @@ variable:
         en: Specify a value that indicates a missing value (defaults to the maximum value for the data type). If the data has a scale or offset, enter the pre-scaled/offset value.
         fr: Spécifiez une valeur qui indique une valeur manquante (par défaut, la valeur maximale pour le type de données). Si les données ont une échelle ou un décalage, entrez la valeur pré-mise à l'échelle/décalage.
       order: 70
-      netcdf:
-        mapping: missing_value
-        processor: numeric
       json_api:
         mapping: missing_value
     scale_factor:
@@ -171,9 +151,6 @@ variable:
         en: Specify a scale factor to apply when unpacking values.
         fr: Spécifiez un facteur d'échelle à appliquer lors de la décompression des valeurs.
       order: 80
-      netcdf:
-        mapping: scale_factor
-        processor: numeric
       json_api:
         mapping: scale_factor
     add_offset:
@@ -184,9 +161,6 @@ variable:
       description:
         en: Enter an offset value to add when unpacking values
       order: 90
-      netcdf:
-        mapping: add_offset
-        processor: numeric
       json_api:
         mapping: add_offset
     destination_data_type:
@@ -210,9 +184,6 @@ variable:
         en: Enter the actual minimum value for this variable within the dataset
         fr: Entrez la valeur minimale réelle pour cette variable dans l'ensemble de données
       order: 110
-      netcdf:
-        mapping: actual_min
-        processor: numeric
       json_api:
         mapping: actual_min
     actual_max:
@@ -224,9 +195,6 @@ variable:
         en: Enter the actual maximum value for this variable within the dataset. If the data has a scale or offset, enter the pre-scaled/offset value.
         fr: Entrez la valeur maximale réelle pour cette variable dans l'ensemble de données. Si les données ont une échelle ou un décalage, entrez la valeur pré-mise à l'échelle/décalage.
       order: 120
-      netcdf:
-        mapping: actual_max
-        processor: numeric
       json_api:
         mapping: actual_max
     valid_min:
@@ -238,9 +206,6 @@ variable:
         en: Enter the theoretical minimum value for this variable, if applicable. If the data has a scale or offset, enter the pre-scaled/offset value.
         fr: Entrez la valeur minimale théorique pour cette variable, le cas échéant. Si les données ont une échelle ou un décalage, entrez la valeur pré-mise à l'échelle/décalage.
       order: 130
-      netcdf:
-        mapping: valid_min
-        processor: numeric
       json_api:
         mapping: valid_min
     valid_max:
@@ -252,9 +217,6 @@ variable:
         en: Enter the theoretical maximum value for this variable, if applicable. If the data has a scale or offset, enter the pre-scaled/offset value.
         fr: Entrez la valeur maximale théorique pour cette variable, le cas échéant. Si les données ont une échelle ou un décalage, entrez la valeur pré-mise à l'échelle/décalage.
       order: 140
-      netcdf:
-        mapping: valid_max
-        processor: numeric
       json_api:
         mapping: valid_max
     cf_role:
@@ -267,9 +229,6 @@ variable:
         en: If this variable uniquely identifies a timeseries, a profile, or a trajectory, select the appropriate option.
         fr: Si cette variable identifie de manière unique une série chronologique, un profil ou une trajectoire, sélectionnez l'option appropriée.
       order: 150
-      netcdf:
-        mapping: cf_role
-        processor: vocabulary
       json_api:
         mapping: cf_role
     comment:
@@ -281,8 +240,6 @@ variable:
         en: Enter comments about this variable to share with data users.
         fr: Entrez des commentaires sur cette variable à partager avec les utilisateurs de données.
       order: 160
-      netcdf:
-        mapping: comment
       json_api:
         mapping: comment
     references:
@@ -294,8 +251,6 @@ variable:
         en: Describe relevant references for this variable.
         fr: Décrivez les références pertinentes pour cette variable.
       order: 170
-      netcdf:
-        mapping: references
       json_api:
         mapping: references
     source:
@@ -307,8 +262,6 @@ variable:
         en: Describe relevant source information for this variable.
         fr: Décrivez les informations sources pertinentes pour cette variable.
       order: 180
-      netcdf:
-        mapping: source
       json_api:
         mapping: source
     coverage_content_type:
@@ -320,9 +273,6 @@ variable:
       description:
         en: Coverage content type for the variable.
         fr: Type de contenu de couverture pour la variable.
-      netcdf:
-        mapping: coverage_content_type
-        processor: vocabulary
       json_api:
         mapping: coverage_content_type
     axis:
@@ -342,8 +292,6 @@ variable:
         en: Add other attributes to this variable.
         fr: Ajouter d'autres attributs à cette variable.
       order: 500
-      netcdf:
-        processor: key_value_pairs
       json_api:
         mapping: custom_metadata
 locale:

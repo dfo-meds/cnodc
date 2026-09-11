@@ -10,7 +10,7 @@ iso19115:
       - default_locale
       - licenses
     custom:
-      - pipeman.builtins.iso19115.util.validate_dataset
+      -dmd.plugins.metadata_iso.util.validate_dataset
   fields:
     metadata_owner:
     point_of_contact:
@@ -77,4 +77,4 @@ iso19115:
         und: ISO 19115-3 XML
       template: iso19115.xml
       content_type: text/xml
-      preprocess: pipeman.builtins.iso19115.util.preprocess_metadata
+      preprocess: dmd.plugins.metadata_iso.util.preprocess_for_iso19115

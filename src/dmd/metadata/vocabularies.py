@@ -3,12 +3,13 @@ import typing as t
 
 from autoinject import auto, injector
 
-from dmd.entityfields.base import Container
-from dmd.entityfields.fields import ChoiceField
+from dmd.containers.base import Container
+from dmd.containers.fields import ChoiceField
 from dmd.metadata.registries import BaseRegistry
 from gcapp.i18n import MLString
 
 
+@injector.injectable
 class VocabularyRegistry(BaseRegistry):
 
     def __init__(self):

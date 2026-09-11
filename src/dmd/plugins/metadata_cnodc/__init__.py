@@ -9,8 +9,8 @@ PLUGIN_DIR = pathlib.Path(__file__).parent.absolute()
 def init_plugin(system: System = auto()):
 
     from dmd.metadata.metadata import MetadataRegistry
-    from dmd.metadata.entities import EntityRegistry
     from dmd.metadata.vocabularies import VocabularyRegistry
+    from dmd.metadata.entities import EntityRegistry
 
     @system.on_setup
     @injector.inject

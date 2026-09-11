@@ -1,0 +1,31 @@
+cioosv2:
+  display:
+    en: CIOOS v2
+    fr: SIOOC v2
+  extends: iso19115
+  validation:
+    required:
+      - default_locale
+      - creation_date
+      - licenses
+      - meta_licenses
+      - publication_date
+      - responsibles
+      - cioos_eovs
+      - status
+    recommended:
+      - horizontal_ref_system
+      - vertical_ref_system
+    custom:
+      - dmd.plugins.metadata_cioos.util.validate_dataset_for_cioos
+  fields:
+    cioos_eovs:
+# WIP
+#  formatters:
+#    cioos_yaml:
+#      label:
+#        en: CIOOS YAML
+#        fr: SIOOS YAML
+#      template: cioos.yaml
+#      content_type: application/yaml
+#      preprocess: pipeman.plugins.cioos.util.preprocess_yaml_format

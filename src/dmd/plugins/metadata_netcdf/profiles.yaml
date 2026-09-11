@@ -12,13 +12,13 @@ netcdf:
         en: NcML
       template: ncml.xml
       content_type: text/xml
-      preprocess: pipeman.builtins.netcdf.util.preprocess_for_ncml
+      preprocess: dmd.plugins.metadata_netcdf.util.preprocess_for_ncml
     cdl:
       label:
         en: CDL
       template: cdl.txt
       content_type: text/plain
-      preprocess: pipeman.builtins.netcdf.util.preprocess_for_cdl
+      preprocess: dmd.plugins.metadata_netcdf.util.preprocess_for_cdl
 acdd13:
   display:
     und: ACDD 1.3

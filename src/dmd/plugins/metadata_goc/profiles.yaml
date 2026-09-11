@@ -25,4 +25,4 @@ gociso19115:
         en: ISO 19139 NAP XML
       template: iso19139nap.xml
       content_type: text/xml
-      preprocess: pipeman.builtins.metadata_goc.util.preprocess_for_nap
+      preprocess: dmd.plugins.metadata_goc.util.preprocess_for_nap

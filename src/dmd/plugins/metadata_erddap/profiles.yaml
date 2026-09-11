@@ -27,11 +27,11 @@ erddap:
     spatial_representation_type:
     erddap_servers:
   preprocess:
-    - pipeman.builtins.erddap.util.preprocess_metadata_all
+    - dmd.plugins.metadata_erddap.preprocess_metadata_for_all
   formatters:
     erddapxml:
       label:
         en: ERDDAP XML
       template: erddap.xml
       content_type: text/xml
-      preprocess: pipeman.builtins.erddap.util.preprocess_dataset
+      preprocess: dmd.plugins.metadata_erddap.util.preprocess_metadata_for_erddap_xml

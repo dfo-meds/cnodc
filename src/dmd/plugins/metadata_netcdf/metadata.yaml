@@ -17,8 +17,6 @@ data_more_info:
       description:
         en: Enter a short name of the institution which is ultimately responsible for the dataset.
         fr: Entrez un nom abrégé de l'institution qui est ultimement responsable de l'ensemble de données.
-      netcdf:
-        mapping: institution
       json_api:
         mapping: institution
     project:
@@ -29,8 +27,6 @@ data_more_info:
       description:
         en: If this dataset is a part of a project, enter the name here
         fr: Si cet ensemble de données fait partie d'un projet, entrez le nom ici
-      netcdf:
-        mapping: project
       json_api:
         mapping: project
     program:
@@ -41,8 +37,6 @@ data_more_info:
       description:
         en: If this dataset is part of a program, enter the name here.
         fr: Si cet ensemble de données fait partie d'un programme, entrez le nom ici.
-      netcdf:
-        mapping: program
       json_api:
         mapping: program
     standard_name_vocab:
@@ -53,8 +47,6 @@ data_more_info:
       description:
         en: Enter the name of the standard name vocabulary used for variable names (e.g. CF 1.10).
         fr: Entrez le nom du vocabulaire de nom standard utilisé pour les noms de variables (par exemple CF 1.10).
-      netcdf:
-        mapping: standard_name_vocab
       json_api:
         mapping: standard_name_vocab
 technical:
@@ -68,8 +60,6 @@ technical:
         en: Select the most appropriate CDM data type for the data.
         fr: Sélectionnez le type de données CDM le plus approprié pour les données.
       vocabulary_name: cdm_data_types
-      netcdf:
-        mapping: featureType
       json_api:
         mapping: feature_type
     conventions:
@@ -81,10 +71,6 @@ technical:
       description:
         en: Enter a comma-separated list of conventions used in this dataset.
         fr: Entrez une liste séparée par des virgules des conventions utilisées dans cet ensemble de données.
-      netcdf:
-        mapping: Conventions
-        processor: text
-        allow_many: yes
       json_api:
         mapping: conventions
 references:
@@ -98,8 +84,6 @@ references:
       description:
         en: Enter information about the source of the data in this dataset in plain-text format.
         fr: Entrez les informations sur la source des données dans cet ensemble de données au format texte brut
-      netcdf:
-        mapping: source
       json_api:
         mapping: source
     references:
@@ -111,8 +95,6 @@ references:
       description:
         en: Enter any appropriate reference information about this dataset.
         fr: Entrez toute information de référence appropriée sur cet ensemble de données
-      netcdf:
-        mapping: references
       json_api:
         mapping: references
 custom:
@@ -127,9 +109,6 @@ custom:
       description:
         en: Enter additional information for NetCDF output here.
         fr: Entrez ici des informations supplémentaires pour la sortie NetCDF.
-      netcdf:
-        mapping:
-        processor: key_value_pairs
       json_api:
         mapping: custom_metadata
 keywords:
