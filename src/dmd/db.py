@@ -2,7 +2,7 @@ import typing as t
 
 from autoinject import injector
 
-from dmd.entityfields.base import ContainerLoader
+from dmd.containers.base import ContainerLoader
 from medsutil.awaretime import AwareDateTime
 
 

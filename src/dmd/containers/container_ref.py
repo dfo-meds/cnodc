@@ -6,8 +6,8 @@ from markupsafe import Markup
 from wtforms.widgets.core import Select
 
 import gcapp.i18n as i18n
-from dmd.entityfields.base import ContainerLoader, Container
-from dmd.entityfields.fields import ChoiceField, Field
+from dmd.containers.base import ContainerLoader, Container
+from dmd.containers.fields import ChoiceField, Field
 
 from autoinject import injector, auto
 

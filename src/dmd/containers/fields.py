@@ -10,7 +10,7 @@ import gcflask.forms
 from gcapp import i18n
 from gcapp.i18n.base import TString, MLString, tr, format_date
 from gcflask.widgets import FlatPickrWidget, Select2Widget
-from medweb.apps.dmd.entityfields.base import Field, NumberMixin, StringMixin, Container
+from dmd.containers.base import Field, NumberMixin, StringMixin, Container
 
 
 @Container.register_type

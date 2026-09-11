@@ -10,7 +10,7 @@ from gcapp import i18n as i18n
 from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length, NoControlCharacters
 from gcapp.i18n.base import MLString
 from gcflask.widgets import HtmlList, MultilingualList, InfoTable, HtmlContent
-from medweb.apps.dmd.entityfields.keywords import Keyword
+from dmd.containers.keywords import Keyword
 
 if t.TYPE_CHECKING:
     import wtforms as wtf

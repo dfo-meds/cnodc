@@ -5,7 +5,7 @@ import typing as t
 from autoinject import injector, auto
 import zirconium as zr
 
-from dmd.entityfields.base import Container
+from dmd.containers.base import Container
 from dmd.metadata.metadata import MetadataRegistry
 from dmd.metadata.workflows import WorkflowRegistry
 from gcapp.i18n import MLString
