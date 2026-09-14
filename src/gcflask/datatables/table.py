@@ -5,12 +5,13 @@ from markupsafe import Markup, escape
 import typing as t
 
 from gcapp import i18n
-from gcapp.i18n import tr
+from gcapp.i18n import tr, MLString
 from gcflask.action_list import ActionList
-from gcflask.datatables.queries import DataQuery, QuerySpecification
+from gcflask.datatables.queries import DataQuery
+from gcapp.queries import QuerySpecification, SqlCondition, Or, Like
 from gcflask.csp import csp_nonce
 from medsutil import json
-from nodb.interface import NODBObject, SqlCondition, Or, Like
+from nodb.interface import NODBObject
 
 
 class DataColumn:
@@ -72,7 +73,14 @@ class DataColumn:
 class ObjectProperty(DataColumn):
 
     def _value(self, row):
-        return getattr(row, self.name) if hasattr(row, self.name) else None
+        if hasattr(row, self.name):
+            return getattr(row, self.name)
+        else:
+            try:
+                return row[self.name]
+            except (TypeError, KeyError, IndexError):
+                ...
+        return None
 
     def filter(self, value: str) -> SqlCondition | None:
         if self.allow_search:
@@ -87,6 +95,14 @@ class ObjectProperty(DataColumn):
         if self.allow_order:
             return self.name, is_desc
         return None
+
+
+class MLStringFormatter:
+
+    def __call__(self, value: str):
+        if value is None:
+            return value
+        return MLString(json.load_dict(value))
 
 
 class ActionListColumn(DataColumn):

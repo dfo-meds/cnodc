@@ -7,6 +7,7 @@ from wtforms.fields.core import UnboundField
 from wtforms.validators import Optional
 
 from gcapp import i18n as i18n
+from gcflask.action_list import ActionList
 from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length, NoControlCharacters
 from gcapp.i18n.base import MLString
 from gcflask.widgets import HtmlList, MultilingualList, InfoTable, HtmlContent
@@ -123,9 +124,9 @@ class Container:
     def add_container_validator(self, validator: ContainerValidator):
         self._container_validators.append(validator)
 
-    def validate_metadata(self,
-                          parent_path: list[str] | None = None,
-                          _memo: set[tuple[str, int | None]] | None = None) -> list[ValidationResult]:
+    def validate(self,
+                 parent_path: list[str] | None = None,
+                 _memo: set[tuple[str, int | None]] | None = None) -> list[ValidationResult]:
         memo = set() if _memo is None else _memo
 
         my_id = (self.container_type, self.container_id)
@@ -154,6 +155,10 @@ class Container:
 
     def __getitem__(self, name: str) -> t.Any:
         return self.data(name) or ""
+
+    def actions(self) -> ActionList:
+        lst = ActionList()
+        return lst
 
     def info_table(self, display_group: str | None = None) -> InfoTable:
         return InfoTable(
@@ -192,6 +197,10 @@ class Container:
 
     def display(self):
         return MLString(self._display_names)
+
+    @property
+    def display_names(self):
+        return self.display()
 
     def field(self, field_name: str) -> Field | None:
         if field_name in self._fields:

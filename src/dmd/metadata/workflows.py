@@ -1,3 +1,4 @@
+import enum
 import pathlib
 
 import typing as t
@@ -7,6 +8,9 @@ from autoinject import injector
 from dmd.metadata.registries import BaseRegistry
 from gcapp.i18n import MLString
 
+
+class WorkflowItemStatus(enum.Enum):
+    ...
 
 @injector.injectable
 class WorkflowRegistry:
@@ -80,4 +84,11 @@ class WorkflowRegistry:
         key = f"{category}__{workflow_name}"
         return self._steps[key].get("cleanup", [])
 
+    def start_workflow(self,
+                       category: str,
+                       workflow_name: str,
+                       metadata: dict[str, t.Any],
+                       object_type: str,
+                       object_id: int) -> WorkflowItemStatus:
+        ...
 

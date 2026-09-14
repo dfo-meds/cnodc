@@ -1,4 +1,3 @@
-import flask
 from markupsafe import Markup, escape
 
 from gcapp import i18n
@@ -12,14 +11,14 @@ class ActionList:
     def __bool__(self):
         return bool(self._items)
 
-    def add_action(self, tr_key: str, endpoint: str, order: int = -1, **kwargs):
+    def add_action(self, tr_key: str, url: str, order: int = -1):
         if order < 0:
             if self._items:
                 order = max(x[2] for x in self._items) + 1
             else:
                 order = 0
         self._items.append((
-            flask.url_for(endpoint, **kwargs),
+            url,
             tr_key,
             order
         ))

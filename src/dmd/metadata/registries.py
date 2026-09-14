@@ -16,7 +16,7 @@ class GlobalRegistry:
 
     REFRESH_FREQUENCY = 15  # seconds
 
-    setup_checker: DataManagementDatabase = auto()
+    storage: DataManagementDatabase = auto()
 
     @injector.construct
     def __init__(self):
@@ -42,7 +42,8 @@ class GlobalRegistry:
     def _check_all(self):
         self._log.debug("Checking for registry updates")
         # Check if setup has actually run recently
-        setup_last_run = self.setup_checker.last_setup_run()
+        with self.storage as db:
+            setup_last_run = db.last_setup_run()
         if self._last_setup_run == setup_last_run:
             return
         self._log.info(f"Updating [{len(self._registry)}] registry files")
@@ -92,15 +93,17 @@ class BaseRegistry:
     def reload_types(self):
         with self._lock:
             found = []
-            for obj_name, config in self.storage.load_registry_map(self._registry_name):
-                found.append(obj_name)
-                self._registry_map[obj_name] = config
-            for obj_name in list(self._registry_map.keys()):
-                if obj_name not in found:
-                    del self._registry_map[obj_name]
+            with self.storage as db:
+                for obj_name, config in db.load_registry_map(self._registry_name):
+                    found.append(obj_name)
+                    self._registry_map[obj_name] = config
+                for obj_name in list(self._registry_map.keys()):
+                    if obj_name not in found:
+                        del self._registry_map[obj_name]
 
     def save_changes(self):
-        self.storage.bulk_update_registry_map(self._registry_name, self._registry_map)
+        with self.storage as db:
+            db.bulk_update_registry_map(self._registry_name, self._registry_map)
 
     def register(self, obj_name, _update_db: bool = True, **config):
         if self._ensure_fields:
@@ -108,7 +111,8 @@ class BaseRegistry:
                 if f not in config:
                     config[f] = None
         if _update_db:
-            self.storage.upsert_registry_entry(self._registry_name, obj_name, config)
+            with self.storage as db:
+                db.upsert_registry_entry(self._registry_name, obj_name, config)
         if obj_name in self._registry_map:
             self._deep_update(self._registry_map[obj_name], config)
         else:
@@ -136,4 +140,5 @@ class BaseRegistry:
 
     def remove_all(self):
         self._log.notice(f"Removing all object definitions of type [{self._registry_name}]")
-        self.storage.delete_registry_map(self._registry_name)
+        with self.storage as db:
+            db.delete_registry_map(self._registry_name)

@@ -12,15 +12,11 @@ import psycopg2.sql as pgs
 import medsutil.types as ct
 from autoinject import injector
 
+from gcapp.queries import SqlCondition
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 
 POSTGRES_ALLOWED_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
-
-
-class SqlCondition:
-    ...
-
 
 type SupportsPostgres = None | bool | float | int | decimal.Decimal | str | collections.abc.Buffer | datetime.date | datetime.time | datetime.timedelta | uuid.UUID | tuple
 type DatabaseIdentifier = str
@@ -157,88 +153,6 @@ class SqlState(enum.Enum):
     UNDEFINED_FILE = '58P01', EType.RECOVERABLE
     DUPLICATE_FILE = '58P02', EType.RECOVERABLE
     FILENAME_TOO_LONG = '58P03', EType.RECOVERABLE
-
-
-class And(SqlCondition):
-
-    def __init__(self, *conditions: SqlCondition | t.Iterable[SqlCondition]):
-        self.conditions = conditions
-
-    def all_conditions(self) -> t.Iterable[SqlCondition]:
-        for condition in self.conditions:
-            if isinstance(condition, SqlCondition):
-                yield condition
-            else:
-                yield from condition
-
-
-class Or(SqlCondition):
-
-    def __init__(self, *conditions: SqlCondition | t.Iterable[SqlCondition]):
-        self.conditions = conditions
-
-    def all_conditions(self) -> t.Iterable[SqlCondition]:
-        for condition in self.conditions:
-            if isinstance(condition, SqlCondition):
-                yield condition
-            else:
-                yield from condition
-
-
-class Equals(SqlCondition):
-
-    def __init__(self, column_name: str, value: SupportsPostgres, or_null: bool = False):
-        self.column_name = column_name
-        self.value = value
-        self.or_null = or_null
-
-
-class IsNull(SqlCondition):
-
-    def __init__(self, column_name: str):
-        self.column_name = column_name
-
-
-class IsNotNull(SqlCondition):
-
-    def __init__(self, column_name: str):
-        self.column_name = column_name
-
-
-class In(SqlCondition):
-
-    def __init__(self, column_name: str, values: t.Iterable, or_null: bool = False):
-        self.column_name = column_name
-        self.values = values
-        self.or_null = or_null
-
-
-class Between(SqlCondition):
-
-    def __init__(self, column_name: str, lower_bound: float, upper_bound: float, or_null: bool = False):
-        self.column_name = column_name
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
-        self.or_null = or_null
-
-
-class InEnvelope(SqlCondition):
-
-    def __init__(self, column_name: str, points: list[str], datum: int = 4326, or_null: bool = False):
-        self.column_name = column_name
-        self.points = points
-        self.datum = datum
-        self.or_null = or_null
-
-
-class Like(SqlCondition):
-
-    def __init__(self, column_name: str, pattern: str, or_null: bool = False, case_sensitive: bool = True):
-        self.column_name = column_name
-        self.pattern = pattern
-        self.or_null = or_null
-        self.case_sensitive = case_sensitive
-
 
 
 class NODBError(CodedError):

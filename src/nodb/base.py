@@ -2,7 +2,6 @@ import datetime
 import typing as t
 
 import nodb.interface as interface
-from nodb.interface import NODBObjectType
 from medsutil.cached import CachedObjectMixin
 import medsutil.datadict as ddo
 import medsutil.types as ct
