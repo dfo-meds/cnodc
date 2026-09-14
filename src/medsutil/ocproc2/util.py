@@ -273,7 +273,9 @@ def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: Requi
     return False
 
 
-def is_of_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None) -> bool:
+def is_of_quality(obj: ObjectWithMetadata | None,
+                  required_quality: RequiredQuality,
+                  allowed_protocols: t.Iterable[str] | None = None) -> bool:
     try:
         check_quality(obj, required_quality, allowed_protocols)
         return True
@@ -286,7 +288,9 @@ def combine_quality_scores(*qc_scores: int | t.Iterable[int | None] | None) -> i
     def _compress(y) -> t.Iterable[int | None]:
         if y is None: yield None
         elif isinstance(y, int): yield y
-        else: yield from y
+        else:
+            for x in y:
+                yield from _compress(x)
     qc_score = None
     for x in _compress(qc_scores):
         if Quality.new_quality_allowed(x, qc_score):
@@ -294,39 +298,11 @@ def combine_quality_scores(*qc_scores: int | t.Iterable[int | None] | None) -> i
     return qc_score or 0
 
 
-def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None):
+def check_quality(obj: ObjectWithMetadata | None,
+                  required_quality: RequiredQuality,
+                  allowed_protocols: t.Iterable[str] | None = None):
     if obj is None:
         raise QualityError("element_is_none")
-
-    final_quality, working_quality = 0, 0
-    if allowed_protocols is None:
-        if 'Quality' in obj.metadata:
-            final_quality = combine_quality_scores(x.to_int() for x in obj.metadata["Quality"].all_values())
-
-        if 'WorkingQuality' in obj.metadata:
-            working_quality = combine_quality_scores(x.to_int() for x in obj.metadata["WorkingQuality"].all_values())
-
-    else:
-        for x in allowed_protocols:
-            check_final, check_working = find_quality_for_protocol(obj, x)
-            if Quality.new_quality_allowed(check_final, final_quality):
-                final_quality = check_final
-            if Quality.new_quality_allowed(check_working, working_quality):
-                working_quality = check_working
-
-
-    if RequiredQuality.NOT_FINAL in required_quality and final_quality != Quality.UNCHECKED:
-        raise QualityError("element_has_final_quality")
-
-    if RequiredQuality.NOT_MISSING in required_quality and working_quality == Quality.MISSING:
-        raise QualityError("element_is_flagged_empty")
-    if RequiredQuality.NOT_ERRONEOUS in required_quality and working_quality == Quality.ERRONEOUS:
-        raise QualityError("element_is_flagged_erroneous")
-    if RequiredQuality.NOT_DUBIOUS in required_quality and working_quality == Quality.DUBIOUS:
-        raise QualityError("element_is_flagged_dubious")
-
-    if RequiredQuality.GOOD_STRUCTURE in required_quality and working_quality == Quality.BAD_STRUCTURE:
-        raise QualityError("element_has_bad_structure")
 
     if isinstance(obj, ocproc2.AbstractElement):
         if RequiredQuality.HAS_VALUE in required_quality and obj.is_empty():
@@ -341,6 +317,40 @@ def check_quality(obj: ObjectWithMetadata | None, required_quality: RequiredQual
             raise QualityError("element_not_datetime")
         if RequiredQuality.IS_DURATION in required_quality and not obj.is_duration():
             raise QualityError("element_not_duration")
+
+    final_quality, working_quality = 0, 0
+    if allowed_protocols is None:
+        if 'Quality' in obj.metadata:
+            final_quality = combine_quality_scores(x.to_int() for x in obj.metadata["Quality"].all_values())
+
+        if 'WorkingQuality' in obj.metadata:
+            working_quality = combine_quality_scores(final_quality, (x.to_int() for x in obj.metadata["WorkingQuality"].all_values()))
+        else:
+            working_quality = final_quality
+
+    else:
+        for x in allowed_protocols:
+            check_final, check_working = find_quality_for_protocol(obj, x)
+            if Quality.new_quality_allowed(check_final, final_quality):
+                final_quality = check_final
+            if Quality.new_quality_allowed(check_final, working_quality):
+                working_quality = check_final
+            if Quality.new_quality_allowed(check_working, working_quality):
+                working_quality = check_working
+
+    if RequiredQuality.NOT_FINAL in required_quality and final_quality != Quality.UNCHECKED:
+        raise QualityError("element_has_final_quality")
+
+    if RequiredQuality.NOT_MISSING in required_quality and working_quality == Quality.MISSING:
+        raise QualityError("element_is_flagged_empty")
+    if RequiredQuality.NOT_ERRONEOUS in required_quality and working_quality == Quality.ERRONEOUS:
+        raise QualityError("element_is_flagged_erroneous")
+    if RequiredQuality.NOT_DUBIOUS in required_quality and working_quality == Quality.DUBIOUS:
+        raise QualityError("element_is_flagged_dubious")
+
+    if RequiredQuality.GOOD_STRUCTURE in required_quality and working_quality == Quality.BAD_STRUCTURE:
+        raise QualityError("element_has_bad_structure")
+
 
 def pair_lists[T](*lsts: list[T], comparator: t.Callable[[T, T], float | None]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
     used: tuple[set[int], ...] = tuple(

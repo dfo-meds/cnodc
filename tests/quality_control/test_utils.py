@@ -78,4 +78,4 @@ class TestQualityChecks(BaseTestCase):
             for check_rq, result in checks:
                 with self.subTest(check_element=check_element, check_rq=check_rq, result=result):
                     msg = "is unexpectedly not" if result else "is unexpectedly"
-                    self.assertIs(result, is_of_quality(check_element, check_rq), msg=f"{repr(check_element)} {msg} {repr(check_rq)}")
+                    self.assertIs(is_of_quality(check_element, check_rq), result, msg=f"{repr(check_element)} {msg} {repr(check_rq)}")
