@@ -510,7 +510,7 @@ class ElementInstruction(SingleValueInstruction):
                  metadata: dict[str, RawValue] | None = None,
                  remove_metadata: list[str] | None = None,
                  override_value: RawValue | EllipsisType = ...,
-                 iterate_into_recordset: bool = False,
+                 iterate_into_recordset: bool = True,
                  use_current_record: bool = True,
                  restrict_recordsets: list[str] | None = None,
                  restrict_elements: list[str] | None = None,
@@ -553,6 +553,9 @@ class ElementInstruction(SingleValueInstruction):
         self._export_processor = ...
         self.append_mode: bool = append
         super().__init__(**kwargs)
+
+    def __str__(self):
+        return f"<ElementInstruction:{self.element_path}>"
 
     @property
     def ocproc2_export_processor(self) -> t.Callable[[SingleElement], RawValue] | None:
@@ -848,6 +851,9 @@ class OPSContext:
             self.names = names
             self.iterate_into_recordset = iterate_into_recordset
 
+        def __str__(self):
+            return f"<FutureMetadata:{self.element.value} set on {self.names} [rs {self.rs_types}]>"
+
         def __copy__(self):
             return OPSContext.FutureMetadata(
                 element=self.element,
@@ -876,6 +882,7 @@ class OPSContext:
         old_futures = self._future_metadata
         old_futures_rs = self._future_rs_metadata
         try:
+            self._log.debug("Entering subcontext")
             self.extras = {x: copy.copy(y) for x, y in self.extras.items()}
             self._future_metadata = {
                 k: {
@@ -896,6 +903,7 @@ class OPSContext:
             self.extras = old_extras
             self._future_metadata = old_futures
             self._future_rs_metadata = old_futures_rs
+            self._log.debug("Exiting sub-context")
 
     @contextmanager
     def record_context(self, r: BaseRecord):
@@ -984,8 +992,10 @@ class OPSContext:
         _, name = path.rsplit("/", maxsplit=1)
         forward = self.get_forward_metadata(name)
         if append_mode:
+            self._log.debug("Appending value %s to current:%s [%s]", element, path, forward)
             self.record.append_to(path, element, **forward)
         else:
+            self._log.debug("Setting value %s to current:%s [%s]", element, path, forward)
             self.record.set(path, element, **forward)
 
     def set_parent_element(self,
@@ -995,8 +1005,10 @@ class OPSContext:
         _, name = path.rsplit("/", maxsplit=1)
         forward = self.get_forward_metadata(name)
         if append_mode:
+            self._log.debug("Appending value %s to parent:%s [%s]", element, path, forward)
             self.parent.append_to(path, element, **forward)
         else:
+            self._log.debug("Setting value %s to parent:%s [%s]", element, path, forward)
             self.parent.set(path, element, **forward)
 
     def set_recordset_metadata(self,
@@ -1006,12 +1018,16 @@ class OPSContext:
         forward = self.get_forward_metadata(metadata_name)
         if self.recordset is not None:
             if append_mode:
+                self._log.debug("Appending value %s to metadata:%s [%s]", element, metadata_name, forward)
                 self.recordset.metadata.append_to(metadata_name, element, **forward)
             else:
+                self._log.debug("Setting value %s to metadata:%s [%s]", element, metadata_name, forward)
                 self.recordset.metadata.set(metadata_name, element, **forward)
 
     def get_forward_metadata(self, property_name: str) -> dict[str, t.Any]:
         md = {}
+        if property_name == "Temperature":
+            print(property_name, self._future_metadata)
         for _, d in self._future_metadata.items():
             for key, future in d.items():
                 if future.names is not None and property_name not in future.names:
@@ -1027,11 +1043,12 @@ class OPSContext:
         if element.value is not None:
             if future_context not in self._future_rs_metadata:
                 self._future_rs_metadata[future_context] = {}
-            self._future_rs_metadata[future_context][metadata_name] = OPSContext.FutureMetadata(
-                element, restrict_recordsets
-            )
+            metadata = OPSContext.FutureMetadata(element, restrict_recordsets)
+            self._log.debug("Adding future recordset metadata %s=%s", metadata_name, metadata)
+            self._future_rs_metadata[future_context][metadata_name] = metadata
         else:
             if future_context in self._future_rs_metadata and metadata_name in self._future_rs_metadata[future_context]:
+                self._log.debug("Removing future recordset metadata %s", metadata_name)
                 del self._future_rs_metadata[future_context][metadata_name]
 
     def add_common_metadata(self,
@@ -1044,11 +1061,14 @@ class OPSContext:
         if element.value is not None:
             if future_context not in self._future_metadata:
                 self._future_metadata[future_context] = {}
-            self._future_metadata[future_context][metadata_name] = OPSContext.FutureMetadata(
+            metadata = OPSContext.FutureMetadata(
                 element, restrict_recordsets, restrict_names, iterate_into_recordset
             )
+            self._log.debug("Adding future metadata %s=%s", metadata_name, metadata)
+            self._future_metadata[future_context][metadata_name] = metadata
         else:
             if future_context in self._future_metadata and metadata_name in self._future_metadata[future_context]:
+                self._log.debug("Removing future metadata %s", metadata_name)
                 del self._future_metadata[future_context][metadata_name]
 
     def find_recordset(self,

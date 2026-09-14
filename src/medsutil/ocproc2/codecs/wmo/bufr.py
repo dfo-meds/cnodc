@@ -768,27 +768,16 @@ class _Bufr4Decoder:
                            node: ValueDataNode | SequenceNode,
                            context: OPSContext):
         if isinstance(instruction, ContextInstruction):
-            self._apply_instruction(
-                instruction.get_instruction(context.extras["hierarchy"]),
-                node, context
-            )
+            instruction = instruction.get_instruction(context.extras["hierarchy"])
         elif isinstance(instruction, EncodeDecodeGroup):
-            self._apply_instruction(
-                instruction.get_instruction(False),
-                node, context
-            )
+            instruction = instruction.get_instruction(False)
         elif isinstance(instruction, ValueMappedInstruction):
             value = self._get_node_value(instruction, node, context)
-            self._apply_instruction(
-                instruction.get_instruction(value),
-                node, context
-            )
-        elif isinstance(instruction, SingleValueInstruction):
-            instruction.set_value(
-                self._get_node_value(instruction, node, context),
-                None,
-                context
-            )
+            instruction = instruction.get_instruction(value)
+
+        if isinstance(instruction, SingleValueInstruction):
+            value = self._get_node_value(instruction, node, context)
+            instruction.set_value(value, None, context)
         elif isinstance(instruction, NoopInstruction):
             ...
         elif isinstance(instruction, ScaleFactorInstruction):
@@ -797,6 +786,7 @@ class _Bufr4Decoder:
             instruction.raise_exception()
         else:
             raise ValueError("Unrecognized instruction")
+
         if instruction.extras.get("iterate_after", False) and isinstance(node, SequenceNode):
             if node.members:
                 self._iterate_on_nodes(node.members, context)
