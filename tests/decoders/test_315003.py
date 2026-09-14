@@ -13,7 +13,7 @@ class TestBufr315003(BaseTestCase):
         with open(self.data_file_path("bufr/315003.bufr"), "rb") as h:
             bufr_content = h.read()
         decoder = _Bufr4Decoder(BufrCodeMap(), "IAAAAA AAAA 041123", bufr_content)
-        records = [x for x in decoder.convert_to_records("2026-04-04T13:04:00+00:00")]
+        records = [x for x in decoder.convert_to_records("2026-09-04T13:04:00+00:00")]
 
         self.assertEqual(1, len(records))
         record = records[0]
