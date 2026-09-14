@@ -634,6 +634,7 @@ class _Bufr4Decoder:
             yield self._convert_subset_to_record(n, common_metadata)
 
     def _convert_subset_to_record(self, subset_number: int, common_metadata: dict) -> ocproc2.ParentRecord:
+        self._log.debug("Decoding subset %s", subset_number + 1)
         context = OPSContext(ocproc2.ParentRecord())
         context.extras["subset"] = subset_number
         context.extras["hierarchy"] = [str(subset_number)]
@@ -644,7 +645,7 @@ class _Bufr4Decoder:
             context
         )
         context.parent.add_history_action(
-            message="record created",
+            message="Record created",
             source_name=self.source_name,
             source_version=self.source_version,
             source_instance="",
@@ -652,7 +653,15 @@ class _Bufr4Decoder:
         )
         return context.parent
 
+    class _DescriptorList:
+        def __init__(self, d: list[DataNode]):
+            self.d = d
+
+        def __str__(self):
+            return ",".join(str(x.descriptor.id) for x in self.d)
+
     def _iterate_on_nodes(self, nodes: list[DataNode], context: OPSContext):
+        self._log.debug("Iterating on nodes %s", self._DescriptorList(nodes))
         with context.subcontext() as ctx:
             ctx.extras["skip"] = 0
             ctx.extras["current_index"] = 0
@@ -660,6 +669,7 @@ class _Bufr4Decoder:
 
             for idx, node in enumerate(nodes):
                 if ctx.extras["skip"] > 0:
+                    self._log.debug("Skipping node %s", node.descriptor.id)
                     ctx.extras["skip"] -= 1
                     continue
                 ctx.extras["current_index"] = idx
@@ -672,10 +682,12 @@ class _Bufr4Decoder:
 
             # Custom handling
             if hasattr(self, test_name):
+                self._log.debug("Parsing node %s using custom function", node.descriptor.id)
                 getattr(self, test_name)(node, context)
 
             # Basic instructions
             elif isinstance(node, (SequenceNode, ValueDataNode)):
+                self._log.debug("Parsing node %s using instruction", node.descriptor.id)
                 self._apply_instruction(
                     self.bufr_tables.lookup(node.descriptor.id, self.pybufr_tables),
                     node,
@@ -699,6 +711,7 @@ class _Bufr4Decoder:
 
     def _parse_replication_node(self, node: DelayedReplicationNode | FixedReplicationNode, ctx: OPSContext):
         n_total, n_elements, n_repeats = self._parse_repetition_info(node, ctx)
+        self._log.debug("Parsing replication node %s [%s repeats of %s elements]", node.descriptor.id, n_repeats, n_elements)
         descriptors = set(
             n.descriptor.id
             for n in node.members
@@ -719,6 +732,7 @@ class _Bufr4Decoder:
             map_to = "TIME_SERIES"
             coord_name = (4021, 4022, 4023, 4024, 4025, 4026)
         if map_to is not None and coord_name is not None:
+            self._log.debug("Parsing replication node for child records of type %s, coordinates %s", map_to, coord_name)
             self._iterate_into_children(node, ctx, map_to, coord_name, n_elements, n_repeats)
         else:
             if n_repeats > 1:

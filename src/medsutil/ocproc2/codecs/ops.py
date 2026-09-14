@@ -4,6 +4,8 @@ import enum
 from contextlib import contextmanager
 from types import EllipsisType
 
+import zrlog
+
 from medsutil.dynamic import dynamic_name, dynamic_object
 from medsutil.exceptions import CodedError
 from medsutil.iso_duration import DurationUnit, ISODuration
@@ -866,6 +868,7 @@ class OPSContext:
         self._future_rs_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._future_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
         self._ignore_rsids: list[int] = []
+        self._log = zrlog.get_logger("ocproc2.processing_context")
 
     @contextmanager
     def subcontext(self):
@@ -931,6 +934,7 @@ class OPSContext:
     @contextmanager
     def new_recordset(self, rs_type: str):
         rs = self.record.subrecords.new_recordset(rs_type)
+        self._log.debug("Creating new recordset of type %s", rs_type)
         with self.recordset_context(rs, rs_type):
             for _, values in self._future_rs_metadata.items():
                 for key, future in values.items():
@@ -945,6 +949,8 @@ class OPSContext:
     @contextmanager
     def new_subrecord(self):
         record = ChildRecord()
+        self.recordset.records.append(record)
+        self._log.debug("Creating new child record")
         with self.record_context(record):
             yield self
 
