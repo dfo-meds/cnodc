@@ -1,4 +1,6 @@
 """OCPROC2 history and test results"""
+from _hashlib import HASH
+
 import medsutil.types as ct
 import typing as t
 import datetime
@@ -112,7 +114,7 @@ class HistoryEntry:
             '_affected': self.affected_path,
         }
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with the unique values of this history entry."""
         h.update(self.message.encode('utf-8', 'replace'))
         h.update(self.timestamp.encode('utf-8', 'replace'))
@@ -214,7 +216,7 @@ class QCTestRunInfo:
         self.test_name = test_name
         self.test_tags = test_tags or []
         self.test_version = test_version
-        self.test_date = test_date.isoformat() if isinstance(test_date, datetime.datetime) else test_date
+        self.test_date = test_date.isoformat() if isinstance(test_date, datetime.date) else test_date
         self.result = result
         self.messages = messages or []
         self.notes = notes
@@ -241,7 +243,7 @@ class QCTestRunInfo:
         _proposed: list[dict] | None
         _applied: list[dict] | None
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with the unique values for this test run."""
         h.update(self.test_protocol.encode('utf-8', 'replace'))
         h.update(self.test_name.encode('utf-8', 'replace'))
