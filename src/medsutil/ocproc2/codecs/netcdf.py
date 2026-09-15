@@ -16,6 +16,7 @@ from medsutil.sanitize import unnumpy
 from medsutil.ocproc2.codecs.base import BaseCodec
 from medsutil.ocproc2 import ParentRecord, SingleElement, MultiElement, AbstractElement
 from medsutil.ocproc2.ontology import OCProc2Ontology
+from medsutil.units.structures import UnitError
 from pipeman.exceptions import CNODCError
 from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
 from medsutil.sanitize import netcdf_bytes_to_string
@@ -499,7 +500,10 @@ class NetCDFCommonMapper:
             if hasattr(var, 'units'):
                 units = getattr(var, 'units')
                 if ' since ' not in units:
-                    units = self.units.standardize(units)
+                    try:
+                        units = self.units.standardize(units)
+                    except UnitError as ex:
+                        raise NetCDFCommonDecoderError("Invalid units", 9000) from ex
                 self._cache[key] = units
         return self._cache[key]
 

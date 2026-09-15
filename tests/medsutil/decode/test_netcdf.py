@@ -8,6 +8,7 @@ from medsutil.dynamic import dynamic_name
 from medsutil.ocproc2 import MultiElement, SingleElement
 from medsutil.exceptions import CodedError
 from medsutil.sanitize import netcdf_string_to_bytes, netcdf_string_to_vlen_bytes
+from medsutil.units.structures import UnitError
 from pipeman.programs.glider.ego_decode import GliderEGOMapper
 from tests.helpers.base_test_case import BaseTestCase
 from medsutil.ocproc2.codecs.netcdf import NetCDFCommonMapper, NetCDFCommonDecoderError, NetCDFCommonDecoder, \
