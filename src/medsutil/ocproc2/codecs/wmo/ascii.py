@@ -751,7 +751,7 @@ class BuoyZZYY(AsciiDecoder):
                 for var in ("WindSpeed", "WindDirection"):
                     if record.parameters.has_value(var):
                         if sd is not None:
-                            record.parameters[var].metadata["SensorDepth"] = sd
+                            record.parameters[var].metadata["SensorHeight"] = sd
                         if at is not None:
                             record.parameters[var].metadata["WMOAnemometerType"] = at
                 o += 1
