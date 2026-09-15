@@ -3,6 +3,7 @@ import logging
 import shutil
 import subprocess
 
+import flask
 import zirconium
 from autoinject import injector
 
@@ -208,7 +209,7 @@ class TestRequestInfo(BaseTestCase):
     @zirconium.test_with_config({'flask': {'SECRET_KEY': 'hello_world'}})
     def test_with_request(self):
         info = RequestInfo()
-        client = build_cnodc_webapp("app", no_boot=True)
+        client = flask.Flask(__name__)
         with client.test_client():
             with client.test_request_context('/foobar', method='GET', headers={
                 'X-Correlation-ID': '12345',
@@ -232,7 +233,7 @@ class TestRequestInfo(BaseTestCase):
     @zirconium.test_with_config({'flask': {'SECRET_KEY': 'hello_world'}})
     def test_less_helpful_request(self):
         info = RequestInfo()
-        client = build_cnodc_webapp("app", no_boot=True)
+        client = flask.Flask(__name__)
         with client.test_client():
             with client.test_request_context('/foobar2', method='POST', headers={
                 'X-Forwarded-For': '17.1.2.3 127.0.0.1'

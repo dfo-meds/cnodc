@@ -175,7 +175,7 @@ class UnitConverter:
         except UnitError:
             return False
 
-    def standardize(self, unit_name):
+    def standardize(self, unit_name: str) -> str:
         if unit_name in STANDARDIZE_FIXES:
             unit_name = STANDARDIZE_FIXES[unit_name]
         self._load_tables()
@@ -183,15 +183,11 @@ class UnitConverter:
         return expr.udunit_str(self)
 
     def convert[T: AnyNumber](self, quantity: T, original_units: str, output_units: str) -> T:
-        return self._convert(quantity, original_units, output_units)
-
-    def _convert(self, quantity: decimal.Decimal, original_units: str, output_units: str) -> decimal.Decimal:
         self._load_tables()
         factor_original, dims_original, expr_original = self._conversion_info(original_units)
         factor_output, dims_output, expr_output = self._conversion_info(output_units)
         if not self._check_compatibility(dims_original, dims_output):
             raise UnitError(f"Incompatible dimensions [{self._format_dims(dims_original)}] vs [{self._format_dims(dims_output)}]", 2001)
-
         result = factor_output.invert().convert(factor_original.convert(quantity))
         if is_science_number(result):
             result.set_units(output_units)
@@ -336,7 +332,7 @@ class UnitConverter:
             if v is not None:
                 txt = v.text
                 if txt is not None:
-                    val = decimal.Decimal(txt)
+                    val = amath.NumberString(txt)
             if val is None:
                 self._log.error(f"No prefix value found for [{preferred}]")
                 continue
@@ -347,10 +343,10 @@ class UnitConverter:
                     self._loaded_tables['prefixes'][n] = val
                     self._loaded_tables['preferred_prefixes'][n] = preferred if preferred not in PREFERRED_PREFIX_OVERRIDES else PREFERRED_PREFIX_OVERRIDES[preferred]
 
-    def _find_entry(self, simple_unit: str) -> tuple[decimal.Decimal, str, str]:
+    def _find_entry(self, simple_unit: str) -> tuple[amath.NumberString, str, str]:
         self._load_tables()
         if simple_unit in self._loaded_tables['units']:
-            return decimal.Decimal("1"), self._loaded_tables['units'][simple_unit], simple_unit
+            return amath.NumberString("1"), self._loaded_tables['units'][simple_unit], simple_unit
         for prefix in self._loaded_tables['prefixes']:
             if simple_unit.startswith(prefix):
                 test_unit = simple_unit[len(prefix):]

@@ -20,7 +20,6 @@ class AzureMockClientPool:
     shares: dict[str, _AzureFileShare] = {}
 
     def get_share(self, conn_string: str, share_name: str):
-        print(conn_string, share_name)
         if conn_string == "ValueError":
             raise ValueError("invalid connection string")
         if share_name == "ValueError":
@@ -68,8 +67,9 @@ class _Downloader:
 
 class _ShareObjectProperties:
 
-    def __init__(self, name, last_modified, metadata):
+    def __init__(self, name, last_modified, metadata, ct):
         self.name = name
+        self.creation_time = datetime.datetime.fromtimestamp(ct).astimezone()
         self.last_modified = datetime.datetime.fromtimestamp(last_modified).astimezone()
         self.metadata = metadata
         self.is_directory = True
@@ -77,8 +77,8 @@ class _ShareObjectProperties:
 
 class _FileProperties(_ShareObjectProperties):
 
-    def __init__(self, name, last_modified, metadata, size):
-        super().__init__(name, last_modified, metadata)
+    def __init__(self, name, last_modified, metadata, ct, size):
+        super().__init__(name, last_modified, metadata, ct)
         self.size = size
         self.is_directory = False
 
@@ -124,7 +124,7 @@ class _AzureFileClient:
         if not (self._real_path.exists() and self._real_path.is_file()):
             raise ResourceNotFoundError
         st = self._real_path.stat()
-        return _FileProperties(self._real_path.name, st.st_mtime, get_metadata(self._real_path), st.st_size)
+        return _FileProperties(self._real_path.name, st.st_mtime, get_metadata(self._real_path), st.st_birthtime, st.st_size)
 
     def delete_file(self):
         if not (self._real_path.exists() and self._real_path.is_file()):
@@ -189,15 +189,15 @@ class _AzureDirectoryClient:
     def get_directory_properties(self) -> _DirProperties:
         if not (self._real_path.exists() and self._real_path.is_dir()):
             raise ResourceNotFoundError()
-        return _DirProperties(self._real_path.name, self._real_path.stat().st_mtime, get_metadata(self._real_path))
+        return _DirProperties(self._real_path.name, self._real_path.stat().st_mtime, get_metadata(self._real_path), self._real_path.stat().st_birthtime)
 
     def list_directories_and_files(self) -> typing.Iterable[_ShareObjectProperties]:
         for x in os.scandir(self._real_path):
             stat = x.stat()
             if x.is_file():
-                yield _FileProperties(x.name, stat.st_mtime, get_metadata(pathlib.Path(x.path)), stat.st_size)
+                yield _FileProperties(x.name, stat.st_mtime, get_metadata(pathlib.Path(x.path)), stat.st_birthtime, stat.st_size)
             else:
-                yield _DirProperties(x.name, stat.st_mtime, get_metadata(pathlib.Path(x.path)))
+                yield _DirProperties(x.name, stat.st_mtime, get_metadata(pathlib.Path(x.path)), stat.st_birthtime)
 
     def delete_directory(self):
         if not (self._real_path.exists() and self._real_path.is_dir()):

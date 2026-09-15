@@ -28,10 +28,10 @@ class BlobTest(BaseTestCase):
                     with b.client():
                         ...
 
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "ValueError"}}}})
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config({"storage": {"azure": {"test": {"connection_string": "ValueError"}}}})
     def test_bad_az_blob_conn_details(self):
         b = AzureBlobHandle("https://test.blob.core.windows.net/ValueError")
         with self.assertRaisesCoded():
@@ -137,10 +137,10 @@ class BlobTest(BaseTestCase):
             self.assertTrue(d.exists())
             self.assertTrue(handle.exists())
 
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "AccountName=test;foobar"}}}})
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config({"storage": {"azure": {"test": {"connection_string": "GoodString"}}}})
     def test_existing_file(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test.txt')
         self.assertTrue(file.exists())
@@ -149,10 +149,10 @@ class BlobTest(BaseTestCase):
         self.assertEqual(file.size(), 5)
         self.assertIsNotNone(file.modified_datetime())
 
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "AccountName=test;foobar"}}}})
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config({"storage": {"azure": {"test": {"connection_string": "GoodString"}}}})
     def test_download(self):
         file = AzureBlobHandle.build('https://test.blob.core.windows.net/container/test.txt')
         self.assertTrue(file.exists())

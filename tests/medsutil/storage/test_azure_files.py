@@ -79,10 +79,10 @@ class AzureFileTest(BaseTestCase):
         self.assertTrue(file.supports_metadata())
         self.assertFalse(file.supports_tiering())
 
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "AccountName=test;foobar"}}}})
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config({"storage": {"azure": {"test": {"connection_string": "GoodString"}}}})
     def test_dir_properties(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/subdir/')
         self.assertEqual(file.full_path_within_share(), 'subdir')
@@ -93,10 +93,10 @@ class AzureFileTest(BaseTestCase):
         self.assertSameTime(file.modified_datetime(), datetime.datetime.fromtimestamp(d.stat().st_mtime).astimezone())
         self.assertIsNone(file.size())
 
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "AccountName=test;foobar"}}}})
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config({"storage": {"azure": {"test": {"connection_string": "GoodString"}}}})
     def test_file_properties(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/test.txt')
         self.assertEqual(file.full_path_within_share(), 'test.txt')

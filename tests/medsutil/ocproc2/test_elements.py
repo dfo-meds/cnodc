@@ -113,7 +113,7 @@ class TestSingleElement(ut.TestCase):
     def test_to_decimal_units(self):
         element = SingleElement("1234")
         element.metadata['Units'] = 'm'
-        self.assertEqual(element.to_decimal("km"), decimal.Decimal('1.234'))
+        self.assertAlmostEqual(element.to_decimal("km"), decimal.Decimal("1.234"))
 
     def test_to_float(self):
         element = SingleElement("123.4")

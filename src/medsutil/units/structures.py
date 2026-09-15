@@ -18,19 +18,19 @@ class Converter:
     def convert(self, input_val):
         raise NotImplementedError  # pragma: no cover
 
-    def scale(self, factor: decimal.Decimal):
+    def scale(self, factor: amath.AnyNumber) -> Converter:
         raise NotImplementedError  # pragma: no cover
 
-    def power(self, factor: decimal.Decimal):
+    def power(self, factor: amath.AnyNumber) -> Converter:
         raise NotImplementedError  # pragma: no cover
 
-    def product(self, other_converter):
+    def product(self, other_converter) -> Converter:
         raise NotImplementedError  # pragma: no cover
 
-    def shift(self, factor: decimal.Decimal):
+    def shift(self, factor: amath.AnyNumber) -> Converter:
         raise NotImplementedError  # pragma: no cover
 
-    def invert(self):
+    def invert(self) -> Converter:
         raise NotImplementedError  # pragma: no cover
 
 
@@ -56,6 +56,10 @@ class Number(Literal):
 
     def __init__(self, value: str):
         self.value = value
+        if "." in self.value:
+            self.value = self.value.rstrip("0")
+        if self.value.endswith("."):
+            self.value = self.value[:-1]
 
     def __repr__(self):
         return self.value
@@ -65,11 +69,11 @@ class Number(Literal):
             return other.value == self.value
         return False
 
-    def as_decimal(self):
-        return decimal.Decimal(self.value)
+    def as_num_string(self) -> amath.NumberString:
+        return amath.NumberString(self.value)
 
     def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
-        return LinearFunction(self.as_decimal()), {}
+        return LinearFunction(self.as_num_string()), {}
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:
         return str(self.value)
@@ -148,7 +152,7 @@ class Offset(UnitExpression):
     def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
         inner_convert, inner_dims = self.expression.get_unit_info(ref_dict)
         if isinstance(self.offset, Number):
-            return inner_convert.shift(self.offset.as_decimal()), inner_dims
+            return inner_convert.shift(self.offset.as_num_string()), inner_dims
         raise UnitError("Shift not supported with other data types yet", 3001)
 
 
@@ -173,7 +177,7 @@ class Quotient(UnitExpression):
     def udunit_str(self, ref_dict: UnitConverter) -> str:   # pragma: no cover
         return self.standardize().udunit_str(ref_dict)
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[decimal.Decimal, dict[str, int]]:  # pragma: no cover
+    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:  # pragma: no cover
         left_factor, left_dims = self.left.get_unit_info(ref_dict)
         right_factor, right_dims = self.right.get_unit_info(ref_dict)
         result_dims = {x: left_dims[x] for x in left_dims}
@@ -211,9 +215,9 @@ class Product(UnitExpression):
                 products.append(x.right)
             elif isinstance(x, Number):
                 if constant is None:
-                    constant = x.as_decimal()
+                    constant = x.as_num_string()
                 else:
-                    constant *= x.as_decimal()
+                    constant = amath.mul(constant, x.as_num_string())
             # should be exponents or simple units
             elif isinstance(x, SimpleUnit):
                 if x.name not in raw_products:
@@ -222,7 +226,7 @@ class Product(UnitExpression):
             elif isinstance(x, Exponent) and isinstance(x.base, SimpleUnit):
                 if x.base.name not in raw_products:
                     raw_products[x.base.name] = 0
-                raw_products[x.base.name] += x.exponent.as_decimal()
+                raw_products[x.base.name] = amath.add(raw_products[x.base.name], x.exponent.as_num_string())
             else:  # pragma: no cover (this just handles fallback)
                 others.append(x)
         expr = None
@@ -245,7 +249,7 @@ class Product(UnitExpression):
     def udunit_str(self, ref_dict: UnitConverter) -> str:
         return f'{self.left.udunit_str(ref_dict)} {self.right.udunit_str(ref_dict)}'
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[decimal.Decimal, dict[str, int]]:
+    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
         left_factor, left_dims = self.left.get_unit_info(ref_dict)
         right_factor, right_dims = self.right.get_unit_info(ref_dict)
         result_dims = {x: left_dims[x] for x in left_dims}
@@ -269,16 +273,16 @@ class Exponent(UnitExpression):
     def standardize(self) -> UnitExpression:
         # (A^n)^m = A^(n*m)
         if isinstance(self.base, Exponent):
-            return Exponent(self.base.base, Integer(str(self.exponent.as_decimal() * self.base.exponent.as_decimal()))).standardize()
+            return Exponent(self.base.base, Integer(str(int(amath.mul(self.exponent.as_num_string(), self.base.exponent.as_num_string()))))).standardize()
         # (AB)^n = A^n B^n
         if isinstance(self.base, Product):
             return Product(Exponent(self.base.left, self.exponent), Exponent(self.base.right, self.exponent)).standardize()
         # (A/B)^n = A^n B^-n
         if isinstance(self.base, Quotient):
-            return Product(Exponent(self.base.left, self.exponent), Exponent(self.base.right, Integer(str(self.exponent.as_decimal() * -1)))).standardize()
+            return Product(Exponent(self.base.left, self.exponent), Exponent(self.base.right, Integer(str(amath.mul(self.exponent.as_num_string(), -1))))).standardize()
         # (r^n) = r^n
         if isinstance(self.base, Number):
-            return Number(str(self.base.as_decimal() ** self.exponent.as_decimal()))
+            return Number(str(amath.pow_(self.base.as_num_string(), self.exponent.as_num_string())))
         # A^1 = A
         if self.exponent.value == "1":
             return self.base.standardize()
@@ -292,10 +296,10 @@ class Exponent(UnitExpression):
     def udunit_str(self, ref_dict: UnitConverter) -> str:
         return f'{self.base.udunit_str(ref_dict)}{self.exponent.udunit_str(ref_dict)}'
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[decimal.Decimal, dict[str, int]]:
+    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
         base_factor, base_dims = self.base.get_unit_info(ref_dict)
-        exp_num = self.exponent.as_decimal()
-        return base_factor.power(exp_num), {x: int(base_dims[x] * exp_num) for x in base_dims}
+        exp_num = self.exponent.as_num_string()
+        return base_factor.power(exp_num), {x: int(amath.mul(base_dims[x], exp_num)) for x in base_dims}
 
 
 class LinearFunction(Converter):

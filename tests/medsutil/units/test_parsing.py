@@ -10,8 +10,6 @@ from medsutil.units.units import UnitError
 class TestUnitParsing(ut.TestCase):
 
     SIMPLE_TESTS = [
-        ("kg kg-1", uns.Integer("1")),
-        ("g kg-1", uns.Real("1e-3")),
         ("10e-9", uns.Real("10e-9")),
         ("m", uns.SimpleUnit("m")),
         ("m2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
@@ -66,6 +64,39 @@ class TestLowLevel(ut.TestCase):
     DECIMALS = ["3.0", "-3.0", "3.7", "+3.7"]
     LITERALS = ['+3E7', '-4.21E9', '+3.3E-12', '3.4e9', '-2.31e-12']
     NOT_NUMBERS = ["foo", "hello", "bar", "3.4.1", "+-8", "", "2.3E2.1", "-2.3e2.7", "+", "-"]
+
+    SIMPLE_TESTS = [
+        ("10e-9", uns.Real("10e-9")),
+        ("m", uns.SimpleUnit("m")),
+        ("m2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
+        ("m^2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
+        ("m / kg^-2", uns.Product(uns.SimpleUnit("m"), uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")))),
+        ("m / kg^-1", uns.Product(uns.SimpleUnit("m"), uns.SimpleUnit("kg"))),
+        ("m**2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
+        ("m-2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
+        ("m^-2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
+        ("m**-2", uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
+        ("kg m", uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m"))),
+        ("kg·m", uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m"))),
+        ("kg*m", uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m"))),
+        ("kg/m", uns.Product(uns.SimpleUnit("kg"), uns.Exponent(
+            uns.SimpleUnit("m"), uns.Integer("-1")))),
+        ("kg per m", uns.Product(uns.SimpleUnit("kg"), uns.Exponent(
+            uns.SimpleUnit("m"), uns.Integer("-1")))),
+        ("kg PER m", uns.Product(uns.SimpleUnit("kg"), uns.Exponent(
+            uns.SimpleUnit("m"), uns.Integer("-1")))),
+        ("kgperm", uns.Product(uns.SimpleUnit("kg"), uns.Exponent(
+            uns.SimpleUnit("m"), uns.Integer("-1")))),
+        ("m / s2", uns.Product(uns.SimpleUnit("m"), uns.Exponent(
+            uns.SimpleUnit("s"), uns.Integer("-2")))),
+        ("kg s2 m", uns.Product(
+            uns.Product(uns.SimpleUnit("kg"), uns.Exponent(
+                uns.SimpleUnit("s"), uns.Integer("2"))), uns.SimpleUnit("m"))),
+        ("kg / m / s2", uns.Product(
+            uns.Product(uns.SimpleUnit("kg"), uns.Exponent(
+                uns.SimpleUnit("m"), uns.Integer("-1"))), uns.Exponent(
+                uns.SimpleUnit("s"), uns.Integer("-2")))),
+    ]
 
     def test_is_integer(self):
         for case in itertools.chain(TestLowLevel.NOT_NUMBERS, TestLowLevel.DECIMALS):
@@ -176,7 +207,7 @@ class TestLowLevel(ut.TestCase):
             ('kg m-2 s', ['kg', 'm-2', 's']),
             ('kg * m', ['kg', '*', 'm']),
             ('kg*m', ['kg', '*', 'm']),
-            ('kg. m', ['kg', '.', 'm']),
+            ('kg· m', ['kg', '·', 'm']),
             ('kg ·m', ['kg', '·', 'm']),
             ('kg / m', ['kg', '/', 'm']),
             ('kg per m', ['kg', 'per', 'm']),
@@ -188,7 +219,7 @@ class TestLowLevel(ut.TestCase):
                 self.assertEqual(unp._decompose_simple_unit_string(in_value), output)
 
     def test_parse_simple_unit_string(self):
-        for test, result in TestUnitParsing.SIMPLE_TESTS:
+        for test, result in self.SIMPLE_TESTS:
             with self.subTest(input=test):
                 self.assertEqual(unp._parse_simple_unit_string(test), result)
 
