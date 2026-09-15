@@ -79,7 +79,16 @@ class TestFTPHandle(BaseTestCase):
         super().tearDownClass()
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"username": "test", "password": "test"})
+    @test_with_config({
+        "storage": {
+            "ftp": {
+                "localhost": {
+                    "username": "test",
+                    "password": "test"
+                }
+            }
+        }
+    })
     def test_mkdir(self):
         with FTPHandle("ftp://localhost/hello_world/") as handle:
             with self.temp_data_dir('ftp_root/hello_world') as real_dir:
@@ -100,8 +109,16 @@ class TestFTPHandle(BaseTestCase):
                 self.assertTrue(handle.exists())
                 self.assertTrue(fp.exists())
 
-    @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"username": "test", "password": "test"})
+    @test_with_config({
+        "storage": {
+            "ftp": {
+                "localhost": {
+                    "username": "test",
+                    "password": "test"
+                }
+            }
+        }
+    })
     def test_remove(self):
         with self.temp_data_file('ftp_root/test_remove.txt') as fp:
             fp.touch()
@@ -159,8 +176,16 @@ class TestFTPHandle(BaseTestCase):
                 with self.assertRaises(StorageError):
                     handle.upload(f)
 
-    @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"username": "test", "password": "test"})
+    @test_with_config({
+        "storage": {
+            "ftp": {
+                "localhost": {
+                    "username": "test",
+                    "password": "test"
+                }
+            }
+        }
+    })
     def test_write(self):
         f = self.temp_dir / "foobar.txt"
         with open(f, "wb") as h:
@@ -193,7 +218,15 @@ class TestFTPHandle(BaseTestCase):
             self.assertIsNotNone(good_file.modified_datetime())
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"server_timezone": "Etc/UTC"})
+    @test_with_config({
+        "storage": {
+            "ftp": {
+                "localhost": {
+                    "server_timezone": "Etc/UTC"
+                }
+            }
+        }
+    })
     def test_good_file2(self):
         with FTPHandle('ftp://localhost/test.txt') as good_file:
             lmt = good_file.modified_datetime()
@@ -273,7 +306,7 @@ class TestOlderFTPHandle(ut.TestCase):
         super().tearDownClass()
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"rfc3659_support": False})
+    @test_with_config({"storage": {"ftp": {"localhost": {"rfc3659_support": False}}}})
     def test_dir(self):
         with FTPHandle("ftp://localhost/") as handle:
             self.assertTrue(handle.is_dir())
@@ -282,7 +315,7 @@ class TestOlderFTPHandle(ut.TestCase):
             self.assertIsNone(handle.modified_datetime())
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"rfc3659_support": False})
+    @test_with_config({"storage": {"ftp": {"localhost": {"rfc3659_support": False}}}})
     def test_good_file(self):
         with FTPHandle('ftp://localhost/test.txt') as good_file:
             self.assertTrue(good_file.exists())
@@ -291,7 +324,7 @@ class TestOlderFTPHandle(ut.TestCase):
             self.assertIsNone(good_file.modified_datetime())
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"rfc3659_support": False})
+    @test_with_config({"storage": {"ftp": {"localhost": {"rfc3659_support": False}}}})
     def test_bad_file(self):
         with FTPHandle('ftp://localhost/test3.txt') as bad_file:
             self.assertFalse(bad_file.exists())
@@ -300,7 +333,7 @@ class TestOlderFTPHandle(ut.TestCase):
             self.assertIsNone(bad_file.modified_datetime())
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"rfc3659_support": False})
+    @test_with_config({"storage": {"ftp": {"localhost": {"rfc3659_support": False}}}})
     def test_walk(self):
         with FTPHandle("ftp://localhost/") as handle:
             files = [x.name for x in handle.iterdir(False, path_types=PathType.FILE)]
@@ -314,7 +347,7 @@ class TestOlderFTPHandle(ut.TestCase):
             self.assertEqual(len(files), 2)
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"rfc3659_support": False})
+    @test_with_config({"storage": {"ftp": {"localhost": {"rfc3659_support": False}}}})
     def test_walk_recursive(self):
         with FTPHandle("ftp://localhost/") as handle:
             files = [x.path() for x in handle.iterdir(True, path_types=PathType.FILE)]
@@ -328,7 +361,7 @@ class TestOlderFTPHandle(ut.TestCase):
             self.assertEqual(len(files), 4)
 
     @injector.test_case
-    @test_with_config(("storage", "ftp", "localhost"), {"rfc3659_support": False})
+    @test_with_config({"storage": {"ftp": {"localhost": {"rfc3659_support": False}}}})
     def test_walk_and_do_stuff(self):
         with FTPHandle("ftp://localhost/") as handle:
             items_seen = 0

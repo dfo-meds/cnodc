@@ -6,7 +6,6 @@ import subprocess
 import zirconium
 from autoinject import injector
 
-from pipeman_web.boot import build_cnodc_webapp
 from gcapp.requestinfo import RequestInfo
 from gcflask.trustedproxy import TrustedProxyFix
 from tests.helpers.base_test_case import BaseTestCase, skip_long_test
@@ -206,7 +205,7 @@ class TestRequestInfo(BaseTestCase):
         self.assertIsNotNone(info.sys_emulated_username())
 
     @injector.test_case
-    @zirconium.test_with_config(('flask', 'SECRET_KEY'), 'hello_world')
+    @zirconium.test_with_config({'flask': {'SECRET_KEY': 'hello_world'}})
     def test_with_request(self):
         info = RequestInfo()
         client = build_cnodc_webapp("app", no_boot=True)
@@ -230,7 +229,7 @@ class TestRequestInfo(BaseTestCase):
                 self.assertIsNone(info.username())
 
     @injector.test_case
-    @zirconium.test_with_config(('flask', 'SECRET_KEY'), 'hello_world')
+    @zirconium.test_with_config({'flask': {'SECRET_KEY': 'hello_world'}})
     def test_less_helpful_request(self):
         info = RequestInfo()
         client = build_cnodc_webapp("app", no_boot=True)

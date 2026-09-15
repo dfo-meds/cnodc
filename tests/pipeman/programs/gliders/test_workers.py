@@ -223,9 +223,10 @@ class TestDMDUploader(BaseTestCase):
         super().setUp()
         self._web_test_data.clear()
 
-    @injector.test_case
-    @zr.test_with_config(('dmd', 'auth_token'), '12345')
-    @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
+    @zr.test_with_config({'dmd': {
+        'auth_token': '12345',
+        'base_url': 'http://test/',
+    }})
     def test_upload_metadata(self):
         data = {
             'metadata': {}

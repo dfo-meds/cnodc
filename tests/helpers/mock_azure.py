@@ -20,6 +20,7 @@ class AzureMockClientPool:
     shares: dict[str, _AzureFileShare] = {}
 
     def get_share(self, conn_string: str, share_name: str):
+        print(conn_string, share_name)
         if conn_string == "ValueError":
             raise ValueError("invalid connection string")
         if share_name == "ValueError":

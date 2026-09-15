@@ -3,7 +3,7 @@ import enum
 
 from medsutil.awaretime import AwareDateTime
 from nodb.observations import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, PlatformStatus, \
-    NODBBatch, ProcessingLevel, ObservationType, ObservationStatus, NODBWorkingRecord, BatchStatus
+    NODBBatch, ObservationType, ObservationStatus, NODBWorkingRecord, BatchStatus
 from medsutil.ocproc2 import ParentRecord, ChildRecord, QCResult
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from tests.helpers.base_test_case import BaseTestCase
@@ -523,7 +523,6 @@ class TestObservationData(BaseTestCase):
         record.metadata['CNODCDuplicateId'] = '12345'
         record.metadata['CNODCDuplicateDate'] = '2015-10-20'
         record.metadata['CNODCStatus'] = ObservationStatus.DUBIOUS.value
-        record.metadata['CNODCLevel'] = ProcessingLevel.REAL_TIME.value
         record.coordinates['Time'] = '2015-01-02T00:00:00+00:00'
         record.coordinates['Latitude'] = 45.123456
         record.coordinates['Longitude'] = -123.12345478
@@ -532,7 +531,6 @@ class TestObservationData(BaseTestCase):
         self.assertIsNone(obs_data.duplicate_uuid)
         self.assertIsNone(obs_data.duplicate_received_date)
         self.assertIs(obs_data.status, ObservationStatus.UNVERIFIED)
-        self.assertIs(obs_data.processing_level, ProcessingLevel.UNKNOWN)
         self.assertEqual(0, len(obs_data.qc_tests))
         obs_data.record = record
         with self.subTest(msg='duplicate info'):
@@ -540,8 +538,6 @@ class TestObservationData(BaseTestCase):
             self.assertEqual(obs_data.duplicate_received_date, datetime.date(2015, 10, 20))
         with self.subTest(msg='status'):
             self.assertIs(obs_data.status, ObservationStatus.DUBIOUS)
-        with self.subTest(msg='processing level'):
-            self.assertIs(obs_data.processing_level, ProcessingLevel.REAL_TIME)
         with self.subTest(msg='qc tests'):
             self.assertIn('bogus_qc', obs_data.qc_tests)
             self.assertEqual('1.3', obs_data.qc_tests['bogus_qc']['version'])
@@ -563,7 +559,6 @@ class TestObservationData(BaseTestCase):
             source_file_uuid='23456',
             message_idx=5,
             record_idx=10,
-            processing_level=ProcessingLevel.REAL_TIME.value
         )
         obs_data2 = NODBObservationData(
             obs_uuid='123456',
@@ -571,15 +566,14 @@ class TestObservationData(BaseTestCase):
             source_file_uuid='23456',
             message_idx=5,
             record_idx=10,
-            processing_level=ProcessingLevel.DELAYED_MODE.value
         )
         self.db.insert_object(obs_data)
         self.db.insert_object(obs_data2)
         od2 = NODBObservationData.find_by_uuid(self.db, '12345', '2015-01-02')
         self.assertIs(obs_data, od2)
-        s1 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10, ProcessingLevel.REAL_TIME)
+        s1 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
         self.assertIs(obs_data, s1)
-        s2 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10, ProcessingLevel.DELAYED_MODE)
+        s2 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
         self.assertIs(obs_data2, s2)
         s3 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
         self.assertIsNone(s3)

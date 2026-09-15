@@ -40,7 +40,7 @@ class TestDataManagerConnection(BaseTestCase):
         cls.web('http://test/api/create-dataset', 'POST')(create_dataset)
 
     @injector.test_case
-    @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
+    @zr.test_with_config({'dmd': {'base_url': 'http://test/'}})
     def test_dmd_bad_auth_post(self):
         x = DataManagerController()
         with self.mock_web_test():
@@ -48,7 +48,7 @@ class TestDataManagerConnection(BaseTestCase):
                 x.upsert_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
-    @zr.test_with_config(('dmd', 'auth_token'), '12345')
+    @zr.test_with_config({'dmd': {'auth_token': '12345'}})
     def test_dmd_good_auth_post_bad_url(self):
         x = DataManagerController()
         with self.mock_web_test():
@@ -56,15 +56,14 @@ class TestDataManagerConnection(BaseTestCase):
                 x.upsert_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
-    @zr.test_with_config(('dmd', 'auth_token'), '12345')
-    @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
+    @zr.test_with_config({'dmd': {'auth_token': '12345', 'base_url': 'http://test/'}})
     def test_dmd_good_auth_post_url(self):
         x = DataManagerController()
         with self.mock_web_test():
             self.assertEqual(x.upsert_dataset(DatasetMetadata().build_request_body()), '23456')
 
     @injector.test_case
-    @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
+    @zr.test_with_config({'dmd': {'base_url': 'http://test/'}})
     def test_dmd_bad_auth_post_create(self):
         x = DataManagerController()
         with self.mock_web_test():
@@ -72,7 +71,7 @@ class TestDataManagerConnection(BaseTestCase):
                 x.create_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
-    @zr.test_with_config(('dmd', 'auth_token'), '12345')
+    @zr.test_with_config({'dmd': {'auth_token': '12345'}})
     def test_dmd_good_auth_post_bad_url_create(self):
         x = DataManagerController()
         with self.mock_web_test():
@@ -80,8 +79,7 @@ class TestDataManagerConnection(BaseTestCase):
                 x.create_dataset(DatasetMetadata().build_request_body())
 
     @injector.test_case
-    @zr.test_with_config(('dmd', 'auth_token'), '12345')
-    @zr.test_with_config(('dmd', 'base_url'), 'http://test/')
+    @zr.test_with_config({'dmd': {'auth_token': '12345', 'base_url': 'http://test/'}})
     def test_dmd_good_auth_post_url_create(self):
         x = DataManagerController()
         with self.mock_web_test():

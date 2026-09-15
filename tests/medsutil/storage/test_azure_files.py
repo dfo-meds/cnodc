@@ -1,5 +1,5 @@
 from autoinject import injector
-from zirconium import test_with_config
+from zirconium import test_with_config, ApplicationConfig
 
 from medsutil.storage.interface import PathType
 from tests.helpers.mock_azure import AzureMockClientPool
@@ -8,6 +8,13 @@ from medsutil.storage.azure_files import AzureFileHandle
 from tests.helpers.base_test_case import BaseTestCase
 import datetime
 
+
+def TestConfig(config: dict):
+    def _build():
+        app = ApplicationConfig()
+        app.set_defaults(config)
+        return app
+    return _build
 
 
 @wrap_azure_errors
@@ -49,9 +56,9 @@ class AzureFileTest(BaseTestCase):
                 ...
 
     @injector.test_case({
-        AzureClientPool: AzureMockClientPool
+        AzureClientPool: AzureMockClientPool,
     })
-    @test_with_config(("storage", "azure", "test", 'connection_string'), 'ValueError')
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "ValueError"}}}})
     def test_bad_az_file_share_file(self):
         with self.subTest(msg='file test'):
             b = AzureFileHandle("https://test.file.core.windows.net/share/file.txt")
@@ -75,7 +82,7 @@ class AzureFileTest(BaseTestCase):
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config(("storage", "azure", "test", "connection_string"), "GoodString")
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "GoodString"}}}})
     def test_dir_properties(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/subdir/')
         self.assertEqual(file.full_path_within_share(), 'subdir')
@@ -89,7 +96,7 @@ class AzureFileTest(BaseTestCase):
     @injector.test_case({
         AzureClientPool: AzureMockClientPool
     })
-    @test_with_config(("azure", "storage", "test", "connection_string"), "GoodString")
+    @test_with_config({"storage": {"azure": {"test": {"connection_string": "GoodString"}}}})
     def test_file_properties(self):
         file = AzureFileHandle.build('https://test.file.core.windows.net/share/test.txt')
         self.assertEqual(file.full_path_within_share(), 'test.txt')
