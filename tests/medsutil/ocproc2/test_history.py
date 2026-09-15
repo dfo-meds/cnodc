@@ -25,6 +25,9 @@ class TestHistory(ut.TestCase):
         map_ = h.to_mapping()
         self.assertEqual(map_, {
             '_message': 'hello world',
+            '_action_type': None,
+            '_organization': 'CA-CNODC',
+            '_affected': None,
             '_timestamp': '2015-01-02T03:04:05',
             '_source': ['test', '1.0', '12345'],
             '_message_type': MessageType.NOTE.value
@@ -215,7 +218,8 @@ class TestQCMessage(ut.TestCase):
         self.assertEqual(map_, {
             '_code': 'code',
             '_path': 'path/test',
-            '_ref': 'ref'
+            '_ref': 'ref',
+            '_review': None,
         })
         qcm2 = QCMessage.from_mapping(map_)
         self.assertEqual(qcm2.code, 'code')
@@ -280,7 +284,7 @@ class TestQCMessage(ut.TestCase):
 class TestTestRunInfo(ut.TestCase):
 
     def test_mapping(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS, [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS, [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         self.assertEqual(info.test_name, 'test')
         self.assertEqual(info.test_version, '1.0')
         self.assertEqual(info.test_date, '2015-01-02T03:04:05')
@@ -291,7 +295,10 @@ class TestTestRunInfo(ut.TestCase):
         self.assertFalse(info.is_stale)
         self.assertIn('gtspp1', info.test_tags)
         map_ = info.to_mapping()
-        self.assertEqual(map_, {
+        self.assertDictEqual(map_, {
+            '_protocol': 'test',
+            '_applied': [],
+            '_proposed': [],
             '_name': 'test',
             '_version': '1.0',
             '_date': '2015-01-02T03:04:05',
@@ -299,7 +306,8 @@ class TestTestRunInfo(ut.TestCase):
                 {
                     '_code': 'code',
                     '_path': 'path',
-                    '_ref': 'ref'
+                    '_ref': 'ref',
+                    '_review': None,
                 }
             ],
             '_result': QCResult.PASS.value,
@@ -319,130 +327,130 @@ class TestTestRunInfo(ut.TestCase):
         self.assertIn('gtspp1', info2.test_tags)
 
     def test_hash(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS, [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS, [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS, [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS, [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertEqual(h.digest(), h2.digest())
 
     def test_hash_different_name(self):
-        info = QCTestRunInfo('test2', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test2', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_version(self):
-        info = QCTestRunInfo('test', '1.1', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.1', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_date(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 6), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 6), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_result(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.FAIL,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.FAIL,
                              [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_message(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code2', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_more_messages(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code2', 'path2', 'ref2'), QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_notes(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes2', False, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_stale(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', True, ['gtspp1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_tags(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp2'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_more_tags(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1', 'gtspp1.1'])
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
     def test_hash_different_no_tags(self):
-        info = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                              [QCMessage('code', 'path', 'ref')], 'notes', False)
         h = hashlib.new('sha256')
         info.update_hash(h)
-        info2 = QCTestRunInfo('test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
+        info2 = QCTestRunInfo('test', 'test', '1.0', datetime.datetime(2015, 1, 2, 3, 4, 5), QCResult.PASS,
                               [QCMessage('code', 'path', 'ref')], 'notes', False, ['gtspp1'])
         h2 = hashlib.new('sha256')
         info2.update_hash(h2)
