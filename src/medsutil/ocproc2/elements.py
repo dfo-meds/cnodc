@@ -4,6 +4,7 @@ import functools
 import hashlib
 import typing as t
 import datetime
+from _hashlib import HASH
 
 import zrlog
 from wtforms.validators import none_of
@@ -366,7 +367,7 @@ class AbstractElement[X]:
     def to_string(self) -> str:
         return str(self.ideal().value)
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with the unique value of this value."""
         for v in self.all_values(True):
             if v.value is None:
@@ -654,7 +655,7 @@ class ElementMap(LazyLoadDict[AbstractElement]):
         except KeyError as ex:
             return None
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with all the values of this map"""
         for k in sorted(self.keys()):
             h.update(k.encode('utf-8', 'replace'))

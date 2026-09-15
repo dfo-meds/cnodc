@@ -2,6 +2,7 @@
 import hashlib
 import typing as t
 import datetime
+from _hashlib import HASH
 
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.elements import ElementMap, AbstractElement, SingleElement, AnyElementExport, MetadataDict, \
@@ -144,7 +145,7 @@ class BaseRecord:
         if self._subrecords is not None:
             yield from self._subrecords.iter_subrecords(subrecord_type)
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         if self._metadata is not None:
             self._metadata.update_hash(h)
         if self._parameters is not None:
@@ -193,11 +194,11 @@ class ParentRecord(BaseRecord):
         if '_qc_tests' in map_:
             self.qc_tests.from_mapping(map_['_qc_tests'])
 
-    def test_already_run(self, test_name: str, include_stale: bool = False) -> bool:
+    def test_already_run(self, test_protocol: str, test_name: str, include_stale: bool = False) -> bool:
         if include_stale:
-            return any(x.test_name == test_name for x in self.qc_tests)
+            return any(x.test_protocol == test_protocol and x.test_name == test_name for x in self.qc_tests)
         else:
-            return any(x.test_name == test_name and not x.is_stale for x in self.qc_tests)
+            return any(x.test_protocol == test_protocol and x.test_name == test_name and not x.is_stale for x in self.qc_tests)
 
     def latest_test_result(self, test_name: str, include_stale: bool = False) -> t.Optional[QCTestRunInfo]:
         best = None
@@ -215,7 +216,7 @@ class ParentRecord(BaseRecord):
         self.update_hash(h)
         return h.hexdigest()
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         super().update_hash(h)
         for his in self.history:
             his.update_hash(h)
@@ -358,7 +359,7 @@ class RecordSet:
             self._metadata = ElementMap()
         return self._metadata
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         if self._metadata is not None:
             self.metadata.update_hash(h)
         for r in self.records:
@@ -451,7 +452,7 @@ class RecordMap:
                 return None
         return ret
 
-    def update_hash(self, h: ct.SupportsHashUpdate):
+    def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         for srt in self.record_sets:
             h.update(srt.encode('utf-8', 'replace'))
             for idx in self.record_sets[srt]:
