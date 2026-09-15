@@ -339,18 +339,6 @@ class AbstractElement[X]:
         """Convert this value to a decimal number"""
         return self._coerce_to_numeric(decimal.Decimal, units)
 
-    def to_ufloat(self, units: t.Optional[str] = None) -> UFloat | float:
-        """Convert this value to a UFloat."""
-        bv: AbstractElement = self.ideal()
-        if bv.metadata.has_value('Uncertainty'):
-            unc = bv.metadata.best('Uncertainty', coerce=decimal.Decimal)
-            if bv.metadata.best('UncertaintyType', 'normal') == 'uniform':
-                unc = unc * UNIFORM_CONVERSION_FACTOR
-            if unc != decimal.Decimal("0"):
-                from uncertainties import ufloat
-                return self._coerce_to_numeric(lambda x: ufloat(x, abs(unc)), units)
-        return self._coerce_to_numeric(float, units)
-
     def to_float(self, units: t.Optional[str] = None) -> float:
         """Convert this value to a float."""
         return self._coerce_to_numeric(float, units)

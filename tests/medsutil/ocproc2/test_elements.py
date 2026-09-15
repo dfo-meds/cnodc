@@ -115,60 +115,6 @@ class TestSingleElement(ut.TestCase):
         element.metadata['Units'] = 'm'
         self.assertEqual(element.to_decimal("km"), decimal.Decimal('1.234'))
 
-    def test_to_ufloat(self):
-        element = SingleElement("1234.1")
-        element.metadata['Uncertainty'] = "0.05"
-        uf = element.to_ufloat()
-        self.assertIsInstance(uf, UFloat)
-        self.assertEqual(uf.nominal_value, 1234.1)
-        self.assertEqual(uf.std_dev, 0.05)
-
-    def test_to_ufloat_units(self):
-        element = SingleElement("1234.1")
-        element.metadata['Uncertainty'] = "0.05"
-        element.metadata['Units'] = 'm'
-        uf = element.to_ufloat('km')
-        self.assertIsInstance(uf, UFloat)
-        self.assertEqual(uf.nominal_value, 1.2341)
-        self.assertEqual(uf.std_dev, 0.00005)
-
-    def test_to_ufloat_negative(self):
-        element = SingleElement("1234.1")
-        element.metadata['Uncertainty'] = "-0.05"
-        uf = element.to_ufloat()
-        self.assertIsInstance(uf, UFloat)
-        self.assertEqual(uf.nominal_value, 1234.1)
-        self.assertEqual(uf.std_dev, 0.05)
-
-    def test_to_ufloat_missing(self):
-        element = SingleElement("1234.1")
-        element.metadata['Uncertainty'] = None
-        uf = element.to_ufloat()
-        self.assertIsInstance(uf, float)
-        self.assertEqual(uf, 1234.1)
-
-    def test_to_ufloat_zero(self):
-        element = SingleElement("1234.1")
-        element.metadata['Uncertainty'] = 0
-        uf = element.to_ufloat()
-        self.assertIsInstance(uf, float)
-        self.assertEqual(uf, 1234.1)
-
-    def test_to_uniform_ufloat(self):
-        element = SingleElement("1234.1")
-        element.metadata['Uncertainty'] = "0.05"
-        element.metadata['UncertaintyType'] = 'uniform'
-        uf = element.to_ufloat()
-        self.assertIsInstance(uf, UFloat)
-        self.assertEqual(uf.nominal_value, 1234.1)
-        self.assertEqual(uf.std_dev, float(decimal.Decimal("0.05") * UNIFORM_CONVERSION_FACTOR))
-
-    def test_to_ufloat_no_unc(self):
-        element = SingleElement("1234.1")
-        uf = element.to_ufloat()
-        self.assertIsInstance(uf, float)
-        self.assertEqual(uf, 1234.1)
-
     def test_to_float(self):
         element = SingleElement("123.4")
         self.assertEqual(element.to_float(), float("123.4"))
