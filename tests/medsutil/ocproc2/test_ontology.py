@@ -214,10 +214,10 @@ rstypes:Type3  rdf:type skos:Concept ;
         """)
 
     TEST_INFO = [
-        ('Parameter',   True,   "m",    "decimal",          5.0,    10.0,   None,                       "parameters",           "Time", {'seaSurfaceSalinity'},                         True),
+        ('Parameter',   True,   "m",    "decimal",          5.0,    10.0,   None,                       "parameters",           "Time", {'seaSurfaceSalinity'},                         False),
         ('Parameter2',  False,),
-        ('Parameter3',  True,   None,   "string",           None,   None,   {"one", "two", "three"},    "metadata",             None,   {'subSurfaceSalinity', 'seaSurfaceSalinity'},   True),
-        ('Parameter4',  True,   None,   "dateTimeStamp",    None,   None,   None,                       "coordinates",          None,   None,                                           True),
+        ('Parameter3',  True,   None,   "string",           None,   None,   {"one", "two", "three"},    "metadata",             None,   {'subSurfaceSalinity', 'seaSurfaceSalinity'},   False),
+        ('Parameter4',  True,   None,   "dateTimeStamp",    None,   None,   None,                       "coordinates",          None,   None,                                           False),
         ('Parameter5',  True,   None,   "integer",          5,      None,   None,                       "metadata:platform",    None,   None,                                           True),
         ('Parameter6',  True,   None,   "List",             None,   None,   None,                       "metadata:element",     None,   None,                                           True),
         ('Parameter7',  True,   None,   "date",             None,   None,   None,                       "metadata:mission",     None,   None,                                           True),
@@ -225,7 +225,7 @@ rstypes:Type3  rdf:type skos:Concept ;
         ('Parameter9',  False,),
         ('Parameter10', True,   None,   "integer",          None,   10,     {2, 4, 6, 8},               "metadata:product",     None,   None,                                           False),
         ('Parameter11', True,   None,   "integer",          None,   None,   None,                       "metadata:record",      None,   None,                                           False),
-        ('Parameter12', True,   None,   "string",           None,   None,   {"one"},                    None,                   None,   None,                                           True),
+        ('Parameter12', True,   None,   "string",           None,   None,   {"one"},                    None,                   None,   None,                                           False),
     ]
 
     def test_ontology_is_defined(self):
@@ -247,19 +247,19 @@ rstypes:Type3  rdf:type skos:Concept ;
 
     def test_label_english_only(self):
         self.assertEqual(self.ontology.info("Parameter3").label('en'), 'Parameter3')
-        self.assertEqual(self.ontology.info("Parameter3").label('fr'), '')
+        self.assertEqual(self.ontology.info("Parameter3").label('fr'), 'Parameter3')
 
     def test_label_french_only(self):
         self.assertEqual(self.ontology.info("Parameter4").label('fr'), 'Parameter4')
-        self.assertEqual(self.ontology.info("Parameter4").label('en'), '')
+        self.assertEqual(self.ontology.info("Parameter4").label('en'), 'Parameter4')
 
     def test_label_undefined(self):
         self.assertEqual(self.ontology.info("Parameter5").label('en'), 'Parameter5')
         self.assertEqual(self.ontology.info("Parameter5").label('fr'), 'Parameter5')
 
     def test_label_omitted(self):
-        self.assertEqual(self.ontology.info("Parameter6").label('en'), '')
-        self.assertEqual(self.ontology.info("Parameter6").label('fr'), '')
+        self.assertEqual(self.ontology.info("Parameter6").label('en'), 'Parameter6')
+        self.assertEqual(self.ontology.info("Parameter6").label('fr'), 'Parameter6')
 
     def test_documentation(self):
         self.assertEqual(self.ontology.info("Parameter").documentation('en'), 'Documentation')
@@ -354,14 +354,14 @@ rstypes:Type3  rdf:type skos:Concept ;
         self.assertIsInstance(self.ontology.recordset_info('Type1'), OCProc2ChildRecordTypeInfo)
         self.assertEqual(self.ontology.recordset_info('Type1').label('en'), 'hello')
         self.assertEqual(self.ontology.recordset_info('Type1').documentation('en'), 'hello2')
-        self.assertEqual(self.ontology.recordset_info('Type1').coordinates, {'Parameter1', 'Parameter3'})
-        self.assertEqual(self.ontology.coordinates('Type1'), {'Parameter1', 'Parameter3'})
+        self.assertEqual(self.ontology.recordset_info('Type1').coordinates, [{'Parameter1'}, {'Parameter3'}])
+        self.assertEqual(self.ontology.coordinates('Type1'), [{'Parameter1'}, {'Parameter3'}])
 
     def test_one_coordinate_recordset(self):
         self.assertTrue(self.ontology.recordset_exists('Type2'))
         self.assertIsInstance(self.ontology.recordset_info('Type2'), OCProc2ChildRecordTypeInfo)
-        self.assertEqual(self.ontology.recordset_info('Type2').coordinates, {'Parameter1'})
-        self.assertEqual(self.ontology.coordinates('Type2'), {'Parameter1'})
+        self.assertEqual(self.ontology.recordset_info('Type2').coordinates, [{'Parameter1'}])
+        self.assertEqual(self.ontology.coordinates('Type2'), [{'Parameter1'}])
 
     def test_no_coordinate_recordset(self):
         self.assertTrue(self.ontology.recordset_exists('Type3'))
