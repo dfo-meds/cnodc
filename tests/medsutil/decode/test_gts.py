@@ -1,5 +1,6 @@
 import unittest as ut
 
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs import GtsCodec
 from medsutil.ocproc2.codecs.wmo.ascii import AsciiDecoder
@@ -8,10 +9,10 @@ from medsutil.ocproc2.codecs.wmo.ascii import AsciiDecoder
 class DummySubcodec(AsciiDecoder):
 
     def __init__(self):
-        super().__init__()
+        super().__init__("dummy", "1.0")
         self.messages = 0
 
-    def decode_message(self, header: str, ascii_message: str):
+    def decode_message(self, header: str, ascii_message: str, received_date: AwareDateTime | None = None):
         self.messages += 1
         yield ParentRecord()
 
