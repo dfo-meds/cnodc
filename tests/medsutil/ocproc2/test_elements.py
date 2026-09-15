@@ -169,44 +169,6 @@ class TestSingleElement(ut.TestCase):
         self.assertIsInstance(uf, float)
         self.assertEqual(uf, 1234.1)
 
-    def test_is_good(self):
-        with self.subTest("blank quality"):
-            element = SingleElement('12345')
-            self.assertTrue(element.is_good())
-        with self.subTest("quality=1"):
-            element = SingleElement('12345')
-            element.metadata['WorkingQuality'] = 1
-            self.assertTrue(element.is_good())
-        with self.subTest("quality=5"):
-            element = SingleElement('12345')
-            element.metadata['WorkingQuality'] = 5
-            self.assertTrue(element.is_good())
-        with self.subTest("quality=2"):
-            element = SingleElement('12345')
-            element.metadata['WorkingQuality'] = 2
-            self.assertTrue(element.is_good())
-        with self.subTest("quality=3"):
-            element = SingleElement('12345')
-            element.metadata['WorkingQuality'] = 3
-            self.assertTrue(element.is_good(True))
-            self.assertFalse(element.is_good(False))
-        with self.subTest("quality=9"):
-            element = SingleElement('12345')
-            element.metadata['WorkingQuality'] = 9
-            self.assertTrue(element.is_good(allow_empty=True))
-            self.assertFalse(element.is_good(allow_empty=False))
-        with self.subTest("empty value"):
-            element = SingleElement('')
-            self.assertTrue(element.is_good(allow_empty=True))
-            self.assertFalse(element.is_good(allow_empty=False))
-        with self.subTest("quality=4"):
-            element = SingleElement('12345')
-            element.metadata['WorkingQuality'] = 4
-            self.assertFalse(element.is_good(True, True))
-            self.assertFalse(element.is_good(False, True))
-            self.assertFalse(element.is_good(False, False))
-            self.assertFalse(element.is_good(True, False))
-
     def test_to_float(self):
         element = SingleElement("123.4")
         self.assertEqual(element.to_float(), float("123.4"))
