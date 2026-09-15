@@ -70,6 +70,7 @@ class TestOCProc2ImportExport(ut.TestCase):
             ocproc2.MessageType.INFO
         ))
         dr.qc_tests.append(ocproc2.QCTestRunInfo(
+            'test',
             'test1',
             'version1',
             '2023-01-03T00:00:00+00:00',
