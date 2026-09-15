@@ -39,7 +39,7 @@ class TestSingleElement(ut.TestCase):
     def test_working_quality(self):
         x = SingleElement("five")
         x.metadata['WorkingQuality'] = 2
-        self.assertEqual(x.working_quality(), 2)
+        self.assertEqual(x.quality, 2)
 
     def test_units(self):
         x = SingleElement(5)
