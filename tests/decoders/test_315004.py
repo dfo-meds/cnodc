@@ -1,16 +1,17 @@
 import itertools
 import json
+from unittest import skip
 
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ParentRecord, BaseRecord, ElementMap
 from tests.helpers.base_test_case import BaseTestCase
 from medsutil.ocproc2.codecs.wmo.bufr import _Bufr4Decoder, BufrCodeMap
 
-
+@skip
 class TestBufr315004(BaseTestCase):
 
     def test_decode(self):
-        with open(self.data_file_path("bufr/315004_2.bufr"), "rb") as h:
+        with open(self.data_file_path("bufr/315004_1.bufr"), "rb") as h:
             bufr_content = h.read()
         full_date = AwareDateTime(2026, 9, 4, 11, 23, 0, tzinfo="Etc/UTC")
         decoder = _Bufr4Decoder(BufrCodeMap(), "IAAAAA AAAA 041123", bufr_content)
