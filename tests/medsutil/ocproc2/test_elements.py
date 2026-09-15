@@ -622,7 +622,7 @@ class TestOCProc2ValueMap(ut.TestCase):
         self.assertTrue(dr.metadata['TestValue'].is_empty())
         self.assertFalse(dr.metadata['TestValue'].is_numeric())
         self.assertFalse(dr.metadata['TestValue'].is_iso_datetime())
-        self.assertIsNone(dr.metadata['TestValue'].best())
+        self.assertEqual(dr.metadata['TestValue'].best(), '')
 
     def test_value_metadata(self):
         dr = ocproc2.ParentRecord()

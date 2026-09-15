@@ -585,7 +585,7 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
 
             if best_wq is None:
                 replace = True
-            elif wq in ALLOWED_QUALITY_MAP[best_wq] and best_wq != 5:
+            elif wq in ALLOWED_QUALITY_MAP_FOR_UPGRADE[best_wq] and best_wq != 5:
                 replace = True
             elif wq == best_wq:
                 if best_sr is None:
@@ -809,4 +809,17 @@ ALLOWED_QUALITY_MAP: dict[int | None, set[int]] = {
     7: {-1},
     9: {-1},
     -1: set(),
+}
+
+ALLOWED_QUALITY_MAP_FOR_UPGRADE: dict[int | None, set[int | None]] = {
+    None: {1, 5},
+    0: {1, 5},
+    1: {5,},
+    5: set(),
+    2: {None, 0, 1, 5},
+    3: {None, 0, 1, 2, 5},
+    4: {None, 0, 1, 2, 3, 5},
+    7: {None, 0, 1, 2, 3, 4, 5},
+    9: {None, 0, 1, 2, 3, 4, 5, 7},
+    -1: {None, 0, 1, 2, 3, 4, 5, 7, 9},
 }
