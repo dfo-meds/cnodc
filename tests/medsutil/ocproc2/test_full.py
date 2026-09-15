@@ -204,30 +204,41 @@ class TestOCProc2ImportExport(ut.TestCase):
                     '_message': 'hello world',
                     '_timestamp': '2023-01-01T00:00:00+00:00',
                     '_source': ['test1', 'version1', 'instance1'],
-                    '_message_type': 'I'
+                    '_message_type': 'I',
+                    '_action_type': None,
+                    '_affected': None,
+                    '_organization': 'CA-CNODC',
                 },
                 {
                     '_message': 'hello world2',
                     '_timestamp': '2023-01-02T00:00:00+00:00',
                     '_source': ['test1', 'version1', 'instance1'],
-                    '_message_type': 'I'
+                    '_message_type': 'I',
+                    '_action_type': None,
+                    '_affected': None,
+                    '_organization': 'CA-CNODC',
                 }
             ],
             '_qc_tests': [
                 {
+                    '_protocol': 'test',
                     '_name': 'test1',
                     '_version': 'version1',
                     '_date': '2023-01-03T00:00:00+00:00',
+                    '_proposed': [],
+                    '_applied': [],
                     '_messages': [
                         {
                             '_code': 'lat_fail',
                             '_path': 'a/b/c',
-                            '_ref': 90
+                            '_ref': 90,
+                            '_review': None,
                         },
                         {
                             '_code': 'lon_fail',
                             '_path': 'a/b/d',
-                            '_ref': -180
+                            '_ref': -180,
+                            '_review': None,
                         }
                     ],
                     '_result': 'F',
