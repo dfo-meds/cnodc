@@ -200,10 +200,10 @@ class ParentRecord(BaseRecord):
         else:
             return any(x.test_protocol == test_protocol and x.test_name == test_name and not x.is_stale for x in self.qc_tests)
 
-    def latest_test_result(self, test_name: str, include_stale: bool = False) -> t.Optional[QCTestRunInfo]:
+    def latest_test_result(self, test_protocol: str, test_name: str, include_stale: bool = False) -> t.Optional[QCTestRunInfo]:
         best = None
         for qcr in self.qc_tests:
-            if qcr.test_name != test_name:
+            if qcr.test_name != test_name or qcr.test_protocol != test_protocol:
                 continue
             if (not include_stale) and qcr.is_stale:
                 continue
