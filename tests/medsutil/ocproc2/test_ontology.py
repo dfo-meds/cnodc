@@ -200,12 +200,12 @@ rstypes:requireCoordinate rdf:type rdf:Property ;
 rstypes:Type1  rdf:type skos:Concept ;
   skos:prefLabel "hello"@en ;
   skos:documentation "hello2"@en ;
-  rstypes:requireCoordinate cnodc:Parameter1 ;
-  rstypes:requireCoordinate cnodc:Parameter3 ;
+  rstypes:requireCoordinate "Parameter1" ;
+  rstypes:requireCoordinate "Parameter3" ;
   skos:inScheme rstypes:recordSetTypes .
   
 rstypes:Type2  rdf:type skos:Concept ;
-  rstypes:requireCoordinate cnodc:Parameter1 ;
+  rstypes:requireCoordinate "Parameter1" ;
   skos:inScheme rstypes:recordSetTypes .
 
 rstypes:Type3  rdf:type skos:Concept ;
