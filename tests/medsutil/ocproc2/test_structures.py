@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import unittest as ut
 
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ChildRecord, MultiElement, ParentRecord, QCTestRunInfo, QCResult, QCMessage, HistoryEntry, \
     MessageType, SingleElement, RecordSet, ChildRecord, RecordMap
 
@@ -176,6 +177,7 @@ class TestParentRecord(ut.TestCase):
     def test_record_qc_result(self):
         pr = ParentRecord()
         pr.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
@@ -186,6 +188,7 @@ class TestParentRecord(ut.TestCase):
         self.assertEqual(1, len(pr.qc_tests))
         tr = pr.qc_tests[0]
         self.assertIsInstance(tr, QCTestRunInfo)
+        self.assertEqual(tr.test_protocol, 'test')
         self.assertEqual(tr.test_name, 'test1')
         self.assertEqual(tr.test_version, '1_0')
         self.assertEqual(tr.result, QCResult.FAIL)
@@ -199,6 +202,7 @@ class TestParentRecord(ut.TestCase):
     def test_flag_result_stale(self):
         pr = ParentRecord()
         pr.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
@@ -210,52 +214,55 @@ class TestParentRecord(ut.TestCase):
         tr = pr.qc_tests[0]
         self.assertIsInstance(tr, QCTestRunInfo)
         self.assertFalse(tr.is_stale)
-        pr.mark_test_results_stale('test2')
+        pr.mark_test_results_stale('test', 'test2')
         self.assertFalse(tr.is_stale)
-        pr.mark_test_results_stale('test1')
+        pr.mark_test_results_stale('test', 'test1')
         self.assertTrue(tr.is_stale)
 
     def test_did_test_run(self):
         pr = ParentRecord()
-        self.assertFalse(pr.test_already_run('test1'))
+        self.assertFalse(pr.test_already_run('test', 'test1'))
         pr.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
             [QCMessage('hello', 'metadata/Stuff')],
             ''
         )
-        self.assertTrue(pr.test_already_run('test1'))
+        self.assertTrue(pr.test_already_run('test', 'test1'))
 
     def test_latest_run(self):
         pr = ParentRecord()
-        pr.record_qc_test_result('test1', '1_0', QCResult.FAIL, [], notes='3')
-        pr.record_qc_test_result('test1', '1_0', QCResult.FAIL, [], notes='2')
-        self.assertEqual(pr.latest_test_result('test1', False).notes, '2')
-        pr.mark_test_results_stale('test1')
-        self.assertEqual(pr.latest_test_result('test1', True).notes, '2')
-        self.assertIsNone(pr.latest_test_result('test1', False))
-        pr.record_qc_test_result('test1', '1_0', QCResult.PASS, [], notes='1')
-        pr.record_qc_test_result('test2', '1_0', QCResult.PASS, [], notes='4')
-        self.assertEqual(pr.latest_test_result('test1', True).notes, '1')
-        self.assertEqual(pr.latest_test_result('test1', False).notes, '1')
+        pr.record_qc_test_result('test', 'test1', '1_0', QCResult.FAIL, [], notes='3')
+        pr.record_qc_test_result('test', 'test1', '1_0', QCResult.FAIL, [], notes='2')
+        self.assertEqual(pr.latest_test_result('test', 'test1', False).notes, '2')
+        pr.mark_test_results_stale('test', 'test1')
+        self.assertEqual(pr.latest_test_result('test', 'test1', True).notes, '2')
+        self.assertIsNone(pr.latest_test_result('test', 'test1', False))
+        pr.record_qc_test_result('test', 'test1', '1_0', QCResult.PASS, [], notes='1')
+        pr.record_qc_test_result('test', 'test2', '1_0', QCResult.PASS, [], notes='4')
+        self.assertEqual(pr.latest_test_result('test', 'test1', True).notes, '1')
+        self.assertEqual(pr.latest_test_result('test', 'test1', False).notes, '1')
 
     def test_did_stale_test_run(self):
         pr = ParentRecord()
         pr.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
             [QCMessage('hello', 'metadata/Stuff')],
             ''
         )
-        pr.mark_test_results_stale('test1')
-        self.assertTrue(pr.test_already_run('test1', True))
-        self.assertFalse(pr.test_already_run('test1', False))
+        pr.mark_test_results_stale('test', 'test1')
+        self.assertTrue(pr.test_already_run('test', 'test1', True))
+        self.assertFalse(pr.test_already_run('test', 'test1', False))
 
     def test_hash_qc(self):
         pr = ParentRecord()
         pr.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
@@ -265,6 +272,7 @@ class TestParentRecord(ut.TestCase):
         )
         pr2 = ParentRecord()
         pr2.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
@@ -277,6 +285,7 @@ class TestParentRecord(ut.TestCase):
     def test_hash_no_qc(self):
         pr = ParentRecord()
         pr.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.PASS,
@@ -285,6 +294,7 @@ class TestParentRecord(ut.TestCase):
         )
         pr2 = ParentRecord()
         pr2.record_qc_test_result(
+            'test',
             'test1',
             '1_0',
             QCResult.FAIL,
@@ -295,16 +305,16 @@ class TestParentRecord(ut.TestCase):
 
     def test_hash_history(self):
         pr = ParentRecord()
-        pr.add_history_entry('Hello', 'foo', '1_0', 'foobar', change_time=datetime.datetime(2015, 1, 2, 3, 4, 5))
+        pr.add_history_entry('Hello', 'foo', '1_0', 'foobar', change_time=AwareDateTime(2015, 1, 2, 3, 4, 5))
         pr2 = ParentRecord()
-        pr2.add_history_entry('Hello', 'foo', '1_0', 'foobar', change_time=datetime.datetime(2015, 1, 2, 3, 4, 5))
+        pr2.add_history_entry('Hello', 'foo', '1_0', 'foobar', change_time=AwareDateTime(2015, 1, 2, 3, 4, 5))
         self.assertEqual(pr2.generate_hash(), pr.generate_hash())
 
     def test_hash_no_history(self):
         pr = ParentRecord()
-        pr.add_history_entry('Hello', 'foo', '1_0', 'foobar', change_time=datetime.datetime(2015, 1, 2, 3, 4, 5))
+        pr.add_history_entry('Hello', 'foo', '1_0', 'foobar', change_time=AwareDateTime(2015, 1, 2, 3, 4, 5))
         pr2 = ParentRecord()
-        pr2.add_history_entry('Hello', 'foo2', '1_0', 'foobar', change_time=datetime.datetime(2015, 1, 2, 3, 4, 5))
+        pr2.add_history_entry('Hello', 'foo2', '1_0', 'foobar', change_time=AwareDateTime(2015, 1, 2, 3, 4, 5))
         self.assertNotEqual(pr2.generate_hash(), pr.generate_hash())
 
     def test_record_note(self):
