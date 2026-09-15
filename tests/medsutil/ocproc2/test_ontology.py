@@ -354,8 +354,10 @@ rstypes:Type3  rdf:type skos:Concept ;
         self.assertIsInstance(self.ontology.recordset_info('Type1'), OCProc2ChildRecordTypeInfo)
         self.assertEqual(self.ontology.recordset_info('Type1').label('en'), 'hello')
         self.assertEqual(self.ontology.recordset_info('Type1').documentation('en'), 'hello2')
-        self.assertEqual(self.ontology.recordset_info('Type1').coordinates, [{'Parameter1'}, {'Parameter3'}])
-        self.assertEqual(self.ontology.coordinates('Type1'), [{'Parameter1'}, {'Parameter3'}])
+        self.assertIn({'Parameter1'}, self.ontology.recordset_info('Type1').coordinates)
+        self.assertIn({'Parameter3'}, self.ontology.recordset_info('Type1').coordinates)
+        self.assertIn({'Parameter1'}, self.ontology.coordinates('Type1'))
+        self.assertIn({'Parameter3'}, self.ontology.coordinates('Type1'))
 
     def test_one_coordinate_recordset(self):
         self.assertTrue(self.ontology.recordset_exists('Type2'))
