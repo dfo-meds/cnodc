@@ -246,10 +246,11 @@ class _AzureFileShare:
 
 class _BlobProperties:
 
-    def __init__(self, name, size, lmt, metadata, blob_tier):
+    def __init__(self, name, size, lmt, metadata, blob_tier, cd):
         self.name = name
         self.size = size
         self.last_modified = lmt
+        self.creation_time = cd
         self.metadata = metadata
         self.blob_tier = blob_tier
 
@@ -284,7 +285,8 @@ class _AzureBlob:
             stats.st_size,
             datetime.datetime.fromtimestamp(stats.st_mtime),
             {k: md[k] for k in md if k != '__tier'},
-            t
+            t,
+            datetime.datetime.fromtimestamp(stats.st_birthtime)
         )
 
     def exists(self):
