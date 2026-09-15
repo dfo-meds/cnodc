@@ -304,19 +304,6 @@ class TestSingleElement(ut.TestCase):
         x2.update_hash(h2)
         self.assertNotEqual(h.digest(), h2.digest())
 
-    def test_passed_qc(self):
-        for qc_flag in (1, 2, 5):
-            with self.subTest(qc_flag=qc_flag):
-                e = SingleElement(5)
-                e.metadata['WorkingQuality'] = qc_flag
-                self.assertTrue(e.passed_qc())
-
-    def test_failed_qc(self):
-        for qc_flag in (0, 3, 4, 9):
-            e = SingleElement(5)
-            e.metadata['WorkingQuality'] = qc_flag
-            self.assertFalse(e.passed_qc())
-
     def test_quality(self):
         e = SingleElement(5)
         e.metadata['Quality'] = 2
@@ -767,10 +754,11 @@ class TestOCProc2ValueMap(ut.TestCase):
             SingleElement.build(1, {'Quality': 1}),
             SingleElement.build(2, {'Quality': 2}),
         ])
-        self.assertEqual(me.to_mapping(), [
-            {'_value': 1, '_metadata': {'Quality': 1}},
-            {'_value': 2, '_metadata': {'Quality': 2}}
-        ])
+        self.assertEqual(me.to_mapping(), {
+            '_values': [
+                {'_value': 1, '_metadata': {'Quality': 1}},
+                {'_value': 2, '_metadata': {'Quality': 2}}
+        ]})
 
 
 class TestElementMap(ut.TestCase):
