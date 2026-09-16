@@ -45,7 +45,9 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
 
     def __eq__(self, other: t.Mapping) -> bool:
         try:
-            return self.items() == other.items()
+            my_keys = set(self.__keys)
+            my_keys.update(other.keys())
+            return all(self.get(k) == other.get(k) for k in my_keys)
         except AttributeError:
             return False
 
@@ -82,7 +84,7 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
             if default is ...:
                 raise KeyError(f'Missing key {item}')
             return default
-        return self.__keys[item]
+        return self.__values[item]
 
     @staticmethod
     def _add_hashable(key: X, value: Y, d: dict[X, Y]):
