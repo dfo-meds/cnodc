@@ -5,10 +5,41 @@ import sys
 
 TEST_DIR = pathlib.Path(__file__).absolute().parent
 
+def _show_option(long, short, description, value=None):
+    short = "" if not short else f"-{short} "
+    long = "" if not long else f"--{long} "
+    print(f"{short}{long}{value or ''}".ljust(30) + description)
+
 def run_tests(argv: list,
               with_profile: bool = False,
               with_coverage: bool = False,
+              show_help: bool = False,
               **kwargs):
+
+    if show_help:
+        print("USAGE")
+        print(" python -m tests [OPTIONS] ")
+        print("OPTIONS")
+        _show_option(None, "k", "Only run tests that match the pattern", "PATTERN")
+        _show_option("help", "h", "Shows this help menu")
+        _show_option("long-tests", "L", "Include long-running test cases")
+        _show_option("integration-tests", "I", "Include very-long-running integration tests")
+        _show_option("metrics", "M", "Include metrics in testing")
+        _show_option("coverage", "C", "Generate a code coverage report")
+        _show_option("profile", "P", "Generate a performance profile report")
+        _show_option("failfast", "f", "Exit on first failure or error")
+        _show_option("buffer", "b", "Buffer the standard output and error and supress output from successful tests")
+        _show_option("catch", "c", "CTRL-C will interrupt the current test gracefully and report results")
+        _show_option("verbose", "v", "Verbose output")
+        _show_option("start-directory", "s", "Directory to start discovery", "DIR")
+        _show_option("pattern", "p", "Pattern to match test files", "PATTERN")
+        _show_option("top-level-directory", "t", "Top-level directory of project", "DIR")
+        _show_option("long-passwords", None, "")
+        _show_option("locals", None, "Show local variables")
+        _show_option("durations", None, "Show the N slowed test cases", "N")
+
+        exit(0)
+
     if with_coverage:
         import coverage
         cov = coverage.Coverage(
@@ -74,8 +105,11 @@ if __name__ == '__main__':
         'with_metrics': False,
         'with_fast_passwords': True,
         'with_integration_tests': False,
+        'show_help': False,
     }
     flag_map: dict[str, tuple[str, bool]] = {
+        '--help': ('show_help', True),
+        '-h': ('show_help', True),
         '--long-tests': ('with_long_tests', True),
         '-L': ('with_long_tests', True),
         '--integration-tests': ('with_integration_tests', True),
