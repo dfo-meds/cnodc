@@ -48,6 +48,7 @@ def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
     depth = amath.div(top, bottom)
     if amath.is_science_number(depth):
         depth.set_min_error_if_worse(0.05, is_relative=True)
+    return depth
 
 
 PRESSURE_A = amath.NumberString("5.92e-3")
