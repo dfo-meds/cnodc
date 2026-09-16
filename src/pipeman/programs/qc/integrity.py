@@ -1,6 +1,7 @@
 from autoinject import injector
 
 import medsutil.ocproc2 as ocproc2
+from medsutil.math import NumberString
 from medsutil.ocproc2.util import RequiredQuality, Quality
 from pipeman.programs.qc.base import DeepDiveChecker, review
 from medsutil.ocproc2.refs import ElementType, ElementRef, SingleElementRef, MultiElementRef, RecordSetRef, \
@@ -71,9 +72,15 @@ class NODBIntegrityChecker(DeepDiveChecker):
         if min_value is not None or max_value is not None:
             value = element.to_numeric(preferred_units)
             if min_value is not None:
-                self.assert_greater_or_close(value, min_value, msg="value_too_small")
+                if min_value == 0:
+                    self.assert_greater_or_close(value, min_value, msg="value_too_small", abs_tol=NumberString("1e-7"))
+                else:
+                    self.assert_greater_or_close(value, min_value, msg="value_too_small")
             if max_value is not None:
-                self.assert_less_or_close(value, max_value, msg="value_too_large")
+                if max_value == 0:
+                    self.assert_greater_or_close(value, max_value, msg="value_too_large", abs_tol=NumberString("1e-7"))
+                else:
+                    self.assert_less_or_close(value, max_value, msg="value_too_large")
         if allowed_values:
             if data_type == "string":
                 self.assert_in(element.to_string(), [str(x) for x in allowed_values], msg="value_not_allowed")
