@@ -1,11 +1,33 @@
 import csv
+import json
 import os
 import shutil
 import pathlib
 import typing as t
+import tempfile
 from urllib.parse import quote
 
 DIR = pathlib.Path(__file__).absolute().parent
+
+
+def map_group_for_tests(group_human_name: str):
+    """ Convert the name of a group in the spreadsheet to the programmatic term. """
+    if group_human_name == 'Metadata (Record)':
+        return 'child_record'
+    elif group_human_name == 'Metadata (Element)':
+        return 'element'
+    elif group_human_name == 'Metadata (Platform)':
+        return 'parent_record'
+    elif group_human_name == 'Metadata (Mission)':
+        return 'parent_record'
+    elif group_human_name == 'Metadata (Parent)':
+        return 'parent_record'
+    elif group_human_name == 'Metadata (Product)':
+        return 'parent_record'
+    elif group_human_name == 'Metadata (Recordset)':
+        return 'recordset'
+    return group_human_name.lower()
+
 
 def map_group(group_human_name: str):
     """ Convert the name of a group in the spreadsheet to the programmatic term. """
@@ -94,217 +116,218 @@ for file in os.scandir(DIR / "data" / "mappings"):
             maps[element_name][vocab_name].append((match_type, code))
 
 
-# We'll write to a temporary file to make sure we don't overwrite the good file with one with an error in it.
-temp_file = DIR / 'cnodc.ttl.temp'
-temp_eov = DIR / 'eov.ttl.temp'
-temp_ioos = DIR / 'ioos.ttl.temp'
-temp_rs =  DIR / 'rstypes.ttl.temp'
+with tempfile.TemporaryDirectory() as temp_dir:
+    temp_dir_path = pathlib.Path(temp_dir).absolute()
+    # We'll write to a temporary file to make sure we don't overwrite the good file with one with an error in it.
+    temp_file = temp_dir_path / 'cnodc.ttl.temp'
+    temp_eov = temp_dir_path / 'eov.ttl.temp'
+    temp_ioos = temp_dir_path / 'ioos.ttl.temp'
+    temp_rs =  temp_dir_path / 'rstypes.ttl.temp'
 
+    with open(temp_ioos, 'w', encoding='utf-8') as output:
 
-with open(temp_ioos, 'w', encoding='utf-8') as output:
+        output.write("@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .\n")
+        output.write("@prefix skos: <http://www.w3.org/2004/02/skos/core#> .\n")
+        output.write("@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n\n")
+        output.write("ioos:ioosCategories rdf:type skos:ConceptScheme .\n")
 
-    output.write("""@prefix ioos: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/ioos.ttl#> .
-@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-
-ioos:ioosCategories rdf:type skos:ConceptScheme .
-
-""")
-
-    # Write out all the IOOS categories
-    for row in read_lines_csv(DIR / 'data' / 'ioos_categories.csv', 'Short Name'):
-        output.write("\n")
-        # Concept name
-        output.write(f'ioos:{sanitize(row[0])} rdf:type skos:Concept ;\n')
-        # English & French labels
-        output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
-        if row[3]:
-            output.write(f'  skos:prefLabel "{row[3]}"@fr ;\n')
-        # Additional documentation
-        if row[2]:
-            output.write(f'  skos:documentation "{row[2]}"@en ;\n')
-        if row[4]:
-            output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
-        # Add it to the scheme
-        output.write(f'  skos:inScheme ioos:ioos_categories .\n')
-
-with open(temp_eov, 'w', encoding='utf-8') as output:
-    output.write("""@prefix eov: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#> .
-@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-
-eov:essentialOceanVariables rdf:type skos:ConceptScheme .
-
-""")
-    # Write out all the EOVs
-    for row in read_lines_csv(DIR / 'data' / 'cioos_eovs.csv', 'Short Name'):
-        output.write("\n")
-        # Concept name
-        output.write(f'eov:{sanitize(row[0])} rdf:type skos:Concept ;\n')
-        # English & French labels
-        output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
-        if row[2]:
-            output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
-        # Additional documentation
-        if row[3]:
-            output.write(f'  skos:documentation "{row[3]}"@en ;\n')
-        if row[4]:
-            output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
-        # Add it to the scheme
-        output.write(f'  skos:inScheme eov:essentialOceanVariables .\n')
-
-with open(temp_rs, 'w', encoding='utf-8') as output:
-    output.write("""@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .
-@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
-@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-
-rstypes:recordSetTypes rdf:type skos:ConceptScheme .
-
-rstypes:requireCoordinate rdf:type rdf:Property ;
-  rdfs:domain rstypes:recordSetTypes ;
-  rdfs:range skos:Literal .
-
-""")
-    for row in read_lines_csv(DIR / 'data' / 'rs_types.csv', 'Short Name'):
-        output.write('\n')
-        # element name
-        output.write(f'rstypes:{sanitize(row[0])}  rdf:type skos:Concept ;\n')
-        # labels
-        if row[1]:
+        # Write out all the IOOS categories
+        for row in read_lines_csv(DIR / 'data' / 'ioos_categories.csv', 'Short Name'):
+            output.write("\n")
+            # Concept name
+            output.write(f'ioos:{sanitize(row[0])} rdf:type skos:Concept ;\n')
+            # English & French labels
             output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
-        if row[2]:
-            output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
-        # if present, at least one from each group of coordinates is required for it to make sense.
-        if row[3]:
-            for coordinate_name in row[3].split('+'):
-                output.write(f'  rstypes:requireCoordinate "{sanitize(coordinate_name)}" ;\n')
-        # scheme
-        output.write(f'  skos:inScheme rstypes:recordSetTypes .\n')
+            if row[3]:
+                output.write(f'  skos:prefLabel "{row[3]}"@fr ;\n')
+            # Additional documentation
+            if row[2]:
+                output.write(f'  skos:documentation "{row[2]}"@en ;\n')
+            if row[4]:
+                output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
+            # Add it to the scheme
+            output.write(f'  skos:inScheme ioos:ioos_categories .\n')
 
-with open(temp_file, 'w', encoding='utf-8') as output:
+    with open(temp_eov, 'w', encoding='utf-8') as output:
+        output.write("@prefix eov: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/eov.ttl#> .\n")
+        output.write("@prefix skos: <http://www.w3.org/2004/02/skos/core#> .\n")
+        output.write("@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n\n")
+        output.write("eov:essentialOceanVariables rdf:type skos:ConceptScheme .\n")
+
+        # Write out all the EOVs
+        for row in read_lines_csv(DIR / 'data' / 'cioos_eovs.csv', 'Short Name'):
+            output.write("\n")
+            # Concept name
+            output.write(f'eov:{sanitize(row[0])} rdf:type skos:Concept ;\n')
+            # English & French labels
+            output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
+            if row[2]:
+                output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
+            # Additional documentation
+            if row[3]:
+                output.write(f'  skos:documentation "{row[3]}"@en ;\n')
+            if row[4]:
+                output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
+            # Add it to the scheme
+            output.write(f'  skos:inScheme eov:essentialOceanVariables .\n')
+
+    with open(temp_rs, 'w', encoding='utf-8') as output:
+        output.write("@prefix rstypes: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/rstypes.ttl#> .\n")
+        output.write("@prefix skos: <http://www.w3.org/2004/02/skos/core#> .\n")
+        output.write("@prefix cnodc: <http://cnodc-cndoc.dfo-mpo.gc.ca/ocproc2/cnodc.ttl#> .\n")
+        output.write("@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n")
+        output.write("@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\n")
     
-    # Copy the base turtle file
-    with open(DIR / 'data' / 'base.ttl', 'r', encoding='utf-8') as base:
-        output.write(base.read())
+        output.write("rstypes:recordSetTypes rdf:type skos:ConceptScheme .\n\n")
+    
+        output.write("rstypes:requireCoordinate rdf:type rdf:Property ;\n")
+        output.write("  rdfs:domain rstypes:recordSetTypes ;\n")
+        output.write("  rdfs:range skos:Literal .\n")
 
-    # Write out all the element names
-    for row in read_lines_csv(DIR / 'data' / 'elements.csv', 'Short Name'):
-        output.write("\n")
-        # Concept name
-        output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
-        # Labels
-        if row[1]:
-            output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
-        if row[2]:
-            output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
-        # Documentation
-        if row[3]:
-            output.write(f'  skos:documentation "{row[3]}"@en ;\n')
-        if row[4]:
-            output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
-        # Element group
-        output.write(f'  cnodc:elementGroup "{map_group(row[5])}" ;\n')
-        # Type of data that can be stored in it
-        output.write(f'  cnodc:dataType {map_data_type(row[6])} ;\n')
-        # Preferred units (any unit that can be converted simply into these units is acceptable)
-        if row[7]:
-            output.write(f'  cnodc:preferredUnit "{row[7]}" ;\n')
-        # CF standard name
-        if row[8]:
-            output.write(f'  cnodc:standardName "{row[8]}" ;\n')
-        # CNODC bilingual variable name
-        if row[9]:
-            output.write(f'  cnodc:variableName "{row[9]}" ;\n')
-        # IOOS category
-        if row[10]:
-            output.write(f'  cnodc:ioosCategory ioos:{sanitize(row[10])} ; \n')
-        # CIOOS EOVs
-        if row[11]:
-            for eov in row[11].split(';'):
-                output.write(f'  cnodc:essentialOceanVariable eov:{sanitize(eov)} ; \n')
-        # Minimum valid value
-        if row[12]:
-            output.write(f'  cnodc:minValue {row[12]} ; \n')
-        # Maximum valid value
-        if row[13]:
-            output.write(f'  cnodc:maxValue {row[13]} ; \n')
-        # Allowed values, separated by semicolons
-        if row[14]:
-            for allowed_value in row[14].split(';'):
-                output.write(f'  cnodc:allowedValue "{allowed_value}" ;\n')
-        # Whether to ignore this field when checking for duplicates.
-        if row[15] and row[15] == 'Y':
-            output.write(f'  cnodc:ignoreInDuplicateCheck "True" ;\n')
-        # Whether to allow multiple values for this element.
-        if row[16] and row[16] == 'Y':
-            output.write(f'  cnodc:allowMulti "True" ;\n')
-        # 17 is a list of decoders that use this
-        # BUFR exact matches
-        if row[18]:
-            if row[0] not in maps: maps[row[0]] = {}
-            if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
-            maps[row[0]]["bufr4"].extend([
-                ("Exact", "B" + str(x).rjust(5, "0"))
-                for x in row[18].split(";")
-            ])
-        # BUFR narrower matches
-        if row[19]:
-            if row[0] not in maps: maps[row[0]] = {}
-            if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
-            maps[row[0]]["bufr4"].extend([
-                ("Narrower", "B" + str(x).rjust(5, "0"))
-                for x in row[19].split(";")
-            ])
-        if row[20]:
-            if row[0] not in maps: maps[row[0]] = {}
-            if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
-            maps[row[0]]["bufr4"].extend([
-                ("Related", "B" + str(x).rjust(5, "0"))
-                for x in row[20].split(";")
-            ])
-        if row[21]:
-            if row[0] not in maps: maps[row[0]] = {}
-            if "pcode" not in maps[row[0]]: maps[row[0]]["pcode"] = []
-            maps[row[0]]["pcode"].extend([
-                ("Exact", x)
-                for x in row[21].split(';')
-            ])
-        if row[22]:
-            if row[0] not in maps: maps[row[0]] = {}
-            if "og1" not in maps[row[0]]: maps[row[0]]["og1"] = []
-            maps[row[0]]["og1"].extend([
-                ("Exact", x)
-                for x in row[22].split(';')
-            ])
+        for row in read_lines_csv(DIR / 'data' / 'rs_types.csv', 'Short Name'):
+            output.write('\n')
+            # element name
+            output.write(f'rstypes:{sanitize(row[0])}  rdf:type skos:Concept ;\n')
+            # labels
+            if row[1]:
+                output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
+            if row[2]:
+                output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
+            # if present, at least one from each group of coordinates is required for it to make sense.
+            if row[3]:
+                for coordinate_name in row[3].split('+'):
+                    output.write(f'  rstypes:requireCoordinate "{sanitize(coordinate_name)}" ;\n')
+            # scheme
+            output.write(f'  skos:inScheme rstypes:recordSetTypes .\n')
 
-        # Write out all the mappings.
-        if row[0] in maps:
-            for vocab_name in maps[row[0]]:
-                if vocab_name == 'WMO Codes':
-                    for mapping in maps[row[0]][vocab_name]:
-                        output.write(f'  cnodc:wmoCodeGroup "{mapping[1]}" ; \n')
-                else:
-                    prefix = map_vocab(vocab_name)
-                    for mapping in maps[row[0]][vocab_name]:
-                        if prefix == 'bufr4':
-                            actual_prefix = f"{prefix}{mapping[1][0:3]}"
-                            code = mapping[1][3:]
-                        else:
-                            code = mapping[1]
-                            actual_prefix = prefix
-                        output.write(f'  skos:{map_map_type(mapping[0])} {actual_prefix}:{sanitize(code)} ;\n')
-        # The scheme
-        output.write('  skos:inScheme cnodc:elements .\n')
+    test_data = {
+        "no_multi": [],
+    }
+    with open(temp_file, 'w', encoding='utf-8') as output:
+
+        # Copy the base turtle file
+        with open(DIR / 'data' / 'base.ttl', 'r', encoding='utf-8') as base:
+            output.write(base.read())
+
+        # Write out all the element names
+        for row in read_lines_csv(DIR / 'data' / 'elements.csv', 'Short Name'):
+            output.write("\n")
+            # Concept name
+            output.write(f'cnodc:{sanitize(row[0])} rdf:type skos:Concept ;\n')
+            # Labels
+            if row[1]:
+                output.write(f'  skos:prefLabel "{row[1]}"@en ;\n')
+            if row[2]:
+                output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
+            # Documentation
+            if row[3]:
+                output.write(f'  skos:documentation "{row[3]}"@en ;\n')
+            if row[4]:
+                output.write(f'  skos:documentation "{row[4]}"@fr ;\n')
+            # Element group
+            output.write(f'  cnodc:elementGroup "{map_group(row[5])}" ;\n')
+            test_name = map_group_for_tests(row[5])
+            if test_name not in test_data:
+                test_data[test_name] = []
+            test_data[test_name].append(row[0])
+            # Type of data that can be stored in it
+            output.write(f'  cnodc:dataType {map_data_type(row[6])} ;\n')
+            # Preferred units (any unit that can be converted simply into these units is acceptable)
+            if row[7]:
+                output.write(f'  cnodc:preferredUnit "{row[7]}" ;\n')
+            # CF standard name
+            if row[8]:
+                output.write(f'  cnodc:standardName "{row[8]}" ;\n')
+            # CNODC bilingual variable name
+            if row[9]:
+                output.write(f'  cnodc:variableName "{row[9]}" ;\n')
+            # IOOS category
+            if row[10]:
+                output.write(f'  cnodc:ioosCategory ioos:{sanitize(row[10])} ; \n')
+            # CIOOS EOVs
+            if row[11]:
+                for eov in row[11].split(';'):
+                    output.write(f'  cnodc:essentialOceanVariable eov:{sanitize(eov)} ; \n')
+            # Minimum valid value
+            if row[12]:
+                output.write(f'  cnodc:minValue {row[12]} ; \n')
+            # Maximum valid value
+            if row[13]:
+                output.write(f'  cnodc:maxValue {row[13]} ; \n')
+            # Allowed values, separated by semicolons
+            if row[14]:
+                for allowed_value in row[14].split(';'):
+                    output.write(f'  cnodc:allowedValue "{allowed_value}" ;\n')
+            # Whether to ignore this field when checking for duplicates.
+            if row[15] and row[15] == 'Y':
+                output.write(f'  cnodc:ignoreInDuplicateCheck "True" ;\n')
+            # Whether to allow multiple values for this element.
+            if row[16] and row[16] == 'Y':
+                output.write(f'  cnodc:allowMulti "True" ;\n')
+            else:
+                test_data["no_multi"].append(row[0])
+            # 17 is a list of decoders that use this
+            # BUFR exact matches
+            if row[18]:
+                if row[0] not in maps: maps[row[0]] = {}
+                if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
+                maps[row[0]]["bufr4"].extend([
+                    ("Exact", "B" + str(x).rjust(5, "0"))
+                    for x in row[18].split(";")
+                ])
+            # BUFR narrower matches
+            if row[19]:
+                if row[0] not in maps: maps[row[0]] = {}
+                if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
+                maps[row[0]]["bufr4"].extend([
+                    ("Narrower", "B" + str(x).rjust(5, "0"))
+                    for x in row[19].split(";")
+                ])
+            if row[20]:
+                if row[0] not in maps: maps[row[0]] = {}
+                if "bufr4" not in maps[row[0]]: maps[row[0]]["bufr4"] = []
+                maps[row[0]]["bufr4"].extend([
+                    ("Related", "B" + str(x).rjust(5, "0"))
+                    for x in row[20].split(";")
+                ])
+            if row[21]:
+                if row[0] not in maps: maps[row[0]] = {}
+                if "pcode" not in maps[row[0]]: maps[row[0]]["pcode"] = []
+                maps[row[0]]["pcode"].extend([
+                    ("Exact", x)
+                    for x in row[21].split(';')
+                ])
+            if row[22]:
+                if row[0] not in maps: maps[row[0]] = {}
+                if "og1" not in maps[row[0]]: maps[row[0]]["og1"] = []
+                maps[row[0]]["og1"].extend([
+                    ("Exact", x)
+                    for x in row[22].split(';')
+                ])
+
+            # Write out all the mappings.
+            if row[0] in maps:
+                for vocab_name in maps[row[0]]:
+                    if vocab_name == 'WMO Codes':
+                        for mapping in maps[row[0]][vocab_name]:
+                            output.write(f'  cnodc:wmoCodeGroup "{mapping[1]}" ; \n')
+                    else:
+                        prefix = map_vocab(vocab_name)
+                        for mapping in maps[row[0]][vocab_name]:
+                            if prefix == 'bufr4':
+                                actual_prefix = f"{prefix}{mapping[1][0:3]}"
+                                code = mapping[1][3:]
+                            else:
+                                code = mapping[1]
+                                actual_prefix = prefix
+                            output.write(f'  skos:{map_map_type(mapping[0])} {actual_prefix}:{sanitize(code)} ;\n')
+            # The scheme
+            output.write('  skos:inScheme cnodc:elements .\n')
 
 
-shutil.copy(temp_file, DIR / "cnodc.ttl")
-shutil.copy(temp_rs, DIR / 'rstypes.ttl')
-shutil.copy(temp_eov, DIR / 'eov.ttl')
-shutil.copy(temp_ioos, DIR / 'ioos.ttl')
-os.remove(temp_file)
-os.remove(temp_rs)
-os.remove(temp_eov)
-os.remove(temp_ioos)
-# TODO: better temp file location?
+    shutil.copy(temp_file, DIR / "cnodc.ttl")
+    shutil.copy(temp_rs, DIR / 'rstypes.ttl')
+    shutil.copy(temp_eov, DIR / 'eov.ttl')
+    shutil.copy(temp_ioos, DIR / 'ioos.ttl')
+    with open(DIR.parent / "tests" / "test_data" / "ontology.json", "w") as output:
+        output.write(json.dumps(test_data))

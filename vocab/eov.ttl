@@ -4,7 +4,6 @@
 
 eov:essentialOceanVariables rdf:type skos:ConceptScheme .
 
-
 eov:oxygen rdf:type skos:Concept ;
   skos:prefLabel "Oxygen"@en ;
   skos:prefLabel "Oxygène"@fr ;

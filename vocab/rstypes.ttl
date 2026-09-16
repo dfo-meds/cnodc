@@ -10,7 +10,6 @@ rstypes:requireCoordinate rdf:type rdf:Property ;
   rdfs:domain rstypes:recordSetTypes ;
   rdfs:range skos:Literal .
 
-
 rstypes:TIME_SERIES  rdf:type skos:Concept ;
   skos:prefLabel "Time Series"@en ;
   rstypes:requireCoordinate "TimeOffset%7CTime" ;

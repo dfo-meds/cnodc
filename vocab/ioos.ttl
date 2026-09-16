@@ -4,7 +4,6 @@
 
 ioos:ioosCategories rdf:type skos:ConceptScheme .
 
-
 ioos:Location rdf:type skos:Concept ;
   skos:prefLabel "Location"@en ;
   skos:documentation "Where is the observation"@en ;
