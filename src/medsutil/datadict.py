@@ -12,7 +12,7 @@ from types import EllipsisType
 from medsutil.sanitize import unnumpy, coerce, require
 from medsutil.awaretime import AwareDateTime
 from medsutil.dynamic import dynamic_name, dynamic_object
-from medsutil.delayed import _DelayedDefaultValue, newdict, newlist, resolve_delayed, newset
+from medsutil.delayed import _DelayedDefaultValue, newdict, newlist, newset
 import medsutil.types as ct
 import medsutil.json as json
 
