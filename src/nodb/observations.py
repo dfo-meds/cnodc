@@ -337,7 +337,7 @@ def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
 
     # Embargo date
     if hasattr(obj, "embargo_date"):
-        obj.embargo_date = obj.metadata.best('CNODCEmbargoUntil', default=None, coerce=AwareDateTime.fromisoformat)
+        obj.embargo_date = data_record.metadata.best('CNODCEmbargoUntil', default=None, coerce=AwareDateTime.fromisoformat)
 
     # Quality Control Test Results
     if hasattr(obj, "qc_tests"):
