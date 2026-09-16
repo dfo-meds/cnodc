@@ -848,7 +848,7 @@ class NODBObservationData(_RecordMixin, s.MetadataMixin, s.NODBBaseObject):
     @classmethod
     def get_mock_index_keys(cls) -> list[list[str]]:
         keys = super().get_mock_index_keys()
-        keys.append(['source_file_uuid', 'received_date', 'message_idx', 'record_idx', 'processing_level'])
+        keys.append(['source_file_uuid', 'received_date', 'message_idx', 'record_idx'])
         return keys
 
     def find_source_file(self, db: interface.NODBInstance):
