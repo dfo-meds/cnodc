@@ -17,15 +17,19 @@ class TestGTSPPSpeedCheck(QCCheckerTestCase):
         record = ParentRecord()
         ref = ParentRecordRef(record)
         with self.assertSkipsReview():
-            GTSPPSpeedCheck().parent_record_check(ref)
+            checker = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)
+            checker._current_record = ref
+            checker.parent_record_check(ref)
 
     @sub_tests([(None, 9), ("5", 4), ("4", 3)])
     def test_bad_platform(self, platform, quality):
         record = ParentRecord()
         record.metadata["CNODCPlatform"] = SingleElement(platform, Quality=quality)
         ref = ParentRecordRef(record)
-        with self.assertSkipsReview():
-            GTSPPSpeedCheck().parent_record_check(ref)
+        with (self.assertSkipsReview()):
+            checker = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)
+            checker._current_record = ref
+            checker.parent_record_check(ref)
 
     # in decimal degrees, seconds, and m s-1
     @sub_tests([
