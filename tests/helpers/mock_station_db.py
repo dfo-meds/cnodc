@@ -72,13 +72,18 @@ class TestStationDatabase:
         return None
 
     def search_platforms(self,
-               *,
-               platform_id: str | None = None,
-               platform_name: str | None = None,
-               wigos_id: str | None = None,
-               wmo_id: str | None = None,
-               in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
+                         *,
+                         platform_id: str | None = None,
+                         platform_name: str | None = None,
+                         wigos_id: str | None = None,
+                         wmo_id: str | None = None,
+                         ship_code: str | None = None,
+                         in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
+        wmo_id = clean_wmo_id(wmo_id) if wmo_id else None
+        wigos_id = clean_wigos_id(wigos_id) if wigos_id else None
         for pid, platform in self._platforms.items():
+            if ship_code is not None and platform.ship_code != ship_code:
+                continue
             if platform_id is not None and platform.platform_id != platform_id:
                 continue
             if wigos_id is not None and platform.wigos_id != wigos_id:
