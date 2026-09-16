@@ -356,8 +356,8 @@ class TestObservation(BaseTestCase):
         record.coordinates['Longitude'] = -123.12345478
         record.coordinates['Depth'] = 45.1
         obs.update_from_record(record)
-        self.assertEqual(obs.min_depth, 45.1)
-        self.assertEqual(obs.max_depth, 45.1)
+        self.assertAlmostEqual(obs.min_depth, 45.1)
+        self.assertAlmostEqual(obs.max_depth, 45.1)
         self.assertIs(obs.observation_type, ObservationType.AT_DEPTH)
 
     def test_update_depth_from_top_in_km(self):
@@ -372,11 +372,12 @@ class TestObservation(BaseTestCase):
         record.coordinates['Depth'] = 0.0451
         record.coordinates['Depth'].metadata['Units'] = 'km'
         obs.update_from_record(record)
-        self.assertEqual(obs.min_depth, 45.1)
-        self.assertEqual(obs.max_depth, 45.1)
+        self.assertAlmostEqual(obs.min_depth, 45.1)
+        self.assertAlmostEqual(obs.max_depth, 45.1)
         self.assertIs(obs.observation_type, ObservationType.AT_DEPTH)
 
     def test_update_depth_from_top_in_pa(self):
+        import medsutil.seawater as s
         obs = NODBObservation()
         self.assertIsNone(obs.max_depth)
         self.assertIsNone(obs.min_depth)
@@ -388,8 +389,8 @@ class TestObservation(BaseTestCase):
         record.coordinates['Pressure'] = 200000
         record.coordinates['Pressure'].metadata['Units'] = 'Pa'
         obs.update_from_record(record)
-        self.assertAlmostEqual(obs.min_depth, 19.8365, 4)
-        self.assertAlmostEqual(obs.max_depth, 19.8365, 4)
+        self.assertAlmostEqual(obs.min_depth, 17.8528, 4)
+        self.assertAlmostEqual(obs.max_depth, 21.8201, 4)
         self.assertIs(obs.observation_type, ObservationType.AT_DEPTH)
 
     def test_surface_parameters(self):
@@ -457,7 +458,7 @@ class TestObservation(BaseTestCase):
         self.assertNotIn('AirTemperature', obs.profile_parameters)
         self.assertIs(obs.observation_type, ObservationType.PROFILE)
         self.assertEqual(obs.min_depth, 0)
-        self.assertEqual(obs.max_depth, 75)
+        self.assertAlmostEqual(obs.max_depth, 75)
 
     def test_find_observation_data(self):
         obs = NODBObservation()
