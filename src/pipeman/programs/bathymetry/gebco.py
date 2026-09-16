@@ -4,10 +4,9 @@ import struct
 
 from medsutil.fastgrid import FastGeoGrid
 from medsutil.math import ScienceNumber
-from pipeman.programs.bathymetry.base import BathymetryModel
 
 
-class GEBCOBathymetry(BathymetryModel, FastGeoGrid):
+class GEBCOBathymetry(FastGeoGrid):
 
     def __init__(self, file: pathlib.Path):
         super().__init__(

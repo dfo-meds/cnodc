@@ -11,7 +11,7 @@ class TestGTSPPBathymetryCheck(QCCheckerTestCase):
     @classmethod
     def setUpClass(cls):
         cls.bathymetry_check = GTSPPBathymetryCheck(
-            bathymetry_model_class=dynamic_name(MockBathymetryModel)
+            _bathymetry_models=[("test", MockBathymetryModel())]
         )
 
     @sub_tests([
@@ -53,8 +53,8 @@ class TestGTSPPBathymetryCheck(QCCheckerTestCase):
     ])
     def test_not_too_deep(self, lon: float, lat: float, depth: float):
         with self.assertPassesQC():
+            real_depth = self.bathymetry_check.get_water_depth(lat, lon)
             self.bathymetry_check.check_not_too_deep(
                 SingleElement(depth, Units="m"),
-                lat,
-                lon
+                real_depth
             )

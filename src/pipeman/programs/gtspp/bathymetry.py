@@ -25,7 +25,8 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
                  run_on_land_test: bool = True,
                  run_sounding_test: bool = True,
                  run_bottom_test: bool = True,
-                 searcher_cls: type | None = None):
+                 searcher_cls: type | None = None,
+                 _bathymetry_models: list[tuple[str, BathymetryModel]] | None = None):
         super().__init__(
             test_protocol='gtspp',
             test_name='bathymetry_check',
@@ -37,10 +38,13 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
             ],
             searcher_cls=searcher_cls
         )
-        self._bathymetry_models: list[tuple[str, BathymetryModel]] = [
-            ("ncei_great_lakes", GreatLakesBathymetry(t.cast(pathlib.Path, self.config.as_path("references", "great_lakes_bathymetry")))),
-            # TODO: GEBCO
-        ]
+        if not _bathymetry_models:
+            self._bathymetry_models: list[tuple[str, BathymetryModel]] = [
+                ("ncei_great_lakes", GreatLakesBathymetry(self.config.as_path("references", "great_lakes_bathymetry"))),
+                # TODO: GEBCO
+            ]
+        else:
+            self._bathymetry_models: list[tuple[str, BathymetryModel]] = _bathymetry_models
         self.run_on_land_test = run_on_land_test
         self.run_sounding_test = run_sounding_test
         self.run_bottom_test = run_bottom_test
@@ -72,13 +76,13 @@ class GTSPPBathymetryCheck(DeepDiveChecker):
     def get_water_depth(self, lat: float, lon: float) -> ScienceNumber | None:
         for bathy_model_name, bathy_model in self._bathymetry_models:
             water_depth = bathy_model.get_bathymetry(lon, lat)
-            if water_depth is not None:
+            if water_depth is not None and self._current_record is not None:
                 if "bathy_models" not in self.record_memory:
                     self.record_memory["bathy_models"] = set()
                 if bathy_model_name not in self.record_memory["bathy_models"]:
                     self.record_memory["bathy_models"].add(bathy_model_name)
                     self.add_note(f"Bathymetry model used: {bathy_model_name} at x={lon} y={lat}")
-                return water_depth
+            return water_depth
         return None
 
     def single_element_check(self, ref: SingleElementRef):
