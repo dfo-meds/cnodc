@@ -320,17 +320,17 @@ class LinearFunction(Converter):
         return amath.add(amath.mul(input_val, self._scale), self._shift)
 
     def scale(self, factor: amath.NonScienceNumber) -> LinearFunction:
-        if factor == 1:
+        if amath.eq(factor, 1):
             return self
         return LinearFunction(amath.mul(self._scale, factor))
 
     def power(self, factor: amath.NonScienceNumber) -> LinearFunction:
-        if factor == 1:
+        if amath.eq(factor, 1):
             return self
         return LinearFunction(amath.pow_(self._scale, factor))
 
     def shift(self, factor: amath.NonScienceNumber) -> LinearFunction:
-        if factor == 0:
+        if amath.eq(factor, 0):
             return self
         return LinearFunction(self._scale, amath.add(self._shift, factor))
 

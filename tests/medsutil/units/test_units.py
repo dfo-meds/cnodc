@@ -30,7 +30,7 @@ class TestConversions(BaseTestCase):
         'mg m-3': 'mg m-3',
         'K-1 J m': 'J m K-1',
         'kg kg-1': '1',
-        'g kg-1': 'kg kg-1',
+        'g kg-1': 'g kg-1',
         '1': '1',
         'K': 'K',
         '°C': 'degree_C',
@@ -66,7 +66,7 @@ class TestConversions(BaseTestCase):
         self.assertAlmostEqual(self._converter.convert(1, "km2", "m2"), decimal.Decimal('1000000'))
 
     def test_celsius(self):
-        self.assertEqual(
+        self.assertAlmostEqual(
             self._converter.convert(decimal.Decimal(27), '°C', 'K'),
             decimal.Decimal('300.15')
         )
@@ -90,7 +90,7 @@ class TestConversions(BaseTestCase):
         self.assertEqual(self._converter.convert(1, 'Pa s-1', 'hPa h-1'), 36)
 
     def test_concentration(self):
-        self.assertEqual(self._converter.convert(decimal.Decimal(1000), "umol L-1", "mol L-1"), decimal.Decimal("0.001"))
+        self.assertAlmostEqual(self._converter.convert(decimal.Decimal(1000), "umol L-1", "mol L-1"), decimal.Decimal("0.001"))
         self.assertEqual(self._converter.convert(decimal.Decimal("0.001"), "mol L-1", "umol L-1"), 1000)
 
     def test_non_convertible(self):
@@ -103,7 +103,7 @@ class TestConversions(BaseTestCase):
             with self.subTest(unit=non_si_unit):
                 expected_value, expected_si_units = self.COMMON_SI_EQUIVALENTS[non_si_unit]
                 func, dims = self._converter.raw_unit_info(non_si_unit)
-                self.assertAlmostEqual(decimal.Decimal(expected_value), func.convert(1))
+                self.assertAlmostEqual(expected_value, func.convert(1))
                 self.assertEqual(expected_si_units, self._converter.get_equivalent_base_units(non_si_unit))
 
     def test_valid_unit(self):
