@@ -131,7 +131,7 @@ class FastGeoGrid:
         for x in range(0, self._max_z):
             if self._z_values[x] <= depth < self._z_values[x + 1]:
                 return x
-        if self._z_values[-1] <= depth <= self._end_z:
+        if self._z_values[-1] <= depth < self._end_z:
             return self._max_z
         return None
 
@@ -141,9 +141,9 @@ class FastGeoGrid:
         if grid_z > self._max_z:
             return None
         if grid_z < self._max_z:
-            min_z, max_z = self._z_values[grid_z], self._z_values[grid_z]
+            min_z, max_z = self._z_values[grid_z], self._z_values[grid_z + 1]
         else:
-            min_z, max_z = self._z_values[grid_z] = self._max_z
+            min_z, max_z = self._z_values[grid_z], self._max_z
         if centre:
             return min_z + (max_z - min_z) / 2.0
         else:
@@ -178,9 +178,9 @@ class FastGeoGrid:
 
     def _get_value(self, coords: tuple[int, int, int]) -> bytes:
         # skip to the right x coordinate
-        skip_size = (coords[0] * self._max_y * self._max_z)
+        skip_size = (coords[0] * (self._max_y + 1) * (self._max_z + 1))
         # skip to the right y coordinate
-        skip_size += (coords[1] * self._max_z)
+        skip_size += (coords[1] * (self._max_z + 1))
         # skip to the right z coordinate
         skip_size += coords[2]
         # calculate the length to skip in bytes
@@ -193,7 +193,10 @@ class FastGeoGrid:
             ex.add_note(f"Error while trying to open a fastgrid file {self._file}")
             raise
 
-    def build_file(self, cb: t.Callable[[tuple[int, int, int]], bytes], file: pathlib.Path | None = None):
+    def build_file(self,
+                   cb: t.Callable[[tuple[int, int, int]], bytes],
+                   file: pathlib.Path | None = None,
+                   output: bool = False):
         with open(file or self._file, "wb") as f:
             for x in range(0, self._max_x + 1):
                 for y in range(0, self._max_y + 1):
@@ -203,8 +206,10 @@ class FastGeoGrid:
                             raise ValueError("Too long data")
                         while len(data) < self._data_size_bytes:
                             data = b"\x00" + data
-                        print(f"{x},{y},{z}", end="\r")
+                        if output:
+                            print(f"{x},{y},{z}", end="\r")
                         f.write(data)
-        print("\n")
+        if output:
+            print("\n")
 
 
