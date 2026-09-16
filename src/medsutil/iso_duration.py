@@ -38,9 +38,9 @@ class ISODuration(dd.DataDictObject):
             if self.hours != 0:
                 s += f"{self.hours}H"
             if self.minutes != 0:
-                s += f"{self.hours}M"
+                s += f"{self.minutes}M"
             if self.seconds != 0:
-                s += f"{self.hours}S"
+                s += f"{self.seconds}S"
         return s
 
     def add_to(self, dt: AwareDateTime) -> AwareDateTime:
