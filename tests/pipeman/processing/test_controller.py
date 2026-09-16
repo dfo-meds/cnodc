@@ -702,8 +702,11 @@ class TestWorkflowController(BaseTestCase):
         self.assertIn('filename', d.data['metadata'])
         self.assertEqual(d.data['metadata']['filename'], 'world.txt')
 
-@injector.inject
-def _fake_validation_called(local_path, metadata, filename, d: InjectableDict=None):
-    d.data['local_path'] = local_path
-    d.data['metadata'] = metadata
-    d.data['filename'] = filename
+
+def _fake_validation_called(local_path, metadata, filename):
+    @injector.inject
+    def _call(d: InjectableDict = None):
+        d.data['local_path'] = local_path
+        d.data['metadata'] = metadata
+        d.data['filename'] = filename
+    _call()
