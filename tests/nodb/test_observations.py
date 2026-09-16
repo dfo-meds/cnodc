@@ -2,8 +2,9 @@ import datetime
 import enum
 
 from medsutil.awaretime import AwareDateTime
-from nodb.observations import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, PlatformStatus, \
-    NODBBatch, ObservationType, ObservationStatus, NODBWorkingRecord, BatchStatus
+from nodb.observations import NODBSourceFile, NODBObservation, NODBObservationData, NODBMission, NODBPlatform, \
+    PlatformStatus, \
+    NODBBatch, ObservationType, ObservationStatus, NODBWorkingRecord, BatchStatus, DataMode
 from medsutil.ocproc2 import ParentRecord, ChildRecord, QCResult
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from tests.helpers.base_test_case import BaseTestCase
@@ -319,7 +320,7 @@ class TestObservation(BaseTestCase):
             ('metadata/CNODCPlatform', 'platform_uuid', '123456'),
             ('metadata/CNODCEmbargoUntil', 'embargo_date', AwareDateTime(2015, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
             ('coordinates/Time', 'obs_time', AwareDateTime(2014, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)),
-            ('metadata/CNODCLevel', 'processing_level', ProcessingLevel.REAL_TIME),
+            ('metadata/CNODCDataMode', 'data_mode', DataMode.REAL_TIME),
         ]
         for test_property, test_name, test_val in tests:
             with self.subTest(test_name=test_name):
