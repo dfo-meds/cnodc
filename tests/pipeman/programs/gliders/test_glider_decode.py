@@ -1,5 +1,3 @@
-import logging
-
 from medsutil.ocproc2 import ParentRecord, MultiElement, SingleElement
 from pipeman.programs.glider.ego_convert import ego_sensor_info
 from medsutil.sanitize import netcdf_string_to_bytes
