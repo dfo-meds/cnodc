@@ -71,7 +71,7 @@ class TestStationDatabase:
             return self._platforms[platform_uuid]
         return None
 
-    def search(self,
+    def search_platforms(self,
                *,
                platform_id: str | None = None,
                platform_name: str | None = None,
