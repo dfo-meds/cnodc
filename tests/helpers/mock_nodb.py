@@ -2,6 +2,7 @@ import datetime
 import typing as t
 import uuid
 
+from gcapp.queries import SqlCondition, And, Or, Equals
 from medsutil.awaretime import AwareDateTime
 from nodb.interface import QueueStatus, ScannedFileStatus
 from nodb.queue import NODBQueueItem
@@ -233,7 +234,7 @@ class DatabaseMock:
         for idx in self._find_object_indexes(obj_cls.TABLE_NAME, **kwargs):
             yield self.tables[obj_cls.TABLE_NAME][idx].export()
 
-    def count_objects(self, obj_cls, filters: t.Optional[dict] = None, **kwargs):
+    def count_objects(self, obj_cls, filters: dict | SqlCondition | None = None, **kwargs):
         return sum(1 for _ in self._find_object_indexes(obj_cls.TABLE_NAME, filters))
 
     def bulk_update_objects(self, cls, updates, key_field, key_values):
@@ -259,7 +260,7 @@ class DatabaseMock:
         else:
             self.update_object(obj)
 
-    def load_object(self, cls, filters: dict, **kwargs):
+    def load_object(self, cls, filters: dict | SqlCondition | None, **kwargs):
         obj_idx = self._find_object_index(cls.TABLE_NAME, filters)
         if obj_idx is None:
             return None
@@ -276,20 +277,20 @@ class DatabaseMock:
             self.tables[tbl_name][index] = None
             self._clean_indices(tbl_name, index)
 
-    def _find_object_index(self, table_name, filters: dict, order_by=None) -> t.Optional[int]:
+    def _find_object_index(self, table_name, filters: dict | SqlCondition | None, order_by=None) -> t.Optional[int]:
         for idx in self._find_object_indexes(table_name, filters):
             return idx
         return None
 
-    def _clean_filters(self, filters: dict | None):
-        if not filters:
-            return {}
+    def _clean_filters(self, filters: dict | SqlCondition | None):
+        if not isinstance(filters, dict):
+            return filters
         return {
             k: coerce.as_json_safe(filters[k])
             for k in filters.keys()
         }
 
-    def _find_object_indexes(self, table_name, filters: dict=None, join_str='AND', **kwargs):
+    def _find_object_indexes(self, table_name, filters: dict | SqlCondition | None = None, join_str: str = 'AND', **kwargs):
         # TOOD: handle ordering
         if table_name in self.tables:
             filters = self._clean_filters(filters)
@@ -299,21 +300,43 @@ class DatabaseMock:
                     obj = self.tables[table_name][idx]
                     if obj is None:
                         continue
-                    if all(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
+                    if self._check_filters(obj, filters, join_str):
                         yield idx
             else:
                 for idx, obj in enumerate(self.tables[table_name]):
                     if obj is None:
                         continue
-                    if join_str == 'OR':
-                        if any(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
-                            yield idx
-                    else:
-                        if all(self._check_filter(obj.get_for_db(filter_name), filters[filter_name]) for filter_name in filters):
-                            yield idx
+                    if self._check_filters(obj, filters, join_str):
+                        yield idx
 
-    def _build_index_set(self, table_name, filters, join_str='AND') -> list[int] | None:
-        if join_str != 'OR' and not any(isinstance(x, tuple) for x in filters.values()):
+    def _check_filters(self, obj: NODBBaseObject, filters: dict | SqlCondition | None, join_str: str = "AND") -> bool:
+        if filters is None:
+            return True
+        elif isinstance(filters, dict):
+            if join_str == "OR":
+                return any(self._check_filter(obj.get_for_db(key), filters[key]) for key in filters)
+            else:
+                return all(self._check_filter(obj.get_for_db(key), filters[key]) for key in filters)
+        elif isinstance(filters, SqlCondition):
+            return self._check_condition(obj, filters)
+        else:
+            raise TypeError("invalid type for a filter")
+
+    def _check_condition(self, obj: NODBBaseObject, condition: SqlCondition) -> bool:
+        if isinstance(condition, And):
+            return all(self._check_condition(obj, x) for x in condition.all_conditions())
+        elif isinstance(condition, Or):
+            return any(self._check_condition(obj, x) for x in condition.all_conditions())
+        elif isinstance(condition, Equals):
+            if condition.case_sensitive:
+                return obj.get_for_db(condition.column_name) == condition.value
+            else:
+                return str(obj.get_for_db(condition.column_name)).lower() == str(condition.value).lower()
+        else:
+            raise NotImplementedError(condition)
+
+    def _build_index_set(self, table_name, filters: dict | SqlCondition | None, join_str: str = 'AND') -> list[int] | None:
+        if join_str != 'OR' and isinstance(filters, dict) and not any(isinstance(x, tuple) for x in filters.values()):
             if table_name in self._lookups:
                 for index_key in self._lookups[table_name]:
                     keys = index_key.split('__')
