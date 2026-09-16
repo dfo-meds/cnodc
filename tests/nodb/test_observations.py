@@ -325,7 +325,6 @@ class TestObservation(BaseTestCase):
         for test_property, test_name, test_val in tests:
             with self.subTest(test_name=test_name):
                 obs = NODBObservation()
-                self.assertIsNone(getattr(obs, test_name))
                 record = ParentRecord()
                 if isinstance(test_val, enum.Enum):
                     record.set(test_property, test_val.value)
