@@ -177,7 +177,7 @@ class SetQualityCheck(RecordAction):
 
 
 class SetPlatformCandidates(RecordAction):
-    platform_uuids: list[str] | None
+    platform_uuids: list[str] | None = dd.p_list(value_coerce=str)
 
     def apply(self, record: ParentRecord):
         if not self.platform_uuids:
