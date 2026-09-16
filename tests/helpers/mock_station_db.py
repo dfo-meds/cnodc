@@ -3,6 +3,8 @@ import typing as t
 
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ParentRecord, SingleElement
+
+from medsutil.sanitize import clean_wmo_id, clean_wigos_id
 from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData
 
 
@@ -79,18 +81,24 @@ class TestStationDatabase:
                          wmo_id: str | None = None,
                          ship_code: str | None = None,
                          in_service_time: AwareDateTime | None = None) -> t.Iterable[NODBPlatform]:
-        wmo_id = clean_wmo_id(wmo_id) if wmo_id else None
-        wigos_id = clean_wigos_id(wigos_id) if wigos_id else None
+        try:
+            wmo_id = clean_wmo_id(wmo_id) if wmo_id else None
+        except ValueError:
+            wmo_id = None
+        try:
+            wigos_id = clean_wigos_id(wigos_id) if wigos_id else None
+        except ValueError:
+            wigos_id = None
         for pid, platform in self._platforms.items():
-            if ship_code is not None and platform.ship_code != ship_code:
+            if ship_code is not None and platform.ship_code.lower() != ship_code.lower():
                 continue
-            if platform_id is not None and platform.platform_id != platform_id:
+            if platform_id is not None and platform.platform_id.lower() != platform_id.lower():
                 continue
             if wigos_id is not None and platform.wigos_id != wigos_id:
                 continue
             if wmo_id is not None and platform.wmo_id != wmo_id:
                 continue
-            if platform_name is not None and platform.platform_name != platform_name:
+            if platform_name is not None and platform.platform_name.lower() != platform_name.lower():
                 continue
             if in_service_time is not None:
                 if platform.service_start_date is not None and in_service_time < platform.service_start_date:
