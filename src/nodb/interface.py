@@ -159,7 +159,7 @@ class NODBError(CodedError):
     """Wrapper for NODB-related errors."""
     CODE_SPACE = 'NODB'
 
-    def __init__(self, msg, code, pgcode: str | None, is_transient: bool = False):
+    def __init__(self, msg, code, pgcode: str | None, is_connection_issue: bool = False):
         super().__init__(f"Database error: {msg} [{pgcode or ''}]", code)
         self._state = None
         self.pgcode = pgcode
@@ -169,7 +169,7 @@ class NODBError(CodedError):
         except ValueError:
             ...
 
-        self._is_db_available = True
+        self._is_db_available = not is_connection_issue
         self._is_retryable = False
 
         if msg and any(x in msg.lower() for x in RECOVERABLE_MESSAGE_FRAGMENTS):

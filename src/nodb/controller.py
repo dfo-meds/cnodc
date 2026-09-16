@@ -1299,21 +1299,21 @@ class PGConnectionWrapper:
         if self._conn is not None:
             return self._conn.cursor()
         else:
-            raise NODBError("Database connection not present", 9000, is_transient=True, pgcode=None)
+            raise NODBError("Database connection not present", 9000, is_connection_issue=True, pgcode=None)
 
     def commit(self):
         self._verify_connection()
         if self._conn is not None:
             self._conn.commit()
         else:
-            raise NODBError("Database connection not present", 9001, is_transient=True, pgcode=None)
+            raise NODBError("Database connection not present", 9001, is_connection_issue=True, pgcode=None)
 
     def rollback(self):
         self._verify_connection()
         if self._conn is not None:
             self._conn.rollback()
         else:
-            raise NODBError("Database connection not present", 9002, is_transient=True, pgcode=None)
+            raise NODBError("Database connection not present", 9002, is_connection_issue=True, pgcode=None)
 
     def connect(self):
         self._verify_connection()

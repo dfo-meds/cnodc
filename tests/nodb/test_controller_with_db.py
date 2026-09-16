@@ -57,23 +57,21 @@ class TestControllerInstanceNoMock(BaseTestCase):
     def test_user_management(self):
         with self.real_nodb_test('nodb_users') as (db, cur):
             user = NODBUser(
-                username='foobar',
-                roles=['foo', 'bar']
+                username='foobar2',
             )
             user.set_password('test')
             db.insert_object(user)
             db.commit()
-            cur.execute('SELECT username, phash, salt, old_phash, old_salt, old_expiry, status, roles FROM nodb_users')
+            cur.execute('SELECT username, phash, salt, old_phash, old_salt, old_expiry, status FROM nodb_users')
             users = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(users))
-            self.assertEqual(users[0][0], 'foobar')
+            self.assertEqual(users[0][0], 'foobar2')
             self.assertEqual(bytes(users[0][1]), user.phash)
             self.assertEqual(bytes(users[0][2]), user.salt)
             self.assertIsNone(users[0][3])
             self.assertIsNone(users[0][4])
             self.assertIsNone(users[0][5])
             self.assertEqual(users[0][6], 'ACTIVE')
-            self.assertEqual(set(users[0][7]), {'foo', 'bar'})
             self.assertTrue(user.check_password('test'))
             self.assertFalse(user.check_password('test2'))
             user.set_password('test2', old_expiry_seconds=60)
@@ -82,46 +80,43 @@ class TestControllerInstanceNoMock(BaseTestCase):
                 self.assertTrue(user.check_password('test'))
             self.assertFalse(user.check_password('test3'))
             user.status = UserStatus.INACTIVE
-            user.unassign_role('bar')
             db.update_object(user)
             db.commit()
-            cur.execute('SELECT username, phash, salt, old_phash, old_salt, old_expiry, status, roles FROM nodb_users')
+            cur.execute('SELECT username, phash, salt, old_phash, old_salt, old_expiry, status FROM nodb_users')
             users = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(users))
-            self.assertEqual(users[0][0], 'foobar')
+            self.assertEqual(users[0][0], 'foobar2')
             self.assertEqual(bytes(users[0][1]), user.phash)
             self.assertEqual(bytes(users[0][2]), user.salt)
             self.assertEqual(bytes(users[0][3]), user.old_phash)
             self.assertEqual(bytes(users[0][4]), user.old_salt)
             self.assertIsNotNone(users[0][5])
             self.assertEqual(users[0][6], 'INACTIVE')
-            self.assertEqual(users[0][7], ['foo'])
-            user2 = NODBUser.find_by_username(db, 'foobar')
+            user2 = NODBUser.find_by_username(db, 'foobar2')
             self.assertIsNotNone(user2)
             self.assertTrue(user2.check_password('test2'))
             self.assertEqual(user.phash, user2.phash)
-            self.assertIsNone(NODBUser.find_by_username(db, 'foobar2'))
+            self.assertIsNone(NODBUser.find_by_username(db, 'bar99'))
 
     def test_record_login(self):
         with self.real_nodb_test('nodb_logins', 'nodb_users') as (db, cur):
-            user = NODBUser(username='foobar')
+            user = NODBUser(username='foobar3')
             db.insert_object(user)
             db.commit()
-            db.record_login('foobar', '127.0.0.1', 'hello_world')
+            db.record_login('foobar3', '127.0.0.1', True, False)
             db.commit()
-            cur.execute("SELECT username, login_time, login_addr, instance_name FROM nodb_logins")
+            cur.execute("SELECT username, db_created_date, remote_addr FROM nodb_logins WHERE username = 'foobar3'")
             logins = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(logins))
-            self.assertEqual(logins[0][0], 'foobar')
+            self.assertEqual(logins[0][0], 'foobar3')
             self.assertIsNotNone(logins[0][1])
             now = AwareDateTime.utcnow()
             self.assertLessEqual((now - logins[0][1]).total_seconds(), 2)
             self.assertEqual(logins[0][2], '127.0.0.1')
-            self.assertEqual(logins[0][3], 'hello_world')
 
     def test_session_management(self):
         with self.real_nodb_test('nodb_sessions', 'nodb_users') as (db, cur):
-            user = NODBUser(username='foobar')
+            user = NODBUser(username='foobar', identifier=5)
             db.insert_object(user)
             db.commit()
             now = AwareDateTime.utcnow()
@@ -129,22 +124,22 @@ class TestControllerInstanceNoMock(BaseTestCase):
                 session_id=str(uuid.uuid4()),
                 start_time=now,
                 expiry_time=now + datetime.timedelta(days=1),
-                username='foobar',
+                user_id=5,
                 session_data={'monkey': 'butt'}
             )
             db.insert_object(session)
-            cur.execute('SELECT session_id, start_time, expiry_time, username, session_data FROM nodb_sessions')
+            cur.execute('SELECT session_id, start_time, expiry_time, user_id, session_data FROM nodb_sessions')
             sessions = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(sessions))
             self.assertEqual(sessions[0][0], session.session_id)
             self.assertEqual(sessions[0][1], session.start_time)
             self.assertEqual(sessions[0][2], session.expiry_time)
-            self.assertEqual(sessions[0][3], 'foobar')
+            self.assertEqual(sessions[0][3], user.identifier)
             self.assertEqual(sessions[0][4], {'monkey': 'butt'})
             session2 = NODBSession.find_by_session_id(db, session.session_id)
             self.assertEqual(session.expiry_time, session2.expiry_time)
             db.delete_session(session.session_id)
-            cur.execute('SELECT session_id, start_time, expiry_time, username, session_data FROM nodb_sessions')
+            cur.execute('SELECT session_id, start_time, expiry_time, user_id, session_data FROM nodb_sessions')
             sessions = [x for x in cur.fetch_stream(25)]
             self.assertEqual(0, len(sessions))
 
