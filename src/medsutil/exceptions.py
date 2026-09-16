@@ -39,19 +39,18 @@ def ex_pretty(e: BaseException):
 def exception_kwargs_for_email(ex: BaseException) -> dict[str, str]:
     return {
         'error_description': ex_pretty(ex),
-        'error_details': "\n".join(format_stack_trace(ex, colorize=False))
+        'error_details': "\n".join(format_stack_trace(ex))
     }
 
 def format_stack_trace(ex: BaseException,
                        exclude_file_suffixes: list[str] | None = None,
-                       exclude_name_prefixes: list[str] | None = None,
-                       colorize: bool = True) -> list[str]:
+                       exclude_name_prefixes: list[str] | None = None) -> list[str]:
     efs: tuple[str] = tuple(*exclude_file_suffixes) if exclude_file_suffixes else tuple()
     enp: tuple[str] = tuple(*exclude_name_prefixes) if exclude_name_prefixes else tuple()
 
     lines: list[str] = []
     skip_next: bool = False
-    for line in traceback.TracebackException.from_exception(ex).format(chain=True, colorize=colorize):
+    for line in traceback.TracebackException.from_exception(ex).format(chain=True):
         add_after = False
         if line.startswith("\n"):
             lines.append("")
@@ -83,9 +82,6 @@ def format_stack_trace(ex: BaseException,
 
     return lines
 
-
-def color_text(text: str, color: int, style: int = 0) -> str:
-    return f"\033[{style};{color}m{text}\033[0m"
 
 
 def with_exception_note(note: str) -> t.Callable:
