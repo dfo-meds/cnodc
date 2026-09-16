@@ -100,6 +100,7 @@ class TestFileDownloadWorker(BaseTestCase):
                 'safe_ext': 'txt',
                 'source': worker.process_full_id,
                 'filename': 'file1.txt',
+                'workflow-uploaded-files': file_path.replace('\\', '/')
             },
             'file_path': file_path.replace('\\', '/'),
             'filename': 'file1.txt',
