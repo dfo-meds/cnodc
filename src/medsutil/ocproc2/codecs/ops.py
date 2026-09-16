@@ -1026,8 +1026,6 @@ class OPSContext:
 
     def get_forward_metadata(self, property_name: str) -> dict[str, t.Any]:
         md = {}
-        if property_name == "Temperature":
-            print(property_name, self._future_metadata)
         for _, d in self._future_metadata.items():
             for key, future in d.items():
                 if future.names is not None and property_name not in future.names:
