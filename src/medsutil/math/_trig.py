@@ -18,7 +18,7 @@ def cos(x):
     else:
         return _math.cos(x)
 
-@num.with_error_propagation(lambda x: sin(x), units_func=lambda x: "1")
+@num.with_error_propagation(lambda x: sin(_common.nominal_value(x)), units_func=lambda x: "1")
 def sn_cos(x: mt.AnyNumber) -> mt.ScienceNumberProtocol:
     return cos(_common.nominal_value(x))
 
@@ -39,7 +39,7 @@ def sin(x):
     else:
         return _math.sin(x)
 
-@num.with_error_propagation(lambda x: -1 * cos(x), units_func=lambda x: "1")
+@num.with_error_propagation(lambda x: -1 * cos(_common.nominal_value(x)), units_func=lambda x: "1")
 def sn_sin(x: mt.AnyNumber) -> mt.ScienceNumberProtocol:
     return sin(_common.nominal_value(x))
 
