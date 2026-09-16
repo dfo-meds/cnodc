@@ -275,7 +275,7 @@ class AbstractElement[X]:
             raise ValueError("Invalid value")
         else:
             adjust, std_dev, _ = bv.precision_information()
-            actual = bv.to_float() + adjust
+            actual = bv.to_float() + (adjust if adjust is not None else 0)
             kwargs: dict[str, t.Any] = {
                 'units': bv.units(),
                 'min_std_dev':  1.11022302462515016e-16 * actual  # natural error of floats
