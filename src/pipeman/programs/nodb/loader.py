@@ -271,7 +271,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                     record_idx=record_idx,
                     source_file=source_file,
                 )
-                skipped = res.action != CreationResultType.COPY_EXISTS
+                skipped = res.action is CreationResultType.COPY_EXISTS
             else:
                 res = rm.create_working_entry_from_source_file(
                     record=record,
@@ -279,7 +279,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
                     message_idx=message_idx,
                     record_idx=record_idx,
                 )
-                skipped = res is not None
+                skipped = res is None
             if skipped:
                 self.count("records_loaded_total", outcome="skipped")
             else:
