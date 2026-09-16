@@ -42,7 +42,7 @@ DEPTH_F = amath.NumberString("1.092e-6")
 # From seawater.eos80.dpth
 def eos80_depth[T: AnyNumber](pressure: T, latitude: T) -> T:
     """Calculate depth in meters from pressure in dbars and latitude in decimal degrees."""
-    top = amath.calculate_polynomial(pressure, DEPTH_A, DEPTH_B, DEPTH_C, DEPTH_D, DEPTH_E, 0)
+    top = amath.calculate_polynomial(pressure, DEPTH_A, DEPTH_B, DEPTH_C, DEPTH_D, 0)
     bottom = amath.add(surface_gravity(latitude), amath.mul(DEPTH_F, pressure))
     # Note: 5% uncertainty in depth
     depth = amath.div(top, bottom)
