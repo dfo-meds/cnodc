@@ -2,10 +2,13 @@ import datetime
 import enum
 import typing as t
 
+import zrlog
+
 import medsutil.ocproc2 as ocproc2
 import nodb.base as s
 import medsutil.types as ct
 import nodb.interface as interface
+from gcapp.queries import Equals, Or
 from medsutil.math import is_science_number, ScienceNumber
 from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
@@ -601,22 +604,28 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
                ship_code: t.Optional[str] = None,
                **kwargs) -> t.Iterable[NODBPlatform]:
         """Search for a platform by various identifiers."""
-        filters = {}
+        conditions = []
         if wmo_id is not None and wmo_id != '':
             from medsutil.sanitize import clean_wmo_id
-            filters['wmo_id'] = clean_wmo_id(wmo_id)
+            try:
+                conditions.append(Equals("wmo_id", clean_wmo_id(wmo_id)))
+            except ValueError:
+                zrlog.get_logger("nodb.platform").exception("Exception while processing WMO id, ignoring")
         if wigos_id is not None and wigos_id != '':
             from medsutil.sanitize import clean_wigos_id
-            filters['wigos_id'] = clean_wigos_id(wigos_id)
+            try:
+                conditions.append(Equals("wigos_id", clean_wigos_id(wigos_id)))
+            except ValueError:
+                zrlog.get_logger("nodb.platform").exception("Exception while processing WIGOS id, ignoring")
         # TODO: we should do case-insensitive comparisons for these
         if platform_id is not None and platform_id != '':
-            filters['platform_id'] = platform_id
+            conditions.append(Equals("platform_id", platform_id, case_sensitive=False))
         if platform_name is not None and platform_name != '':
-            filters['platform_name'] = platform_name
+            conditions.append(Equals("platform_name", platform_name, case_sensitive=False))
         if ship_code is not None and ship_code != '':
-            filters['ship_code'] = ship_code
-        if filters:
-            res = db.stream_objects(cls, filters=filters, join_str='OR', **kwargs)
+            conditions.append(Equals("ship_code", ship_code, case_sensitive=False))
+        if conditions:
+            res = db.stream_objects(cls, filters=Or(*conditions), **kwargs)
             if in_service_time is None:
                 yield from res
             else:
