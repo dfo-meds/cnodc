@@ -357,11 +357,11 @@ class TestGliderDecodeFull(BaseTestCase):
         self.assertEqual(12, by_type['interpolated'].value)
         self.assertEqual(1, by_type['interpolated'].metadata['Quality'].value)
         self.assertEqual('interpolated', by_type['interpolated'].metadata['SensorType'].value)
-        self.assertEqual('degrees_north', by_type['interpolated'].metadata['Units'].value)
+        self.assertEqual('degree_north', by_type['interpolated'].metadata['Units'].value)
         self.assertEqual(12.1, by_type['satnav'].value)
         self.assertEqual(1, by_type['satnav'].metadata['Quality'].value)
         self.assertEqual('satnav', by_type['satnav'].metadata['SensorType'].value)
-        self.assertEqual('degrees_north', by_type['satnav'].metadata['Units'].value)
+        self.assertEqual('degree_north', by_type['satnav'].metadata['Units'].value)
 
     def test_longitude(self):
         record = self.decoded_records[0]
@@ -375,11 +375,11 @@ class TestGliderDecodeFull(BaseTestCase):
         self.assertEqual(13, by_type['interpolated'].value)
         self.assertEqual(1, by_type['interpolated'].metadata['Quality'].value)
         self.assertEqual('interpolated', by_type['interpolated'].metadata['SensorType'].value)
-        self.assertEqual('degrees_east', by_type['interpolated'].metadata['Units'].value)
+        self.assertEqual('degree_east', by_type['interpolated'].metadata['Units'].value)
         self.assertEqual(13.1, by_type['satnav'].value)
         self.assertEqual(1, by_type['satnav'].metadata['Quality'].value)
         self.assertEqual('satnav', by_type['satnav'].metadata['SensorType'].value)
-        self.assertEqual('degrees_east', by_type['satnav'].metadata['Units'].value)
+        self.assertEqual('degree_east', by_type['satnav'].metadata['Units'].value)
 
     def test_time(self):
         record = self.decoded_records[0]
@@ -412,9 +412,9 @@ class TestGliderDecodeFull(BaseTestCase):
         tests = [
             ('ChlorophyllA', 1.3, 1, 'mg m-3', None),
             ('ChlorophyllAFluorescence', 2, 1, '1', None),
-            ('PracticalSalinity', 24.9, 1, "0.001", None),
-            ('Temperature', 11.1, 1, 'degrees_Celsius', {'TemperatureScale': 'ITS-90'}),
-            ('ColoredDissolvedOrganicMatter', 0.5, 1, 'ppb', None),
+            ('PracticalSalinity', 24.9, 1, "1e-3", None),
+            ('Temperature', 11.1, 1, 'degree_C', {'TemperatureScale': 'ITS-90'}),
+            ('ColoredDissolvedOrganicMatter', 0.5, 1, '1e-9', None),
             ('DissolvedOxygen', 12.1, 1, 'umol kg-1', None),
             ('DissolvedOxygenFrequency', 5.2, 1, 's-1', None),
             ('DissolvedOxygenMolar', 5.1, 1, 'umol L-1', None),
@@ -567,7 +567,7 @@ class TestGliderDecodeMinimum(BaseTestCase):
         self.assertEqual(12, lat.value)
         self.assertEqual(1, lat.metadata['Quality'].value)
         self.assertEqual('interpolated', lat.metadata['SensorType'].value)
-        self.assertEqual('degrees_north', lat.metadata['Units'].value)
+        self.assertEqual('degree_north', lat.metadata['Units'].value)
 
     def test_longitude(self):
         record = self.decoded_records[0]
@@ -576,7 +576,7 @@ class TestGliderDecodeMinimum(BaseTestCase):
         self.assertEqual(13, lon.value)
         self.assertEqual(1, lon.metadata['Quality'].value)
         self.assertEqual('interpolated', lon.metadata['SensorType'].value)
-        self.assertEqual('degrees_east', lon.metadata['Units'].value)
+        self.assertEqual('degree_east', lon.metadata['Units'].value)
 
     def test_time(self):
         record = self.decoded_records[0]
@@ -604,8 +604,8 @@ class TestGliderDecodeMinimum(BaseTestCase):
         test_missing = ['ChlorophyllA', 'ChlorophyllAFluorescence', 'ColoredDissolvedOrganicMatter', 'DissolvedOxygen',
                         'DissolvedOxygenFrequency', 'DissolvedOxygenMolar', 'Turbidity', 'ParticleBackscatter']
         tests = [
-            ('PracticalSalinity', 24.9, 1, "0.001", None),
-            ('Temperature', 11.1, 1, 'degrees_Celsius', {'TemperatureScale': 'ITS-90'}),
+            ('PracticalSalinity', 24.9, 1, "1e-3", None),
+            ('Temperature', 11.1, 1, 'degree_C', {'TemperatureScale': 'ITS-90'}),
         ]
         for pcode, val, qf, units, metadata in tests:
             with self.subTest(pcode=pcode):
