@@ -341,12 +341,12 @@ def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
 
     # Quality Control Test Results
     if hasattr(obj, "qc_tests"):
-        qc_test_names = set(x.test_name for x in data_record.qc_tests)
+        qc_test_names = set((x.test_protocol, x.test_name) for x in data_record.qc_tests)
         qc_test_info = {}
-        for x in qc_test_names:
-            best_result = data_record.latest_test_result(x, True)
+        for protocol, name in qc_test_names:
+            best_result = data_record.latest_test_result(protocol, name, True)
             if best_result is not None:
-                qc_test_info[x] = {
+                qc_test_info[f"{protocol}__{name}"] = {
                     'version': best_result.test_version,
                     'date_run': best_result.test_date,
                     'result': best_result.result.value,

@@ -537,18 +537,18 @@ class TestObservationData(BaseTestCase):
         with self.subTest(msg='status'):
             self.assertIs(obs_data.status, ObservationStatus.DUBIOUS)
         with self.subTest(msg='qc tests'):
-            self.assertIn('bogus_qc', obs_data.qc_tests)
-            self.assertEqual('1.3', obs_data.qc_tests['bogus_qc']['version'])
-            self.assertEqual(QCResult.PASS.value, obs_data.qc_tests['bogus_qc']['result'])
-            self.assertIsInstance(obs_data.qc_tests['bogus_qc']['date_run'], str)
-            self.assertIn('bogus_qc2', obs_data.qc_tests)
-            self.assertEqual('1.4', obs_data.qc_tests['bogus_qc2']['version'])
-            self.assertEqual(QCResult.FAIL.value, obs_data.qc_tests['bogus_qc2']['result'])
-            self.assertIsInstance(obs_data.qc_tests['bogus_qc2']['date_run'], str)
-            self.assertIn('bogus_qc3', obs_data.qc_tests)
-            self.assertEqual('1.4', obs_data.qc_tests['bogus_qc3']['version'])
-            self.assertEqual(QCResult.SKIP.value, obs_data.qc_tests['bogus_qc3']['result'])
-            self.assertIsInstance(obs_data.qc_tests['bogus_qc3']['date_run'], str)
+            self.assertIn('bogus__bogus_qc', obs_data.qc_tests)
+            self.assertEqual('1.3', obs_data.qc_tests['bogus__bogus_qc']['version'])
+            self.assertEqual(QCResult.PASS.value, obs_data.qc_tests['bogus__bogus_qc']['result'])
+            self.assertIsInstance(obs_data.qc_tests['bogus__bogus_qc']['date_run'], str)
+            self.assertIn('bogus__bogus_qc2', obs_data.qc_tests)
+            self.assertEqual('1.4', obs_data.qc_tests['bogus__bogus_qc2']['version'])
+            self.assertEqual(QCResult.FAIL.value, obs_data.qc_tests['bogus__bogus_qc2']['result'])
+            self.assertIsInstance(obs_data.qc_tests['bogus__bogus_qc2']['date_run'], str)
+            self.assertIn('bogus__bogus_qc3', obs_data.qc_tests)
+            self.assertEqual('1.4', obs_data.qc_tests['bogus__bogus_qc3']['version'])
+            self.assertEqual(QCResult.SKIP.value, obs_data.qc_tests['bogus__bogus_qc3']['result'])
+            self.assertIsInstance(obs_data.qc_tests['bogus__bogus_qc3']['date_run'], str)
 
     def test_find_by_uuid(self):
         obs_data = NODBObservationData(
