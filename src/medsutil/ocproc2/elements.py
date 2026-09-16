@@ -22,7 +22,6 @@ UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
 
 if t.TYPE_CHECKING:
     from medsutil.iso_duration import ISODuration
-    from uncertainties import ufloat, UFloat
     import medsutil.types as ct
     type SupportedValueOrElement = ocut.SupportedValue | AbstractElement
     DefaultValueDict = dict[str, SupportedValueOrElement]
