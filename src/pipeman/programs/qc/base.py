@@ -488,12 +488,17 @@ class QualityController(abc.ABC):
                         flag: int | None = None,
                         subpath: t.Optional[str] = None,
                         ref_value: t.Any = None):
-        raise QCAssertionError(
+        err = QCAssertionError(
             error_code=msg,
             flag_number=flag,
             subpath=subpath,
             ref_value=ref_value
         )
+        if ref_value is not None:
+            err.add_note(f"Reference value: {ref_value}")
+        if subpath:
+            err.add_note(f"Path: {subpath}")
+        raise err
 
     def extract_all_keyed_parameters(self, *records: RecordRef, include_parameters: t.Container[str] | None = None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
         param_names = set()
