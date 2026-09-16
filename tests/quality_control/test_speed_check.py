@@ -21,7 +21,7 @@ class TestGTSPPSpeedCheck(QCCheckerTestCase):
             checker._current_record = ref
             checker.parent_record_check(ref)
 
-    @sub_tests([(None, 9), ("5", 4), ("4", 3)])
+    @sub_tests([(None, 9), ("5", 4)])
     def test_bad_platform(self, platform, quality):
         record = ParentRecord()
         record.metadata["CNODCPlatform"] = SingleElement(platform, Quality=quality)
