@@ -65,19 +65,19 @@ class CompiledCron:
         self._cron_config: tuple[list[int], list[int], list[int], list[int], list[int]] = (
             _validate_and_expand_cron_piece(cron_tuple[0], 0, 59, rgen=rgen),
             _validate_and_expand_cron_piece(cron_tuple[1], 0, 23, rgen=rgen),
-            _validate_and_expand_cron_piece(cron_tuple[2], 0, 31, rgen=rgen),
-            _validate_and_expand_cron_piece(cron_tuple[3], 0, 12, special_map=MONTH_MAP, rgen=rgen),
+            _validate_and_expand_cron_piece(cron_tuple[2], 1, 31, rgen=rgen),
+            _validate_and_expand_cron_piece(cron_tuple[3], 1, 12, special_map=MONTH_MAP, rgen=rgen),
             _validate_and_expand_cron_piece(cron_tuple[4], 0, 6, special_map=WEEKDAY_MAP, rgen=rgen)
         )
         self._cron_tz = cron_spec_timezone
 
-    def __str__(self):
+    def __str__(self): # pragma: no coverage # debugging only
         return ' '.join(
             ','.join(str(x) for x in self._cron_config[y])
             for y in range(0, len(self._cron_config))
         )
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no coverage # debugging only
         return f'<CronConfig:{str(self)}>'
 
     def next_execution(self, current_time: AwareDateTime = None) -> AwareDateTime:
@@ -223,7 +223,7 @@ def _expand_cron_str_piece(piece: str, min_value: int, max_value: int, special_m
         # Treat these as separate entries basically that we combine
         l = list()
         for subpiece in piece.split(","):
-            l.extend(_expand_cron_str_piece(subpiece, min_value, max_value))
+            l.extend(_expand_cron_str_piece(subpiece, min_value, max_value, special_map, rgen))
         return l
 
     else:
@@ -235,8 +235,10 @@ def _expand_cron_str_piece(piece: str, min_value: int, max_value: int, special_m
         # Figure out our range
         if "-" in piece:
             min_range, max_range = piece.split("-", maxsplit=1)
-        elif piece.isdigit() or piece in special_map:
-            min_range = max_range = piece
+        elif piece in special_map:
+            min_range = max_range = special_map[piece]
+        elif piece.isdigit():
+            min_range = max_range = int(piece)
         elif piece == "H":
             min_range = max_range = rgen.randint(min_value, max_value)
         elif piece == "*":
