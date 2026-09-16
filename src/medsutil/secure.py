@@ -31,17 +31,24 @@ def check_expired_password(password: str | bytes, salt: bytes, password_hash: by
     return False
 
 def check_password(password: str | bytes, salt: bytes, password_hash: bytes) -> bool:
-    return secrets.compare_digest(password_hash, hash_password(password, salt))
+    try:
+        return secrets.compare_digest(password_hash, hash_password(password, salt))
+    except SecureError:
+        zrlog.get_logger("medsutil.secure").exception("Error while hashing password")
+        return False
 
 def hash_password(password: str | bytes, salt: bytes, iterations=None) -> bytes:
-    if iterations is None or iterations < MINIMUM_ITERATIONS:
-        iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
-    return hashlib.pbkdf2_hmac(
-        ALGORITHM,
-        str(password or '').encode('utf-8', errors='replace') if isinstance(password, str) else password,
-        salt,
-        iterations
-    )
+    try:
+        if iterations is None or iterations < MINIMUM_ITERATIONS:
+            iterations = DEFAULT_PASSWORD_HASH_ITERATIONS
+        return hashlib.pbkdf2_hmac(
+            ALGORITHM,
+            password.encode('utf-8', errors='replace') if isinstance(password, str) else password,
+            salt,
+            iterations
+        )
+    except Exception as ex:
+        raise SecureError("Could not hash password", 3000) from ex
 
 PASSWORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTVWXYZabcdefghijklmnopqrstvwxyz2345679@#$%&'  # nosec B105 # not a hard coded password
 ENTROPY = 120
