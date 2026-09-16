@@ -121,7 +121,8 @@ class LeastRecentCache:
     def prune_cache(self):
         with self._lock:
             if len(self._values) > self._max_size:
-                keys = [(k, v) for k, v in self._values.items()]
+                d = AwareDateTime(1980, 1, 1, 0, 0, 0)
+                keys = [(k, self._value_set_times.get(k, d)) for k in self._values.keys()]
                 keys.sort(key=lambda x: x[1], reverse=True)
                 for k, _ in keys[self._max_size:]:
                     del self._values[k]
