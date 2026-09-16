@@ -226,9 +226,9 @@ class SubrecordInfo:
 
         is_surface = True
         if "Depth" in position:
-            is_surface = position["Depth"] > 0
+            is_surface = not position["Depth"] > 0
         elif "Pressure" in position:
-            is_surface = position["Pressure"] > 0
+            is_surface = not position["Pressure"] > 0
 
         if is_surface:
             self.surface_parameters.update(x for x in record.parameters.keys())
