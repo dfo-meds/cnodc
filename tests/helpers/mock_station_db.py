@@ -90,15 +90,15 @@ class TestStationDatabase:
         except ValueError:
             wigos_id = None
         for pid, platform in self._platforms.items():
-            if ship_code is not None and platform.ship_code.lower() != ship_code.lower():
+            if ship_code is not None and platform.ship_code is not None and platform.ship_code.lower() != ship_code.lower():
                 continue
-            if platform_id is not None and platform.platform_id.lower() != platform_id.lower():
+            if platform_id is not None and platform.platform_id is not None and platform.platform_id.lower() != platform_id.lower():
                 continue
             if wigos_id is not None and platform.wigos_id != wigos_id:
                 continue
             if wmo_id is not None and platform.wmo_id != wmo_id:
                 continue
-            if platform_name is not None and platform.platform_name.lower() != platform_name.lower():
+            if platform_name is not None and platform.platform_name is not None and platform.platform_name.lower() != platform_name.lower():
                 continue
             if in_service_time is not None:
                 if platform.service_start_date is not None and in_service_time < platform.service_start_date:
