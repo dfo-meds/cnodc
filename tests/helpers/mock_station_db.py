@@ -110,12 +110,12 @@ class TestStationDatabase:
                     continue
             yield platform
 
-    def recent_working_records(self,
-                               platform_id: str,
-                               start_time: AwareDateTime,
-                               end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
-        if platform_id in self._working_records:
-            for wr in self._working_records[platform_id]:
+    def geosearch_working_records(self,
+                                  platform_uuid: str,
+                                  start_time: AwareDateTime,
+                                  end_time: AwareDateTime) -> t.Iterable[NODBWorkingRecord]:
+        if platform_uuid in self._working_records:
+            for wr in self._working_records[platform_uuid]:
                 record = wr.record
                 if not record.coordinates.has_value("Time"):
                     continue
@@ -126,12 +126,12 @@ class TestStationDatabase:
                     continue
                 yield wr
 
-    def recent_observations(self,
-                            platform_id: str,
-                            start_time: AwareDateTime,
-                            end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
-        if platform_id in self._observations:
-            for wr in self._observations[platform_id]:
+    def geosearch_observations(self,
+                               platform_uuid: str,
+                               start_time: AwareDateTime,
+                               end_time: AwareDateTime) -> t.Iterable[NODBObservationData]:
+        if platform_uuid in self._observations:
+            for wr in self._observations[platform_uuid]:
                 record = wr.record
                 if not record.coordinates.has_value("Time"):
                     continue
