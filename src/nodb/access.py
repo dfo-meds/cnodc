@@ -149,14 +149,19 @@ class NODBUser(s.NODBBaseObject):
         return db.load_permissions(self.roles(db))
 
     def roles(self, db: interface.NODBInstance) -> set[str]:
+        return self._with_cache('roles', self._roles, db)
+
+    def _roles(self, db: interface.NODBInstance) -> set[str]:
         return set(db.load_user_roles(self.identifier))
 
     def assign_role(self, db: interface.NODBInstance, role_name: str):
         self.clear_cache("permissions")
+        self.clear_cache("roles")
         db.assign_user_role(self.identifier, role_name)
 
     def unassign_role(self, db: interface.NODBInstance, role_name: str):
         self.clear_cache("permissions")
+        self.clear_cache("roles")
         db.unassign_user_role(self.identifier, role_name)
 
     @classmethod
