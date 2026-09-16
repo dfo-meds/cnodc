@@ -33,9 +33,11 @@ class NODBPlatformCheck(DeepDiveChecker):
     def platform_check(self, element: ocproc2.AbstractElement):
         self.assert_is_instance(element, ocproc2.SingleElement, msg="multivalued_not_allowed")
         if not element.is_empty():
-            platform = self.searcher.load_platform(element.to_string())
+            platform_id = element.to_string()
+            platform = self.searcher.load_platform(platform_id)
             if self.assert_is_not_none(platform, msg="bad_platform_uuid"):
-                self._apply_platform_action(element.to_string(), platform_type=platform.platform_type)
+                self._log.info("Found existing good platform: %s", platform_id)
+                self._apply_platform_action(platform_id, platform_type=platform.platform_type)
         else:
             self._assign_platform()
 
@@ -43,9 +45,11 @@ class NODBPlatformCheck(DeepDiveChecker):
         platforms: list[str] = self._find_platform_matches(self.current_record.record)
         match len(platforms):
             case 1:
-                platform = self.searcher.load_platform(platforms[0])
+                platform_id = platforms[0]
+                platform = self.searcher.load_platform(platform_id)
                 if platform is not None:
-                    self._apply_platform_action(platforms[0], platform_type=platform.platform_type)
+                    self._log.info("Searched and found platform %s", platform_id)
+                    self._apply_platform_action(platform_id, platform_type=platform.platform_type)
                 else:
                     raise ValueError("platform disappeared between searching and loading")
             case 0:
