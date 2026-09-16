@@ -498,45 +498,42 @@ class TestObservationData(BaseTestCase):
     def test_update_record(self):
         record = ParentRecord()
         record.record_qc_test_result(
+            test_protocol="bogus",
             test_name='bogus_qc',
             test_version='1.2',
             outcome=QCResult.FAIL,
             messages=[]
         )
         record.record_qc_test_result(
+            test_protocol="bogus",
             test_name='bogus_qc',
             test_version='1.3',
             outcome=QCResult.PASS,
             messages=[]
         )
         record.record_qc_test_result(
+            test_protocol="bogus",
             test_name='bogus_qc2',
             test_version='1.4',
             outcome=QCResult.FAIL,
             messages=[]
         )
         record.record_qc_test_result(
+            test_protocol="bogus",
             test_name='bogus_qc3',
             test_version='1.4',
             outcome=QCResult.SKIP,
             messages=[]
         )
-        record.metadata['CNODCDuplicateId'] = '12345'
-        record.metadata['CNODCDuplicateDate'] = '2015-10-20'
         record.metadata['CNODCStatus'] = ObservationStatus.DUBIOUS.value
         record.coordinates['Time'] = '2015-01-02T00:00:00+00:00'
         record.coordinates['Latitude'] = 45.123456
         record.coordinates['Longitude'] = -123.12345478
         record.parameters.set('AirTemperature', 5, Units="degrees_C")
         obs_data = NODBObservationData()
-        self.assertIsNone(obs_data.duplicate_uuid)
-        self.assertIsNone(obs_data.duplicate_received_date)
         self.assertIs(obs_data.status, ObservationStatus.UNVERIFIED)
         self.assertEqual(0, len(obs_data.qc_tests))
         obs_data.record = record
-        with self.subTest(msg='duplicate info'):
-            self.assertEqual(obs_data.duplicate_uuid, '12345')
-            self.assertEqual(obs_data.duplicate_received_date, datetime.date(2015, 10, 20))
         with self.subTest(msg='status'):
             self.assertIs(obs_data.status, ObservationStatus.DUBIOUS)
         with self.subTest(msg='qc tests'):
@@ -560,6 +557,7 @@ class TestObservationData(BaseTestCase):
             source_file_uuid='23456',
             message_idx=5,
             record_idx=10,
+            data_mode=DataMode.REAL_TIME
         )
         obs_data2 = NODBObservationData(
             obs_uuid='123456',
@@ -567,16 +565,17 @@ class TestObservationData(BaseTestCase):
             source_file_uuid='23456',
             message_idx=5,
             record_idx=10,
+            data_mode=DataMode.DELAYED_MODE
         )
         self.db.insert_object(obs_data)
         self.db.insert_object(obs_data2)
         od2 = NODBObservationData.find_by_uuid(self.db, '12345', '2015-01-02')
         self.assertIs(obs_data, od2)
-        s1 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
+        s1 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10, data_mode=DataMode.REAL_TIME)
         self.assertIs(obs_data, s1)
-        s2 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
+        s2 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10, data_mode=DataMode.DELAYED_MODE)
         self.assertIs(obs_data2, s2)
-        s3 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10)
+        s3 = NODBObservationData.find_by_source_info(self.db, '23456', '2015-01-02', 5, 10, data_mode=DataMode.UNKNOWN)
         self.assertIsNone(s3)
 
     def test_find_observation(self):
