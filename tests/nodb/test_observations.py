@@ -342,7 +342,7 @@ class TestObservation(BaseTestCase):
         record.coordinates['Latitude'] = 45.123456
         record.coordinates['Longitude'] = -123.12345478
         obs.update_from_record(record)
-        self.assertEqual(obs.location, 'POINT (-123.12345 45.12346)')
+        self.assertEqual(obs.location, 'POINT (-123.123455 45.123456)')
         self.assertIs(obs.observation_type, ObservationType.SURFACE)
 
     def test_update_depth_from_top(self):
