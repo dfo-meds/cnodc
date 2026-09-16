@@ -14,7 +14,6 @@ class SessionTest(BaseTestCase):
             session_id='foobar',
             start_time=datetime.datetime(2015, 1, 2, 3, 4, 5),
             expiry_time=datetime.datetime(2015, 1, 2, 4, 4, 5),
-            username="foobar"
         )
         self.assertEqual(session.session_id, "foobar")
         self.assertEqual(session.start_time, datetime.datetime(2015, 1, 2, 3, 4, 5).astimezone())
