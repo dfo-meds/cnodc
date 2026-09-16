@@ -790,7 +790,7 @@ class TestMetadata(BaseTestCase):
         md = DatasetMetadata()
         md.temporal_resolution = ISODuration(seconds=3.5)
         self.assertEqual(md.temporal_resolution.seconds, 3)
-        self.assertIsNone(md.temporal_resolution.years)
+        self.assertEqual(md.temporal_resolution.years, 0)
 
     def test_time_resolution_from_iso_format(self):
         good_tests = {
@@ -820,7 +820,7 @@ class TestMetadata(BaseTestCase):
                     if key in result:
                         self.assertEqual(getattr(md.time_resolution, key), result[key])
                     else:
-                        self.assertIsNone(getattr(md.time_resolution, key))
+                        self.assertEqual(getattr(md.time_resolution, key), 0)
         for test_val in bad_tests:
             with self.subTest(input_val=test_val):
                 with self.assertRaises(ValueError):
