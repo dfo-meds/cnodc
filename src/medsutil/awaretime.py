@@ -101,7 +101,7 @@ class AwareDateTime(datetime.datetime):
         elif isinstance(dt, str):
             return cls.fromisoformat(dt, tzinfo=tzinfo)
         else:
-            return cls(dt.year, dt.month, dt.day)
+            return cls(dt.year, dt.month, dt.day, tzinfo=tzinfo)
 
     @staticmethod
     def _build_time_zone(tz: ct.TimeZoneInfo | None) -> datetime.tzinfo | None:

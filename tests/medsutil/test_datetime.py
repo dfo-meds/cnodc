@@ -2,15 +2,54 @@ import zoneinfo
 import datetime
 
 from medsutil.awaretime import utc_now, now, utc_from_string, from_string, from_isoformat, utc_from_isoformat, \
-    from_timestamp, AwareDateTime, awaretime
-from tests.helpers.base_test_case import BaseTestCase
+    from_timestamp, AwareDateTime, awaretime, ScienceDateTime
+from tests.helpers.base_test_case import BaseTestCase, sub_tests
 
 
 class TestDateTime(BaseTestCase):
 
+    @sub_tests([
+        (ScienceDateTime(2023, 1, 1, 5, 0, 0, uncertainty=datetime.timedelta(minutes=30)), AwareDateTime(2023, 1, 1, 4, 54)),
+        (ScienceDateTime(2023, 1, 1, 5, 0, 0, uncertainty=datetime.timedelta(minutes=30)), AwareDateTime(2023, 1, 1, 5, 24)),
+    ], [
+        (ScienceDateTime(2023, 1, 1, 5, 0, 0, uncertainty=datetime.timedelta(minutes=30)), AwareDateTime(2023, 1, 1, 4, 24)),
+        (ScienceDateTime(2023, 1, 1, 5, 0, 0, uncertainty=datetime.timedelta(minutes=30)), AwareDateTime(2023, 1, 1, 5, 54)),
+    ])
+    def test_is_compatible(self, sdt: ScienceDateTime, od: AwareDateTime):
+        self.assertTrue(sdt.is_compatible(od))
+
+    def test_range_none(self):
+        x = ScienceDateTime(2015, 1, 2, 3, 4, 5, uncertainty=None)
+        min_x, max_x = x.range()
+        self.assertIs(min_x, max_x)
+
     def test_now_utc(self):
         n = utc_now()
         self.assertIs(n.tzinfo, datetime.timezone.utc)
+
+    def test_copy(self):
+        x = AwareDateTime(2015, 1, 2, 3, 4, 5)
+        y = x.__copy__()
+        self.assertIsNot(x, y)
+        self.assertEqual(x, y)
+
+    def test_deep_copy(self):
+        x = AwareDateTime(2015, 1, 2, 3, 4, 5)
+        y = x.__deepcopy__()
+        self.assertIsNot(x, y)
+        self.assertEqual(x, y)
+
+    def test_datetime_from_none(self):
+        x = AwareDateTime.from_datetime(None)
+        self.assertIsNone(x)
+
+    def test_datetime_from_str(self):
+        x = AwareDateTime.from_datetime("2015-01-02T03:04:05+00:00")
+        self.assertEqual(x, AwareDateTime(2015, 1, 2, 3, 4, 5, tzinfo="Etc/UTC"))
+
+    def test_datetime_from_date(self):
+        x = AwareDateTime.from_datetime(datetime.date(2015, 1, 2), tzinfo="Etc/UTC")
+        self.assertEqual(x, AwareDateTime(2015, 1, 2, 0, 0, 0, tzinfo="Etc/UTC"))
 
     def test_now(self):
         n = now()
