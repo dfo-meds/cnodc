@@ -192,30 +192,30 @@ class TestPlatform(BaseTestCase):
         self.assertEqual(1, len(x))
 
     def _build_search_data(self):
-        self.db.insert_object(NODBPlatform(platform_uuid='1', wmo_id='5'))
-        self.db.insert_object(NODBPlatform(platform_uuid='2', wmo_id='6'))
-        self.db.insert_object(NODBPlatform(platform_uuid='3', wigos_id='7'))
+        self.db.insert_object(NODBPlatform(platform_uuid='1', wmo_id='0000005'))
+        self.db.insert_object(NODBPlatform(platform_uuid='2', wmo_id='0000006'))
+        self.db.insert_object(NODBPlatform(platform_uuid='3', wigos_id='0-1-2-3'))
         self.db.insert_object(NODBPlatform(platform_uuid='4', platform_name='BOATY'))
         self.db.insert_object(NODBPlatform(platform_uuid='5', platform_id='MCBT'))
-        self.db.insert_object(NODBPlatform(platform_uuid='6', wmo_id='8', service_start_date='2015-01-01T00:00:00+00:00', service_end_date='2015-12-31T23:59:59+00:00'))
-        self.db.insert_object(NODBPlatform(platform_uuid='7', wmo_id='8', service_start_date='2016-01-01T00:00:00+00:00', service_end_date='2016-12-31T23:59:59+00:00'))
+        self.db.insert_object(NODBPlatform(platform_uuid='6', wmo_id='0000008', service_start_date='2015-01-01T00:00:00+00:00', service_end_date='2015-12-31T23:59:59+00:00'))
+        self.db.insert_object(NODBPlatform(platform_uuid='7', wmo_id='0000008', service_start_date='2016-01-01T00:00:00+00:00', service_end_date='2016-12-31T23:59:59+00:00'))
 
     def test_search_many_results(self):
         self._build_search_data()
-        x = [x.platform_uuid for x in NODBPlatform.search(self.db, wmo_id='5', wigos_id='7')]
+        x = [x.platform_uuid for x in NODBPlatform.search(self.db, wmo_id='0000005', wigos_id='0-1-2-3')]
         self.assertEqual(2, len(x))
         self.assertIn('1', x)
         self.assertIn('3', x)
 
     def test_search_by_wmo_id(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='5')]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='0000005')]
         self.assertEqual(1, len(x))
         self.assertEqual('1', x[0].platform_uuid)
 
     def test_search_by_wigos_id(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wigos_id='7')]
+        x = [x for x in NODBPlatform.search(self.db, wigos_id='0-1-2-3')]
         self.assertEqual(1, len(x))
         self.assertEqual('3', x[0].platform_uuid)
 
@@ -233,25 +233,25 @@ class TestPlatform(BaseTestCase):
 
     def test_search_by_service_date(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2015, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='0000008', in_service_time=AwareDateTime(2015, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('6', x[0].platform_uuid)
 
     def test_search_by_service_date2(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2016, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='0000008', in_service_time=AwareDateTime(2016, 1, 2, 0, 0, 0, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('7', x[0].platform_uuid)
 
     def test_search_by_service_early_edge(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='0000008', in_service_time=AwareDateTime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('7', x[0].platform_uuid)
 
     def test_search_by_service_late_edge(self):
         self._build_search_data()
-        x = [x for x in NODBPlatform.search(self.db, wmo_id='8', in_service_time=AwareDateTime(2016, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc))]
+        x = [x for x in NODBPlatform.search(self.db, wmo_id='0000008', in_service_time=AwareDateTime(2016, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc))]
         self.assertEqual(1, len(x))
         self.assertEqual('7', x[0].platform_uuid)
 
