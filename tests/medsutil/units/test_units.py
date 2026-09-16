@@ -46,6 +46,10 @@ class TestConversions(BaseTestCase):
         'degree': 'degree',
         'degree_east': 'degree_east',
         'degree_north': 'degree_north',
+        'degrees_east': 'degree_east',
+        'degreeE': 'degree_east',
+        'degreeN': 'degree_north',
+        'degrees_north': 'degree_north',
     }
 
     @classmethod
