@@ -46,7 +46,6 @@ class GTSPPSpeedCheck(DeepDiveChecker):
         pid = self.get_current_platform_id()
         if pid is None:
             self.skip_review("no_platform")
-            return
         lat_ref = ref.setdefault_coordinate_ref("Latitude")
         lon_ref = ref.setdefault_coordinate_ref("Longitude")
         time_ref = ref.setdefault_coordinate_ref("Time")
