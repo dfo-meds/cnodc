@@ -95,8 +95,10 @@ class UserTest(BaseTestCase):
         self.assertFalse(user.check_password("foobat"))
 
         # common bad types, but we just want to return false to avoid giving away that there's an issue here
-        self.assertFalse(user.check_password(None))
-        self.assertFalse(user.check_password(12345))
+        with self.assertLogs("medsutil.secure", "ERROR"):
+            self.assertFalse(user.check_password(None))
+        with self.assertLogs("medsutil.secure", "ERROR"):
+            self.assertFalse(user.check_password(12345))
 
         # Check that setting the password also changes the salt
         user.clear_modified()
