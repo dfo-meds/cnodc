@@ -12,14 +12,14 @@ class TestStationDatabase:
     def __init__(self, db=None):
         self._platforms: dict[str, NODBPlatform] = {
             'assigned_platform': NODBPlatform(platform_uuid="assigned_platform"),
-            'wmo_12345': NODBPlatform(platform_uuid="wmo_12345", wmo_id="12345"),
-            'wigos_123456': NODBPlatform(platform_uuid="wigos_123456", wigos_id="123456"),
+            'wmo_12345': NODBPlatform(platform_uuid="wmo_12345", wmo_id="1200345"),
+            'wigos_123456': NODBPlatform(platform_uuid="wigos_123456", wigos_id="0-1-2-3456"),
             'wmo_12345_redirect': NODBPlatform(platform_uuid="wmo_12345_redirect", wmo_id="1200345", map_to_uuid="wmo_12345"),
             'wmo_12346_redirect': NODBPlatform(platform_uuid="wmo_12345_redirect", wmo_id="1200346", map_to_uuid="wmo_12346"),
             'id_ship': NODBPlatform(platform_uuid="id_ship", platform_id="SHIP"),
             'name_shippymcship': NODBPlatform(platform_uuid="name_shippymcship", platform_name="ShippyMcShip"),
-            'wmo_23456_2020': NODBPlatform(platform_uuid='wmo_23456_2020', wmo_id='23456', service_start_date='2020-01-01T00:00:00+00:00', service_end_date='2020-12-31T23:59:59+00:00'),
-            'wmo_23456_2024': NODBPlatform(platform_uuid='wmo_23456_2024', wmo_id='23456', service_start_date='2024-01-01T00:00:00+00:00', service_end_date='2024-12-31T23:59:59+00:00'),
+            'wmo_23456_2020': NODBPlatform(platform_uuid='wmo_23456_2020', wmo_id='2300456', service_start_date='2020-01-01T00:00:00+00:00', service_end_date='2020-12-31T23:59:59+00:00'),
+            'wmo_23456_2024': NODBPlatform(platform_uuid='wmo_23456_2024', wmo_id='2300456', service_start_date='2024-01-01T00:00:00+00:00', service_end_date='2024-12-31T23:59:59+00:00'),
             'top_speed_knots': NODBPlatform(platform_uuid='top_speed_knots', metadata={'top_speed': "20 kts"}),
             'top_speed_mps': NODBPlatform(platform_uuid='top_speed_mps', metadata={'top_speed': "20 m s-1"}),
             'top_speed_kph': NODBPlatform(platform_uuid='top_speed_kph', metadata={'top_speed': "20 km h-1"}),
