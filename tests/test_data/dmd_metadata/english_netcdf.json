@@ -235,6 +235,11 @@
       }
     ],
     "temporal_resolution": {
+      "years": 0,
+      "months": 0,
+      "days": 0,
+      "hours": 0,
+      "minutes": 0,
       "seconds": 60
     },
     "metadata_owner": {
@@ -358,5 +363,6 @@
   "profiles": [
     "cnodc"
   ],
-  "autostart": false
+  "autostart": false,
+  "is_collection": false
 }
