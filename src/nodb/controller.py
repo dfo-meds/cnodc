@@ -1113,9 +1113,17 @@ class PostgresController:
         elif isinstance(condition, Equals):
             if condition.or_null:
                 yield pgs.SQL("(")
+            if not condition.case_sensitive:
+                yield pgs.SQL("LOWER(")
             yield pgs.Identifier(condition.column_name)
+            if not condition.case_sensitive:
+                yield pgs.SQL(")")
             yield pgs.SQL('=')
+            if not condition.case_sensitive:
+                yield pgs.SQL("LOWER(")
             yield pgs.Literal(condition.value)
+            if not condition.case_sensitive:
+                yield pgs.SQL(")")
             if condition.or_null:
                 yield pgs.SQL("OR")
                 yield pgs.Identifier(condition.column_name)

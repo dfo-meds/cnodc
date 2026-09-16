@@ -69,10 +69,11 @@ class Or(SqlCondition):
 
 class Equals(SqlCondition):
 
-    def __init__(self, column_name: str, value: t.Any, or_null: bool = False):
+    def __init__(self, column_name: str, value: t.Any, or_null: bool = False, case_sensitive: bool = True):
         self.column_name = column_name
         self.value = value
         self.or_null = or_null
+        self.case_sensitive = case_sensitive or not isinstance(self.value, str)
 
 
 class IsNull(SqlCondition):
