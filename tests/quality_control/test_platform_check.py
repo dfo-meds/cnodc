@@ -47,7 +47,7 @@ class TestNODBPlatformCheck(QCCheckerTestCase):
         checker = NODBPlatformCheck(
             searcher_cls=TestStationDatabase
         )
-        qc_result = checker.run_record_check(record, None)
+        qc_result, _ = checker.run_record_check(record, None)
         if isinstance(expected_platform_uuid, str):
             self.assertEqual(record.metadata['CNODCPlatform'].value, expected_platform_uuid)
         elif expected_platform_uuid is None:

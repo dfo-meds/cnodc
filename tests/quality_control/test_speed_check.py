@@ -83,7 +83,7 @@ class TestGTSPPSpeedCheck(QCCheckerTestCase):
         pr.coordinates["Latitude"] = SingleElement("5.48", Units="degree_north")
         pr.coordinates["Time"] = SingleElement("2015-01-02T03:43:05", tzinfo="Etc/UTC")
         checker = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)
-        qcinfo = checker.run_record_check(pr, None)
+        qcinfo, _ = checker.run_record_check(pr, None)
         self.assertIs(qcinfo.result, QCResult.PASS)
 
     def test_bad_speed_check_record(self):
@@ -93,5 +93,5 @@ class TestGTSPPSpeedCheck(QCCheckerTestCase):
         pr.coordinates["Latitude"] = SingleElement("55.48", Units="degree_north")
         pr.coordinates["Time"] = SingleElement("2015-01-02T03:28:05", tzinfo="Etc/UTC")
         checker = GTSPPSpeedCheck(searcher_cls=TestStationDatabase)
-        qcinfo = checker.run_record_check(pr, None)
+        qcinfo, _ = checker.run_record_check(pr, None)
         self.assertIs(qcinfo.result, QCResult.MANUAL_REVIEW)
