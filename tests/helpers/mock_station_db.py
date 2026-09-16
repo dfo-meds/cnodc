@@ -66,7 +66,7 @@ class TestStationDatabase:
             record.coordinates["Time"] = (it + datetime.timedelta(seconds=(dt * x))).isoformat()
             yield record
 
-    def find_by_uuid(self, platform_uuid: str) -> NODBPlatform | None:
+    def load_platform(self, platform_uuid: str) -> NODBPlatform | None:
         if platform_uuid in self._platforms:
             return self._platforms[platform_uuid]
         return None
