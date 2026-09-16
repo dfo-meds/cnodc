@@ -32,6 +32,7 @@ class DatabaseMock:
         self._permissions: dict[str, set[str]] = {}
         self._scanned_files: list[dict[str, t.Any]] = []
         self._lookups: dict[str, dict[str, dict[str, list[int]]]] = {}
+        self._user_roles: dict[int, set[str]] = {}
         self._rolled_back = False
 
     def create_savepoint(self, name):
@@ -110,6 +111,20 @@ class DatabaseMock:
             **info
         }
 
+    def assign_user_role(self, user_id: int, role_name: str):
+        if user_id not in self._user_roles:
+            self._user_roles[user_id] = set()
+        self._user_roles[user_id].add(role_name)
+
+    def unassign_user_role(self, user_id: int, role_name: str):
+        if user_id in self._user_roles:
+            self._user_roles[user_id].remove(role_name)
+
+    def load_user_roles(self, user_id: int) -> set[str]:
+        if user_id in self._user_roles:
+            return self._user_roles[user_id]
+        return set()
+
     def clear_process_info_for_server(self, server_name: str):
         for key in self._process_info:
             if key.startswith(f"{server_name}\x04"):
@@ -181,6 +196,7 @@ class DatabaseMock:
         self._scanned_files.clear()
         self._process_info.clear()
         self._lookups.clear()
+        self._user_roles.clear()
 
     def prepared_insert(self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]):
         return PreparedInsert(self)
