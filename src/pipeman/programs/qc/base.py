@@ -498,7 +498,6 @@ class QualityController(abc.ABC):
             err.add_note(f"Reference value: {ref_value}")
         if subpath:
             err.add_note(f"Path: {subpath}")
-        self._log.info("QC Error: %s", msg)
         raise err
 
     def extract_all_keyed_parameters(self, *records: RecordRef, include_parameters: t.Container[str] | None = None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:

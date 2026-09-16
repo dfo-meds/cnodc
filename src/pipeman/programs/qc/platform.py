@@ -36,7 +36,7 @@ class NODBPlatformCheck(DeepDiveChecker):
             platform_id = element.to_string()
             platform = self.searcher.load_platform(platform_id)
             if self.assert_is_not_none(platform, msg="bad_platform_uuid"):
-                self._log.info("Found existing good platform: %s", platform_id)
+                self._log.debug("Found existing good platform: %s", platform_id)
                 self._apply_platform_action(platform_id, platform_type=platform.platform_type)
         else:
             self._assign_platform()
@@ -48,16 +48,16 @@ class NODBPlatformCheck(DeepDiveChecker):
                 platform_id = platforms[0]
                 platform = self.searcher.load_platform(platform_id)
                 if platform is not None:
-                    self._log.info("Searched and found platform %s", platform_id)
+                    self._log.debug("Searched and found platform %s", platform_id)
                     self._apply_platform_action(platform_id, platform_type=platform.platform_type)
                 else:
-                    raise ValueError("platform disappeared between searching and loading")
+                    raise ValueError(f"platform [{platform_id}] disappeared between searching and loading")
             case 0:
                 self._set_platform_candidates(None)
                 self.report_qc_error("no_platforms_found")
             case _:
                 self._set_platform_candidates(platforms)
-                self.report_qc_error("many_platforms_found")
+                self.report_qc_error("many_platforms_found", ref_value=";".join(platforms))
 
     def _apply_platform_action(self, platform_uuid: str, is_reviewable: bool = False, platform_type: str | None = None):
         self.add_record_action(AssignPlatform(
@@ -81,6 +81,7 @@ class NODBPlatformCheck(DeepDiveChecker):
             "ship_code": record.metadata.best("ShipCode", coerce=str, default=None),
         }
         self.assert_true(any(x is not None for x in search_kwargs.values()), msg="no_platform_ids")
+        self._log.debug("Platform identifiers: %s", search_kwargs)
         best_time = record.coordinates.ideal("Time")
         if best_time is not None and best_time.is_iso_datetime():
             search_kwargs["in_service_time"] = best_time.to_datetime()
