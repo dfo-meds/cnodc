@@ -118,7 +118,10 @@ class DatabaseMock:
 
     def unassign_user_role(self, user_id: int, role_name: str):
         if user_id in self._user_roles:
-            self._user_roles[user_id].remove(role_name)
+            try:
+                self._user_roles[user_id].remove(role_name)
+            except KeyError:
+                ...
 
     def load_user_roles(self, user_id: int) -> set[str]:
         if user_id in self._user_roles:
