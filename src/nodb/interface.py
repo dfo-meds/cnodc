@@ -452,11 +452,14 @@ class NODB[X: NODBInstance]:
         self._inner_count += 1
         return t.cast(NODBInstance, self._instance)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val: Exception, exc_tb):
         self._inner_count -= 1
         if self._inner_count == 0 and self._instance is not None:
             if exc_type is not None:
-                self._instance.rollback()
+                if isinstance(exc_val, NODBError) and not exc_val.is_db_available:
+                    ...
+                else:
+                    self._instance.rollback()
             else:
                 self._instance.commit()
             self._instance.close()
