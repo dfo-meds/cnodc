@@ -17,5 +17,7 @@ debug_file = .coverage.debug
 [report]
 exclude_also =
   raise NotImplementedError
+  def __str__(self)
+  def __repr__(self)
 skip_covered = True
 skip_empty =  True
