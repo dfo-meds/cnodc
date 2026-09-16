@@ -135,7 +135,7 @@ class SubrecordInfo:
             return self.min_time
         else:
             diff = (self.max_time - self.min_time).total_seconds()
-            return self.min_time + datetime.timedelta(seconds=diff)
+            return self.min_time + datetime.timedelta(seconds=diff / 2)
 
     @property
     def obs_type(self) -> ObservationType:
