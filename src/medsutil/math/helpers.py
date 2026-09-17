@@ -87,9 +87,9 @@ def derivative_pythagoras_x(x, y, *args, **kwargs):
     x, y = _common.match_convert(x, y)
     return x / _common.sqrt((x ** 2) + (y ** 2))
 
-def derivative_pythagoras_y(y, x, *args, **kwargs):
+def derivative_pythagoras_y(x, y, *args, **kwargs):
     x, y = _common.match_convert(x, y)
-    return x / _common.sqrt((x ** 2) + (y ** 2))
+    return y / _common.sqrt((x ** 2) + (y ** 2))
 
 def derivative_power_base(base, exponent):
     base, exponent = _common.match_convert(base, exponent)
