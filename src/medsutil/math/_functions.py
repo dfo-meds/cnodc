@@ -57,6 +57,8 @@ def sn_add(x: mt.AnyNumber, y: mt.AnyNumber, /):
     return _common.add(*match_units(x, y))
 
 def sub(x: mt.AnyNumber, y: mt.AnyNumber, /):
+    if mt.is_science_number(x) or mt.is_science_number(y):
+        return sn_sub(x, y)
     return _common.sub(x, y)
 
 @num.with_error_propagation(help.derivative_1, help.derivative_neg1, units_func=help.units_first)
