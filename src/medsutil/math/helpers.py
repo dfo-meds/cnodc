@@ -16,16 +16,47 @@ def units_first(*args, **kwargs):
     return ''
 
 def units_multiply(x, y):
-    return f"({units_first(x)})({units_first(y)})"
+    x_units = units_first(x)
+    y_units = units_first(y)
+    if x_units and y_units:
+        if x_units == y_units:
+            return f"(({x_units})^2)"
+        return f"({x_units})({y_units})"
+    elif x_units:
+        return x_units
+    elif y_units:
+        return y_units
+    else:
+        return ""
 
 def units_div(x, y):
-    return f"({units_first(x)})(({units_first(y)})^-1)"
+    x_units = units_first(x)
+    y_units = units_first(y)
+    if x_units and y_units:
+        if x_units == y_units:
+            return f""
+        return f"({x_units})(({y_units})^-1)"
+    elif x_units:
+        return x_units
+    elif y_units:
+        return f"(({y_units})^1)"
+    else:
+        return ""
 
 def units_div_r(y, x):
     return units_div(x, y)
 
 def units_power(base, exponent):
-    return f"({units_first(base)}^({exponent}{units_first(exponent)})"
+    b_units = units_first(base)
+    e_units = units_first(exponent)
+    if b_units:
+        if not e_units:
+            return f"(({b_units})^{exponent})"
+        return f"({units_first(base)}^({exponent}{units_first(exponent)})"
+    elif e_units:
+        return f"(1^{e_units})"
+    else:
+        return ""
 
 def units_power_r(exponent, base):
     return units_power(base, exponent)
