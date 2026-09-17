@@ -9,11 +9,11 @@ class DurationUnit(MultiValuedEnum):
 
     YEAR = "years", "a"
     MONTH = "months", "mon"
-    DAYS = "days", "d"
+    DAYS = "days", "d"  # NB: ISODuration lets you treat this as calendar days (exactly one day) or julian days (86400 seconds) - they are usually the same
     HOURS = "hours", "h"
     MINUTES = "minutes", "min"
     SECONDS = "seconds", "s"
-    WEEKS = "weeks"
+    WEEKS = "weeks", "w"
 
 
 class ISODuration(dd.DataDictObject):
@@ -24,6 +24,47 @@ class ISODuration(dd.DataDictObject):
     hours: int = dd.p_int(default=0)
     minutes: int = dd.p_int(default=0)
     seconds: int = dd.p_int(default=0)
+
+    def __eq__(self, other):
+        if isinstance(other, ISODuration):
+            return self.time_part_total_seconds() == other.time_part_total_seconds() and self.date_part_total_months() == other.date_part_total_months() and self.days == other.days
+        return NotImplemented
+
+    def __add__(self, other):
+        if isinstance(other, ISODuration):
+            return ISODuration(
+                years=self.years + other.years,
+                months=self.months + other.months,
+                days=self.days + other.days,
+                hours=self.hours + other.hours,
+                minutes=self.minutes + other.minutes,
+                seconds=self.seconds + other.seconds,
+            )
+        elif isinstance(other, datetime.date):
+            return self.add_to(other)
+        else:
+            return NotImplemented
+
+    def __sub__(self, other):
+        if isinstance(other, ISODuration):
+            return ISODuration(
+                years=self.years - other.years,
+                months=self.months - other.months,
+                days=self.days - other.days,
+                hours=self.hours - other.hours,
+                minutes=self.minutes - other.minutes,
+                seconds=self.seconds - other.seconds,
+            )
+        else:
+            return NotImplemented
+
+    def __rsub__(self, other):
+        if isinstance(other, datetime.date):
+            return self.subtract_from(other)
+        return NotImplemented
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
     def isoformat(self) -> str:
         s = "P"
@@ -43,23 +84,50 @@ class ISODuration(dd.DataDictObject):
                 s += f"{self.seconds}S"
         return s
 
-    def add_to(self, dt: AwareDateTime) -> AwareDateTime:
+    def add_to(self, dt: datetime.date, use_calendar_days: bool = False) -> datetime.date:
         dt2 = dt + datetime.timedelta(
-            days=self.days or 0,
             seconds=self.time_part_total_seconds()
         )
-        return self._adjust_year_month(dt2, self.date_part_total_months())
+        return self._adjust_year_month_day(dt2, self.date_part_total_months(), self.days, use_calendar_days)
 
-    def to_duration(self, output_units: DurationUnit) -> float:
+    def subtract_from(self, dt: datetime.date, use_calendar_days: bool = False) -> datetime.date:
+        dt2 = dt - datetime.timedelta(
+            seconds=self.time_part_total_seconds()
+        )
+        return self._adjust_year_month_day(dt2, -1 * self.date_part_total_months(), -1 * self.days, use_calendar_days)
+
+    def to_duration(self, output_units: DurationUnit, use_calendar_days: bool = False) -> float:
         match self.years, self.months, self.days, self.hours, self.minutes, self.seconds:
+            case 0, 0, 0, h, m, s:
+                return self.convert_duration_units((h * 3600) + (m * 60) + s, DurationUnit.SECONDS, output_units, use_calendar_days)
+            case 0, 0, d, 0, 0, 0:
+                return self.convert_duration_units(d, DurationUnit.DAYS, output_units, use_calendar_days)
             case 0, 0, d, h, m, s:
-                return self.convert_duration_units((d * 86400) + (h * 3600) + (m * 60) + s, DurationUnit.SECONDS, output_units)
+                if not use_calendar_days:
+                    return self.convert_duration_units((d * 86400) + (h * 3600) + (m * 60) + s, DurationUnit.SECONDS, output_units, use_calendar_days)
+                else:
+                    raise ValueError(f"Cannot combine days with hours/minute/seconds when converting to a single duration unless leap seconds are ignored:  [{self.isoformat()}]")
             case y, m, 0, 0, 0, 0:
-                return self.convert_duration_units((y * 12) + m, DurationUnit.MONTH, output_units)
+                return self.convert_duration_units((y * 12) + m, DurationUnit.MONTH, output_units, use_calendar_days)
             case _:
                 raise ValueError(f"Cannot combine months/years and days/hours/minutes/seconds when converting to a single duration: [{self.isoformat()}]")
 
-    def _adjust_year_month(self, dt: AwareDateTime, d_months: int) -> AwareDateTime:
+    def date_part_total_months(self) -> int:
+        return ((self.years or 0) * 12) + (self.months or 0)
+
+    def time_part_total_seconds(self) -> int:
+        return (
+            (self.seconds or 0)
+            + ((self.minutes or 0) * 60)
+            + ((self.hours or 0) * 3600)
+        )
+
+    @staticmethod
+    def _adjust_year_month_day(dt: datetime.date, d_months: int, d_days: int, use_calendar_days: bool = False) -> datetime.date:
+        if use_calendar_days:
+            dt = dt + datetime.timedelta(days=d_days)
+        else:
+            dt = dt + datetime.timedelta(seconds=(86400 * d_days))
         if d_months == 0:
             return dt
         year, month = dt.year, dt.month
@@ -72,21 +140,8 @@ class ISODuration(dd.DataDictObject):
             year -= 1
         return dt.replace(year=year, month=month)
 
-    def subtract_from(self, dt: AwareDateTime) -> AwareDateTime:
-        dt2 = dt - datetime.timedelta(
-            days=self.days or 0,
-            seconds=self.time_part_total_seconds()
-        )
-        return self._adjust_year_month(dt2, -1 * self.date_part_total_months())
-
-    def date_part_total_months(self) -> int:
-        return ((self.years or 0) * 12) + (self.months or 0)
-
-    def time_part_total_seconds(self) -> int:
-        return ((((self.hours or 0) * 60) + (self.minutes or 0)) * 60) + (self.seconds or 0)
-
     @staticmethod
-    def convert_duration_units(x: float, from_units: DurationUnit, to_units: DurationUnit) -> float:
+    def convert_duration_units(x: float, from_units: DurationUnit, to_units: DurationUnit, use_calendar_days: bool = False) -> float:
         match from_units, to_units:
             case DurationUnit.SECONDS, DurationUnit.SECONDS:
                 return x
@@ -95,8 +150,12 @@ class ISODuration(dd.DataDictObject):
             case DurationUnit.SECONDS, DurationUnit.HOURS:
                 return x / 3600
             case DurationUnit.SECONDS, DurationUnit.DAYS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x / 86400
             case DurationUnit.SECONDS, DurationUnit.WEEKS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x / 604800
             case DurationUnit.MINUTES, DurationUnit.SECONDS:
                 return x * 60
@@ -105,8 +164,12 @@ class ISODuration(dd.DataDictObject):
             case DurationUnit.MINUTES, DurationUnit.HOURS:
                 return x / 60
             case DurationUnit.MINUTES, DurationUnit.DAYS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x / 1440
             case DurationUnit.MINUTES, DurationUnit.WEEKS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x / 10080
             case DurationUnit.HOURS, DurationUnit.SECONDS:
                 return x * 3600
@@ -115,24 +178,40 @@ class ISODuration(dd.DataDictObject):
             case DurationUnit.HOURS, DurationUnit.HOURS:
                 return x
             case DurationUnit.HOURS, DurationUnit.DAYS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x / 24
             case DurationUnit.HOURS, DurationUnit.WEEKS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x / 168
             case DurationUnit.DAYS, DurationUnit.SECONDS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x * 86400
             case DurationUnit.DAYS, DurationUnit.MINUTES:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x * 1440
             case DurationUnit.DAYS, DurationUnit.HOURS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x * 24
             case DurationUnit.DAYS, DurationUnit.DAYS:
                 return x
             case DurationUnit.DAYS, DurationUnit.WEEKS:
                 return x / 7
             case DurationUnit.WEEKS, DurationUnit.SECONDS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x * 604800
             case DurationUnit.WEEKS, DurationUnit.MINUTES:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x * 10080
             case DurationUnit.WEEKS, DurationUnit.HOURS:
+                if use_calendar_days:
+                    raise ValueError("Cannot convert s/m/h to days when using calendar days")
                 return x * 168
             case DurationUnit.WEEKS, DurationUnit.DAYS:
                 return x * 7
