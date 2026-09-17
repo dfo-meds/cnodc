@@ -183,7 +183,11 @@ def is_exact_int(x: mt.AnyNumber) -> bool:
 def to_exact_int(x: mt.AnyNumber) -> int:
     nv = nominal_value(x)
     try:
-        return int(nv.to_integral_exact())
+        result = nv.to_integral_exact()
+        diff = result - nv
+        if diff.is_zero():
+            return int(result)
+        raise MathTypeError(f"Invalid number for exact integer: {nv}")
     except AttributeError:
         if nv.is_integer():
             return int(nv)
