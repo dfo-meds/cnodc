@@ -95,7 +95,7 @@ def numerical_derivative[T](func: t.Callable[..., T], with_respect_to: str | int
     is_kwarg = isinstance(with_respect_to, str)
     def _numerical_derivative(*args, **kwargs):
         change_args: list | dict = list(args) if not is_kwarg else kwargs
-        base_step_size = constants.epsilon(isinstance(change_args[with_respect_to], decimal.Decimal))
+        base_step_size = constants.epsilon(change_args[with_respect_to].__class__)
         real_step_size = abs(change_args[with_respect_to] * base_step_size)
         if real_step_size == 0:
             real_step_size = base_step_size

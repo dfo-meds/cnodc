@@ -13,11 +13,11 @@ def tau[T](type_: type[T] = None) -> T:
     return pi(type_) * 2
 
 def inf[T](type_: type[T] = None) -> T:
-    if isinstance(type_, decimal.Decimal):
+    if type_ is decimal.Decimal:
         return decimal.Decimal("Infinity")
     return _math.inf
 
-def e(type_: type = None) -> float | decimal.Decimal:
+def e[T](type_: type[T] = None) -> T:
     if type_ is decimal.Decimal:
         return decimal.Decimal(E_STR)
     return float(E_STR)
@@ -27,8 +27,8 @@ def pi[T](type_: type[T] = None) -> T:
         return decimal.Decimal(PI_STR)
     return float(PI_STR)
 
-def epsilon[T](as_decimal: bool = False) -> T:
-    if as_decimal:
+def epsilon[T](type_: type[T] = None) -> T:
+    if type_ is decimal.Decimal:
         return decimal.Decimal(f"1e-{decimal.getcontext().prec}").sqrt()
     else:
         return _math.sqrt(sys.float_info.epsilon)
