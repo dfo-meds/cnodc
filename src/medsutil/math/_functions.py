@@ -88,7 +88,7 @@ def sqrt(x: mt.AnyNumber, /):
         return sn_sqrt(x)
     return _common.sqrt(x)
 
-@num.with_error_propagation(lambda x: 1 / (x ** 0.5), units_func=lambda x: f"({help.units_first(x)}^0.5)")
+@num.with_error_propagation(lambda x: 1 / (2 * (x ** 0.5)), units_func=lambda x: f"(({help.units_first(x)})^0.5)")
 def sn_sqrt(x: mt.AnyNumber, /):
     return _common.sqrt(x)
 
