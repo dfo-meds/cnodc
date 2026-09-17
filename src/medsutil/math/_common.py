@@ -12,7 +12,6 @@ def is_zero(x) -> bool:
     except AttributeError:
         return x == 0
 
-
 def gt(x, y) -> bool:
     x_n, y_n = match_convert(x, y)
     return x_n > y_n
@@ -160,9 +159,9 @@ def match_units(*args: t.Any) -> tuple[mt.AnyNumber, ...]:
     second = False
     for x in args:
         if mt.is_science_number(x):
-            if units is not None:
+            if units is None:
                 units = x.units
-            else:
+            elif x.units != units:
                 second = True
                 break
     if units is None or not second:
