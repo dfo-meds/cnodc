@@ -142,7 +142,7 @@ def pow_(x: mt.AnyNumber, y: mt.AnyNumber, /):
         return sn_pow(x, y)
     return _common.pow(x, y)
 
-@num.with_error_propagation(help.derivative_power_base, help.derivative_power_exponent, units=help.units_power)
+@num.with_error_propagation(help.derivative_power_base, help.derivative_power_exponent, units_func=help.units_power)
 def sn_pow(x: mt.AnyNumber, y: mt.AnyNumber, /):
     return _common.pow(x, y)
 
