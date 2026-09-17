@@ -199,7 +199,7 @@ def is_zero(x: mt.AnyNumber) -> bool:
 def copy_sign(take_value: mt.AnyNumber, take_sign: mt.AnyNumber) -> mt.AnyNumber:
     sign_tv = sign(take_value)
     sign_ts = sign(take_sign)
-    if (sign_tv == 1 and sign_ts == -1) or (sign_ts == -1 and sign_tv == 1):
+    if (sign_tv == 1 and sign_ts == -1) or (sign_tv == -1 and sign_ts == 1):
         return neg(take_value)
     return take_value
 
