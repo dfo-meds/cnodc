@@ -31,6 +31,8 @@ def with_error_propagation(*derivative_args, units_func: t.Callable = None, **de
 
         @functools.wraps(func)
         def _call_with_derivatives(*args, **kwargs):
+            nominal_args = [_common.nominal_value(x) for x in args]
+            nominal_kwargs = {x: _common.nominal_value(v) for x, v in kwargs.items()}
             nv = nominal_value(func(*args, **kwargs))
             linear_part: mt.UnexpandedLinearCombination = list()
 
@@ -39,7 +41,7 @@ def with_error_propagation(*derivative_args, units_func: t.Callable = None, **de
                 ((name, arg) for name, arg in kwargs.items())
             ):
                 if mt.is_science_number(arg_value):
-                    linear_part.append((_get_derivative(arg_pos)(*args, **kwargs), arg_value.linear_combo))
+                    linear_part.append((_get_derivative(arg_pos)(*nominal_args, **nominal_kwargs), arg_value.linear_combo))
             units = units_func(*args, **kwargs) if units_func else None
             if not linear_part:
                 return ScienceNumber(nv, 0, units=units)

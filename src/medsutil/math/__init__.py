@@ -27,7 +27,7 @@ from medsutil.math._constants import (
     inf,
     e,
     pi,
-    epsilon,
+    epsilon_sqrt,
     DEFAULT_REL_TOL,
     DEFAULT_ABS_TOL
 )

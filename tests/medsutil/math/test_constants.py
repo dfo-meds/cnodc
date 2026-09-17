@@ -26,6 +26,6 @@ class TestConstants(BaseTestCase):
         self.assertIsInstance(constants.pi(decimal.Decimal), decimal.Decimal)
 
     def test_epsilon(self):
-        self.assertIsInstance(constants.epsilon(), float)
-        self.assertIsInstance(constants.epsilon(float), float)
-        self.assertIsInstance(constants.epsilon(decimal.Decimal), decimal.Decimal)
+        self.assertIsInstance(constants.epsilon_sqrt(), float)
+        self.assertIsInstance(constants.epsilon_sqrt(float), float)
+        self.assertIsInstance(constants.epsilon_sqrt(decimal.Decimal), decimal.Decimal)

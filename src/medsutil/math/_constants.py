@@ -27,12 +27,17 @@ def pi[T](type_: type[T] = None) -> T:
         return decimal.Decimal(PI_STR)
     return float(PI_STR)
 
-def epsilon[T](type_: type[T] = None) -> T:
+def epsilon_sqrt[T](type_: type[T] = None) -> T:
     if type_ is decimal.Decimal:
         return decimal.Decimal(f"1e-{decimal.getcontext().prec}").sqrt()
     else:
         return _math.sqrt(sys.float_info.epsilon)
 
+def epsilon[T](type_: type[T] = None) -> T:
+    if type_ is decimal.Decimal:
+        return decimal.Decimal(f"1e-{decimal.getcontext().prec}")
+    else:
+        return sys.float_info.epsilon
 
 def float_error() -> float:
     fe = sys.float_info.epsilon

@@ -100,7 +100,7 @@ def derivative_power_base(base, exponent):
     elif base == 0 and exponent == 0:
         return 0
     else:
-        raise mt.NotSupportedMathOperation("No derivative can be calculated")
+        raise mt.NotSupportedMathOperation(f"No derivative can be calculated for [({base})^({exponent})]")
 
 def derivative_power_exponent(base, exponent):
     base, exponent = _common.match_convert(base, exponent)
@@ -126,7 +126,7 @@ def numerical_derivative[T](func: t.Callable[..., T], with_respect_to: str | int
     is_kwarg = isinstance(with_respect_to, str)
     def _numerical_derivative(*args, **kwargs):
         change_args: list | dict = list(args) if not is_kwarg else kwargs
-        base_step_size = constants.epsilon(change_args[with_respect_to].__class__)
+        base_step_size = constants.epsilon_sqrt(change_args[with_respect_to].__class__)
         real_step_size = abs(change_args[with_respect_to] * base_step_size)
         if real_step_size == 0:
             real_step_size = base_step_size
@@ -138,6 +138,15 @@ def numerical_derivative[T](func: t.Callable[..., T], with_respect_to: str | int
         return (shift_plus - shift_minus) / double_step
     return _numerical_derivative
 
+def newton_raphson_approximation(x: decimal.Decimal, guess: decimal.Decimal, _next_term: t.Callable[[decimal.Decimal, decimal.Decimal], decimal.Decimal]) -> decimal.Decimal:
+    decimal.getcontext().prec += 2
+    last_guess = None
+    while last_guess is None or last_guess != guess:
+        last_guess = guess
+        guess = guess - _next_term(guess, x)
+    decimal.getcontext().prec -= 2
+    return guess
+
 def taylor_series_approximation(x: decimal.Decimal, _build_nth_term: t.Callable[[int], t.Callable[[decimal.Decimal], decimal.Decimal]]) -> decimal.Decimal:
     n = 0
     decimal.getcontext().prec += 2
@@ -145,7 +154,8 @@ def taylor_series_approximation(x: decimal.Decimal, _build_nth_term: t.Callable[
     current_value = decimal.Decimal("0")
     while last_value is None or last_value != current_value:
         last_value = current_value
-        current_value += _build_nth_term(n)(x)
+        term_n = _build_nth_term(n)(x)
+        current_value += term_n
         n += 1
     decimal.getcontext().prec -= 2
     return current_value
