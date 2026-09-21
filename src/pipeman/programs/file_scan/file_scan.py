@@ -178,12 +178,6 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
         )
         return QueueItemResult.SUCCESS
 
-    def after_failure(self, item: NODBQueueItem, ex: Exception):
-        if self._current_payload is not None and isinstance(self.current_payload, NewFilePayload):
-            self.db.mark_scanned_item_failed(self.current_payload.file_path, self.current_payload.modified_time or None)
-            self.db.commit()
-        super().after_failure(item, ex)
-
     def handle_queued_file(self,
                            workflow_name: str,
                            file_path: str,
@@ -220,6 +214,12 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
             self._log.warning(f"Item [%s] was not registered!, skipping", file_path)
         else:
             self._log.info(f"Item [%s] already processed or errored [result %s], skipping", file_path, current_status)
+
+    def after_failure(self, item: NODBQueueItem, ex: Exception):
+        if self._current_payload is not None and isinstance(self.current_payload, NewFilePayload):
+            self.db.mark_scanned_item_failed(self.current_payload.file_path, self.current_payload.modified_time or None)
+            self.db.commit()
+        super().after_failure(item, ex)
 
     def _on_success_hook(self, file_path, mod_time):
         self.db.mark_scanned_item_success(file_path, mod_time)

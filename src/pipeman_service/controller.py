@@ -1,19 +1,23 @@
-"""Provides base tools for process workers"""
+"""Provides base tooling for PIPEMAN controllers.
+
+Note that usually we expect these to be multiprocessing controllers, see
+:py:class:`pipeman_service.multiprocess.MultiProcessController`. However, we
+use a single-threaded controller for testing purposes. This file contains all
+the shared source code.
+"""
 import copy
 import os
 import queue
-from dataclasses import dataclass
-
 import signal
 import time
 import typing as t
-import uuid
+import pathlib
+import json
+from dataclasses import dataclass
 
 import yaml
 import zrlog
-import pathlib
 
-import json
 import medsutil.types as ct
 from medsutil.awaretime import AwareDateTime
 from pipeman.instrumented import InstrumentedObject
@@ -21,79 +25,166 @@ from pipeman.instrumented import InstrumentedObject
 if t.TYPE_CHECKING:
     from medsutil.halts import HaltFlag
 
+
 @dataclass
 class ProcessInfo:
+    """ Information about a process as loaded from the configuration file. """
+
+
     process_name: str
+    """ The name of the process, as provided in configuration. """
+
     quota: int
+    """ The number of instances of the process that should be running. """
+
     server_name: str
+    """ The name of the current server. """
+
     json_config: str
+    """ The worker's configuration, as a JSON-compatible exported string. """
+
     worker_cls: str
+    """ The fully-qualified name of the worker class (e.g. package.module.ClassName). """
+
     halt_flag: ct.SupportsEvent
+    """ The halt flag that indicates when the service is shutting down. """
+
     signals: str
+    """ The list of signals that the subprocess should ignore. """
+
     no_start: bool
+    """ Set to true for testing purposes sometimes - don't worry about it in production. """
+
     process_index: int | None = None
+    """ The index of the current process, or None if it is not yet assigned. """
+
     process_uuid: str | None = None
+    """ A unique identifier for the process, or None if it is not yet assigned. """
+
     logging_queue: queue.Queue | None = None
+    """ A logging queue, used in multiprocessing only. """
 
 
-class _ProcessProtocol(t.Protocol):
+class _ProcessRunnerProtocol(t.Protocol):
+    """ The protocol that process managers must implement. """
+
     @property
-    def halt_flag(self) -> ct.SupportsEvent: ...
+    def halt_flag(self) -> ct.SupportsEvent:
+        """ The halt flag that indicates that the entire service is shutting down.
+        :return: :py:class:`medsutil.types.SupportsEvent`
+        """
+        raise NotImplementedError
+
     @property
-    def end_flag(self) -> ct.SupportsEvent: ...
-    def start(self): ...
-    def run(self): ...
-    def shutdown(self): ...
-    def is_alive(self) -> bool: ...
+    def end_flag(self) -> ct.SupportsEvent:
+        """ The end flag that indicates that this specific worker is shutting down.
+        :return: :py:class:`medsutil.types.SupportsEvent`
+        """
+        raise NotImplementedError
+
+    def start(self):
+        """ Starts the process running. """
+        raise NotImplementedError
+
+    def run(self):
+        """ Handles actually running the worker.
+
+        Called by start() automatically usually.
+        """
+        raise NotImplementedError
+
+    def shutdown(self):
+        """ Tells the process manager to stop the worker gracefully."""
+        raise NotImplementedError
+
+    def is_alive(self) -> bool:
+        """ Checks if the worker is still actively working. """
+        raise NotImplementedError
+
 
 class _WorkerProtocol(t.Protocol):
-    def run(self): ...
+    """ The protocol that workers must follow. """
+    def run(self):
+        """ Runs whatever code is necessary in a loop.
+
+            This function should only return if there is an error and
+            the worker needs to be restarted.
+        """
+        raise NotImplementedError
+
 
 class _WorkerCreatorProtocol(t.Protocol):
+    """ The protocol that a worker creator must follow. """
+
     def __call__(self,
                  _process_uuid: str,
                  _config: dict[str, ct.SupportsNativeJson],
                  _halt_flag: HaltFlag,
-                 _end_flag: HaltFlag): ...
+                 _end_flag: HaltFlag):
+        """ Creates a new worker.
+        :param _process_uuid: A unique identifier for the worker.
+        :param _config: The worker's configuration.
+        :param _halt_flag: The halt flag.
+        :param _end_flag: The end flag.
+        :return: _WorkerProtocol
+        """
+        raise NotImplementedError
 
-class _ProcessCreatorProtocol(t.Protocol):
+
+class _ProcessRunnerCreatorProtocol(t.Protocol):
+    """ The protocol that a process creator must follow. """
+
     def __call__(self,
-                 process_name: str,
-                 process_idx: int,
-                 worker_cls: str,
-                 process_uuid: str,
-                 halt_flag: ct.SupportsEvent,
-                 signals: str,
-                 config_json: ct.JsonDictString,
-                 logging_queue=None) -> _ProcessProtocol: pass
+                 proc_info: ProcessInfo) -> _ProcessRunnerProtocol:
+        """ Creates a new process manager.
+        :param proc_info: The information describing the worker to build.
+        :return: A process runner object.
+        """
+        raise NotImplementedError
 
 
-class BaseProcess:
+class BaseProcessRunner:
+    """ Creates and manages a worker object from its configuration. """
 
     def __init__(self, *args, proc_info: ProcessInfo, end_flag: ct.SupportsEvent, **kwargs):
+        """ Builds the process runner object.
+        :param args: Arguments to pass to any other super-class.
+        :param proc_info: An instance of :py:class:`pipeman_service.controller.ProcessInfo` with details on the worker to run.
+        :param end_flag: A suitable instance of :py:class:`medsutil.types.SupportsEvent` that can be used to tell the worker to shutdown gracefully.
+        :param kwargs: Keyword arguments to pass to any other super-class.
+        """
         self._end_flag = end_flag
         self._proc_info = proc_info
         self._log = None
         super().__init__(*args, **kwargs)
 
     @property
-    def halt_flag(self):
+    def halt_flag(self) -> ct.SupportsEvent:
+        """ The halt flag, which tells the worker to exit as soon as possible when set. """
         return self._proc_info.halt_flag
 
     @property
-    def end_flag(self):
+    def end_flag(self) -> ct.SupportsEvent:
+        """ The end flag, which tells the worker to exit after the current item is done being processed. """
         return self._end_flag
 
     def _noop_signals(self):
+        """ Sets the signals to a no-op handler.
+            This is only necessary for multiprocessing controllers.
+        """
         for sig in self._proc_info.signals.split("\n"):
             if hasattr(signal, sig):
                 signal.signal(getattr(signal, sig), self._handle_signal)
 
-    def _handle_signal(self, *args, **kwargs): ...
+    def _handle_signal(self, *args, **kwargs):
+        """ Handles signals by doing nothing. """
+        ...
 
-    def _build_and_run(self):
+    def _build_and_run(self) -> _WorkerProtocol:
+        """ Performs the necessary set-up tasks and runs the worker object. """
         from medsutil.halts import HaltFlag
         from medsutil.dynamic import dynamic_object
+
         self._log.trace('Building and running worker class')
         worker = dynamic_object(self._proc_info.worker_cls)(
             _process_uuid=self._proc_info.process_uuid,
@@ -103,82 +194,110 @@ class BaseProcess:
             _end_flag=HaltFlag(self.end_flag),
         )
         worker.run()
+
         return worker
 
     def shutdown(self):
-        """Request that the process running shutdown as soon as it is finished the current item."""
+        """ Requests that the process running shutdown as soon as it finishes the current item. """
         if self._log:
             self._log.trace('Shutdown requested')
         self._end_flag.set()
 
     def run(self):
-        """Create and run the worker."""
+        """Creates and run the worker. """
+
+        # clear the signals
         self._noop_signals()
+
+        # do any setup tasks for this particular process runner
         self.setup()
+
+        # sets up a log.
+        # note, this is done after the setup() function so that
+        # we can override the logging class for multiprocessing.
         self._log = zrlog.get_logger(f'cnodc.process.{self._proc_info.process_name}[{self._proc_info.process_index}]')
+
         try:
+            # actually build and run the worker
             self._build_and_run()
         finally:
+            # cleanup tasks
             self.teardown()
 
     def teardown(self):
-        ...
+        """ Runs cleanup tasks after the worker is shutdown. """
+        pass
 
     def setup(self):
-        ...
+        """ Runs setup tasks before the worker is built. """
+        pass
 
 
 class _ProcessSet:
-    """Represents a set of processes all running the same worker."""
+    """ Represents a set of processes all running the same worker. """
 
-    def __init__(self, process_cls, process_info: ProcessInfo):
+    def __init__(self,
+                 process_cls: _ProcessRunnerCreatorProtocol,
+                 process_info: ProcessInfo):
         self._process_cls = process_cls
         self._info = process_info
-        self._active_processes: dict[str, _ProcessProtocol] = {}
+        self._active_runners: dict[str, _ProcessRunnerProtocol] = {}
         self._is_active = True
         self._log = zrlog.get_logger(f'cnodc.process_set.{process_info.process_name}')
         self._idx = 0
 
-    def _build_process(self) -> tuple[_ProcessProtocol, str]:
+    def _build_process_runner(self) -> tuple[_ProcessRunnerProtocol, str]:
+        """ Creates a new process runner object. """
+
+        # Increment the index
         self._idx += 1
+
+        # Get the current time that the object was created at
         n = AwareDateTime.now().strftime("%M%S%f")
+
+        # Build a unique process ID
         proc_id = f"{self._info.server_name}:{self._info.process_name}:{self._idx}:{n}"
+
+        # Copy the server info and update the information from the above.
         x = copy.copy(self._info)
         x.process_index = self._idx
         x.process_uuid = proc_id
+
+        # Build and return the process runner.
         obj = self._process_cls(proc_info=x)
         return obj, proc_id
 
     def set_quota(self, new_count: int):
-        """Set the target number of workers to have running."""
+        """ Sets the target number of workers to have running. """
         self._info.quota = new_count if new_count > 1 else 1
 
     def deactivate(self):
-        """Stop all workers"""
+        """ Stops all the workers gracefully and stops spawning new workers. """
         self._is_active = False
         self.shutdown_all()
 
     def activate(self):
-        """Start all workers"""
+        """Starts spawning new workers. """
         self._is_active = True
 
     def shutdown_all(self):
-        """Request all workers stop as soon as possible."""
+        """Requests that all process runners stop as soon as possible."""
         self._log.trace('Shutting down all active processes')
-        for x in self._active_processes:
-            self._active_processes[x].shutdown()
+        for x in self._active_runners:
+            self._active_runners[x].shutdown()
 
     def is_active(self, _no_reap: bool = False) -> bool:
-        """Check if any processes are still active."""
+        """ Checks if any process runners are still active. """
         if not _no_reap:
             self._reap()
-        return len(self._active_processes) > 0
+        return len(self._active_runners) > 0
 
     def is_activated(self) -> bool:
+        """ Checks if the process set is currently active. """
         return self._is_active
 
     def set_config(self, config: dict):
-        """Set the configuration for the workers and restarts them if the configuration has changed."""
+        """ Sets the configuration for new workers, and restarts any currently running ones. """
         if not isinstance(config, dict):
             raise ValueError("must be dict")
         config_str = json.dumps(config)
@@ -188,53 +307,58 @@ class _ProcessSet:
             self.shutdown_all()
 
     def run_one(self):
-        proc, _ = self._build_process()
+        """ Runs a single process.
+
+         This is used in testing, not production code. """
+        proc, _ = self._build_process_runner()
         proc.run()
         return proc
 
     def reap_and_sow(self):
-        """Clear workers that have errored and start enough workers to meet the quota."""
+        """ Clears workers that have errored, then starts enough workers to meet the quota."""
         self._reap()
         self._sow()
 
     def _reap(self):
-        """Clear workers that have errored"""
-        for x in list(self._active_processes.keys()):
-            if not self._active_processes[x].is_alive():
-                self._log.info('Removing dead process')
-                del self._active_processes[x]
+        """ Clears workers that have errored. """
+        for x in list(self._active_runners.keys()):
+            if not self._active_runners[x].is_alive():
+                self._log.info('Removing dead process %s', x)
+                del self._active_runners[x]
 
     def _sow(self):
-        """Start new workers as needed"""
+        """ Starts new workers as needed."""
         if self._is_active:
-            current = len(self._active_processes)
+            current = len(self._active_runners)
             while current < self._info.quota:
                 self._log.info('Starting new process')
-                proc, proc_uuid = self._build_process()
-                self._active_processes[proc_uuid] = proc
+                proc, proc_uuid = self._build_process_runner()
+                self._active_runners[proc_uuid] = proc
                 proc.start()
                 current += 1
 
 
 def original_signal_handler(*args, **kwargs):
+    """ Handles signals like Python does by default. """
     raise KeyboardInterrupt
+
 
 class BaseController(InstrumentedObject):
     """Base class for controllers"""
 
-    def __init__[T: _ProcessProtocol](self,
-                 process_creator: _ProcessCreatorProtocol | type[T],
-                 log_name: str,
-                 halt_flag: ct.SupportsEvent,
-                 config_file: t.Optional[pathlib.Path] = None,
-                 config_file_dir: t.Optional[pathlib.Path] = None,
-                 flag_file: t.Optional[pathlib.Path] = None,
-                 server_name: t.Optional[str] = None,
-                 _no_start: bool = False,
-                 _is_master: bool = True,
-                 socket_port: int = 9173,
-                 _no_report: bool = True,
-                 logging_queue=None):
+    def __init__[T: _ProcessRunnerProtocol](self,
+                                            process_creator: _ProcessRunnerCreatorProtocol | type[T],
+                                            log_name: str,
+                                            halt_flag: ct.SupportsEvent,
+                                            config_file: t.Optional[pathlib.Path] = None,
+                                            config_file_dir: t.Optional[pathlib.Path] = None,
+                                            flag_file: t.Optional[pathlib.Path] = None,
+                                            server_name: t.Optional[str] = None,
+                                            _no_start: bool = False,
+                                            _is_master: bool = True,
+                                            socket_port: int = 9173,
+                                            _no_report: bool = True,
+                                            logging_queue=None):
         super().__init__(
             log_name=log_name,
             subsystem='controller',

@@ -470,11 +470,11 @@ class TestBaseProcessController(BaseTestCase):
         self.assertIn('process1', nc._process_info)
         self.assertTrue(nc._process_info['process1'].is_activated())
         nc.reap_and_sow()
-        self.assertEqual(len(nc._process_info['process1']._active_processes), 2)
+        self.assertEqual(len(nc._process_info['process1']._active_runners), 2)
         nc.deactivate_all()
         self.assertFalse(nc._process_info['process1'].is_activated())
-        for ap_key in nc._process_info['process1']._active_processes:
-            ap = nc._process_info['process1']._active_processes[ap_key]
+        for ap_key in nc._process_info['process1']._active_runners:
+            ap = nc._process_info['process1']._active_runners[ap_key]
             self.assertTrue(ap.end_flag.is_set())
             self.assertFalse(ap.halt_flag.is_set())
         self.assertTrue(nc._process_info['process1'].is_active(True))

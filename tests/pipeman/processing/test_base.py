@@ -1,6 +1,6 @@
 import threading
 
-from pipeman_service.controller import BaseProcess, ProcessInfo
+from pipeman_service.controller import BaseProcessRunner, ProcessInfo
 from pipeman.processing.base_worker import BaseWorker
 from medsutil.savedata import SaveData
 from medsutil.exceptions import HaltInterrupt
@@ -25,7 +25,7 @@ class TestBaseProcess(BaseTestCase):
             process_index=3,
             process_uuid='2345'
         )
-        p = BaseProcess(
+        p = BaseProcessRunner(
             proc_info=pinfo,
             end_flag=ef
         )
