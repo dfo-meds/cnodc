@@ -174,7 +174,7 @@ class PlatformBlocker(RecordAction):
 class SetRelationships(RecordAction):
     ACTION_NAME = "set_relationships"
 
-    relationships: dict[str, list[list[str | bool]]] = dd.p_dict()
+    relationships: list[list[str | bool]] = dd.p_list()
 
     def apply(self, record: ParentRecord):
         if not self.relationships:
@@ -200,7 +200,7 @@ class SetQualityCheck(RecordAction):
 
 @OCProc2Action.register_type
 class SetPlatformCandidates(RecordAction):
-    ACTION_NAME = "set_candidates"
+    ACTION_NAME = "set_platform_candidates"
 
     platform_uuids: list[str] | None = dd.p_list(value_coerce=str)
 
@@ -291,6 +291,8 @@ class PathAction(OCProc2Action):
 class SetToEmpty(PathAction):
     ACTION_NAME = "set_empty"
 
+    test_protocol: str = dd.p_str()
+
     def apply(self, record: ParentRecord):
         element = record.find_child(self.path)
         if not isinstance(element, SingleElement):
@@ -298,7 +300,7 @@ class SetToEmpty(PathAction):
         past_value = element.value
         element.value = None
         element.metadata.append_to("PreviousValue", past_value)
-        element.metadata["WorkingQuality"] = 9
+        set_working_quality(element, 9, self.test_protocol)
         self.add_history_action(
             record,
             f"Value removed",
@@ -311,34 +313,6 @@ class SetToEmpty(PathAction):
             ActionType.CHANGE_QUALITY,
             self.path
         )
-
-
-@OCProc2Action.register_type
-class ChangeQualityAtLevelAndDeeper(PathAction):
-    ACTION_NAME = "set_quality_level_and_deeper"
-
-    test_protocol: str = dd.p_str()
-    other_paths: list[str] = dd.p_list(value_coerce=str)
-    new_flag: int = dd.p_int()
-
-    @property
-    def value(self) -> str:
-        return str(self.new_flag)
-
-    def apply(self, record: ParentRecord):
-        work = [self.path, *self.other_paths]
-        for p in work:
-            element = record.find_child(p)
-            if not isinstance(element, (AbstractElement, BaseRecord, RecordSet)):
-                raise ValueError("Invalid element path")
-            if set_working_quality(element, self.new_flag, self.test_protocol):
-                self.add_history_action(
-                    record,
-                    f"Quality flag changed to {self.new_flag}",
-                    ActionType.CHANGE_QUALITY,
-                    self.path
-                )
-                # TODO: should we change this to a "set at and deeper history action"? I think this is more clear.
 
 
 @OCProc2Action.register_type
@@ -383,7 +357,7 @@ class ChangeValue(PathAction):
         if element is not None:
             previous = element.value
             element.value = self.new_value
-            element.metadata["WorkingQuality"] = SingleElement(5, TestProtocol=self.test_protocol)
+            set_working_quality(element, 5, self.test_protocol)
             element.metadata.append_to("PreviousValue", previous)
         else:
             record.set(self.path, self.new_value, WorkingQuality=SingleElement(5, TestProtocol=self.test_protocol))
