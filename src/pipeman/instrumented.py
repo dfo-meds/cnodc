@@ -26,7 +26,7 @@ class InstrumentedObject:
                  process_name: str = '',
                  process_version: str = '',
                  no_report: bool = False,
-                 is_master: bool = False,
+                 is_top_level: bool = False,
                  **kwargs):
         super().__init__(*args, **kwargs)
         self._status_info = {
@@ -45,7 +45,7 @@ class InstrumentedObject:
             'process_name': process_name,
             'process_version': process_version
         }
-        self._is_master = is_master
+        self._is_top_level = is_top_level
         self._log = zrlog.get_logger(log_name)
         self._no_report: bool = no_report
         zrlog.set_extras(self._pinfo)
@@ -89,12 +89,12 @@ class InstrumentedObject:
     def _update_resources_report(self):
         with self._psutil_process.oneshot():
             try:
-                if self._is_master:
+                if self._is_top_level:
                     with tempfile.TemporaryDirectory() as tdir:
                         du = psutil.disk_usage(tdir)
                         self._status_info['temp_free'] = du.free
                         self._status_info['temp_total'] = du.total
-                        if self._is_master:
+                        if self._is_top_level:
                             self.gauge('temp_free_bytes', 'Free disk space').set(du.free)
                             self.gauge('temp_free_ratio', 'Free disk space (ratio)').set(du.free / du.total)
 
@@ -108,7 +108,7 @@ class InstrumentedObject:
                 mem_info = self._psutil_process.memory_full_info()
                 self._status_info['memory_total'] = mem_info.uss
 
-                if self._is_master:
+                if self._is_top_level:
                     self.gauge("cpu_usage_ratio", "CPU Usage").set(self._psutil_process.cpu_percent())
                     self.gauge("cpu_user_time_seconds", "CPU Usage (User)").set(cpu_times.user)
                     self.gauge("cpu_system_time_seconds", "CPU Usage (System)").set(cpu_times.system)
@@ -126,7 +126,7 @@ class InstrumentedObject:
                 info=self._status_info
             )
             if _last_report:
-                if self._is_master:
+                if self._is_top_level:
                     db.clear_process_info_for_server(self.server_name)
                 else:
                     db.clear_process_info(

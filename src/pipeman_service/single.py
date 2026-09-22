@@ -1,11 +1,11 @@
 """Provides a single-threaded process controller that only runs one process."""
 import threading
 
-from pipeman_service.controller import BaseController, BaseProcessRunner
+from pipeman_service.controller import BaseController, BaseRunner
 from pipeman.exceptions import CNODCError
 
 
-class _SingleProcessRunner(BaseProcessRunner):
+class _SingleProcessRunner(BaseRunner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs, end_flag=threading.Event())

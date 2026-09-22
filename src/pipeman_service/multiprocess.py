@@ -11,7 +11,7 @@ from prometheus_client.multiprocess import mark_process_dead
 
 from medsutil.types import SupportsEvent
 from nodb.interface import NODB
-from pipeman_service.controller import BaseController, BaseProcessRunner
+from pipeman_service.controller import BaseController, BaseRunner
 
 
 class ImprovedEvent:
@@ -30,7 +30,7 @@ class ImprovedEvent:
         self.value.value = 0
 
 
-class _MultiProcessRunner(BaseProcessRunner, mp.Process):
+class _MultiProcessRunner(BaseRunner, mp.Process):
     """Implementation of a process that runs a worker class."""
 
     def __init__(self, *args, **kwargs):

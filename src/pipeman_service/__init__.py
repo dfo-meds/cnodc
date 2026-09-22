@@ -9,13 +9,18 @@ Contains the following module. You should use the boot module to run the PIPEMAN
 
 The PIPEMAN service is managed by a controller.
 This controller monitors for changes in configuration and orchestrates workers.
-In general, you can view this as:
 
-PARENT CONTROLLER
-- Worker 1
-- Worker 2
-- Worker 3
-- ...
+CONTROLLER
+- Work Runner Set A
+  - Work Runner 1 -> Worker 1
+  - Work Runner 2 - > Worker 2
+  - ... (to quota)
+- Work Runner Set B
+- ... (one for each worker defined)
+
+Its worth noting that sometimes "process" was used to describe a "worker" here.
+I've worked on cleaning up this terminology but instances of it linger.
+Be aware.
 
 The default implementation uses multiprocessing to run workers without the GIL.
 """

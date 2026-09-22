@@ -1,7 +1,7 @@
 """Provides base tooling for PIPEMAN controllers.
 
 Note that usually we expect these to be multiprocessing controllers, see
-:py:class:`pipeman_service.multiprocess.MultiProcessController`. However, we
+:py:class:`pipeman_service.multiprocess.MultiController`. However, we
 use a single-threaded controller for testing purposes. This file contains all
 the shared source code.
 """
@@ -20,15 +20,22 @@ import zrlog
 
 import medsutil.types as ct
 from medsutil.awaretime import AwareDateTime
+from medsutil.dynamic import DynamicObjectLoadError
+from medsutil.exceptions import CodedError
 from pipeman.instrumented import InstrumentedObject
 
 if t.TYPE_CHECKING:
     from medsutil.halts import HaltFlag
 
 
+class PipemanServiceError(CodedError):
+    """ An error raised by the pipeman service. """
+    CODE_SPACE = "PIPEMAN-SERVICE"
+
+
 @dataclass
-class ProcessInfo:
-    """ Information about a process as loaded from the configuration file. """
+class WorkerInfo:
+    """ Information about a worker as loaded from the configuration file. """
 
 
     process_name: str
@@ -40,7 +47,7 @@ class ProcessInfo:
     server_name: str
     """ The name of the current server. """
 
-    json_config: str
+    config_str: str
     """ The worker's configuration, as a JSON-compatible exported string. """
 
     worker_cls: str
@@ -64,22 +71,51 @@ class ProcessInfo:
     logging_queue: queue.Queue | None = None
     """ A logging queue, used in multiprocessing only. """
 
+    @staticmethod
+    def config_to_str(config: t.Mapping[str, t.Any]) -> str:
+        """ Converts configuration to a string.
 
-class _ProcessRunnerProtocol(t.Protocol):
+            :param config: The configuration to convert to a string
+
+            :raises PipemanServiceError: If the configuration is not a mapping (2000)
+            :raises PipemanServiceError: If there was an error in JSON encoding (2001).
+        """
+        # configuration type check
+        if not isinstance(config, t.Mapping):
+            raise PipemanServiceError("Configuration must be a dictionary or other mapping", 2000)
+
+        # convert to JSON string
+        try:
+            return json.dumps(config)
+        except TypeError:
+            raise PipemanServiceError("Configuration must be JSON-compatible", 2001)
+
+    @staticmethod
+    def str_to_config(config_str: str) -> dict[str, t.Any]:
+        """ Converts configuration back from a string to a dictionary.
+
+            :param config_str: The configuration string.
+
+            :raises PipemanServiceError: If the configuration is invalid (2100).
+        """
+        try:
+            return json.loads(config_str)
+        except TypeError:
+            raise PipemanServiceError("Invalid configuration, must be JSON-compatible", 2100)
+
+
+
+class _WorkRunnerProtocol(t.Protocol):
     """ The protocol that process managers must implement. """
 
     @property
     def halt_flag(self) -> ct.SupportsEvent:
-        """ The halt flag that indicates that the entire service is shutting down.
-        :return: :py:class:`medsutil.types.SupportsEvent`
-        """
+        """ The halt flag that indicates that the entire service is shutting down. """
         raise NotImplementedError
 
     @property
     def end_flag(self) -> ct.SupportsEvent:
-        """ The end flag that indicates that this specific worker is shutting down.
-        :return: :py:class:`medsutil.types.SupportsEvent`
-        """
+        """ The end flag that indicates that this specific worker is shutting down. """
         raise NotImplementedError
 
     def start(self):
@@ -104,6 +140,7 @@ class _ProcessRunnerProtocol(t.Protocol):
 
 class _WorkerProtocol(t.Protocol):
     """ The protocol that workers must follow. """
+
     def run(self):
         """ Runs whatever code is necessary in a loop.
 
@@ -131,11 +168,11 @@ class _WorkerCreatorProtocol(t.Protocol):
         raise NotImplementedError
 
 
-class _ProcessRunnerCreatorProtocol(t.Protocol):
+class _WorkRunnerCreatorProtocol(t.Protocol):
     """ The protocol that a process creator must follow. """
 
     def __call__(self,
-                 proc_info: ProcessInfo) -> _ProcessRunnerProtocol:
+                 proc_info: WorkerInfo) -> _WorkRunnerProtocol:
         """ Creates a new process manager.
         :param proc_info: The information describing the worker to build.
         :return: A process runner object.
@@ -143,15 +180,21 @@ class _ProcessRunnerCreatorProtocol(t.Protocol):
         raise NotImplementedError
 
 
-class BaseProcessRunner:
-    """ Creates and manages a worker object from its configuration. """
+class BaseRunner:
+    """ Creates and manages a worker object from its configuration.
 
-    def __init__(self, *args, proc_info: ProcessInfo, end_flag: ct.SupportsEvent, **kwargs):
+        These objects are built by the :py:class:`_RunnerSet` and are responsible
+        for building and running the worker object directly.
+
+        .. caution:: This class should be sub-classed appropriately to provide concurrency.
+    """
+
+    def __init__(self, *args, proc_info: WorkerInfo, end_flag: ct.SupportsEvent, **kwargs):
         """ Builds the process runner object.
-        :param args: Arguments to pass to any other super-class.
-        :param proc_info: An instance of :py:class:`pipeman_service.controller.ProcessInfo` with details on the worker to run.
-        :param end_flag: A suitable instance of :py:class:`medsutil.types.SupportsEvent` that can be used to tell the worker to shutdown gracefully.
-        :param kwargs: Keyword arguments to pass to any other super-class.
+            :param args: Arguments to pass to any other super-class.
+            :param proc_info: An instance of :py:class:`pipeman_service.controller.ProcessInfo` with details on the worker to run.
+            :param end_flag: A suitable instance of :py:class:`medsutil.types.SupportsEvent` that can be used to tell the worker to shutdown gracefully.
+            :param kwargs: Keyword arguments to pass to any other super-class.
         """
         self._end_flag = end_flag
         self._proc_info = proc_info
@@ -181,21 +224,26 @@ class BaseProcessRunner:
         ...
 
     def _build_and_run(self) -> _WorkerProtocol:
-        """ Performs the necessary set-up tasks and runs the worker object. """
+        """ Performs the necessary set-up tasks and runs the worker object.
+
+            :raises PipemanServiceError: If the worker class name is invalid (1000).
+        """
         from medsutil.halts import HaltFlag
         from medsutil.dynamic import dynamic_object
 
         self._log.trace('Building and running worker class')
-        worker = dynamic_object(self._proc_info.worker_cls)(
-            _process_uuid=self._proc_info.process_uuid,
-            _server_name=self._proc_info.server_name,
-            _config=json.loads(self._proc_info.json_config),
-            _halt_flag=HaltFlag(self.halt_flag),
-            _end_flag=HaltFlag(self.end_flag),
-        )
-        worker.run()
-
-        return worker
+        try:
+            worker = dynamic_object(self._proc_info.worker_cls)(
+                _process_uuid=self._proc_info.process_uuid,
+                _server_name=self._proc_info.server_name,
+                _config=WorkerInfo.str_to_config(self._proc_info.config_str),
+                _halt_flag=HaltFlag(self.halt_flag),
+                _end_flag=HaltFlag(self.end_flag),
+            )
+            worker.run()
+            return worker
+        except DynamicObjectLoadError as e:
+            raise PipemanServiceError(f"Invalid worker class name [{self._proc_info.worker_cls}]", 1000) from e
 
     def shutdown(self):
         """ Requests that the process running shutdown as soon as it finishes the current item. """
@@ -215,7 +263,7 @@ class BaseProcessRunner:
         # sets up a log.
         # note, this is done after the setup() function so that
         # we can override the logging class for multiprocessing.
-        self._log = zrlog.get_logger(f'cnodc.process.{self._proc_info.process_name}[{self._proc_info.process_index}]')
+        self._log = zrlog.get_logger(f'pipeman_service.runner.{self._proc_info.process_name}[{self._proc_info.process_index}]')
 
         try:
             # actually build and run the worker
@@ -233,20 +281,28 @@ class BaseProcessRunner:
         pass
 
 
-class _ProcessSet:
-    """ Represents a set of processes all running the same worker. """
+class _RunnerSet:
+    """ Represents a set of work runners all running the same worker.
+
+        A runner set maintains 1 or more work runners, depending on the quota.
+        Each work runner is identical.
+    """
 
     def __init__(self,
-                 process_cls: _ProcessRunnerCreatorProtocol,
-                 process_info: ProcessInfo):
+                 process_cls: _WorkRunnerCreatorProtocol,
+                 process_info: WorkerInfo):
+        """ Builds the object.
+            :param process_cls: A type or function which builds work runner objects.
+            :param process_info: The process information to pass to the work runners.
+        """
         self._process_cls = process_cls
         self._info = process_info
-        self._active_runners: dict[str, _ProcessRunnerProtocol] = {}
-        self._is_active = True
-        self._log = zrlog.get_logger(f'cnodc.process_set.{process_info.process_name}')
+        self._active_runners: dict[str, _WorkRunnerProtocol] = {}
+        self._spawn_workers = True
+        self._log = zrlog.get_logger(f'pipeman_service.runner_set.{process_info.process_name}')
         self._idx = 0
 
-    def _build_process_runner(self) -> tuple[_ProcessRunnerProtocol, str]:
+    def _build_runner(self) -> tuple[_WorkRunnerProtocol, str]:
         """ Creates a new process runner object. """
 
         # Increment the index
@@ -273,12 +329,12 @@ class _ProcessSet:
 
     def deactivate(self):
         """ Stops all the workers gracefully and stops spawning new workers. """
-        self._is_active = False
+        self._spawn_workers = False
         self.shutdown_all()
 
     def activate(self):
         """Starts spawning new workers. """
-        self._is_active = True
+        self._spawn_workers = True
 
     def shutdown_all(self):
         """Requests that all process runners stop as soon as possible."""
@@ -294,23 +350,34 @@ class _ProcessSet:
 
     def is_activated(self) -> bool:
         """ Checks if the process set is currently active. """
-        return self._is_active
+        return self._spawn_workers
 
-    def set_config(self, config: dict):
-        """ Sets the configuration for new workers, and restarts any currently running ones. """
-        if not isinstance(config, dict):
-            raise ValueError("must be dict")
-        config_str = json.dumps(config)
-        reset_all = config_str != self._info.json_config
-        self._info.json_config = config_str
+    def set_config(self, config: t.Mapping[str, t.Any]):
+        """ Sets the configuration for new workers, and restarts any currently running ones.
+
+            :param config: The mapping of configuration items. Must be JSON-compatible.
+
+            :raises PipemanServiceError: If the configuration is not a mapping (2000)
+            :raises PipemanServiceError: If there was an error in JSON encoding (2001).
+        """
+        # convert to string
+        config_str = WorkerInfo.config_to_str(config)
+
+        # check for reset
+        reset_all = config_str != self._info.config_str
+
+        # save config
+        self._info.config_str = config_str
+
+        # restart workers if necessary
         if reset_all:
             self.shutdown_all()
 
     def run_one(self):
         """ Runs a single process.
 
-         This is used in testing, not production code. """
-        proc, _ = self._build_process_runner()
+        .. danger:: This is used in testing, not production code. """
+        proc, _ = self._build_runner()
         proc.run()
         return proc
 
@@ -328,11 +395,11 @@ class _ProcessSet:
 
     def _sow(self):
         """ Starts new workers as needed."""
-        if self._is_active:
+        if self._spawn_workers:
             current = len(self._active_runners)
             while current < self._info.quota:
                 self._log.info('Starting new process')
-                proc, proc_uuid = self._build_process_runner()
+                proc, proc_uuid = self._build_runner()
                 self._active_runners[proc_uuid] = proc
                 proc.start()
                 current += 1
@@ -344,21 +411,40 @@ def original_signal_handler(*args, **kwargs):
 
 
 class BaseController(InstrumentedObject):
-    """Base class for controllers"""
+    """ Base class for controllers.
 
-    def __init__[T: _ProcessRunnerProtocol](self,
-                                            process_creator: _ProcessRunnerCreatorProtocol | type[T],
-                                            log_name: str,
-                                            halt_flag: ct.SupportsEvent,
-                                            config_file: t.Optional[pathlib.Path] = None,
-                                            config_file_dir: t.Optional[pathlib.Path] = None,
-                                            flag_file: t.Optional[pathlib.Path] = None,
-                                            server_name: t.Optional[str] = None,
-                                            _no_start: bool = False,
-                                            _is_master: bool = True,
-                                            socket_port: int = 9173,
-                                            _no_report: bool = True,
-                                            logging_queue=None):
+        A controller orchestrates workers by creating :py:class:`_RunnerSet` objects which
+        orchestrate workers for a single type of worker.
+    """
+
+    def __init__[T: _WorkRunnerProtocol](self,
+                                         process_creator: _WorkRunnerCreatorProtocol | type[T],
+                                         log_name: str,
+                                         halt_flag: ct.SupportsEvent,
+                                         config_file: t.Optional[pathlib.Path] = None,
+                                         config_file_dir: t.Optional[pathlib.Path] = None,
+                                         flag_file: t.Optional[pathlib.Path] = None,
+                                         server_name: t.Optional[str] = None,
+                                         socket_port: int = 9173,
+                                         logging_queue: queue.Queue | None = None,
+                                         _no_start: bool = False,
+                                         _is_top_level: bool = True,
+                                         _no_report: bool = True):
+        """ Builds the controller object.
+
+            :param process_creator: A callable or type which can be used to build a work runner.
+            :param log_name: The name of a logger for this controller.
+            :param halt_flag: An object which can be used to indicate that the system is shutting down.
+            :param config_file: A YAML configuration file containing one or more worker definitions.
+            :param config_file_dir: A directory containing one or more YAML configuration files.
+            :param flag_file: A file that, if it exists, will prompt the controller to reload configuration.
+            :param server_name: The name of the server, used in reporting metrics.
+            :param socket_port: The socket to listen to for commands.
+            :param logging_queue: A shared queue for logging (used in multiprocessing).
+            :param _no_start: Prevents `start()` from being called on the worker objects. Testing only!
+            :param _is_top_level: Indicates this is the top-level process if true - this controls if disk space is reported.
+            :param _no_report: If true, disables reporting of metrics to the database.
+        """
         super().__init__(
             log_name=log_name,
             subsystem='controller',
@@ -367,7 +453,7 @@ class BaseController(InstrumentedObject):
             process_name=f"controller",
             process_version='1.0',
             no_report=_no_report,
-            is_master=_is_master,
+            is_top_level=_is_top_level,
         )
         self._break_count = 0
         self._halt_flag = halt_flag
@@ -380,7 +466,7 @@ class BaseController(InstrumentedObject):
         self._signals = set()
         self._loaded = False
         self._process_runner_cls = process_creator
-        self._process_info: dict[str, _ProcessSet] = {}
+        self._process_info: dict[str, _RunnerSet] = {}
         self._no_start = _no_start
         self._logging_queue = logging_queue
         self._sleep_time = 2.5
@@ -394,18 +480,31 @@ class BaseController(InstrumentedObject):
             "signals": "",
         }
 
-    def _register_process(self,
-                          process_name: str,
-                          process_cls_name: str,
-                          count: int = 1,
-                          config: dict[str, ct.SupportsExtendedJson] = None):
+    def _register_worker(self,
+                         process_name: str,
+                         process_cls_name: str,
+                         count: int = 1,
+                         config: t.Mapping[str, ct.SupportsExtendedJson] | None = None):
+        """ Registers a new worker with the controller.
+
+            .. note: The runner set is also activated again, which will launch
+            the workers again if it was previously deactivated.
+
+            :param process_name: The name of the worker (should be unique across all workers).
+            :param process_cls_name: The fully-qualified name of the worker class.
+            :param count: The number of worker processes to build.
+            :param config: The configuration for the worker, if applicable.
+
+            :raises PipemanServiceError: If the configuration is not a mapping (2000)
+            :raises PipemanServiceError: If there was an error in JSON encoding (2001).
+        """
         if process_name not in self._process_info:
             self._log.debug("Registering process %s", process_name)
-            self._process_info[process_name] = _ProcessSet(self._process_runner_cls, ProcessInfo(
+            self._process_info[process_name] = _RunnerSet(self._process_runner_cls, WorkerInfo(
                 process_name=process_name,
                 worker_cls=process_cls_name,
                 quota=count,
-                json_config=json.dumps(config or {}),
+                config_str=WorkerInfo.config_to_str(config or {}),
                 server_name=self.server_name,
                 **self._base_kwargs
             ))
@@ -415,157 +514,228 @@ class BaseController(InstrumentedObject):
             self._process_info[process_name].set_config(config or {})
             self._process_info[process_name].activate()
 
-    def _deregister_process(self, process_name: str):
+    def _deactivate_worker(self, process_name: str):
+        """ Deactivates the given runner set and gracefully stops all workers. """
         if process_name in self._process_info:
             self._log.debug("Deactivating process %s", process_name)
             self._process_info[process_name].deactivate()
 
     def _registered_process_names(self) -> list[str]:
+        """ Returns a list of registered process names. """
         return list(self._process_info.keys())
 
     def _check_reload(self):
-        """Check if the configuration needs to be reloaded"""
+        """ Checks if the configuration needs to be reloaded. """
+
+        # always reload if we haven't yet loaded configuration
         if not self._loaded:
             return True
+
+        # check if the flag file has been set
         if self._flag_file is not None and self._flag_file.exists():
             self._log.debug("Flag file detected, reloading configuration")
             self._flag_file.unlink(True)
             self._reload_requested = False
             return True
+
+        # check if the service has received a request for reload
         if self._reload_requested:
             self._reload_requested = False
             return True
+
         return False
 
     def _register_halt_signal(self, sig_name):
-        """Register a halt signal"""
+        """ Registers a halt signal. """
         if hasattr(signal, sig_name):
-            self._log.debug("Registering signal %s", sig_name)
+            self._log.debug("Registering halt signal %s", sig_name)
             signal.signal(getattr(signal, sig_name), self._handle_halt)
             self._signals.add(sig_name)
 
-    def cleanup(self):
-        for sig_name in self._signals:
-            signal.signal(getattr(signal, sig_name), original_signal_handler)
-        self._signals = set()
-        self._manager.cleanup()
-
     def _handle_halt(self, sig_num, frame=None):
-        """Handle a halt signal"""
+        """ Handles a halt signal.
+
+            :raises KeyboardInterrupt: If three halt signals were caught.
+        """
         self._log.info("Signal %s caught", sig_num)
         self._halt_flag.set()
         self._break_count += 1
         self._log.debug("Break count [%s], halt flag [%s]", self._break_count, self._halt_flag.is_set())
         if self._break_count >= 3:
-            self._log.critical("Critical halt")
+            self._log.critical("3 or more halt signals were caught, crashing out")
             raise KeyboardInterrupt
 
-    def _populate_config_from_file(self, config: dict[str, ct.SupportsNativeJson], file: t.Union[str, pathlib.Path]):
+    def cleanup(self):
+        """ Cleans up before shutdown. """
+        for sig_name in self._signals:
+            signal.signal(getattr(signal, sig_name), original_signal_handler)
+        self._signals = set()
+        self._manager.cleanup()
+
+    def _load_config_from_file(self, file: t.Union[str, pathlib.Path]) -> dict[str, t.Any]:
+        """ Loads configuration from a YAML file """
         self._log.debug('Loading configuration from %s', file)
         with open(file, "r", encoding="utf-8") as h:
             data = yaml.safe_load(h)
             if isinstance(data, dict):
-                config.update(data)
+                return data
             else:
                 self._log.error("Process configuration file [%s] does not contain a YAML dictionary", file)
+                return {}
 
-    def _load_config(self):
+    def _load_config(self) -> dict[str, t.Any]:
+        """ Loads configuration from the config directory and file specified.
+
+            :returns: The configuration dictionary.
+            :raises PipemanServiceError: If there are no workers defined (3000).
+        """
+
+        # holds all the configuration items
         config = {}
+
+        # check the directory
         if self._config_dir is not None:
+
             if not self._config_dir.exists():
-                self._log.error(f"Config directory [%s] specified but does not exist", self._config_dir)
+                self._log.error("Config directory [%s] specified but does not exist", self._config_dir)
+
             elif not self._config_dir.is_dir():
-                self._log.error(f"Config directory [%s] is not a directory", self._config_dir)
+                self._log.error("Config directory [%s] is not a directory", self._config_dir)
+
             else:
                 self._log.debug("Reading configuration from YAML files in %s", self._config_dir)
                 work_dirs = [str(self._config_dir)]
                 while work_dirs:
                     for file in os.scandir(work_dirs.pop()):
                         if file.name.lower().endswith(".yaml"):
-                            self._populate_config_from_file(config, file.path)
+                            config.update(self._load_config_from_file(file.path))
                         elif file.is_dir():
                             work_dirs.append(file.path)
+
+        # check the config file
         if self._config_file is not None:
             if not self._config_file.exists():
                 self._log.error('Config file [%s] specified but does not exist', self._config_file)
             else:
-                self._populate_config_from_file(config, self._config_file)
+                config.update(self._load_config_from_file(self._config_file))
+
+        # Ensure we have at least one worker
         if not config:
-            from pipeman.exceptions import CNODCError
-            raise CNODCError("No processes specified", "PROCESSCTRL", 1001)
+            raise PipemanServiceError("No workers defined", 3000)
+
         return config
 
-    def _validate_config(self, process_name: str, config: dict) -> tuple[bool, dict[str, ct.SupportsExtendedJson] | None, int | None]:
-        from medsutil.dynamic import dynamic_object
-        from pipeman.exceptions import CNODCError
-        if 'class_name' not in config[process_name]:
-            self._log.error("Process [%s] is missing a class name", process_name)
-            return False, None, None
+    def _process_config_entry(self,
+                              process_name: str,
+                              config: dict[str, t.Any]) -> tuple[dict[str, ct.SupportsExtendedJson], int]:
+        """
+
+        :param process_name: The process name to check
+        :param config: The configuration for the process
+        :return: A tuple containing the configuration dictionary and number of workers to spawn
+        :raises PipemanServiceError: If class_name is missing (4000).
+        :raises PipemanServiceError: If the worker class does not exist (4001).
+        :raises PipemanServiceError: If the worker class doesn't have a run method (4002).
+        :raises PipemanServiceError: If the configuration exists and is not a dictionary (4003).
+        :raises PipemanServiceError: If the spawn count is specified and is not a number (4004).
+        """
+        # ensure there is a class name
+        if 'class_name' not in config:
+            raise PipemanServiceError(f"Invalid worker definition for [{process_name}], no class_name provided", 4000)
+
+        # check we can load the class and it looks appropriate
+        cls_name = config['class_name']
         try:
-            cls = dynamic_object(config[process_name]['class_name'])
+            from medsutil.dynamic import dynamic_object
+            cls = dynamic_object(cls_name)
             if not hasattr(cls, 'run'):
-                raise CNODCError('Invalid worker class, no run method', 'PROCESSCTRL', 1000)
-        except Exception as ex:
-            self._log.exception('Process [%s] has an invalid class name', process_name)
-            return False, None, None
+                raise PipemanServiceError(f"Invalid worker definition [{cls_name}] for [{process_name}], object has no run() method", 4002)
+        except DynamicObjectLoadError as ex:
+            raise PipemanServiceError(f"Invalid worker definition, class_name [{cls_name}] for [{process_name}] does not exist", 4001) from ex
+
         # Validate configuration
         proc_config = {}
-        if 'config' in config[process_name] and config[process_name]['config']:
-            if isinstance(config[process_name]['config'], dict):
-                proc_config = config[process_name]['config']
+        if 'config' in config and config['config']:
+            if isinstance(config['config'], dict):
+                proc_config = config['config']
             else:
-                self._log.warning("Process [%s] does not define a dictionary for its configuration, ignoring configuration", process_name)
+                raise PipemanServiceError(f"Invalid worker definition, configuration for [{process_name}] must be a dictionary", 4003)
+
         # Validate count
         count = 1
-        if 'count' in config[process_name] and config[process_name]['count']:
+        if 'count' in config and config['count']:
             try:
-                count = max(int(config[process_name]['count']), 1)
-            except (TypeError, ValueError):
-                self._log.warning("Processing [%s] has a non-integer value for the quota [%s], defaulting to 1", process_name, config[process_name]['count'])
-        return True, proc_config, count
+                count = max(int(config['count']), 1)
+            except (TypeError, ValueError) as ex:
+                raise PipemanServiceError(f"Invalid worker definition, expecting numeric value number of processes for [{process_name}]", 4004)
+
+        return proc_config, count
 
     def _reload_config(self):
-        """Reload configuration from disk."""
+        """ Reload configuration from disks.
+
+            :raises PipemanServiceError: If there are errors in the configuration (2000-2001, 4000-4004).
+        """
+        # reporting
         self._log.trace('Reloading process configuration')
         self.report(activity='reloading configuration')
+
+        # load the configuration from disk
         config = self._load_config()
+
         # We will remove keys from this list as we see them and deregister all the ones we didn't see
         deregister_list = self._registered_process_names()
+
         for process_name in config:
+
             # Remove the process name immediately, so we don't stop them if there is an error processing the definition
             if process_name in deregister_list:
                 deregister_list.remove(process_name)
-            result, proc_config, count = self._validate_config(process_name, config)
-            if result is None or count is None:
-                continue
+
+            # Process the configuration
+            proc_config, count = self._process_config_entry(process_name, config[process_name])
+
             # Register the process
-            self._register_process(
+            self._register_worker(
                 process_name,
                 config[process_name]['class_name'],
                 count,
                 proc_config,
             )
+
         # Deregister processes not found in current list
         for process_name in deregister_list:
-            self._deregister_process(process_name)
+            self._deactivate_worker(process_name)
+
+        # Flag that we have loaded the configuration once at least
         self._loaded = True
 
     def reload_check(self):
+        """ Reloads configuration if it is necessary """
         if self._check_reload():
             self._reload_config()
 
     def startup(self):
+        """ Initializes everything for the control loop. """
+
+        # Register signals (if they're available on this OS)
         self._register_halt_signal("SIGINT")
         self._register_halt_signal("SIGTERM")
         self._register_halt_signal("SIGBREAK")
         self._register_halt_signal("SIGQUIT")
         self._register_halt_signal("SIGABRT")
+
+        # Update the signals keyword arguments
         self._base_kwargs['signals'] = "\n".join(self._signals)
+
+        # Load configuration
         self.reload_check()
+
+        # Set-up the port manager
         self._manager.setup()
 
     def start(self):
-        """Method to register all signals and start the process."""
+        """ Starts the run loop with cleanup. """
         try:
             self.report(status='booting', activity='', _update_resources=True)
             self.startup()
@@ -577,66 +747,102 @@ class BaseController(InstrumentedObject):
             self.report(Status='stopped', activity='', _update_resources=True, exit=True)
 
     def run(self):
-        """Run loop, will constantly check for configuration changes and ensure process sets are running until
-            the halt flag is set.
-        """
-        self._log.notice('Process server online')
+        """ Runs in a loop until a halt signal is sent. """
+        self._log.notice('Pipeman service controller online')
         try:
+            # Our loop
             while not (self._halt_flag.is_set() or self._shutdown_requested):
+
+                # check for configuration changes
                 self.reload_check()
+
+                # launch new workers as necessary
                 self.report(activity="reaping and sowing")
                 self.reap_and_sow()
+
+                # check for signals from the manager
                 self.report(activity="checking for signals", _update_resources=True)
                 self._manager.check()
+
+                # handle the kill signal
                 if self._kill_requested:
                     raise SystemExit(1)
+
+                # wait on the flag to be set
                 if hasattr(self._halt_flag, 'wait'):
                     self._halt_flag.wait(self._sleep_time)
+
         finally:
+
+            # graceful shutdown only if kill was not requested
             if not self._kill_requested:
+
+                # shutdown and wait for all processes
                 self._log.info('Closing processes')
                 self.report(activity='shutting down processes')
                 self.deactivate_all()
                 self.wait_for_all()
+
+                # report
                 self._log.info('Complete, exiting')
                 self.report(activity='shutdown', _last_report=True)
+
             else:
+
+                # critical exit
                 self._log.critical("Kill requested, some processes may not have gracefully exited")
 
     def _handle_command(self, message: bytes, address):
+        """ Handles a command sent to the pipe. """
         match message:
+
+            # health check, just return 0 indicating success
             case b'health':
                 return b'0'
+
+            # interrupt, set the halt flag as if we had received the appropriate signal
             case b'interrupt':
                 self._halt_flag.set()
                 return b'0'
+
+            # graceful shutdown
             case b'shutdown':
                 self._shutdown_requested = True
                 return b'0'
+
+            # reload configuration
             case b'reload':
                 self._reload_requested = True
                 return b'0'
+
+            # immediate exit next time we exit the loop
             case b'kill':
                 self._halt_flag.set()
                 self._kill_requested = True
                 return b'0'
+
+            # invalid command
             case _:
                 return b'1'
 
     def deactivate_all(self):
-        """Request every process stop immediately."""
+        """ Requests that every process stop immediately. """
         self._log.trace(f"Requesting all processes to halt")
         for process_name in self._process_info:
             self._process_info[process_name].deactivate()
 
-    def wait_for_all(self, max_time=0) -> bool:
-        """Wait until all processes have stopped."""
+    def wait_for_all(self, max_time: float = 0) -> bool:
+        """ Blocks until all processes have stopped or the given time has passed.
+            :param max_time: The time to wait.
+            :returns: True if all processes have stopped, False otherwise.
+        """
         complete = False
         start_time = time.monotonic()
         while not complete:
             complete = True
             for process_name in self._process_info:
                 if self._process_info[process_name].is_active():
+                    self._log.debug("Process %s has not yet exited", process_name)
                     complete = False
             elapsed = time.monotonic() - start_time
             if elapsed > max_time:
@@ -646,10 +852,7 @@ class BaseController(InstrumentedObject):
         return complete
 
     def reap_and_sow(self):
-        """Run reap_and_sow() for every process set."""
-        self._log.trace('Requesting all processes to reap and sow')
+        """ Runs reap_and_sow() for every runner set. """
+        self._log.trace('Requesting all runners to reap and sow')
         for process_name in self._process_info:
             self._process_info[process_name].reap_and_sow()
-
-
-

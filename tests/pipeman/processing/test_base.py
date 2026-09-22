@@ -1,6 +1,6 @@
 import threading
 
-from pipeman_service.controller import BaseProcessRunner, ProcessInfo
+from pipeman_service.controller import BaseRunner, WorkerInfo
 from pipeman.processing.base_worker import BaseWorker
 from medsutil.savedata import SaveData
 from medsutil.exceptions import HaltInterrupt
@@ -13,11 +13,11 @@ class TestBaseProcess(BaseTestCase):
     def test_shutdown_flag(self):
         hf = threading.Event()
         ef = threading.Event()
-        pinfo = ProcessInfo(
+        pinfo = WorkerInfo(
             process_name='test',
             quota=2,
             server_name='foobar',
-            json_config='{}',
+            config_str='{}',
             worker_cls='monkey',
             halt_flag=hf,
             signals='',
@@ -25,7 +25,7 @@ class TestBaseProcess(BaseTestCase):
             process_index=3,
             process_uuid='2345'
         )
-        p = BaseProcessRunner(
+        p = BaseRunner(
             proc_info=pinfo,
             end_flag=ef
         )
