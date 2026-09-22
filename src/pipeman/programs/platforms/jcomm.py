@@ -1,4 +1,5 @@
 import datetime
+from unittest import case
 
 from medsutil.countries import a3_to_a2
 from pipeman.programs.platforms.base import PlatformInfo, PlatformManager
@@ -9,7 +10,7 @@ ORG_TO_ALPHA2: dict[str, str | None] = {
     "German Meteorological Service": "DE",
 }
 
-
+data2 = set()
 def import_from_jcomm_file(jcomm_file: str):
     with PlatformManager() as manager:
         with open(jcomm_file, "r") as h:
@@ -24,10 +25,11 @@ def import_from_jcomm_file(jcomm_file: str):
                             headers = [x.strip() for x in line.split(";")]
                     else:
                         data = line.split(';')
-                        manager.save_platform(_parse_jcomm_ops_data({
+                        pinfo = _parse_jcomm_ops_data({
                             headers[k]: data[k] if k < len(data) else ''
                             for k in range(0, len(headers))
-                        }))
+                        })
+                        manager.save_platform(pinfo)
                 except Exception as e:
                     e.add_note(f"Error processing JCOMM ops file on line [{idx}]")
                     raise

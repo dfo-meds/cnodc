@@ -10,22 +10,50 @@ from nodb.observations import NODBPlatform
 
 class PlatformInfo:
 
+    # glider;unknown;ship;drifting_buoy;profiling_float;animal;moored_buoy
+
     def __init__(self,
                  wmo_id: int | None = None,
+                 platform_name: str | None = None,
                  platform_id: str | None = None,
+                 imo_number: str | None = None,
+                 mmsi: str | None = None,
+                 ship_code: str | None = None,
+                 platform_type: str | None = None,
+                 registry_ca: str | None = None,
                  country: str | None = None,
-                 start_date: datetime.date | None = None,
-                 end_date: datetime.date | None = None,
+                 start_date: str | datetime.date | None = None,
+                 end_date: str | datetime.date | None = None,
                  metadata: dict[str, t.Any] | None = None):
+        self.platform_type = platform_type
+        self.imo_number = imo_number
+        self.platform_id = platform_id
+        self.mmsi = mmsi
+        self.registry_ca = registry_ca
         self.country = country
         self.wmo_id = wmo_id
-        self.start_date = start_date
-        self.end_date = end_date
-        self.platform_id = platform_id
+        self.platform_name = platform_name
+        self.ship_code = ship_code
+        if isinstance(start_date, str):
+            self.start_date = self.parse_date_str(start_date)
+        else:
+            self.start_date = start_date
+        if isinstance(end_date, str):
+            self.end_date = self.parse_date_str(end_date)
+        else:
+            self.end_date = end_date
         self.metadata = {
             x: y for x, y in metadata.items() if y is not None and y != ""
         } if metadata else {}
 
+    @staticmethod
+    def parse_date_str(d: str, is_end: bool = False) -> None | datetime.date:
+        if d == "":
+            return None
+        elif len(d) == 4 and d.isdigit():
+            return datetime.date(int(d), 12, 31) if is_end else datetime.date(int(d), 1, 1)
+        else:
+            return datetime.datetime.fromisoformat(d)
 
 
 class PlatformManager:
@@ -64,10 +92,16 @@ class PlatformManager:
         elif len(platforms) == 1:
             self.update_platform(platforms[0], info)
         else:
-            raise RuntimeError(f"Error saving platform, multiple identifiers found for {search_kwargs}")
+            raise RuntimeError(f"Error saving platform, multiple options found for {search_kwargs}")
 
     def service_overlaps(self, platform: NODBPlatform, info: PlatformInfo) -> bool:
-        ...
+        if info.end_date is not None and platform.service_start_date is not None:
+            if info.end_date < platform.service_start_date:
+                return False
+        if info.start_date is not None and platform.service_end_date is not None:
+            if info.start_date > platform.service_end_date:
+                return False
+        return True
 
     def create_platform(self, info: PlatformInfo):
         ...
