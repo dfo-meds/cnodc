@@ -1,6 +1,6 @@
 import enum
 
-from medsutil.ocproc2 import ParentRecord, QCResult, RecordAction
+from medsutil.ocproc2 import ParentRecord, QCResult, OCProc2Action
 
 
 class StopAction(Exception):
@@ -62,7 +62,7 @@ class BatchType(enum.Enum):
 
 
 
-def build_default_actions(record: ParentRecord) -> list[RecordAction]:
+def build_default_actions(record: ParentRecord) -> list[OCProc2Action]:
     default_actions = []
     for qcr in record.qc_tests.iterate_with_load():
         if qcr.result is QCResult.MANUAL_REVIEW:

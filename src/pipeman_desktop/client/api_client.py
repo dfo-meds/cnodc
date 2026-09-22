@@ -12,7 +12,7 @@ from gcapp.i18n.base import TranslatableError
 from medsutil.awaretime import AwareDateTime
 from medsutil.datadict import DataDictObject
 from medsutil.exceptions import CodedError
-from medsutil.ocproc2 import QCResult, RecordAction
+from medsutil.ocproc2 import QCResult, OCProc2Action
 from medsutil.ocproc2.codecs import OCProc2BinCodec
 from medsutil.byteseq import ByteSequenceReader
 from medsutil.web import request
@@ -378,7 +378,7 @@ class CNODCServerAPI:
 
                 is_saved = False
                 if response["proposed_actions"] is not None:
-                    proposed_actions = [RecordAction.from_map(x) for x in response["proposed_actions"]]
+                    proposed_actions = [OCProc2Action.from_map(x) for x in response["proposed_actions"]]
                     is_saved = True
                 else:
                     proposed_actions = build_default_actions(record)

@@ -1,7 +1,7 @@
 import typing as t
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import RecordAction, QCTestRunInfo, QCResult
+from medsutil.ocproc2 import OCProc2Action, QCTestRunInfo, QCResult
 from pipeman.processing.payload_worker import WorkflowWorker
 from pipeman.processing.payloads import Payload, stream_payload_working_records, SourceFilePayload, BatchPayload, \
     WorkingRecordPayload
@@ -27,7 +27,7 @@ class QCForwardWorker(WorkflowWorker):
                 if actions is None:
                     continue
                 loaded_actions = [
-                    RecordAction.from_map(t.cast(dict, action)) for action in t.cast(list, actions)
+                    OCProc2Action.from_map(t.cast(dict, action)) for action in t.cast(list, actions)
                 ]
                 record = working_record.record
                 qc_result = QCTestRunInfo(

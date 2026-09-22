@@ -10,7 +10,7 @@ from medsutil.ocproc2.util import normalize_ocproc_path
 
 if t.TYPE_CHECKING:
     from medsutil.ocproc2.util import SupportedStorage
-    from medsutil.ocproc2.operations import RecordAction
+    from medsutil.ocproc2.operations import OCProc2Action
 
 
 class MessageType(enum.Enum):
@@ -210,8 +210,8 @@ class QCTestRunInfo:
                  notes: str = None,
                  is_stale: bool = False,
                  test_tags: t.Optional[list[str]] = None,
-                 proposed_actions: list[RecordAction] | None = None,
-                 applied_actions: list[RecordAction] | None = None):
+                 proposed_actions: list[OCProc2Action] | None = None,
+                 applied_actions: list[OCProc2Action] | None = None):
         self.test_protocol = test_protocol
         self.test_name = test_name
         self.test_tags = test_tags or []
@@ -270,14 +270,14 @@ class QCTestRunInfo:
             '_notes': self.notes,
             '_stale': self.is_stale,
             '_tags': self.test_tags,
-            '_proposed': [x.export() for x in self.proposed_actions],
-            '_applied': [x.export() for x in self.applied_actions],
+            '_proposed': [x.export_for_ocproc2() for x in self.proposed_actions],
+            '_applied': [x.export_for_ocproc2() for x in self.applied_actions],
         }
 
     @staticmethod
     def from_mapping(map_: Export):
         """Rebuild the QC test run from a map."""
-        from medsutil.ocproc2.operations import RecordAction
+        from medsutil.ocproc2.operations import OCProc2Action
         return QCTestRunInfo(
             map_['_protocol'] if '_protocol' in map_ else 'unknown',
             map_['_name'],
@@ -289,11 +289,11 @@ class QCTestRunInfo:
             map_['_stale'] if '_stale' in map_ else False,
             map_['_tags'] if '_tags' in map_ else None,
             proposed_actions = [
-                RecordAction.from_map(x)
+                OCProc2Action.import_from_ocproc2(x)
                 for x in t.cast(list[dict], map_['_proposed'])
             ] if '_proposed' in map_ and map_['_proposed'] else None,
             applied_actions=[
-                RecordAction.from_map(x)
+                OCProc2Action.import_from_ocproc2(x)
                 for x in t.cast(list[dict], map_['_applied'])
             ] if '_applied' in map_ and map_['_applied'] else None,
         )

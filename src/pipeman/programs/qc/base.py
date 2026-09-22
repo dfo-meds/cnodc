@@ -14,7 +14,7 @@ from medsutil.awaretime import AwareDateTime
 from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
 from medsutil.math import _functions
-from medsutil.ocproc2 import RecordAction, MessageType
+from medsutil.ocproc2 import OCProc2Action, MessageType
 from medsutil.ocproc2.operations import ChangeQuality, RecordProcessed, AddHistoryEntry
 from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
     RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
@@ -123,8 +123,8 @@ class QualityController(abc.ABC):
         self._source_file_uuid: str | None = None
         self._source_file_date: datetime.date | None = None
         self._process_id: str | None = None
-        self._reviewable_actions: list[RecordAction] = []
-        self._nonreviewable_actions: list[RecordAction] = []
+        self._reviewable_actions: list[OCProc2Action] = []
+        self._nonreviewable_actions: list[OCProc2Action] = []
 
     @property
     def test_protocol(self) -> str:
@@ -292,7 +292,7 @@ class QualityController(abc.ABC):
         self._reviews_failed = 0
         self._reviews_skipped = 0
 
-    def add_record_action(self, action: RecordAction, is_reviewable: bool = True):
+    def add_record_action(self, action: OCProc2Action, is_reviewable: bool = True):
         action.source_name = self._test_name
         action.source_version = self._test_version
         action.source_instance = self._process_id

@@ -9,7 +9,7 @@ from autoinject import injector
 from gcflask.user import current_user
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
-from medsutil.ocproc2 import RecordAction
+from medsutil.ocproc2 import OCProc2Action
 from nodb.interface import NODB, LOCK_EXPIRY_TIME, NODBInstance
 from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus, NODBSourceFile, NODBObservationData
 from nodb.queue import NODBQueueItem
@@ -302,7 +302,7 @@ class NODBController:
 
     def save_record_actions(self, working_uuid: str, actions: list[dict]):
         _ = [
-            RecordAction.from_map(x)
+            OCProc2Action.from_map(x)
             for x in actions
         ]
         with self.nodb as db:

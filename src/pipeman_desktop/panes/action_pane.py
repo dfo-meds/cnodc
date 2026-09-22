@@ -6,7 +6,7 @@ from pipeman_desktop.state import DisplayChange, ApplicationState
 import typing as t
 import gcapp.i18n.base as i18n
 from pipeman_desktop.components.scrollable import ScrollableTreeview
-from medsutil.ocproc2.operations import RecordAction
+from medsutil.ocproc2.operations import OCProc2Action
 import tkinter as tk
 import tkinter.ttk as ttk
 from autoinject import injector
@@ -63,7 +63,7 @@ class ActionPane(BasePane):
         for action_id in sorted(list(actions.keys())):
             self._add_action_item(action_id, actions[action_id])
 
-    def _add_action_item(self, action_id: int, action: RecordAction):
+    def _add_action_item(self, action_id: int, action: OCProc2Action):
         self._action_list.append_item(
             parent='',
             # TODO: better format action names?

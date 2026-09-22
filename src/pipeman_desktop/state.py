@@ -10,7 +10,7 @@ import zrlog
 from gcapp.i18n import base as i18n
 from medsutil import ocproc2 as ocproc2, json
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import RecordAction, AssignPlatform
+from medsutil.ocproc2 import OCProc2Action, AssignPlatform
 from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult, build_local_record
 
 if t.TYPE_CHECKING:
@@ -28,12 +28,12 @@ class HistoryEntry:
 
 class ActionHistoryEntry(HistoryEntry):
 
-    def __init__(self, actions: list[tuple[str, RecordAction]] | None = None, remove_actions: list[int] | None = None):
+    def __init__(self, actions: list[tuple[str, OCProc2Action]] | None = None, remove_actions: list[int] | None = None):
         super().__init__()
         self._actions = actions or []
         self._remove_actions = remove_actions or []
 
-        self._removed_actions: list[tuple[str, RecordAction]] | None = None
+        self._removed_actions: list[tuple[str, OCProc2Action]] | None = None
         self._inserted_ids: list[int] | None = None
 
     def undo(self, app: PipemanDesktop):
@@ -55,8 +55,8 @@ class ActionHistoryEntry(HistoryEntry):
 
     def _apply_actions(self,
                        cur,
-                       actions: list[tuple[str, RecordAction]],
-                       remove_actions: list[int]) -> tuple[list[tuple[str, RecordAction]], list[tuple[int]]]:
+                       actions: list[tuple[str, OCProc2Action]],
+                       remove_actions: list[int]) -> tuple[list[tuple[str, OCProc2Action]], list[tuple[int]]]:
             unique_uuids = {x[0] for x in actions}
             for db_index in remove_actions:
                 cur.execute("SELECT record_uuid FROM actions WHERE rowid = ?", (db_index,))
@@ -73,7 +73,7 @@ class ActionHistoryEntry(HistoryEntry):
                 cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (record_uuid,))
                 removed_indexes = []
                 for rowid, other_action_text in cur.fetchall():
-                    other_action = RecordAction.from_map(json.load_dict(other_action_text))
+                    other_action = OCProc2Action.from_map(json.load_dict(other_action_text))
                     if rowid in remove_actions or any(other_action.conflicts_with(action) for action in new_actions):
                         removed_indexes.append(rowid)
                         removed_actions.append((record_uuid, other_action))
@@ -173,7 +173,7 @@ class ApplicationState:
         self._batch_actions: list[str] | None = None
         self._current_working_uuid: str | None = None
         self._current_parent: ocproc2.ParentRecord | None = None
-        self._current_actions: dict[int, RecordAction] | None = None
+        self._current_actions: dict[int, OCProc2Action] | None = None
         self._current_recordset: ocproc2.RecordSet | None = None
         self._current_record: ocproc2.BaseRecord | None = None
         self._current_child_path: str | None = None
@@ -181,7 +181,7 @@ class ApplicationState:
         self.subrecord_path: t.Optional[str] = None
         self.child_record: t.Optional[ocproc2.ChildRecord] = None
         self.child_recordset: t.Optional[ocproc2.RecordSet] = None
-        self.actions: t.Optional[list[RecordAction]] = None
+        self.actions: t.Optional[list[OCProc2Action]] = None
 
     @property
     def current_file_id(self) -> int | None:
@@ -226,7 +226,7 @@ class ApplicationState:
         return self._batch_service_name
 
     @property
-    def record_actions(self) -> dict[int, RecordAction]:
+    def record_actions(self) -> dict[int, OCProc2Action]:
         return self._current_actions or {}
 
     @property
@@ -595,7 +595,7 @@ class ApplicationState:
     def can_redo(self) -> bool:
         return (self._current_item + 1) < len(self._history)
 
-    def add_action_metadata(self, action: RecordAction) -> RecordAction:
+    def add_action_metadata(self, action: OCProc2Action) -> OCProc2Action:
         from pipeman_desktop import VERSION
         action.source_name = "pipeman_desktop"
         action.source_version = VERSION
@@ -651,14 +651,14 @@ class ApplicationState:
             )))
         ]))
 
-    def add_actions(self, actions: t.Iterable[RecordAction]):
+    def add_actions(self, actions: t.Iterable[OCProc2Action]):
         if self.current_working_uuid is not None:
             self.add_history_entry(ActionHistoryEntry([
                 (t.cast(str, self.current_working_uuid), self.add_action_metadata(action))
                 for action in actions
             ]))
 
-    def add_action(self, action: RecordAction):
+    def add_action(self, action: OCProc2Action):
         if self.current_working_uuid is not None:
             self.add_history_entry(ActionHistoryEntry([
                 (t.cast(str, self.current_working_uuid), self.add_action_metadata(action)),
@@ -709,7 +709,7 @@ class ApplicationState:
             cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
             self._current_actions = {}
             for rowid, action in cur.fetchall():
-                operation = RecordAction.from_map(json.load_dict(action))
+                operation = OCProc2Action.from_map(json.load_dict(action))
                 operation.apply(self._current_parent)
                 self._current_actions[rowid] = operation
 
