@@ -1,7 +1,7 @@
 """Provides base tooling for PIPEMAN controllers.
 
 Note that usually we expect these to be multiprocessing controllers, see
-:py:class:`pipeman_service.multiprocess.MultiController`. However, we
+:py:class:`pipeman_service.multiprocess.MultiProcessController`. However, we
 use a single-threaded controller for testing purposes. This file contains all
 the shared source code.
 """

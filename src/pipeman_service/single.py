@@ -1,11 +1,15 @@
-"""Provides a single-threaded process controller that only runs one process."""
+""" Provides a single-threaded process controller that only runs one process.
+
+    .. caution:: This runner is designed to be used in TESTING only. Do not use in production.
+"""
 import threading
 
+from medsutil.exceptions import CodedError
 from pipeman_service.controller import BaseController, BaseRunner
-from pipeman.exceptions import CNODCError
 
 
 class _SingleProcessRunner(BaseRunner):
+    """ A single-process runner that only runs one process. """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs, end_flag=threading.Event())
@@ -22,13 +26,16 @@ class _SingleProcessRunner(BaseRunner):
 
 
 class SingleProcessController(BaseController):
-    """Single-threaded process controller"""
+    """ Single-threaded process controller
+
+        .. caution:: TESTING ONLY
+    """
 
     def __init__(self, process_name: str, **kwargs):
         super().__init__(
             process_creator=_SingleProcessRunner,
             _no_start=True,
-            log_name='cnodc.single_process',
+            log_name='pipeman_service.sp_controller',
             halt_flag=threading.Event(),
             **kwargs
         )
@@ -40,4 +47,4 @@ class SingleProcessController(BaseController):
         if self._process_name in self._process_info:
             self._process = self._process_info[self._process_name].run_one()
         else:
-            raise CNODCError(f'Process [{self._process_name}] not defined in configuration file', 'SINGLECTRL', 1000)
+            raise CodedError(f'Process [{self._process_name}] not defined in configuration file', 1000, code_space='PS-SINGLE')
