@@ -14,6 +14,8 @@ from medsutil.ocproc2 import AbstractElement
 from medsutil.ocproc2.codecs.ocproc2bin import OCProc2BinCodec
 from medsutil.awaretime import AwareDateTime
 from medsutil.sanitize import coerce
+from medsutil.servicecmd import send_with_end
+from nodb.interface import NODBInstance
 
 
 class SourceFileStatus(enum.Enum):
@@ -593,6 +595,15 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
             elif self.ship_code and len(self.ship_code) <= 8:
                 self.meds_id = self.ship_code
 
+    def follow(self, db: NODBInstance) -> NODBPlatform:
+        if not self.map_to_uuid:
+            return self
+        else:
+            nxt_platform = NODBPlatform.find_by_uuid(db, self.map_to_uuid)
+            if nxt_platform is not None:
+                return nxt_platform.follow(db)
+            return self
+
     @classmethod
     def search(cls,
                db: interface.NODBInstance,
@@ -627,15 +638,29 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
         if conditions:
             res = db.stream_objects(cls, filters=Or(*conditions), **kwargs)
             if in_service_time is None:
-                yield from res
+                yield from NODBPlatform.follow_all(db, res)
             else:
-                for p in res:
+                for p in NODBPlatform.follow_all(db, res):
                     if p.service_start_date is not None and p.service_start_date > in_service_time:
                         continue
                     elif p.service_end_date is not None and p.service_end_date < in_service_time:
                         continue
                     else:
                         yield p
+
+    @staticmethod
+    def follow_all(db: NODBInstance, stream: t.Iterable[NODBPlatform]) -> t.Iterable[NODBPlatform]:
+        seen_uuids = set()
+        for platform in stream:
+            if platform.platform_uuid in seen_uuids:
+                continue
+            seen_uuids.add(platform.platform_uuid)
+            actual_platform = platform.follow(db)
+            if actual_platform is not platform:
+                if actual_platform.platform_uuid in seen_uuids:
+                    continue
+                seen_uuids.add(actual_platform.platform_uuid)
+            yield actual_platform
 
     @classmethod
     def find_by_uuid(cls, db: interface.NODBInstance, platform_uuid: str, **kwargs) -> t.Optional[NODBPlatform]:

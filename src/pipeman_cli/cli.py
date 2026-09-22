@@ -39,6 +39,9 @@ def build_cli():
     import pipeman_cli.fastgrid as fastgrid
     commands["fastgrid"] = t.cast(click.Group, fastgrid.fastgrid)
 
+    import pipeman_cli.platforms as platforms
+    commands["platforms"] = t.cast(click.Group, platforms.platforms)
+
     from medsutil.multiclick import CommandLineInterface
     return CommandLineInterface(None, commands)
 
