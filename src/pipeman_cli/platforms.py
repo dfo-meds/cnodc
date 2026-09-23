@@ -13,6 +13,12 @@ def import_jcomm(jcomm_file):
 
 
 @platforms.command
+def download_oceanops():
+    from pipeman.programs.platforms.oceanops import download_ocean_ops
+    download_ocean_ops()
+
+
+@platforms.command
 def download_ccgs():
     from pipeman.programs.platforms.ccgs import download_ccgs_ships
     download_ccgs_ships()

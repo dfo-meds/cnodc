@@ -511,6 +511,10 @@ class NODBPlatform(s.MetadataMixin, s.NODBBaseObject):
     map_to_uuid: str | None = s.UUIDColumn()
     status: PlatformStatus = s.EnumColumn(PlatformStatus)
     embargo_data_days: int | None = s.IntColumn()
+    imo_number: str | None = s.StringColumn()
+    mmsi: str | None = s.StringColumn()
+    registry_ca: str | None = s.StringColumn()
+    country: str | None = s.StringColumn()
 
     @property
     def wigos_id(self) -> str | None:

@@ -96,3 +96,9 @@ CREATE TABLE IF NOT EXISTS nodb_product_observation (
     FOREIGN KEY (obs_uuid, received_date) REFERENCES nodb_obs(obs_uuid, received_date)
 );
 
+
+-- Additional identifiers and metadata for platforms
+ALTER TABLE nodb_platforms ADD COLUMN imo_number VARCHAR(126) DEFAULT NULL;
+ALTER TABLE nodb_platforms ADD COLUMN mmsi VARCHAR(126) DEFAULT NULL;
+ALTER TABLE nodb_platforms ADD COLUMN registry_ca VARCHAR(126) DEFAULT NULL;
+ALTER TABLE nodb_platforms ADD COLUMN country CHAR(2) DEFAULT NULL;

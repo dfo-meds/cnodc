@@ -36,13 +36,13 @@ def get_vessel_urls(content):
 
 
 def get_platform_info(content):
-    kwargs = {}
+    kwargs: dict[str, t.Any] = {"metadata": {}}
     soup = BeautifulSoup(content, "html.parser")
     for h2 in soup.find_all("h2"):
         txt = h2.text.strip()
         if txt.startswith("CCGS"):
             kwargs["platform_name"] = txt[4:].strip()
-            kwargs["prefix"] = "CCGS"
+            kwargs["metadata"]["prefix"] = "CCGS"
             kwargs["country"] = "CA"
     for line in _clean_block(soup.find("label", {"for": "vessel.officialNumber"})):
         if line.startswith("Official Number:"):
@@ -73,7 +73,7 @@ def get_platform_info(content):
         if line.startswith("Maximum Speed (kts):"):
             nxt = True
         elif nxt:
-            kwargs["max_speed"] = _clean_na(line.strip(), " kts")
+            kwargs["metadata"]["top_speed"] = _clean_na(line.strip(), " kts")
     return PlatformInfo(**kwargs, platform_type="ship")
 
 def _clean_na(txt: str, suffix: str = "") -> str | None:
