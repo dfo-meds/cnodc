@@ -44,4 +44,13 @@ def gebco(output_file, input_files):
     from pipeman.programs.bathymetry.gebco import GEBCOBathymetry
     output_file = pathlib.Path(output_file)
     input_files = [pathlib.Path(x) for x in input_files]
-    GEBCOBathymetry.build_from_gebco(output_file, input_files)
+    GEBCOBathymetry.build_from_gebco(output_file, input_files, output=True)
+
+@fastgrid.command()
+@click.argument("output_file")
+def gebco_test(output_file):
+    from pipeman.programs.bathymetry.gebco import GEBCOBathymetry
+    gebco = GEBCOBathymetry(file=output_file)
+    for y in range(-90, 90, 4):
+        for x in range(-180, 180, 4):
+            print(x, y, gebco.get_bathymetry(x, y))

@@ -22,7 +22,7 @@ class GEBCOBathymetry(FastGeoGrid):
             end_y=90,
             y_increment=(15, 3600),
 
-            data_size_bytes=8
+            data_size_bytes=4
         )
         # see https://www.researchgate.net/publication/373727147_Comparison_of_Publicly_Available_Bathymetric_Data_with_Real_Measurements_in_the_Southeastern_Black_Sea
         # mean absolute error of 400
@@ -35,15 +35,16 @@ class GEBCOBathymetry(FastGeoGrid):
         if coords is None:
             return None
         bytes_value = self.get_bytes_value(coords)
-        depth = struct.unpack("<d", bytes_value)[0]
+        depth = struct.unpack("<f", bytes_value)[0]
         if math.isnan(depth):
             return None
         # note, we convert to depth positive here to align with how we usually handle depth
-        return ScienceNumber.from_float(depth * -1, self._gebco_std_dev)
+        return ScienceNumber.from_float32(depth * -1, self._gebco_std_dev)
 
     @staticmethod
     def build_from_gebco(output_file: pathlib.Path,
-                         gebco_tiffs: list[pathlib.Path]):
+                         gebco_tiffs: list[pathlib.Path],
+                         output: bool = False):
         import rasterio
         from rasterio.transform import AffineTransformer
         import numpy as np
@@ -56,22 +57,24 @@ class GEBCOBathymetry(FastGeoGrid):
 
             bathymetry = GEBCOBathymetry(output_file)
             def _get_value(coords: tuple[int, int, int]) -> bytes:
-                depth = math.nan
                 longitude = bathymetry.get_longitude(coords[0])
                 if longitude is not None:
                     latitude = bathymetry.get_latitude(coords[1])
                     if latitude is not None:
                         for _, raster_array, transformer in open_tiffs:
                             offset_y, offset_x = transformer.rowcol(longitude, latitude)
-                            try:
-                                depth_check = raster_array[0, offset_y, offset_x]
-                                if depth_check < 0:
-                                    depth = depth_check
-                                    break
-                            except IndexError:
+                            if offset_y < 0 or offset_x < 0 or offset_x >= 21600 or offset_y >= 21600:
                                 continue
-                return struct.pack("<d", depth)
-            bathymetry.build_file(_get_value)
+                            depth_check = raster_array[offset_y, offset_x]
+                            if depth_check < 0:
+                                return struct.pack("<f", depth_check * -1)
+                return struct.pack("<f", math.nan)
+            bathymetry.build_file(_get_value, output=output)
+            with open(output_file.parent / (output_file.name + ".finished"), "w") as h:
+                h.write("done")
+        except (KeyboardInterrupt, Exception) as e:
+            output_file.unlink(True)
+            raise
         finally:
             for open_tiff, _, _ in open_tiffs:
                 if not open_tiff.closed:

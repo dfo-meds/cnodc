@@ -415,9 +415,23 @@ class ScienceNumber:
         sn = cls(
             float(f) if isinstance(f, str) else f,
             (float(std_dev) if isinstance(std_dev, str) else std_dev) if std_dev is not None else mt.Placeholder,
-            min_std_dev=_constants.FLOAT_ERROR)
+            min_std_dev=_constants.FLOAT_ERROR,
+            **kwargs
+        )
         return sn
 
+    @classmethod
+    def from_float32(cls,
+                   f: float | int | str,
+                   std_dev: float | int | str | None = None,
+                   **kwargs) -> ScienceNumber:
+        sn = cls(
+            float(f) if isinstance(f, str) else f,
+            (float(std_dev) if isinstance(std_dev, str) else std_dev) if std_dev is not None else mt.Placeholder,
+            min_std_dev=_constants.FLOAT_ERROR * 2,
+            **kwargs
+        )
+        return sn
     @classmethod
     def chop_with_error(cls, x: mt.BasicNumber, n: int = 0, **kwargs):
         chopped = int(x * (10 ** n))
