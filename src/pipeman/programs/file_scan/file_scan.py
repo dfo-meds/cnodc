@@ -54,6 +54,12 @@ class FileScanTask(ScheduledTask):
         self._workflow_name = None
         self._queue_name = None
 
+    @property
+    def scan_target(self) -> FilePath:
+        if self._scan_target is None:
+            raise RuntimeError("Scan target called too early")
+        return self._scan_target
+
     def on_start(self):
         scan_target = self.get_config('scan_target')
         if not scan_target:
@@ -76,12 +82,6 @@ class FileScanTask(ScheduledTask):
     def execute(self):
         with self.nodb as db:
             self.scan_files(db)
-
-    @property
-    def scan_target(self) -> FilePath:
-        if self._scan_target is None:
-            raise RuntimeError("Scan target called too early")
-        return self._scan_target
 
     def scan_files(self, db):
         scan_target: FilePath = self.scan_target
