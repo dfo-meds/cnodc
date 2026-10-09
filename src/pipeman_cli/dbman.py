@@ -1,14 +1,21 @@
-import datetime
-
 import click
 from autoinject import injector
 
-from medsutil.awaretime import AwareDateTime
 from nodb.interface import NODB, QueueStatus
 
 
 @click.group("db", help="Database management tools, use with care!")
 def db(): ...
+
+
+@db.command(help="Generate database documentation")
+def doc():
+    from nodb.db.util import DatabaseDocumenter
+    dbdoc = DatabaseDocumenter()
+    schema = dbdoc.build()
+    schema.show()
+
+
 
 @db.command(help="Output queue items that are flagged as errors")
 @injector.inject
@@ -26,6 +33,8 @@ def queue_errors(nodb: NODB = None):
 @click.option("--locked-for", default=24*3600, type=int, help="Enter a time duration in seconds - only items that have been locked this long will be shown. Overridden by --locked-since. Defaults to 24 hours")
 @injector.inject
 def queue_locked(nodb: NODB = None, locked_since: str | None = None, locked_for: int = 24 * 3600):
+    from medsutil.awaretime import AwareDateTime
+    import datetime
     if locked_since is None:
         ls = AwareDateTime.now() - datetime.timedelta(seconds=locked_for)
     else:

@@ -103,6 +103,11 @@ CREATE TABLE IF NOT EXISTS nodb_version (
     version_minor       INTEGER                     DEFAULT NULL
 
 );
+COMMENT ON TABLE nodb_version IS "Stores the current version of the NODB to manage updates";
+COMMENT ON COLUMN nodb_version.lookup IS "A look-up column for us to find the version (always 1)";
+COMMENT ON COLUMN nodb_version.version_major IS "The major version (i.e. X in version X.Y)";
+COMMENT ON COLUMN nodb_version.version_minor IS "The minor version (i.e. Y in version X.Y)";
+
 
 CREATE TABLE IF NOT EXISTS nodb_users (
 
@@ -124,12 +129,28 @@ CREATE TABLE IF NOT EXISTS nodb_users (
 
     roles               JSON
 );
+COMMENT ON TABLE nodb_users IS "Stores users for the MEDSID component";
+COMMENT ON COLUMN nodb_users.username IS "The username that the user logs in with";
+COMMENT ON COLUMN nodb_users.display IS "The name as it is displayed to other users";
+COMMENT ON COLUMN nodb_users.email IS "The user's email address";
+COMMENT ON COLUMN nodb_users.language_pref IS "The user's preferred language (en or fr)";
+COMMENT ON COLUMN nodb_users.locked_until IS "If set, the user cannot access the system until this time";
+COMMENT ON COLUMN nodb_users.phash IS "The hash of the password";
+COMMENT ON COLUMN nodb_users.salt IS "The salt used when hashing the password";
+COMMENT ON COLUMN nodb_users.old_phash IS "Hash of the previous password";
+COMMENT ON COLUMN nodb_users.old_salt IS "Salt of the previous password";
+COMMENT ON COLUMN nodb_users.old_expiry IS "If set, the user can use their old password until this date";
+COMMENT ON COLUMN nodb_users.status IS "Allows us to flag the user as INACTIVE so they can't login";
+COMMENT ON COLUMN nodb_users.roles IS "A list of roles that the user has";
 
 
 CREATE TABLE IF NOT EXISTS nodb_permissions (
     role_name           VARCHAR(126)    NOT NULL,
     permission          VARCHAR(126)    NOT NULL
 );
+COMMENT ON TABLE nodb_permissions IS "Stores the relationship between roles and permissions";
+COMMENT ON COLUMN nodb_permissions.role_name IS "The name of a role that the user can be assigned";
+COMMENT ON COLUMN nodb_permissions.permission IS "The name of a permission that users assigned that role will have";
 
 
 CREATE TABLE IF NOT EXISTS nodb_logins (
@@ -138,6 +159,11 @@ CREATE TABLE IF NOT EXISTS nodb_logins (
     login_addr          VARCHAR(126)    NOT NULL,
     instance_name       VARCHAR(126)    NOT NULL
 );
+COMMENT ON TABLE nodb_logins IS "Stores a history of logins for users for security purposes";
+COMMENT ON COLUMN nodb_logins.username IS "The user who logged in";
+COMMENT ON COLUMN nodb_logins.login_time IS "The time the user logged in";
+COMMENT ON COLUMN nodb_logins.login_addr IS "The IP address the user logged in from";
+COMMENT ON COLUMN nodb_logins.instance_name IS "The instance name of the server where the user logged in";
 
 CREATE INDEX IF NOT EXISTS ix_nodb_logins_login_time ON nodb_logins USING brin(login_time);
 
@@ -149,6 +175,12 @@ CREATE TABLE IF NOT EXISTS nodb_sessions (
     username            VARCHAR(126)    NOT NULL    REFERENCES nodb_users(username),
     session_data        JSON
 );
+COMMENT ON TABLE nodb_sessions IS "Stores active user sessions";
+COMMENT ON COLUMN nodb_sessions.session_id IS "The session ID";
+COMMENT ON COLUMN nodb_sessions.start_time IS "The time the session started";
+COMMENT ON COLUMN nodb_sessions.expiry_time IS "The time the session with expiry";
+COMMENT ON COLUMN nodb_sessions.username IS "The user whose session is";
+COMMENT ON COLUMN nodb_sessions.session_data IS "Data stored in the session";
 
 
 CREATE INDEX IF NOT EXISTS ix_nodb_sessions_username ON nodb_sessions(username);
@@ -159,6 +191,10 @@ CREATE TABLE IF NOT EXISTS nodb_upload_workflows (
     configuration       JSON,
     is_active           BOOLEAN         NOT NULL    DEFAULT TRUE
 );
+COMMENT ON TABLE nodb_upload_workflows IS "Stores workflow configuration, documenting how data is processed";
+COMMENT ON COLUMN nodb_upload_workflows.workflow_name IS "The name of the workflow";
+COMMENT ON COLUMN nodb_upload_workflows.configuration IS "Configuration for the workflow, stored as a JSON dictionary";
+COMMENT ON COLUMN nodb_upload_workflows.is_active IS "Whether this workflow can be started";
 
 
 CREATE TABLE IF NOT EXISTS nodb_scanned_files (
@@ -168,10 +204,16 @@ CREATE TABLE IF NOT EXISTS nodb_scanned_files (
     was_processed       BOOLEAN                     DEFAULT FALSE,
     was_errored         BOOLEAN                     DEFAULT FALSE
 );
+COMMENT ON TABLE nodb_scanned_files IS "Stores files seen by the file scanner to track their download status";
+COMMENT ON COLUMN nodb_scanned_files.file_path IS "The external file path of the file";
+COMMENT ON COLUMN nodb_scanned_files.modified_date IS "The date the file was modified";
+COMMENT ON COLUMN nodb_scanned_files.scanned_date IS "The date the file was first scanned";
+COMMENT ON COLUMN nodb_scanned_files.was_processed IS "Set to true once the file is downloaded";
+COMMENT ON COLUMN nodb_scanned_files.was_errored IS "Set to true if the file raised an error";
+
 CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_scanned_files_unique ON nodb_scanned_files(file_path, modified_date);
 
 
--- Source Files Table
 CREATE TABLE IF NOT EXISTS nodb_source_files (
     source_uuid         UUID            NOT NULL    DEFAULT gen_random_uuid(),
     received_date       DATE            NOT NULL,
