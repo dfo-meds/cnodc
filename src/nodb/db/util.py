@@ -1,6 +1,7 @@
 import pathlib
 import typing as t
 
+import markupsafe
 from sqlparse.tokens import DDL, Keyword, Newline, Whitespace, Comment, Punctuation
 from sqlparse.sql import TokenList, Token, Parenthesis, Values, Where
 
@@ -56,6 +57,24 @@ class DatabaseSchema:
         for table_name in sorted(self.tables):
             self.tables[table_name].show()
 
+    def build_html(self,
+                   output_file: pathlib.Path,
+                   template: pathlib.Path | None = None):
+        if template is None:
+            template_full = pathlib.Path(__file__).absolute().parent / "_template.html"
+        else:
+            template_full = template
+        with open(output_file, "w") as h:
+            with open(template_full, "r") as tf:
+                h.write(tf.read().replace("{{ CONTENT }}", self.build_html_content()))
+
+    def build_html_content(self) -> str:
+        content = ""
+        for table_name in sorted(self.tables.keys()):
+            content += self.tables[table_name].build_html_content()
+        return content
+
+
 
 class DatabaseObject:
 
@@ -90,14 +109,49 @@ class DatabaseTable(DatabaseObject):
             self.columns[col_name].show()
         print("=====\n")
 
+    def build_html_content(self) -> str:
+        content = f'<div class="table" id="table_{self.name}">'
+        content += '<h2>' + str(markupsafe.escape(self.name)) + ' <span class="version">'
+        content += f"{'.'.join(str(x) for x in self.created)}"
+        content += '</h2>'
+        if self.deprecated:
+            content += f'<p class="removed">Removed {'.'.join(str(x) for x in self.deprecated)}</p>'
+        if self.comment:
+            content += f'<p class="comment">' + str(markupsafe.escape(self.comment)) + '</p>'
+        content += '<table cellspacing="0"><thead><tr><th>Column</th><th>Data Type</th><th>Properties</th><th>Comment</th></tr></thead><tbody>'
+        for column_name in sorted(self.columns.keys()):
+            content += self.columns[column_name].build_html_content()
+        content += '</tbody></table></div>'
+        return content
+
 
 class DatabaseColumn(DatabaseObject):
 
     def __init__(self, name: str, created: tuple[int, int]):
         super().__init__(name, created)
+        self.data_type = None
+        self.data_type_size = None
 
     def set_from_def(self, cdef: ColumnDef):
-        ...
+        if cdef.data_type is not None:
+            self.data_type = cdef.data_type
+            self.data_type_size = cdef.data_type_size
+
+    def build_html_content(self) -> str:
+        content = '<tr>'
+        content += '<th class="column_name">' + str(markupsafe.escape(self.name))
+        content += ' <span class="version">' + '.'.join(str(x) for x in self.created) + '</span>'
+        if self.deprecated:
+            content += '<span class="removed"> - ' + '.'.join(str(x) for x in self.deprecated) + '</span>'
+        content += '</th>'
+        content += '<td class="data_type">' + (self.data_type or 'UNKNOWN').upper()
+        if self.data_type_size:
+            content += ' (' + str(self.data_type_size) + ')'
+        content += '</td>'
+        content += '<td class="properties"> </td>'
+        content += '<td class="comments">' + str(markupsafe.escape(self.comment or "")) + '</td>'
+        content += '</tr>'
+        return content
 
     def show(self):
         s = f"- {self.name}"

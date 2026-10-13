@@ -9,12 +9,13 @@ def db(): ...
 
 
 @db.command(help="Generate database documentation")
-def doc():
+@click.argument("output_path")
+def doc(output_path):
+    import pathlib
     from nodb.db.util import DatabaseDocumenter
     dbdoc = DatabaseDocumenter()
     schema = dbdoc.build()
-    schema.show()
-
+    schema.build_html(pathlib.Path(output_path))
 
 
 @db.command(help="Output queue items that are flagged as errors")
