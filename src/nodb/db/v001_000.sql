@@ -236,9 +236,21 @@ CREATE TABLE IF NOT EXISTS nodb_source_files (
 
     PRIMARY KEY(source_uuid, received_date)
 );
+COMMENT ON TABLE nodb_source_files IS "Stores a reference to a file that was used to create observation entries";
+COMMENT ON COLUMN nodb_source_files.source_uuid IS "Unique identifier";
+COMMENT ON COLUMN nodb_source_files.received_date IS "The date the file was received";
+COMMENT ON COLUMN nodb_source_files.db_created_date IS "The date the source file row was created";
+COMMENT ON COLUMN nodb_source_files.db_modified_date IS "The date the source file row was last modified";
+COMMENT ON COLUMN nodb_source_files.source_path IS "The path to where the source file is stored";
+COMMENT ON COLUMN nodb_source_files.file_name IS "The name of the file";
+COMMENT ON COLUMN nodb_source_files.source_name IS "An identifier of who provided us with the source file";
+COMMENT ON COLUMN nodb_source_files.program_name IS "An identifier of the program that manages this source file";
+COMMENT ON COLUMN nodb_source_files.original_uuid IS "The original file, when this file is a subset of an original";
+COMMENT ON COLUMN nodb_source_files.original_idx IS "The index of the message in the original file, when this file is a subset of the original";
+COMMENT ON COLUMN nodb_source_files.metadata IS "Metadata about the source file";
+COMMENT ON COLUMN nodb_source_files.history IS "A history of how the source file was processed";
+COMMENT ON COLUMN nodb_source_files.status IS "The status of the source file";
 
-
--- Indexes
 CREATE INDEX IF NOT EXISTS ix_nodb_source_files_source_path ON nodb_source_files(source_path);
 CREATE INDEX IF NOT EXISTS ix_nodb_source_files_created_date ON nodb_source_files USING BRIN(db_created_date);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_nodb_source_files_original_data ON nodb_source_files(received_date, original_uuid, original_idx) WHERE original_uuid IS NOT NULL;
@@ -249,6 +261,8 @@ CREATE OR REPLACE TRIGGER update_source_file_modified_date
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
 
+
+-- Table for missions
 CREATE TABLE IF NOT EXISTS nodb_missions (
 
     mission_uuid    UUID            NOT NULL    DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -257,6 +271,13 @@ CREATE TABLE IF NOT EXISTS nodb_missions (
     start_date      TIMESTAMPTZ,
     end_date        TIMESTAMPTZ
 );
+COMMENT ON TABLE nodb_missions IS "Stores unique missions to collect oceanographic data";
+COMMENT ON COLUMN nodb_missions.mission_uuid IS "A unique identifier for this mission in the database";
+COMMENT ON COLUMN nodb_missions.mission_id IS "The official MEDS identifier for this mission";
+COMMENT ON COLUMN nodb_missions.metadata IS "Additional metadata about the mission";
+COMMENT ON COLUMN nodb_missions.start_date IS "The datetime when the mission began collecting data";
+COMMENT ON COLUMN nodb_missions.end_date IS "The datetime when the mission stopped collecting data";
+
 
 -- Table for platform records
 CREATE TABLE IF NOT EXISTS nodb_platforms (
@@ -274,6 +295,20 @@ CREATE TABLE IF NOT EXISTS nodb_platforms (
     status              platform_status  NOT NULL   DEFAULT 'ACTIVE',
     embargo_data_days   INTEGER
 );
+COMMENT ON TABLE nodb_platforms IS "Stores platforms that are responsible for collecting ocean data";
+COMMENT ON COLUMN nodb_platforms.platform_uuid IS "A unique identifier for the platform in the database";
+COMMENT ON COLUMN nodb_platforms.wmo_id IS "The 5 or 7 digit WMO identifier for the platform";
+COMMENT ON COLUMN nodb_platforms.wigos_id IS "The WIGOS identifier as a string delimited by hyphens (e.g. 0-0-0-ABC)";
+COMMENT ON COLUMN nodb_platforms.platform_name IS "The full name of the platform, e.g. the ship's name";
+COMMENT ON COLUMN nodb_platforms.platform_id IS "A short identifier for the platform, e.g. the ship's callsign";
+COMMENT ON COLUMN nodb_platforms.platform_type IS "The platform type, e.g. glider or ship";
+COMMENT ON COLUMN nodb_platforms.service_start_date IS "The first date this platform was in service";
+COMMENT ON COLUMN nodb_platforms.service_end_date IS "The last date this platform was in service";
+COMMENT ON COLUMN nodb_platforms.instrumentation IS "A list of instruments on the platform";
+COMMENT ON COLUMN nodb_platforms.metadata IS "Additional metadata about the platform";
+COMMENT ON COLUMN nodb_platforms.map_to_uuid IS "If this entry is a duplicate of another platform, this will have the actual UUID of the best platform";
+COMMENT ON COLUMN nodb_platforms.status IS "Whether the platform is still active";
+COMMENT ON COLUMN nodb_platforms.embargo_data_days IS "If greater than zero, data will not be published for the given number of days";
 
 
 CREATE INDEX IF NOT EXISTS idx_nodb_platforms_wmo_id ON nodb_platforms(wmo_id) WHERE wmo_id IS NOT NULL;
@@ -293,7 +328,12 @@ CREATE TABLE IF NOT EXISTS nodb_qc_batches (
     metadata            JSON,
     status              qc_status       NOT NULL
 );
-
+COMMENT ON TABLE nodb_qc_batches IS "Stores metadata for batches of QC items being processed together";
+COMMENT ON COLUMN nodb_qc_batches.batch_uuid IS "A unique identifier for the batch";
+COMMENT ON COLUMN nodb_qc_batches.db_created_date IS "The date the batch was created";
+COMMENT ON COLUMN nodb_qc_batches.db_modified_date IS "The date the batch was last modified";
+COMMENT ON COLUMN nodb_qc_batches.metadata IS "Additional metadata about the batch";
+COMMENT ON COLUMN nodb_qc_batches.status IS "The status of the batch";
 
 -- Trigger for QC batch table modified date maintenance
 CREATE OR REPLACE TRIGGER update_qc_batch_modified_date
@@ -327,6 +367,22 @@ CREATE TABLE IF NOT EXISTS nodb_obs (
 
     PRIMARY KEY (obs_uuid, received_date)
 ) PARTITION BY RANGE(received_date);
+COMMENT ON TABLE nodb_obs IS "Stores data about observations that is commonly used in searches";
+COMMENT ON COLUMN nodb_obs.obs_uuid IS "A unique identifier for this observation, in combination with the received date";
+COMMENT ON COLUMN nodb_obs.received_date IS "The date this observation was received by MEDS";
+COMMENT ON COLUMN nodb_obs.db_created_date IS "The date this observation was created in the database";
+COMMENT ON COLUMN nodb_obs.db_modified_date IS "The date this observation was last modified";
+COMMENT ON COLUMN nodb_obs.platform_uuid IS "The platform that took this observation";
+COMMENT ON COLUMN nodb_obs.mission_uuid IS "The mission that collected this observation";
+COMMENT ON COLUMN nodb_obs.obs_time IS "The time the observation was taken";
+COMMENT ON COLUMN nodb_obs.min_depth IS "The shallowest depth (as a positive integer) that this observation was taken at";
+COMMENT ON COLUMN nodb_obs.max_depth IS "The deepest depth (as a positive integer) that this observation was taken at";
+COMMENT ON COLUMN nodb_obs.location IS "The area where this observation was taken at";
+COMMENT ON COLUMN nodb_obs.observation_type IS "The type of observation (e.g. profile vs. at depth vs. surface)";
+COMMENT ON COLUMN nodb_obs.surface_parameters IS "A JSON list of parameters observed at the surface";
+COMMENT ON COLUMN nodb_obs.profile_parameters IS "A JSON list of parameters observed below the surface";
+COMMENT ON COLUMN nodb_obs.processing_level IS "The level to which this observation was processed (replaced by data_mode)";
+COMMENT ON COLUMN nodb_obs.embargo_date IS "The date until which this observation will be held";
 
 
 CREATE INDEX IF NOT EXISTS nodb_obs_platform_uuid ON nodb_obs(platform_uuid);
@@ -386,6 +442,20 @@ CREATE TABLE IF NOT EXISTS nodb_obs_data (
     FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files(source_uuid, received_date),
     FOREIGN KEY (duplicate_uuid, duplicate_received_date) REFERENCES nodb_obs(obs_uuid, received_date)
 ) PARTITION BY RANGE(received_date);
+COMMENT ON TABLE nodb_obs_data IS "Stores the full OCPROC2 record of an observation and any additional data not normally searched for";
+COMMENT ON COLUMN nodb_obs_data.obs_uuid IS "A unique identifier for the observation (must match that of nodb_obs entry)";
+COMMENT ON COLUMN nodb_obs_data.received_date IS "The date the observation was received by MEDS (must match that of nodb_obs entry)";
+COMMENT ON COLUMN nodb_obs_data.source_file_uuid IS "The source file that the observation came from";
+COMMENT ON COLUMN nodb_obs_data.message_idx IS "The index of the message within the source file";
+COMMENT ON COLUMN nodb_obs_data.record_idx IS "The index of the record within the message";
+COMMENT ON COLUMN nodb_obs_data.processing_level IS "The processing level of the record (replaced by data_mode)";
+COMMENT ON COLUMN nodb_obs_data.status IS "The status of the observation";
+COMMENT ON COLUMN nodb_obs_data.data_record IS "The OCPROC2-BIN encoded record";
+COMMENT ON COLUMN nodb_obs_data.metadata IS "Additional metadata about the record";
+COMMENT ON COLUMN nodb_obs_data.qc_tests IS "A list of QC tests that have been performed";
+COMMENT ON COLUMN nodb_obs_data.duplicate_uuid IS "If this record is a duplicate of another, points to the better record";
+COMMENT ON COLUMN nodb_obs_data.duplicate_received_date IS "If this record is a duplicate of another, points to the better record";
+COMMENT ON COLUMN nodb_obs_data.batch_uuid IS "If this record is assigned to a batch, points to the batch";
 
 
 CREATE INDEX IF NOT EXISTS ix_nodb_obs_data_status ON nodb_obs_data(status) WHERE status != 'VERIFIED';
@@ -428,6 +498,21 @@ CREATE TABLE IF NOT EXISTS nodb_working (
     FOREIGN KEY (record_uuid, received_date) REFERENCES nodb_obs (obs_uuid, received_date),
     FOREIGN KEY (source_file_uuid, received_date) REFERENCES nodb_source_files (source_uuid, received_date)
 );
+COMMENT ON TABLE nodb_working IS "Stores a record that is currently being processed by PIPEMAN";
+COMMENT ON COLUMN nodb_working.working_uuid IS "A unique identifier for the record";
+COMMENT ON COLUMN nodb_working.db_created_date IS "The date the record was created in the database";
+COMMENT ON COLUMN nodb_working.db_modified_date IS "The date the record was last modified";
+COMMENT ON COLUMN nodb_working.source_file_uuid IS "The source file from which this record was created";
+COMMENT ON COLUMN nodb_working.received_date IS "The date the source file was received";
+COMMENT ON COLUMN nodb_working.message_idx IS "The index of the message from which this record was created";
+COMMENT ON COLUMN nodb_working.record_idx IS "The index of the record within the message from which this record was created";
+COMMENT ON COLUMN nodb_working.metadata IS "Additional metadata about the working record";
+COMMENT ON COLUMN nodb_working.qc_batch_id IS "If the record is currently part of a batch, this points to the batch";
+COMMENT ON COLUMN nodb_working.data_record IS "The OCPROC2-BIN encoded observation";
+COMMENT ON COLUMN nodb_working.platform_uuid IS "The platform that collected the observation";
+COMMENT ON COLUMN nodb_working.obs_time IS "The time the observation was collected";
+COMMENT ON COLUMN nodb_working.location IS "Where the observation was collected";
+COMMENT ON COLUMN nodb_working.record_uuid IS "(I don't remember what this is?)";
 
 
 CREATE INDEX IF NOT EXISTS idx_nodb_working_batch_id ON nodb_working(qc_batch_id);
@@ -459,6 +544,16 @@ CREATE TABLE IF NOT EXISTS nodb_processes (
 
     info                JSON            NOT NULL
 );
+COMMENT ON TABLE nodb_processes IS "Stores information about active workers for PIPEMAN";
+COMMENT ON COLUMN nodb_processes.system_id IS "The name of the computing environment running the worker";
+COMMENT ON COLUMN nodb_processes.process_id IS "The ID of the worker";
+COMMENT ON COLUMN nodb_processes.process_name IS "The name of the worker";
+COMMENT ON COLUMN nodb_processes.process_version IS "The version of the worker";
+COMMENT ON COLUMN nodb_processes.db_created_date IS "The date the row was created";
+COMMENT ON COLUMN nodb_processes.db_modified_date IS "The date the row was last modified";
+COMMENT ON COLUMN nodb_processes.exited IS "Set to Y when the process exits to cleanup";
+COMMENT ON COLUMN nodb_processes.info IS "Key-value dictionary of information about the process";
+
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_processes_id ON nodb_processes(system_id, process_id);
 
@@ -493,6 +588,24 @@ CREATE TABLE IF NOT EXISTS nodb_queues (
     data                TEXT
 
 );
+COMMENT ON TABLE nodb_queues IS "Stores queue items that are being processed or recently finished";
+COMMENT ON COLUMN nodb_queues.queue_uuid IS "A unique identifier for the queue item";
+COMMENT ON COLUMN nodb_queues.db_created_date IS "The date that the queue item row was created";
+COMMENT ON COLUMN nodb_queues.db_modified_date IS "The date that the queue item row was last modified";
+COMMENT ON COLUMN nodb_queues.db_closed_date IS "The date that the queue item row was finished";
+COMMENT ON COLUMN nodb_queues.db_locked_date IS "The date that the queue item row was locked (not cleared after lock released)";
+COMMENT ON COLUMN nodb_queues.status IS "The status of the queue item";
+COMMENT ON COLUMN nodb_queues.locked_by IS "The name of the worker that is currently processing the item";
+COMMENT ON COLUMN nodb_queues.locked_since IS "The date that the queue item was locked (cleared after lock released)";
+COMMENT ON COLUMN nodb_queues.delay_release IS "The date on which the queue item should be unlocked after a delayed release is requested";
+COMMENT ON COLUMN nodb_queues.tag IS "The name of the workflow or other application that added the queue item";
+COMMENT ON COLUMN nodb_queues.escalation_level IS "Set to 0 for most cases, 1 indicates elevated privileges are required";
+COMMENT ON COLUMN nodb_queues.queue_name IS "The name of the queue that this item is in";
+COMMENT ON COLUMN nodb_queues.subqueue_name IS "If relevant, the name of any subqueue that the item is in";
+COMMENT ON COLUMN nodb_queues.unique_item_name IS "If provided, two items in the same queue and subqueue with the same unique item name will not be processed concurrently";
+COMMENT ON COLUMN nodb_queues.priority IS "Lower numbers are processed before higher numbers";
+COMMENT ON COLUMN nodb_queues.correlation_id IS "A correlation ID that is generated when the first queue item is generated and passed on to all subsequent queue items";
+COMMENT ON COLUMN nodb_queues.data IS "Data stored for the queue item (as JSON object)";
 
 
 CREATE INDEX IF NOT EXISTS idx_nodb_queues_status ON nodb_queues(status);

@@ -110,7 +110,10 @@ class DatabaseTable(DatabaseObject):
         print("=====\n")
 
     def build_html_content(self) -> str:
-        content = f'<div class="table" id="table_{self.name}">'
+        content = f'<div class="table'
+        if self.deprecated:
+            content += ' removed'
+        content += f'" id="table_{self.name}">'
         content += '<h2>' + str(markupsafe.escape(self.name)) + ' <span class="version">'
         content += f"{'.'.join(str(x) for x in self.created)}"
         content += '</h2>'
@@ -119,7 +122,13 @@ class DatabaseTable(DatabaseObject):
         if self.comment:
             content += f'<p class="comment">' + str(markupsafe.escape(self.comment)) + '</p>'
         content += '<table cellspacing="0"><thead><tr><th>Column</th><th>Data Type</th><th>Properties</th><th>Comment</th></tr></thead><tbody>'
+        later = []
         for column_name in sorted(self.columns.keys()):
+            if not self.columns[column_name].deprecated:
+                content += self.columns[column_name].build_html_content()
+            else:
+                later.append(column_name)
+        for column_name in later:
             content += self.columns[column_name].build_html_content()
         content += '</tbody></table></div>'
         return content
@@ -138,9 +147,11 @@ class DatabaseColumn(DatabaseObject):
             self.data_type_size = cdef.data_type_size
 
     def build_html_content(self) -> str:
-        content = '<tr>'
-        content += '<th class="column_name">' + str(markupsafe.escape(self.name))
-        content += ' <span class="version">' + '.'.join(str(x) for x in self.created) + '</span>'
+        content = '<tr'
+        if self.deprecated:
+            content += ' class="removed"'
+        content += '><th class="column_name"><span class="full_name">' + str(markupsafe.escape(self.name))
+        content += '</span> <span class="version">' + '.'.join(str(x) for x in self.created) + '</span>'
         if self.deprecated:
             content += '<span class="removed"> - ' + '.'.join(str(x) for x in self.deprecated) + '</span>'
         content += '</th>'
@@ -376,11 +387,19 @@ class SqlStatement:
                 return self._assemble_foreign_key(tokens[2:])
             elif tokens[0].value == "PRIMARY KEY":
                 return self._assemble_primary_key(tokens[2:-1])
+        if tokens[0].value.endswith(" TIMESTAMPTZ"):
 
-        kwargs = {
-            "column_name": tokens[0].value,
-            "data_type": tokens[1].value,
-        }
+            kwargs = {
+                "column_name": tokens[0].value[:-11].strip(),
+                "data_type": "TIMESTAMPTZ",
+            }
+            idx = 1
+        else:
+            kwargs = {
+                "column_name": tokens[0].value,
+                "data_type": tokens[1].value,
+            }
+            idx = 2
 
         in_data_type_size = False
         data_type_size = []
@@ -393,7 +412,6 @@ class SqlStatement:
         ref_buffer = []
         refs = []
 
-        idx = 2
         while idx < len(tokens):
             if tokens[idx].value == "(" and not (in_default or data_type_size or in_ref):
                 in_data_type_size = True
@@ -491,43 +509,45 @@ class SqlStatement:
     def get_change(self) -> SqlDatabaseChange | None:
         tokens = self._relevant_tokens()
         token = tokens[0]
-        if token.ttype is DDL and token.value in ("CREATE", "CREATE OR REPLACE"):
+        try:
+            if token.ttype is DDL and token.value in ("CREATE", "CREATE OR REPLACE"):
 
-            if tokens[1].ttype is Keyword:
-                if tokens[1].value == "TABLE":
-                    return self._assemble_table_def(self._skip_if_not_exists(tokens[2:]))
-                elif tokens[1].value == "INDEX":
-                    return self._assemble_index_def(self._skip_if_not_exists(tokens[2:]))
-                elif tokens[1].value == "UNIQUE" and tokens[2].ttype is Keyword and tokens[2].value == "INDEX":
-                    return self._assemble_index_def(self._skip_if_not_exists(tokens[3:]), True)
-                elif tokens[1].value == "FUNCTION":
-                    return self._assemble_function(self._skip_if_not_exists(tokens[2:]))
-                elif tokens[1].value == "PROCEDURE":
-                    return self._assemble_procedure(self._skip_if_not_exists(tokens[3:]))
-                elif tokens[1].value == "TRIGGER":
-                    return self._assemble_trigger(self._skip_if_not_exists(tokens[2:]))
-        elif token.ttype is Keyword and token.value == "COMMENT":
-            if tokens[2].ttype is Keyword and tokens[2].value == "TABLE":
-                return TableComment(tokens[3].value, tokens[5].value)
-            if tokens[2].ttype is Keyword and tokens[2].value == "COLUMN":
-                return ColumnComment(tokens[3].value, tokens[5].value)
-        elif token.ttype is Keyword and token.value == "DO":
-            return None
-        elif token.ttype is DDL and token.value == "ALTER":
-            if tokens[3].value == "DROP" and tokens[4].value == "COLUMN":
-                return DropColumn(tokens[2].value, tokens[5].value)
-            elif tokens[3].value == "ADD" and tokens[4].value == "COLUMN":
-                return AddColumn(tokens[2].value, t.cast(ColumnDef, self._assemble_column(tokens[5:])))
-            elif tokens[3].value == "DROP" and tokens[4].value == "CONSTRAINT":
-                return DropConstraint(tokens[2].value, tokens[5].value)
-        elif token.ttype is DDL and token.value == "DROP":
-            if tokens[1].value == "INDEX":
-                return DropIndex(tokens[-2].value)
-            elif tokens[1].value == "TABLE":
-                return DropTable(tokens[-2].value)
-        print("unrecognized statement")
-        print(tokens)
-        return None
+                if tokens[1].ttype is Keyword:
+                    if tokens[1].value == "TABLE":
+                        return self._assemble_table_def(self._skip_if_not_exists(tokens[2:]))
+                    elif tokens[1].value == "INDEX":
+                        return self._assemble_index_def(self._skip_if_not_exists(tokens[2:]))
+                    elif tokens[1].value == "UNIQUE" and tokens[2].ttype is Keyword and tokens[2].value == "INDEX":
+                        return self._assemble_index_def(self._skip_if_not_exists(tokens[3:]), True)
+                    elif tokens[1].value == "FUNCTION":
+                        return self._assemble_function(self._skip_if_not_exists(tokens[2:]))
+                    elif tokens[1].value == "PROCEDURE":
+                        return self._assemble_procedure(self._skip_if_not_exists(tokens[3:]))
+                    elif tokens[1].value == "TRIGGER":
+                        return self._assemble_trigger(self._skip_if_not_exists(tokens[2:]))
+            elif token.ttype is Keyword and token.value == "COMMENT":
+                if tokens[2].ttype is Keyword and tokens[2].value == "TABLE":
+                    return TableComment(tokens[3].value, tokens[5].value)
+                if tokens[2].ttype is Keyword and tokens[2].value == "COLUMN":
+                    return ColumnComment(tokens[3].value, tokens[5].value)
+            elif token.ttype is Keyword and token.value == "DO":
+                return None
+            elif token.ttype is DDL and token.value == "ALTER" and tokens[1].value == "TABLE":
+                if tokens[3].value == "DROP" and tokens[4].value == "COLUMN":
+                    return DropColumn(tokens[2].value, tokens[5].value)
+                elif tokens[3].value == "ADD" and tokens[4].value == "COLUMN":
+                    return AddColumn(tokens[2].value, t.cast(ColumnDef, self._assemble_column(tokens[5:])))
+                elif tokens[3].value == "DROP" and tokens[4].value == "CONSTRAINT":
+                    return DropConstraint(tokens[2].value, tokens[5].value)
+            elif token.ttype is DDL and token.value == "DROP":
+                if tokens[1].value == "INDEX":
+                    return DropIndex(tokens[-2].value)
+                elif tokens[1].value == "TABLE":
+                    return DropTable(tokens[-2].value)
+            raise ValueError("Unrecognized statement")
+        except Exception as e:
+            e.add_note("Statement: " + " ".join(str(x) for x in tokens))
+            raise
 
     @staticmethod
     def parse(s: str) -> t.Generator[SqlStatement, None, None]:

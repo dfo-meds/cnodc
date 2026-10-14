@@ -5,14 +5,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_username ON nodb_users(username);
 
 -- Change the user table as necessary
 ALTER TABLE nodb_users ADD COLUMN identifier SERIAL PRIMARY KEY;
+COMMENT ON COLUMN nodb_users.identifier IS "A unique identifier for the user, not tied to their username or email";
 ALTER TABLE nodb_users ADD COLUMN allow_api_access CHAR(1) NOT NULL DEFAULT 'N';
+COMMENT ON COLUMN nodb_users.allow_api_access IS "Set to Y if the user can create and use access tokens";
 ALTER TABLE nodb_users ADD COLUMN metadata JSON DEFAULT NULL;
+COMMENT ON COLUMN nodb_users.metadata IS "Additional metadata about the user";
 ALTER TABLE nodb_users DROP COLUMN roles;
 
 -- Update the session table
 DROP INDEX IF EXISTS ix_nodb_sessions_username;
 ALTER TABLE nodb_sessions DROP COLUMN username;
 ALTER TABLE nodb_sessions ADD COLUMN user_id INTEGER DEFAULT NULL;
+COMMENT ON COLUMN nodb_sessions.user_id IS "The unique identifier of the user whose session this is";
 
 -- Access key tokens
 CREATE TABLE IF NOT EXISTS nodb_access_tokens (
@@ -30,6 +34,17 @@ CREATE TABLE IF NOT EXISTS nodb_access_tokens (
 
     is_active       CHAR(1)             NOT NULL    DEFAULT 'Y'
 );
+COMMENT ON TABLE nodb_access_tokens IS "Stores access tokens that are used to login via APIs";
+COMMENT ON COLUMN nodb_access_tokens.user_id IS "The user whose access token this is";
+COMMENT ON COLUMN nodb_access_tokens.identifier IS "A unique identifier for this access token";
+COMMENT ON COLUMN nodb_access_tokens.remote_addr IS "The IP address of the user??";
+COMMENT ON COLUMN nodb_access_tokens.key_hash IS "The hash of the API key";
+COMMENT ON COLUMN nodb_access_tokens.key_salt IS "The salt used to hash the API key";
+COMMENT ON COLUMN nodb_access_tokens.expiry IS "The time the API key expires";
+COMMENT ON COLUMN nodb_access_tokens.old_key_hash IS "The hash of the old API key (if still valid)";
+COMMENT ON COLUMN nodb_access_tokens.old_key_salt IS "The salt used to hash the old API key";
+COMMENT ON COLUMN nodb_access_tokens.old_expiry IS "The time the old API key expires";
+COMMENT ON COLUMN nodb_access_tokens.is_active IS "Set to N to prevent logins";
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_access_tokens_user_identifier ON nodb_access_tokens(user_id, identifier);
 
@@ -47,6 +62,15 @@ CREATE TABLE IF NOT EXISTS nodb_logins (
     since_last      CHAR(1)             NOT NULL    DEFAULT 'N',
     db_created_date TIMESTAMPTZ         NOT NULL    DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE nodb_logins IS "Stores login attempts for security purposes";
+COMMENT ON COLUMN nodb_logins.user_id IS "The unique identifier of the user who attempted to login (if available)";
+COMMENT ON COLUMN nodb_logins.username IS "The username that the user tried to use to login";
+COMMENT ON COLUMN nodb_logins.success IS "Y if login was successful, otherwise N";
+COMMENT ON COLUMN nodb_logins.from_api IS "Y if login was from an API, otherwise N";
+COMMENT ON COLUMN nodb_logins.message IS "A message about why the login failed (if applicable)";
+COMMENT ON COLUMN nodb_logins.remote_addr IS "The IP address the user came from";
+COMMENT ON COLUMN nodb_logins.since_last IS "Set to Y if this was since the last successful login, otherwise N";
+COMMENT ON COLUMN nodb_logins.db_created_date IS "The date this row was created in the database";
 
 CREATE INDEX IF NOT EXISTS ix_nodb_logins_search ON nodb_logins(username, success, from_api, since_last, db_created_date);
 
@@ -58,6 +82,12 @@ CREATE TABLE IF NOT EXISTS nodb_organizations (
     db_created_date     TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP,
     db_modified_date    TIMESTAMPTZ     NOT NULL    DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE nodb_organizations IS "Stores organizations that users and datasets may belong to";
+COMMENT ON COLUMN nodb_organizations.organization_id IS "A unique identifier for the organization";
+COMMENT ON COLUMN nodb_organizations.organization_name IS "A longer name for the organization";
+COMMENT ON COLUMN nodb_organizations.display_name IS "How the organization should be shown to users (as a language dictionary)";
+COMMENT ON COLUMN nodb_organizations.db_created_date IS "The date this row was created";
+COMMENT ON COLUMN nodb_organizations.db_modified_date IS "The date this row was last modified";
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_organization_org_name ON nodb_organizations(organization_name);
 
@@ -67,11 +97,15 @@ CREATE OR REPLACE TRIGGER update_organization_modified_date
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_date();
 
+
 -- New user-role relationship table
 CREATE TABLE IF NOT EXISTS nodb_user_role (
     user_id         INTEGER             NOT NULL,
     role_name       VARCHAR(126)        NOT NULL
 );
+COMMENT ON TABLE nodb_user_role IS "Stores the relationship between a user and the roles they are assigned.";
+COMMENT ON COLUMN nodb_user_role.user_id IS "The identifier for a user";
+COMMENT ON COLUMN nodb_user_role.role_name IS "The role the user has been assigned";
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_user_roles_pkey ON nodb_user_role(user_id, role_name);
 
@@ -80,6 +114,9 @@ CREATE TABLE IF NOT EXISTS nodb_organization_user (
     user_id             INTEGER         NOT NULL,
     organization_id     INTEGER         NOT NULL
 );
+COMMENT ON TABLE nodb_organization_user IS "Stores the relationship between a user and their organizations";
+COMMENT ON COLUMN nodb_organization_user.user_id IS "The identifier for a user";
+COMMENT ON COLUMN nodb_organization_user.organization_id IS "The identifier for an organization that the user belongs to";
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nodb_organization_user_pkey ON nodb_organization_user(user_id, organization_id);
 
