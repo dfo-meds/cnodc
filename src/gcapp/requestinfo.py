@@ -1,3 +1,4 @@
+""" Additional logging information for requests and command line operations """
 import os
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ from autoinject import injector
 
 @injector.injectable
 class RequestInfo:
+    """ Injectable object that caches information about the current user (either command line or web). """
 
     def __init__(self):
         self._remote_ip = None
@@ -28,6 +30,7 @@ class RequestInfo:
         self._system_remote_addr = None
 
     def set_logging_defaults(self):
+        """ Sets defaults to blanks. """
         zrlog.set_default_extra("sys_username", "")
         zrlog.set_default_extra("sys_emulated", "")
         zrlog.set_default_extra("sys_logon", "")
@@ -43,6 +46,7 @@ class RequestInfo:
         zrlog.set_default_extra("request_method", "")
 
     def set_logging_extras_system(self):
+        """ Sets extras for the command line environment. """
         zrlog.set_extras({
             "sys_username": self.sys_username(),
             "sys_emulated": self.sys_emulated_username(),
@@ -51,6 +55,7 @@ class RequestInfo:
         })
 
     def set_logging_extras_web(self):
+        """ Sets extras for the web environment. """
         zrlog.set_extras({
             'username': self.username(),
             'remote_ip': self.remote_ip(),
@@ -64,8 +69,9 @@ class RequestInfo:
         })
 
     def _load_flask_info(self):
+        """ Loads information from Flask """
         if not self._flask_info_loaded:
-            # we only have flask info if something else imported it already, and its heavy to import
+            # we only have flask info if something else imported it already
             if "flask" in sys.modules:
                 import flask
                 if flask.has_request_context():
@@ -77,59 +83,77 @@ class RequestInfo:
                     self._user_agent = flask.request.user_agent.string
                     self._referrer = flask.request.referrer
                     self._flask_info_loaded = True
+            # TODO: we didn't load the username?
 
     def request_method(self) -> str | None:
+        """ Retrieves the request method used. """
         self._load_flask_info()
         return self._request_method
 
     def remote_ip(self) -> str | None:
+        """ Retrieves the remote address of the current user. """
         self._load_flask_info()
         return self._remote_ip
 
     def proxy_ip(self) -> str | None:
+        """ Retrieves the proxy server's IP address. """
         self._load_flask_info()
         return self._proxy_ip
 
     def correlation_id(self) -> str | None:
+        """ Retrieve's the correlation ID of the request. """
         self._load_flask_info()
         return self._correl_id
 
     def client_id(self) -> str | None:
+        """ Retrieves the client ID of the request. """
         self._load_flask_info()
         return self._client_id
 
     def request_url(self) -> str | None:
+        """ Retrieves the current URL of the request. """
         self._load_flask_info()
         return self._request_url
 
     def user_agent(self) -> str | None:
+        """ Retrieves the current user agent of the request. """
         self._load_flask_info()
         return self._user_agent
 
     def username(self) -> str | None:
+        """ Retrieves the username of the currently logged-in user. """
         self._load_flask_info()
         return self._username
 
     def referrer(self) -> str | None:
+        """ Retrieves the referrer of the current request. """
         self._load_flask_info()
         return self._referrer
 
     def _load_process_info(self):
+        """ Loads information about the current system user. """
         if not self._proc_info_loaded:
+
+            # whoami works on most system.
             res = subprocess.run([str(shutil.which("whoami"))], capture_output=True)  # noqa: B603 # hard coded
             self._parse_process_info(res.stdout.decode("utf-8"))
+
+            # on Linux we can also get the emulated user
             if os.name == "posix":  # pragma: no coverage (windows testing only)
                 res = subprocess.run([str(shutil.which("who"))], capture_output=True)  # noqa: B603 # hard coded
                 if res.returncode == 0 and res.stdout:
                     self._parse_emulated_user(res.stdout.decode("utf-8"))
+
             self._proc_info_loaded = True
 
     def _parse_emulated_user(self, txt: str):
+        """ Parses the emulated user from the output of the "who" command. """
         txt = txt.strip()
         if txt and txt != self._emulated_user:
             self._emulated_user = txt
 
     def _parse_process_info(self, txt: str):
+        """ Parses the output of the "whoami" command for details. """
         txt = txt.replace("\t", " ").strip("\r\n\t ")
         while "  " in txt:
             txt = txt.replace("  ", " ")
@@ -142,17 +166,21 @@ class RequestInfo:
             self._system_remote_addr = pieces[4].strip("()")
 
     def sys_username(self) -> str | None:
+        """ Retrieves the currently logged-in user."""
         self._load_process_info()
         return self._system_username
 
     def sys_emulated_username(self) -> str | None:
+        """ If the user is on Linux and using sudo, retrieves the user they are emulating. """
         self._load_process_info()
         return self._emulated_user
 
     def sys_logon_time(self) -> str | None:
+        """ Retrieves the time the user logged into the system. """
         self._load_process_info()
         return self._logon_time
 
     def sys_remote_addr(self) -> str | None:
+        """ Retrieves the remote address of the currently logged-in user (for SSH connections). """
         self._load_process_info()
         return self._system_remote_addr

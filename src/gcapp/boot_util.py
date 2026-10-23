@@ -1,15 +1,19 @@
+"""
+Helper functions for boot
+"""
+
 import sys
 import typing as t
 import logging
 
 import zirconium as zr
 import zrlog
-from autoinject import injector
+from autoinject import injector, auto
 
 
 @injector.inject
 def init_system_logging(version_no: str | None = None):
-
+    """ Initiates the logging sub-system with a version number that can be added to logging messages."""
     # Setup logging
     for h in logging.getLogger().handlers:
         logging.getLogger().removeHandler(h)
@@ -27,8 +31,8 @@ def init_system_logging(version_no: str | None = None):
 
 @injector.inject
 def init_overrides(overrides: dict[str | type, str | type | t.Callable | dict] | None = None,
-                   config: zr.ApplicationConfig = None):
-    """Override default objects with declared sub-classes as required."""
+                   config: zr.ApplicationConfig = auto()):
+    """Overrides default objects with declared subclasses as required."""
     if not overrides:
         overrides = {}
     overrides.update(config.get("autoinject", default={}))
