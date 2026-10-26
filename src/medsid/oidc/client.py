@@ -8,7 +8,7 @@ from autoinject import injector
 from requests_oauth2client import TokenSerializer, BearerToken
 import typing as t
 
-from gcflask.auth import AuthenticationHandler
+from gcflask.auth import BaseAuthenticationHandler
 from gcflask.user import AuthenticatedUser
 
 
@@ -76,7 +76,7 @@ class OAuthClient:
         return data
 
 
-class MedsIDHandler(AuthenticationHandler):
+class MedsIDHandler(BaseAuthenticationHandler):
 
     oath_client: OAuthClient = None
     config: zr.ApplicationConfig = None

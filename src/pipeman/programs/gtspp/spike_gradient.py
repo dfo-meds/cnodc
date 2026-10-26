@@ -152,14 +152,11 @@ class GTSPPSpikeGradientTest(ProfileChecker):
             ctx.check_review_already_complete(RequiredQuality.QC_INCOMPLETE | RequiredQuality.NOT_DUBIOUS)
             if v1_ref is None or v2_ref is None:
                 self.skip_review("no_paired_ref")
-                return
             if min_value is None and max_value is None:
                 self.skip_review("no_min_or_max")
-                return
             v1, v2 = self.extract_parameter_values(v1_ref, v2_ref, units=units)
             if v1 is None or v2 is None:
                 self.skip_review("no_paired_value")
-                return
             diff = amath.sub(v1, v2)
             if max_value is not None:
                 self.assert_less_or_close(diff, max_value, msg="spike_too_high")

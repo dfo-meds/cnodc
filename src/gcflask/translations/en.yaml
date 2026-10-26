@@ -1,7 +1,15 @@
+languages:
+  short:
+    und: UND
+    en: EN
+    fr: FR
 gcflask:
   site_title: "unknown"
   user_welcome: "Welcome"
   login: "Login"
+  common:
+    submit: "Submit"
+    open_translation_request: "Request Translation"
   format:
     no_date: "N/A"
     datetime: "%Y-%m-%d %H:%M"
@@ -12,3 +20,12 @@ gcflask:
     noscript: "Javascript is not enabled"
     timeout_warning: "Your session will end soon!"
     refresh_link_text: "Refresh your session"
+  error:
+    control_char_in_str: "Invalid control character found"
+    length_between: "Length must be between %(min) and %(max)"
+    length_less_than_min: "Length must be at least %(min)"
+    length_greater_than_max: "Length must be at most (%max)"
+    range_between: "Value must be between %(min) and %(max)"
+    range_less_than_min: "Value must be at least %(min)"
+    range_greater_than_max: "Value must be at most (%max)"
+    required_field: "Value is required"

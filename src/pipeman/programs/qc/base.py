@@ -609,7 +609,7 @@ class QualityController(abc.ABC):
                        msg: str | None = None,
                        add_ref: bool = True,
                        **kwargs):
-        if not _functions.between(min_value, a, max_value):
+        if not amath.between(min_value, a, max_value):
             if add_ref and not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = f"{min_value} TO {max_value}"
             self.report_qc_error(msg or "not_between", **kwargs)

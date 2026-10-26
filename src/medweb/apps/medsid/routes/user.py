@@ -4,7 +4,7 @@ import zrlog
 from autoinject import injector, auto
 
 from gcapp import i18n
-from gcflask.action_list import ActionList
+from gcflask.widgets import ActionList
 from gcflask.datatables import DataTable, DataQuery, ObjectProperty
 from gcflask.datatables.table import ActionListColumn
 from gcflask.forms import GCFlaskForm, StringField, SubmitField, PasswordField, SelectField, InputRequired, \

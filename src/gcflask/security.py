@@ -1,28 +1,28 @@
-import functools
-from types import EllipsisType
+""" Authorization using permissions
 
-import flask_login
-import flask_login as fl
-import flask
-import zirconium as zr
-from autoinject import injector, auto
+"""
+import functools
 import typing as t
-import zrlog
 from urllib.parse import urlparse
 
+import flask
+import flask_login as fl
+import zrlog
+import zirconium as zr
+from autoinject import injector, auto
+
+from medsutil.exceptions import CodedError, ex_pretty
 from gcapp.i18n import TranslatableError
 from gcflask.auth import AuthResult, AuthenticationManager
-from gcflask.user import AuthenticatedUser, ANONYMOUS_PRIVILEGE, ADMIN_PRIVILEGE, ANYONE_PRIVILEGE, \
-    AUTHENTICATED_PRIVILEGE, PermissionType, AnyPermission
+from gcflask.user import AuthenticatedUser, ANONYMOUS_PRIVILEGE, ANYONE_PRIVILEGE, AUTHENTICATED_PRIVILEGE, PermissionType, AnyPermission
 from gcflask.util import flasht, flash
-from medsutil.exceptions import CodedError, ex_pretty
 
 
 @injector.injectable_global
 class RequestSecurity:
     """Global security handler for requests"""
 
-    cfg: zr.ApplicationConfig = None
+    cfg: zr.ApplicationConfig = auto()
 
     @injector.construct
     def __init__(self):
@@ -49,44 +49,56 @@ class RequestSecurity:
 
     def check_referrer(self) -> bool:
         """Check that the referer is good."""
+
         if not self._allowed_hosts:
             self._log.info("Request allowed because no allowed hosts are provided")
             return True
+
         if not flask.has_request_context():
             self._log.info("Request denied because no request context is available to check the method and referrer")
             return False
+
         method = flask.request.method
         if method in ("HEAD", "OPTIONS"):
             self._log.info("Request allowed because method type is %s", method)
             return True
+
         if method in ("GET", "LIST") and not self._verify_referrer_for_get:
             self._log.info("Request allowed because method type is %s and verification is disabled for GET requests", method)
             return True
+
         ref = flask.request.headers.get("Referer")
         org = flask.request.headers.get("Origin")
         if org is None:
             org = ref
+
         if org is None:
             self._log.warning(f"Request denied because referrer not provided!")
             return False
+
         pieces = urlparse(org)
         if pieces.netloc not in self._allowed_hosts:
             self._log.warning(f"Request denied because of bad referrer [%s]", pieces.netloc)
             return False
+
         return True
 
     def check_for_https(self) -> bool:
         """Check for HTTPS."""
+
         if not self._require_https:
             self._log.info("Request allowed because HTTPS is not required")
             return True
+
         if not flask.has_request_context():
             self._log.info("Request denied because no request context is available")
             return False
+
         pieces = urlparse(flask.request.url)
         if not pieces.scheme == "https":
             self._log.warning(f"Request denied because it is not an HTTPS request")
             return False
+
         return True
 
     def check_access(self,
@@ -105,8 +117,8 @@ class RequestSecurity:
         return AuthResult.ALLOW
 
 
-
 class Forbidden(Exception):
+    """ An exception that can be raised by application code to indicate the request is Forbidden. """
 
     def __init__(self, result: AuthResult, is_api: bool, message: str | None = None):
         self.result = result
@@ -115,20 +127,22 @@ class Forbidden(Exception):
 
 
 class RequirePermission:
-    _auth_man: AuthenticationManager = None
-    _rs: RequestSecurity = None
+    """ A helper class to check permissions. """
+
+    _auth_man: AuthenticationManager | None = None
+    _rs: RequestSecurity | None = None
 
     @property
     def auth_man(self) -> AuthenticationManager:
         if self._auth_man is None:
             self._auth_man = injector.get(AuthenticationManager)
-        return self._auth_man
+        return t.cast(AuthenticationManager, self._auth_man)
 
     @property
     def rs(self) -> RequestSecurity:
         if self._rs is None:
             self._rs = injector.get(RequestSecurity)
-        return self._rs
+        return t.cast(RequestSecurity, self._rs)
 
     def check_access(self,
                      required_permissions: PermissionType,
@@ -137,14 +151,26 @@ class RequirePermission:
                      check_referrer: bool | None = False,
                      check_https: bool | None = False,
                      require_any: bool = False):
+        """ Checks if the current user has the necessary permissions.
+
+            :param required_permissions: Permissions to check
+            :param is_api: Set to true if the request is an API call
+            :param message: The message to send if access is denied
+            :param check_referrer: Include a referrer check
+            :param check_https: Include an HTTPS check
+            :param require_any: If set to true, require any of the permissions instead of all of them.
+
+            :raises Forbidden: If access is denied.
+        """
         result = self.rs.check_access(required_permissions, check_referrer, check_https, require_any)
         if result is not AuthResult.ALLOW:
-            raise Forbidden(AuthResult.DENY, is_api, message)
+            self.deny_permission(is_api, result, message)
 
     def deny_permission(self,
                         is_api: bool,
                         result: AuthResult = AuthResult.DENY,
-                        message: str | None = None):
+                        message: str | None = None) -> t.NoReturn:
+        """ Always denies permission. """
         raise Forbidden(result, is_api, message)
 
     def __call__[**P,Q](self,
@@ -158,7 +184,18 @@ class RequirePermission:
         is_api: bool = False,
         require_any: bool = False,
         allow_auth_header_access: bool = False) -> t.Callable[[t.Callable[P, Q]], t.Callable[P,Q]]:
-        """Ensure the current user is logged in and has one of the given permissions before allowing the request."""
+        """Ensure the current user is logged in and has one of the given permissions before allowing the request.
+
+            :param required_permissions: Permissions to check
+            :param is_api: Set to true if the request is an API call
+            :param check_referrer: Include a referrer check
+            :param check_https: Include an HTTPS check
+            :param require_any: If set to true, require any of the permissions instead of all of them.
+            :param authenticated_only: Require that the user is logged in.
+            :param anonymous_only: Require that the user is not logged in.
+            :param anyone: The user can be logged in or not.
+            :param allow_auth_header_access: Allow authentication using an Authorization header
+        """
 
         if isinstance(required_permissions, (str, None, t.Sequence)):
             perms: list[str | AnyPermission] = []
@@ -193,7 +230,7 @@ class RequirePermission:
                                require_any: bool = False) -> t.Callable[P, Q]:
         @functools.wraps(func)
         def _decorated(*args, **kwargs):
-            if allow_auth_header_access and flask_login.current_user.is_anonymous:
+            if allow_auth_header_access and fl.current_user.is_anonymous:
                 self.auth_man.request_loader(flask.request)
             try:
                 self.check_access(required_permissions, is_api, require_any=require_any)
@@ -208,11 +245,9 @@ deny_permission = security_check.deny_permission
 require_permission = security_check.check_access
 
 
-
-
 # TODO: need to be able to enable/disable more detailed errors depending on the environment
 def api_error_handling(func: t.Callable) -> t.Callable:
-
+    """ Wraps exceptions errors into a 500 error with an appropriate message. """
     @functools.wraps(func)
     def _inner(*args, **kwargs):
         try:
@@ -221,6 +256,7 @@ def api_error_handling(func: t.Callable) -> t.Callable:
             code = ''
             if isinstance(ex, CodedError):
                 code = ex.internal_code
+            zrlog.get_logger("gcflask").exception(str(ex))
             return flask.jsonify({
                 "error": str(ex),
                 "success": False,
@@ -230,6 +266,7 @@ def api_error_handling(func: t.Callable) -> t.Callable:
 
 
 def web_error_handling(func: t.Callable) -> t.Callable:
+    """ Wraps exceptions into a 500 error with an appropriate message. """
 
     @functools.wraps(func)
     def _inner(*args, **kwargs):
@@ -239,12 +276,13 @@ def web_error_handling(func: t.Callable) -> t.Callable:
             # TODO: better error messages when you're not an admin
             if isinstance(ex, TranslatableError):
                 flasht(ex.message_key, "error")
-                zrlog.get_logger("gcflask").exception(ex.pretty())
+                ex_text = ex.pretty()
             elif isinstance(ex, CodedError):
-                flash(ex.pretty(), "error")
-                zrlog.get_logger("gcflask").exception(ex.pretty())
+                ex_text = ex.pretty()
+                flash(ex_text, "error")
             else:
-                flash(ex_pretty(ex), "error")
-                zrlog.get_logger("gcflask").exception(ex_pretty(ex))
+                ex_text = ex_pretty(ex)
+                flash(ex_text, "error")
+            zrlog.get_logger("gcflask").exception(ex_text)
             return flask.abort(500)
     return _inner

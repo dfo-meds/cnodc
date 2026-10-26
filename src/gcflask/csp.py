@@ -1,150 +1,172 @@
-import datetime
+"""
+Provides streamlined support for adding and managing content security policy identifiers.
+
+This is very boring web security stuff. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP
+
+But basically, CSP (Content Security Policy) controls which resources can be loaded by the browser to prevent
+attacks.
+
+A CSP is broken down into policy areas:
+- default-src is the default if others aren't set
+- img-src is for images
+- style-src is for style tags
+- script-src is for script tags
+- object-src for object and embed
+- base-uri for the base element
+
+The policy area contains individual directives, which can be:
+- 'nonce-X' for a nonce (X is a one-time use specific key that is allowed to be loaded and must be added on to the tag too)
+- 'domain.com' for an entire domain (can use * as a wildcard)
+- 'self' for content within the same HTML document
+- 'none' for nothing at all
+- 'sha256-X', 'sha385-X' or 'sha512-X' for hashes where X is the hash
+- 'https:' to force HTTPS connections
+- 'strict-dynamic' to allow a third-party script to load its own scripts
+
+There are some additional options for some policy areas
+
+"""
 import enum
 
-from autoinject import injector
+from autoinject import injector, auto
 import zirconium as zr
 import zrlog
-import flask
-import flask_login
 
 import medsutil.secure
-from medsutil.awaretime import AwareDateTime
 
 
 class PolicyArea(enum.Enum):
+    """ Represents a CSP policy area"""
+
     SCRIPT = 'script-src'
+    """ Javascript """
+
     STYLE = 'style-src'
-    IMAGE = 'image-src'
+    """ CSS """
+
+    IMAGE = 'img-src'
+    """ Images """
+
+    OBJECT = 'object-src'
+    """ Objects and embeds """
+
+    BASE = 'base-uri'
+    """ Base tag"""
+
+    FRAME = 'frame-ancestors'
+    """ Iframes """
+
+    CHILD = 'child-src'
+    """ Nested browsing and worker execution contexts """
+
+    CONNECT = 'connect-src'
+    """ XHR, fetch requests, web sockets """
+
+    FONT = 'font-src'
+    """ Fonts """
+
+    MANIFEST = 'manifest-src'
+    """ Application manifests """
+
+    MEDIA = 'media-src'
+    """ Media """
+
+    SANDBOX = 'sandbox'
+    """ Sandbox directives """
+
+    FORM = "form-action"
+    """ Forms """
+
     DEFAULT = 'default-src'
+    """ Other, if not specified """
 
 
 @injector.injectable
 class CSPRegistry:
+    """ Manages Content Security Policy headers and caching management. """
 
-    cfg: zr.ApplicationConfig = None
+    cfg: zr.ApplicationConfig = auto()
 
     @injector.construct
     def __init__(self):
         self._csp_policies = {
-            'default-src': [],
-            'script-src': [],
-            'style-src': [],
-            'img-src': []
+            x.value: []
+            for x in PolicyArea
         }
-        self._can_cache_page = True
-        self._cache_time: int = self.cfg.as_int(("gcflask", "csp", "cache_time"), default=300)
-        self._static_cache_time: int = self.cfg.as_int(("gcflask", "csp", "static_cache_time"), default=7200)
-        self._allow_caching_default = self.cfg.as_bool(("gcflask", "csp", "allow_caching"), default=True)
-        self._is_static_resource = False
         self._log = zrlog.get_logger("gcflask.csp")
         self._enabled = self.cfg.as_bool(("gcflask", "csp", "enabled"), default=False)
         self._report_enabled = self.cfg.as_bool(("gcflask", "csp", "report_enabled"), default=True)
         self._upstream_enabled = self.cfg.as_bool(("gcflask", "csp", "upstream_enabled"), default=False)
-
-    def set_static(self, cache_time: int | None = None):
-        self._cache_time = cache_time if cache_time is not None else self._static_cache_time
-        self._is_static_resource = True
-
-    def allow_caching(self, response: flask.Response = None) -> bool:
-        return False
-        # If caching is disabled, lets just not worry about it
-        if not self._allow_caching_default:
-            self._log.debug("Caching disabled")
-            return False
-        # No caching if we used a nonce or anything like it
-        if not self._can_cache_page:
-            self._log.debug("Caching disabled, nonce used")
-            return False
-        if response and response.status_code not in (200, 301):
-            self._log.debug("Non-success error code, caching disabled")
-            return False
-        # No caching for methods other than GET or HEAD
-        if flask.request.method not in ('GET', 'HEAD'):
-            self._log.debug("Request method was not GET or HEAD, caching disabled")
-            return False
-        # Otherwise we can probably cache this resource
-        return True
-
-    def allow_shared_caching(self, response: flask.Response = None) -> bool:
-        # We can cache static resources even if it is an authenticated request since
-        # there is no extra information
-        if self._is_static_resource:
-            return True
-        # No caching if we used an authorization header in the request
-        if flask.request.headers.get("Authorization", default=None) is not None:
-            self._log.debug("Authorization header present, shared cache disabled")
-            return False
-        # No caching if the user is authenticated
-        if flask_login.current_user.is_authenticated:
-            self._log.debug("Authenticated page, shared cache disabled")
-            return False
-        return True
-
-    def set_cache_time(self, time: int):
-        self._cache_time = time
-
-    def no_cache(self):
-        self._can_cache_page = False
+        self._upgrade_insecure_requests = self.cfg.as_bool(("gcflask", "csp", "upgrade_insecure_requests"), default=False)
+        self._report_uri: str | None = self.cfg.as_str(("gcflask", "csp", "report_to"), default=None)
 
     def reset_csp_policy(self, policy_area: PolicyArea | str):
+        """ Clears all policies stored under the given area. """
         pa: str = policy_area.value if isinstance(policy_area, PolicyArea) else policy_area
         if pa in self._csp_policies:
-            self._csp_policies[pa] = []
+            del self._csp_policies[pa]
 
     def add_csp_policy(self, policy_area: PolicyArea | str, directive: str):
+        """ Adds a new content security policy under the given area
+
+            :param policy_area: The policy area to add it under.
+            :param directive: A CSP directive
+         """
         pa: str = policy_area.value if isinstance(policy_area, PolicyArea) else policy_area
         if pa not in self._csp_policies:
             self._csp_policies[pa] = []
         if directive not in self._csp_policies[pa]:
             self._csp_policies[pa].append(directive)
 
-    def add_headers(self, response: flask.Response):
-        csp_headers = [
-            f"{header} 'self' {' '.join(str(x) for x in self._csp_policies[header])}"
-            for header in self._csp_policies
-        ]
-        if self._enabled:
-            response.headers.set("Content-Security-Policy", ";".join(csp_headers))
-        if self._report_enabled:
-            response.headers.set("Content-Security-Policy-Report-Only", ";".join(csp_headers))
-        if self._upstream_enabled:
-            for policy_area in self._csp_policies:
-                if policy_area == "default-src":
-                    continue
-                response.headers.set(
-                    f"X-Upstream-CSP-{policy_area}",
-                    " ".join(str(x) for x in self._csp_policies[policy_area])
-                )
-        if not self.allow_caching(response) or self._cache_time == 0:
-            response.cache_control.max_age = 0
-            response.cache_control.no_cache = True
-            response.cache_control.no_store = True
-            response.cache_control.must_revalidate = True
-            response.cache_control.proxy_revalidate = True
-        else:
-            allow_share = self.allow_shared_caching(response)
-            response.cache_control.no_cache = None
-            response.cache_control.no_store = None
-            response.cache_control.must_revalidate = None
-            response.cache_control.proxy_revalidate = None
-            response.cache_control.max_age = self._cache_time
-            response.expires = (AwareDateTime.utcnow() + datetime.timedelta(seconds=self._cache_time))
-            response.cache_control.private = (not allow_share) or None
-            response.cache_control.public = allow_share or None
+    def get_headers(self) -> dict[str, str]:
+        """Builds HTTP headers to add a response based on CSP and caching policies. """
 
-    def build_nonce(self) -> str:
-        return medsutil.secure.generate_csp_nonce()
+        headers = {}
+
+        # Build CSP headers from directives
+        csp_headers = [
+            ' '.join((header, *(f"'{x}'" for x in directives)))
+            for header, directives in self._csp_policies.items()
+            if directives
+        ]
+
+        # Upgrade insecure requests
+        if self._upgrade_insecure_requests:
+            csp_headers.append("upgrade-insecure-requests")
+
+        # Report URI
+        if self._report_uri:
+            csp_headers.append(f"report-to {self._report_uri}")
+            # this one is deprecated but still recommended
+            csp_headers.append(f"report-uri {self._report_uri}")
+
+        if self._enabled:
+            headers["Content-Security-Policy"] = ";".join(csp_headers)
+
+        if self._report_enabled:
+            headers["Content-Security-Policy-Report-Only"] = ";".join(csp_headers)
+
+        # Passes CSP policies to upstream server for reasons I forget (have to look at nginx configuration)
+        if self._upstream_enabled:
+            for policy_area, directives in self._csp_policies.items():
+                if policy_area == "default-src" or not directives:
+                    continue
+                # TODO: review if this should have quotes
+                headers[f"X-Upstream-CSP-{policy_area}"] = " ".join(str(x) for x in directives)
+
+        return headers
 
 
 @injector.inject
-def csp_nonce(policy_area: str, cspr: CSPRegistry = None):
-    nonce = cspr.build_nonce()
-    cspr.no_cache()
+def csp_nonce(policy_area: str, cspr: CSPRegistry = auto()) -> str:
+    """ Builds a Content-Security-Policy nonce, registers it, and returns the nonce."""
+    nonce = medsutil.secure.generate_csp_nonce()
     cspr.add_csp_policy(policy_area, f"'nonce-{nonce}'")
     return nonce
 
 
 @injector.inject
-def csp_allow(policy_area: str, hostname: str, cspr: CSPRegistry = None):
-    cspr.add_csp_policy(policy_area, hostname)
+def csp_allow(policy_area: str, directive: str, cspr: CSPRegistry = auto()):
+    """ Adds a CSP for a given directive. """
+    cspr.add_csp_policy(policy_area, directive)
     return ""

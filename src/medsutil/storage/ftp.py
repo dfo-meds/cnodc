@@ -108,12 +108,13 @@ class _FTPWrapper:
             config['timeout'] = 60
         if 'buffer_size' not in config:
             config['buffer_size'] = 256 * 1024
+        if 'rate_limit' not in config:
+            config['rate_limit'] = 0
         self._config = config
         self._server: t.Optional[t.Union[ftplib.FTP, ftplib.FTP_TLS]] = None
         self._depth = 0
         self._connected = False
         self._cwd = None
-        self._lock = threading.Lock()
 
     @property
     def server(self) -> ftplib.FTP | ftplib.FTP_TLS:

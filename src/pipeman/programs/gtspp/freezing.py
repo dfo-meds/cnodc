@@ -37,6 +37,16 @@ class GTSPPFreezingPointTest(DeepDiveChecker):
                         freezing_point
                     )
 
+    @review("above_freezing", fail_flag=Quality.DUBIOUS, pass_flag=Quality.GOOD, required_quality=RequiredQuality.GOOD_VALUE_WITH_UNITS)
+    def freezing_point_test(self, ref: SingleElementRef, freezing_point: amath.AnyNumber):
+        temp = omath.get_temperature(
+            temperature=ref.element,
+            obs_date=self.current_time,
+            units="degrees_C",
+            temperature_scale=TemperatureScale.TS_1990
+        )
+        self.assert_greater_or_close(t.cast(amath.AnyNumber, temp), freezing_point, msg="below_freezing")
+
     def get_freezing_points(self, ref: RecordRef) -> t.Iterable[amath.AnyNumber]:
         # in degrees_C
         sal_ref = ref.parameter_ref("PracticalSalinity")
@@ -53,12 +63,3 @@ class GTSPPFreezingPointTest(DeepDiveChecker):
             if fp is not None:
                 yield fp
 
-    @review("above_freezing", fail_flag=Quality.DUBIOUS, pass_flag=Quality.GOOD, required_quality=RequiredQuality.GOOD_VALUE_WITH_UNITS)
-    def freezing_point_test(self, ref: SingleElementRef, freezing_point: amath.AnyNumber):
-        temp = omath.get_temperature(
-            temperature=ref.element,
-            obs_date=self.current_time,
-            units="degrees_C",
-            temperature_scale=TemperatureScale.TS_1990
-        )
-        self.assert_greater_or_close(t.cast(amath.AnyNumber, temp), freezing_point, msg="below_freezing")

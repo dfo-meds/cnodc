@@ -7,7 +7,7 @@ from autoinject import injector
 import zirconium as zr
 
 
-from gcflask.auth import AuthenticationHandler, AuthError
+from gcflask.auth import BaseAuthenticationHandler, AuthError
 import gcflask.forms as forms
 from gcflask.user import AuthenticatedUser
 from gcflask.util import flasht
@@ -15,7 +15,7 @@ from nodb.access import NODBUser, NODBAccessToken
 from nodb.interface import NODB
 
 
-class LocalMedsIDHandler(AuthenticationHandler):
+class LocalMedsIDHandler(BaseAuthenticationHandler):
 
     nodb: NODB = None
     config: zr.ApplicationConfig = None

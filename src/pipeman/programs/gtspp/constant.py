@@ -3,7 +3,7 @@ import itertools
 from medsutil.ocproc2 import SingleElement
 from medsutil.ocproc2.refs import ChildRecordRef, RecordSetRef, MultiElementRef, SingleElementRef, ElementType
 import medsutil.math as amath
-from medsutil.ocproc2.util import RequiredQuality
+from medsutil.ocproc2.util import RequiredQuality, Quality
 from pipeman.programs.qc.base import ProfileChecker
 
 
@@ -38,7 +38,7 @@ class GTSPPConstantTest(ProfileChecker):
                                                     previous: SingleElementRef,
                                                     current: SingleElementRef,
                                                     next_: SingleElementRef):
-        with self.review("constant_for_inflection_points", current, fail_flag=4, pass_flag=1) as ctx:
+        with self.review("constant_for_inflection_points", current, fail_flag=Quality.ERRONEOUS, pass_flag=Quality.GOOD) as ctx:
             ctx.check_review_already_complete()
             v1, v2, v3 = self.extract_parameter_values(previous, current, next_)
             if v1 is not None and v2 is not None and v3 is not None:

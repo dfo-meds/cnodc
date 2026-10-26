@@ -7,10 +7,9 @@ from wtforms.fields.core import UnboundField
 from wtforms.validators import Optional
 
 from gcapp import i18n as i18n
-from gcflask.action_list import ActionList
 from gcflask.forms import InputRequired, TranslatableField, NumberRange, Length, NoControlCharacters
 from gcapp.i18n.base import MLString
-from gcflask.widgets import HtmlList, MultilingualList, InfoTable, HtmlContent
+from gcflask.widgets import HtmlList, MultilingualList, InfoTable, HtmlContent, ActionList
 from dmd.containers.keywords import Keyword
 from medsutil.dynamic import dynamic_object
 
@@ -397,7 +396,7 @@ class Field[AcceptType, ActualType]:
     def _form_control_with_translation_check(self, parent: bool = True):
         if self.is_multilingual:
             tf_kwargs: dict[str, t.Any] = {
-                'use_metadata_languages': True,
+                'context': 'metadata',
                 'field_kwargs': self._field_level_control_kwargs(),
                 'allow_translation_requests': self._allow_translation_requests(),
                 'allow_js_widget': self._allow_javascript_controls(),

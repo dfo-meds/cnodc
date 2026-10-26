@@ -24,5 +24,5 @@ def boot_medweb(app_type: str) -> MedWebSystem:
     return system
 
 def _init_system(s: MedWebSystem):
-    s.plugins.discover_from_module("medweb.apps")
+    s.plugins.discover_from_package("medweb.apps")
     s.plugins.add_plugin("nodb")

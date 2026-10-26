@@ -15,7 +15,7 @@ from dmd.linker import DataManagementLinker
 from dmd.metadata.metadata import MetadataRegistry
 from dmd.metadata.workflows import WorkflowRegistry, WorkflowItemStatus
 from gcapp.i18n import MLString, MLLink
-from gcflask.action_list import ActionList
+from gcflask.widgets import ActionList
 from medsutil.awaretime import AwareDateTime
 
 

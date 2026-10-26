@@ -1,6 +1,7 @@
 import functools
 import uuid
 import typing as t
+import time
 
 from prometheus_flask_exporter import PrometheusMetrics
 
@@ -12,7 +13,7 @@ from pipeman.processing.scheduled_task import ScheduledTask
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.processing.workflow import WorkflowController
 from pipeman.processing.payloads import NewFilePayload
-from medsutil.storage import StorageController, FilePath
+from medsutil.storage import StorageController, FilePath, StorageError
 
 from pipeman.exceptions import CNODCError
 from autoinject import injector
@@ -100,7 +101,23 @@ class FileScanTask(ScheduledTask):
                 db.create_savepoint('FILE_INSERT')
                 try:
                     full_path = file.path()
-                    mod_time = file.modified_datetime() if self._reprocess_updated_files else None
+
+                    # small hack, could use more configuration
+                    # this is to avoid issues with rate limiting and temporary blocking
+                    retries = 5
+                    try_again = True
+                    while try_again:
+                        try:
+                            mod_time = file.modified_datetime() if self._reprocess_updated_files else None
+                            try_again = False
+                        except StorageError:
+                            retries -= 1
+                            try_again = retries > 0
+                            if not try_again:
+                                raise
+                            else:
+                                time.sleep(1)
+
                     status = db.scanned_file_status(full_path, mod_time)
                     if status is ScannedFileStatus.NOT_PRESENT:
                         self._log.info("Found new file [%s][%s]", full_path, mod_time)
