@@ -5,7 +5,7 @@
 
 # testing stuff for now
 requests_oauth2client ~= 1.8.0
-pyop ~= 3.4.2
+pyop ~= 3.5.0
 shamirs ~=4.0.0
 lagrange ~= 4.0.1
 

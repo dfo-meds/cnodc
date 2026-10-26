@@ -1,5 +1,5 @@
 -r ./helpers/req.ocproc2.txt
 
-pillow~=12.2.0
+pillow~=13.0.0
 tkcalendar~=1.6.1
-matplotlib~=3.10.8
+matplotlib~=3.11.2

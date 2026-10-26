@@ -5,8 +5,8 @@
 gunicorn ~= 26.0.0
 
 gevent ~= 26.4.0
-cffi ~= 2.0.0
-pycparser ~= 3.0
+cffi ~= 2.1.1
+pycparser ~= 3.12
 
 greenlet ~= 3.5.0
 
