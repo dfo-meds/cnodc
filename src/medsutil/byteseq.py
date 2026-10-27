@@ -104,11 +104,11 @@ class ByteSequenceReader:
             idx += 1
         return vlq_decode(self.consume(idx + 1))[0]
 
-    def peek(self, length: int) -> t.ByteString:
+    def peek(self, length: int) -> bytearray | bytes:
         self._read_up_to(length + 1)
         return self._buffer[0:length+1]
 
-    def peek_line(self, exclude_line_endings: bool = True) -> t.ByteString:
+    def peek_line(self, exclude_line_endings: bool = True) -> bytearray | bytes:
         n_or_r, index = self._find_first_match_fast({10, 13})
         if index is None:
             return self._buffer
@@ -116,7 +116,7 @@ class ByteSequenceReader:
             index += 1
         return self._buffer[:index]
 
-    def consume_line(self, exclude_line_endings: bool = True) -> t.ByteString:
+    def consume_line(self, exclude_line_endings: bool = True) -> bytearray | bytes:
         res = self.consume_until([b"\n", b"\r"], include_target=True)
         if res and res[-1] == 13 and (not self.at_eof()) and self[0] == b"\n":
             self._discard_leading(1)
