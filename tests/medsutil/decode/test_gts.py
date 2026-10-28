@@ -69,7 +69,7 @@ class TestGtsCodec(ut.TestCase):
         codec = GtsCodec()
         for x in good_headers:
             with self.subTest(good_header=x):
-                self.assertTrue(codec._is_gts_header(x))
+                self.assertTrue(codec.is_gts_header(x))
         for x in bad_headers:
             with self.subTest(bad_header=x):
-                self.assertFalse(codec._is_gts_header(x))
+                self.assertFalse(codec.is_gts_header(x))

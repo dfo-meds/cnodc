@@ -1,8 +1,7 @@
 import zoneinfo
 import datetime
 
-from medsutil.awaretime import utc_now, now, utc_from_string, from_string, from_isoformat, utc_from_isoformat, \
-    from_timestamp, AwareDateTime, awaretime, ScienceDateTime
+from medsutil.awaretime import AwareDateTime, ScienceDateTime
 from tests.helpers.base_test_case import BaseTestCase, sub_tests
 
 
@@ -22,10 +21,6 @@ class TestDateTime(BaseTestCase):
         x = ScienceDateTime(2015, 1, 2, 3, 4, 5, uncertainty=None)
         min_x, max_x = x.range()
         self.assertIs(min_x, max_x)
-
-    def test_now_utc(self):
-        n = utc_now()
-        self.assertIs(n.tzinfo, datetime.timezone.utc)
 
     def test_copy(self):
         x = AwareDateTime(2015, 1, 2, 3, 4, 5)
@@ -52,7 +47,7 @@ class TestDateTime(BaseTestCase):
         self.assertEqual(x, AwareDateTime(2015, 1, 2, 0, 0, 0, tzinfo="Etc/UTC"))
 
     def test_now(self):
-        n = now()
+        n = AwareDateTime.now()
         boring_now = datetime.datetime.now()
         self.assertIsNotNone(n.tzinfo)
         self.assertEqual(n.day, boring_now.day)
@@ -61,7 +56,7 @@ class TestDateTime(BaseTestCase):
         self.assertEqual(n.second, boring_now.second)
 
     def test_utc_from_string(self):
-        n = utc_from_string('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S')
+        n = AwareDateTime.utcstrptime('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S')
         self.assertEqual(n.day, 2)
         self.assertEqual(n.hour, 3)
         self.assertEqual(n.minute, 4)
@@ -69,11 +64,11 @@ class TestDateTime(BaseTestCase):
         self.assertIs(n.tzinfo, zoneinfo.ZoneInfo('Etc/UTC'))
 
     def test_from_string_with_timedelta(self):
-        n = from_string('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S', default_tz=datetime.timedelta(hours=-7))
+        n = AwareDateTime.strptime('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S', default_tz=datetime.timedelta(hours=-7))
         self.assertSameTime(n, datetime.datetime(2015, 1, 2,3, 4, 5, tzinfo=datetime.timezone(datetime.timedelta(hours=-7))))
 
     def test_from_string(self):
-        n = from_string('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S', 'America/Vancouver')
+        n = AwareDateTime.strptime('2015-01-02 03:04:05', '%Y-%m-%d %H:%M:%S', 'America/Vancouver')
         self.assertEqual(n.day, 2)
         self.assertEqual(n.hour, 3)
         self.assertEqual(n.minute, 4)
@@ -81,7 +76,7 @@ class TestDateTime(BaseTestCase):
         self.assertIs(n.tzinfo, zoneinfo.ZoneInfo('America/Vancouver'))
 
     def test_from_string_no_override(self):
-        n = from_string('2015-01-02 03:04:05+01:30', '%Y-%m-%d %H:%M:%S%z', 'America/Vancouver')
+        n = AwareDateTime.strptime('2015-01-02 03:04:05+01:30', '%Y-%m-%d %H:%M:%S%z', 'America/Vancouver')
         self.assertEqual(n.day, 2)
         self.assertEqual(n.hour, 3)
         self.assertEqual(n.minute, 4)
@@ -89,7 +84,7 @@ class TestDateTime(BaseTestCase):
         self.assertEqual(n.tzinfo, datetime.timezone(datetime.timedelta(seconds=5400)))
 
     def test_utc_from_isoformat(self):
-        n = utc_from_isoformat('2015-01-02T03:04:05')
+        n = AwareDateTime.utcfromisoformat('2015-01-02T03:04:05')
         self.assertEqual(n.day, 2)
         self.assertEqual(n.hour, 3)
         self.assertEqual(n.minute, 4)
@@ -97,7 +92,7 @@ class TestDateTime(BaseTestCase):
         self.assertIs(n.tzinfo, zoneinfo.ZoneInfo('Etc/UTC'))
 
     def test_from_isoformat(self):
-        n = from_isoformat('2015-01-02T03:04:05', 'America/Vancouver')
+        n = AwareDateTime.fromisoformat('2015-01-02T03:04:05', 'America/Vancouver')
         self.assertEqual(n.day, 2)
         self.assertEqual(n.hour, 3)
         self.assertEqual(n.minute, 4)
@@ -105,7 +100,7 @@ class TestDateTime(BaseTestCase):
         self.assertIs(n.tzinfo, zoneinfo.ZoneInfo('America/Vancouver'))
 
     def test_from_isformat_no_override(self):
-        n = from_isoformat('2015-01-02T03:04:05+01:30', 'America/Vancouver')
+        n = AwareDateTime.fromisoformat('2015-01-02T03:04:05+01:30', 'America/Vancouver')
         self.assertEqual(n.day, 2)
         self.assertEqual(n.hour, 3)
         self.assertEqual(n.minute, 4)
@@ -113,7 +108,7 @@ class TestDateTime(BaseTestCase):
         self.assertEqual(n.tzinfo, datetime.timezone(datetime.timedelta(seconds=5400)))
 
     def test_from_timestamp(self):
-        n = from_timestamp(0)
+        n = AwareDateTime.utcfromtimestamp(0)
         self.assertEqual(n, datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc))
 
     def test_today(self):
@@ -133,8 +128,3 @@ class TestDateTime(BaseTestCase):
         dt = AwareDateTime.today()
         dt2 = AwareDateTime.from_datetime(dt)
         self.assertIs(dt, dt2)
-
-    def test_awaretime(self):
-        dt = awaretime(2015, 1, 2)
-        self.assertIsInstance(dt, AwareDateTime)
-        self.assertIsNotNone(dt.tzinfo)

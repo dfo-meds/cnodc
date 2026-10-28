@@ -1,5 +1,8 @@
+""" Country code support functions. """
 
-COUNTRIES = [
+# This is a list of countries and their ISO codes, where each is a tuple:
+# (full_name, alpha2, alpha3, number)
+COUNTRIES: list[tuple[str, str, str, str]] = [
     ("Afghanistan", "AF", "AFG", "004"),
     ("Åland Islands	Finland", "AX", "ALA", "248"),
     ("Albania", "AL", "ALB", "008"),
@@ -253,6 +256,10 @@ COUNTRIES = [
 
 
 def a3_to_a2(a3_code: str) -> str:
+    """ Converts an alpha-3 country code to the alpha-2 code.
+
+        :raises ValueError: If the country code is unrecognized.
+    """
     for _, a2, a3, _ in COUNTRIES:
         if a3 == a3_code:
             return a2

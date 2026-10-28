@@ -29,7 +29,7 @@ class TestFileDownloadWorker(BaseTestCase):
     def test_bad_queue_item_workflow_missing(self):
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         self.db.note_scanned_file(str(test_file.absolute()), m_time)
         self.assertEqual(1, len(self.db._scanned_files))
         sfp = NewFilePayload.from_path(test_file)
@@ -41,7 +41,7 @@ class TestFileDownloadWorker(BaseTestCase):
     def test_bad_queue_item_workflow_empty_workflow(self):
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         bad_workflows = ['', None]
         for x in bad_workflows:
             with self.subTest(bad_workflow=x):
@@ -74,7 +74,7 @@ class TestFileDownloadWorker(BaseTestCase):
         self._build_good_workflow()
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         self.db.note_scanned_file(str(test_file.absolute()), m_time)
         sfp = NewFilePayload.from_path(test_file, workflow_name='test', remove_when_complete=True)
         qi = self.worker_controller.payload_to_queue_item(sfp)
@@ -114,7 +114,7 @@ class TestFileDownloadWorker(BaseTestCase):
         self._build_good_workflow()
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         self.db.note_scanned_file(str(test_file.absolute()), m_time)
         self.db.mark_scanned_item_success(str(test_file.absolute()), m_time)
         sfp = NewFilePayload.from_path(test_file, workflow_name='test')
@@ -128,7 +128,7 @@ class TestFileDownloadWorker(BaseTestCase):
         self._build_good_workflow()
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         self.db.note_scanned_file(str(test_file.absolute()), m_time)
         self.db.mark_scanned_item_success(str(test_file.absolute()), m_time)
         sfp = NewFilePayload.from_path(test_file, workflow_name='test')
@@ -144,7 +144,7 @@ class TestFileDownloadWorker(BaseTestCase):
         self._build_good_workflow()
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         self.db.note_scanned_file(str(test_file.absolute()), m_time)
         self.db.mark_scanned_item_success(str(test_file.absolute()), m_time)
         sfp = NewFilePayload.from_path(test_file, workflow_name='test', remove_when_complete=True)
@@ -160,7 +160,7 @@ class TestFileDownloadWorker(BaseTestCase):
         self._build_good_workflow()
         test_file = self.temp_dir / 'file1.txt'
         test_file.touch()
-        m_time = awaretime.from_timestamp(test_file.stat().st_mtime)
+        m_time = awaretime.AwareDateTime.utcfromtimestamp(test_file.stat().st_mtime)
         self.db.note_scanned_file(str(test_file.absolute()), m_time)
         sfp = NewFilePayload.from_path(test_file, workflow_name='test2')
         qi = self.worker_controller.payload_to_queue_item(sfp)

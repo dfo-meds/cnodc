@@ -1577,11 +1577,11 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         if 'standard_name_vocabulary' in attrs and attrs['standard_name_vocabulary']:
             self.cf_standard_name_vocab = attrs.pop('standard_name_vocabulary')
         if 'date_issued' in attrs and attrs['date_issued']:
-            self.date_issued = awaretime.utc_from_isoformat(attrs.pop('date_issued'))
+            self.date_issued = awaretime.AwareDateTime.utcfromisoformat(attrs.pop('date_issued'))
         if 'date_created' in attrs and attrs['date_created']:
-            self.date_created = awaretime.utc_from_isoformat(attrs.pop('date_created'))
+            self.date_created = awaretime.AwareDateTime.utcfromisoformat(attrs.pop('date_created'))
         if 'date_modified' in attrs and attrs['date_modified']:
-            self.date_modified = awaretime.utc_from_isoformat(attrs.pop('date_modified'))
+            self.date_modified = awaretime.AwareDateTime.utcfromisoformat(attrs.pop('date_modified'))
         if 'data_maintenance_frequency' in attrs and attrs['data_maintenance_frequency']:
             self.data_maintenance_frequency = attrs.pop('data_maintenance_frequency')
         if 'metadata_maintenance_frequency' in attrs and attrs['metadata_maintenance_frequency']:
@@ -1866,7 +1866,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             if ' since ' in units.lower():
                 pieces = units.lower().split(' ')
                 try:
-                    epoch = awaretime.utc_from_isoformat(pieces[2].upper())
+                    epoch = awaretime.AwareDateTime.utcfromisoformat(pieces[2].upper())
                     if var.actual_min is not None:
                         self.time_coverage_start = epoch + datetime.timedelta(**{pieces[0]: var.actual_min})
                     if var.actual_max is not None:

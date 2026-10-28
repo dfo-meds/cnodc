@@ -477,7 +477,7 @@ class NetCDFCommonMapper:
             if pieces[0].lower() not in ('seconds', 'minutes', 'hours', 'days', 'weeks'):
                 raise NetCDFCommonDecoderError(f'Invalid first part of time since units: [{units}]', 1005, True)
             try:
-                epoch = awaretime.utc_from_isoformat(pieces[2])
+                epoch = AwareDateTime.utcfromisoformat(pieces[2])
             except ValueError as ex:
                 raise NetCDFCommonDecoderError(f"Invalid last part of time since units: [{units}]", 1008, True) from ex
             self._cache[key] = functools.partial(NetCDFCommonMapper._decode_time_since, epoch=epoch, increments=pieces[0].lower())

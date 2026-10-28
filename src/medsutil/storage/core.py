@@ -141,7 +141,7 @@ class StorageController:
         if 'AutomatedRelease' in md:
             kwargs['automate_release'] = md['AutomatedRelease'] == 'YES'
         if 'ReleaseDate' in md and md['ReleaseDate']:
-            kwargs['release_date'] = awaretime.utc_from_isoformat(md['ReleaseDate'])
+            kwargs['release_date'] = awaretime.AwareDateTime.utcfromisoformat(md['ReleaseDate'])
         if 'StorageTier' in md and md['StorageTier']:
             kwargs['storage_tier'] = StorageTier(md['StorageTier'])
         md.update(StorageController.build_metadata(**kwargs))

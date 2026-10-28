@@ -38,7 +38,7 @@ class UserController:
             session = NODBSession()
             session.username = user.username
             session.session_id = secrets.token_hex(32)
-            session.start_time = awaretime.utc_now()
+            session.start_time = awaretime.AwareDateTime.utcnow()
             session.expiry_time = session.start_time + datetime.timedelta(seconds=session_length)
             db.upsert_object(user)
             db.upsert_object(session)

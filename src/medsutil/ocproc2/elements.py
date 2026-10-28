@@ -354,14 +354,14 @@ class AbstractElement[X]:
 
     def to_datetime(self) -> AwareDateTime:
         """Convert this value to a datetime."""
-        return awaretime.utc_from_isoformat(t.cast(str, self.ideal().value))
+        return AwareDateTime.utcfromisoformat(t.cast(str, self.ideal().value))
 
     def to_date(self) -> datetime.date:
         """ Convert this value to a date. """
-        return datetime.date.fromisoformat(t.cast(str, self.ideal().value))
+        return AwareDateTime.utcfromisoformat(t.cast(str, self.ideal().value))
 
     def to_time(self) -> datetime.time:
-        return datetime.time.fromisoformat(t.cast(str, self.ideal().value))
+        return AwareDateTime.utcfromisoformat(t.cast(str, self.ideal().value))
 
     def to_string(self) -> str:
         return str(self.ideal().value)

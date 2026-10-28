@@ -142,7 +142,7 @@ class OpenGliderConverter:
     def __init__(self, mapping_data, halt_flag=None):
         self._mapping_data = mapping_data
         self._data_maps = {}
-        self._base_time = awaretime.utc_from_isoformat('1970-01-01T00:00:00')
+        self._base_time = awaretime.AwareDateTime.utcfromisoformat('1970-01-01T00:00:00')
         self._halt = halt_flag
         self._log = zrlog.get_logger('cnodc.gliders.ego_convert')
 
@@ -197,7 +197,7 @@ class OpenGliderConverter:
         self._build_deployment_info(open_nc, original_nc, platform, start_time, md_mission)
         self._build_glider_info(open_nc, original_nc, platform, md_platform)
         self._build_phase_info(open_nc, original_nc)
-        open_nc.setncattr('date_created', awaretime.utc_now().strftime('%Y%m%dT%H%M%SZ'))
+        open_nc.setncattr('date_created', awaretime.AwareDateTime.utcnow().strftime('%Y%m%dT%H%M%SZ'))
         mission_id = open_nc.getncattr('id')
         dmd.set_from_netcdf_file(open_nc)
         self._build_additional_metadata(dmd, mission_id, file_name, gzip_erddap)
@@ -473,7 +473,7 @@ class OpenGliderConverter:
             period, _, epoch = getattr(juld_var, 'units').split(' ', maxsplit=2)
             if period not in ('seconds', 'minutes', 'hours', 'days'):
                 raise ValueError(f'invalid period [{period}]')
-            return period, awaretime.utc_from_isoformat(epoch)
+            return period, awaretime.AwareDateTime.utcfromisoformat(epoch)
         except Exception as ex:
             raise GliderError('JULD variable is missing or has invalid units', 2006) from ex
 
@@ -663,11 +663,11 @@ class OpenGliderConverter:
             raise GliderError(f"Missing mandatory variable [DEPLOYMENT_START_DATE]", 2014)
         deploy_start = netcdf_bytes_to_string(original_nc.variables['DEPLOYMENT_START_DATE'][:]).strip()
         if len(deploy_start) == 8:
-            return awaretime.utc_from_string(deploy_start, '%Y%m%d')
+            return AwareDateTime.utcstrptime(deploy_start, '%Y%m%d')
         elif len(deploy_start) == 12:
-            return awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M')
+            return AwareDateTime.utcstrptime(deploy_start, '%Y%m%d%H%M')
         elif len(deploy_start) == 14:
-            return awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M%S')
+            return AwareDateTime.utcstrptime(deploy_start, '%Y%m%d%H%M%S')
         else:
             raise GliderError(f"Unknown date format for [{deploy_start}]", 2008)
 
@@ -678,11 +678,11 @@ class OpenGliderConverter:
         if not deploy_start:
             return None
         if len(deploy_start) == 8:
-            return awaretime.utc_from_string(deploy_start, '%Y%m%d')
+            return AwareDateTime.utcstrptime(deploy_start, '%Y%m%d')
         elif len(deploy_start) == 12:
-            return awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M')
+            return AwareDateTime.utcstrptime(deploy_start, '%Y%m%d%H%M')
         elif len(deploy_start) == 14:
-            return awaretime.utc_from_string(deploy_start, '%Y%m%d%H%M%S')
+            return AwareDateTime.utcstrptime(deploy_start, '%Y%m%d%H%M%S')
         else:
             raise GliderError(f"Unknown date format for [{deploy_start}]", 2023)
 

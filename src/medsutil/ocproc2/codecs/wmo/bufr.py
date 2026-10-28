@@ -621,13 +621,14 @@ class _Bufr4Decoder:
             'BUFRIsObservation': 1 if self.message.is_observation.value else 0,
             'CNODCIsBroadcast': 1,
             'CNODCDataMode': 'RT',
-            'BUFRMessageTime': awaretime.utc_awaretime(
+            'BUFRMessageTime': awaretime.AwareDateTime(
                 year=self.message.year.value,
                 month=self.message.month.value,
                 day=self.message.day.value,
                 hour=self.message.hour.value,
                 minute=self.message.minute.value,
-                second=self.message.second.value
+                second=self.message.second.value,
+                tzinfo="Etc/UTC"
             ).isoformat()
         }
         for n in range(0, self.message.n_subsets.value):

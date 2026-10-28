@@ -71,6 +71,7 @@ class GtsCodec(BaseCodec):
     def _decode_messages(self, data: ct.ByteStrings, options: dict) -> t.Iterable[DecodeResult]:
         reader = ByteSequenceReader(data)
         s = options.get('skip_to_message_idx', None)
+        skip_all = options.get("no_decode", False)
         rdate = options.get("received_date", None)
         header_data_type_allow_list = options.get("allow_headers", None)
         if isinstance(header_data_type_allow_list, str):
@@ -82,7 +83,7 @@ class GtsCodec(BaseCodec):
             x = self._attempt_decode_next_gts_message(
                 reader=reader,
                 header=header,
-                skip_decode=skip_to is not None and (skip_to > current_idx),
+                skip_decode=skip_all or (skip_to is not None and (skip_to > current_idx)),
                 received_date=rdate,
                 allow_headers=header_data_type_allow_list or None
             )
@@ -95,7 +96,7 @@ class GtsCodec(BaseCodec):
         reader.lstrip(GtsCodec.WHITESPACE)
         while not reader.at_eof():
             test_line = reader.peek_line(True).decode('ascii', 'replace')
-            if self._is_gts_header(test_line):
+            if self.is_gts_header(test_line):
                 header = reader.consume_line(True).decode('ascii')
             reader.lstrip(GtsCodec.WHITESPACE)
             yield current_idx, header
@@ -145,7 +146,8 @@ class GtsCodec(BaseCodec):
             self.log.info(f"Discarding line %s, [%s] is excluded as a message header", discard_line.decode('ascii', 'replace'), header)
         return None
 
-    def _is_gts_header(self, s: str) -> bool:
+    @staticmethod
+    def is_gts_header(s: str) -> bool:
         s = s.strip(GtsCodec.WHITESPACE.decode('ascii'))
         # Format is one of:
         # AAAA## AAAA ######

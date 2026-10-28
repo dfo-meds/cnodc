@@ -237,7 +237,7 @@ class ParentRecord(BaseRecord):
             test_protocol,
             test_name,
             test_version,
-            test_time or awaretime.utc_now(),
+            test_time or awaretime.AwareDateTime.utcnow(),
             outcome,
             messages,
             notes,
@@ -296,7 +296,7 @@ class ParentRecord(BaseRecord):
                           change_time: t.Optional[AwareDateTime] = None):
         self.history.append(HistoryEntry(
             message,
-            change_time or awaretime.utc_now(),
+            change_time or awaretime.AwareDateTime.utcnow(),
             source_name,
             source_version,
             source_instance,

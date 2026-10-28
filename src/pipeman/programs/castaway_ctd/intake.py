@@ -1,6 +1,7 @@
 import gzip
 import shutil
 
+from medsutil.awaretime import AwareDateTime
 from pipeman.processing.workflow import FilePayload
 from pipeman.processing.payload_worker import FileWorkflowWorker
 from pipeman.processing.queue_worker import QueueItemResult
@@ -17,7 +18,7 @@ import math
 import medsutil.awaretime as awaretime
 
 
-REF_TIME = awaretime.utc_awaretime(1950, 1, 1, 0, 0, 0)
+REF_TIME = awaretime.AwareDateTime(1950, 1, 1, 0, 0, 0)
 
 
 METADATA_KEYS = {
@@ -259,7 +260,7 @@ class CastawayData:
         if '% Cast time (UTC)' not in self._metadata:
             raise CNODCError("Missing % Cast time (UTC) parameter", "CASTAWAY", 1008)
         try:
-            _ = awaretime.utc_from_string(self._metadata['% Cast time (UTC)'], '%m/%d/%Y %H:%M')
+            _ = AwareDateTime.utcstrptime(self._metadata['% Cast time (UTC)'], '%m/%d/%Y %H:%M')
         except ValueError:
             raise CNODCError("Invalid date/time for cast time", "CASTAWAY", 1009)
         for x in ('% Electronics calibration date', '% Conductivity calibration date', '% Temperature calibration date', '% Pressure calibration date'):
@@ -269,12 +270,12 @@ class CastawayData:
                 continue
             if self._metadata[x].count('-') == 2:
                 try:
-                    _ = awaretime.utc_from_string(self._metadata[x], '%Y-%m-%d')
+                    _ = AwareDateTime.utcstrptime(self._metadata[x], '%Y-%m-%d')
                 except ValueError:
                     raise CNODCError(f"Invalid date/time for [{x}], should be %Y-%m-%d", "CASTAWAY", 1010)
             elif self._metadata[x].count('/') == 2:
                 try:
-                    _ = awaretime.utc_from_string(self._metadata[x], '%m/%d/%Y')
+                    _ = AwareDateTime.utcstrptime(self._metadata[x], '%m/%d/%Y')
                 except ValueError:
                     raise CNODCError(f"Invalid date/time for [{x}], should be %m/%d/%Y", "CASTAWAY", 1011)
             else:
@@ -415,14 +416,14 @@ class CastawayData:
     def _datetime_str_to_int(self, val: t.Optional[str], fill_value=None):
         if val is None or val == '':
             return fill_value
-        dt = awaretime.utc_from_string(val, '%m/%d/%Y %H:%M')
+        dt = AwareDateTime.utcstrptime(val, '%m/%d/%Y %H:%M')
         # Minutes since REF_TIME (reduce towards 0 if seconds present)
         return int(math.floor((dt - REF_TIME).total_seconds() / 60.0))
 
     def _date_to_str(self, val: t.Optional[str], fill_value=None):
         if val is None or val == '':
             return fill_value
-        dt = awaretime.utc_from_string(val, '%Y-%m-%d' if '-' in val else '%m/%d/%Y')
+        dt = AwareDateTime.utcstrptime(val, '%Y-%m-%d' if '-' in val else '%m/%d/%Y')
         if dt.year > 1600:
             return dt.strftime('%Y-%m-%d')
         else:

@@ -26,7 +26,7 @@ class DecodeResult:
                  records: t.Optional[list[ParentRecord]] = None,
                  exc: t.Optional[Exception] = None,
                  message_idx: int = 0,
-                 original: t.ByteString | None = None,
+                 original: bytes | bytearray | None = None,
                  skipped: bool = False,
                  single_message: bool = False):
         self.records: t.Optional[list[ParentRecord]] = records
@@ -34,7 +34,7 @@ class DecodeResult:
         self.from_exception: t.Optional[Exception] = exc
         self.single_message: bool = single_message
         self.message_idx: int = message_idx
-        self.original: t.ByteString | None = original
+        self.original: bytes | bytearray | None = original
         self.skipped = skipped
 
     def __repr__(self):  # pragma: no coverage (debugging only)

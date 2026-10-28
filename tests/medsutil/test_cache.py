@@ -57,11 +57,11 @@ class TestLRUCache(BaseTestCase):
     def test_prune_cache(self):
         x = LeastRecentCache(2)
         x._values['five'] = 5
-        x._value_set_times['five'] = AwareDateTime(2015, 1, 2, 3, 4, 7)
+        x._value_used_times['five'] = AwareDateTime(2015, 1, 2, 3, 4, 7)
         x._values['six'] = 6
-        x._value_set_times['six'] = AwareDateTime(2015, 1, 2, 3, 4, 5)
+        x._value_used_times['six'] = AwareDateTime(2015, 1, 2, 3, 4, 5)
         x._values['seven'] = 7
-        x._value_set_times['seven'] = AwareDateTime(2015, 1, 2, 3, 4, 6)
+        x._value_used_times['seven'] = AwareDateTime(2015, 1, 2, 3, 4, 6)
         x.prune_cache()
         self.assertIn('five', x._values)
         self.assertIn('seven', x._values)

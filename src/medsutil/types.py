@@ -86,7 +86,7 @@ if _t.TYPE_CHECKING:
     """ Type hint for something that is a datetime.date or a string that can be loaded. """
 
     # Binary type hints
-    ByteStrings = _t.Iterable[_t.ByteString]
+    ByteStrings = _t.Iterable[bytes | bytearray]
     """ Type hint for a iterable of byte strings. """
 
     # Path type hints

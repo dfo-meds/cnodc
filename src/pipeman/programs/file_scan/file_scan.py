@@ -131,7 +131,7 @@ class FileScanTask(ScheduledTask):
                             'source': self.process_full_id,
                             'scan-batch': batch_id,
                             'scan-target': scan_target.path(),
-                            'scanned-time': awaretime.utc_now().isoformat(),
+                            'scanned-time': awaretime.AwareDateTime.utcnow().isoformat(),
                         })
                         sf_identifier = ""
                         if sf_identifier_add_filename:
@@ -252,7 +252,7 @@ class FileDownloadWorker(PayloadWorker[NewFilePayload]):
                 if 'scanned-time' in metadata:
                     metadata['last-modified-date'] = metadata['scanned-time']
                 else:
-                    metadata['last-modified-date'] = awaretime.utc_now()
+                    metadata['last-modified-date'] = awaretime.AwareDateTime.utcnow()
             else:
                 metadata['last-modified-date'] = md.isoformat()
 

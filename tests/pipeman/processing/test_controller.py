@@ -13,7 +13,7 @@ from pipeman.processing.workflow import WorkflowController
 from pipeman.processing.payloads import WorkflowPayload, FilePayload, BatchPayload
 from nodb.queue import NODBQueueItem
 from medsutil.exceptions import CodedError
-from medsutil.awaretime import from_timestamp
+from medsutil.awaretime import AwareDateTime
 from tests.helpers.base_test_case import BaseTestCase, InjectableDict
 
 
@@ -410,7 +410,7 @@ class TestWorkflowController(BaseTestCase):
         file = LocalHandle(self.temp_dir / "hello.txt")
         with open(file.path(), 'w') as h:
             h.write("hello")
-        m_time = from_timestamp((self.temp_dir / 'hello.txt').stat().st_mtime)
+        m_time = AwareDateTime.utcfromtimestamp((self.temp_dir / 'hello.txt').stat().st_mtime)
         workflow._queue_working_file(
             working_file=file,
             metadata={

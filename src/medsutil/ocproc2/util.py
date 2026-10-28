@@ -28,12 +28,12 @@ if t.TYPE_CHECKING:
     import decimal
     import datetime
     import medsutil.types as ct
-    type _SupportedStorage = None | str | float | int | bool
-    type SupportedStorage = _SupportedStorage | list[SupportedStorage] | dict[str, SupportedStorage]
     type _SupportedValue = None | str | float | int | bool | datetime.date | decimal.Decimal
     type SupportedValue = _SupportedValue | t.Iterable[SupportedValue] | t.Mapping[ct.SupportsString, SupportedValue]
     type ObjectWithMetadata = ocproc2.AbstractElement | ocproc2.BaseRecord | ocproc2.RecordSet
 
+type _SupportedStorage = None | str | float | int | bool
+type SupportedStorage = _SupportedStorage | list[SupportedStorage] | dict[str, SupportedStorage]
 
 class QualityError(Exception): ...
 
