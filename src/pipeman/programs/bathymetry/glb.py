@@ -27,7 +27,7 @@ class GreatLakesBathymetry(FastGeoGrid):
         self._glb_range = 1 / math.sqrt(3)  # m - over most years, the lakes vary within +/- 1 m which gives us this sigma
 
     def get_bathymetry(self, longitude: float, latitude: float) -> ScienceNumber | None:
-        coords = self.get_grid_coordinates(longitude, latitude, 0)
+        coords = self.get_coordinates(longitude, latitude, 0)
         if coords is None:
             return None
         bytes_value = self.get_bytes_value(coords)

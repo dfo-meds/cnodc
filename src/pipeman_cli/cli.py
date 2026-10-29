@@ -1,11 +1,11 @@
 import typing as t
-import click
 
 
 def build_cli():
     from pipeman.boot import init_pipeman
 
     init_pipeman('cli', no_mp=True)
+    import click
 
     commands: dict[str, click.Command | click.Group] = {}
 
@@ -42,8 +42,11 @@ def build_cli():
     import pipeman_cli.platforms as platforms
     commands["platforms"] = t.cast(click.Group, platforms.platforms)
 
-    from medsutil.multiclick import CommandLineInterface
-    return CommandLineInterface(None, commands)
+    from gcclick.clicksystem import ClickApp
+    click_app = ClickApp(None)
+    click_app.update_commands(commands)
+    return click_app
+
 
 
 if __name__ == "__main__":

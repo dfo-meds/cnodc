@@ -50,7 +50,7 @@ class WorldOceanAtlasOneDegree(FastGeoGrid):
         self._units = units
 
     def get_value(self, longitude: float, latitude: float, depth: float) -> ScienceNumber | None:
-        coords = self.get_grid_coordinates(longitude, latitude, depth)
+        coords = self.get_coordinates(longitude, latitude, depth)
         if coords is None:
             return None
         byte_value = self.get_bytes_value(coords)
@@ -74,10 +74,10 @@ class WorldOceanAtlasOneDegree(FastGeoGrid):
                     if line.startswith("#"):
                         continue
                     row = line.split(",")
-                    y_coord = atlas.get_latitude_coordinate(float(row[0]))
+                    y_coord = atlas.get_y_coordinate(float(row[0]))
                     if y_coord is None:
                         continue
-                    x_coord = atlas.get_longitude_coordinate(float(row[1]))
+                    x_coord = atlas.get_x_coordinate(float(row[1]))
                     if x_coord is None:
                         continue
                     for depth_idx in range(2, len(row)):

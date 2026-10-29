@@ -1,9 +1,12 @@
-from medsutil import json
+""" Provides the SaveData class which keeps a mapping of data saved on the hard drive. """
+
 import pathlib
 import typing as t
-import medsutil.types as mt
 
 import zrlog
+
+from medsutil import json
+import medsutil.types as mt
 
 
 class SaveData:
@@ -15,6 +18,10 @@ class SaveData:
     """
 
     def __init__(self, save_file: t.Union[str, pathlib.Path, None], raise_on_save_fail: bool = False):
+        """
+        :param save_file: The path of the save file.
+        :param raise_on_save_fail: If True, failure to save data is an error.
+        """
         self._save_file = pathlib.Path(save_file) if isinstance(save_file, str) else save_file
         self._file_loaded: bool = False
         self._save_failed: bool = False

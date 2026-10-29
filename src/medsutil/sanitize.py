@@ -1,21 +1,20 @@
+""" Basic coercion and sanitization functions. """
 import base64
 import datetime
 import enum
 import math
 import typing as t
-
 import unicodedata
 from decimal import Decimal
 
-
 from medsutil import json as json
 from medsutil.awaretime import AwareDateTime
+from medsutil.math import is_science_number
 
 if t.TYPE_CHECKING:
     import numpy as np
     import numpy.typing as npt
     from numpy.ma.core import MaskedConstant, MaskedArray
-    from uncertainties import UFloat
     import medsutil.types as ct
 
 
@@ -27,6 +26,7 @@ UNICODE_DASHES = "\u058A\u05BE\u1806\u2010\u2011\u2012\u2013\u2014\u2015\u2E3A\u
 
 
 def clean_wmo_id(wmo_id: str) -> str | None:
+    """ Converts a WMO ID to its 7 character form. """
     if not wmo_id:
         return None
     wmo_id = str(wmo_id)
@@ -42,6 +42,7 @@ def clean_wmo_id(wmo_id: str) -> str | None:
 
 
 def clean_wigos_id(wigos_id: str) -> str | None:
+    """ Converts a WIGOS ID to its A-B-C-D form. """
     if not wigos_id:
         return None
     pieces = [x.strip() for x in wigos_id.split("-")]
@@ -91,14 +92,15 @@ class DataCoercer:
 
     @staticmethod
     def as_float(f: ct.AcceptAsFloat) -> float:
-        from uncertainties.core import AffineScalarFunc
-        if isinstance(f, AffineScalarFunc):
-            return f.nominal_value
+        """ Converts to a float. """
+        if is_science_number(f):
+            return float(f.nominal_value)
         else:
             return float(f)
 
     @staticmethod
     def nc_bytes_as_string(byte_sequence: str | t.ByteString, encoding='utf-8') -> str:
+        """ Converts a NetCDF byte sequence to a string. """
         if isinstance(byte_sequence, str):
             return DataCoercer.as_normalized_string(byte_sequence)
         return DataCoercer.as_normalized_string(
@@ -110,8 +112,8 @@ class DataCoercer:
 
     @staticmethod
     def string_as_nc_bytes(s: t.Sequence[str] | str, fixed_len: int = None) -> npt.NDArray:
-        import numpy as np
         """ Converts a string (or a sequence of strings) into a fixed- or variable-length NetCDF-compatible array. """
+        import numpy as np
         if fixed_len is not None:
             if isinstance(s, str):
                 full_array = [s[b] if b < len(s) else '\x00' for b in range(0, fixed_len)]
@@ -156,11 +158,11 @@ class DataCoercer:
 
     @t.overload
     @staticmethod
-    def numpy_as_native[T: (int, float, str, bool, Decimal, UFloat)](x: T) -> T: ...
+    def numpy_as_native[T: (int, float, str, bool, Decimal)](x: T) -> T: ...
 
     @t.overload
     @staticmethod
-    def numpy_as_native[T: (int, float, str, bool, Decimal, UFloat)](x: t.Sequence[T]) -> list[T]: ...
+    def numpy_as_native[T: (int, float, str, bool, Decimal)](x: t.Sequence[T]) -> list[T]: ...
 
     @t.overload
     @staticmethod
@@ -168,6 +170,7 @@ class DataCoercer:
 
     @staticmethod
     def numpy_as_native(x: t.Any) -> t.Any:
+        """ Converts a numpy value into native Python. """
         import numpy as np
         from numpy.ma.core import MaskedConstant, MaskedArray
         if x is None:
@@ -199,6 +202,7 @@ class DataCoercer:
 
     @staticmethod
     def as_datetime(x: ct.AcceptAsDateTime) -> datetime.datetime:
+        """ Converts an object to a datetime. """
         if isinstance(x, datetime.datetime):
             return x
         if isinstance(x, datetime.date):
@@ -207,6 +211,7 @@ class DataCoercer:
 
     @staticmethod
     def as_awaretime(x: ct.AcceptAsDateTime) -> AwareDateTime:
+        """ Converts an object to a timezone aware datetime. """
         if isinstance(x, datetime.datetime):
             return AwareDateTime.from_datetime(x)
         elif isinstance(x, datetime.date):
@@ -216,6 +221,7 @@ class DataCoercer:
 
     @staticmethod
     def as_date(x: ct.AcceptAsDateTime) -> datetime.date:
+        """ Converts an object to a date."""
         if isinstance(x, datetime.datetime):
             return x.date()
         elif isinstance(x, datetime.date):
@@ -228,6 +234,9 @@ class DataCoercer:
             obj: t.Iterable[AcceptType],
             value_coerce: t.Callable[[AcceptType], StoreType] = None,
             str_coerce: t.Callable[[str], t.Iterable[AcceptType]] = None) -> list[StoreType]:
+        """ Converts an object to a list, applying str and value coercion as well.
+            :raises ValueError: If the value cannot be converted to a list.
+        """
         if isinstance(obj, str):
             if str_coerce is not None:
                 obj = str_coerce(obj)

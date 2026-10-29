@@ -102,6 +102,27 @@ list of hosts that a request can be from
 
 
 .. confval:: gcflask.security.verify_referrer_for_get
-    :default:: ``False``
+    :default: ``False``
+
+
+.. confval:: email.host
+
+.. confval:: email.port
+.. confval:: email.local_hostname
+.. confval:: email.timeout
+.. confval:: email.username
+.. confval:: email.password
+.. confval:: email.use_ssl
+    :default: ``False``
+.. confval:: email.start_tls
+    :default: ``False``
+.. confval:: email.send_from
+    :default: no-reply@example.com
+.. confval:: email.no_send
+    :default: ``False``
+.. confval:: email.admin_emails
+    :default: ``[]``
+.. confval:: email.template_folders
+
 
 

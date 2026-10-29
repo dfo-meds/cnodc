@@ -1,3 +1,4 @@
+""" Helper functions to get the first non-None non-empty string items. """
 import itertools
 import medsutil.types as ct
 

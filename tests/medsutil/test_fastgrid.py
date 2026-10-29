@@ -53,9 +53,9 @@ class TestFastGrid(BaseTestCase):
     ])
     def test_get_longitude_coordinate(self, coordinate: float, expected: int | None):
         if expected is None:
-            self.assertIsNone(self.fastgrid.get_longitude_coordinate(coordinate))
+            self.assertIsNone(self.fastgrid.get_x_coordinate(coordinate))
         else:
-            self.assertEqual(expected, self.fastgrid.get_longitude_coordinate(coordinate))
+            self.assertEqual(expected, self.fastgrid.get_x_coordinate(coordinate))
 
     @sub_tests([
         (-21, None),
@@ -77,9 +77,9 @@ class TestFastGrid(BaseTestCase):
     ])
     def test_get_latitude_coordinate(self, coordinate: float, expected: int | None):
         if expected is None:
-            self.assertIsNone(self.fastgrid.get_latitude_coordinate(coordinate))
+            self.assertIsNone(self.fastgrid.get_y_coordinate(coordinate))
         else:
-            self.assertEqual(expected, self.fastgrid.get_latitude_coordinate(coordinate))
+            self.assertEqual(expected, self.fastgrid.get_y_coordinate(coordinate))
 
     @sub_tests([
         (0, 0),
@@ -93,9 +93,9 @@ class TestFastGrid(BaseTestCase):
     ])
     def test_get_depth_coordinate(self, coordinate: float, expected: int | None):
         if expected is None:
-            self.assertIsNone(self.fastgrid.get_depth_coordinate(coordinate))
+            self.assertIsNone(self.fastgrid.get_z_coordinate(coordinate))
         else:
-            self.assertEqual(expected, self.fastgrid.get_depth_coordinate(coordinate))
+            self.assertEqual(expected, self.fastgrid.get_z_coordinate(coordinate))
 
     @sub_tests([
         (0, -20, 0, (0, 0, 0)),
@@ -105,9 +105,9 @@ class TestFastGrid(BaseTestCase):
     ])
     def test_get_grid_coordinates(self, lon: float, lat: float, depth: float, expected: tuple[int, int, int] | None):
         if expected is None:
-            self.assertIsNone(self.fastgrid.get_grid_coordinates(lon, lat, depth))
+            self.assertIsNone(self.fastgrid.get_coordinates(lon, lat, depth))
         else:
-            self.assertEqual(self.fastgrid.get_grid_coordinates(lon, lat, depth), expected)
+            self.assertEqual(self.fastgrid.get_coordinates(lon, lat, depth), expected)
 
     @sub_tests([
         (x, y, z, build_value(x, y, z))

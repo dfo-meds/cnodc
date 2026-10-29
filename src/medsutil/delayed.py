@@ -1,3 +1,4 @@
+""" Provides a sentinel value that indicates a new object should be built. """
 import typing as t
 import uuid
 

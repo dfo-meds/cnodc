@@ -1,5 +1,5 @@
+""" Handles loading Python objects by their fully-qualified name. """
 import importlib
-import pathlib
 import types
 import typing as t
 
@@ -9,6 +9,7 @@ class DynamicObjectLoadError(CodedError):  CODE_SPACE = 'DOBJ'
 
 
 def dynamic_name(__obj: object | type | types.FunctionType | types.ModuleType) -> str:
+    """ Returns the fully-qualified name of a Python object. """
     if not isinstance(__obj, (type, types.FunctionType, types.ModuleType)):
         __obj = type(__obj)
     module = __obj.__module__
@@ -19,6 +20,11 @@ def dynamic_name(__obj: object | type | types.FunctionType | types.ModuleType) -
 
 
 def dynamic_object(cls_name: str) -> t.Any:
+    """
+        Returns a Python object by its fully-qualified name.
+
+        :raises: DynamicObjectLoadError: When there is no such object.
+    """
     if cls_name is None or "." not in cls_name:
         raise DynamicObjectLoadError(f"Object name should be in format package.class [got: {cls_name}]", 1000)
     package_dot_pos = cls_name.rfind(".")

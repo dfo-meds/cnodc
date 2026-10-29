@@ -118,16 +118,16 @@ class QCInfo:
         )
 
 
-class QCInfoMap(LazyLoadDict[QCInfo]):
+class QCInfoMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], QCInfo]):
 
     def __init__(self):
-        super().__init__(QCInfo.build_from_mapping)
+        super().__init__()
 
-    def to_mapping(self) -> dict[str, ExportQCInfo]:
-        return {
-            k: v.to_mapping()
-            for k, v in self.items()
-        }
+    def _load_item(self, value: dict[str, ct.SupportsExtendedJson]) -> QCInfo:
+        return QCInfo.build_from_mapping(value)
+
+    def _unload_item(self, value: QCInfo) -> dict[str, ct.SupportsExtendedJson]:
+        return value.to_mapping()
 
 
 class AbstractElement[X]:
@@ -636,13 +636,19 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
             }
 
 
-class ElementMap(LazyLoadDict[AbstractElement]):
+class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractElement]):
     """Represents a map of element names to values"""
 
     __slots__ = ('map', '_lazy')
 
     def __init__(self):
-        super().__init__(AbstractElement.build_from_mapping)
+        super().__init__()
+
+    def _load_item(self, value: dict[str, ct.SupportsExtendedJson]) -> AbstractElement:
+        return AbstractElement.build_from_mapping(value)
+
+    def _unload_item(self, value: AbstractElement) -> dict[str, ct.SupportsExtendedJson]:
+        return value.to_mapping()
 
     def find_child(self, path: list[str]):
         """Locate an element using an OCPROC2 path expression."""

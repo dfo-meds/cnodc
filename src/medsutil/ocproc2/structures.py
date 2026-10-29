@@ -166,14 +166,33 @@ class ChildRecord(BaseRecord):
     pass
 
 
+class HistoryList(LazyLoadList[dict[str, ct.SupportsExtendedJson], HistoryEntry]):
+
+    def _load_item(self, item: dict) -> HistoryEntry:
+        return HistoryEntry.from_mapping(item)
+
+    def _unload_item(self, item: HistoryEntry) -> dict:
+        return item.to_mapping()
+
+
+class QCTestInfoList(LazyLoadList[dict[str, ct.SupportsExtendedJson], QCTestRunInfo]):
+
+    def _load_item(self, item: dict) -> QCTestRunInfo:
+        return QCTestRunInfo.from_mapping(item)
+
+    def _unload_item(self, item: QCTestRunInfo) -> dict:
+        return item.to_mapping()
+
+
 class ParentRecord(BaseRecord):
 
     __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', 'history', 'qc_tests', '_qc_info')
 
     def __init__(self):
         super().__init__()
-        self.history: LazyLoadList[HistoryEntry] = LazyLoadList(HistoryEntry.from_mapping)
-        self.qc_tests: LazyLoadList[QCTestRunInfo] = LazyLoadList(QCTestRunInfo.from_mapping)
+        self.history: HistoryList = HistoryList()
+        self.qc_tests: QCTestInfoList = QCTestInfoList()
+
 
     def deepcopy(self) -> ParentRecord:
         return ParentRecord.build_from_mapping(self.to_mapping())

@@ -31,7 +31,7 @@ class GEBCOBathymetry(FastGeoGrid):
         self._gebco_std_dev = 300
 
     def get_bathymetry(self, longitude: float, latitude: float) -> ScienceNumber | None:
-        coords = self.get_grid_coordinates(longitude, latitude, 0)
+        coords = self.get_coordinates(longitude, latitude, 0)
         if coords is None:
             return None
         bytes_value = self.get_bytes_value(coords)

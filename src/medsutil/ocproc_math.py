@@ -8,14 +8,16 @@
     units and scales, then applies an appropriate equation to obtain a
     result.
 """
-import medsutil.ocproc2 as ocproc2
 import typing as t
+
+import medsutil.ocproc2 as ocproc2
 import medsutil.seawater as seawater
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2.util import check_quality, RequiredQuality
 from medsutil.seawater import TemperatureScale
 from medsutil.units.units import convert
 import medsutil.math as amath
+
 
 ValQualUnits = tuple[t.Any, int, t.Optional[str]]
 
@@ -25,6 +27,7 @@ def extract_parameter_value(parameter_name: str,
                             units: str | None,
                             required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
                             obs_date: AwareDateTime | None = None) -> amath.AnyNumber | None:
+    """ Given a parameter name and an element, extracts an appropriate value if it has the required quality. """
     if units is not None:
         required_quality = required_quality | RequiredQuality.HAS_UNITS
     check_quality(element, required_quality)

@@ -3,7 +3,6 @@ import typing as _t
 import os as _os
 
 if _t.TYPE_CHECKING:
-    from uncertainties import UFloat as _ufloat
     import datetime as _datetime
     import collections.abc as _abc
     import uuid as _uuid
@@ -69,10 +68,10 @@ if _t.TYPE_CHECKING:
     AcceptAsEnum = _AcceptAsEnum
     """ Type hint for an enum or its value. """
 
-    AcceptAsInteger = int | _t.SupportsIndex | _t.SupportsInt | str | _abc.Buffer | _ufloat
+    AcceptAsInteger = int | _t.SupportsIndex | _t.SupportsInt | str | _abc.Buffer
     """ Type hint for something that can be accepted as an integer. """
 
-    AcceptAsFloat = int | _t.SupportsIndex | _t.SupportsFloat | str | _abc.Buffer | float | _ufloat
+    AcceptAsFloat = int | _t.SupportsIndex | _t.SupportsFloat | str | _abc.Buffer | float
     """ Type hint for something that can be accepted as a float. """
 
     # Time-based type hints

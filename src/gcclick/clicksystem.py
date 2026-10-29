@@ -26,6 +26,10 @@ class ClickApp(click.MultiCommand):
         """ Adds a command or command group to the app."""
         self._commands[name] = command
 
+    def update_commands(self, commands: dict[str, click.Command]):
+        """ Adds all commands to the app. """
+        self._commands.update(commands)
+
     def list_commands(self, ctx):
         """ Lists the commands in the app. """
         return self._commands.keys()

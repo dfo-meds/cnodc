@@ -1,4 +1,6 @@
 """
+    Wrapper around JSON functions for speedups and consistency.
+
     The Python JSON library is inherently slow. There are several faster options. If they are available, we will
     use them. This module provides a wrapper around either orjson or the native JSON module.
 """
@@ -12,51 +14,66 @@ import typing as t
 from medsutil.frozendict import FrozenDict
 
 try:
+    # orjson is very fast
     import orjson
 
     def _clean_for_orjson(x):
+        """ Cleans a value for JSON.
+            :raises TypeError: If the object isn't supported.
+        """
         try:
             return clean_for_json(x)
         except TypeError as ex:
             raise orjson.JSONEncodeError(f'Cannot encode object of type [{x.__class__.__name__}]') from ex
 
     def dumpb(__obj: ct.SupportsExtendedJson) -> bytes:
-        """ Returns a valid JSON string in utf-8 encoding from the given JSON-compatible object. """
+        """ Returns a JSON string in utf-8 encoding from the given JSON-compatible object. """
         return orjson.dumps(__obj, default=_clean_for_orjson)
 
     def dumps(__obj: ct.SupportsExtendedJson) -> str:
+        """ Returns a JSON string for the given object. """
         return orjson.dumps(__obj, default=_clean_for_orjson).decode('utf-8')
 
     def dumpp(__obj: ct.SupportsExtendedJson) -> str:
+        """ Returns a prettified JSON string for the given object. """
         return orjson.dumps(__obj, default=_clean_for_orjson, option=orjson.OPT_INDENT_2).decode('utf-8')
 
     def loads(__obj: ct.JsonString) -> ct.SupportsNativeJson:
+        """ Converts a JSON string into the correct object. """
         return orjson.loads(__obj)
 
 except ModuleNotFoundError:
+    # Basic json wrapper
     import json
 
     def _clean_for_json(x):
+        """ Cleans the value for JSON. """
         try:
             return clean_for_json(x)
         except TypeError:
             return None
 
     def dumpb(__obj: ct.SupportsExtendedJson) -> bytes:
-        """ Returns a valid JSON string in utf-8 encoding from the given JSON-compatible object. """
+        """ Returns a JSON string in utf-8 encoding from the given JSON-compatible object. """
         return json.dumps(__obj, default=_clean_for_json).encode('utf-8')
 
     def dumps(__obj: ct.SupportsExtendedJson) -> str:
+        """ Returns a JSON string for the given object. """
         return json.dumps(__obj, default=_clean_for_json)
 
     def dumpp(__obj: ct.SupportsExtendedJson) -> str:
+        """ Returns a prettified JSON string for the given object. """
         return json.dumps(__obj, default=_clean_for_json, indent=2)
 
     def loads(__obj: ct.JsonString) -> ct.SupportsNativeJson:
+        """ Converts a JSON string into the correct object. """
         return json.loads(__obj)
 
 
 def clean_for_json(__obj):
+    """ General clean-up function to convert to JSON.
+        :raises TypeError: If the object isn't supported.
+    """
     if __obj is None or isinstance(__obj, (str, int, float, bool)):
         return __obj
     elif isinstance(__obj, (t.Mapping, FrozenDict)):

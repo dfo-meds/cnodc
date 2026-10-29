@@ -1,9 +1,11 @@
+""" Provides an enum that accepts a tuple of values which are all equivalent."""
 import typing as t
 import collections.abc
 import sys
 import enum
 
 if sys.version_info[0] == 3 and sys.version_info[1] >= 13:
+    # this is a lot easier to do in 3.13+
 
     class MultiValuedEnum(enum.Enum):
 
@@ -30,6 +32,8 @@ if sys.version_info[0] == 3 and sys.version_info[1] >= 13:
         def _convert_value(cls, v: t.Any) -> t.Self: ...
 
 else:
+    # Our more complicated hack
+    # TODO: we can probably remove this? since we're supporting only 3.14+
 
     class MultiValuedEnum(enum.Enum):
 
@@ -74,21 +78,28 @@ else:
             self.__class__._aliases[x] = self._value_
 
 
-def variants(x: str, lowercase: bool = True, nospace: bool = True):
-    mods = []
+def variants(x: str, lowercase: bool = True, nospace: bool = True) -> tuple[str, ...]:
+    """ Given a string and the option to lowercase and/or remove spaces, generates all possible variations on it. """
+
+    mods: list[t.Callable[[str], str]] = []
     if lowercase:
-        mods.append(lambda x: x.lower())
+        mods.append(lambda y: y.lower())
     if nospace:
-        mods.append(lambda x: x.replace(' ', ''))
+        mods.append(lambda y: y.replace(' ', ''))
+
     return tuple(x for x in _combo_values(x, mods))
 
 
-def _combo_values(x, mods: list[t.Callable[[str], str]]):
+def _combo_values(x: str, mods: list[t.Callable[[str], str]]) -> t.Generator[str, None, None]:
+    """ Retrieves all possible combination of values """
     yield x
     for y in _mod_combos(mods):
         yield y(x)
 
 def _mod_combos(mods: list[t.Callable[[str], str]]) -> t.Iterable[t.Callable[[str], str]]:
+    """ Creates a power set of all the functions.
+        TODO: this function has issues, it only works with two functions not the powerset.
+    """
     for i in range(0, len(mods)):
         yield mods[i]
         for j in _mod_combos(mods[i+1:]):

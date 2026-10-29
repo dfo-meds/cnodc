@@ -1,11 +1,51 @@
+""" Provides an ISODuration class that works with durations roughly as per the ISO standard.
+
+    Note: we've taken some liberties.
+
+    - we've assumed 1 hour = 60 minutes = 3600 seconds always.
+    - we've assumed 1 year = 12 months always.
+    - we've given users the options of treating 1 day as a Julian day ( = 24 hours = 86400 seconds) or not. The default
+      is to treat is as a Julian day.
+
+    This last setting is controlled in a few places by `use_calendar_day` - when it is set to true, we use the more
+    strict ISO standard that one day means one day and not 86,400 seconds.
+
+    This therefore might be better interpreted as a Julian-day duration that is formatted like the ISO standard. In
+    practice, this is often what scientists actually mean and they almost always have the same values.
+
+    Worth also noting that DST was not considered here. It is probably best you use this on UTC times for calculating
+    durations. You may need to change the timezone of the output.
+
+    Note that this creates only a few oddities which are documented here:
+
+    - Dates before 1582 may be handled oddly. Don't rely on this module for dates before 1600.
+    - There are 27 leap seconds from 1972 to 2016 which may produce oddities. When a leap second is introduced, the
+      last minute of the day (June 30 or Dec 31 or both) has an additional second. For example, an ISO duration of
+      PT1M30S from 2016-12-31T23:58:00 might be generally expected to be 2017-01-01T00:00:30. It actually becomes
+      2017-01-01T00:00:29 because of the additional one second at 2016-12-31T23:59:60.
+      This is where the Julian vs calendar day interpretation comes into play. In the default mode, P1D from
+      2016-12-31T05:00:00 is actually 2017-01-01T04:59:59 (because of the additional second, there's actually 86,401
+      seconds to 5:00:00 the next day). With the `use_calendar_day` value set to `True`, you will obtain
+      2017-01-01T05:00:00 as might be expected.
+    - In Toronto (Eastern time), adding four hours to 2026-11-01 00:00:00-04:00 will bring you to 2026-11-01
+      04:00:00-04:00 - note that this is actually 2026-11-01 03:00:00-05:00 in civil time in Toronto due to DST ending.
+      It is probably best if you use UTC for your calculations and then convert the output to whatever timezone you
+      need.
+
+    However, assuming a calendar day might occasionally be 86,401 seconds means a duration of "one day" cannot be
+    converted into a specific number of seconds, minutes, or hours (much like "one day" can't be converted to months
+    because its either 1/28, 1/29, 1/30, or 1/31 of a month depending on the month). The addition of DST considerations
+    further adds complexity.
+
+"""
 import datetime
 import typing as t
 
 from medsutil import datadict as dd
-from medsutil.awaretime import AwareDateTime
 from medsutil.multienum import MultiValuedEnum
 
 class DurationUnit(MultiValuedEnum):
+    """ Represents different possible durations of time. """
 
     YEAR = "years", "a"
     MONTH = "months", "mon"
@@ -17,13 +57,31 @@ class DurationUnit(MultiValuedEnum):
 
 
 class ISODuration(dd.DataDictObject):
+    """ Tracks a duration value with support for ISO formatting.
+
+        .. attention::
+            Note that we use 1 year = 12 months and 1 hour = 60 minutes = 3600 minutes.
+            The class defaults to 1 day = 86400 seconds, but can be changed to assume
+            exactly one calendar day (regardless of leap seconds) is meant.
+    """
 
     years: int = dd.p_int(default=0)
+    """ Number of years """
+
     months: int = dd.p_int(default=0)
+    """ Number of months"""
+
     days: int = dd.p_int(default=0)
+    """ Number of Julian (or calendar) days """
+
     hours: int = dd.p_int(default=0)
+    """ Number of hours """
+
     minutes: int = dd.p_int(default=0)
+    """ Number of minutes """
+
     seconds: int = dd.p_int(default=0)
+    """ Number of seconds """
 
     def __eq__(self, other):
         if isinstance(other, ISODuration):
@@ -67,6 +125,7 @@ class ISODuration(dd.DataDictObject):
         return self.__add__(other)
 
     def isoformat(self) -> str:
+        """ Converts to ISO format string."""
         s = "P"
         if self.years != 0:
             s += f"{self.years}Y"
@@ -85,18 +144,23 @@ class ISODuration(dd.DataDictObject):
         return s
 
     def add_to(self, dt: datetime.date, use_calendar_days: bool = False) -> datetime.date:
+        """ Adds the duration to a given date object. """
         dt2 = dt + datetime.timedelta(
             seconds=self.time_part_total_seconds()
         )
         return self._adjust_year_month_day(dt2, self.date_part_total_months(), self.days, use_calendar_days)
 
     def subtract_from(self, dt: datetime.date, use_calendar_days: bool = False) -> datetime.date:
+        """ Subtracts the duration from a given date object.
+            :raises ValueError: If the duration cannot be represented in the given units.
+        """
         dt2 = dt - datetime.timedelta(
             seconds=self.time_part_total_seconds()
         )
         return self._adjust_year_month_day(dt2, -1 * self.date_part_total_months(), -1 * self.days, use_calendar_days)
 
     def to_duration(self, output_units: DurationUnit, use_calendar_days: bool = False) -> float:
+        """ Converts to a duration in the given units. """
         match self.years, self.months, self.days, self.hours, self.minutes, self.seconds:
             case 0, 0, 0, h, m, s:
                 return self.convert_duration_units((h * 3600) + (m * 60) + s, DurationUnit.SECONDS, output_units, use_calendar_days)
@@ -113,9 +177,11 @@ class ISODuration(dd.DataDictObject):
                 raise ValueError(f"Cannot combine months/years and days/hours/minutes/seconds when converting to a single duration: [{self.isoformat()}]")
 
     def date_part_total_months(self) -> int:
+        """ Returns the total number of months in the given duration. """
         return ((self.years or 0) * 12) + (self.months or 0)
 
     def time_part_total_seconds(self) -> int:
+        """ Returns the total number of seconds in the given duration. """
         return (
             (self.seconds or 0)
             + ((self.minutes or 0) * 60)
@@ -124,6 +190,7 @@ class ISODuration(dd.DataDictObject):
 
     @staticmethod
     def _adjust_year_month_day(dt: datetime.date, d_months: int, d_days: int, use_calendar_days: bool = False) -> datetime.date:
+        """ Adjusts a given date for a given delta of months and days. """
         if use_calendar_days:
             dt = dt + datetime.timedelta(days=d_days)
         else:
@@ -142,6 +209,9 @@ class ISODuration(dd.DataDictObject):
 
     @staticmethod
     def convert_duration_units(x: float, from_units: DurationUnit, to_units: DurationUnit, use_calendar_days: bool = False) -> float:
+        """ Converts a duration from one unit to another.
+            :raises ValueError: If the duration cannot be represented in the given units.
+        """
         match from_units, to_units:
             case DurationUnit.SECONDS, DurationUnit.SECONDS:
                 return x
@@ -229,7 +299,10 @@ class ISODuration(dd.DataDictObject):
                 raise ValueError(f"Cannot convert {from_units} to {to_units} consistently")
 
     @classmethod
-    def from_duration(cls, duration: float | int, units: DurationUnit):
+    def from_duration(cls, duration: float | int, units: DurationUnit) -> ISODuration:
+        """ Converts a duration in given units to an ISO durtion object.
+            :raises ValueError: if units is invalid
+        """
         if units is DurationUnit.YEAR:
             return ISODuration(years=duration)
         elif units is DurationUnit.MONTH:
@@ -249,6 +322,7 @@ class ISODuration(dd.DataDictObject):
 
     @classmethod
     def from_iso_format(cls, iso_duration: str) -> t.Self:
+        """ Parse an ISO duration string and returns an object. """
         tcr = iso_duration.replace("-", "").replace(":", "").upper()
         if tcr[0] != 'P':
             raise ValueError('ISO formats begin with a P')

@@ -1,3 +1,10 @@
+""" Provides a frozen dictionary that is hashable.
+
+    Note that TypeError is raised if a mutable object is present in the dictionary.
+
+    .. attention::
+        Python is introducing a native version in 3.15, we should consider replacing this.
+"""
 import collections.abc
 import copy
 import typing as t
@@ -5,6 +12,7 @@ from typing import Hashable
 
 
 class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collections.abc.Hashable):
+    """ A dictionary that cannot be modified after it is instantiated. """
 
     __slots__ = ('__keys', '__values', '__hash')
 
