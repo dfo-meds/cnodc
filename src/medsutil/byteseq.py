@@ -1,6 +1,5 @@
 """
-    Provides a buffered reader class.
-
+    Provides a buffered reader class for lazy loading from an iterable stream of bytes.
 """
 import functools
 import typing as t

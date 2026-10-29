@@ -36,7 +36,7 @@ class RequestCleanupTask(ScheduledTask):
         req_dir = self.get_requests_dir()
         if req_dir is None:
             return
-        threshold = awaretime.utc_now() - datetime.timedelta(seconds=self.get_config("max_request_age_seconds"))
+        threshold = awaretime.AwareDateTime.utcnow() - datetime.timedelta(seconds=self.get_config("max_request_age_seconds"))
         for workflow_dir in req_dir.iterdir():
             if not workflow_dir.is_dir():
                 continue
@@ -51,7 +51,7 @@ class RequestCleanupTask(ScheduledTask):
             return
         with open(timestamp_file, "r") as h:
             try:
-                dt = awaretime.utc_from_isoformat(h.read())
+                dt = awaretime.AwareDateTime.utcfromisoformat(h.read())
                 if dt > threshold:
                     return
             except ValueError as ex:

@@ -1,16 +1,16 @@
 """
-Managing Python datetimes is complex. This module provides helper functions to keep datetimes nice and tidy.
+Provides a subclass of :py:class:`datetime.datetime` that is always timezone-aware.
 
-It is assumed in this project that all date times will be aware of their timezone (that is, there are no naive times).
-Scientific data is often stored as UTC time, so the default timezone is generally going to be Etc/UTC. Sometimes datetimes
-will be the local file system time.
+The AwareDateTime class can be used exactly like `datetime.datetime` but will never return a naive datetime object.
+It also integrates with the :py:mod:`zoneinfo` module to allow timezones to be provided as a string that will be
+recognized by `zoneinfo`, e.g. `Etc/UTC`.
 
-When adding new code to this project, you should use these methods or a similar one to ensure you always have a
-timezone aware datetime object.
+The default timezone is the system defined one.
 """
 import datetime
 import zoneinfo
 import typing as t
+
 import medsutil.types as ct
 
 

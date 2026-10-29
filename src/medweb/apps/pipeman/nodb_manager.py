@@ -302,7 +302,7 @@ class NODBController:
 
     def save_record_actions(self, working_uuid: str, actions: list[dict]):
         _ = [
-            OCProc2Action.from_map(x)
+            OCProc2Action.import_from_map(x)
             for x in actions
         ]
         with self.nodb as db:

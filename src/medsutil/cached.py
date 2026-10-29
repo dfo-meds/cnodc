@@ -1,4 +1,6 @@
-""" Caching helpers """
+"""
+    Provides tools to help with caching function outputs.
+"""
 import functools
 import threading
 import typing as t

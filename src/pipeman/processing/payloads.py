@@ -140,7 +140,7 @@ class Payload(CachedObjectMixin, DataDictObject):
 
     def clone(self):
         """Create a deep copy of the payload."""
-        return Payload.from_map(copy.deepcopy(self.export()))
+        return Payload.import_from_map(copy.deepcopy(self.export()))
 
     def copy_details_from(self, payload):
         """Copy key details (workflow info and metadata and correlation_id) from another payload into this one."""
@@ -182,7 +182,7 @@ class Payload(CachedObjectMixin, DataDictObject):
     @staticmethod
     def from_queue_item(queue_item: interface.NODBQueueItem):
         """Create a workflow payload from a queue item."""
-        payload = Payload.from_map(queue_item.data)
+        payload = Payload.import_from_map(queue_item.data)
         payload.priority = queue_item.priority
         payload.deduplicate_key = queue_item.unique_item_name
         payload.subqueue_name = queue_item.subqueue_name

@@ -73,7 +73,7 @@ class ActionHistoryEntry(HistoryEntry):
                 cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (record_uuid,))
                 removed_indexes = []
                 for rowid, other_action_text in cur.fetchall():
-                    other_action = OCProc2Action.from_map(json.load_dict(other_action_text))
+                    other_action = OCProc2Action.import_from_map(json.load_dict(other_action_text))
                     if rowid in remove_actions or any(other_action.conflicts_with(action) for action in new_actions):
                         removed_indexes.append(rowid)
                         removed_actions.append((record_uuid, other_action))
@@ -709,7 +709,7 @@ class ApplicationState:
             cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
             self._current_actions = {}
             for rowid, action in cur.fetchall():
-                operation = OCProc2Action.from_map(json.load_dict(action))
+                operation = OCProc2Action.import_from_map(json.load_dict(action))
                 operation.apply(self._current_parent)
                 self._current_actions[rowid] = operation
 

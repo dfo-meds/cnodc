@@ -27,7 +27,7 @@ class QCForwardWorker(WorkflowWorker):
                 if actions is None:
                     continue
                 loaded_actions = [
-                    OCProc2Action.from_map(t.cast(dict, action)) for action in t.cast(list, actions)
+                    OCProc2Action.import_from_map(t.cast(dict, action)) for action in t.cast(list, actions)
                 ]
                 record = working_record.record
                 qc_result = QCTestRunInfo(

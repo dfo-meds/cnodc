@@ -378,7 +378,7 @@ class CNODCServerAPI:
 
                 is_saved = False
                 if response["proposed_actions"] is not None:
-                    proposed_actions = [OCProc2Action.from_map(x) for x in response["proposed_actions"]]
+                    proposed_actions = [OCProc2Action.import_from_map(x) for x in response["proposed_actions"]]
                     is_saved = True
                 else:
                     proposed_actions = build_default_actions(record)

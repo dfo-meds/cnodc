@@ -1,4 +1,6 @@
-""" Cron specification interpreter.
+"""
+Provides an interpreter and helper class for cron times.
+
 A cron task runs when the time exactly matches the cron specification. This class parses a specification
 so that it can decide if it is time to run a task.
 

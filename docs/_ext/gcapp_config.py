@@ -21,7 +21,6 @@ class GCConfigListDirective(SphinxDirective):
 
 
 def process_config_nodes(app: Sphinx, doctree, fromdocname):
-    app.
     if not hasattr(app.env, "gcconfig_all_config"):
         app.env.gcconfig_all_config = []
 

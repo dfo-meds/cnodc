@@ -82,14 +82,14 @@ class ProductDefinition(s.MetadataMixin, s.NODBBaseObject):
         if "product_rule" in config:
             rule = config.pop("product_rule")
             if rule:
-                self.product_rule = ProductRule.from_map(rule)
+                self.product_rule = ProductRule.import_from_map(rule)
         self.metadata.update(config)
 
     @property
     def product_rule(self) -> ProductRule | None:
         if self._product_rule is None:
             return None
-        return ProductRule.from_map(self._product_rule)
+        return ProductRule.import_from_map(self._product_rule)
 
     @product_rule.setter
     def product_rule(self, value: ProductRule):

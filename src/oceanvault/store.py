@@ -106,7 +106,7 @@ class SecretVault:
         if not isinstance(data_dict, dict):
             raise VaultError('Invalid secret info, not a dict', 2000)
         for key in data_dict:
-            secret = BaseSecret.from_map(data_dict[key])
+            secret = BaseSecret.import_from_map(data_dict[key])
             temp[secret.path] = secret
             secret.set_vault(self)
         self._secrets = temp
