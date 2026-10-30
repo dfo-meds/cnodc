@@ -1,4 +1,29 @@
-""" Email sending functions."""
+""" Support for sending emails.
+
+Emails can be sent in either "immediate" or "delayed" mode.
+
+Delayed mode is supported by a controller that should store the keyword arguments
+(which are JSON-ready) and send them using a thread or separate process. The default
+is to just immediately send the emails if no delayed mode is available.
+
+Emails can be built from templates using the jinja2 engine.
+
+To send an email, inject EmailController where you need it and use either send_template or send_email:
+
+::
+
+    from autoinject import injector, auto
+    from medsutil.sendmail import EmailController
+
+    @injector.construct
+    class MyObject:
+
+        emails: EmailController = auto()
+
+        def do_stuff(self):
+            self.emails.send_email("Subject", "Text", to_emails=["noone@example.com"])
+
+"""
 import pathlib
 import ssl
 import typing as t

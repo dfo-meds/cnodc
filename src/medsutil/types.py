@@ -128,13 +128,17 @@ if _t.TYPE_CHECKING:
 
 
 def is_binary_writable(obj: _t.Any) -> _t.TypeIs[SupportsBinaryWrite]:
+    """ Checks if an object is writable. """
     return hasattr(obj, 'write') and hasattr(obj, 'writable') and obj.writable()
 
 def is_binary_readable(obj: _t.Any) -> _t.TypeIs[SupportsBinaryRead]:
+    """ Checks if an object is readable. """
     return hasattr(obj, 'read') and hasattr(obj, 'readable') and obj.readable()
 
 def is_binary_seekable(obj: _t.Any) -> _t.TypeIs[SupportsBinarySeek]:
+    """ Checks if an object is seekable. """
     return hasattr(obj, 'tell') and hasattr(obj, 'seek') and hasattr(obj, 'seekable') and obj.seekable()
 
 def is_local_path(obj: _t.Any) -> _t.TypeIs[_os.PathLike | str]:
+    """ Checks if an object is like a local path. """
     return isinstance(obj, (str, _os.PathLike))
