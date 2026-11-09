@@ -17,12 +17,12 @@ import medsutil.awaretime as awaretime
 
 from medsutil.sanitize import coerce
 import medsutil.ocproc2.util as ocut
-
+import medsutil.types as ct
 UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
 
 if t.TYPE_CHECKING:
     from medsutil.iso_duration import ISODuration
-    import medsutil.types as ct
+
     type SupportedValueOrElement = ocut.SupportedValue | AbstractElement
     DefaultValueDict = dict[str, SupportedValueOrElement]
 

@@ -2,11 +2,11 @@ CNODC Data Management Tools
 ===========================
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
-   src/pipeman/index
-   src/nodb/index
-   src/config/index
+   src/users/index
+   src/devs/index
+   src/admins/index
    src/api/index
 

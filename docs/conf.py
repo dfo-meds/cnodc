@@ -23,10 +23,28 @@ sys.path.append(str(pathlib.Path(__file__).resolve().absolute().parent.parent / 
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx.ext.apidoc",
 ]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+apidoc_modules = [
+    {"path": f"../src/{x}", "destination": f"src/api/{x}"}
+    for x in [
+        "dmd",
+        "gcapp",
+        "gcclick",
+        "gcflask",
+        "medsutil",
+        "medweb",
+        "nodb",
+        "pipeman",
+        "pipeman_cli",
+        "pipeman_desktop",
+        "pipeman_service",
+        "tkintermapview",
+    ]
+]
 
 
 
