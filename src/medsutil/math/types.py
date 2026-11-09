@@ -1,19 +1,28 @@
-import decimal
 import typing as t
 import decimal as _decimal
+
 
 T = t.TypeVar('T')
 
 
-class NotSupportedMathOperation(ValueError): ...
+class NotSupportedMathOperation(ValueError):
+    """ An error for when there is a math error"""
+    ...
+
+
+class MathTypeError(TypeError):
+    """ A math-based type error. """
+    ...
 
 
 class Placeholder:
+    """ A placeholder class for default values. """
     def __new__(cls):
         return cls
 
 
 class NumberString(str):
+    """ A string that can be represented as a number. """
 
     def __add__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import add
@@ -106,13 +115,14 @@ class NumberString(str):
             if as_float:
                 return ScienceNumber.from_float(float(self))
             else:
-                return ScienceNumber.from_decimal(decimal.Decimal(self))
+                return ScienceNumber.from_decimal(_decimal.Decimal(self))
         else:
-            return float(self) if as_float else decimal.Decimal(self)
+            return float(self) if as_float else _decimal.Decimal(self)
 
 
 @t.runtime_checkable
 class ScienceNumberProtocol(t.Protocol):
+    """ A protocol for a scientific number. """
 
     @property
     def std_dev(self) -> NonScienceNumber | None: ...
@@ -130,6 +140,7 @@ class ScienceNumberProtocol(t.Protocol):
     def __int__(self) -> int: ...
     def __index__(self) -> int: ...
     def __trunc__(self) -> int: ...
+    def __pow__(self, power: AnyNumber, modulo: int | None = None) -> t.Self: ...
     def __round__(self, n: int | None = None) -> int | t.Self: ...
     def __abs__(self) -> t.Self: ...
     def __copy__(self) -> t.Self: ...
@@ -145,6 +156,7 @@ class ScienceNumberProtocol(t.Protocol):
 
 
 class LinearCombinationProtocol(t.Protocol):
+    """ A protocol for linear combinations. """
 
     @property
     def linear_combo(self) -> ExpandedLinearCombination | UnexpandedLinearCombination: ...
@@ -153,22 +165,20 @@ class LinearCombinationProtocol(t.Protocol):
 
 
 def is_science_number(x: t.Any) -> t.TypeGuard[ScienceNumberProtocol]:
+    """ Checks if x is a scientific number. """
     return hasattr(x, 'units') and hasattr(x, 'nominal_value') and hasattr(x, 'std_dev')
 
 
 def is_supported(x: t.Any) -> t.TypeGuard[float | int | _decimal.Decimal]:
+    """ Checks if x is a supported number type. """
     return isinstance(x, (float, int, _decimal.Decimal))
 
 
 BasicNumber = _decimal.Decimal | int | float
 NonScienceNumber = _decimal.Decimal | int | float | NumberString
+ResolvedNumber = _decimal.Decimal | int | float | ScienceNumberProtocol
 AnyNumber = _decimal.Decimal | int | float | ScienceNumberProtocol | NumberString
+NumberOrIterable = AnyNumber | t.Iterable[AnyNumber]
 
 type ExpandedLinearCombination = dict[ScienceNumberProtocol, AnyNumber]
 type UnexpandedLinearCombination = list[tuple[AnyNumber, LinearCombinationProtocol]]
-
-
-class MathTypeError(TypeError): ...
-
-
-NumberOrIterable = AnyNumber | t.Iterable[AnyNumber]

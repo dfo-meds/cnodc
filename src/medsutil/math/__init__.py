@@ -1,3 +1,12 @@
+"""
+
+    Provides math functions that add a few additional key pieces of functionality.
+
+    * The ScienceNumber class supports uncertainty and stores units.
+    * All functions can mix float / decimal / ScienceNumber arguments (the most precise is kept)
+
+"""
+
 from medsutil.math.types import (
     AnyNumber,
     is_science_number,

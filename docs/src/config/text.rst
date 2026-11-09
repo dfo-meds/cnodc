@@ -1,4 +1,5 @@
-
+Text Translations
+=================
 
 [ENDPOINT].title
 default page title

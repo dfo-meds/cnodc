@@ -1,3 +1,6 @@
+Configuration Settings
+======================
+
 
 .. envvar:: GCAPP_CONFIG_DIRECTORIES
 
@@ -63,9 +66,9 @@
     :default: ``False``
 
 .. confval:: gcflask.proxy_fix.trusted_upstreams
-    :default:
-    semi-colon delimited
-* to accept all
+
+semi-colon delimited
+or asterisk (*) to accept all
 blank to accept none
 str or list of subnet masks, see ipaddress.ip_network
 

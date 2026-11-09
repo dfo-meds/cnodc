@@ -1,3 +1,4 @@
+""" Provides common math functions that work on decimals and floats. """
 import decimal
 import math as _math
 import typing as t
@@ -5,70 +6,96 @@ import typing as t
 from medsutil.math import types as mt
 from medsutil.math.types import MathTypeError
 
+
 def is_zero(x) -> bool:
+    """ Checks if a number is 0. """
     x = nominal_value(x)
     try:
         return x.is_zero()
     except AttributeError:
         return x == 0
 
+
 def gt(x, y) -> bool:
+    """ Checks if x > y. """
     x_n, y_n = match_convert(x, y)
     return x_n > y_n
 
+
 def lt(x, y) -> bool:
+    """ Checks if x < y. """
     x_n, y_n = match_convert(x, y)
     return x_n < y_n
 
+
 def add(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Adds two number together. """
     x_n, y_n = match_convert(x, y)
     return x_n + y_n
 
+
 def sub(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Subtracts one number from another. """
     x_n, y_n = match_convert(x, y)
     return x_n - y_n
 
+
 def div(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Divides x by y. """
     x_n, y_n = match_convert(x, y)
     return x_n / y_n
 
+
 def mul(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Multiplies x by y. """
     nx, ny = match_convert(x, y)
     return nx * ny
 
+
 def pow(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates x^y. """
     nx, ny = match_convert(x, y)
     return nx ** ny
 
+
 def exp(x: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates exp(x), i.e. e^x. """
     x = nominal_value(x)
     try:
         return x.exp()
     except AttributeError:
         return _math.exp(x)
 
+
 def sqrt(x: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates the square root of x """
     x = nominal_value(x)
     try:
         return x.sqrt()
     except AttributeError:
         return _math.sqrt(x)
 
+
 def ln(x: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates the natural log of x. """
     x = nominal_value(x)
     try:
         return x.ln()
     except AttributeError:
         return _math.log(x)
 
+
 def log10(x: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates log base-10 of x. """
     x = nominal_value(x)
     try:
         return x.log10()
     except AttributeError:
         return _math.log10(x)
 
+
 def log2(x: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates log base-2 of x. """
     x = nominal_value(x)
     try:
         l10 = x.log10()
@@ -76,7 +103,9 @@ def log2(x: mt.AnyNumber, /) -> mt.BasicNumber:
     except AttributeError:
         return _math.log2(x)
 
+
 def log(x: mt.AnyNumber, base: mt.AnyNumber, /) -> mt.BasicNumber:
+    """ Calculates log in a given base of x. """
     x, base = match_convert(x, base)
     try:
         l10 = x.log10()
@@ -84,27 +113,35 @@ def log(x: mt.AnyNumber, base: mt.AnyNumber, /) -> mt.BasicNumber:
     except AttributeError:
         return _math.log(float(x), float(base))
 
+
 def floor(x: mt.AnyNumber) -> int:
+    """ Calculates the floor of a number. """
     return _math.floor(nominal_value(x))
 
 
 def ceil(x: mt.AnyNumber) -> int:
+    """ Calculates the ceiling of a number. """
     return _math.ceil(nominal_value(x))
 
 
 def round_to_int(x: mt.AnyNumber) -> int:
+    """ Rounds a number using round-to-even. """
     return round(nominal_value(x))
 
+
 def round_to_place(x: mt.AnyNumber, places: int) -> mt.BasicNumber:
+    """ Rounds a number to the given number of decimal places. """
     return round(nominal_value(x), places)
 
 
 def is_complex(x: mt.AnyNumber) -> bool:
+    """ Checks if x is a complex number. """
     x = nominal_value(x)
     return isinstance(x, complex)
 
 
 def is_infinity(x: mt.AnyNumber) -> bool:
+    """ Checks if x is infinity. """
     x = nominal_value(x)
     try:
         return x.is_infinity()
@@ -113,6 +150,7 @@ def is_infinity(x: mt.AnyNumber) -> bool:
 
 
 def is_nan(x: mt.AnyNumber) -> bool:
+    """ Checks if x is not-a-number. """
     x = nominal_value(x)
     try:
         return x.is_nan()
@@ -121,6 +159,7 @@ def is_nan(x: mt.AnyNumber) -> bool:
 
 
 def collapse(iterable: t.Iterable) -> t.Iterable:
+    """ Collapses an iterable recursively into one generator. """
     for x in iterable:
         if isinstance(x, t.Iterable) and not isinstance(x, str):
             yield from collapse(x)
@@ -129,6 +168,7 @@ def collapse(iterable: t.Iterable) -> t.Iterable:
 
 
 def nominal_value(x: mt.AnyNumber | mt.NumberString, to_float: bool = True) -> mt.BasicNumber:
+    """ Converts a number to either a float or a decimal object. """
     if mt.is_science_number(x):
         x = x.nominal_value
     if isinstance(x, str):
@@ -141,7 +181,9 @@ def nominal_value(x: mt.AnyNumber | mt.NumberString, to_float: bool = True) -> m
     else:
         raise MathTypeError(f"{x.__class__.__name__} is not supported")
 
+
 def convert[T](x: mt.AnyNumber | None | type[mt.Placeholder], to_float: bool = True) -> T | None | mt.Placeholder:
+    """ Converts a number to either a float or a decimal. """
     if x is None or x is mt.Placeholder:
         return x
     nx = nominal_value(t.cast(mt.AnyNumber, x), to_float=to_float)
@@ -155,6 +197,7 @@ def convert[T](x: mt.AnyNumber | None | type[mt.Placeholder], to_float: bool = T
 
 
 def match_units(*args: t.Any) -> tuple[mt.AnyNumber, ...]:
+    """ Ensures all ScienceNumbers given have the same units. """
     units = None
     second = False
     for x in args:
@@ -173,6 +216,7 @@ def match_units(*args: t.Any) -> tuple[mt.AnyNumber, ...]:
 
 
 def match_convert[T](*args: mt.AnyNumber | None | type[mt.Placeholder]) -> tuple[T, ...]:
+    """ If any of the arguments are decimals, converts them all to decimals otherwise converts to floats. """
     has_decimals = False
     for x in args:
         if isinstance(x, decimal.Decimal):
@@ -189,6 +233,7 @@ def match_convert[T](*args: mt.AnyNumber | None | type[mt.Placeholder]) -> tuple
 
 
 def separate_by_type(lst: t.Iterable[mt.AnyNumber]) -> tuple[list[mt.ScienceNumberProtocol], list[decimal.Decimal], list[str], list[int | float]]:
+    """ Splits an iterable of numbers into lists of science numbers, decimals, strings, and floats. """
     sn = []
     dc = []
     flint = []

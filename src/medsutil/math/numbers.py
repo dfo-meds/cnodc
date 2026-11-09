@@ -1,19 +1,27 @@
+""" Provides the ScienceNumber helper class. """
 import copy
 import decimal
 import functools
 import itertools
 import typing as t
+
 import medsutil.math.types as mt
 import medsutil.math._functions as basics
 import medsutil.math._common as _common
 from medsutil.math import types, _constants, nominal_value
 from medsutil.math.helpers import numerical_derivative
 
+
 SN = t.TypeVar("SN", bound=float | decimal.Decimal)
 
 
 def with_error_propagation(*derivative_args, units_func: t.Callable = None, **derivative_kwargs):
+    """ Given derivatives for the arguments and keyword arguments, decorates a function to correctly
+        calculate the error using standard error propagation techniques.
+        """
     def _wrapper(func: t.Callable[..., mt.AnyNumber]):
+
+        # work to get and cache the derviatives
         derivatives = {}
         def _get_derivative(arg: int | str) -> t.Callable[..., mt.AnyNumber]:
             if arg not in derivatives:
@@ -53,6 +61,7 @@ def with_error_propagation(*derivative_args, units_func: t.Callable = None, **de
 
 
 class LinearCombination:
+    """ Represents a linear combination of results. """
 
     def __init__(self, linear_combo: mt.ExpandedLinearCombination | mt.UnexpandedLinearCombination):
         self._linear_combo = linear_combo
@@ -82,6 +91,7 @@ class LinearCombination:
 
 
 class ScienceNumber:
+    """ A number with standard deviation and units. """
 
     def __init__(self,
                  value: mt.NonScienceNumber,

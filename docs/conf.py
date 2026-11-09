@@ -16,8 +16,6 @@ release = '1.0.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-# extensions
-sys.path.append(str(pathlib.Path("_ext").resolve().absolute()))
 # my source files
 sys.path.append(str(pathlib.Path(__file__).resolve().absolute().parent.parent / "src"))
 
