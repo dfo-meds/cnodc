@@ -10,5 +10,6 @@ Developers
    nodb/index
    pipeman/index
    storage/index
+   dmd/index
    utilities/index
 
