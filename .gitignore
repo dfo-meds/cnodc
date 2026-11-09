@@ -1,9 +1,12 @@
 htmlcov/*
+html/*
 .pipeman.toml
 .coverage
 .coverage.debug
 report_bandit.txt
 .idea/*
 .venv/*
+.venv2/*
+.temp_prometheus/*
 tests/.pipeman.tests.toml
 
