@@ -5,7 +5,7 @@ Developers
    :maxdepth: 1
    :caption: Contents:
 
-
+   devops
    gcapp/index
    nodb/index
    pipeman/index
